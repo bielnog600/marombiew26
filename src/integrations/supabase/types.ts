@@ -1,0 +1,697 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.1"
+  }
+  public: {
+    Tables: {
+      anamnese: {
+        Row: {
+          alcool: string | null
+          assessment_id: string
+          cirurgias: string | null
+          dores: string | null
+          historico_saude: string | null
+          id: string
+          medicacao: string | null
+          rotina: string | null
+          sono: string | null
+          stress: string | null
+          suplementos: string | null
+          tabagismo: boolean | null
+          treino_atual: string | null
+        }
+        Insert: {
+          alcool?: string | null
+          assessment_id: string
+          cirurgias?: string | null
+          dores?: string | null
+          historico_saude?: string | null
+          id?: string
+          medicacao?: string | null
+          rotina?: string | null
+          sono?: string | null
+          stress?: string | null
+          suplementos?: string | null
+          tabagismo?: boolean | null
+          treino_atual?: string | null
+        }
+        Update: {
+          alcool?: string | null
+          assessment_id?: string
+          cirurgias?: string | null
+          dores?: string | null
+          historico_saude?: string | null
+          id?: string
+          medicacao?: string | null
+          rotina?: string | null
+          sono?: string | null
+          stress?: string | null
+          suplementos?: string | null
+          tabagismo?: boolean | null
+          treino_atual?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anamnese_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: true
+            referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      anthropometrics: {
+        Row: {
+          abdomen: number | null
+          altura: number | null
+          antebraco: number | null
+          assessment_id: string
+          braco: number | null
+          cintura: number | null
+          coxa: number | null
+          id: string
+          imc: number | null
+          panturrilha: number | null
+          pescoco: number | null
+          peso: number | null
+          quadril: number | null
+          rcq: number | null
+          torax: number | null
+        }
+        Insert: {
+          abdomen?: number | null
+          altura?: number | null
+          antebraco?: number | null
+          assessment_id: string
+          braco?: number | null
+          cintura?: number | null
+          coxa?: number | null
+          id?: string
+          imc?: number | null
+          panturrilha?: number | null
+          pescoco?: number | null
+          peso?: number | null
+          quadril?: number | null
+          rcq?: number | null
+          torax?: number | null
+        }
+        Update: {
+          abdomen?: number | null
+          altura?: number | null
+          antebraco?: number | null
+          assessment_id?: string
+          braco?: number | null
+          cintura?: number | null
+          coxa?: number | null
+          id?: string
+          imc?: number | null
+          panturrilha?: number | null
+          pescoco?: number | null
+          peso?: number | null
+          quadril?: number | null
+          rcq?: number | null
+          torax?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anthropometrics_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: true
+            referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assessment_photos: {
+        Row: {
+          assessment_id: string
+          created_at: string
+          id: string
+          tipo: string | null
+          url: string
+        }
+        Insert: {
+          assessment_id: string
+          created_at?: string
+          id?: string
+          tipo?: string | null
+          url: string
+        }
+        Update: {
+          assessment_id?: string
+          created_at?: string
+          id?: string
+          tipo?: string | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_photos_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: false
+            referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assessments: {
+        Row: {
+          avaliador_id: string
+          created_at: string
+          id: string
+          notas_gerais: string | null
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          avaliador_id: string
+          created_at?: string
+          id?: string
+          notas_gerais?: string | null
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          avaliador_id?: string
+          created_at?: string
+          id?: string
+          notas_gerais?: string | null
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      composition: {
+        Row: {
+          assessment_id: string
+          id: string
+          massa_gorda: number | null
+          massa_magra: number | null
+          observacoes: string | null
+          percentual_gordura: number | null
+        }
+        Insert: {
+          assessment_id: string
+          id?: string
+          massa_gorda?: number | null
+          massa_magra?: number | null
+          observacoes?: string | null
+          percentual_gordura?: number | null
+        }
+        Update: {
+          assessment_id?: string
+          id?: string
+          massa_gorda?: number | null
+          massa_magra?: number | null
+          observacoes?: string | null
+          percentual_gordura?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "composition_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: true
+            referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      goals: {
+        Row: {
+          created_at: string
+          id: string
+          meta_gordura: number | null
+          meta_medidas: string | null
+          meta_peso: number | null
+          observacoes: string | null
+          prazo: string | null
+          student_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          meta_gordura?: number | null
+          meta_medidas?: string | null
+          meta_peso?: number | null
+          observacoes?: string | null
+          prazo?: string | null
+          student_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          meta_gordura?: number | null
+          meta_medidas?: string | null
+          meta_peso?: number | null
+          observacoes?: string | null
+          prazo?: string | null
+          student_id?: string
+        }
+        Relationships: []
+      }
+      performance_tests: {
+        Row: {
+          agachamento_score: number | null
+          assessment_id: string
+          cooper_12min: number | null
+          id: string
+          mobilidade_ombro: string | null
+          mobilidade_quadril: string | null
+          mobilidade_tornozelo: string | null
+          observacoes: string | null
+          plank: number | null
+          pushup: number | null
+          salto_vertical: number | null
+        }
+        Insert: {
+          agachamento_score?: number | null
+          assessment_id: string
+          cooper_12min?: number | null
+          id?: string
+          mobilidade_ombro?: string | null
+          mobilidade_quadril?: string | null
+          mobilidade_tornozelo?: string | null
+          observacoes?: string | null
+          plank?: number | null
+          pushup?: number | null
+          salto_vertical?: number | null
+        }
+        Update: {
+          agachamento_score?: number | null
+          assessment_id?: string
+          cooper_12min?: number | null
+          id?: string
+          mobilidade_ombro?: string | null
+          mobilidade_quadril?: string | null
+          mobilidade_tornozelo?: string | null
+          observacoes?: string | null
+          plank?: number | null
+          pushup?: number | null
+          salto_vertical?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "performance_tests_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: true
+            referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      posture: {
+        Row: {
+          assessment_id: string
+          id: string
+          observacoes: string | null
+          vista_anterior: Json | null
+          vista_lateral: Json | null
+          vista_posterior: Json | null
+        }
+        Insert: {
+          assessment_id: string
+          id?: string
+          observacoes?: string | null
+          vista_anterior?: Json | null
+          vista_lateral?: Json | null
+          vista_posterior?: Json | null
+        }
+        Update: {
+          assessment_id?: string
+          id?: string
+          observacoes?: string | null
+          vista_anterior?: Json | null
+          vista_lateral?: Json | null
+          vista_posterior?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "posture_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: true
+            referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          nome: string
+          telefone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string
+          id?: string
+          nome?: string
+          telefone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          nome?: string
+          telefone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      progress_notes: {
+        Row: {
+          created_at: string
+          data: string
+          id: string
+          nota: string
+          student_id: string
+        }
+        Insert: {
+          created_at?: string
+          data?: string
+          id?: string
+          nota: string
+          student_id: string
+        }
+        Update: {
+          created_at?: string
+          data?: string
+          id?: string
+          nota?: string
+          student_id?: string
+        }
+        Relationships: []
+      }
+      skinfolds: {
+        Row: {
+          abdominal: number | null
+          assessment_id: string
+          axilar_media: number | null
+          coxa: number | null
+          id: string
+          metodo: string | null
+          peitoral: number | null
+          subescapular: number | null
+          suprailiaca: number | null
+          triceps: number | null
+        }
+        Insert: {
+          abdominal?: number | null
+          assessment_id: string
+          axilar_media?: number | null
+          coxa?: number | null
+          id?: string
+          metodo?: string | null
+          peitoral?: number | null
+          subescapular?: number | null
+          suprailiaca?: number | null
+          triceps?: number | null
+        }
+        Update: {
+          abdominal?: number | null
+          assessment_id?: string
+          axilar_media?: number | null
+          coxa?: number | null
+          id?: string
+          metodo?: string | null
+          peitoral?: number | null
+          subescapular?: number | null
+          suprailiaca?: number | null
+          triceps?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "skinfolds_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: true
+            referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      students_profile: {
+        Row: {
+          altura: number | null
+          ativo: boolean
+          created_at: string
+          data_nascimento: string | null
+          fotos: string[] | null
+          id: string
+          lesoes: string | null
+          objetivo: string | null
+          observacoes: string | null
+          restricoes: string | null
+          sexo: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          altura?: number | null
+          ativo?: boolean
+          created_at?: string
+          data_nascimento?: string | null
+          fotos?: string[] | null
+          id?: string
+          lesoes?: string | null
+          objetivo?: string | null
+          observacoes?: string | null
+          restricoes?: string | null
+          sexo?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          altura?: number | null
+          ativo?: boolean
+          created_at?: string
+          data_nascimento?: string | null
+          fotos?: string[] | null
+          id?: string
+          lesoes?: string | null
+          objetivo?: string | null
+          observacoes?: string | null
+          restricoes?: string | null
+          sexo?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      vitals: {
+        Row: {
+          assessment_id: string
+          fc_repouso: number | null
+          glicemia: number | null
+          id: string
+          observacoes: string | null
+          pressao: string | null
+          spo2: number | null
+        }
+        Insert: {
+          assessment_id: string
+          fc_repouso?: number | null
+          glicemia?: number | null
+          id?: string
+          observacoes?: string | null
+          pressao?: string | null
+          spo2?: number | null
+        }
+        Update: {
+          assessment_id?: string
+          fc_repouso?: number | null
+          glicemia?: number | null
+          id?: string
+          observacoes?: string | null
+          pressao?: string | null
+          spo2?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vitals_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: true
+            referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+    }
+    Enums: {
+      app_role: "admin" | "aluno"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      app_role: ["admin", "aluno"],
+    },
+  },
+} as const
