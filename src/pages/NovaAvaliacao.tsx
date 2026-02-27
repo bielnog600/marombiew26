@@ -22,6 +22,27 @@ const steps = [
   'Resumo',
 ];
 
+const InputField = ({ label, value, onChange, unit, type = 'text', placeholder = '' }: any) => (
+  <div className="space-y-1">
+    <Label className="text-xs text-muted-foreground">{label} {unit && <span className="text-primary">({unit})</span>}</Label>
+    <Input
+      type={type === 'number' ? 'text' : type}
+      inputMode={type === 'number' ? 'decimal' : undefined}
+      pattern={type === 'number' ? '[0-9]*[.,]?[0-9]*' : undefined}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+    />
+  </div>
+);
+
+const TextareaField = ({ label, value, onChange }: any) => (
+  <div className="space-y-1">
+    <Label className="text-xs text-muted-foreground">{label}</Label>
+    <Textarea value={value} onChange={onChange} rows={2} />
+  </div>
+);
+
 const NovaAvaliacao = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
@@ -180,27 +201,6 @@ const NovaAvaliacao = () => {
       setSaving(false);
     }
   };
-
-  const InputField = ({ label, value, onChange, unit, type = 'text', placeholder = '' }: any) => (
-    <div className="space-y-1">
-      <Label className="text-xs text-muted-foreground">{label} {unit && <span className="text-primary">({unit})</span>}</Label>
-      <Input
-        type={type === 'number' ? 'text' : type}
-        inputMode={type === 'number' ? 'decimal' : undefined}
-        pattern={type === 'number' ? '[0-9]*[.,]?[0-9]*' : undefined}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-      />
-    </div>
-  );
-
-  const TextareaField = ({ label, value, onChange }: any) => (
-    <div className="space-y-1">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
-      <Textarea value={value} onChange={onChange} rows={2} />
-    </div>
-  );
 
   return (
     <AppLayout title="Nova Avaliação">
