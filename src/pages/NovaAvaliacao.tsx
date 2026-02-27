@@ -22,6 +22,22 @@ const steps = [
   'Resumo',
 ];
 
+const classifyIMC = (imc: number): { label: string; color: string } => {
+  if (imc < 18.5) return { label: 'Abaixo do peso', color: 'text-yellow-500' };
+  if (imc < 25) return { label: 'Peso normal', color: 'text-green-500' };
+  if (imc < 30) return { label: 'Sobrepeso', color: 'text-yellow-500' };
+  if (imc < 35) return { label: 'Obesidade I', color: 'text-orange-500' };
+  if (imc < 40) return { label: 'Obesidade II', color: 'text-red-500' };
+  return { label: 'Obesidade III', color: 'text-destructive' };
+};
+
+const classifyRCQ = (rcq: number): { label: string; color: string } => {
+  if (rcq < 0.80) return { label: 'Baixo risco', color: 'text-green-500' };
+  if (rcq < 0.86) return { label: 'Risco moderado', color: 'text-yellow-500' };
+  if (rcq < 0.95) return { label: 'Risco alto', color: 'text-orange-500' };
+  return { label: 'Risco muito alto', color: 'text-destructive' };
+};
+
 const InputField = ({ label, value, onChange, unit, type = 'text', placeholder = '' }: any) => (
   <div className="space-y-1">
     <Label className="text-xs text-muted-foreground">{label} {unit && <span className="text-primary">({unit})</span>}</Label>
@@ -273,9 +289,12 @@ const NovaAvaliacao = () => {
                   <InputField label="Altura" value={anthro.altura} onChange={(e: any) => setAnthro({ ...anthro, altura: e.target.value })} unit="cm" type="number" />
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">IMC <span className="text-primary">(calculado)</span></Label>
-                    <div className="h-10 flex items-center px-3 rounded-md bg-secondary text-sm font-medium">
+                    <div className="h-10 flex items-center px-3 rounded-md bg-secondary text-sm font-medium gap-2">
                       {calcIMC()}
-                      {parseFloat(calcIMC()) > 30 && <span className="ml-2 text-destructive text-xs">⚠ Alto</span>}
+                      {calcIMC() !== '-' && (() => {
+                        const c = classifyIMC(parseFloat(calcIMC()));
+                        return <span className={`text-xs ${c.color}`}>• {c.label}</span>;
+                      })()}
                     </div>
                   </div>
                   <InputField label="Pescoço" value={anthro.pescoco} onChange={(e: any) => setAnthro({ ...anthro, pescoco: e.target.value })} unit="cm" type="number" />
@@ -286,9 +305,12 @@ const NovaAvaliacao = () => {
                   <InputField label="Quadril" value={anthro.quadril} onChange={(e: any) => setAnthro({ ...anthro, quadril: e.target.value })} unit="cm" type="number" />
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">RCQ <span className="text-primary">(calculado)</span></Label>
-                    <div className="h-10 flex items-center px-3 rounded-md bg-secondary text-sm font-medium">
+                    <div className="h-10 flex items-center px-3 rounded-md bg-secondary text-sm font-medium gap-2">
                       {calcRCQ()}
-                      {parseFloat(calcRCQ()) > 0.9 && <span className="ml-2 text-destructive text-xs">⚠ Elevado</span>}
+                      {calcRCQ() !== '-' && (() => {
+                        const c = classifyRCQ(parseFloat(calcRCQ()));
+                        return <span className={`text-xs ${c.color}`}>• {c.label}</span>;
+                      })()}
                     </div>
                   </div>
                   <InputField label="Braço Direito" value={anthro.braco_direito} onChange={(e: any) => setAnthro({ ...anthro, braco_direito: e.target.value })} unit="cm" type="number" />
