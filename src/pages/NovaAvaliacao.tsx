@@ -41,7 +41,9 @@ const NovaAvaliacao = () => {
 
   const [anthro, setAnthro] = useState({
     peso: '', altura: '', cintura: '', quadril: '', pescoco: '',
-    braco: '', antebraco: '', torax: '', abdomen: '', coxa: '', panturrilha: '',
+    braco_direito: '', braco_esquerdo: '', antebraco: '', torax: '', abdomen: '',
+    coxa_direita: '', coxa_esquerda: '', panturrilha_direita: '', panturrilha_esquerda: '',
+    biceps_contraido_direito: '', biceps_contraido_esquerdo: '',
   });
 
   const [skinfolds, setSkinfolds] = useState({
@@ -127,13 +129,18 @@ const NovaAvaliacao = () => {
           quadril: anthro.quadril ? parseFloat(anthro.quadril) : null,
           rcq: rcq !== '-' ? parseFloat(rcq) : null,
           pescoco: anthro.pescoco ? parseFloat(anthro.pescoco) : null,
-          braco: anthro.braco ? parseFloat(anthro.braco) : null,
+          braco_direito: anthro.braco_direito ? parseFloat(anthro.braco_direito) : null,
+          braco_esquerdo: anthro.braco_esquerdo ? parseFloat(anthro.braco_esquerdo) : null,
           antebraco: anthro.antebraco ? parseFloat(anthro.antebraco) : null,
           torax: anthro.torax ? parseFloat(anthro.torax) : null,
           abdomen: anthro.abdomen ? parseFloat(anthro.abdomen) : null,
-          coxa: anthro.coxa ? parseFloat(anthro.coxa) : null,
-          panturrilha: anthro.panturrilha ? parseFloat(anthro.panturrilha) : null,
-        }),
+          coxa_direita: anthro.coxa_direita ? parseFloat(anthro.coxa_direita) : null,
+          coxa_esquerda: anthro.coxa_esquerda ? parseFloat(anthro.coxa_esquerda) : null,
+          panturrilha_direita: anthro.panturrilha_direita ? parseFloat(anthro.panturrilha_direita) : null,
+          panturrilha_esquerda: anthro.panturrilha_esquerda ? parseFloat(anthro.panturrilha_esquerda) : null,
+          biceps_contraido_direito: anthro.biceps_contraido_direito ? parseFloat(anthro.biceps_contraido_direito) : null,
+          biceps_contraido_esquerdo: anthro.biceps_contraido_esquerdo ? parseFloat(anthro.biceps_contraido_esquerdo) : null,
+        } as any),
         supabase.from('skinfolds').insert({
           assessment_id: aid,
           metodo: skinfolds.metodo,
@@ -272,12 +279,17 @@ const NovaAvaliacao = () => {
                     </div>
                   </div>
                   <InputField label="Pescoço" value={anthro.pescoco} onChange={(e: any) => setAnthro({ ...anthro, pescoco: e.target.value })} unit="cm" type="number" />
-                  <InputField label="Braço" value={anthro.braco} onChange={(e: any) => setAnthro({ ...anthro, braco: e.target.value })} unit="cm" type="number" />
+                  <InputField label="Braço Direito" value={anthro.braco_direito} onChange={(e: any) => setAnthro({ ...anthro, braco_direito: e.target.value })} unit="cm" type="number" />
+                  <InputField label="Braço Esquerdo" value={anthro.braco_esquerdo} onChange={(e: any) => setAnthro({ ...anthro, braco_esquerdo: e.target.value })} unit="cm" type="number" />
+                  <InputField label="Bíceps Contraído Dir." value={anthro.biceps_contraido_direito} onChange={(e: any) => setAnthro({ ...anthro, biceps_contraido_direito: e.target.value })} unit="cm" type="number" />
+                  <InputField label="Bíceps Contraído Esq." value={anthro.biceps_contraido_esquerdo} onChange={(e: any) => setAnthro({ ...anthro, biceps_contraido_esquerdo: e.target.value })} unit="cm" type="number" />
                   <InputField label="Antebraço" value={anthro.antebraco} onChange={(e: any) => setAnthro({ ...anthro, antebraco: e.target.value })} unit="cm" type="number" />
                   <InputField label="Tórax" value={anthro.torax} onChange={(e: any) => setAnthro({ ...anthro, torax: e.target.value })} unit="cm" type="number" />
                   <InputField label="Abdômen" value={anthro.abdomen} onChange={(e: any) => setAnthro({ ...anthro, abdomen: e.target.value })} unit="cm" type="number" />
-                  <InputField label="Coxa" value={anthro.coxa} onChange={(e: any) => setAnthro({ ...anthro, coxa: e.target.value })} unit="cm" type="number" />
-                  <InputField label="Panturrilha" value={anthro.panturrilha} onChange={(e: any) => setAnthro({ ...anthro, panturrilha: e.target.value })} unit="cm" type="number" />
+                  <InputField label="Coxa Direita" value={anthro.coxa_direita} onChange={(e: any) => setAnthro({ ...anthro, coxa_direita: e.target.value })} unit="cm" type="number" />
+                  <InputField label="Coxa Esquerda" value={anthro.coxa_esquerda} onChange={(e: any) => setAnthro({ ...anthro, coxa_esquerda: e.target.value })} unit="cm" type="number" />
+                  <InputField label="Panturrilha Direita" value={anthro.panturrilha_direita} onChange={(e: any) => setAnthro({ ...anthro, panturrilha_direita: e.target.value })} unit="cm" type="number" />
+                  <InputField label="Panturrilha Esquerda" value={anthro.panturrilha_esquerda} onChange={(e: any) => setAnthro({ ...anthro, panturrilha_esquerda: e.target.value })} unit="cm" type="number" />
                 </div>
               </div>
             )}

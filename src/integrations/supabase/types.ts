@@ -76,12 +76,17 @@ export type Database = {
           altura: number | null
           antebraco: number | null
           assessment_id: string
-          braco: number | null
+          biceps_contraido_direito: number | null
+          biceps_contraido_esquerdo: number | null
+          braco_direito: number | null
+          braco_esquerdo: number | null
           cintura: number | null
-          coxa: number | null
+          coxa_direita: number | null
+          coxa_esquerda: number | null
           id: string
           imc: number | null
-          panturrilha: number | null
+          panturrilha_direita: number | null
+          panturrilha_esquerda: number | null
           pescoco: number | null
           peso: number | null
           quadril: number | null
@@ -93,12 +98,17 @@ export type Database = {
           altura?: number | null
           antebraco?: number | null
           assessment_id: string
-          braco?: number | null
+          biceps_contraido_direito?: number | null
+          biceps_contraido_esquerdo?: number | null
+          braco_direito?: number | null
+          braco_esquerdo?: number | null
           cintura?: number | null
-          coxa?: number | null
+          coxa_direita?: number | null
+          coxa_esquerda?: number | null
           id?: string
           imc?: number | null
-          panturrilha?: number | null
+          panturrilha_direita?: number | null
+          panturrilha_esquerda?: number | null
           pescoco?: number | null
           peso?: number | null
           quadril?: number | null
@@ -110,12 +120,17 @@ export type Database = {
           altura?: number | null
           antebraco?: number | null
           assessment_id?: string
-          braco?: number | null
+          biceps_contraido_direito?: number | null
+          biceps_contraido_esquerdo?: number | null
+          braco_direito?: number | null
+          braco_esquerdo?: number | null
           cintura?: number | null
-          coxa?: number | null
+          coxa_direita?: number | null
+          coxa_esquerda?: number | null
           id?: string
           imc?: number | null
-          panturrilha?: number | null
+          panturrilha_direita?: number | null
+          panturrilha_esquerda?: number | null
           pescoco?: number | null
           peso?: number | null
           quadril?: number | null
