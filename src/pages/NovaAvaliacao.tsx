@@ -62,9 +62,9 @@ const NovaAvaliacao = () => {
 
   const [anthro, setAnthro] = useState({
     peso: '', altura: '', cintura: '', quadril: '', pescoco: '',
-    braco_direito: '', braco_esquerdo: '', antebraco: '', torax: '', abdomen: '',
+    braco_direito: '', braco_esquerdo: '', antebraco: '', antebraco_esquerdo: '', torax: '', abdomen: '',
     coxa_direita: '', coxa_esquerda: '', panturrilha_direita: '', panturrilha_esquerda: '',
-    biceps_contraido_direito: '', biceps_contraido_esquerdo: '',
+    biceps_contraido_direito: '', biceps_contraido_esquerdo: '', ombro: '',
   });
 
   const [skinfolds, setSkinfolds] = useState({
@@ -153,6 +153,8 @@ const NovaAvaliacao = () => {
           braco_direito: anthro.braco_direito ? parseFloat(anthro.braco_direito) : null,
           braco_esquerdo: anthro.braco_esquerdo ? parseFloat(anthro.braco_esquerdo) : null,
           antebraco: anthro.antebraco ? parseFloat(anthro.antebraco) : null,
+          antebraco_esquerdo: anthro.antebraco_esquerdo ? parseFloat(anthro.antebraco_esquerdo) : null,
+          ombro: anthro.ombro ? parseFloat(anthro.ombro) : null,
           torax: anthro.torax ? parseFloat(anthro.torax) : null,
           abdomen: anthro.abdomen ? parseFloat(anthro.abdomen) : null,
           coxa_direita: anthro.coxa_direita ? parseFloat(anthro.coxa_direita) : null,
@@ -276,7 +278,11 @@ const NovaAvaliacao = () => {
                       {parseFloat(calcIMC()) > 30 && <span className="ml-2 text-destructive text-xs">⚠ Alto</span>}
                     </div>
                   </div>
+                  <InputField label="Pescoço" value={anthro.pescoco} onChange={(e: any) => setAnthro({ ...anthro, pescoco: e.target.value })} unit="cm" type="number" />
+                  <InputField label="Tórax" value={anthro.torax} onChange={(e: any) => setAnthro({ ...anthro, torax: e.target.value })} unit="cm" type="number" />
+                  <InputField label="Ombro" value={anthro.ombro} onChange={(e: any) => setAnthro({ ...anthro, ombro: e.target.value })} unit="cm" type="number" />
                   <InputField label="Cintura" value={anthro.cintura} onChange={(e: any) => setAnthro({ ...anthro, cintura: e.target.value })} unit="cm" type="number" />
+                  <InputField label="Abdômen" value={anthro.abdomen} onChange={(e: any) => setAnthro({ ...anthro, abdomen: e.target.value })} unit="cm" type="number" />
                   <InputField label="Quadril" value={anthro.quadril} onChange={(e: any) => setAnthro({ ...anthro, quadril: e.target.value })} unit="cm" type="number" />
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">RCQ <span className="text-primary">(calculado)</span></Label>
@@ -285,14 +291,12 @@ const NovaAvaliacao = () => {
                       {parseFloat(calcRCQ()) > 0.9 && <span className="ml-2 text-destructive text-xs">⚠ Elevado</span>}
                     </div>
                   </div>
-                  <InputField label="Pescoço" value={anthro.pescoco} onChange={(e: any) => setAnthro({ ...anthro, pescoco: e.target.value })} unit="cm" type="number" />
                   <InputField label="Braço Direito" value={anthro.braco_direito} onChange={(e: any) => setAnthro({ ...anthro, braco_direito: e.target.value })} unit="cm" type="number" />
-                  <InputField label="Braço Esquerdo" value={anthro.braco_esquerdo} onChange={(e: any) => setAnthro({ ...anthro, braco_esquerdo: e.target.value })} unit="cm" type="number" />
+                  <InputField label="Braço Esquerdo (contraído)" value={anthro.braco_esquerdo} onChange={(e: any) => setAnthro({ ...anthro, braco_esquerdo: e.target.value })} unit="cm" type="number" />
                   <InputField label="Bíceps Contraído Dir." value={anthro.biceps_contraido_direito} onChange={(e: any) => setAnthro({ ...anthro, biceps_contraido_direito: e.target.value })} unit="cm" type="number" />
                   <InputField label="Bíceps Contraído Esq." value={anthro.biceps_contraido_esquerdo} onChange={(e: any) => setAnthro({ ...anthro, biceps_contraido_esquerdo: e.target.value })} unit="cm" type="number" />
-                  <InputField label="Antebraço" value={anthro.antebraco} onChange={(e: any) => setAnthro({ ...anthro, antebraco: e.target.value })} unit="cm" type="number" />
-                  <InputField label="Tórax" value={anthro.torax} onChange={(e: any) => setAnthro({ ...anthro, torax: e.target.value })} unit="cm" type="number" />
-                  <InputField label="Abdômen" value={anthro.abdomen} onChange={(e: any) => setAnthro({ ...anthro, abdomen: e.target.value })} unit="cm" type="number" />
+                  <InputField label="Antebraço Dir. (contraído)" value={anthro.antebraco} onChange={(e: any) => setAnthro({ ...anthro, antebraco: e.target.value })} unit="cm" type="number" />
+                  <InputField label="Antebraço Esq. (contraído)" value={anthro.antebraco_esquerdo} onChange={(e: any) => setAnthro({ ...anthro, antebraco_esquerdo: e.target.value })} unit="cm" type="number" />
                   <InputField label="Coxa Direita" value={anthro.coxa_direita} onChange={(e: any) => setAnthro({ ...anthro, coxa_direita: e.target.value })} unit="cm" type="number" />
                   <InputField label="Coxa Esquerda" value={anthro.coxa_esquerda} onChange={(e: any) => setAnthro({ ...anthro, coxa_esquerda: e.target.value })} unit="cm" type="number" />
                   <InputField label="Panturrilha Direita" value={anthro.panturrilha_direita} onChange={(e: any) => setAnthro({ ...anthro, panturrilha_direita: e.target.value })} unit="cm" type="number" />

@@ -75,6 +75,7 @@ export type Database = {
           abdomen: number | null
           altura: number | null
           antebraco: number | null
+          antebraco_esquerdo: number | null
           assessment_id: string
           biceps_contraido_direito: number | null
           biceps_contraido_esquerdo: number | null
@@ -85,6 +86,7 @@ export type Database = {
           coxa_esquerda: number | null
           id: string
           imc: number | null
+          ombro: number | null
           panturrilha_direita: number | null
           panturrilha_esquerda: number | null
           pescoco: number | null
@@ -97,6 +99,7 @@ export type Database = {
           abdomen?: number | null
           altura?: number | null
           antebraco?: number | null
+          antebraco_esquerdo?: number | null
           assessment_id: string
           biceps_contraido_direito?: number | null
           biceps_contraido_esquerdo?: number | null
@@ -107,6 +110,7 @@ export type Database = {
           coxa_esquerda?: number | null
           id?: string
           imc?: number | null
+          ombro?: number | null
           panturrilha_direita?: number | null
           panturrilha_esquerda?: number | null
           pescoco?: number | null
@@ -119,6 +123,7 @@ export type Database = {
           abdomen?: number | null
           altura?: number | null
           antebraco?: number | null
+          antebraco_esquerdo?: number | null
           assessment_id?: string
           biceps_contraido_direito?: number | null
           biceps_contraido_esquerdo?: number | null
@@ -129,6 +134,7 @@ export type Database = {
           coxa_esquerda?: number | null
           id?: string
           imc?: number | null
+          ombro?: number | null
           panturrilha_direita?: number | null
           panturrilha_esquerda?: number | null
           pescoco?: number | null
