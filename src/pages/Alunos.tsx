@@ -49,18 +49,19 @@ const Alunos = () => {
     }
     setLoading(true);
 
-    const { error } = await supabase.auth.signUp({
-      email: newStudent.email,
-      password: newStudent.password,
-      options: {
-        data: { nome: newStudent.nome, role: 'aluno' }
-      }
+    const { data, error } = await supabase.functions.invoke('create-student', {
+      body: {
+        email: newStudent.email,
+        password: newStudent.password,
+        nome: newStudent.nome,
+        telefone: newStudent.telefone,
+      },
     });
 
-    if (error) {
-      toast.error(error.message);
+    if (error || data?.error) {
+      toast.error(data?.error || error?.message || 'Erro ao cadastrar aluno');
     } else {
-      toast.success('Aluno cadastrado! Um email de confirmação foi enviado.');
+      toast.success('Aluno cadastrado com sucesso!');
       setDialogOpen(false);
       setNewStudent({ nome: '', email: '', password: '', telefone: '', sexo: 'masculino', objetivo: '' });
       setTimeout(loadStudents, 1000);
