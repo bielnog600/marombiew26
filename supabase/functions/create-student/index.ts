@@ -23,7 +23,21 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    
+    // Try both possible env var names for anon key
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
+    
+    if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
+      console.error("Missing env vars:", { 
+        hasUrl: !!supabaseUrl, 
+        hasServiceKey: !!supabaseServiceKey, 
+        hasAnonKey: !!supabaseAnonKey 
+      });
+      return new Response(JSON.stringify({ error: "Server config error" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Verify caller is admin using their token
     const callerClient = createClient(supabaseUrl, supabaseAnonKey, {
