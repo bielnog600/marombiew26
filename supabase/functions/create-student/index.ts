@@ -91,18 +91,34 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Create students_profile if needed
+    // Create students_profile
     if (data.user) {
-      await adminClient.from("students_profile").upsert({
-        user_id: data.user.id,
-        ativo: true,
-      }, { onConflict: "user_id" });
+      const { error: studentProfileError } = await adminClient
+        .from("students_profile")
+        .insert({
+          user_id: data.user.id,
+          ativo: true,
+        });
+
+      if (studentProfileError) {
+        return new Response(JSON.stringify({ error: `Erro ao criar perfil do aluno: ${studentProfileError.message}` }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
       if (telefone) {
-        await adminClient
+        const { error: profileUpdateError } = await adminClient
           .from("profiles")
           .update({ telefone })
           .eq("user_id", data.user.id);
+
+        if (profileUpdateError) {
+          return new Response(JSON.stringify({ error: `Erro ao salvar telefone: ${profileUpdateError.message}` }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
       }
     }
 
