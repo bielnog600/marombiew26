@@ -25,37 +25,75 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchRole = async (userId: string) => {
-    const { data } = await supabase
+  const fetchRole = async (userId: string): Promise<UserRole> => {
+    const { data, error } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', userId)
       .maybeSingle();
-    setRole((data?.role as UserRole) ?? 'aluno');
+
+    if (error) {
+      console.error('Erro ao buscar role:', error);
+      return 'aluno';
+    }
+
+    return (data?.role as UserRole) ?? 'aluno';
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchRole(session.user.id);
-      } else {
+    let mounted = true;
+
+    const applySession = async (nextSession: Session | null) => {
+      if (!mounted) return;
+
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+
+      if (!nextSession?.user) {
         setRole(null);
+        return;
       }
-      setLoading(false);
+
+      const userRole = await fetchRole(nextSession.user.id);
+      if (mounted) setRole(userRole);
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      void (async () => {
+        try {
+          await applySession(nextSession);
+        } catch (error) {
+          console.error('Erro no onAuthStateChange:', error);
+          if (mounted) setRole(null);
+        } finally {
+          if (mounted) setLoading(false);
+        }
+      })();
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchRole(session.user.id);
+    void (async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Erro ao recuperar sessão:', error);
+        }
+        await applySession(data.session ?? null);
+      } catch (error) {
+        console.error('Erro inesperado ao inicializar sessão:', error);
+        if (mounted) {
+          setSession(null);
+          setUser(null);
+          setRole(null);
+        }
+      } finally {
+        if (mounted) setLoading(false);
       }
-      setLoading(false);
-    });
+    })();
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
