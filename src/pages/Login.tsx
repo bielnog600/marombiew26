@@ -26,22 +26,42 @@ const Login = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) { toast.error('Preencha todos os campos'); return; }
+
     setLoading(true);
-    const { error } = await signIn(email, password);
-    setLoading(false);
-    if (error) toast.error('Email ou senha inválidos');
-    else toast.success('Login realizado!');
+    try {
+      const { error } = await signIn(email, password);
+      if (error) {
+        toast.error('Email ou senha inválidos');
+        return;
+      }
+      toast.success('Login realizado!');
+    } catch (error) {
+      console.error('Erro no login:', error);
+      toast.error('Erro inesperado no login. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password || !nome) { toast.error('Preencha todos os campos'); return; }
     if (password.length < 6) { toast.error('Senha deve ter no mínimo 6 caracteres'); return; }
+
     setLoading(true);
-    const { error } = await signUp(email, password, nome);
-    setLoading(false);
-    if (error) toast.error(error.message);
-    else toast.success('Conta criada com sucesso! Faça login.');
+    try {
+      const { error } = await signUp(email, password, nome);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      toast.success('Conta criada com sucesso! Faça login.');
+    } catch (error) {
+      console.error('Erro no cadastro:', error);
+      toast.error('Erro inesperado no cadastro. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
