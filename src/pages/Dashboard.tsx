@@ -16,8 +16,9 @@ const Dashboard = () => {
 
   const loadStats = async () => {
     const { count: totalAlunos } = await supabase
-      .from('students_profile')
-      .select('*', { count: 'exact', head: true });
+      .from('user_roles')
+      .select('*', { count: 'exact', head: true })
+      .eq('role', 'aluno');
 
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
@@ -30,12 +31,24 @@ const Dashboard = () => {
 
     setStats({ totalAlunos: totalAlunos ?? 0, avaliacoesMes: avaliacoesMes ?? 0 });
 
-    const { data: recent } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(5);
-    setRecentStudents(recent ?? []);
+    const { data: alunoRoles } = await supabase
+      .from('user_roles')
+      .select('user_id')
+      .eq('role', 'aluno');
+
+    const alunoIds = (alunoRoles ?? []).map((r) => r.user_id);
+
+    if (alunoIds.length === 0) {
+      setRecentStudents([]);
+    } else {
+      const { data: recent } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('user_id', alunoIds)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      setRecentStudents(recent ?? []);
+    }
 
     // Chart data - last 6 months
     const months = [];

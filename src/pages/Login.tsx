@@ -71,7 +71,7 @@ const Login = () => {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl gradient-primary">
             <Dumbbell className="h-8 w-8 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold text-foreground">FitPro</h1>
+          <h1 className="text-3xl font-bold text-foreground">MarombiewPro</h1>
           <p className="mt-1 text-muted-foreground">Sistema de Avaliação Física</p>
         </div>
 
