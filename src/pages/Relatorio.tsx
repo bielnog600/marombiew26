@@ -154,12 +154,17 @@ const Relatorio = () => {
             <CardHeader><CardTitle className="text-base">Medidas Corporais</CardTitle></CardHeader>
             <CardContent>
               <DataRow label="Pescoço" value={anthro?.pescoco} unit="cm" />
-              <DataRow label="Braço" value={anthro?.braco} unit="cm" />
+              <DataRow label="Braço Dir." value={anthro?.braco_direito} unit="cm" />
+              <DataRow label="Braço Esq." value={anthro?.braco_esquerdo} unit="cm" />
+              <DataRow label="Bíceps Contr. Dir." value={anthro?.biceps_contraido_direito} unit="cm" />
+              <DataRow label="Bíceps Contr. Esq." value={anthro?.biceps_contraido_esquerdo} unit="cm" />
               <DataRow label="Antebraço" value={anthro?.antebraco} unit="cm" />
               <DataRow label="Tórax" value={anthro?.torax} unit="cm" />
               <DataRow label="Abdômen" value={anthro?.abdomen} unit="cm" />
-              <DataRow label="Coxa" value={anthro?.coxa} unit="cm" />
-              <DataRow label="Panturrilha" value={anthro?.panturrilha} unit="cm" />
+              <DataRow label="Coxa Dir." value={anthro?.coxa_direita} unit="cm" />
+              <DataRow label="Coxa Esq." value={anthro?.coxa_esquerda} unit="cm" />
+              <DataRow label="Panturrilha Dir." value={anthro?.panturrilha_direita} unit="cm" />
+              <DataRow label="Panturrilha Esq." value={anthro?.panturrilha_esquerda} unit="cm" />
             </CardContent>
           </Card>
 
