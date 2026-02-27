@@ -23,7 +23,6 @@ const Alunos = () => {
   useEffect(() => { loadStudents(); }, []);
 
   const loadStudents = async () => {
-    // Get all aluno role user_ids
     const { data: roleData } = await supabase
       .from('user_roles')
       .select('user_id')
@@ -32,13 +31,14 @@ const Alunos = () => {
     const alunoIds = (roleData ?? []).map(r => r.user_id);
     if (alunoIds.length === 0) { setStudents([]); return; }
 
-    const { data } = await supabase
-      .from('profiles')
-      .select('*, students_profile(*)')
-      .in('user_id', alunoIds)
-      .order('created_at', { ascending: false });
+    const [{ data: profilesData }, { data: studentsData }] = await Promise.all([
+      supabase.from('profiles').select('*').in('user_id', alunoIds).order('created_at', { ascending: false }),
+      supabase.from('students_profile').select('*').in('user_id', alunoIds),
+    ]);
 
-    setStudents(data ?? []);
+    const spMap = new Map((studentsData ?? []).map(sp => [sp.user_id, sp]));
+    const merged = (profilesData ?? []).map(p => ({ ...p, students_profile: spMap.get(p.user_id) || null }));
+    setStudents(merged);
   };
 
   const handleCreateStudent = async (e: React.FormEvent) => {
