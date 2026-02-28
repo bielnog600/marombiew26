@@ -332,16 +332,18 @@ const Relatorio = () => {
           </Card>
 
           {/* Testes */}
-          <Card className="glass-card">
-            <CardHeader><CardTitle className="text-base">Testes Físicos</CardTitle></CardHeader>
-            <CardContent>
-              <DataRow label="Flexões" value={perf?.pushup} unit="rep" />
-              <DataRow label="Prancha" value={perf?.plank} unit="seg" />
-              <DataRow label="Cooper 12min" value={perf?.cooper_12min} unit="m" />
-              <DataRow label="Salto Vertical" value={perf?.salto_vertical} unit="cm" />
-              <DataRow label="Agachamento" value={perf?.agachamento_score} unit="/5" />
-            </CardContent>
-          </Card>
+          {perf && (perf.pushup || perf.plank || perf.cooper_12min || perf.salto_vertical || perf.agachamento_score) && (
+            <Card className="glass-card">
+              <CardHeader><CardTitle className="text-base">Testes Físicos</CardTitle></CardHeader>
+              <CardContent>
+                <DataRow label="Flexões" value={perf?.pushup} unit="rep" />
+                <DataRow label="Prancha" value={perf?.plank} unit="seg" />
+                <DataRow label="Cooper 12min" value={perf?.cooper_12min} unit="m" />
+                <DataRow label="Salto Vertical" value={perf?.salto_vertical} unit="cm" />
+                <DataRow label="Agachamento" value={perf?.agachamento_score} unit="/5" />
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Gráficos de Evolução */}
