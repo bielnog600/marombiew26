@@ -310,8 +310,43 @@ export const generatePDF = async (data: ReportData) => {
     doc.text(`Página ${i} de ${totalPages}`, pageW - margin, pageH - 10, { align: 'right' });
   }
 
-  // Save
+  // Save — use blob + link click for PWA standalone compatibility
   const nome = (profile?.nome || 'aluno').replace(/\s+/g, '_').toLowerCase();
   const dateStr = assessment ? new Date(assessment.created_at).toISOString().split('T')[0] : 'report';
-  doc.save(`avaliacao_${nome}_${dateStr}.pdf`);
+  const filename = `avaliacao_${nome}_${dateStr}.pdf`;
+
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+    || (window.navigator as any).standalone === true;
+
+  if (isStandalone && navigator.share) {
+    // On PWA standalone, use Web Share API to let user save/share the file
+    const blob = doc.output('blob');
+    const file = new File([blob], filename, { type: 'application/pdf' });
+    try {
+      await navigator.share({ files: [file], title: filename });
+    } catch (err: any) {
+      // User cancelled share — fallback to blob download
+      if (err.name !== 'AbortError') {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    }
+  } else {
+    // Standard browser — use blob download for reliability
+    const blob = doc.output('blob');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
 };
