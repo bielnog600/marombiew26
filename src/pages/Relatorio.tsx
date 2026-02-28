@@ -35,10 +35,10 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores }: {
       // Draw analysis grid
       const w = img.naturalWidth;
       const h = img.naturalHeight;
-      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-      ctx.lineWidth = 0.8;
-      const cols = 16;
-      const rows = 20;
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = 1.5;
+      const cols = 24;
+      const rows = 32;
       // Vertical lines
       for (let i = 1; i < cols; i++) {
         ctx.beginPath();
