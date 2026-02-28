@@ -344,6 +344,16 @@ export const generatePDF = async (data: ReportData) => {
       const r = pieSize * 0.7;
 
       const total = comp.massa_magra + comp.massa_gorda;
+
+      // Add total weight and lean mass text above chart
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...BRAND.dark);
+      doc.text(`Peso Total: ${total.toFixed(1)} kg`, margin, y);
+      doc.text(`Massa Magra: ${comp.massa_magra.toFixed(1)} kg`, pageW / 2, y, { align: 'center' });
+      doc.text(`Massa Gorda: ${comp.massa_gorda.toFixed(1)} kg`, pageW - margin, y, { align: 'right' });
+      y += 6;
+
       const slices = [
         { value: comp.massa_magra, color: '#22c55e', label: `Massa Magra ${comp.massa_magra.toFixed(1)} kg` },
         { value: comp.massa_gorda, color: '#ef4444', label: `Massa Gorda ${comp.massa_gorda.toFixed(1)} kg` },
@@ -362,7 +372,6 @@ export const generatePDF = async (data: ReportData) => {
         pctx.lineWidth = 3;
         pctx.stroke();
 
-        // Label
         const midAngle = startAngle + sliceAngle / 2;
         const lx = cx + Math.cos(midAngle) * r * 0.55;
         const ly = cy + Math.sin(midAngle) * r * 0.55;
@@ -376,7 +385,6 @@ export const generatePDF = async (data: ReportData) => {
         startAngle += sliceAngle;
       });
 
-      // Legend below the chart
       const legendY = pieSize * 2 - 20;
       slices.forEach((slice, i) => {
         const lx = i === 0 ? pieSize * 0.4 : pieSize * 1.6;

@@ -365,6 +365,20 @@ const Relatorio = () => {
             <Card className="glass-card">
               <CardHeader><CardTitle className="text-base">Composição Corporal — Gráfico</CardTitle></CardHeader>
               <CardContent>
+                <div className="flex items-center justify-center gap-6 mb-4 text-sm">
+                  <div className="text-center">
+                    <p className="text-muted-foreground text-xs">Peso Total</p>
+                    <p className="font-bold text-lg">{(comp.massa_magra + comp.massa_gorda).toFixed(1)} kg</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-muted-foreground text-xs">Massa Magra</p>
+                    <p className="font-bold text-lg" style={{ color: 'hsl(142 71% 45%)' }}>{comp.massa_magra.toFixed(1)} kg</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-muted-foreground text-xs">Massa Gorda</p>
+                    <p className="font-bold text-lg" style={{ color: 'hsl(0 72% 51%)' }}>{comp.massa_gorda.toFixed(1)} kg</p>
+                  </div>
+                </div>
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
