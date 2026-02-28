@@ -35,7 +35,7 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores }: {
       // Draw analysis grid
       const w = img.naturalWidth;
       const h = img.naturalHeight;
-      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
       ctx.lineWidth = 1.5;
       // Vertical lines (thirds)
       for (let i = 1; i < 3; i++) {
@@ -52,7 +52,7 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores }: {
         ctx.stroke();
       }
       // Center vertical line (symmetry reference)
-      ctx.strokeStyle = 'rgba(255,255,0,0.7)';
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)';
       ctx.lineWidth = 2;
       ctx.setLineDash([10, 6]);
       ctx.beginPath();
