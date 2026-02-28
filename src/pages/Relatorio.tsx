@@ -270,47 +270,6 @@ const Relatorio = () => {
           </Card>
         )}
 
-        {/* Mapa Corporal */}
-        <Card className="glass-card">
-          <CardHeader><CardTitle className="text-base">Mapa Corporal — Pontos de Atenção</CardTitle></CardHeader>
-          <CardContent>
-            {(() => {
-              const items: { label: string; value: number | null; unit: string; status: string }[] = [];
-              const add = (label: string, value: number | null, unit: string, status: string) => {
-                if (value !== null && value !== undefined) items.push({ label, value, unit, status });
-              };
-              add('Pescoço', anthro?.pescoco, 'cm', 'ok');
-              add('Ombro', anthro?.ombro, 'cm', 'ok');
-              add('Tórax', anthro?.torax, 'cm', comp?.percentual_gordura > 25 ? 'attention' : 'ok');
-              add('Abdômen', anthro?.abdomen, 'cm', anthro?.imc > 30 ? 'risk' : anthro?.imc > 25 ? 'attention' : 'ok');
-              add('Cintura', anthro?.cintura, 'cm', anthro?.rcq > 0.95 ? 'risk' : anthro?.rcq > 0.85 ? 'attention' : 'ok');
-              add('Quadril', anthro?.quadril, 'cm', anthro?.rcq > 0.95 ? 'risk' : anthro?.rcq > 0.85 ? 'attention' : 'ok');
-              add('Braço Dir.', anthro?.braco_direito, 'cm', perf?.pushup !== null && perf?.pushup < 15 ? 'attention' : 'ok');
-              add('Braço Esq.', anthro?.braco_esquerdo, 'cm', perf?.pushup !== null && perf?.pushup < 15 ? 'attention' : 'ok');
-              add('Coxa Dir.', anthro?.coxa_direita, 'cm', perf?.cooper_12min !== null && perf?.cooper_12min < 1600 ? 'attention' : 'ok');
-              add('Coxa Esq.', anthro?.coxa_esquerda, 'cm', perf?.cooper_12min !== null && perf?.cooper_12min < 1600 ? 'attention' : 'ok');
-              add('Panturrilha Dir.', anthro?.panturrilha_direita, 'cm', 'ok');
-              add('Panturrilha Esq.', anthro?.panturrilha_esquerda, 'cm', 'ok');
-              const statusDot = (s: string) => s === 'risk' ? 'bg-destructive' : s === 'attention' ? 'bg-primary' : 'bg-[hsl(142,71%,45%)]';
-              return (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {items.map((item, i) => (
-                    <div key={i} className="flex items-center gap-2 py-1.5 px-2 rounded-lg bg-secondary/30">
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${statusDot(item.status)}`} />
-                      <span className="text-xs text-muted-foreground">{item.label}</span>
-                      <span className="text-xs font-semibold text-foreground ml-auto">{item.value} {item.unit}</span>
-                    </div>
-                  ))}
-                </div>
-              );
-            })()}
-            <div className="flex flex-wrap gap-3 mt-4 text-xs">
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-destructive" /> Risco</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-primary" /> Atenção</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-[hsl(142,71%,45%)]" /> OK</span>
-            </div>
-          </CardContent>
-        </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Medidas */}
