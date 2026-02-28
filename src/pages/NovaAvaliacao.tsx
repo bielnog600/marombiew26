@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -62,9 +62,12 @@ const TextareaField = ({ label, value, onChange }: any) => (
 const NovaAvaliacao = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const editId = searchParams.get('edit');
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(!!editId);
 
   const [anamnese, setAnamnese] = useState({
     sono: '', stress: '', rotina: '', treino_atual: '', medicacao: '',
@@ -96,6 +99,84 @@ const NovaAvaliacao = () => {
   });
 
   const [notasGerais, setNotasGerais] = useState('');
+
+  const str = (v: any) => (v != null && v !== '' ? String(v) : '');
+
+  useEffect(() => {
+    if (!editId) return;
+    const loadExisting = async () => {
+      setLoading(true);
+      try {
+        const [aRes, vRes, anthRes, skRes, perfRes, assessRes] = await Promise.all([
+          supabase.from('anamnese').select('*').eq('assessment_id', editId).maybeSingle(),
+          supabase.from('vitals').select('*').eq('assessment_id', editId).maybeSingle(),
+          supabase.from('anthropometrics').select('*').eq('assessment_id', editId).maybeSingle(),
+          supabase.from('skinfolds').select('*').eq('assessment_id', editId).maybeSingle(),
+          supabase.from('performance_tests').select('*').eq('assessment_id', editId).maybeSingle(),
+          supabase.from('assessments').select('notas_gerais').eq('id', editId).maybeSingle(),
+        ]);
+
+        if (aRes.data) {
+          const d = aRes.data;
+          setAnamnese({
+            sono: str(d.sono), stress: str(d.stress), rotina: str(d.rotina),
+            treino_atual: str(d.treino_atual), medicacao: str(d.medicacao),
+            suplementos: str(d.suplementos), historico_saude: str(d.historico_saude),
+            dores: str(d.dores), cirurgias: str(d.cirurgias),
+            tabagismo: d.tabagismo ?? false, alcool: str(d.alcool),
+          });
+        }
+        if (vRes.data) {
+          const d = vRes.data;
+          setVitals({
+            pressao: str(d.pressao), fc_repouso: str(d.fc_repouso),
+            spo2: str(d.spo2), glicemia: str(d.glicemia), observacoes: str(d.observacoes),
+          });
+        }
+        if (anthRes.data) {
+          const d = anthRes.data;
+          setAnthro({
+            peso: str(d.peso), altura: str(d.altura), cintura: str(d.cintura),
+            quadril: str(d.quadril), pescoco: str(d.pescoco),
+            braco_direito: str(d.braco_direito), braco_esquerdo: str(d.braco_esquerdo),
+            antebraco: str(d.antebraco), antebraco_esquerdo: str(d.antebraco_esquerdo),
+            torax: str(d.torax), abdomen: str(d.abdomen),
+            coxa_direita: str(d.coxa_direita), coxa_esquerda: str(d.coxa_esquerda),
+            panturrilha_direita: str(d.panturrilha_direita), panturrilha_esquerda: str(d.panturrilha_esquerda),
+            biceps_contraido_direito: str(d.biceps_contraido_direito), biceps_contraido_esquerdo: str(d.biceps_contraido_esquerdo),
+            ombro: str(d.ombro),
+          });
+        }
+        if (skRes.data) {
+          const d = skRes.data;
+          setSkinfolds({
+            metodo: d.metodo || 'jackson_pollock_3',
+            triceps: str(d.triceps), subescapular: str(d.subescapular),
+            suprailiaca: str(d.suprailiaca), abdominal: str(d.abdominal),
+            peitoral: str(d.peitoral), axilar_media: str(d.axilar_media), coxa: str(d.coxa),
+          });
+        }
+        if (perfRes.data) {
+          const d = perfRes.data;
+          setPerformance({
+            pushup: str(d.pushup), plank: str(d.plank),
+            cooper_12min: str(d.cooper_12min), salto_vertical: str(d.salto_vertical),
+            agachamento_score: str(d.agachamento_score),
+            mobilidade_ombro: str(d.mobilidade_ombro), mobilidade_quadril: str(d.mobilidade_quadril),
+            mobilidade_tornozelo: str(d.mobilidade_tornozelo), observacoes: str(d.observacoes),
+          });
+        }
+        if (assessRes.data) {
+          setNotasGerais(str(assessRes.data.notas_gerais));
+        }
+      } catch (err: any) {
+        toast.error('Erro ao carregar avaliação: ' + err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadExisting();
+  }, [editId]);
 
   // Cálculos
   const calcIMC = () => {
@@ -136,17 +217,38 @@ const NovaAvaliacao = () => {
       const rcq = calcRCQ();
       const gordura = calcGordura();
 
-      // 1. Criar avaliação
-      const { data: assessment, error: aErr } = await supabase
-        .from('assessments')
-        .insert({ student_id: studentId, avaliador_id: user.id, notas_gerais: notasGerais })
-        .select()
-        .single();
+      let aid: string;
 
-      if (aErr) throw aErr;
+      if (editId) {
+        // Update existing assessment
+        const { error: aErr } = await supabase
+          .from('assessments')
+          .update({ notas_gerais: notasGerais })
+          .eq('id', editId);
+        if (aErr) throw aErr;
+        aid = editId;
 
-      // 2. Inserir sub-tabelas em paralelo
-      const aid = assessment.id;
+        // Delete existing sub-table data then re-insert
+        await Promise.all([
+          supabase.from('anamnese').delete().eq('assessment_id', aid),
+          supabase.from('vitals').delete().eq('assessment_id', aid),
+          supabase.from('anthropometrics').delete().eq('assessment_id', aid),
+          supabase.from('skinfolds').delete().eq('assessment_id', aid),
+          supabase.from('composition').delete().eq('assessment_id', aid),
+          supabase.from('performance_tests').delete().eq('assessment_id', aid),
+        ]);
+      } else {
+        // Create new assessment
+        const { data: assessment, error: aErr } = await supabase
+          .from('assessments')
+          .insert({ student_id: studentId, avaliador_id: user.id, notas_gerais: notasGerais })
+          .select()
+          .single();
+        if (aErr) throw aErr;
+        aid = assessment.id;
+      }
+
+      // Insert sub-tables
       await Promise.all([
         supabase.from('anamnese').insert({ assessment_id: aid, ...anamnese }),
         supabase.from('vitals').insert({
@@ -211,7 +313,7 @@ const NovaAvaliacao = () => {
         }),
       ]);
 
-      toast.success('Avaliação salva com sucesso!');
+      toast.success(editId ? 'Avaliação atualizada!' : 'Avaliação salva com sucesso!');
       navigate(`/relatorio/${aid}`);
     } catch (err: any) {
       toast.error('Erro ao salvar: ' + err.message);
@@ -220,8 +322,18 @@ const NovaAvaliacao = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <AppLayout title="Carregando Avaliação...">
+        <div className="flex items-center justify-center h-64 text-muted-foreground">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Carregando dados...
+        </div>
+      </AppLayout>
+    );
+  }
+
   return (
-    <AppLayout title="Nova Avaliação">
+    <AppLayout title={editId ? 'Editar Avaliação' : 'Nova Avaliação'}>
       <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
         <Button variant="ghost" onClick={() => navigate(-1)}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
@@ -423,7 +535,7 @@ const NovaAvaliacao = () => {
           ) : (
             <Button onClick={handleSave} disabled={saving} className="font-semibold">
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-              Salvar Avaliação
+              {editId ? 'Atualizar Avaliação' : 'Salvar Avaliação'}
             </Button>
           )}
         </div>
