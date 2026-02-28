@@ -58,16 +58,33 @@
     @apply border-border;
   }
 
+  html {
+    overscroll-behavior-y: contain;
+    overflow: hidden;
+    height: 100%;
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
     -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
     overscroll-behavior: none;
+    overscroll-behavior-y: contain;
+    touch-action: pan-x pan-y;
+    overflow-y: auto;
+    height: 100%;
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
+  }
+
+  #root {
+    height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
   }
 
   /* PWA standalone mode */
