@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Download, Eye, AlertTriangle, Loader2 } from 'lucide-react';
 import { generatePDF } from '@/lib/generatePDF';
+import KarvonenZones from '@/components/KarvonenZones';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { drawPoseOverlay, analyzePostureConditions, type PoseKeypoint, type RegionScore, type PostureCondition, type PostureAngles } from '@/lib/postureUtils';
 
@@ -120,6 +121,7 @@ const Relatorio = () => {
   const [profile, setProfile] = useState<any>(null);
   const [studentProfile, setStudentProfile] = useState<any>(null);
   const [postureScan, setPostureScan] = useState<any>(null);
+  const [hrZones, setHrZones] = useState<any>(null);
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
@@ -163,6 +165,17 @@ const Relatorio = () => {
       .limit(1)
       .maybeSingle();
     setPostureScan(scan);
+
+    // HR Zones (Karvonen)
+    const { data: hz } = await supabase
+      .from('hr_zones')
+      .select('*')
+      .eq('student_id', a.student_id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setHrZones(hz);
+
 
     // Histórico para gráficos
     const { data: allAssessments } = await supabase
@@ -212,7 +225,7 @@ const Relatorio = () => {
           <Button variant="outline" disabled={exporting} onClick={async () => {
             setExporting(true);
             try {
-              await generatePDF({ profile, assessment, anthro, comp, skinfolds, vitals, perf, anamnese, postureScan, studentProfile });
+              await generatePDF({ profile, assessment, anthro, comp, skinfolds, vitals, perf, anamnese, postureScan, studentProfile, hrZones });
             } catch (err) { console.error(err); }
             finally { setExporting(false); }
           }}>
@@ -407,56 +420,12 @@ const Relatorio = () => {
             </Card>
           )}
 
-          {/* Zonas de Frequência Cardíaca */}
-          {(() => {
-            const age = studentProfile?.data_nascimento
-              ? Math.floor((Date.now() - new Date(studentProfile.data_nascimento).getTime()) / (365.25 * 24 * 3600 * 1000))
-              : null;
-            const fcMax = age ? 220 - age : null;
-            if (!fcMax) return null;
-            const zones = [
-              { name: 'Zona 1', lo: 50, hi: 60, desc: 'Aquecimento, recuperação ativa', color: 'hsl(142 71% 45%)' },
-              { name: 'Zona 2', lo: 60, hi: 70, desc: 'Exercício leve, oxidação lipídica', color: 'hsl(142 60% 40%)' },
-              { name: 'Zona 3', lo: 70, hi: 80, desc: 'Resistência cardiovascular', color: 'hsl(45 100% 50%)' },
-              { name: 'Zona 4', lo: 80, hi: 90, desc: 'Alta intensidade, VO2max', color: 'hsl(25 95% 53%)' },
-              { name: 'Zona 5', lo: 90, hi: 100, desc: 'Esforço máximo, sprints', color: 'hsl(0 72% 51%)' },
-            ];
-            return (
-              <Card className="glass-card">
-                <CardHeader>
-                  <CardTitle className="text-base">Zonas de Frequência Cardíaca</CardTitle>
-                  <p className="text-xs text-muted-foreground">FC Máxima estimada (220 - idade): {fcMax} bpm</p>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm border-separate border-spacing-0 rounded-lg overflow-hidden">
-                      <thead>
-                        <tr>
-                          <th className="text-left py-3 px-4 font-semibold bg-primary/20 text-foreground">Zona de Frequência</th>
-                          <th className="text-center py-3 px-4 font-semibold bg-primary/10 text-foreground">Intervalo (bpm)</th>
-                          <th className="text-left py-3 px-4 font-semibold bg-primary/20 text-foreground">Descrição</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {zones.map((z, i) => (
-                          <tr key={i}>
-                            <td className="py-3 px-4 font-bold bg-secondary/60" style={{ borderLeft: `4px solid ${z.color}` }}>
-                              <span style={{ color: z.color }}>{z.name}</span>
-                              <span className="text-muted-foreground ml-2 text-xs">({z.lo}%–{z.hi}%)</span>
-                            </td>
-                            <td className="py-3 px-4 text-center font-mono font-bold bg-secondary/30">
-                              {Math.round(fcMax * z.lo / 100)} – {Math.round(fcMax * z.hi / 100)} bpm
-                            </td>
-                            <td className="py-3 px-4 text-muted-foreground bg-secondary/60">{z.desc}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })()}
+          {/* Zonas de Frequência Cardíaca (Karvonen) */}
+          <KarvonenZones
+            studentId={assessment.student_id}
+            birthDate={studentProfile?.data_nascimento}
+            fcRepouso={vitals?.fc_repouso}
+          />
 
           {/* Hidratação Recomendada */}
           {anthro?.peso && (

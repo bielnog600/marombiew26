@@ -280,6 +280,45 @@ export type Database = {
         }
         Relationships: []
       }
+      hr_zones: {
+        Row: {
+          created_at: string
+          data_calculo: string
+          fc_repouso: number
+          fcmax_estimada: number
+          fcmax_formula: string
+          hrr: number
+          id: string
+          student_id: string
+          updated_at: string
+          zonas_karvonen: Json
+        }
+        Insert: {
+          created_at?: string
+          data_calculo?: string
+          fc_repouso: number
+          fcmax_estimada: number
+          fcmax_formula?: string
+          hrr: number
+          id?: string
+          student_id: string
+          updated_at?: string
+          zonas_karvonen?: Json
+        }
+        Update: {
+          created_at?: string
+          data_calculo?: string
+          fc_repouso?: number
+          fcmax_estimada?: number
+          fcmax_formula?: string
+          hrr?: number
+          id?: string
+          student_id?: string
+          updated_at?: string
+          zonas_karvonen?: Json
+        }
+        Relationships: []
+      }
       performance_tests: {
         Row: {
           agachamento_score: number | null
