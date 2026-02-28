@@ -13,6 +13,7 @@ interface ReportData {
   anamnese: any;
   postureScan?: any;
   studentProfile?: any;
+  hrZones?: any;
 }
 
 const BRAND = {
@@ -163,7 +164,7 @@ const filterRows = (rows: [string, string | null][]): [string, string][] =>
   rows.filter(([, v]) => v !== null) as [string, string][];
 
 export const generatePDF = async (data: ReportData) => {
-  const { profile, assessment, anthro, comp, skinfolds, vitals, perf, anamnese, postureScan, studentProfile } = data;
+  const { profile, assessment, anthro, comp, skinfolds, vitals, perf, anamnese, postureScan, studentProfile, hrZones } = data;
   const doc = new jsPDF('p', 'mm', 'a4');
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
@@ -444,49 +445,76 @@ export const generatePDF = async (data: ReportData) => {
   }
 
   // ══════════════════════════════════════════════
-  // ZONAS DE FREQUÊNCIA CARDÍACA
+  // ZONAS DE FREQUÊNCIA CARDÍACA (KARVONEN)
   // ══════════════════════════════════════════════
-  if (studentProfile?.data_nascimento || vitals?.fc_repouso) {
-    const age = studentProfile?.data_nascimento
-      ? Math.floor((Date.now() - new Date(studentProfile.data_nascimento).getTime()) / (365.25 * 24 * 3600 * 1000))
-      : null;
-    const fcMax = age ? 220 - age : null;
+  if (hrZones) {
+    sectionTitle('Zonas de Frequência Cardíaca (Karvonen)');
+    doc.setFontSize(8);
+    doc.setTextColor(...BRAND.gray);
+    const formulaLabel = hrZones.fcmax_formula === 'tanaka' ? 'Tanaka (208 - 0,7 x idade)' : '220 - idade';
+    doc.text(`FC Máx estimada: ${hrZones.fcmax_estimada} bpm (${formulaLabel})  |  FC Repouso: ${hrZones.fc_repouso} bpm  |  Reserva (HRR): ${hrZones.hrr} bpm`, margin, y);
+    y += 2;
+    doc.setFontSize(7);
+    doc.text('* FC Máx é uma estimativa e pode variar por pessoa.', margin, y);
+    y += 5;
 
-    if (fcMax) {
-      sectionTitle('Zonas de Frequência Cardíaca');
-      doc.setFontSize(8);
-      doc.setTextColor(...BRAND.gray);
-      doc.text(`FC Máxima estimada (220 - idade): ${fcMax} bpm`, margin, y);
-      y += 5;
+    const zonas = hrZones.zonas_karvonen as any[];
+    const zoneRows: string[][] = zonas.map((z: any) => [
+      `${z.zona} — ${z.label}`,
+      `${z.min} – ${z.max} bpm`,
+      z.desc,
+    ]);
 
-      const zones: [string, number, number, string][] = [
-        ['Zona 1 — Recuperação', 50, 60, 'Aquecimento, recuperação ativa'],
-        ['Zona 2 — Queima de gordura', 60, 70, 'Exercício leve, oxidação lipídica'],
-        ['Zona 3 — Aeróbico', 70, 80, 'Resistência cardiovascular'],
-        ['Zona 4 — Limiar anaeróbico', 80, 90, 'Alta intensidade, VO2max'],
-        ['Zona 5 — Máxima', 90, 100, 'Esforço máximo, sprints'],
-      ];
+    checkPage(zonas.length * 8 + 10);
+    autoTable(doc, {
+      startY: y,
+      margin: { left: margin, right: margin },
+      head: [['Zona de Frequência', 'Intervalo (bpm)', 'Descrição']],
+      body: zoneRows,
+      theme: 'grid',
+      headStyles: { fillColor: BRAND.gold, textColor: BRAND.dark, fontStyle: 'bold', fontSize: 8 },
+      styles: { fontSize: 8, cellPadding: 2.5, textColor: BRAND.dark },
+      alternateRowStyles: { fillColor: BRAND.light },
+    });
+    y = (doc as any).lastAutoTable.finalY + 6;
+  } else if (studentProfile?.data_nascimento && vitals?.fc_repouso) {
+    // Fallback: calculate on the fly if no saved zones
+    const age = Math.floor((Date.now() - new Date(studentProfile.data_nascimento).getTime()) / (365.25 * 24 * 3600 * 1000));
+    const fcMax = Math.round(208 - 0.7 * age);
+    const hrr = fcMax - vitals.fc_repouso;
 
-      const zoneRows: string[][] = zones.map(([label, lo, hi, desc]) => [
-        label,
-        `${lo}% – ${hi}%`,
-        `${Math.round(fcMax * lo / 100)} – ${Math.round(fcMax * hi / 100)} bpm`,
-        desc,
-      ]);
+    sectionTitle('Zonas de Frequência Cardíaca (Karvonen)');
+    doc.setFontSize(8);
+    doc.setTextColor(...BRAND.gray);
+    doc.text(`FC Máx estimada: ${fcMax} bpm (Tanaka)  |  FC Repouso: ${vitals.fc_repouso} bpm  |  Reserva (HRR): ${hrr} bpm`, margin, y);
+    y += 5;
 
-      checkPage(zones.length * 8 + 10);
-      autoTable(doc, {
-        startY: y,
-        margin: { left: margin, right: margin },
-        head: [['Zona', '% FC Max', 'Faixa (bpm)', 'Objetivo']],
-        body: zoneRows,
-        theme: 'grid',
-        headStyles: { fillColor: BRAND.gold, textColor: BRAND.dark, fontStyle: 'bold', fontSize: 8 },
-        styles: { fontSize: 8, cellPadding: 2.5, textColor: BRAND.dark },
-        alternateRowStyles: { fillColor: BRAND.light },
-      });
-      y = (doc as any).lastAutoTable.finalY + 6;
-    }
+    const zoneDefs = [
+      { zona: 'Z1', label: 'Recuperação', lo: 0.50, hi: 0.60, desc: 'Aquecimento, recuperação ativa' },
+      { zona: 'Z2', label: 'Base', lo: 0.60, hi: 0.70, desc: 'Exercício leve, oxidação lipídica' },
+      { zona: 'Z3', label: 'Moderada', lo: 0.70, hi: 0.80, desc: 'Resistência cardiovascular' },
+      { zona: 'Z4', label: 'Forte', lo: 0.80, hi: 0.90, desc: 'Alta intensidade, VO2max' },
+      { zona: 'Z5', label: 'Máxima', lo: 0.90, hi: 1.00, desc: 'Esforço máximo, sprints' },
+    ];
+
+    const zoneRows = zoneDefs.map(z => [
+      `${z.zona} — ${z.label}`,
+      `${Math.round(vitals.fc_repouso + hrr * z.lo)} – ${Math.round(vitals.fc_repouso + hrr * z.hi)} bpm`,
+      z.desc,
+    ]);
+
+    checkPage(zoneDefs.length * 8 + 10);
+    autoTable(doc, {
+      startY: y,
+      margin: { left: margin, right: margin },
+      head: [['Zona de Frequência', 'Intervalo (bpm)', 'Descrição']],
+      body: zoneRows,
+      theme: 'grid',
+      headStyles: { fillColor: BRAND.gold, textColor: BRAND.dark, fontStyle: 'bold', fontSize: 8 },
+      styles: { fontSize: 8, cellPadding: 2.5, textColor: BRAND.dark },
+      alternateRowStyles: { fillColor: BRAND.light },
+    });
+    y = (doc as any).lastAutoTable.finalY + 6;
   }
 
   // ══════════════════════════════════════════════

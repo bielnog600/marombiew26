@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Plus, ClipboardList, User, Target, FileText, ScanLine, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, ClipboardList, User, Target, FileText, ScanLine, Pencil, Trash2, Heart } from 'lucide-react';
+import KarvonenZones from '@/components/KarvonenZones';
 import { toast } from 'sonner';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -21,6 +22,7 @@ const AlunoDetail = () => {
   const [goals, setGoals] = useState<any[]>([]);
   const [notes, setNotes] = useState<any[]>([]);
   const [postureScans, setPostureScans] = useState<any[]>([]);
+  const [latestFcRepouso, setLatestFcRepouso] = useState<number | null>(null);
 
   useEffect(() => {
     if (id) loadData();
@@ -44,6 +46,12 @@ const AlunoDetail = () => {
 
     const { data: ps } = await supabase.from('posture_scans').select('*').eq('student_id', id).order('created_at', { ascending: false });
     setPostureScans(ps ?? []);
+
+    // Load latest FC repouso from vitals
+    if (avals && avals.length > 0) {
+      const { data: v } = await supabase.from('vitals').select('fc_repouso').eq('assessment_id', avals[0].id).maybeSingle();
+      setLatestFcRepouso(v?.fc_repouso ?? null);
+    }
   };
 
   const handleDeleteAssessment = async (assessmentId: string) => {
@@ -99,6 +107,7 @@ const AlunoDetail = () => {
             <TabsTrigger value="perfil"><User className="mr-1 h-4 w-4" /> Perfil</TabsTrigger>
             <TabsTrigger value="avaliacoes"><ClipboardList className="mr-1 h-4 w-4" /> Avaliações</TabsTrigger>
             <TabsTrigger value="postura"><ScanLine className="mr-1 h-4 w-4" /> Análise Postural</TabsTrigger>
+            <TabsTrigger value="fc"><Heart className="mr-1 h-4 w-4" /> Zonas FC</TabsTrigger>
             <TabsTrigger value="objetivos"><Target className="mr-1 h-4 w-4" /> Objetivos</TabsTrigger>
             <TabsTrigger value="notas"><FileText className="mr-1 h-4 w-4" /> Observações</TabsTrigger>
           </TabsList>
@@ -228,6 +237,14 @@ const AlunoDetail = () => {
                 ))
               )}
             </div>
+          </TabsContent>
+
+          <TabsContent value="fc">
+            <KarvonenZones
+              studentId={id!}
+              birthDate={studentProfile?.data_nascimento}
+              fcRepouso={latestFcRepouso}
+            />
           </TabsContent>
 
           <TabsContent value="objetivos">
