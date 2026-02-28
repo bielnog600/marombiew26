@@ -6,6 +6,23 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Download } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import BodyModel3D from '@/components/BodyModel3D';
+
+const classifyIMC = (imc: number) => {
+  if (imc < 18.5) return { label: 'Abaixo do peso', color: 'text-yellow-500' };
+  if (imc < 25) return { label: 'Peso normal', color: 'text-green-500' };
+  if (imc < 30) return { label: 'Sobrepeso', color: 'text-yellow-500' };
+  if (imc < 35) return { label: 'Obesidade I', color: 'text-orange-500' };
+  if (imc < 40) return { label: 'Obesidade II', color: 'text-red-500' };
+  return { label: 'Obesidade III', color: 'text-destructive' };
+};
+
+const classifyRCQ = (rcq: number) => {
+  if (rcq < 0.80) return { label: 'Baixo risco', color: 'text-green-500' };
+  if (rcq < 0.86) return { label: 'Risco moderado', color: 'text-yellow-500' };
+  if (rcq < 0.95) return { label: 'Risco alto', color: 'text-orange-500' };
+  return { label: 'Risco muito alto', color: 'text-destructive' };
+};
 
 const Relatorio = () => {
   const { id } = useParams<{ id: string }>();
@@ -117,36 +134,92 @@ const Relatorio = () => {
         {/* Resumo */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {[
-            { label: 'Peso', value: anthro?.peso, unit: 'kg' },
-            { label: 'IMC', value: anthro?.imc, unit: '' },
-            { label: '% Gordura', value: comp?.percentual_gordura, unit: '%' },
-            { label: 'Cintura', value: anthro?.cintura, unit: 'cm' },
-            { label: 'Quadril', value: anthro?.quadril, unit: 'cm' },
-            { label: 'RCQ', value: anthro?.rcq, unit: '' },
+            { label: 'Peso', value: anthro?.peso, unit: 'kg', sub: '' },
+            { label: 'IMC', value: anthro?.imc, unit: '', sub: anthro?.imc ? classifyIMC(anthro.imc).label : '' },
+            { label: '% Gordura', value: comp?.percentual_gordura, unit: '%', sub: '' },
+            { label: 'Cintura', value: anthro?.cintura, unit: 'cm', sub: '' },
+            { label: 'Quadril', value: anthro?.quadril, unit: 'cm', sub: '' },
+            { label: 'RCQ', value: anthro?.rcq, unit: '', sub: anthro?.rcq ? classifyRCQ(anthro.rcq).label : '' },
           ].map((item) => (
             <Card key={item.label} className="glass-card">
               <CardContent className="p-4 text-center">
                 <p className="text-xs text-muted-foreground">{item.label}</p>
                 <p className="text-xl font-bold text-primary">{item.value ?? '-'}</p>
                 {item.unit && <p className="text-xs text-muted-foreground">{item.unit}</p>}
+                {item.sub && (
+                  <p className={`text-xs font-medium mt-1 ${
+                    item.label === 'IMC' && anthro?.imc ? classifyIMC(anthro.imc).color :
+                    item.label === 'RCQ' && anthro?.rcq ? classifyRCQ(anthro.rcq).color : ''
+                  }`}>{item.sub}</p>
+                )}
               </CardContent>
             </Card>
           ))}
         </div>
 
         {/* Alertas */}
-        {(anthro?.imc > 30 || anthro?.rcq > 0.9) && (
-          <Card className="border-destructive/50 bg-destructive/10">
-            <CardContent className="p-4">
-              <p className="text-sm font-medium text-destructive">
-                ⚠ Atenção:
-                {anthro?.imc > 30 && ' IMC acima de 30 (obesidade).'}
-                {anthro?.rcq > 0.9 && ' RCQ elevado (risco cardiovascular).'}
-                {' '}Este é apenas um indicador, não um diagnóstico médico.
+        {(anthro?.imc > 25 || anthro?.rcq > 0.80) && (
+          <Card className="border-yellow-500/50 bg-yellow-500/10">
+            <CardContent className="p-4 space-y-1">
+              {anthro?.imc && (
+                <p className={`text-sm font-medium ${classifyIMC(anthro.imc).color}`}>
+                  • IMC {anthro.imc}: {classifyIMC(anthro.imc).label}
+                </p>
+              )}
+              {anthro?.rcq && (
+                <p className={`text-sm font-medium ${classifyRCQ(anthro.rcq).color}`}>
+                  • RCQ {anthro.rcq}: {classifyRCQ(anthro.rcq).label}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground mt-2">
+                Este é apenas um indicador, não um diagnóstico médico.
               </p>
             </CardContent>
           </Card>
         )}
+
+        {/* Boneco 3D */}
+        <Card className="glass-card">
+          <CardHeader><CardTitle className="text-base">Mapa Corporal — Pontos de Atenção</CardTitle></CardHeader>
+          <CardContent>
+            <BodyModel3D highlights={(() => {
+              const h: { area: string; label: string; color: string; position: [number, number, number] }[] = [];
+              if (anthro?.imc > 25) {
+                h.push({ area: 'abdomen', label: 'Abdômen', color: '#f59e0b', position: [0, 1.0, 0.3] });
+              }
+              if (anthro?.rcq > 0.85) {
+                h.push({ area: 'cintura', label: 'Cintura', color: '#ef4444', position: [0.5, 1.05, 0] });
+                h.push({ area: 'quadril', label: 'Quadril', color: '#ef4444', position: [0.5, 0.65, 0] });
+              }
+              if (comp?.percentual_gordura > 25) {
+                h.push({ area: 'torax', label: 'Tórax', color: '#f59e0b', position: [0.6, 1.5, 0] });
+              }
+              if (perf?.pushup !== null && perf?.pushup < 15) {
+                h.push({ area: 'braco_direito', label: 'Braços (força)', color: '#3b82f6', position: [0.8, 1.7, 0] });
+                h.push({ area: 'braco_esquerdo', label: '', color: '#3b82f6', position: [-0.8, 1.7, 0] });
+              }
+              if (perf?.plank !== null && perf?.plank < 30) {
+                if (!h.find(x => x.area === 'abdomen')) {
+                  h.push({ area: 'abdomen', label: 'Core (resist.)', color: '#8b5cf6', position: [0, 1.0, 0.3] });
+                }
+              }
+              if (perf?.cooper_12min !== null && perf?.cooper_12min < 1600) {
+                h.push({ area: 'coxa_direita', label: 'Cardio/Pernas', color: '#06b6d4', position: [0.6, -0.1, 0] });
+                h.push({ area: 'coxa_esquerda', label: '', color: '#06b6d4', position: [-0.6, -0.1, 0] });
+                h.push({ area: 'panturrilha_direita', label: '', color: '#06b6d4', position: [0.6, -1.25, 0] });
+                h.push({ area: 'panturrilha_esquerda', label: '', color: '#06b6d4', position: [-0.6, -1.25, 0] });
+              }
+              return h;
+            })()} />
+            <div className="flex flex-wrap gap-3 mt-4 text-xs">
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500" /> Risco elevado</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-500" /> Atenção</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-500" /> Força</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-cyan-500" /> Cardio</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-purple-500" /> Core</span>
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Medidas */}
@@ -154,13 +227,15 @@ const Relatorio = () => {
             <CardHeader><CardTitle className="text-base">Medidas Corporais</CardTitle></CardHeader>
             <CardContent>
               <DataRow label="Pescoço" value={anthro?.pescoco} unit="cm" />
+              <DataRow label="Tórax" value={anthro?.torax} unit="cm" />
+              <DataRow label="Ombro" value={anthro?.ombro} unit="cm" />
+              <DataRow label="Abdômen" value={anthro?.abdomen} unit="cm" />
               <DataRow label="Braço Dir." value={anthro?.braco_direito} unit="cm" />
               <DataRow label="Braço Esq." value={anthro?.braco_esquerdo} unit="cm" />
               <DataRow label="Bíceps Contr. Dir." value={anthro?.biceps_contraido_direito} unit="cm" />
               <DataRow label="Bíceps Contr. Esq." value={anthro?.biceps_contraido_esquerdo} unit="cm" />
-              <DataRow label="Antebraço" value={anthro?.antebraco} unit="cm" />
-              <DataRow label="Tórax" value={anthro?.torax} unit="cm" />
-              <DataRow label="Abdômen" value={anthro?.abdomen} unit="cm" />
+              <DataRow label="Antebraço Dir." value={anthro?.antebraco} unit="cm" />
+              <DataRow label="Antebraço Esq." value={anthro?.antebraco_esquerdo} unit="cm" />
               <DataRow label="Coxa Dir." value={anthro?.coxa_direita} unit="cm" />
               <DataRow label="Coxa Esq." value={anthro?.coxa_esquerda} unit="cm" />
               <DataRow label="Panturrilha Dir." value={anthro?.panturrilha_direita} unit="cm" />
