@@ -1,12 +1,85 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Download } from 'lucide-react';
+import { ArrowLeft, Download, Eye, AlertTriangle } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { drawPoseOverlay, type PoseKeypoint, type RegionScore } from '@/lib/postureUtils';
 
+
+const statusColor = (status: string) =>
+  status === 'risk' ? 'hsl(0 72% 51%)' : status === 'attention' ? 'hsl(45 100% 50%)' : 'hsl(142 71% 45%)';
+const statusLabel = (status: string) =>
+  status === 'risk' ? 'Risco' : status === 'attention' ? 'Atenção' : 'OK';
+
+// Photo with pose overlay + analysis grid
+const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores }: {
+  photoUrl: string | null; label: string;
+  keypoints: PoseKeypoint[] | null; scores: RegionScore[];
+}) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    if (!photoUrl || !imgRef.current || !canvasRef.current) return;
+    const img = imgRef.current;
+    const canvas = canvasRef.current;
+    const draw = () => {
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0);
+
+      // Draw analysis grid
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+      ctx.lineWidth = 1;
+      // Vertical lines (thirds)
+      for (let i = 1; i < 3; i++) {
+        ctx.beginPath();
+        ctx.moveTo((w / 3) * i, 0);
+        ctx.lineTo((w / 3) * i, h);
+        ctx.stroke();
+      }
+      // Horizontal lines (quarters)
+      for (let i = 1; i < 4; i++) {
+        ctx.beginPath();
+        ctx.moveTo(0, (h / 4) * i);
+        ctx.lineTo(w, (h / 4) * i);
+        ctx.stroke();
+      }
+      // Center vertical line (symmetry reference)
+      ctx.strokeStyle = 'rgba(255,255,0,0.35)';
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(w / 2, 0);
+      ctx.lineTo(w / 2, h);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Draw pose overlay if keypoints exist
+      if (keypoints && keypoints.length >= 29) {
+        drawPoseOverlay(ctx, keypoints, w, h, scores);
+      }
+    };
+    if (img.complete) draw(); else img.onload = draw;
+  }, [photoUrl, keypoints, scores]);
+
+  if (!photoUrl) return null;
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-semibold text-muted-foreground text-center">{label}</p>
+      <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-secondary/30">
+        <img ref={imgRef} src={photoUrl} className="hidden" crossOrigin="anonymous" />
+        <canvas ref={canvasRef} className="w-full h-full object-cover" />
+      </div>
+    </div>
+  );
+};
 
 const classifyIMC = (imc: number) => {
   if (imc < 18.5) return { label: 'Abaixo do peso', color: 'text-yellow-500' };
@@ -36,6 +109,7 @@ const Relatorio = () => {
   const [anamnese, setAnamnese] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [profile, setProfile] = useState<any>(null);
+  const [postureScan, setPostureScan] = useState<any>(null);
 
   useEffect(() => {
     if (id) loadReport();
@@ -65,6 +139,16 @@ const Relatorio = () => {
 
     const { data: prof } = await supabase.from('profiles').select('*').eq('user_id', a.student_id).maybeSingle();
     setProfile(prof);
+
+    // Posture scan mais recente do aluno (vinculada ou não a esta avaliação)
+    const { data: scan } = await supabase
+      .from('posture_scans')
+      .select('*')
+      .eq('student_id', a.student_id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setPostureScan(scan);
 
     // Histórico para gráficos
     const { data: allAssessments } = await supabase
@@ -305,6 +389,128 @@ const Relatorio = () => {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Análise Postural */}
+        {postureScan && (
+          <Card className="glass-card">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Eye className="w-4 h-4 text-primary" /> Análise Postural
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                {new Date(postureScan.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Photos with grid overlay */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {[
+                  { url: postureScan.front_photo_url, label: 'Frente', kpKey: 'front' },
+                  { url: postureScan.side_photo_url, label: 'Lado (Perfil)', kpKey: 'side' },
+                  { url: postureScan.back_photo_url, label: 'Costas', kpKey: 'back' },
+                ].map(({ url, label, kpKey }) => {
+                  const kpData = postureScan.pose_keypoints_json as any;
+                  const kp = kpData?.[kpKey] ?? null;
+                  const scores = (postureScan.region_scores_json as RegionScore[]) || [];
+                  return (
+                    <PosturePhotoWithGrid
+                      key={kpKey}
+                      photoUrl={url}
+                      label={label}
+                      keypoints={kp}
+                      scores={scores}
+                    />
+                  );
+                })}
+              </div>
+
+              {/* Region scores */}
+              {postureScan.region_scores_json && (postureScan.region_scores_json as any[]).length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold mb-3">Resumo Postural</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {(postureScan.region_scores_json as any[]).map((score: any, i: number) => (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between py-2 px-3 rounded-lg border border-border/50 bg-secondary/20"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: statusColor(score.status) }}
+                          />
+                          <span className="text-sm text-foreground">{score.label}</span>
+                        </div>
+                        <span
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                          style={{ backgroundColor: `${statusColor(score.status)}20`, color: statusColor(score.status) }}
+                        >
+                          {statusLabel(score.status)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Angles / metrics */}
+              {postureScan.angles_json && (
+                <div>
+                  <p className="text-sm font-semibold mb-2">Métricas e Ângulos</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {[
+                      { key: 'shoulder_tilt', label: 'Inclinação Ombros', unit: '°' },
+                      { key: 'pelvic_tilt', label: 'Inclinação Pélvica', unit: '°' },
+                      { key: 'trunk_lateral', label: 'Inclinação Tronco', unit: '°' },
+                      { key: 'head_forward', label: 'Cabeça Anterior.', unit: '' },
+                      { key: 'knee_alignment_left', label: 'Joelho Esq.', unit: '°' },
+                      { key: 'knee_alignment_right', label: 'Joelho Dir.', unit: '°' },
+                    ].map(({ key, label, unit }) => {
+                      const angles = postureScan.angles_json as any;
+                      const overrides = (postureScan.overrides_json as any)?.values || {};
+                      const manualFlags = (postureScan.overrides_json as any)?.manual_flags || {};
+                      const val = manualFlags[key] ? overrides[key] : angles[key];
+                      return (
+                        <div key={key} className="flex flex-col items-center p-2 rounded-lg bg-secondary/30">
+                          <span className="text-[10px] text-muted-foreground">{label}</span>
+                          <span className="text-sm font-mono font-bold text-foreground">
+                            {val !== null && val !== undefined ? `${val}${unit}` : '—'}
+                          </span>
+                          {manualFlags[key] && <span className="text-[8px] text-primary">manual</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Attention points */}
+              {postureScan.attention_points_json && (postureScan.attention_points_json as any[]).length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold mb-2 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-primary" /> Pontos de Atenção
+                  </p>
+                  <div className="space-y-1.5">
+                    {(postureScan.attention_points_json as any[]).map((point: any, i: number) => (
+                      <div key={i} className="flex items-center gap-2 text-sm">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: statusColor(point.status) }} />
+                        <span className="text-foreground">{point.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
+              {postureScan.notes && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Notas do avaliador</p>
+                  <p className="text-sm text-foreground">{postureScan.notes}</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
