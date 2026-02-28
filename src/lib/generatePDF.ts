@@ -48,6 +48,113 @@ const loadImage = (src: string): Promise<HTMLImageElement> =>
     img.src = src;
   });
 
+/** Render photo with grid + pose overlay onto a canvas and return as data URL */
+const renderOverlayPhoto = async (
+  photoUrl: string,
+  allKeypoints: any,
+  position: 'front' | 'side' | 'back',
+  regionScores: any[]
+): Promise<HTMLCanvasElement | null> => {
+  try {
+    const img = await loadImage(photoUrl);
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d')!;
+    
+    // Draw base photo
+    ctx.drawImage(img, 0, 0);
+    
+    const w = canvas.width;
+    const h = canvas.height;
+    
+    // Draw grid (24x32)
+    const cols = 24;
+    const rows = 32;
+    ctx.strokeStyle = 'rgba(234, 179, 8, 0.15)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= cols; i++) {
+      const x = (i / cols) * w;
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+    }
+    for (let j = 0; j <= rows; j++) {
+      const yy = (j / rows) * h;
+      ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(w, yy); ctx.stroke();
+    }
+    // Center lines
+    ctx.strokeStyle = 'rgba(234, 179, 8, 0.4)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(w / 2, 0); ctx.lineTo(w / 2, h); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2); ctx.stroke();
+    
+    // Draw pose overlay if keypoints available
+    const kp = allKeypoints?.[position];
+    if (kp && kp.length >= 29) {
+      const LANDMARKS = {
+        NOSE: 0, LEFT_SHOULDER: 11, RIGHT_SHOULDER: 12,
+        LEFT_ELBOW: 13, RIGHT_ELBOW: 14,
+        LEFT_HIP: 23, RIGHT_HIP: 24,
+        LEFT_KNEE: 25, RIGHT_KNEE: 26,
+        LEFT_ANKLE: 27, RIGHT_ANKLE: 28,
+      };
+      
+      const get = (idx: number) => ({
+        x: kp[idx].x * w, y: kp[idx].y * h, c: kp[idx].confidence,
+      });
+      
+      const getColor = (region: string) => {
+        const score = regionScores.find((s: any) => s.region === region);
+        if (!score) return '#22c55e';
+        return score.status === 'risk' ? '#ef4444' : score.status === 'attention' ? '#f59e0b' : '#22c55e';
+      };
+      
+      const connections: [number, number, string][] = [
+        [LANDMARKS.LEFT_SHOULDER, LANDMARKS.RIGHT_SHOULDER, 'ombro'],
+        [LANDMARKS.LEFT_SHOULDER, LANDMARKS.LEFT_ELBOW, 'ombro'],
+        [LANDMARKS.RIGHT_SHOULDER, LANDMARKS.RIGHT_ELBOW, 'ombro'],
+        [LANDMARKS.LEFT_SHOULDER, LANDMARKS.LEFT_HIP, 'torax'],
+        [LANDMARKS.RIGHT_SHOULDER, LANDMARKS.RIGHT_HIP, 'torax'],
+        [LANDMARKS.LEFT_HIP, LANDMARKS.RIGHT_HIP, 'quadril'],
+        [LANDMARKS.LEFT_HIP, LANDMARKS.LEFT_KNEE, 'joelho_esquerdo'],
+        [LANDMARKS.RIGHT_HIP, LANDMARKS.RIGHT_KNEE, 'joelho_direito'],
+        [LANDMARKS.LEFT_KNEE, LANDMARKS.LEFT_ANKLE, 'joelho_esquerdo'],
+        [LANDMARKS.RIGHT_KNEE, LANDMARKS.RIGHT_ANKLE, 'joelho_direito'],
+        [LANDMARKS.NOSE, LANDMARKS.LEFT_SHOULDER, 'pescoco'],
+        [LANDMARKS.NOSE, LANDMARKS.RIGHT_SHOULDER, 'pescoco'],
+      ];
+      
+      ctx.lineWidth = 10;
+      connections.forEach(([a, b, region]) => {
+        const pa = get(a);
+        const pb = get(b);
+        if (pa.c > 0.3 && pb.c > 0.3) {
+          ctx.strokeStyle = getColor(region);
+          ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y); ctx.stroke();
+        }
+      });
+      
+      const points = [
+        LANDMARKS.NOSE, LANDMARKS.LEFT_SHOULDER, LANDMARKS.RIGHT_SHOULDER,
+        LANDMARKS.LEFT_HIP, LANDMARKS.RIGHT_HIP, LANDMARKS.LEFT_KNEE,
+        LANDMARKS.RIGHT_KNEE, LANDMARKS.LEFT_ANKLE, LANDMARKS.RIGHT_ANKLE,
+        LANDMARKS.LEFT_ELBOW, LANDMARKS.RIGHT_ELBOW,
+      ];
+      points.forEach(idx => {
+        const p = get(idx);
+        if (p.c > 0.3) {
+          ctx.fillStyle = '#f59e0b';
+          ctx.beginPath(); ctx.arc(p.x, p.y, 16, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke();
+        }
+      });
+    }
+    
+    return canvas;
+  } catch {
+    return null;
+  }
+};
+
 const hasValue = (v: any) => v != null && v !== '' && v !== 0;
 const fmt = (v: any, unit = '') => (hasValue(v) ? `${v}${unit}` : null);
 
@@ -316,6 +423,7 @@ export const generatePDF = async (data: ReportData) => {
     const regionScores = (postureScan.region_scores_json as any[]) || [];
     const attentionPoints = (postureScan.attention_points_json as any[]) || [];
     const angles = postureScan.angles_json as any;
+    const poseKeypoints = postureScan.pose_keypoints_json as any;
 
     if (hasPhotos || regionScores.length > 0 || attentionPoints.length > 0) {
       // Start on new page for posture section
@@ -331,27 +439,35 @@ export const generatePDF = async (data: ReportData) => {
 
       // Photos
       if (hasPhotos) {
-        const photos: { url: string; label: string }[] = [];
-        if (postureScan.front_photo_url) photos.push({ url: postureScan.front_photo_url, label: 'Frente' });
-        if (postureScan.side_photo_url) photos.push({ url: postureScan.side_photo_url, label: 'Lado' });
-        if (postureScan.back_photo_url) photos.push({ url: postureScan.back_photo_url, label: 'Costas' });
+        const photoEntries: { url: string; label: string; position: 'front' | 'side' | 'back' }[] = [];
+        if (postureScan.front_photo_url) photoEntries.push({ url: postureScan.front_photo_url, label: 'Frente', position: 'front' });
+        if (postureScan.side_photo_url) photoEntries.push({ url: postureScan.side_photo_url, label: 'Lado', position: 'side' });
+        if (postureScan.back_photo_url) photoEntries.push({ url: postureScan.back_photo_url, label: 'Costas', position: 'back' });
 
-        const photoWidth = photos.length === 1 ? 80 : photos.length === 2 ? 60 : 50;
+        const photoWidth = photoEntries.length === 1 ? 80 : photoEntries.length === 2 ? 60 : 50;
         const photoHeight = photoWidth * 1.33;
-        const totalWidth = photos.length * photoWidth + (photos.length - 1) * 5;
+        const totalWidth = photoEntries.length * photoWidth + (photoEntries.length - 1) * 5;
         const startX = (pageW - totalWidth) / 2;
 
         checkPage(photoHeight + 15);
 
-        for (let i = 0; i < photos.length; i++) {
+        for (let i = 0; i < photoEntries.length; i++) {
           try {
-            const img = await loadImage(photos[i].url);
             const x = startX + i * (photoWidth + 5);
-            doc.addImage(img, 'JPEG', x, y, photoWidth, photoHeight);
+            // Try to render with overlay (grid + pose lines)
+            const overlayCanvas = await renderOverlayPhoto(
+              photoEntries[i].url, poseKeypoints, photoEntries[i].position, regionScores
+            );
+            if (overlayCanvas) {
+              doc.addImage(overlayCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', x, y, photoWidth, photoHeight);
+            } else {
+              const img = await loadImage(photoEntries[i].url);
+              doc.addImage(img, 'JPEG', x, y, photoWidth, photoHeight);
+            }
             // Label below photo
             doc.setFontSize(7);
             doc.setTextColor(...BRAND.gray);
-            doc.text(photos[i].label, x + photoWidth / 2, y + photoHeight + 4, { align: 'center' });
+            doc.text(photoEntries[i].label, x + photoWidth / 2, y + photoHeight + 4, { align: 'center' });
           } catch {
             // Skip photo if can't load
           }
