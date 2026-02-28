@@ -696,8 +696,11 @@ export const generatePDF = async (data: ReportData) => {
           doc.setFontSize(9);
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(...BRAND.dark);
-          const severityText = cond.severity === 'grave' ? '🔴 GRAVE' : cond.severity === 'moderada' ? '🟠 MODERADA' : '🟡 LEVE';
-          doc.text(`${cond.label} — ${severityText}${cond.angle != null ? ` (${cond.angle}°)` : ''}`, margin + 2, y);
+          const severityText = cond.severity === 'grave' ? '[!] GRAVE' : cond.severity === 'moderada' ? '[!] MODERADA' : '[i] LEVE';
+          const severityColor: [number, number, number] = cond.severity === 'grave' ? [239, 68, 68] : cond.severity === 'moderada' ? [245, 158, 11] : [34, 197, 94];
+          doc.setTextColor(...severityColor);
+          const headerText = `${cond.label} — ${severityText}${cond.angle != null ? ` (${cond.angle})` : ''}`;
+          doc.text(headerText, margin + 2, y);
           y += 5;
           // Description
           doc.setFont('helvetica', 'normal');
