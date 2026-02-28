@@ -182,34 +182,36 @@ const Relatorio = () => {
         <Card className="glass-card">
           <CardHeader><CardTitle className="text-base">Mapa Corporal — Pontos de Atenção</CardTitle></CardHeader>
           <CardContent>
-            <BodyModel3D highlights={(() => {
-              const h: { area: string; label: string; color: string; position: [number, number, number] }[] = [];
-              if (anthro?.imc > 25) {
-                h.push({ area: 'abdomen', label: 'Abdômen', color: '#f59e0b', position: [0, 1.0, 0.3] });
-              }
-              if (anthro?.rcq > 0.85) {
-                h.push({ area: 'cintura', label: 'Cintura', color: '#ef4444', position: [0.5, 1.05, 0] });
-                h.push({ area: 'quadril', label: 'Quadril', color: '#ef4444', position: [0.5, 0.65, 0] });
-              }
-              if (comp?.percentual_gordura > 25) {
-                h.push({ area: 'torax', label: 'Tórax', color: '#f59e0b', position: [0.6, 1.5, 0] });
-              }
-              if (perf?.pushup !== null && perf?.pushup < 15) {
-                h.push({ area: 'braco_direito', label: 'Braços (força)', color: '#3b82f6', position: [0.8, 1.7, 0] });
-                h.push({ area: 'braco_esquerdo', label: '', color: '#3b82f6', position: [-0.8, 1.7, 0] });
-              }
-              if (perf?.plank !== null && perf?.plank < 30) {
-                if (!h.find(x => x.area === 'abdomen')) {
-                  h.push({ area: 'abdomen', label: 'Core (resist.)', color: '#8b5cf6', position: [0, 1.0, 0.3] });
-                }
-              }
-              if (perf?.cooper_12min !== null && perf?.cooper_12min < 1600) {
-                h.push({ area: 'coxa_direita', label: 'Cardio/Pernas', color: '#06b6d4', position: [0.6, -0.1, 0] });
-                h.push({ area: 'coxa_esquerda', label: '', color: '#06b6d4', position: [-0.6, -0.1, 0] });
-                h.push({ area: 'panturrilha_direita', label: '', color: '#06b6d4', position: [0.6, -1.25, 0] });
-                h.push({ area: 'panturrilha_esquerda', label: '', color: '#06b6d4', position: [-0.6, -1.25, 0] });
-              }
-              return h;
+        <BodyModel3D measurements={(() => {
+              const m: import('@/components/BodyModel3D').BodyMeasurement[] = [];
+              const add = (key: string, label: string, value: number | null, unit: string, status: 'ok' | 'attention' | 'risk' | 'strength' | 'cardio' | 'core', hist?: { date: string; value: number }[]) => {
+                if (value !== null && value !== undefined) m.push({ key, label, value, unit, status, history: hist });
+              };
+              const getCircHistory = (field: string) => history.filter(h => (h as any)[field] != null).map(h => ({ date: h.data, value: (h as any)[field] }));
+
+              add('pescoco', 'Pescoço', anthro?.pescoco, 'cm', 'ok');
+              add('ombro', 'Ombro', anthro?.ombro, 'cm', 'ok');
+              add('torax', 'Tórax', anthro?.torax, 'cm', comp?.percentual_gordura > 25 ? 'attention' : 'ok');
+              add('abdomen', 'Abdômen', anthro?.abdomen, 'cm',
+                anthro?.imc > 30 ? 'risk' : anthro?.imc > 25 ? 'attention' : perf?.plank !== null && perf?.plank < 30 ? 'core' : 'ok');
+              add('cintura', 'Cintura', anthro?.cintura, 'cm',
+                anthro?.rcq > 0.95 ? 'risk' : anthro?.rcq > 0.85 ? 'attention' : 'ok', getCircHistory('cintura'));
+              add('quadril', 'Quadril', anthro?.quadril, 'cm',
+                anthro?.rcq > 0.95 ? 'risk' : anthro?.rcq > 0.85 ? 'attention' : 'ok');
+              add('braco_direito', 'Braço Dir.', anthro?.braco_direito, 'cm',
+                perf?.pushup !== null && perf?.pushup < 15 ? 'strength' : 'ok');
+              add('braco_esquerdo', 'Braço Esq.', anthro?.braco_esquerdo, 'cm',
+                perf?.pushup !== null && perf?.pushup < 15 ? 'strength' : 'ok');
+              add('antebraco', 'Antebraço', anthro?.antebraco, 'cm', 'ok');
+              add('coxa_direita', 'Coxa Dir.', anthro?.coxa_direita, 'cm',
+                perf?.cooper_12min !== null && perf?.cooper_12min < 1600 ? 'cardio' : 'ok');
+              add('coxa_esquerda', 'Coxa Esq.', anthro?.coxa_esquerda, 'cm',
+                perf?.cooper_12min !== null && perf?.cooper_12min < 1600 ? 'cardio' : 'ok');
+              add('panturrilha_direita', 'Panturrilha Dir.', anthro?.panturrilha_direita, 'cm',
+                perf?.cooper_12min !== null && perf?.cooper_12min < 1600 ? 'cardio' : 'ok');
+              add('panturrilha_esquerda', 'Panturrilha Esq.', anthro?.panturrilha_esquerda, 'cm',
+                perf?.cooper_12min !== null && perf?.cooper_12min < 1600 ? 'cardio' : 'ok');
+              return m;
             })()} />
             <div className="flex flex-wrap gap-3 mt-4 text-xs">
               <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500" /> Risco elevado</span>
