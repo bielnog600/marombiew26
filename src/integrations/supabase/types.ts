@@ -369,6 +369,7 @@ export type Database = {
         Row: {
           angles_json: Json | null
           assessment_id: string | null
+          attention_points_json: Json | null
           back_depth_url: string | null
           back_photo_url: string | null
           created_at: string
@@ -379,6 +380,7 @@ export type Database = {
           id: string
           mode: string | null
           notes: string | null
+          overrides_json: Json | null
           pose_keypoints_json: Json | null
           region_scores_json: Json | null
           sex: string | null
@@ -390,6 +392,7 @@ export type Database = {
         Insert: {
           angles_json?: Json | null
           assessment_id?: string | null
+          attention_points_json?: Json | null
           back_depth_url?: string | null
           back_photo_url?: string | null
           created_at?: string
@@ -400,6 +403,7 @@ export type Database = {
           id?: string
           mode?: string | null
           notes?: string | null
+          overrides_json?: Json | null
           pose_keypoints_json?: Json | null
           region_scores_json?: Json | null
           sex?: string | null
@@ -411,6 +415,7 @@ export type Database = {
         Update: {
           angles_json?: Json | null
           assessment_id?: string | null
+          attention_points_json?: Json | null
           back_depth_url?: string | null
           back_photo_url?: string | null
           created_at?: string
@@ -421,6 +426,7 @@ export type Database = {
           id?: string
           mode?: string | null
           notes?: string | null
+          overrides_json?: Json | null
           pose_keypoints_json?: Json | null
           region_scores_json?: Json | null
           sex?: string | null

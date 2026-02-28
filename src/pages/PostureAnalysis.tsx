@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,15 +7,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import {
   Camera, ChevronRight, ChevronLeft, Check, AlertTriangle,
-  RotateCcw, Save, FileDown, ArrowLeft, Eye, Upload
+  Save, FileDown, ArrowLeft, Eye, Upload, Maximize2, RefreshCw,
+  TrendingUp, TrendingDown, Minus, Edit3
 } from 'lucide-react';
 import { calculatePostureAngles, calculateRegionScores, drawPoseOverlay, type PoseKeypoint, type PostureAngles, type RegionScore } from '@/lib/postureUtils';
-import BodyModel3D, { type BodyMeasurement } from '@/components/BodyModel3D';
 
 type CapturePosition = 'front' | 'side' | 'back';
 
@@ -25,6 +28,149 @@ const POSITION_LABELS: Record<CapturePosition, string> = {
   back: 'Costas',
 };
 
+// ── Status helpers ──
+const statusColor = (status: string) =>
+  status === 'risk' ? 'hsl(0 72% 51%)' : status === 'attention' ? 'hsl(45 100% 50%)' : 'hsl(142 71% 45%)';
+
+const statusBorderClass = (status: string) =>
+  status === 'risk' ? 'border-l-[hsl(0,72%,51%)]' : status === 'attention' ? 'border-l-primary' : 'border-l-[hsl(142,71%,45%)]';
+
+const statusBgClass = (status: string) =>
+  status === 'risk' ? 'bg-destructive/10' : status === 'attention' ? 'bg-primary/10' : 'bg-[hsl(142,71%,45%)]/10';
+
+const statusLabel = (status: string) =>
+  status === 'risk' ? 'Risco elevado' : status === 'attention' ? 'Atenção' : 'OK';
+
+const statusTextClass = (status: string) =>
+  status === 'risk' ? 'text-destructive' : status === 'attention' ? 'text-primary' : 'text-[hsl(142,71%,45%)]';
+
+// ── Photo Card Component ──
+const PhotoCard = ({
+  position, label, photoUrl, hasKeypoints, showOverlay, onToggleOverlay,
+  onCapture, onUpload, onExpand, keypoints, scores
+}: {
+  position: CapturePosition; label: string; photoUrl: string | null;
+  hasKeypoints: boolean; showOverlay: boolean; onToggleOverlay: () => void;
+  onCapture: () => void; onUpload: () => void; onExpand: () => void;
+  keypoints: PoseKeypoint[] | null; scores: RegionScore[];
+}) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    if (!photoUrl || !keypoints || !showOverlay || !imgRef.current || !canvasRef.current) return;
+    const img = imgRef.current;
+    const canvas = canvasRef.current;
+    const draw = () => {
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0);
+      drawPoseOverlay(ctx, keypoints, img.naturalWidth, img.naturalHeight, scores);
+    };
+    if (img.complete) draw(); else img.onload = draw;
+  }, [photoUrl, keypoints, showOverlay, scores]);
+
+  return (
+    <Card className="glass-card overflow-hidden group">
+      <div className="relative aspect-[3/4] bg-secondary/30">
+        {photoUrl ? (
+          <>
+            <img ref={imgRef} src={photoUrl} className={showOverlay && keypoints ? 'hidden' : 'w-full h-full object-cover'} crossOrigin="anonymous" />
+            {showOverlay && keypoints && (
+              <canvas ref={canvasRef} className="w-full h-full object-cover" />
+            )}
+            {/* Overlay buttons */}
+            <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button size="sm" variant="secondary" className="h-7 w-7 p-0" onClick={onExpand}>
+                <Maximize2 className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground gap-2">
+            <Camera className="w-10 h-10 opacity-30" />
+            <span className="text-xs">Sem foto</span>
+          </div>
+        )}
+      </div>
+      <CardContent className="p-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-foreground">{label}</span>
+          {photoUrl && (
+            <div className="flex items-center gap-1">
+              {hasKeypoints && <span className="text-[9px] text-primary font-medium">IA ✓</span>}
+              <Check className="w-3 h-3 text-[hsl(142,71%,45%)]" />
+            </div>
+          )}
+        </div>
+        {photoUrl && hasKeypoints && (
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-muted-foreground">Mostrar overlay</span>
+            <Switch checked={showOverlay} onCheckedChange={onToggleOverlay} className="scale-75" />
+          </div>
+        )}
+        <div className="flex gap-1.5">
+          <Button variant="outline" size="sm" className="flex-1 text-[10px] h-7" onClick={onCapture}>
+            <Camera className="w-3 h-3 mr-1" /> {photoUrl ? 'Refazer' : 'Câmera'}
+          </Button>
+          <Button variant="outline" size="sm" className="flex-1 text-[10px] h-7" onClick={onUpload}>
+            <Upload className="w-3 h-3 mr-1" /> Anexar
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+// ── Metric Row Component ──
+const MetricRow = ({
+  label, value, unit, isManual, onEdit
+}: {
+  label: string; value: number | null; unit: string; isManual: boolean;
+  onEdit: (val: number | null) => void;
+}) => {
+  const [editing, setEditing] = useState(false);
+  const [inputVal, setInputVal] = useState(value?.toString() ?? '');
+
+  const save = () => {
+    const parsed = inputVal === '' ? null : parseFloat(inputVal);
+    onEdit(isNaN(parsed as number) ? null : parsed);
+    setEditing(false);
+  };
+
+  return (
+    <div className="flex items-center justify-between py-2.5 border-b border-border/30 last:border-0">
+      <span className="text-sm text-foreground">{label}</span>
+      <div className="flex items-center gap-2">
+        {editing ? (
+          <div className="flex items-center gap-1">
+            <Input
+              className="w-20 h-7 text-xs text-right"
+              value={inputVal}
+              onChange={e => setInputVal(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && save()}
+              autoFocus
+            />
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={save}>OK</Button>
+          </div>
+        ) : (
+          <>
+            <span className="text-sm font-mono font-semibold text-foreground">
+              {value !== null && value !== undefined ? `${value}${unit}` : '—'}
+            </span>
+            {isManual && <span className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full">manual</span>}
+            <button onClick={() => { setInputVal(value?.toString() ?? ''); setEditing(true); }} className="text-muted-foreground hover:text-foreground transition-colors">
+              <Edit3 className="w-3.5 h-3.5" />
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── Main Component ──
 const PostureAnalysis = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
@@ -41,8 +187,9 @@ const PostureAnalysis = () => {
   const [photoBlobs, setPhotoBlobs] = useState<Record<CapturePosition, Blob | null>>({ front: null, side: null, back: null });
   const [keypoints, setKeypoints] = useState<Record<CapturePosition, PoseKeypoint[] | null>>({ front: null, side: null, back: null });
   const [activeCapture, setActiveCapture] = useState<CapturePosition | null>(null);
+  const [overlays, setOverlays] = useState<Record<CapturePosition, boolean>>({ front: true, side: true, back: true });
 
-  // Camera & file upload
+  // Camera & file
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -55,7 +202,17 @@ const PostureAnalysis = () => {
   const [processing, setProcessing] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Pose detection (MediaPipe)
+  // Overrides (manual values)
+  const [overrides, setOverrides] = useState<Record<string, number | null>>({});
+  const [manualFlags, setManualFlags] = useState<Record<string, boolean>>({});
+
+  // Attention points
+  const [attentionPoints, setAttentionPoints] = useState<{ text: string; status: string }[]>([]);
+
+  // Expand photo dialog
+  const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null);
+
+  // Pose detection
   const poseLandmarkerRef = useRef<any>(null);
   const [poseReady, setPoseReady] = useState(false);
   const [poseError, setPoseError] = useState(false);
@@ -68,7 +225,7 @@ const PostureAnalysis = () => {
 
   const loadPoseDetector = async () => {
     try {
-      // @ts-ignore - loaded via CDN
+      // @ts-ignore
       const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
       const filesetResolver = await vision.FilesetResolver.forVisionTasks(
         'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
@@ -83,7 +240,7 @@ const PostureAnalysis = () => {
       });
       setPoseReady(true);
     } catch (err) {
-      console.warn('MediaPipe não disponível, modo manual ativado:', err);
+      console.warn('MediaPipe não disponível:', err);
       setPoseError(true);
     }
   };
@@ -94,139 +251,82 @@ const PostureAnalysis = () => {
         video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 1920 } }
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-    } catch (err) {
-      toast.error('Não foi possível acessar a câmera.');
-    }
+      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
+    } catch { toast.error('Não foi possível acessar a câmera.'); }
   };
 
   const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-    }
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+  };
+
+  const detectPose = async (dataUrl: string, position: CapturePosition) => {
+    if (!poseLandmarkerRef.current) return;
+    try {
+      const img = new Image();
+      img.src = dataUrl;
+      await new Promise(r => { img.onload = r; });
+      const result = poseLandmarkerRef.current.detect(img);
+      if (result.landmarks?.length > 0) {
+        const kp: PoseKeypoint[] = result.landmarks[0].map((lm: any, i: number) => ({
+          name: `point_${i}`, x: lm.x, y: lm.y, confidence: lm.visibility ?? lm.score ?? 0.5,
+        }));
+        setKeypoints(prev => ({ ...prev, [position]: kp }));
+        toast.success(`Pose detectada (${POSITION_LABELS[position]})`);
+      } else {
+        toast.warning('Corpo não detectado. Tente novamente.');
+      }
+    } catch { toast.warning('Falha na detecção.'); }
   };
 
   const capturePhoto = useCallback(async (position: CapturePosition) => {
     if (!videoRef.current || !canvasRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d')!;
-    ctx.drawImage(video, 0, 0);
-
-    const blob = await new Promise<Blob>((resolve) => {
-      canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.9);
-    });
-
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    canvas.getContext('2d')!.drawImage(video, 0, 0);
+    const blob = await new Promise<Blob>(r => canvas.toBlob(b => r(b!), 'image/jpeg', 0.9));
     const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
     setPhotos(prev => ({ ...prev, [position]: dataUrl }));
     setPhotoBlobs(prev => ({ ...prev, [position]: blob }));
-
-    // Detect pose
-    if (poseLandmarkerRef.current) {
-      try {
-        const img = new Image();
-        img.src = dataUrl;
-        await new Promise(r => { img.onload = r; });
-        const result = poseLandmarkerRef.current.detect(img);
-        if (result.landmarks && result.landmarks.length > 0) {
-          const kp: PoseKeypoint[] = result.landmarks[0].map((lm: any, i: number) => ({
-            name: `point_${i}`,
-            x: lm.x,
-            y: lm.y,
-            confidence: lm.visibility ?? lm.score ?? 0.5,
-          }));
-          setKeypoints(prev => ({ ...prev, [position]: kp }));
-          toast.success(`Pose detectada (${POSITION_LABELS[position]})`);
-        } else {
-          toast.warning('Corpo não detectado. Tente novamente.');
-        }
-      } catch {
-        toast.warning('Falha na detecção. Continue mesmo assim.');
-      }
-    }
-
-    setActiveCapture(null);
-    stopCamera();
+    await detectPose(dataUrl, position);
+    setActiveCapture(null); stopCamera();
   }, []);
 
-  const startCapture = async (position: CapturePosition) => {
-    setActiveCapture(position);
-    await startCamera();
-  };
+  const startCapture = async (position: CapturePosition) => { setActiveCapture(position); await startCamera(); };
 
-  const handleFileUpload = (position: CapturePosition) => {
-    setUploadTarget(position);
-    fileInputRef.current?.click();
-  };
+  const handleFileUpload = (position: CapturePosition) => { setUploadTarget(position); fileInputRef.current?.click(); };
 
   const onFileSelected = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !uploadTarget) return;
-
-    const dataUrl = await new Promise<string>((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.readAsDataURL(file);
-    });
-
+    const dataUrl = await new Promise<string>(r => { const rd = new FileReader(); rd.onload = () => r(rd.result as string); rd.readAsDataURL(file); });
     setPhotos(prev => ({ ...prev, [uploadTarget]: dataUrl }));
     setPhotoBlobs(prev => ({ ...prev, [uploadTarget]: file }));
-
-    // Run pose detection on uploaded image
-    if (poseLandmarkerRef.current) {
-      try {
-        const img = new Image();
-        img.src = dataUrl;
-        await new Promise(r => { img.onload = r; });
-        const result = poseLandmarkerRef.current.detect(img);
-        if (result.landmarks && result.landmarks.length > 0) {
-          const kp: PoseKeypoint[] = result.landmarks[0].map((lm: any, i: number) => ({
-            name: `point_${i}`,
-            x: lm.x,
-            y: lm.y,
-            confidence: lm.visibility ?? lm.score ?? 0.5,
-          }));
-          setKeypoints(prev => ({ ...prev, [uploadTarget]: kp }));
-          toast.success(`Pose detectada (${POSITION_LABELS[uploadTarget]})`);
-        } else {
-          toast.warning('Corpo não detectado na foto.');
-        }
-      } catch {
-        toast.warning('Falha na detecção. Continue mesmo assim.');
-      }
-    }
-
+    await detectPose(dataUrl, uploadTarget);
     setUploadTarget(null);
-    // Reset input so same file can be re-selected
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, [uploadTarget]);
 
   const processResults = useCallback(() => {
     setProcessing(true);
     setTimeout(() => {
-      // Use front keypoints primarily
       const frontKp = keypoints.front;
       const sideKp = keypoints.side;
-
       const calculatedAngles = calculatePostureAngles(frontKp || []);
-
-      // If side keypoints exist, improve head_forward estimation
       if (sideKp && sideKp.length > 10) {
         const sideAngles = calculatePostureAngles(sideKp);
-        if (sideAngles.head_forward !== null) {
-          calculatedAngles.head_forward = sideAngles.head_forward;
-        }
+        if (sideAngles.head_forward !== null) calculatedAngles.head_forward = sideAngles.head_forward;
       }
-
       const scores = calculateRegionScores(calculatedAngles);
       setAngles(calculatedAngles);
       setRegionScores(scores);
+
+      // Generate attention points
+      const points = scores.filter(s => s.status !== 'ok').map(s => ({ text: `${s.label}: ${s.note}`, status: s.status }));
+      if (points.length === 0) points.push({ text: 'Nenhum achado significativo', status: 'ok' });
+      setAttentionPoints(points);
+
       setProcessing(false);
       setStep(3);
     }, 1500);
@@ -234,10 +334,7 @@ const PostureAnalysis = () => {
 
   const uploadPhoto = async (blob: Blob, position: string): Promise<string | null> => {
     const fileName = `${studentId}/${Date.now()}_${position}.jpg`;
-    const { data, error } = await supabase.storage
-      .from('scan-photos')
-      .upload(fileName, blob, { contentType: 'image/jpeg' });
-
+    const { data, error } = await supabase.storage.from('scan-photos').upload(fileName, blob, { contentType: 'image/jpeg' });
     if (error) { console.error('Upload error:', error); return null; }
     const { data: urlData } = supabase.storage.from('scan-photos').getPublicUrl(data.path);
     return urlData.publicUrl;
@@ -247,67 +344,48 @@ const PostureAnalysis = () => {
     if (!studentId || !user) return;
     setSaving(true);
     try {
-      // Upload photos
       const [frontUrl, sideUrl, backUrl] = await Promise.all([
         photoBlobs.front ? uploadPhoto(photoBlobs.front, 'front') : null,
         photoBlobs.side ? uploadPhoto(photoBlobs.side, 'side') : null,
         photoBlobs.back ? uploadPhoto(photoBlobs.back, 'back') : null,
       ]);
-
       const { error } = await supabase.from('posture_scans').insert({
         student_id: studentId,
         height_cm: heightCm ? parseFloat(heightCm) : null,
-        sex,
-        device_has_lidar: false,
-        mode: '2d',
-        front_photo_url: frontUrl,
-        side_photo_url: sideUrl,
-        back_photo_url: backUrl,
+        sex, device_has_lidar: false, mode: '2d',
+        front_photo_url: frontUrl, side_photo_url: sideUrl, back_photo_url: backUrl,
         pose_keypoints_json: keypoints as any,
         angles_json: angles as any,
         region_scores_json: regionScores as any,
+        attention_points_json: attentionPoints as any,
+        overrides_json: { values: overrides, manual_flags: manualFlags } as any,
         notes,
       });
-
       if (error) throw error;
-      toast.success('Análise de postura salva!');
+      toast.success('Análise postural salva!');
       navigate(`/alunos/${studentId}`);
-    } catch (err: any) {
-      toast.error('Erro ao salvar: ' + err.message);
-    } finally {
-      setSaving(false);
-    }
+    } catch (err: any) { toast.error('Erro ao salvar: ' + err.message); }
+    finally { setSaving(false); }
   };
 
-  const statusColor = (status: string) => {
-    return status === 'risk' ? 'text-red-500' : status === 'attention' ? 'text-yellow-500' : 'text-green-500';
+  const handleOverride = (key: string, value: number | null) => {
+    setOverrides(prev => ({ ...prev, [key]: value }));
+    setManualFlags(prev => ({ ...prev, [key]: true }));
   };
 
-  const statusBg = (status: string) => {
-    return status === 'risk' ? 'bg-red-500/10 border-red-500/30' : status === 'attention' ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-green-500/10 border-green-500/30';
-  };
-
-  const statusLabel = (status: string) => {
-    return status === 'risk' ? 'Risco elevado' : status === 'attention' ? 'Atenção' : 'OK';
+  const getMetricValue = (key: string): number | null => {
+    if (manualFlags[key]) return overrides[key] ?? null;
+    if (!angles) return null;
+    return (angles as any)[key] ?? null;
   };
 
   const hasAllPhotos = photos.front && photos.side && photos.back;
-  const hasAnyKeypoints = keypoints.front || keypoints.side || keypoints.back;
-
-  // Map region scores to BodyModel3D measurements
-  const bodyMeasurements: BodyMeasurement[] = regionScores.map(s => ({
-    key: s.region,
-    label: s.label,
-    value: s.angle ?? null,
-    unit: s.angle !== null ? '°' : '',
-    status: s.status,
-    history: [],
-  }));
+  const today = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
   return (
-    <AppLayout title="Análise 3D + Postura">
-      <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
-        <Button variant="ghost" onClick={() => navigate(-1)}>
+    <AppLayout title="Análise Postural">
+      <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
+        <Button variant="ghost" onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
         </Button>
 
@@ -321,18 +399,17 @@ const PostureAnalysis = () => {
           ))}
         </div>
 
+        {/* Hidden file input */}
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onFileSelected} />
+
         {/* ─── Step 0: Pre-check ─── */}
         {step === 0 && (
           <Card className="glass-card">
             <CardHeader><CardTitle className="text-lg">Pré-check — Informações do Aluno</CardTitle></CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <Label>Altura (cm) *</Label>
-                  <Input type="number" placeholder="170" value={heightCm} onChange={e => setHeightCm(e.target.value)} />
-                </div>
-                <div>
-                  <Label>Sexo</Label>
+                <div><Label>Altura (cm) *</Label><Input type="number" placeholder="170" value={heightCm} onChange={e => setHeightCm(e.target.value)} /></div>
+                <div><Label>Sexo</Label>
                   <Select value={sex} onValueChange={setSex}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -342,7 +419,6 @@ const PostureAnalysis = () => {
                   </Select>
                 </div>
               </div>
-
               <div className="bg-muted/30 rounded-xl p-4 space-y-2">
                 <h4 className="text-sm font-semibold flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-primary" /> Instruções para captura
@@ -356,21 +432,16 @@ const PostureAnalysis = () => {
                   <li>O aluno deve estar descalço, em posição natural</li>
                 </ul>
               </div>
-
               <div className="bg-muted/20 rounded-lg p-3 flex items-start gap-3">
                 <Eye className="w-5 h-5 text-primary mt-0.5" />
                 <div>
                   <p className="text-sm font-medium">Modo: {poseError ? '2D Manual' : poseReady ? '2D com IA' : 'Carregando IA...'}</p>
                   <p className="text-xs text-muted-foreground">
-                    {poseError
-                      ? 'Detecção automática indisponível. Você poderá avaliar manualmente.'
-                      : poseReady
-                        ? 'Detecção de pose por IA ativa. O sistema vai identificar pontos do corpo automaticamente.'
-                        : 'Aguarde o carregamento do modelo de IA...'}
+                    {poseError ? 'Detecção automática indisponível. Você poderá avaliar manualmente.'
+                      : poseReady ? 'Detecção de pose por IA ativa.' : 'Aguarde o carregamento do modelo de IA...'}
                   </p>
                 </div>
               </div>
-
               <Button onClick={() => setStep(1)} disabled={!heightCm} className="w-full">
                 Iniciar Captura <ChevronRight className="ml-2 w-4 h-4" />
               </Button>
@@ -381,106 +452,77 @@ const PostureAnalysis = () => {
         {/* ─── Step 1: Capture ─── */}
         {step === 1 && (
           <div className="space-y-4">
-            {/* Hidden file input */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={onFileSelected}
-            />
-
-            {/* Camera view */}
             {activeCapture && (
               <Card className="glass-card overflow-hidden">
                 <CardContent className="p-0 relative">
                   <video ref={videoRef} className="w-full max-h-[60vh] object-contain bg-black" playsInline muted />
                   <canvas ref={canvasRef} className="hidden" />
-                  {/* Guide overlay */}
                   <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                     <div className="border-2 border-primary/30 border-dashed rounded-lg w-[60%] h-[85%]" />
                   </div>
                   <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-3">
-                    <Button variant="outline" onClick={() => { stopCamera(); setActiveCapture(null); }}>
-                      Cancelar
-                    </Button>
+                    <Button variant="outline" onClick={() => { stopCamera(); setActiveCapture(null); }}>Cancelar</Button>
                     <Button onClick={() => capturePhoto(activeCapture)} size="lg" className="rounded-full w-16 h-16">
                       <Camera className="w-6 h-6" />
                     </Button>
                   </div>
                   <div className="absolute top-4 left-0 right-0 text-center">
-                    <span className="bg-background/80 backdrop-blur-sm text-sm font-medium px-4 py-2 rounded-full">
+                    <span className="bg-card/80 backdrop-blur-sm text-sm font-medium px-4 py-2 rounded-full">
                       Capturar: {POSITION_LABELS[activeCapture]}
                     </span>
                   </div>
                 </CardContent>
               </Card>
             )}
-
             {!activeCapture && (
               <>
                 <Card className="glass-card">
                   <CardHeader><CardTitle className="text-lg">Captura — 3 Posições</CardTitle></CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-3 gap-3">
+                    {/* Desktop: 3 columns */}
+                    <div className="hidden sm:grid grid-cols-3 gap-4">
                       {(['front', 'side', 'back'] as CapturePosition[]).map(pos => (
-                        <div key={pos} className="space-y-2">
-                          <div
-                            className={`aspect-[3/4] rounded-lg border-2 border-dashed flex items-center justify-center transition-all overflow-hidden ${
-                              photos[pos] ? 'border-primary/50' : 'border-border'
-                            }`}
-                          >
-                            {photos[pos] ? (
-                              <img src={photos[pos]!} className="w-full h-full object-cover" alt={pos} />
-                            ) : (
-                              <div className="text-center p-2">
-                                <Camera className="w-8 h-8 mx-auto text-muted-foreground mb-1" />
-                                <p className="text-xs text-muted-foreground">{POSITION_LABELS[pos]}</p>
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex items-center justify-center gap-1">
-                            {photos[pos] ? (
-                              <>
-                                <Check className="w-3.5 h-3.5 text-green-500" />
-                                <span className="text-[10px] text-green-500">Capturado</span>
-                                {keypoints[pos] && <span className="text-[10px] text-primary ml-1">+ Pose</span>}
-                              </>
-                            ) : (
-                              <span className="text-[10px] text-muted-foreground">Pendente</span>
-                            )}
-                          </div>
-                          {/* Action buttons: Camera + Upload */}
-                          <div className="flex gap-1">
-                            <Button
-                              variant={photos[pos] ? 'ghost' : 'outline'}
-                              size="sm"
-                              className="flex-1 text-[10px] h-7 px-1"
-                              onClick={() => startCapture(pos)}
-                            >
-                              <Camera className="w-3 h-3 mr-0.5" />
-                              {photos[pos] ? 'Refazer' : 'Câmera'}
-                            </Button>
-                            <Button
-                              variant={photos[pos] ? 'ghost' : 'outline'}
-                              size="sm"
-                              className="flex-1 text-[10px] h-7 px-1"
-                              onClick={() => handleFileUpload(pos)}
-                            >
-                              <Upload className="w-3 h-3 mr-0.5" />
-                              Anexar
-                            </Button>
-                          </div>
-                        </div>
+                        <PhotoCard
+                          key={pos} position={pos} label={POSITION_LABELS[pos]}
+                          photoUrl={photos[pos]} hasKeypoints={!!keypoints[pos]}
+                          showOverlay={overlays[pos]}
+                          onToggleOverlay={() => setOverlays(p => ({ ...p, [pos]: !p[pos] }))}
+                          onCapture={() => startCapture(pos)} onUpload={() => handleFileUpload(pos)}
+                          onExpand={() => setExpandedPhoto(photos[pos])}
+                          keypoints={keypoints[pos]} scores={regionScores}
+                        />
                       ))}
+                    </div>
+                    {/* Mobile: tabs */}
+                    <div className="sm:hidden">
+                      <Tabs defaultValue="front">
+                        <TabsList className="w-full">
+                          {(['front', 'side', 'back'] as CapturePosition[]).map(pos => (
+                            <TabsTrigger key={pos} value={pos} className="flex-1 text-xs">
+                              {POSITION_LABELS[pos].split(' ')[0]}
+                              {photos[pos] && <Check className="w-3 h-3 ml-1 text-[hsl(142,71%,45%)]" />}
+                            </TabsTrigger>
+                          ))}
+                        </TabsList>
+                        {(['front', 'side', 'back'] as CapturePosition[]).map(pos => (
+                          <TabsContent key={pos} value={pos}>
+                            <PhotoCard
+                              position={pos} label={POSITION_LABELS[pos]}
+                              photoUrl={photos[pos]} hasKeypoints={!!keypoints[pos]}
+                              showOverlay={overlays[pos]}
+                              onToggleOverlay={() => setOverlays(p => ({ ...p, [pos]: !p[pos] }))}
+                              onCapture={() => startCapture(pos)} onUpload={() => handleFileUpload(pos)}
+                              onExpand={() => setExpandedPhoto(photos[pos])}
+                              keypoints={keypoints[pos]} scores={regionScores}
+                            />
+                          </TabsContent>
+                        ))}
+                      </Tabs>
                     </div>
                   </CardContent>
                 </Card>
-
                 <div className="flex gap-3">
-                  <Button variant="outline" onClick={() => setStep(0)}>
-                    <ChevronLeft className="mr-1 w-4 h-4" /> Voltar
-                  </Button>
+                  <Button variant="outline" onClick={() => setStep(0)}><ChevronLeft className="mr-1 w-4 h-4" /> Voltar</Button>
                   <Button onClick={() => { setStep(2); processResults(); }} disabled={!hasAllPhotos} className="flex-1">
                     Processar Análise <ChevronRight className="ml-2 w-4 h-4" />
                   </Button>
@@ -498,7 +540,7 @@ const PostureAnalysis = () => {
                 <Eye className="w-8 h-8 text-primary" />
               </div>
               <h3 className="text-lg font-semibold">Processando análise...</h3>
-              <p className="text-sm text-muted-foreground">Calculando ângulos, simetrias e scores por região.</p>
+              <p className="text-sm text-muted-foreground">Calculando ângulos, simetrias e scores.</p>
               <div className="w-48 mx-auto bg-muted rounded-full h-1.5 overflow-hidden">
                 <div className="bg-primary h-full rounded-full animate-pulse" style={{ width: '70%' }} />
               </div>
@@ -508,23 +550,91 @@ const PostureAnalysis = () => {
 
         {/* ─── Step 3: Results ─── */}
         {step === 3 && (
-          <div className="space-y-6">
-            {/* Summary scores */}
+          <div className="space-y-6 print:space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-foreground">Relatório Postural</h2>
+                <p className="text-xs text-muted-foreground">{today}</p>
+              </div>
+              <Button variant="outline" onClick={() => window.print()} className="print:hidden">
+                <FileDown className="mr-2 w-4 h-4" /> Exportar PDF
+              </Button>
+            </div>
+
+            {/* Section 1: Photos Grid */}
             <Card className="glass-card">
-              <CardHeader><CardTitle className="text-lg">Resultado — Scores por Região</CardTitle></CardHeader>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Camera className="w-4 h-4 text-primary" /> Fotos
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="hidden sm:grid grid-cols-3 gap-4">
+                  {(['front', 'side', 'back'] as CapturePosition[]).map(pos => (
+                    <PhotoCard
+                      key={pos} position={pos} label={POSITION_LABELS[pos]}
+                      photoUrl={photos[pos]} hasKeypoints={!!keypoints[pos]}
+                      showOverlay={overlays[pos]}
+                      onToggleOverlay={() => setOverlays(p => ({ ...p, [pos]: !p[pos] }))}
+                      onCapture={() => startCapture(pos)} onUpload={() => handleFileUpload(pos)}
+                      onExpand={() => setExpandedPhoto(photos[pos])}
+                      keypoints={keypoints[pos]} scores={regionScores}
+                    />
+                  ))}
+                </div>
+                <div className="sm:hidden">
+                  <Tabs defaultValue="front">
+                    <TabsList className="w-full">
+                      {(['front', 'side', 'back'] as CapturePosition[]).map(pos => (
+                        <TabsTrigger key={pos} value={pos} className="flex-1 text-xs">{POSITION_LABELS[pos].split(' ')[0]}</TabsTrigger>
+                      ))}
+                    </TabsList>
+                    {(['front', 'side', 'back'] as CapturePosition[]).map(pos => (
+                      <TabsContent key={pos} value={pos}>
+                        <PhotoCard
+                          position={pos} label={POSITION_LABELS[pos]}
+                          photoUrl={photos[pos]} hasKeypoints={!!keypoints[pos]}
+                          showOverlay={overlays[pos]}
+                          onToggleOverlay={() => setOverlays(p => ({ ...p, [pos]: !p[pos] }))}
+                          onCapture={() => startCapture(pos)} onUpload={() => handleFileUpload(pos)}
+                          onExpand={() => setExpandedPhoto(photos[pos])}
+                          keypoints={keypoints[pos]} scores={regionScores}
+                        />
+                      </TabsContent>
+                    ))}
+                  </Tabs>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Section 2: Resumo Postural */}
+            <Card className="glass-card">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-primary" /> Resumo Postural
+                </CardTitle>
+              </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {regionScores.map((score, i) => (
-                    <div key={i} className={`rounded-xl border p-3 ${statusBg(score.status)}`}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-semibold">{score.label}</span>
-                        <span className={`text-xs font-bold ${statusColor(score.status)}`}>
+                    <div
+                      key={i}
+                      className={`rounded-xl border-l-4 p-4 ${statusBgClass(score.status)} transition-all`}
+                      style={{ borderLeftColor: statusColor(score.status) }}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-sm font-semibold text-foreground">{score.label}</span>
+                        <span
+                          className="text-[11px] font-bold px-2.5 py-0.5 rounded-full"
+                          style={{ backgroundColor: `${statusColor(score.status)}20`, color: statusColor(score.status) }}
+                        >
                           {statusLabel(score.status)}
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground">{score.note}</p>
                       {score.angle !== null && score.angle !== undefined && (
-                        <p className="text-[10px] text-muted-foreground mt-1">Ângulo: {score.angle}°</p>
+                        <p className="text-[10px] text-muted-foreground mt-1 font-mono">Ângulo: {score.angle}°</p>
                       )}
                     </div>
                   ))}
@@ -532,107 +642,82 @@ const PostureAnalysis = () => {
               </CardContent>
             </Card>
 
-            {/* Photos with overlay */}
+            {/* Section 3: Métricas e Ângulos */}
             <Card className="glass-card">
-              <CardHeader><CardTitle className="text-base">Fotos com Overlay</CardTitle></CardHeader>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-primary" /> Métricas e Ângulos
+                </CardTitle>
+              </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-3 gap-3">
-                  {(['front', 'side', 'back'] as CapturePosition[]).map(pos => (
-                    <div key={pos} className="space-y-1">
-                      <p className="text-xs text-muted-foreground text-center">{POSITION_LABELS[pos]}</p>
-                      <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-muted/20">
-                        {photos[pos] && (
-                          <PhotoOverlay
-                            photoUrl={photos[pos]!}
-                            keypoints={keypoints[pos]}
-                            scores={regionScores}
-                          />
-                        )}
-                      </div>
+                <MetricRow label="Inclinação dos ombros (E/D)" value={getMetricValue('shoulder_tilt')} unit="°" isManual={!!manualFlags.shoulder_tilt} onEdit={v => handleOverride('shoulder_tilt', v)} />
+                <MetricRow label="Inclinação pélvica (E/D)" value={getMetricValue('pelvic_tilt')} unit="°" isManual={!!manualFlags.pelvic_tilt} onEdit={v => handleOverride('pelvic_tilt', v)} />
+                <MetricRow label="Inclinação lateral do tronco" value={getMetricValue('trunk_lateral')} unit="°" isManual={!!manualFlags.trunk_lateral} onEdit={v => handleOverride('trunk_lateral', v)} />
+                <MetricRow label="Cabeça anteriorizada" value={getMetricValue('head_forward')} unit="" isManual={!!manualFlags.head_forward} onEdit={v => handleOverride('head_forward', v)} />
+                <MetricRow label="Alinhamento joelho E" value={getMetricValue('knee_alignment_left')} unit="°" isManual={!!manualFlags.knee_alignment_left} onEdit={v => handleOverride('knee_alignment_left', v)} />
+                <MetricRow label="Alinhamento joelho D" value={getMetricValue('knee_alignment_right')} unit="°" isManual={!!manualFlags.knee_alignment_right} onEdit={v => handleOverride('knee_alignment_right', v)} />
+              </CardContent>
+            </Card>
+
+            {/* Section 4: Pontos de Atenção */}
+            <Card className="glass-card">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-primary" /> Pontos de Atenção
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  {attentionPoints.map((point, i) => (
+                    <div key={i} className="flex items-start gap-3 py-2 border-b border-border/30 last:border-0">
+                      <span
+                        className="mt-1 w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: statusColor(point.status) }}
+                      />
+                      <span className="text-sm text-foreground">{point.text}</span>
+                      <span
+                        className="text-[10px] font-medium px-2 py-0.5 rounded-full ml-auto shrink-0"
+                        style={{ backgroundColor: `${statusColor(point.status)}20`, color: statusColor(point.status) }}
+                      >
+                        {statusLabel(point.status)}
+                      </span>
                     </div>
                   ))}
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Notas do avaliador</Label>
+                  <Textarea
+                    placeholder="Observações adicionais, recomendações..."
+                    value={notes}
+                    onChange={e => setNotes(e.target.value)}
+                    rows={3}
+                    className="bg-secondary/30"
+                  />
                 </div>
               </CardContent>
             </Card>
 
-            {/* 3D Body Map */}
-            <Card className="glass-card">
-              <CardHeader><CardTitle className="text-base">Mapa Corporal 3D — Pontos de Atenção</CardTitle></CardHeader>
-              <CardContent>
-                <BodyModel3D
-                  measurements={bodyMeasurements}
-                  defaultGender={sex === 'feminino' ? 'female' : 'male'}
-                />
-              </CardContent>
-            </Card>
-
-            {/* Notes */}
-            <Card className="glass-card">
-              <CardHeader><CardTitle className="text-base">Notas</CardTitle></CardHeader>
-              <CardContent>
-                <Textarea
-                  placeholder="Observações adicionais..."
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  rows={3}
-                />
-              </CardContent>
-            </Card>
-
             {/* Actions */}
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-3 print:hidden">
               <Button variant="outline" onClick={() => setStep(1)}>
                 <ChevronLeft className="mr-1 w-4 h-4" /> Refazer Captura
               </Button>
               <Button onClick={handleSave} disabled={saving} className="flex-1">
                 <Save className="mr-2 w-4 h-4" /> {saving ? 'Salvando...' : 'Salvar Avaliação'}
               </Button>
-              <Button variant="outline" onClick={() => window.print()}>
-                <FileDown className="mr-2 w-4 h-4" /> Exportar PDF
-              </Button>
             </div>
           </div>
         )}
+
+        {/* Expand photo dialog */}
+        <Dialog open={!!expandedPhoto} onOpenChange={() => setExpandedPhoto(null)}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader><DialogTitle>Foto ampliada</DialogTitle></DialogHeader>
+            {expandedPhoto && <img src={expandedPhoto} className="w-full rounded-lg" />}
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
-  );
-};
-
-// Photo overlay component
-const PhotoOverlay = ({ photoUrl, keypoints, scores }: {
-  photoUrl: string;
-  keypoints: PoseKeypoint[] | null;
-  scores: RegionScore[];
-}) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imgRef = useRef<HTMLImageElement>(null);
-
-  useEffect(() => {
-    if (!imgRef.current || !canvasRef.current || !keypoints) return;
-    const img = imgRef.current;
-    const canvas = canvasRef.current;
-
-    const draw = () => {
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      const ctx = canvas.getContext('2d')!;
-      ctx.drawImage(img, 0, 0);
-      drawPoseOverlay(ctx, keypoints, img.naturalWidth, img.naturalHeight, scores);
-    };
-
-    if (img.complete) draw();
-    else img.onload = draw;
-  }, [photoUrl, keypoints, scores]);
-
-  return (
-    <>
-      <img ref={imgRef} src={photoUrl} className="hidden" crossOrigin="anonymous" />
-      {keypoints ? (
-        <canvas ref={canvasRef} className="w-full h-full object-contain" />
-      ) : (
-        <img src={photoUrl} className="w-full h-full object-contain" />
-      )}
-    </>
   );
 };
 
