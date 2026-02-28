@@ -35,8 +35,8 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores }: {
       // Draw analysis grid
       const w = img.naturalWidth;
       const h = img.naturalHeight;
-      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      ctx.lineWidth = 1.5;
       // Vertical lines (thirds)
       for (let i = 1; i < 3; i++) {
         ctx.beginPath();
@@ -52,8 +52,9 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores }: {
         ctx.stroke();
       }
       // Center vertical line (symmetry reference)
-      ctx.strokeStyle = 'rgba(255,255,0,0.35)';
-      ctx.setLineDash([8, 6]);
+      ctx.strokeStyle = 'rgba(255,255,0,0.7)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([10, 6]);
       ctx.beginPath();
       ctx.moveTo(w / 2, 0);
       ctx.lineTo(w / 2, h);
@@ -435,21 +436,22 @@ const Relatorio = () => {
                     {(postureScan.region_scores_json as any[]).map((score: any, i: number) => (
                       <div
                         key={i}
-                        className="flex items-center justify-between py-2 px-3 rounded-lg border border-border/50 bg-secondary/20"
+                        className="rounded-xl border-l-4 p-3 bg-secondary/20"
+                        style={{ borderLeftColor: statusColor(score.status) }}
                       >
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-semibold text-foreground">{score.label}</span>
                           <span
-                            className="w-2.5 h-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: statusColor(score.status) }}
-                          />
-                          <span className="text-sm text-foreground">{score.label}</span>
+                            className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                            style={{ backgroundColor: `${statusColor(score.status)}20`, color: statusColor(score.status) }}
+                          >
+                            {statusLabel(score.status)}
+                          </span>
                         </div>
-                        <span
-                          className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                          style={{ backgroundColor: `${statusColor(score.status)}20`, color: statusColor(score.status) }}
-                        >
-                          {statusLabel(score.status)}
-                        </span>
+                        <p className="text-xs text-muted-foreground">{score.note}</p>
+                        {score.angle !== null && score.angle !== undefined && (
+                          <p className="text-[10px] text-muted-foreground mt-1 font-mono">Ângulo: {score.angle}°</p>
+                        )}
                       </div>
                     ))}
                   </div>
