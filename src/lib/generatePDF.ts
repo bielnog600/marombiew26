@@ -461,6 +461,7 @@ export const generatePDF = async (data: ReportData) => {
 
       const zoneRows: string[][] = zones.map(([label, lo, hi, desc]) => [
         label,
+        `${lo}% – ${hi}%`,
         `${Math.round(fcMax * lo / 100)} – ${Math.round(fcMax * hi / 100)} bpm`,
         desc,
       ]);
@@ -469,7 +470,7 @@ export const generatePDF = async (data: ReportData) => {
       autoTable(doc, {
         startY: y,
         margin: { left: margin, right: margin },
-        head: [['Zona', 'Faixa (bpm)', 'Objetivo']],
+        head: [['Zona', '% FC Max', 'Faixa (bpm)', 'Objetivo']],
         body: zoneRows,
         theme: 'grid',
         headStyles: { fillColor: BRAND.gold, textColor: BRAND.dark, fontStyle: 'bold', fontSize: 8 },
@@ -485,11 +486,11 @@ export const generatePDF = async (data: ReportData) => {
   // ══════════════════════════════════════════════
   if (anthro?.peso) {
     sectionTitle('Hidratação Recomendada');
-    const waterMl = Math.round(anthro.peso * 35);
+    const waterMl = Math.round(anthro.peso * 50);
     const waterL = (waterMl / 1000).toFixed(1);
     const waterRows: [string, string][] = [
       ['Peso corporal', `${anthro.peso} kg`],
-      ['Fórmula', '35 ml por kg de peso corporal'],
+      ['Fórmula', '50 ml por kg de peso corporal'],
       ['Consumo diário recomendado', `${waterL} litros (${waterMl} ml)`],
       ['Em dias de treino', `${(waterMl * 1.3 / 1000).toFixed(1)} – ${(waterMl * 1.5 / 1000).toFixed(1)} litros`],
     ];
