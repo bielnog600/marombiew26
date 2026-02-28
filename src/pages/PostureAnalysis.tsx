@@ -24,7 +24,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
-import { calculatePostureAngles, calculateRegionScores, drawPoseOverlay, type PoseKeypoint, type PostureAngles, type RegionScore } from '@/lib/postureUtils';
+import { calculatePostureAngles, calculateRegionScores, analyzePostureConditions, drawPoseOverlay, type PoseKeypoint, type PostureAngles, type RegionScore, type PostureCondition } from '@/lib/postureUtils';
 
 type CapturePosition = 'front' | 'side' | 'back';
 
@@ -203,8 +203,9 @@ const PostureAnalysis = () => {
   const [overrides, setOverrides] = useState<Record<string, number | null>>({});
   const [manualFlags, setManualFlags] = useState<Record<string, boolean>>({});
 
-  // Attention points
+  // Attention points & conditions
   const [attentionPoints, setAttentionPoints] = useState<{ text: string; status: string }[]>([]);
+  const [postureConditions, setPostureConditions] = useState<PostureCondition[]>([]);
 
   // Expand photo dialog
   const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null);
@@ -307,8 +308,10 @@ const PostureAnalysis = () => {
         if (sideAngles.head_forward !== null) calculatedAngles.head_forward = sideAngles.head_forward;
       }
       const scores = calculateRegionScores(calculatedAngles);
+      const conditions = analyzePostureConditions(calculatedAngles);
       setAngles(calculatedAngles);
       setRegionScores(scores);
+      setPostureConditions(conditions);
 
       // Generate attention points
       const points = scores.filter(s => s.status !== 'ok').map(s => ({ text: `${s.label}: ${s.note}`, status: s.status }));
@@ -346,7 +349,7 @@ const PostureAnalysis = () => {
         angles_json: angles as any,
         region_scores_json: regionScores as any,
         attention_points_json: attentionPoints as any,
-        overrides_json: { values: overrides, manual_flags: manualFlags } as any,
+        overrides_json: { values: overrides, manual_flags: manualFlags, conditions: postureConditions } as any,
         notes,
       });
       if (error) throw error;
@@ -613,13 +616,56 @@ const PostureAnalysis = () => {
               </CardHeader>
               <CardContent>
                 <MetricRow label="Inclinação dos ombros (E/D)" value={getMetricValue('shoulder_tilt')} unit="°" isManual={!!manualFlags.shoulder_tilt} onEdit={v => handleOverride('shoulder_tilt', v)} />
+                <MetricRow label="Protrusão dos ombros" value={getMetricValue('shoulder_protusion')} unit="°" isManual={!!manualFlags.shoulder_protusion} onEdit={v => handleOverride('shoulder_protusion', v)} />
                 <MetricRow label="Inclinação pélvica (E/D)" value={getMetricValue('pelvic_tilt')} unit="°" isManual={!!manualFlags.pelvic_tilt} onEdit={v => handleOverride('pelvic_tilt', v)} />
                 <MetricRow label="Inclinação lateral do tronco" value={getMetricValue('trunk_lateral')} unit="°" isManual={!!manualFlags.trunk_lateral} onEdit={v => handleOverride('trunk_lateral', v)} />
                 <MetricRow label="Cabeça anteriorizada" value={getMetricValue('head_forward')} unit="" isManual={!!manualFlags.head_forward} onEdit={v => handleOverride('head_forward', v)} />
+                <MetricRow label="Cifose torácica" value={getMetricValue('kyphosis_angle')} unit="°" isManual={!!manualFlags.kyphosis_angle} onEdit={v => handleOverride('kyphosis_angle', v)} />
+                <MetricRow label="Lordose lombar" value={getMetricValue('lordosis_angle')} unit="°" isManual={!!manualFlags.lordosis_angle} onEdit={v => handleOverride('lordosis_angle', v)} />
+                <MetricRow label="Escoliose (desvio lateral)" value={getMetricValue('scoliosis_angle')} unit="°" isManual={!!manualFlags.scoliosis_angle} onEdit={v => handleOverride('scoliosis_angle', v)} />
+                <MetricRow label="Valgo/Varo joelho E" value={getMetricValue('knee_valgus_left')} unit="°" isManual={!!manualFlags.knee_valgus_left} onEdit={v => handleOverride('knee_valgus_left', v)} />
+                <MetricRow label="Valgo/Varo joelho D" value={getMetricValue('knee_valgus_right')} unit="°" isManual={!!manualFlags.knee_valgus_right} onEdit={v => handleOverride('knee_valgus_right', v)} />
                 <MetricRow label="Alinhamento joelho E" value={getMetricValue('knee_alignment_left')} unit="°" isManual={!!manualFlags.knee_alignment_left} onEdit={v => handleOverride('knee_alignment_left', v)} />
                 <MetricRow label="Alinhamento joelho D" value={getMetricValue('knee_alignment_right')} unit="°" isManual={!!manualFlags.knee_alignment_right} onEdit={v => handleOverride('knee_alignment_right', v)} />
               </CardContent>
             </Card>
+
+            {/* Section 3.5: Condições Posturais Detalhadas */}
+            {postureConditions.length > 0 && (
+              <Card className="glass-card">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-primary" /> Condições Posturais Detalhadas
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {postureConditions.filter(c => c.severity !== 'normal').length === 0 && (
+                    <p className="text-sm text-muted-foreground">Nenhuma condição postural significativa detectada.</p>
+                  )}
+                  {postureConditions.map((cond, i) => {
+                    const severityColor = cond.severity === 'grave' ? 'hsl(0 72% 51%)' : cond.severity === 'moderada' ? 'hsl(25 95% 53%)' : cond.severity === 'leve' ? 'hsl(45 100% 50%)' : 'hsl(142 71% 45%)';
+                    const severityBg = cond.severity === 'grave' ? 'bg-destructive/10' : cond.severity === 'moderada' ? 'bg-orange-500/10' : cond.severity === 'leve' ? 'bg-primary/10' : 'bg-[hsl(142,71%,45%)]/10';
+                    return (
+                      <div key={i} className={`rounded-xl border-l-4 p-4 ${severityBg}`} style={{ borderLeftColor: severityColor }}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-sm font-bold text-foreground">{cond.label}</span>
+                          <div className="flex items-center gap-2">
+                            {cond.angle !== null && (
+                              <span className="text-[10px] font-mono text-muted-foreground">{cond.angle}°</span>
+                            )}
+                            <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full capitalize" style={{ backgroundColor: `${severityColor}20`, color: severityColor }}>
+                              {cond.severity}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-xs font-medium text-foreground mb-1">{cond.description}</p>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed">{cond.details}</p>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Section 4: Pontos de Atenção */}
             <Card className="glass-card">

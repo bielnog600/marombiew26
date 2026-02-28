@@ -7,7 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Download, Eye, AlertTriangle, Loader2 } from 'lucide-react';
 import { generatePDF } from '@/lib/generatePDF';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { drawPoseOverlay, type PoseKeypoint, type RegionScore } from '@/lib/postureUtils';
+import { drawPoseOverlay, analyzePostureConditions, type PoseKeypoint, type RegionScore, type PostureCondition, type PostureAngles } from '@/lib/postureUtils';
 
 
 const statusColor = (status: string) =>
@@ -462,9 +462,15 @@ const Relatorio = () => {
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {[
                       { key: 'shoulder_tilt', label: 'Inclinação Ombros', unit: '°' },
+                      { key: 'shoulder_protusion', label: 'Protrusão Ombros', unit: '°' },
                       { key: 'pelvic_tilt', label: 'Inclinação Pélvica', unit: '°' },
                       { key: 'trunk_lateral', label: 'Inclinação Tronco', unit: '°' },
                       { key: 'head_forward', label: 'Cabeça Anterior.', unit: '' },
+                      { key: 'kyphosis_angle', label: 'Cifose Torácica', unit: '°' },
+                      { key: 'lordosis_angle', label: 'Lordose Lombar', unit: '°' },
+                      { key: 'scoliosis_angle', label: 'Escoliose', unit: '°' },
+                      { key: 'knee_valgus_left', label: 'Valgo/Varo Esq.', unit: '°' },
+                      { key: 'knee_valgus_right', label: 'Valgo/Varo Dir.', unit: '°' },
                       { key: 'knee_alignment_left', label: 'Joelho Esq.', unit: '°' },
                       { key: 'knee_alignment_right', label: 'Joelho Dir.', unit: '°' },
                     ].map(({ key, label, unit }) => {
@@ -485,6 +491,41 @@ const Relatorio = () => {
                   </div>
                 </div>
               )}
+
+              {/* Condições Posturais Detalhadas */}
+              {(() => {
+                const conditions: PostureCondition[] = (postureScan.overrides_json as any)?.conditions 
+                  || (postureScan.angles_json ? analyzePostureConditions(postureScan.angles_json as PostureAngles) : []);
+                const significant = conditions.filter(c => c.severity !== 'normal');
+                if (significant.length === 0) return null;
+                return (
+                  <div>
+                    <p className="text-sm font-semibold mb-3 flex items-center gap-1.5">
+                      <Eye className="w-3.5 h-3.5 text-primary" /> Condições Posturais Detalhadas
+                    </p>
+                    <div className="space-y-2">
+                      {significant.map((cond, i) => {
+                        const severityColor = cond.severity === 'grave' ? 'hsl(0 72% 51%)' : cond.severity === 'moderada' ? 'hsl(25 95% 53%)' : 'hsl(45 100% 50%)';
+                        return (
+                          <div key={i} className="rounded-xl border-l-4 p-3 bg-secondary/20" style={{ borderLeftColor: severityColor }}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-sm font-bold text-foreground">{cond.label}</span>
+                              <div className="flex items-center gap-2">
+                                {cond.angle !== null && <span className="text-[10px] font-mono text-muted-foreground">{cond.angle}°</span>}
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full capitalize" style={{ backgroundColor: `${severityColor}20`, color: severityColor }}>
+                                  {cond.severity}
+                                </span>
+                              </div>
+                            </div>
+                            <p className="text-xs font-medium text-foreground mb-0.5">{cond.description}</p>
+                            <p className="text-[11px] text-muted-foreground leading-relaxed">{cond.details}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Attention points */}
               {postureScan.attention_points_json && (postureScan.attention_points_json as any[]).length > 0 && (
