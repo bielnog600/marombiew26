@@ -381,13 +381,20 @@ export const generatePDF = async (data: ReportData) => {
       if (angles) {
         const overrides = (postureScan.overrides_json as any)?.values || {};
         const manualFlags = (postureScan.overrides_json as any)?.manual_flags || {};
+        const getVal = (key: string) => { const v = manualFlags[key] ? overrides[key] : angles[key]; return v != null ? `${v}°` : null; };
         const angleEntries: [string, string | null][] = [
-          ['Inclinação Ombros', (() => { const v = manualFlags.shoulder_tilt ? overrides.shoulder_tilt : angles.shoulder_tilt; return v != null ? `${v}°` : null; })()],
-          ['Inclinação Pélvica', (() => { const v = manualFlags.pelvic_tilt ? overrides.pelvic_tilt : angles.pelvic_tilt; return v != null ? `${v}°` : null; })()],
-          ['Inclinação Tronco', (() => { const v = manualFlags.trunk_lateral ? overrides.trunk_lateral : angles.trunk_lateral; return v != null ? `${v}°` : null; })()],
+          ['Inclinação Ombros', getVal('shoulder_tilt')],
+          ['Protrusão Ombros', getVal('shoulder_protusion')],
+          ['Inclinação Pélvica', getVal('pelvic_tilt')],
+          ['Inclinação Tronco', getVal('trunk_lateral')],
           ['Cabeça Anteriorizada', (() => { const v = manualFlags.head_forward ? overrides.head_forward : angles.head_forward; return v != null ? `${v}` : null; })()],
-          ['Joelho Esquerdo', (() => { const v = manualFlags.knee_alignment_left ? overrides.knee_alignment_left : angles.knee_alignment_left; return v != null ? `${v}°` : null; })()],
-          ['Joelho Direito', (() => { const v = manualFlags.knee_alignment_right ? overrides.knee_alignment_right : angles.knee_alignment_right; return v != null ? `${v}°` : null; })()],
+          ['Cifose Torácica', getVal('kyphosis_angle')],
+          ['Lordose Lombar', getVal('lordosis_angle')],
+          ['Escoliose (Desvio Lateral)', getVal('scoliosis_angle')],
+          ['Valgo/Varo Joelho Esq.', getVal('knee_valgus_left')],
+          ['Valgo/Varo Joelho Dir.', getVal('knee_valgus_right')],
+          ['Alinhamento Joelho Esq.', getVal('knee_alignment_left')],
+          ['Alinhamento Joelho Dir.', getVal('knee_alignment_right')],
         ];
         const filteredAngles = filterRows(angleEntries);
         if (filteredAngles.length > 0) {
@@ -399,6 +406,38 @@ export const generatePDF = async (data: ReportData) => {
           y += 6;
           kvTable(filteredAngles);
         }
+      }
+
+      // Condições Posturais Detalhadas
+      const conditions = (postureScan.overrides_json as any)?.conditions || [];
+      const significantConditions = conditions.filter((c: any) => c.severity !== 'normal');
+      if (significantConditions.length > 0) {
+        checkPage(20);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...BRAND.dark);
+        doc.text('Condições Posturais Detalhadas', margin, y);
+        y += 6;
+
+        for (const cond of significantConditions) {
+          checkPage(25);
+          // Condition header
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(...BRAND.dark);
+          const severityText = cond.severity === 'grave' ? '🔴 GRAVE' : cond.severity === 'moderada' ? '🟠 MODERADA' : '🟡 LEVE';
+          doc.text(`${cond.label} — ${severityText}${cond.angle != null ? ` (${cond.angle}°)` : ''}`, margin + 2, y);
+          y += 5;
+          // Description
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(...BRAND.gray);
+          const detailLines = doc.splitTextToSize(cond.details, contentW - 4);
+          checkPage(detailLines.length * 3.5 + 4);
+          doc.text(detailLines, margin + 2, y);
+          y += detailLines.length * 3.5 + 4;
+        }
+        y += 2;
       }
 
       // Attention points
