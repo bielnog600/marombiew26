@@ -310,36 +310,39 @@ export const generatePDF = async (data: ReportData) => {
     doc.text(`Página ${i} de ${totalPages}`, pageW - margin, pageH - 10, { align: 'right' });
   }
 
-  // Save — use blob + link click for PWA standalone compatibility
+  // Save — with iOS PWA standalone compatibility
   const nome = (profile?.nome || 'aluno').replace(/\s+/g, '_').toLowerCase();
   const dateStr = assessment ? new Date(assessment.created_at).toISOString().split('T')[0] : 'report';
   const filename = `avaliacao_${nome}_${dateStr}.pdf`;
 
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches
     || (window.navigator as any).standalone === true;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
-  if (isStandalone && navigator.share) {
-    // On PWA standalone, use Web Share API to let user save/share the file
-    const blob = doc.output('blob');
-    const file = new File([blob], filename, { type: 'application/pdf' });
-    try {
-      await navigator.share({ files: [file], title: filename });
-    } catch (err: any) {
-      // User cancelled share — fallback to blob download
-      if (err.name !== 'AbortError') {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+  const blob = doc.output('blob');
+
+  if (isStandalone || isIOS) {
+    // iOS standalone ignores <a download> — check Web Share API with file support first
+    if (navigator.share && navigator.canShare) {
+      const file = new File([blob], filename, { type: 'application/pdf' });
+      const shareData = { files: [file], title: filename };
+      if (navigator.canShare(shareData)) {
+        try {
+          await navigator.share(shareData);
+          return;
+        } catch (err: any) {
+          if (err.name === 'AbortError') return; // user cancelled
+          // Fall through to window.open fallback
+        }
       }
     }
+    // Fallback: open PDF in new tab/window so user can save from there
+    const blobUrl = URL.createObjectURL(blob);
+    window.open(blobUrl, '_blank');
+    // Don't revoke immediately — give the new window time to load
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
   } else {
-    // Standard browser — use blob download for reliability
-    const blob = doc.output('blob');
+    // Standard desktop/Android browser
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
