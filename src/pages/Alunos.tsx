@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, Pencil } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -18,6 +18,9 @@ const Alunos = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newStudent, setNewStudent] = useState({ nome: '', email: '', password: '', telefone: '', sexo: 'masculino', raca: '', objetivo: '' });
   const [loading, setLoading] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editStudent, setEditStudent] = useState<any>(null);
+  const [editLoading, setEditLoading] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => { loadStudents(); }, []);
@@ -69,6 +72,67 @@ const Alunos = () => {
       setTimeout(loadStudents, 1000);
     }
     setLoading(false);
+  };
+
+  const openEditDialog = (s: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const sp = s.students_profile;
+    setEditStudent({
+      user_id: s.user_id,
+      nome: s.nome || '',
+      telefone: s.telefone || '',
+      sexo: sp?.sexo || '',
+      raca: sp?.raca || '',
+      objetivo: sp?.objetivo || '',
+      data_nascimento: sp?.data_nascimento || '',
+      altura: sp?.altura || '',
+      restricoes: sp?.restricoes || '',
+      lesoes: sp?.lesoes || '',
+      observacoes: sp?.observacoes || '',
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleEditStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editStudent) return;
+    setEditLoading(true);
+
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({ nome: editStudent.nome, telefone: editStudent.telefone || null })
+      .eq('user_id', editStudent.user_id);
+
+    if (profileError) {
+      toast.error('Erro ao atualizar perfil: ' + profileError.message);
+      setEditLoading(false);
+      return;
+    }
+
+    const { error: spError } = await supabase
+      .from('students_profile')
+      .update({
+        sexo: editStudent.sexo || null,
+        raca: editStudent.raca || null,
+        objetivo: editStudent.objetivo || null,
+        data_nascimento: editStudent.data_nascimento || null,
+        altura: editStudent.altura ? Number(editStudent.altura) : null,
+        restricoes: editStudent.restricoes || null,
+        lesoes: editStudent.lesoes || null,
+        observacoes: editStudent.observacoes || null,
+      })
+      .eq('user_id', editStudent.user_id);
+
+    if (spError) {
+      toast.error('Erro ao atualizar dados: ' + spError.message);
+      setEditLoading(false);
+      return;
+    }
+
+    toast.success('Aluno atualizado com sucesso!');
+    setEditDialogOpen(false);
+    loadStudents();
+    setEditLoading(false);
   };
 
   const filteredStudents = students.filter(s => {
@@ -179,19 +243,102 @@ const Alunos = () => {
               >
                 <CardContent className="p-5">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/20 text-primary font-bold">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/20 text-primary font-bold shrink-0">
                       {(s.nome || '?')[0].toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="font-medium truncate">{s.nome || 'Sem nome'}</p>
                       <p className="text-sm text-muted-foreground truncate">{s.email}</p>
                     </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0 text-muted-foreground hover:text-primary"
+                      onClick={(e) => openEditDialog(s, e)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
             ))
           )}
         </div>
+
+        {/* Edit Dialog */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="glass-card max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Editar Aluno</DialogTitle>
+            </DialogHeader>
+            {editStudent && (
+              <form onSubmit={handleEditStudent} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Nome</Label>
+                  <Input value={editStudent.nome} onChange={e => setEditStudent({ ...editStudent, nome: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Telefone</Label>
+                  <Input value={editStudent.telefone} onChange={e => setEditStudent({ ...editStudent, telefone: e.target.value })} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Sexo</Label>
+                    <Select value={editStudent.sexo} onValueChange={v => setEditStudent({ ...editStudent, sexo: v })}>
+                      <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="masculino">Masculino</SelectItem>
+                        <SelectItem value="feminino">Feminino</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Raça</Label>
+                    <Select value={editStudent.raca} onValueChange={v => setEditStudent({ ...editStudent, raca: v })}>
+                      <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="branco">Branco</SelectItem>
+                        <SelectItem value="negro">Negro</SelectItem>
+                        <SelectItem value="pardo">Pardo</SelectItem>
+                        <SelectItem value="asiatico">Asiático</SelectItem>
+                        <SelectItem value="indigena">Indígena</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Data de Nascimento</Label>
+                    <Input type="date" value={editStudent.data_nascimento} onChange={e => setEditStudent({ ...editStudent, data_nascimento: e.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Altura (cm)</Label>
+                    <Input type="number" value={editStudent.altura} onChange={e => setEditStudent({ ...editStudent, altura: e.target.value })} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Objetivo</Label>
+                  <Input value={editStudent.objetivo} onChange={e => setEditStudent({ ...editStudent, objetivo: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Restrições</Label>
+                  <Input value={editStudent.restricoes} onChange={e => setEditStudent({ ...editStudent, restricoes: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Lesões</Label>
+                  <Input value={editStudent.lesoes} onChange={e => setEditStudent({ ...editStudent, lesoes: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Observações</Label>
+                  <Input value={editStudent.observacoes} onChange={e => setEditStudent({ ...editStudent, observacoes: e.target.value })} />
+                </div>
+                <Button type="submit" className="w-full font-semibold" disabled={editLoading}>
+                  Salvar Alterações
+                </Button>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );
