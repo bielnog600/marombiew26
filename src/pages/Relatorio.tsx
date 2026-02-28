@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Download, Eye, AlertTriangle, Loader2 } from 'lucide-react';
 import { generatePDF } from '@/lib/generatePDF';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { drawPoseOverlay, analyzePostureConditions, type PoseKeypoint, type RegionScore, type PostureCondition, type PostureAngles } from '@/lib/postureUtils';
 
 
@@ -356,6 +356,111 @@ const Relatorio = () => {
                 <DataRow label="Cooper 12min" value={perf?.cooper_12min} unit="m" />
                 <DataRow label="Salto Vertical" value={perf?.salto_vertical} unit="cm" />
                 <DataRow label="Agachamento" value={perf?.agachamento_score} unit="/5" />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Composição Corporal - Gráfico de Pizza */}
+          {comp && comp.massa_magra && comp.massa_gorda && (
+            <Card className="glass-card">
+              <CardHeader><CardTitle className="text-base">Composição Corporal — Gráfico</CardTitle></CardHeader>
+              <CardContent>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: `Massa Magra (${comp.massa_magra.toFixed(1)} kg)`, value: comp.massa_magra },
+                          { name: `Massa Gorda (${comp.massa_gorda.toFixed(1)} kg)`, value: comp.massa_gorda },
+                        ]}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={90}
+                        paddingAngle={3}
+                        dataKey="value"
+                        label={({ percent }) => `${(percent * 100).toFixed(1)}%`}
+                      >
+                        <Cell fill="hsl(142 71% 45%)" />
+                        <Cell fill="hsl(0 72% 51%)" />
+                      </Pie>
+                      <Legend />
+                      <Tooltip formatter={(value: number) => `${value.toFixed(1)} kg`} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Zonas de Frequência Cardíaca */}
+          {(() => {
+            const age = studentProfile?.data_nascimento
+              ? Math.floor((Date.now() - new Date(studentProfile.data_nascimento).getTime()) / (365.25 * 24 * 3600 * 1000))
+              : null;
+            const fcMax = age ? 220 - age : null;
+            if (!fcMax) return null;
+            const zones = [
+              { name: 'Zona 1 — Recuperação', lo: 50, hi: 60, desc: 'Aquecimento, recuperação ativa' },
+              { name: 'Zona 2 — Queima de gordura', lo: 60, hi: 70, desc: 'Exercício leve, oxidação lipídica' },
+              { name: 'Zona 3 — Aeróbico', lo: 70, hi: 80, desc: 'Resistência cardiovascular' },
+              { name: 'Zona 4 — Limiar anaeróbico', lo: 80, hi: 90, desc: 'Alta intensidade, VO2max' },
+              { name: 'Zona 5 — Máxima', lo: 90, hi: 100, desc: 'Esforço máximo, sprints' },
+            ];
+            return (
+              <Card className="glass-card">
+                <CardHeader>
+                  <CardTitle className="text-base">Zonas de Frequência Cardíaca</CardTitle>
+                  <p className="text-xs text-muted-foreground">FC Máxima estimada (220 - idade): {fcMax} bpm</p>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border">
+                          <th className="text-left py-2 text-muted-foreground font-medium">Zona</th>
+                          <th className="text-center py-2 text-muted-foreground font-medium">% FC Max</th>
+                          <th className="text-center py-2 text-muted-foreground font-medium">Faixa (bpm)</th>
+                          <th className="text-left py-2 text-muted-foreground font-medium">Objetivo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {zones.map((z, i) => (
+                          <tr key={i} className="border-b border-border/50 last:border-0">
+                            <td className="py-2 font-medium">{z.name}</td>
+                            <td className="py-2 text-center text-primary font-bold">{z.lo}% – {z.hi}%</td>
+                            <td className="py-2 text-center font-mono">{Math.round(fcMax * z.lo / 100)} – {Math.round(fcMax * z.hi / 100)}</td>
+                            <td className="py-2 text-muted-foreground">{z.desc}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
+
+          {/* Hidratação Recomendada */}
+          {anthro?.peso && (
+            <Card className="glass-card">
+              <CardHeader><CardTitle className="text-base">Hidratação Recomendada</CardTitle></CardHeader>
+              <CardContent>
+                {(() => {
+                  const waterMl = Math.round(anthro.peso * 50);
+                  const waterL = (waterMl / 1000).toFixed(1);
+                  return (
+                    <>
+                      <DataRow label="Peso corporal" value={anthro.peso} unit="kg" />
+                      <DataRow label="Fórmula" value="50 ml por kg" />
+                      <DataRow label="Consumo diário recomendado" value={`${waterL} litros (${waterMl} ml)`} />
+                      <DataRow label="Em dias de treino" value={`${(waterMl * 1.3 / 1000).toFixed(1)} – ${(waterMl * 1.5 / 1000).toFixed(1)} litros`} />
+                      <p className="text-xs text-muted-foreground mt-3">
+                        * Em dias de treino intenso, aumente o consumo em 30–50%. Distribua ao longo do dia.
+                      </p>
+                    </>
+                  );
+                })()}
               </CardContent>
             </Card>
           )}
