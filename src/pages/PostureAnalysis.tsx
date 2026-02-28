@@ -16,8 +16,14 @@ import { toast } from 'sonner';
 import {
   ChevronRight, ChevronLeft, Check, AlertTriangle,
   Save, FileDown, ArrowLeft, Eye, Upload, Maximize2, ImageIcon,
-  TrendingUp, Edit3
+  TrendingUp, Edit3, Trash2
 } from 'lucide-react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
+} from '@/components/ui/alert-dialog';
 import { calculatePostureAngles, calculateRegionScores, drawPoseOverlay, type PoseKeypoint, type PostureAngles, type RegionScore } from '@/lib/postureUtils';
 
 type CapturePosition = 'front' | 'side' | 'back';
@@ -208,6 +214,31 @@ const PostureAnalysis = () => {
   const [poseReady, setPoseReady] = useState(false);
   const [poseError, setPoseError] = useState(false);
 
+  // Scan history
+  const [scanHistory, setScanHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const fetchHistory = useCallback(async () => {
+    if (!studentId) return;
+    setLoadingHistory(true);
+    const { data } = await supabase
+      .from('posture_scans')
+      .select('id, created_at, front_photo_url, side_photo_url, back_photo_url, notes, region_scores_json')
+      .eq('student_id', studentId)
+      .order('created_at', { ascending: false });
+    setScanHistory(data || []);
+    setLoadingHistory(false);
+  }, [studentId]);
+
+  useEffect(() => { fetchHistory(); }, [fetchHistory]);
+
+  const handleDeleteScan = async (scanId: string) => {
+    const { error } = await supabase.from('posture_scans').delete().eq('id', scanId);
+    if (error) { toast.error('Erro ao deletar: ' + error.message); return; }
+    toast.success('Avaliação deletada.');
+    setScanHistory(prev => prev.filter(s => s.id !== scanId));
+  };
+
   // Load MediaPipe
   useEffect(() => {
     loadPoseDetector();
@@ -320,7 +351,7 @@ const PostureAnalysis = () => {
       });
       if (error) throw error;
       toast.success('Análise postural salva!');
-      navigate(`/alunos/${studentId}`);
+      fetchHistory();
     } catch (err: any) { toast.error('Erro ao salvar: ' + err.message); }
     finally { setSaving(false); }
   };
@@ -640,7 +671,76 @@ const PostureAnalysis = () => {
           </div>
         )}
 
-        {/* Expand photo dialog */}
+        {/* ─── Histórico de Avaliações Posturais ─── */}
+        <Card className="glass-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Avaliações Posturais Realizadas</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingHistory ? (
+              <p className="text-sm text-muted-foreground">Carregando...</p>
+            ) : scanHistory.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma avaliação postural registrada.</p>
+            ) : (
+              <div className="space-y-3">
+                {scanHistory.map(scan => {
+                  const scores = (scan.region_scores_json as any[]) || [];
+                  const riskCount = scores.filter((s: any) => s.status === 'risk').length;
+                  const attCount = scores.filter((s: any) => s.status === 'attention').length;
+                  const photoCount = [scan.front_photo_url, scan.side_photo_url, scan.back_photo_url].filter(Boolean).length;
+                  return (
+                    <div key={scan.id} className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-secondary/20 hover:bg-secondary/40 transition-colors">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {scan.front_photo_url ? (
+                          <img src={scan.front_photo_url} className="w-10 h-10 rounded object-cover shrink-0" />
+                        ) : (
+                          <div className="w-10 h-10 rounded bg-muted flex items-center justify-center shrink-0">
+                            <ImageIcon className="w-4 h-4 text-muted-foreground" />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground">
+                            {format(new Date(scan.created_at), "dd 'de' MMMM 'de' yyyy, HH:mm", { locale: ptBR })}
+                          </p>
+                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                            <span>{photoCount} foto{photoCount !== 1 ? 's' : ''}</span>
+                            {riskCount > 0 && <span className="text-destructive font-medium">{riskCount} risco{riskCount !== 1 ? 's' : ''}</span>}
+                            {attCount > 0 && <span className="text-primary font-medium">{attCount} atenção</span>}
+                            {riskCount === 0 && attCount === 0 && scores.length > 0 && <span className="text-[hsl(142,71%,45%)] font-medium">Tudo OK</span>}
+                          </div>
+                          {scan.notes && <p className="text-[10px] text-muted-foreground truncate">{scan.notes}</p>}
+                        </div>
+                      </div>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-destructive">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Deletar avaliação?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Esta ação não pode ser desfeita. A avaliação postural será removida permanentemente.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDeleteScan(scan.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                              Deletar
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+
         <Dialog open={!!expandedPhoto} onOpenChange={() => setExpandedPhoto(null)}>
           <DialogContent className="max-w-3xl">
             <DialogHeader><DialogTitle>Foto ampliada</DialogTitle></DialogHeader>
