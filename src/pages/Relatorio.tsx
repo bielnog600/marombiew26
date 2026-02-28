@@ -212,7 +212,7 @@ const Relatorio = () => {
           <Button variant="outline" disabled={exporting} onClick={async () => {
             setExporting(true);
             try {
-              await generatePDF({ profile, assessment, anthro, comp, skinfolds, vitals, perf, anamnese });
+              await generatePDF({ profile, assessment, anthro, comp, skinfolds, vitals, perf, anamnese, postureScan, studentProfile });
             } catch (err) { console.error(err); }
             finally { setExporting(false); }
           }}>
