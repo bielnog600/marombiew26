@@ -4,7 +4,8 @@ import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Download, Eye, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Download, Eye, AlertTriangle, Loader2 } from 'lucide-react';
+import { generatePDF } from '@/lib/generatePDF';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { drawPoseOverlay, type PoseKeypoint, type RegionScore } from '@/lib/postureUtils';
 
@@ -118,6 +119,7 @@ const Relatorio = () => {
   const [history, setHistory] = useState<any[]>([]);
   const [profile, setProfile] = useState<any>(null);
   const [postureScan, setPostureScan] = useState<any>(null);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     if (id) loadReport();
@@ -203,8 +205,15 @@ const Relatorio = () => {
           <Button variant="ghost" onClick={() => navigate(-1)}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
           </Button>
-          <Button variant="outline" onClick={() => window.print()}>
-            <Download className="mr-2 h-4 w-4" /> Exportar PDF
+          <Button variant="outline" disabled={exporting} onClick={async () => {
+            setExporting(true);
+            try {
+              await generatePDF({ profile, assessment, anthro, comp, skinfolds, vitals, perf, anamnese });
+            } catch (err) { console.error(err); }
+            finally { setExporting(false); }
+          }}>
+            {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+            {exporting ? 'Gerando...' : 'Exportar PDF'}
           </Button>
         </div>
 
