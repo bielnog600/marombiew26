@@ -118,6 +118,7 @@ const Relatorio = () => {
   const [anamnese, setAnamnese] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [profile, setProfile] = useState<any>(null);
+  const [studentProfile, setStudentProfile] = useState<any>(null);
   const [postureScan, setPostureScan] = useState<any>(null);
   const [exporting, setExporting] = useState(false);
 
@@ -149,6 +150,9 @@ const Relatorio = () => {
 
     const { data: prof } = await supabase.from('profiles').select('*').eq('user_id', a.student_id).maybeSingle();
     setProfile(prof);
+
+    const { data: sp } = await supabase.from('students_profile').select('*').eq('user_id', a.student_id).maybeSingle();
+    setStudentProfile(sp);
 
     // Posture scan mais recente do aluno (vinculada ou não a esta avaliação)
     const { data: scan } = await supabase
@@ -325,9 +329,20 @@ const Relatorio = () => {
           <Card className="glass-card">
             <CardHeader><CardTitle className="text-base">Composição Corporal</CardTitle></CardHeader>
             <CardContent>
-              <DataRow label="% Gordura" value={comp?.percentual_gordura} unit="%" />
-              <DataRow label="Massa Magra" value={comp?.massa_magra} unit="kg" />
-              <DataRow label="Massa Gorda" value={comp?.massa_gorda} unit="kg" />
+              {(() => {
+                const sexo = studentProfile?.sexo;
+                const idealFat = sexo === 'feminino' ? 20 : 15;
+                const idealFatWeight = anthro?.peso && idealFat ? (anthro.peso * idealFat / 100).toFixed(1) : null;
+                return (
+                  <>
+                    <DataRow label="% Gordura" value={comp?.percentual_gordura} unit="%" />
+                    <DataRow label="% Gordura Ideal" value={idealFat} unit={`% (${sexo === 'feminino' ? 'feminino' : 'masculino'})`} />
+                    <DataRow label="Massa Magra" value={comp?.massa_magra} unit="kg" />
+                    <DataRow label="Massa Gorda" value={comp?.massa_gorda} unit="kg" />
+                    <DataRow label="Peso de Gordura Ideal" value={idealFatWeight} unit="kg" />
+                  </>
+                );
+              })()}
             </CardContent>
           </Card>
 

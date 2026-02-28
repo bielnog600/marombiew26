@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { email, password, nome, telefone } = await req.json();
+    const { email, password, nome, telefone, sexo, raca } = await req.json();
 
     if (!email || !password || !nome) {
       return new Response(
@@ -98,6 +98,8 @@ Deno.serve(async (req) => {
         .insert({
           user_id: data.user.id,
           ativo: true,
+          sexo: sexo || null,
+          raca: raca || null,
         });
 
       if (studentProfileError) {

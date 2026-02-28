@@ -557,6 +557,7 @@ export type Database = {
           lesoes: string | null
           objetivo: string | null
           observacoes: string | null
+          raca: string | null
           restricoes: string | null
           sexo: string | null
           updated_at: string
@@ -572,6 +573,7 @@ export type Database = {
           lesoes?: string | null
           objetivo?: string | null
           observacoes?: string | null
+          raca?: string | null
           restricoes?: string | null
           sexo?: string | null
           updated_at?: string
@@ -587,6 +589,7 @@ export type Database = {
           lesoes?: string | null
           objetivo?: string | null
           observacoes?: string | null
+          raca?: string | null
           restricoes?: string | null
           sexo?: string | null
           updated_at?: string
