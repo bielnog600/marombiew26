@@ -1,0 +1,1 @@
+ALTER TABLE public.students_profile ADD COLUMN raca text NULL;

@@ -16,7 +16,7 @@ const Alunos = () => {
   const [search, setSearch] = useState('');
   const [filterAtivo, setFilterAtivo] = useState<string>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [newStudent, setNewStudent] = useState({ nome: '', email: '', password: '', telefone: '', sexo: 'masculino', objetivo: '' });
+  const [newStudent, setNewStudent] = useState({ nome: '', email: '', password: '', telefone: '', sexo: 'masculino', raca: '', objetivo: '' });
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -55,6 +55,8 @@ const Alunos = () => {
         password: newStudent.password,
         nome: newStudent.nome,
         telefone: newStudent.telefone,
+        sexo: newStudent.sexo,
+        raca: newStudent.raca,
       },
     });
 
@@ -63,7 +65,7 @@ const Alunos = () => {
     } else {
       toast.success('Aluno cadastrado com sucesso!');
       setDialogOpen(false);
-      setNewStudent({ nome: '', email: '', password: '', telefone: '', sexo: 'masculino', objetivo: '' });
+      setNewStudent({ nome: '', email: '', password: '', telefone: '', sexo: 'masculino', raca: '', objetivo: '' });
       setTimeout(loadStudents, 1000);
     }
     setLoading(false);
@@ -129,6 +131,29 @@ const Alunos = () => {
                 <div className="space-y-2">
                   <Label>Telefone</Label>
                   <Input value={newStudent.telefone} onChange={e => setNewStudent({ ...newStudent, telefone: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Sexo</Label>
+                  <Select value={newStudent.sexo} onValueChange={v => setNewStudent({ ...newStudent, sexo: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="masculino">Masculino</SelectItem>
+                      <SelectItem value="feminino">Feminino</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Raça</Label>
+                  <Select value={newStudent.raca} onValueChange={v => setNewStudent({ ...newStudent, raca: v })}>
+                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="branco">Branco</SelectItem>
+                      <SelectItem value="negro">Negro</SelectItem>
+                      <SelectItem value="pardo">Pardo</SelectItem>
+                      <SelectItem value="asiatico">Asiático</SelectItem>
+                      <SelectItem value="indigena">Indígena</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Button type="submit" className="w-full font-semibold" disabled={loading}>
                   Cadastrar
