@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Download } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import BodyModel3D from '@/components/BodyModel3D';
+
 
 const classifyIMC = (imc: number) => {
   if (imc < 18.5) return { label: 'Abaixo do peso', color: 'text-yellow-500' };
@@ -178,47 +178,44 @@ const Relatorio = () => {
           </Card>
         )}
 
-        {/* Boneco 3D */}
+        {/* Mapa Corporal */}
         <Card className="glass-card">
           <CardHeader><CardTitle className="text-base">Mapa Corporal — Pontos de Atenção</CardTitle></CardHeader>
           <CardContent>
-        <BodyModel3D measurements={(() => {
-              const m: import('@/components/BodyModel3D').BodyMeasurement[] = [];
-              const add = (key: string, label: string, value: number | null, unit: string, status: 'ok' | 'attention' | 'risk' | 'strength' | 'cardio' | 'core', hist?: { date: string; value: number }[]) => {
-                if (value !== null && value !== undefined) m.push({ key, label, value, unit, status, history: hist });
+            {(() => {
+              const items: { label: string; value: number | null; unit: string; status: string }[] = [];
+              const add = (label: string, value: number | null, unit: string, status: string) => {
+                if (value !== null && value !== undefined) items.push({ label, value, unit, status });
               };
-              const getCircHistory = (field: string) => history.filter(h => (h as any)[field] != null).map(h => ({ date: h.data, value: (h as any)[field] }));
-
-              add('pescoco', 'Pescoço', anthro?.pescoco, 'cm', 'ok');
-              add('ombro', 'Ombro', anthro?.ombro, 'cm', 'ok');
-              add('torax', 'Tórax', anthro?.torax, 'cm', comp?.percentual_gordura > 25 ? 'attention' : 'ok');
-              add('abdomen', 'Abdômen', anthro?.abdomen, 'cm',
-                anthro?.imc > 30 ? 'risk' : anthro?.imc > 25 ? 'attention' : perf?.plank !== null && perf?.plank < 30 ? 'core' : 'ok');
-              add('cintura', 'Cintura', anthro?.cintura, 'cm',
-                anthro?.rcq > 0.95 ? 'risk' : anthro?.rcq > 0.85 ? 'attention' : 'ok', getCircHistory('cintura'));
-              add('quadril', 'Quadril', anthro?.quadril, 'cm',
-                anthro?.rcq > 0.95 ? 'risk' : anthro?.rcq > 0.85 ? 'attention' : 'ok');
-              add('braco_direito', 'Braço Dir.', anthro?.braco_direito, 'cm',
-                perf?.pushup !== null && perf?.pushup < 15 ? 'strength' : 'ok');
-              add('braco_esquerdo', 'Braço Esq.', anthro?.braco_esquerdo, 'cm',
-                perf?.pushup !== null && perf?.pushup < 15 ? 'strength' : 'ok');
-              add('antebraco', 'Antebraço', anthro?.antebraco, 'cm', 'ok');
-              add('coxa_direita', 'Coxa Dir.', anthro?.coxa_direita, 'cm',
-                perf?.cooper_12min !== null && perf?.cooper_12min < 1600 ? 'cardio' : 'ok');
-              add('coxa_esquerda', 'Coxa Esq.', anthro?.coxa_esquerda, 'cm',
-                perf?.cooper_12min !== null && perf?.cooper_12min < 1600 ? 'cardio' : 'ok');
-              add('panturrilha_direita', 'Panturrilha Dir.', anthro?.panturrilha_direita, 'cm',
-                perf?.cooper_12min !== null && perf?.cooper_12min < 1600 ? 'cardio' : 'ok');
-              add('panturrilha_esquerda', 'Panturrilha Esq.', anthro?.panturrilha_esquerda, 'cm',
-                perf?.cooper_12min !== null && perf?.cooper_12min < 1600 ? 'cardio' : 'ok');
-              return m;
-            })()} />
+              add('Pescoço', anthro?.pescoco, 'cm', 'ok');
+              add('Ombro', anthro?.ombro, 'cm', 'ok');
+              add('Tórax', anthro?.torax, 'cm', comp?.percentual_gordura > 25 ? 'attention' : 'ok');
+              add('Abdômen', anthro?.abdomen, 'cm', anthro?.imc > 30 ? 'risk' : anthro?.imc > 25 ? 'attention' : 'ok');
+              add('Cintura', anthro?.cintura, 'cm', anthro?.rcq > 0.95 ? 'risk' : anthro?.rcq > 0.85 ? 'attention' : 'ok');
+              add('Quadril', anthro?.quadril, 'cm', anthro?.rcq > 0.95 ? 'risk' : anthro?.rcq > 0.85 ? 'attention' : 'ok');
+              add('Braço Dir.', anthro?.braco_direito, 'cm', perf?.pushup !== null && perf?.pushup < 15 ? 'attention' : 'ok');
+              add('Braço Esq.', anthro?.braco_esquerdo, 'cm', perf?.pushup !== null && perf?.pushup < 15 ? 'attention' : 'ok');
+              add('Coxa Dir.', anthro?.coxa_direita, 'cm', perf?.cooper_12min !== null && perf?.cooper_12min < 1600 ? 'attention' : 'ok');
+              add('Coxa Esq.', anthro?.coxa_esquerda, 'cm', perf?.cooper_12min !== null && perf?.cooper_12min < 1600 ? 'attention' : 'ok');
+              add('Panturrilha Dir.', anthro?.panturrilha_direita, 'cm', 'ok');
+              add('Panturrilha Esq.', anthro?.panturrilha_esquerda, 'cm', 'ok');
+              const statusDot = (s: string) => s === 'risk' ? 'bg-destructive' : s === 'attention' ? 'bg-primary' : 'bg-[hsl(142,71%,45%)]';
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {items.map((item, i) => (
+                    <div key={i} className="flex items-center gap-2 py-1.5 px-2 rounded-lg bg-secondary/30">
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${statusDot(item.status)}`} />
+                      <span className="text-xs text-muted-foreground">{item.label}</span>
+                      <span className="text-xs font-semibold text-foreground ml-auto">{item.value} {item.unit}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
             <div className="flex flex-wrap gap-3 mt-4 text-xs">
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500" /> Risco elevado</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-500" /> Atenção</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-500" /> Força</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-cyan-500" /> Cardio</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-purple-500" /> Core</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-destructive" /> Risco</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-primary" /> Atenção</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-[hsl(142,71%,45%)]" /> OK</span>
             </div>
           </CardContent>
         </Card>
