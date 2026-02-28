@@ -11,6 +11,8 @@ interface ReportData {
   vitals: any;
   perf: any;
   anamnese: any;
+  postureScan?: any;
+  studentProfile?: any;
 }
 
 const BRAND = {
@@ -40,24 +42,30 @@ const classifyRCQ = (rcq: number) => {
 const loadImage = (src: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
     img.onerror = reject;
     img.src = src;
   });
 
-const fmt = (v: any, unit = '') => (v != null && v !== '' ? `${v}${unit}` : '—');
+const hasValue = (v: any) => v != null && v !== '' && v !== 0;
+const fmt = (v: any, unit = '') => (hasValue(v) ? `${v}${unit}` : null);
+
+/** Filter rows that have non-null values */
+const filterRows = (rows: [string, string | null][]): [string, string][] =>
+  rows.filter(([, v]) => v !== null) as [string, string][];
 
 export const generatePDF = async (data: ReportData) => {
-  const { profile, assessment, anthro, comp, skinfolds, vitals, perf, anamnese } = data;
+  const { profile, assessment, anthro, comp, skinfolds, vitals, perf, anamnese, postureScan, studentProfile } = data;
   const doc = new jsPDF('p', 'mm', 'a4');
   const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
   const margin = 15;
   const contentW = pageW - margin * 2;
   let y = margin;
 
-  // ── Helper: add new page if needed ──
   const checkPage = (needed: number) => {
-    if (y + needed > doc.internal.pageSize.getHeight() - 20) {
+    if (y + needed > pageH - 20) {
       doc.addPage();
       y = margin;
       return true;
@@ -65,7 +73,6 @@ export const generatePDF = async (data: ReportData) => {
     return false;
   };
 
-  // ── Helper: section title ──
   const sectionTitle = (title: string) => {
     checkPage(18);
     y += 4;
@@ -78,8 +85,8 @@ export const generatePDF = async (data: ReportData) => {
     y += 14;
   };
 
-  // ── Helper: key-value table ──
   const kvTable = (rows: [string, string][]) => {
+    if (rows.length === 0) return;
     checkPage(rows.length * 7 + 5);
     autoTable(doc, {
       startY: y,
@@ -97,27 +104,33 @@ export const generatePDF = async (data: ReportData) => {
     y = (doc as any).lastAutoTable.finalY + 4;
   };
 
+  const addWrappedText = (text: string) => {
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...BRAND.dark);
+    const lines = doc.splitTextToSize(text, contentW);
+    checkPage(lines.length * 4.5 + 6);
+    doc.text(lines, margin, y);
+    y += lines.length * 4.5 + 6;
+  };
+
   // ══════════════════════════════════════════════
-  // 1. HEADER WITH LOGO
+  // HEADER
   // ══════════════════════════════════════════════
   try {
     const logo = await loadImage(logoUrl);
     const logoSize = 28;
     doc.addImage(logo, 'PNG', margin, y, logoSize, logoSize);
-    
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...BRAND.dark);
     doc.text('MAROMBIEW', margin + logoSize + 6, y + 10);
-
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...BRAND.gray);
     doc.text('FITNESS APPLICATION', margin + logoSize + 6, y + 16);
-    
     doc.setFontSize(8);
     doc.text('Relatório de Avaliação Física', margin + logoSize + 6, y + 22);
-
     y += logoSize + 4;
   } catch {
     doc.setFontSize(18);
@@ -127,19 +140,17 @@ export const generatePDF = async (data: ReportData) => {
     y += 16;
   }
 
-  // Gold separator line
   doc.setDrawColor(...BRAND.gold);
   doc.setLineWidth(1);
   doc.line(margin, y, pageW - margin, y);
   y += 8;
 
-  // ── Student info ──
+  // Student info
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...BRAND.dark);
   doc.text(profile?.nome || 'Aluno', margin, y);
   y += 6;
-
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...BRAND.gray);
@@ -152,31 +163,30 @@ export const generatePDF = async (data: ReportData) => {
   y += 10;
 
   // ══════════════════════════════════════════════
-  // 2. RESUMO PRINCIPAL
+  // RESUMO (only filled values)
   // ══════════════════════════════════════════════
-  sectionTitle('Resumo');
-  
   const pesoIdeal = anthro?.altura ? (22 * Math.pow(anthro.altura / 100, 2)).toFixed(1) : null;
-  
-  const summaryRows: [string, string][] = [
+  const summaryRows = filterRows([
     ['Peso', fmt(anthro?.peso, ' kg')],
-    ['Peso Ideal (IMC 22)', pesoIdeal ? `${pesoIdeal} kg` : '—'],
+    ['Peso Ideal (IMC 22)', pesoIdeal ? `${pesoIdeal} kg` : null],
     ['Altura', fmt(anthro?.altura, ' cm')],
-    ['IMC', anthro?.imc ? `${anthro.imc} — ${classifyIMC(anthro.imc)}` : '—'],
+    ['IMC', anthro?.imc ? `${anthro.imc} — ${classifyIMC(anthro.imc)}` : null],
     ['% Gordura', fmt(comp?.percentual_gordura, '%')],
     ['Massa Magra', fmt(comp?.massa_magra, ' kg')],
     ['Massa Gorda', fmt(comp?.massa_gorda, ' kg')],
     ['Cintura', fmt(anthro?.cintura, ' cm')],
     ['Quadril', fmt(anthro?.quadril, ' cm')],
-    ['RCQ', anthro?.rcq ? `${anthro.rcq} — ${classifyRCQ(anthro.rcq)}` : '—'],
-  ];
-  kvTable(summaryRows);
+    ['RCQ', anthro?.rcq ? `${anthro.rcq} — ${classifyRCQ(anthro.rcq)}` : null],
+  ]);
+  if (summaryRows.length > 0) {
+    sectionTitle('Resumo');
+    kvTable(summaryRows);
+  }
 
   // ══════════════════════════════════════════════
-  // 3. MEDIDAS CORPORAIS
+  // MEDIDAS CORPORAIS (only filled)
   // ══════════════════════════════════════════════
-  sectionTitle('Medidas Corporais');
-  const medidasRows: [string, string][] = [
+  const medidasRows = filterRows([
     ['Pescoço', fmt(anthro?.pescoco, ' cm')],
     ['Tórax', fmt(anthro?.torax, ' cm')],
     ['Ombro', fmt(anthro?.ombro, ' cm')],
@@ -191,19 +201,34 @@ export const generatePDF = async (data: ReportData) => {
     ['Coxa Esquerda', fmt(anthro?.coxa_esquerda, ' cm')],
     ['Panturrilha Direita', fmt(anthro?.panturrilha_direita, ' cm')],
     ['Panturrilha Esquerda', fmt(anthro?.panturrilha_esquerda, ' cm')],
-  ];
-  kvTable(medidasRows);
+  ]);
+  if (medidasRows.length > 0) {
+    sectionTitle('Medidas Corporais');
+    kvTable(medidasRows);
+  }
 
   // ══════════════════════════════════════════════
-  // 4. DOBRAS CUTÂNEAS
+  // COMPOSIÇÃO CORPORAL (only if data exists)
   // ══════════════════════════════════════════════
-  sectionTitle('Dobras Cutâneas');
-  const metodo = skinfolds?.metodo?.replace(/_/g, ' ') || '—';
-  doc.setFontSize(8);
-  doc.setTextColor(...BRAND.gray);
-  doc.text(`Método: ${metodo}`, margin, y - 4);
-  
-  const dobrasRows: [string, string][] = [
+  if (comp && (hasValue(comp.percentual_gordura) || hasValue(comp.massa_magra) || hasValue(comp.massa_gorda))) {
+    const sexo = studentProfile?.sexo;
+    const idealFat = sexo === 'feminino' ? 20 : 15;
+    const idealFatWeight = anthro?.peso ? (anthro.peso * idealFat / 100).toFixed(1) : null;
+    const compRows = filterRows([
+      ['% Gordura', fmt(comp.percentual_gordura, '%')],
+      ['% Gordura Ideal', `${idealFat}% (${sexo === 'feminino' ? 'feminino' : 'masculino'})`],
+      ['Massa Magra', fmt(comp.massa_magra, ' kg')],
+      ['Massa Gorda', fmt(comp.massa_gorda, ' kg')],
+      ['Peso de Gordura Ideal', idealFatWeight ? `${idealFatWeight} kg` : null],
+    ]);
+    sectionTitle('Composição Corporal');
+    kvTable(compRows);
+  }
+
+  // ══════════════════════════════════════════════
+  // DOBRAS CUTÂNEAS (only if any filled)
+  // ══════════════════════════════════════════════
+  const dobrasRows = filterRows([
     ['Tríceps', fmt(skinfolds?.triceps, ' mm')],
     ['Subescapular', fmt(skinfolds?.subescapular, ' mm')],
     ['Suprailíaca', fmt(skinfolds?.suprailiaca, ' mm')],
@@ -211,30 +236,39 @@ export const generatePDF = async (data: ReportData) => {
     ['Peitoral', fmt(skinfolds?.peitoral, ' mm')],
     ['Axilar Média', fmt(skinfolds?.axilar_media, ' mm')],
     ['Coxa', fmt(skinfolds?.coxa, ' mm')],
-  ];
-  kvTable(dobrasRows);
+  ]);
+  if (dobrasRows.length > 0) {
+    sectionTitle('Dobras Cutâneas');
+    if (skinfolds?.metodo) {
+      doc.setFontSize(8);
+      doc.setTextColor(...BRAND.gray);
+      doc.text(`Método: ${skinfolds.metodo.replace(/_/g, ' ')}`, margin, y - 4);
+    }
+    kvTable(dobrasRows);
+  }
 
   // ══════════════════════════════════════════════
-  // 5. SINAIS VITAIS
+  // SINAIS VITAIS (only if any filled)
   // ══════════════════════════════════════════════
   if (vitals) {
-    sectionTitle('Sinais Vitais');
-    const vitaisRows: [string, string][] = [
+    const vitaisRows = filterRows([
       ['Pressão Arterial', fmt(vitals.pressao)],
       ['FC Repouso', fmt(vitals.fc_repouso, ' bpm')],
       ['SpO2', fmt(vitals.spo2, '%')],
       ['Glicemia', fmt(vitals.glicemia, ' mg/dL')],
-    ];
-    if (vitals.observacoes) vitaisRows.push(['Observações', vitals.observacoes]);
-    kvTable(vitaisRows);
+      ['Observações', vitals.observacoes || null],
+    ]);
+    if (vitaisRows.length > 0) {
+      sectionTitle('Sinais Vitais');
+      kvTable(vitaisRows);
+    }
   }
 
   // ══════════════════════════════════════════════
-  // 6. TESTES FÍSICOS
+  // TESTES FÍSICOS (only if any filled)
   // ══════════════════════════════════════════════
   if (perf) {
-    sectionTitle('Testes Físicos');
-    const testRows: [string, string][] = [
+    const testRows = filterRows([
       ['Flexões', fmt(perf.pushup, ' rep')],
       ['Prancha', fmt(perf.plank, ' seg')],
       ['Cooper 12min', fmt(perf.cooper_12min, ' m')],
@@ -243,17 +277,19 @@ export const generatePDF = async (data: ReportData) => {
       ['Mobilidade Ombro', fmt(perf.mobilidade_ombro)],
       ['Mobilidade Quadril', fmt(perf.mobilidade_quadril)],
       ['Mobilidade Tornozelo', fmt(perf.mobilidade_tornozelo)],
-    ];
-    if (perf.observacoes) testRows.push(['Observações', perf.observacoes]);
-    kvTable(testRows);
+      ['Observações', perf.observacoes || null],
+    ]);
+    if (testRows.length > 0) {
+      sectionTitle('Testes Físicos');
+      kvTable(testRows);
+    }
   }
 
   // ══════════════════════════════════════════════
-  // 7. ANAMNESE
+  // ANAMNESE (only if any filled)
   // ══════════════════════════════════════════════
   if (anamnese) {
-    sectionTitle('Anamnese');
-    const anamRows: [string, string][] = [
+    const anamRows = filterRows([
       ['Sono', fmt(anamnese.sono)],
       ['Stress', fmt(anamnese.stress)],
       ['Rotina', fmt(anamnese.rotina)],
@@ -263,46 +299,168 @@ export const generatePDF = async (data: ReportData) => {
       ['Histórico de Saúde', fmt(anamnese.historico_saude)],
       ['Dores', fmt(anamnese.dores)],
       ['Cirurgias', fmt(anamnese.cirurgias)],
-      ['Tabagismo', anamnese.tabagismo ? 'Sim' : 'Não'],
+      ['Tabagismo', anamnese.tabagismo === true ? 'Sim' : anamnese.tabagismo === false ? 'Não' : null],
       ['Álcool', fmt(anamnese.alcool)],
-    ];
-    kvTable(anamRows);
+    ]);
+    if (anamRows.length > 0) {
+      sectionTitle('Anamnese');
+      kvTable(anamRows);
+    }
   }
 
   // ══════════════════════════════════════════════
-  // 8. NOTAS GERAIS
+  // ANÁLISE POSTURAL (photos + summary)
+  // ══════════════════════════════════════════════
+  if (postureScan) {
+    const hasPhotos = postureScan.front_photo_url || postureScan.side_photo_url || postureScan.back_photo_url;
+    const regionScores = (postureScan.region_scores_json as any[]) || [];
+    const attentionPoints = (postureScan.attention_points_json as any[]) || [];
+    const angles = postureScan.angles_json as any;
+
+    if (hasPhotos || regionScores.length > 0 || attentionPoints.length > 0) {
+      // Start on new page for posture section
+      doc.addPage();
+      y = margin;
+
+      sectionTitle('Análise Postural');
+
+      doc.setFontSize(8);
+      doc.setTextColor(...BRAND.gray);
+      doc.text(`Data: ${new Date(postureScan.created_at).toLocaleDateString('pt-BR')}`, margin, y);
+      y += 6;
+
+      // Photos
+      if (hasPhotos) {
+        const photos: { url: string; label: string }[] = [];
+        if (postureScan.front_photo_url) photos.push({ url: postureScan.front_photo_url, label: 'Frente' });
+        if (postureScan.side_photo_url) photos.push({ url: postureScan.side_photo_url, label: 'Lado' });
+        if (postureScan.back_photo_url) photos.push({ url: postureScan.back_photo_url, label: 'Costas' });
+
+        const photoWidth = photos.length === 1 ? 80 : photos.length === 2 ? 60 : 50;
+        const photoHeight = photoWidth * 1.33;
+        const totalWidth = photos.length * photoWidth + (photos.length - 1) * 5;
+        const startX = (pageW - totalWidth) / 2;
+
+        checkPage(photoHeight + 15);
+
+        for (let i = 0; i < photos.length; i++) {
+          try {
+            const img = await loadImage(photos[i].url);
+            const x = startX + i * (photoWidth + 5);
+            doc.addImage(img, 'JPEG', x, y, photoWidth, photoHeight);
+            // Label below photo
+            doc.setFontSize(7);
+            doc.setTextColor(...BRAND.gray);
+            doc.text(photos[i].label, x + photoWidth / 2, y + photoHeight + 4, { align: 'center' });
+          } catch {
+            // Skip photo if can't load
+          }
+        }
+        y += photoHeight + 10;
+      }
+
+      // Region Scores — Resumo Postural
+      if (regionScores.length > 0) {
+        checkPage(20);
+        y += 4;
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...BRAND.dark);
+        doc.text('Resumo Postural', margin, y);
+        y += 6;
+
+        const statusLabelPdf = (s: string) => s === 'risk' ? 'Risco' : s === 'attention' ? 'Atenção' : 'OK';
+        const scoreRows: [string, string][] = regionScores.map((s: any) => {
+          const angleStr = s.angle !== null && s.angle !== undefined ? ` (${s.angle}°)` : '';
+          return [s.label, `${statusLabelPdf(s.status)}${angleStr} — ${s.note || ''}`];
+        });
+        kvTable(scoreRows);
+      }
+
+      // Angles / Metrics
+      if (angles) {
+        const overrides = (postureScan.overrides_json as any)?.values || {};
+        const manualFlags = (postureScan.overrides_json as any)?.manual_flags || {};
+        const angleEntries: [string, string | null][] = [
+          ['Inclinação Ombros', (() => { const v = manualFlags.shoulder_tilt ? overrides.shoulder_tilt : angles.shoulder_tilt; return v != null ? `${v}°` : null; })()],
+          ['Inclinação Pélvica', (() => { const v = manualFlags.pelvic_tilt ? overrides.pelvic_tilt : angles.pelvic_tilt; return v != null ? `${v}°` : null; })()],
+          ['Inclinação Tronco', (() => { const v = manualFlags.trunk_lateral ? overrides.trunk_lateral : angles.trunk_lateral; return v != null ? `${v}°` : null; })()],
+          ['Cabeça Anteriorizada', (() => { const v = manualFlags.head_forward ? overrides.head_forward : angles.head_forward; return v != null ? `${v}` : null; })()],
+          ['Joelho Esquerdo', (() => { const v = manualFlags.knee_alignment_left ? overrides.knee_alignment_left : angles.knee_alignment_left; return v != null ? `${v}°` : null; })()],
+          ['Joelho Direito', (() => { const v = manualFlags.knee_alignment_right ? overrides.knee_alignment_right : angles.knee_alignment_right; return v != null ? `${v}°` : null; })()],
+        ];
+        const filteredAngles = filterRows(angleEntries);
+        if (filteredAngles.length > 0) {
+          checkPage(15);
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(...BRAND.dark);
+          doc.text('Métricas e Ângulos', margin, y);
+          y += 6;
+          kvTable(filteredAngles);
+        }
+      }
+
+      // Attention points
+      if (attentionPoints.length > 0) {
+        checkPage(attentionPoints.length * 6 + 10);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...BRAND.dark);
+        doc.text('Pontos de Atenção', margin, y);
+        y += 6;
+
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        for (const point of attentionPoints) {
+          checkPage(6);
+          doc.setTextColor(...BRAND.dark);
+          doc.text(`• ${point.text}`, margin + 2, y);
+          y += 5;
+        }
+        y += 4;
+      }
+
+      // Posture notes
+      if (postureScan.notes) {
+        checkPage(15);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...BRAND.dark);
+        doc.text('Notas do Avaliador', margin, y);
+        y += 6;
+        addWrappedText(postureScan.notes);
+      }
+    }
+  }
+
+  // ══════════════════════════════════════════════
+  // NOTAS GERAIS
   // ══════════════════════════════════════════════
   if (assessment?.notas_gerais) {
     sectionTitle('Notas Gerais');
-    checkPage(20);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...BRAND.dark);
-    const lines = doc.splitTextToSize(assessment.notas_gerais, contentW);
-    doc.text(lines, margin, y);
-    y += lines.length * 4.5 + 6;
+    addWrappedText(assessment.notas_gerais);
   }
 
   // ══════════════════════════════════════════════
-  // FOOTER on each page
+  // FOOTER
   // ══════════════════════════════════════════════
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
-    const pageH = doc.internal.pageSize.getHeight();
-    
-    // Gold line
+    const ph = doc.internal.pageSize.getHeight();
     doc.setDrawColor(...BRAND.gold);
     doc.setLineWidth(0.5);
-    doc.line(margin, pageH - 15, pageW - margin, pageH - 15);
-    
+    doc.line(margin, ph - 15, pageW - margin, ph - 15);
     doc.setFontSize(7);
     doc.setTextColor(...BRAND.gray);
-    doc.text('Marombiew Fitness Application — Documento gerado automaticamente', margin, pageH - 10);
-    doc.text(`Página ${i} de ${totalPages}`, pageW - margin, pageH - 10, { align: 'right' });
+    doc.text('Marombiew Fitness Application — Documento gerado automaticamente', margin, ph - 10);
+    doc.text(`Página ${i} de ${totalPages}`, pageW - margin, ph - 10, { align: 'right' });
   }
 
-  // Save — with iOS PWA standalone compatibility
+  // ══════════════════════════════════════════════
+  // SAVE (iOS PWA compatible)
+  // ══════════════════════════════════════════════
   const nome = (profile?.nome || 'aluno').replace(/\s+/g, '_').toLowerCase();
   const dateStr = assessment ? new Date(assessment.created_at).toISOString().split('T')[0] : 'report';
   const filename = `avaliacao_${nome}_${dateStr}.pdf`;
@@ -314,7 +472,6 @@ export const generatePDF = async (data: ReportData) => {
   const blob = doc.output('blob');
 
   if (isStandalone || isIOS) {
-    // iOS standalone ignores <a download> — check Web Share API with file support first
     if (navigator.share && navigator.canShare) {
       const file = new File([blob], filename, { type: 'application/pdf' });
       const shareData = { files: [file], title: filename };
@@ -323,18 +480,14 @@ export const generatePDF = async (data: ReportData) => {
           await navigator.share(shareData);
           return;
         } catch (err: any) {
-          if (err.name === 'AbortError') return; // user cancelled
-          // Fall through to window.open fallback
+          if (err.name === 'AbortError') return;
         }
       }
     }
-    // Fallback: open PDF in new tab/window so user can save from there
     const blobUrl = URL.createObjectURL(blob);
     window.open(blobUrl, '_blank');
-    // Don't revoke immediately — give the new window time to load
     setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
   } else {
-    // Standard desktop/Android browser
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
