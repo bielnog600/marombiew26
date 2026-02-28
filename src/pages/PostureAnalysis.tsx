@@ -400,7 +400,7 @@ const PostureAnalysis = () => {
         </div>
 
         {/* Hidden file input */}
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onFileSelected} />
+        <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.heic,.heif,.webp" className="hidden" onChange={onFileSelected} />
 
         {/* ─── Step 0: Pre-check ─── */}
         {step === 0 && (
