@@ -224,30 +224,36 @@ const Relatorio = () => {
         </Card>
 
         {/* Resumo */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          {[
-            { label: 'Peso', value: anthro?.peso, unit: 'kg', sub: '' },
-            { label: 'IMC', value: anthro?.imc, unit: '', sub: anthro?.imc ? classifyIMC(anthro.imc).label : '' },
-            { label: '% Gordura', value: comp?.percentual_gordura, unit: '%', sub: '' },
-            { label: 'Cintura', value: anthro?.cintura, unit: 'cm', sub: '' },
-            { label: 'Quadril', value: anthro?.quadril, unit: 'cm', sub: '' },
-            { label: 'RCQ', value: anthro?.rcq, unit: '', sub: anthro?.rcq ? classifyRCQ(anthro.rcq).label : '' },
-          ].map((item) => (
-            <Card key={item.label} className="glass-card">
-              <CardContent className="p-4 text-center">
-                <p className="text-xs text-muted-foreground">{item.label}</p>
-                <p className="text-xl font-bold text-primary">{item.value ?? '-'}</p>
-                {item.unit && <p className="text-xs text-muted-foreground">{item.unit}</p>}
-                {item.sub && (
-                  <p className={`text-xs font-medium mt-1 ${
-                    item.label === 'IMC' && anthro?.imc ? classifyIMC(anthro.imc).color :
-                    item.label === 'RCQ' && anthro?.rcq ? classifyRCQ(anthro.rcq).color : ''
-                  }`}>{item.sub}</p>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        {(() => {
+          const pesoIdeal = anthro?.altura ? (22 * Math.pow(anthro.altura / 100, 2)).toFixed(1) : null;
+          return (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
+              {[
+                { label: 'Peso', value: anthro?.peso, unit: 'kg', sub: '' },
+                { label: 'Peso Ideal', value: pesoIdeal, unit: 'kg', sub: 'IMC 22' },
+                { label: 'IMC', value: anthro?.imc, unit: '', sub: anthro?.imc ? classifyIMC(anthro.imc).label : '' },
+                { label: '% Gordura', value: comp?.percentual_gordura, unit: '%', sub: '' },
+                { label: 'Cintura', value: anthro?.cintura, unit: 'cm', sub: '' },
+                { label: 'Quadril', value: anthro?.quadril, unit: 'cm', sub: '' },
+                { label: 'RCQ', value: anthro?.rcq, unit: '', sub: anthro?.rcq ? classifyRCQ(anthro.rcq).label : '' },
+              ].map((item) => (
+                <Card key={item.label} className="glass-card">
+                  <CardContent className="p-4 text-center">
+                    <p className="text-xs text-muted-foreground">{item.label}</p>
+                    <p className="text-xl font-bold text-primary">{item.value ?? '-'}</p>
+                    {item.unit && <p className="text-xs text-muted-foreground">{item.unit}</p>}
+                    {item.sub && (
+                      <p className={`text-xs font-medium mt-1 ${
+                        item.label === 'IMC' && anthro?.imc ? classifyIMC(anthro.imc).color :
+                        item.label === 'RCQ' && anthro?.rcq ? classifyRCQ(anthro.rcq).color : 'text-muted-foreground'
+                      }`}>{item.sub}</p>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          );
+        })()}
 
         {/* Alertas */}
         {(anthro?.imc > 25 || anthro?.rcq > 0.80) && (
