@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Plus, ClipboardList, User, Target, FileText } from 'lucide-react';
+import { ArrowLeft, Plus, ClipboardList, User, Target, FileText, ScanLine } from 'lucide-react';
 import { toast } from 'sonner';
 
 const AlunoDetail = () => {
@@ -63,6 +63,11 @@ const AlunoDetail = () => {
                 <h2 className="text-xl font-bold">{profile.nome}</h2>
                 <p className="text-muted-foreground">{profile.email}</p>
                 {profile.telefone && <p className="text-sm text-muted-foreground">{profile.telefone}</p>}
+              </div>
+              <div className="ml-auto flex gap-2">
+                <Button variant="outline" onClick={() => navigate(`/postura/${id}`)}>
+                  <ScanLine className="mr-2 h-4 w-4" /> Análise Postura
+                </Button>
               </div>
             </div>
           </CardContent>
