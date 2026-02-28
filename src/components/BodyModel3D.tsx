@@ -1,10 +1,10 @@
 import React, { useRef, useMemo, useState, Suspense, useCallback, ErrorInfo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Html } from '@react-three/drei';
+import { OrbitControls, Html, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { User, RotateCcw } from 'lucide-react';
+import { User, RotateCcw, Info } from 'lucide-react';
 
 // ── Types ──
 export interface BodyMeasurement {
@@ -38,6 +38,28 @@ const STATUS_LABELS: Record<string, string> = {
   strength: 'Força',
   cardio: 'Cardio',
   core: 'Core',
+};
+
+// ── GLB model paths ──
+const MODEL_PATHS: Record<string, string> = {
+  male: '/models/male-fitness.glb',
+  female: '/models/female-fitness.glb',
+};
+
+// ── Model credits (CC-BY attribution) ──
+export const MODEL_CREDITS = {
+  male: {
+    title: 'Sports Guy — Fitness Male Model',
+    author: 'A definir',
+    license: 'CC Attribution (CC BY 4.0)',
+    url: '',
+  },
+  female: {
+    title: 'Gym Girl — Fitness Female Model',
+    author: 'A definir',
+    license: 'CC Attribution (CC BY 4.0)',
+    url: '',
+  },
 };
 
 // ── Marker positions per gender ──
@@ -81,7 +103,7 @@ const CAMERA_PRESETS = {
   back: { position: new THREE.Vector3(0, 1.2, -4.5), target: new THREE.Vector3(0, 1, 0) },
 };
 
-// ── Smooth body part ──
+// ── Smooth body part (procedural fallback) ──
 const SmoothPart = ({ position, args, color, scale }: {
   position: [number, number, number];
   args: [number, number, number, number];
@@ -129,14 +151,12 @@ const Marker = ({ position, measurement, onClick, isSelected }: {
           opacity={0.9}
         />
       </mesh>
-      {/* Glow ring */}
       {(hovered || isSelected) && (
         <mesh rotation={[Math.PI / 2, 0, 0]}>
           <ringGeometry args={[0.08, 0.12, 32]} />
           <meshBasicMaterial color={color} transparent opacity={0.5} side={THREE.DoubleSide} />
         </mesh>
       )}
-      {/* Tooltip on hover */}
       {hovered && !isSelected && (
         <Html distanceFactor={6} position={[0, 0.15, 0]} center style={{ pointerEvents: 'none' }}>
           <div className="bg-background/95 border border-border rounded-lg px-3 py-2 shadow-xl min-w-[120px] backdrop-blur-sm">
@@ -177,50 +197,84 @@ const CameraController = ({ preset }: { preset: keyof typeof CAMERA_PRESETS | nu
   );
 };
 
-// ── Human body (male) ──
+// ── GLB Model Loader ──
+const GLBModel = ({ gender }: { gender: 'male' | 'female' }) => {
+  const modelPath = MODEL_PATHS[gender];
+  const { scene } = useGLTF(modelPath);
+
+  const clonedScene = useMemo(() => {
+    const clone = scene.clone(true);
+    const box = new THREE.Box3().setFromObject(clone);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const targetHeight = 3.5;
+    const scaleFactor = targetHeight / maxDim;
+    clone.scale.setScalar(scaleFactor);
+    clone.position.set(
+      -center.x * scaleFactor,
+      -box.min.y * scaleFactor - 0.5,
+      -center.z * scaleFactor
+    );
+    clone.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mat = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
+        if (mat?.isMeshStandardMaterial) {
+          mat.roughness = Math.max(mat.roughness, 0.3);
+          mat.metalness = Math.min(mat.metalness, 0.15);
+          mat.envMapIntensity = 0.5;
+        }
+      }
+    });
+    return clone;
+  }, [scene]);
+
+  return <primitive object={clonedScene} />;
+};
+
+// ── GLB error boundary ──
+class GLBErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallback: React.ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  render() { return this.state.hasError ? this.props.fallback : this.props.children; }
+}
+
+// ── Procedural male body (fallback) ──
 const MaleBody = () => {
   const bodyColor = '#3a3f4a';
   const skinColor = '#5a6275';
   return (
     <group position={[0, -0.5, 0]}>
-      {/* Head */}
       <mesh position={[0, 2.75, 0]}>
         <sphereGeometry args={[0.32, 24, 24]} />
         <meshStandardMaterial color={skinColor} roughness={0.45} />
       </mesh>
-      {/* Neck */}
       <SmoothPart position={[0, 2.35, 0]} args={[0.1, 0.12, 12, 16]} color={skinColor} />
-      {/* Torso upper */}
       <mesh position={[0, 1.75, 0]}>
         <capsuleGeometry args={[0.38, 0.5, 12, 24]} />
         <meshStandardMaterial color={bodyColor} roughness={0.5} metalness={0.05} />
       </mesh>
-      {/* Torso lower */}
       <mesh position={[0, 1.1, 0]}>
         <capsuleGeometry args={[0.34, 0.4, 12, 24]} />
         <meshStandardMaterial color={bodyColor} roughness={0.5} metalness={0.05} />
       </mesh>
-      {/* Shoulders */}
       <SmoothPart position={[0.48, 2.05, 0]} args={[0.12, 0.05, 12, 16]} color={bodyColor} />
       <SmoothPart position={[-0.48, 2.05, 0]} args={[0.12, 0.05, 12, 16]} color={bodyColor} />
-      {/* Hip */}
       <mesh position={[0, 0.7, 0]}>
         <capsuleGeometry args={[0.36, 0.15, 12, 24]} />
         <meshStandardMaterial color={bodyColor} roughness={0.5} />
       </mesh>
-      {/* Right arm */}
       <SmoothPart position={[0.65, 1.7, 0]} args={[0.1, 0.3, 12, 16]} color={bodyColor} />
       <SmoothPart position={[0.65, 1.05, 0]} args={[0.08, 0.3, 12, 16]} color={bodyColor} />
-      {/* Left arm */}
       <SmoothPart position={[-0.65, 1.7, 0]} args={[0.1, 0.3, 12, 16]} color={bodyColor} />
       <SmoothPart position={[-0.65, 1.05, 0]} args={[0.08, 0.3, 12, 16]} color={bodyColor} />
-      {/* Right leg */}
       <SmoothPart position={[0.22, -0.05, 0]} args={[0.14, 0.5, 12, 16]} color={bodyColor} />
       <SmoothPart position={[0.22, -1.15, 0]} args={[0.1, 0.45, 12, 16]} color={bodyColor} />
-      {/* Left leg */}
       <SmoothPart position={[-0.22, -0.05, 0]} args={[0.14, 0.5, 12, 16]} color={bodyColor} />
       <SmoothPart position={[-0.22, -1.15, 0]} args={[0.1, 0.45, 12, 16]} color={bodyColor} />
-      {/* Feet */}
       <mesh position={[0.22, -1.85, 0.08]}>
         <boxGeometry args={[0.16, 0.08, 0.28]} />
         <meshStandardMaterial color={bodyColor} roughness={0.5} />
@@ -233,50 +287,39 @@ const MaleBody = () => {
   );
 };
 
-// ── Human body (female) ──
+// ── Procedural female body (fallback) ──
 const FemaleBody = () => {
   const bodyColor = '#3a3f4a';
   const skinColor = '#5a6275';
   return (
     <group position={[0, -0.5, 0]}>
-      {/* Head */}
       <mesh position={[0, 2.65, 0]}>
         <sphereGeometry args={[0.3, 24, 24]} />
         <meshStandardMaterial color={skinColor} roughness={0.45} />
       </mesh>
-      {/* Neck */}
       <SmoothPart position={[0, 2.28, 0]} args={[0.08, 0.1, 12, 16]} color={skinColor} />
-      {/* Torso upper */}
       <mesh position={[0, 1.7, 0]}>
         <capsuleGeometry args={[0.32, 0.45, 12, 24]} />
         <meshStandardMaterial color={bodyColor} roughness={0.5} metalness={0.05} />
       </mesh>
-      {/* Waist */}
       <mesh position={[0, 1.1, 0]}>
         <capsuleGeometry args={[0.28, 0.35, 12, 24]} />
         <meshStandardMaterial color={bodyColor} roughness={0.5} metalness={0.05} />
       </mesh>
-      {/* Shoulders */}
       <SmoothPart position={[0.4, 1.95, 0]} args={[0.1, 0.04, 12, 16]} color={bodyColor} />
       <SmoothPart position={[-0.4, 1.95, 0]} args={[0.1, 0.04, 12, 16]} color={bodyColor} />
-      {/* Hip - wider for female */}
       <mesh position={[0, 0.7, 0]}>
         <capsuleGeometry args={[0.38, 0.12, 12, 24]} />
         <meshStandardMaterial color={bodyColor} roughness={0.5} />
       </mesh>
-      {/* Right arm */}
       <SmoothPart position={[0.55, 1.6, 0]} args={[0.08, 0.28, 12, 16]} color={bodyColor} />
       <SmoothPart position={[0.55, 0.95, 0]} args={[0.065, 0.28, 12, 16]} color={bodyColor} />
-      {/* Left arm */}
       <SmoothPart position={[-0.55, 1.6, 0]} args={[0.08, 0.28, 12, 16]} color={bodyColor} />
       <SmoothPart position={[-0.55, 0.95, 0]} args={[0.065, 0.28, 12, 16]} color={bodyColor} />
-      {/* Right leg */}
       <SmoothPart position={[0.22, -0.1, 0]} args={[0.13, 0.48, 12, 16]} color={bodyColor} />
       <SmoothPart position={[0.22, -1.15, 0]} args={[0.09, 0.42, 12, 16]} color={bodyColor} />
-      {/* Left leg */}
       <SmoothPart position={[-0.22, -0.1, 0]} args={[0.13, 0.48, 12, 16]} color={bodyColor} />
       <SmoothPart position={[-0.22, -1.15, 0]} args={[0.09, 0.42, 12, 16]} color={bodyColor} />
-      {/* Feet */}
       <mesh position={[0.22, -1.8, 0.06]}>
         <boxGeometry args={[0.14, 0.07, 0.24]} />
         <meshStandardMaterial color={bodyColor} roughness={0.5} />
@@ -286,6 +329,40 @@ const FemaleBody = () => {
         <meshStandardMaterial color={bodyColor} roughness={0.5} />
       </mesh>
     </group>
+  );
+};
+
+// ── Body renderer: tries GLB first, falls back to procedural ──
+const BodyRenderer = ({ gender }: { gender: 'male' | 'female' }) => {
+  const [useGlb, setUseGlb] = useState(true);
+  const [glbChecked, setGlbChecked] = useState(false);
+
+  // Check if GLB file exists
+  React.useEffect(() => {
+    const path = MODEL_PATHS[gender];
+    fetch(path, { method: 'HEAD' })
+      .then(res => {
+        setUseGlb(res.ok);
+        setGlbChecked(true);
+      })
+      .catch(() => {
+        setUseGlb(false);
+        setGlbChecked(true);
+      });
+  }, [gender]);
+
+  const ProceduralFallback = gender === 'male' ? MaleBody : FemaleBody;
+
+  if (!glbChecked || !useGlb) {
+    return <ProceduralFallback />;
+  }
+
+  return (
+    <GLBErrorBoundary fallback={<ProceduralFallback />}>
+      <React.Suspense fallback={<ProceduralFallback />}>
+        <GLBModel gender={gender} />
+      </React.Suspense>
+    </GLBErrorBoundary>
   );
 };
 
@@ -307,7 +384,7 @@ const Scene = ({ gender, measurements, selectedKey, onSelectMarker, cameraPreset
       <pointLight position={[0, 3, 3]} intensity={0.3} color="#f59e0b" />
 
       <group onClick={() => onSelectMarker(null)}>
-        {gender === 'male' ? <MaleBody /> : <FemaleBody />}
+        <BodyRenderer gender={gender} />
       </group>
 
       {measurements.map((m) => {
@@ -382,6 +459,38 @@ const DetailPanel = ({ measurement, onClose }: { measurement: BodyMeasurement; o
   );
 };
 
+// ── Credits tooltip ──
+const CreditsTooltip = ({ gender }: { gender: 'male' | 'female' }) => {
+  const [open, setOpen] = useState(false);
+  const credit = MODEL_CREDITS[gender];
+
+  return (
+    <div className="relative inline-block">
+      <button
+        onClick={() => setOpen(!open)}
+        className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+      >
+        <Info className="w-3 h-3" /> Créditos do modelo 3D
+      </button>
+      {open && (
+        <div className="absolute bottom-6 left-0 bg-background/95 border border-border rounded-lg p-3 shadow-xl min-w-[220px] backdrop-blur-sm z-20 animate-fade-in">
+          <p className="text-xs font-semibold text-foreground mb-1">{credit.title}</p>
+          <p className="text-[10px] text-muted-foreground">Autor: {credit.author}</p>
+          <p className="text-[10px] text-muted-foreground">Licença: {credit.license}</p>
+          {credit.url && (
+            <a href={credit.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-primary hover:underline">
+              Ver original
+            </a>
+          )}
+          <p className="text-[10px] text-muted-foreground mt-2 italic">
+            Quando nenhum modelo GLB estiver disponível, é usado um mannequin procedural (sem atribuição necessária).
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── Main component ──
 const BodyModel3D: React.FC<BodyModel3DProps> = ({ measurements, defaultGender = 'male' }) => {
   const [gender, setGender] = useState<'male' | 'female'>(defaultGender);
@@ -402,7 +511,6 @@ const BodyModel3D: React.FC<BodyModel3DProps> = ({ measurements, defaultGender =
     <div className="relative w-full">
       {/* Controls */}
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-        {/* Gender selector */}
         <div className="flex items-center gap-1 bg-muted/30 rounded-lg p-1">
           <button
             onClick={() => setGender('male')}
@@ -417,7 +525,6 @@ const BodyModel3D: React.FC<BodyModel3DProps> = ({ measurements, defaultGender =
             Mulher
           </button>
         </div>
-        {/* Camera presets */}
         <div className="flex items-center gap-1">
           {(['front', 'side', 'back'] as const).map((p) => (
             <Button key={p} variant="outline" size="sm" className="text-xs h-7 px-2.5" onClick={() => handleCameraPreset(p)}>
@@ -452,20 +559,22 @@ const BodyModel3D: React.FC<BodyModel3DProps> = ({ measurements, defaultGender =
           </Suspense>
         </CanvasErrorBoundary>
 
-        {/* Detail panel */}
         {selectedMeasurement && (
           <DetailPanel measurement={selectedMeasurement} onClose={() => setSelectedKey(null)} />
         )}
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-3 mt-3 text-xs">
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS.risk }} /> Risco elevado</span>
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS.attention }} /> Atenção</span>
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS.ok }} /> Ok</span>
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS.strength }} /> Força</span>
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS.cardio }} /> Cardio</span>
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS.core }} /> Core</span>
+      {/* Legend + Credits */}
+      <div className="flex items-center justify-between mt-3 flex-wrap gap-2">
+        <div className="flex flex-wrap gap-3 text-xs">
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS.risk }} /> Risco elevado</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS.attention }} /> Atenção</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS.ok }} /> Ok</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS.strength }} /> Força</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS.cardio }} /> Cardio</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS.core }} /> Core</span>
+        </div>
+        <CreditsTooltip gender={gender} />
       </div>
     </div>
   );
