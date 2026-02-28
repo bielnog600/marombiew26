@@ -315,7 +315,7 @@ export const generatePDF = async (data: ReportData) => {
   }
 
   // ══════════════════════════════════════════════
-  // COMPOSIÇÃO CORPORAL (only if data exists)
+  // COMPOSIÇÃO CORPORAL (only if data exists) + PIE CHART
   // ══════════════════════════════════════════════
   if (comp && (hasValue(comp.percentual_gordura) || hasValue(comp.massa_magra) || hasValue(comp.massa_gorda))) {
     const sexo = studentProfile?.sexo;
@@ -330,6 +330,70 @@ export const generatePDF = async (data: ReportData) => {
     ]);
     sectionTitle('Composição Corporal');
     kvTable(compRows);
+
+    // Pie chart for body composition
+    if (hasValue(comp.massa_magra) && hasValue(comp.massa_gorda)) {
+      checkPage(75);
+      const pieSize = 200;
+      const pieCanvas = document.createElement('canvas');
+      pieCanvas.width = pieSize * 2;
+      pieCanvas.height = pieSize * 2;
+      const pctx = pieCanvas.getContext('2d')!;
+      const cx = pieSize;
+      const cy = pieSize;
+      const r = pieSize * 0.7;
+
+      const total = comp.massa_magra + comp.massa_gorda;
+      const slices = [
+        { value: comp.massa_magra, color: '#22c55e', label: `Massa Magra ${comp.massa_magra.toFixed(1)} kg` },
+        { value: comp.massa_gorda, color: '#ef4444', label: `Massa Gorda ${comp.massa_gorda.toFixed(1)} kg` },
+      ];
+
+      let startAngle = -Math.PI / 2;
+      slices.forEach(slice => {
+        const sliceAngle = (slice.value / total) * Math.PI * 2;
+        pctx.beginPath();
+        pctx.moveTo(cx, cy);
+        pctx.arc(cx, cy, r, startAngle, startAngle + sliceAngle);
+        pctx.closePath();
+        pctx.fillStyle = slice.color;
+        pctx.fill();
+        pctx.strokeStyle = '#ffffff';
+        pctx.lineWidth = 3;
+        pctx.stroke();
+
+        // Label
+        const midAngle = startAngle + sliceAngle / 2;
+        const lx = cx + Math.cos(midAngle) * r * 0.55;
+        const ly = cy + Math.sin(midAngle) * r * 0.55;
+        const pct = ((slice.value / total) * 100).toFixed(1);
+        pctx.fillStyle = '#ffffff';
+        pctx.font = 'bold 22px sans-serif';
+        pctx.textAlign = 'center';
+        pctx.textBaseline = 'middle';
+        pctx.fillText(`${pct}%`, lx, ly);
+
+        startAngle += sliceAngle;
+      });
+
+      // Legend below the chart
+      const legendY = pieSize * 2 - 20;
+      slices.forEach((slice, i) => {
+        const lx = i === 0 ? pieSize * 0.4 : pieSize * 1.6;
+        pctx.fillStyle = slice.color;
+        pctx.fillRect(lx - 40, legendY - 8, 12, 12);
+        pctx.fillStyle = '#1e1e1e';
+        pctx.font = '16px sans-serif';
+        pctx.textAlign = 'left';
+        pctx.fillText(slice.label, lx - 24, legendY + 2);
+      });
+
+      const chartW = 60;
+      const chartH = 60;
+      const chartX = (pageW - chartW) / 2;
+      doc.addImage(pieCanvas.toDataURL('image/png'), 'PNG', chartX, y, chartW, chartH);
+      y += chartH + 6;
+    }
   }
 
   // ══════════════════════════════════════════════
@@ -369,6 +433,71 @@ export const generatePDF = async (data: ReportData) => {
       sectionTitle('Sinais Vitais');
       kvTable(vitaisRows);
     }
+  }
+
+  // ══════════════════════════════════════════════
+  // ZONAS DE FREQUÊNCIA CARDÍACA
+  // ══════════════════════════════════════════════
+  if (studentProfile?.data_nascimento || vitals?.fc_repouso) {
+    const age = studentProfile?.data_nascimento
+      ? Math.floor((Date.now() - new Date(studentProfile.data_nascimento).getTime()) / (365.25 * 24 * 3600 * 1000))
+      : null;
+    const fcMax = age ? 220 - age : null;
+
+    if (fcMax) {
+      sectionTitle('Zonas de Frequência Cardíaca');
+      doc.setFontSize(8);
+      doc.setTextColor(...BRAND.gray);
+      doc.text(`FC Máxima estimada (220 - idade): ${fcMax} bpm`, margin, y);
+      y += 5;
+
+      const zones: [string, number, number, string][] = [
+        ['Zona 1 — Recuperação', 50, 60, 'Aquecimento, recuperação ativa'],
+        ['Zona 2 — Queima de gordura', 60, 70, 'Exercício leve, oxidação lipídica'],
+        ['Zona 3 — Aeróbico', 70, 80, 'Resistência cardiovascular'],
+        ['Zona 4 — Limiar anaeróbico', 80, 90, 'Alta intensidade, VO2max'],
+        ['Zona 5 — Máxima', 90, 100, 'Esforço máximo, sprints'],
+      ];
+
+      const zoneRows: string[][] = zones.map(([label, lo, hi, desc]) => [
+        label,
+        `${Math.round(fcMax * lo / 100)} – ${Math.round(fcMax * hi / 100)} bpm`,
+        desc,
+      ]);
+
+      checkPage(zones.length * 8 + 10);
+      autoTable(doc, {
+        startY: y,
+        margin: { left: margin, right: margin },
+        head: [['Zona', 'Faixa (bpm)', 'Objetivo']],
+        body: zoneRows,
+        theme: 'grid',
+        headStyles: { fillColor: BRAND.gold, textColor: BRAND.dark, fontStyle: 'bold', fontSize: 8 },
+        styles: { fontSize: 8, cellPadding: 2.5, textColor: BRAND.dark },
+        alternateRowStyles: { fillColor: BRAND.light },
+      });
+      y = (doc as any).lastAutoTable.finalY + 6;
+    }
+  }
+
+  // ══════════════════════════════════════════════
+  // CONSUMO DE ÁGUA RECOMENDADO
+  // ══════════════════════════════════════════════
+  if (anthro?.peso) {
+    sectionTitle('Hidratação Recomendada');
+    const waterMl = Math.round(anthro.peso * 35);
+    const waterL = (waterMl / 1000).toFixed(1);
+    const waterRows: [string, string][] = [
+      ['Peso corporal', `${anthro.peso} kg`],
+      ['Fórmula', '35 ml por kg de peso corporal'],
+      ['Consumo diário recomendado', `${waterL} litros (${waterMl} ml)`],
+      ['Em dias de treino', `${(waterMl * 1.3 / 1000).toFixed(1)} – ${(waterMl * 1.5 / 1000).toFixed(1)} litros`],
+    ];
+    kvTable(waterRows);
+    doc.setFontSize(7);
+    doc.setTextColor(...BRAND.gray);
+    doc.text('* Em dias de treino intenso, aumente o consumo em 30–50%. Distribua ao longo do dia.', margin, y);
+    y += 6;
   }
 
   // ══════════════════════════════════════════════
