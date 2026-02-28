@@ -86,11 +86,6 @@ const AlunoDetail = () => {
                 <p className="text-muted-foreground">{profile.email}</p>
                 {profile.telefone && <p className="text-sm text-muted-foreground">{profile.telefone}</p>}
               </div>
-              <div className="ml-auto flex gap-2">
-                <Button variant="outline" onClick={() => navigate(`/postura/${id}`)}>
-                  <ScanLine className="mr-2 h-4 w-4" /> Análise Postura
-                </Button>
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -99,6 +94,7 @@ const AlunoDetail = () => {
           <TabsList className="bg-secondary">
             <TabsTrigger value="perfil"><User className="mr-1 h-4 w-4" /> Perfil</TabsTrigger>
             <TabsTrigger value="avaliacoes"><ClipboardList className="mr-1 h-4 w-4" /> Avaliações</TabsTrigger>
+            <TabsTrigger value="postura" onClick={() => navigate(`/postura/${id}`)}><ScanLine className="mr-1 h-4 w-4" /> Análise Postural</TabsTrigger>
             <TabsTrigger value="objetivos"><Target className="mr-1 h-4 w-4" /> Objetivos</TabsTrigger>
             <TabsTrigger value="notas"><FileText className="mr-1 h-4 w-4" /> Observações</TabsTrigger>
           </TabsList>
