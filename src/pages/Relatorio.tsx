@@ -415,11 +415,11 @@ const Relatorio = () => {
             const fcMax = age ? 220 - age : null;
             if (!fcMax) return null;
             const zones = [
-              { name: 'Zona 1 — Recuperação', lo: 50, hi: 60, desc: 'Aquecimento, recuperação ativa' },
-              { name: 'Zona 2 — Queima de gordura', lo: 60, hi: 70, desc: 'Exercício leve, oxidação lipídica' },
-              { name: 'Zona 3 — Aeróbico', lo: 70, hi: 80, desc: 'Resistência cardiovascular' },
-              { name: 'Zona 4 — Limiar anaeróbico', lo: 80, hi: 90, desc: 'Alta intensidade, VO2max' },
-              { name: 'Zona 5 — Máxima', lo: 90, hi: 100, desc: 'Esforço máximo, sprints' },
+              { name: 'Zona 1', lo: 50, hi: 60, desc: 'Aquecimento, recuperação ativa', color: 'hsl(142 71% 45%)' },
+              { name: 'Zona 2', lo: 60, hi: 70, desc: 'Exercício leve, oxidação lipídica', color: 'hsl(142 60% 40%)' },
+              { name: 'Zona 3', lo: 70, hi: 80, desc: 'Resistência cardiovascular', color: 'hsl(45 100% 50%)' },
+              { name: 'Zona 4', lo: 80, hi: 90, desc: 'Alta intensidade, VO2max', color: 'hsl(25 95% 53%)' },
+              { name: 'Zona 5', lo: 90, hi: 100, desc: 'Esforço máximo, sprints', color: 'hsl(0 72% 51%)' },
             ];
             return (
               <Card className="glass-card">
@@ -429,22 +429,25 @@ const Relatorio = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-sm border-separate border-spacing-0 rounded-lg overflow-hidden">
                       <thead>
-                        <tr className="border-b border-border">
-                          <th className="text-left py-2 text-muted-foreground font-medium">Zona</th>
-                          <th className="text-center py-2 text-muted-foreground font-medium">% FC Max</th>
-                          <th className="text-center py-2 text-muted-foreground font-medium">Faixa (bpm)</th>
-                          <th className="text-left py-2 text-muted-foreground font-medium">Objetivo</th>
+                        <tr>
+                          <th className="text-left py-3 px-4 font-semibold bg-primary/20 text-foreground">Zona de Frequência</th>
+                          <th className="text-center py-3 px-4 font-semibold bg-primary/10 text-foreground">Intervalo (bpm)</th>
+                          <th className="text-left py-3 px-4 font-semibold bg-primary/20 text-foreground">Descrição</th>
                         </tr>
                       </thead>
                       <tbody>
                         {zones.map((z, i) => (
-                          <tr key={i} className="border-b border-border/50 last:border-0">
-                            <td className="py-2 font-medium">{z.name}</td>
-                            <td className="py-2 text-center text-primary font-bold">{z.lo}% – {z.hi}%</td>
-                            <td className="py-2 text-center font-mono">{Math.round(fcMax * z.lo / 100)} – {Math.round(fcMax * z.hi / 100)}</td>
-                            <td className="py-2 text-muted-foreground">{z.desc}</td>
+                          <tr key={i}>
+                            <td className="py-3 px-4 font-bold bg-secondary/60" style={{ borderLeft: `4px solid ${z.color}` }}>
+                              <span style={{ color: z.color }}>{z.name}</span>
+                              <span className="text-muted-foreground ml-2 text-xs">({z.lo}%–{z.hi}%)</span>
+                            </td>
+                            <td className="py-3 px-4 text-center font-mono font-bold bg-secondary/30">
+                              {Math.round(fcMax * z.lo / 100)} – {Math.round(fcMax * z.hi / 100)} bpm
+                            </td>
+                            <td className="py-3 px-4 text-muted-foreground bg-secondary/60">{z.desc}</td>
                           </tr>
                         ))}
                       </tbody>
