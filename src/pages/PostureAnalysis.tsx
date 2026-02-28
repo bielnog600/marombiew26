@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,9 +14,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import {
-  Camera, ChevronRight, ChevronLeft, Check, AlertTriangle,
-  Save, FileDown, ArrowLeft, Eye, Upload, Maximize2, RefreshCw,
-  TrendingUp, TrendingDown, Minus, Edit3
+  ChevronRight, ChevronLeft, Check, AlertTriangle,
+  Save, FileDown, ArrowLeft, Eye, Upload, Maximize2, ImageIcon,
+  TrendingUp, Edit3
 } from 'lucide-react';
 import { calculatePostureAngles, calculateRegionScores, drawPoseOverlay, type PoseKeypoint, type PostureAngles, type RegionScore } from '@/lib/postureUtils';
 
@@ -47,11 +47,11 @@ const statusTextClass = (status: string) =>
 // ── Photo Card Component ──
 const PhotoCard = ({
   position, label, photoUrl, hasKeypoints, showOverlay, onToggleOverlay,
-  onCapture, onUpload, onExpand, keypoints, scores
+  onUpload, onExpand, keypoints, scores
 }: {
   position: CapturePosition; label: string; photoUrl: string | null;
   hasKeypoints: boolean; showOverlay: boolean; onToggleOverlay: () => void;
-  onCapture: () => void; onUpload: () => void; onExpand: () => void;
+  onUpload: () => void; onExpand: () => void;
   keypoints: PoseKeypoint[] | null; scores: RegionScore[];
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -89,7 +89,7 @@ const PhotoCard = ({
           </>
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground gap-2">
-            <Camera className="w-10 h-10 opacity-30" />
+            <ImageIcon className="w-10 h-10 opacity-30" />
             <span className="text-xs">Sem foto</span>
           </div>
         )}
@@ -110,14 +110,9 @@ const PhotoCard = ({
             <Switch checked={showOverlay} onCheckedChange={onToggleOverlay} className="scale-75" />
           </div>
         )}
-        <div className="flex gap-1.5">
-          <Button variant="outline" size="sm" className="flex-1 text-[10px] h-7" onClick={onCapture}>
-            <Camera className="w-3 h-3 mr-1" /> {photoUrl ? 'Refazer' : 'Câmera'}
-          </Button>
-          <Button variant="outline" size="sm" className="flex-1 text-[10px] h-7" onClick={onUpload}>
-            <Upload className="w-3 h-3 mr-1" /> Anexar
-          </Button>
-        </div>
+        <Button variant="outline" size="sm" className="w-full text-[10px] h-7" onClick={onUpload}>
+          <Upload className="w-3 h-3 mr-1" /> {photoUrl ? 'Substituir foto' : 'Anexar foto'}
+        </Button>
       </CardContent>
     </Card>
   );
@@ -186,13 +181,9 @@ const PostureAnalysis = () => {
   const [photos, setPhotos] = useState<Record<CapturePosition, string | null>>({ front: null, side: null, back: null });
   const [photoBlobs, setPhotoBlobs] = useState<Record<CapturePosition, Blob | null>>({ front: null, side: null, back: null });
   const [keypoints, setKeypoints] = useState<Record<CapturePosition, PoseKeypoint[] | null>>({ front: null, side: null, back: null });
-  const [activeCapture, setActiveCapture] = useState<CapturePosition | null>(null);
   const [overlays, setOverlays] = useState<Record<CapturePosition, boolean>>({ front: true, side: true, back: true });
 
-  // Camera & file
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  // File upload
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<CapturePosition | null>(null);
 
@@ -220,7 +211,6 @@ const PostureAnalysis = () => {
   // Load MediaPipe
   useEffect(() => {
     loadPoseDetector();
-    return () => { stopCamera(); };
   }, []);
 
   const loadPoseDetector = async () => {
@@ -245,55 +235,6 @@ const PostureAnalysis = () => {
     }
   };
 
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 1920 } }
-      });
-      streamRef.current = stream;
-      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
-    } catch { toast.error('Não foi possível acessar a câmera.'); }
-  };
-
-  const stopCamera = () => {
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    streamRef.current = null;
-  };
-
-  const detectPose = async (dataUrl: string, position: CapturePosition) => {
-    if (!poseLandmarkerRef.current) return;
-    try {
-      const img = new Image();
-      img.src = dataUrl;
-      await new Promise(r => { img.onload = r; });
-      const result = poseLandmarkerRef.current.detect(img);
-      if (result.landmarks?.length > 0) {
-        const kp: PoseKeypoint[] = result.landmarks[0].map((lm: any, i: number) => ({
-          name: `point_${i}`, x: lm.x, y: lm.y, confidence: lm.visibility ?? lm.score ?? 0.5,
-        }));
-        setKeypoints(prev => ({ ...prev, [position]: kp }));
-        toast.success(`Pose detectada (${POSITION_LABELS[position]})`);
-      } else {
-        toast.warning('Corpo não detectado. Tente novamente.');
-      }
-    } catch { toast.warning('Falha na detecção.'); }
-  };
-
-  const capturePhoto = useCallback(async (position: CapturePosition) => {
-    if (!videoRef.current || !canvasRef.current) return;
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-    canvas.getContext('2d')!.drawImage(video, 0, 0);
-    const blob = await new Promise<Blob>(r => canvas.toBlob(b => r(b!), 'image/jpeg', 0.9));
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-    setPhotos(prev => ({ ...prev, [position]: dataUrl }));
-    setPhotoBlobs(prev => ({ ...prev, [position]: blob }));
-    await detectPose(dataUrl, position);
-    setActiveCapture(null); stopCamera();
-  }, []);
-
-  const startCapture = async (position: CapturePosition) => { setActiveCapture(position); await startCamera(); };
 
   const handleFileUpload = (position: CapturePosition) => { setUploadTarget(position); fileInputRef.current?.click(); };
 
@@ -303,7 +244,23 @@ const PostureAnalysis = () => {
     const dataUrl = await new Promise<string>(r => { const rd = new FileReader(); rd.onload = () => r(rd.result as string); rd.readAsDataURL(file); });
     setPhotos(prev => ({ ...prev, [uploadTarget]: dataUrl }));
     setPhotoBlobs(prev => ({ ...prev, [uploadTarget]: file }));
-    await detectPose(dataUrl, uploadTarget);
+    if (poseLandmarkerRef.current) {
+      try {
+        const img = new Image();
+        img.src = dataUrl;
+        await new Promise(r => { img.onload = r; });
+        const result = poseLandmarkerRef.current.detect(img);
+        if (result.landmarks?.length > 0) {
+          const kp: PoseKeypoint[] = result.landmarks[0].map((lm: any, i: number) => ({
+            name: `point_${i}`, x: lm.x, y: lm.y, confidence: lm.visibility ?? lm.score ?? 0.5,
+          }));
+          setKeypoints(prev => ({ ...prev, [uploadTarget]: kp }));
+          toast.success(`Pose detectada (${POSITION_LABELS[uploadTarget]})`);
+        } else {
+          toast.warning('Corpo não detectado na foto.');
+        }
+      } catch { toast.warning('Falha na detecção.'); }
+    }
     setUploadTarget(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, [uploadTarget]);
@@ -452,31 +409,7 @@ const PostureAnalysis = () => {
         {/* ─── Step 1: Capture ─── */}
         {step === 1 && (
           <div className="space-y-4">
-            {activeCapture && (
-              <Card className="glass-card overflow-hidden">
-                <CardContent className="p-0 relative">
-                  <video ref={videoRef} className="w-full max-h-[60vh] object-contain bg-black" playsInline muted />
-                  <canvas ref={canvasRef} className="hidden" />
-                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                    <div className="border-2 border-primary/30 border-dashed rounded-lg w-[60%] h-[85%]" />
-                  </div>
-                  <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-3">
-                    <Button variant="outline" onClick={() => { stopCamera(); setActiveCapture(null); }}>Cancelar</Button>
-                    <Button onClick={() => capturePhoto(activeCapture)} size="lg" className="rounded-full w-16 h-16">
-                      <Camera className="w-6 h-6" />
-                    </Button>
-                  </div>
-                  <div className="absolute top-4 left-0 right-0 text-center">
-                    <span className="bg-card/80 backdrop-blur-sm text-sm font-medium px-4 py-2 rounded-full">
-                      Capturar: {POSITION_LABELS[activeCapture]}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-            {!activeCapture && (
-              <>
-                <Card className="glass-card">
+            <Card className="glass-card">
                   <CardHeader><CardTitle className="text-lg">Captura — 3 Posições</CardTitle></CardHeader>
                   <CardContent>
                     {/* Desktop: 3 columns */}
@@ -487,7 +420,7 @@ const PostureAnalysis = () => {
                           photoUrl={photos[pos]} hasKeypoints={!!keypoints[pos]}
                           showOverlay={overlays[pos]}
                           onToggleOverlay={() => setOverlays(p => ({ ...p, [pos]: !p[pos] }))}
-                          onCapture={() => startCapture(pos)} onUpload={() => handleFileUpload(pos)}
+                          onUpload={() => handleFileUpload(pos)}
                           onExpand={() => setExpandedPhoto(photos[pos])}
                           keypoints={keypoints[pos]} scores={regionScores}
                         />
@@ -511,7 +444,7 @@ const PostureAnalysis = () => {
                               photoUrl={photos[pos]} hasKeypoints={!!keypoints[pos]}
                               showOverlay={overlays[pos]}
                               onToggleOverlay={() => setOverlays(p => ({ ...p, [pos]: !p[pos] }))}
-                              onCapture={() => startCapture(pos)} onUpload={() => handleFileUpload(pos)}
+                              onUpload={() => handleFileUpload(pos)}
                               onExpand={() => setExpandedPhoto(photos[pos])}
                               keypoints={keypoints[pos]} scores={regionScores}
                             />
@@ -527,8 +460,6 @@ const PostureAnalysis = () => {
                     Processar Análise <ChevronRight className="ml-2 w-4 h-4" />
                   </Button>
                 </div>
-              </>
-            )}
           </div>
         )}
 
@@ -566,7 +497,7 @@ const PostureAnalysis = () => {
             <Card className="glass-card">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Camera className="w-4 h-4 text-primary" /> Fotos
+                  <ImageIcon className="w-4 h-4 text-primary" /> Fotos
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -577,7 +508,7 @@ const PostureAnalysis = () => {
                       photoUrl={photos[pos]} hasKeypoints={!!keypoints[pos]}
                       showOverlay={overlays[pos]}
                       onToggleOverlay={() => setOverlays(p => ({ ...p, [pos]: !p[pos] }))}
-                      onCapture={() => startCapture(pos)} onUpload={() => handleFileUpload(pos)}
+                       onUpload={() => handleFileUpload(pos)}
                       onExpand={() => setExpandedPhoto(photos[pos])}
                       keypoints={keypoints[pos]} scores={regionScores}
                     />
@@ -597,7 +528,7 @@ const PostureAnalysis = () => {
                           photoUrl={photos[pos]} hasKeypoints={!!keypoints[pos]}
                           showOverlay={overlays[pos]}
                           onToggleOverlay={() => setOverlays(p => ({ ...p, [pos]: !p[pos] }))}
-                          onCapture={() => startCapture(pos)} onUpload={() => handleFileUpload(pos)}
+                          onUpload={() => handleFileUpload(pos)}
                           onExpand={() => setExpandedPhoto(photos[pos])}
                           keypoints={keypoints[pos]} scores={regionScores}
                         />
