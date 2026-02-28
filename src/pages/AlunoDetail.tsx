@@ -5,8 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Plus, ClipboardList, User, Target, FileText, ScanLine } from 'lucide-react';
+import { ArrowLeft, Plus, ClipboardList, User, Target, FileText, ScanLine, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
+} from '@/components/ui/alert-dialog';
 
 const AlunoDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -36,6 +40,24 @@ const AlunoDetail = () => {
 
     const { data: n } = await supabase.from('progress_notes').select('*').eq('student_id', id).order('created_at', { ascending: false });
     setNotes(n ?? []);
+  };
+
+  const handleDeleteAssessment = async (assessmentId: string) => {
+    // Delete related data first
+    await Promise.all([
+      supabase.from('anthropometrics').delete().eq('assessment_id', assessmentId),
+      supabase.from('skinfolds').delete().eq('assessment_id', assessmentId),
+      supabase.from('composition').delete().eq('assessment_id', assessmentId),
+      supabase.from('vitals').delete().eq('assessment_id', assessmentId),
+      supabase.from('performance_tests').delete().eq('assessment_id', assessmentId),
+      supabase.from('anamnese').delete().eq('assessment_id', assessmentId),
+      supabase.from('posture').delete().eq('assessment_id', assessmentId),
+      supabase.from('assessment_photos').delete().eq('assessment_id', assessmentId),
+    ]);
+    const { error } = await supabase.from('assessments').delete().eq('id', assessmentId);
+    if (error) { toast.error('Erro ao deletar: ' + error.message); return; }
+    toast.success('Avaliação deletada.');
+    setAssessments(prev => prev.filter(a => a.id !== assessmentId));
   };
 
   if (!profile) {
@@ -112,15 +134,40 @@ const AlunoDetail = () => {
                 </Card>
               ) : (
                 assessments.map((a) => (
-                  <Card key={a.id} className="glass-card cursor-pointer hover:border-primary/30 transition-colors" onClick={() => navigate(`/relatorio/${a.id}`)}>
+                  <Card key={a.id} className="glass-card hover:border-primary/30 transition-colors">
                     <CardContent className="p-4 flex items-center justify-between">
-                      <div>
+                      <div className="cursor-pointer flex-1" onClick={() => navigate(`/relatorio/${a.id}`)}>
                         <p className="font-medium">Avaliação</p>
                         <p className="text-sm text-muted-foreground">
                           {new Date(a.created_at).toLocaleDateString('pt-BR')}
                         </p>
                       </div>
-                      <ClipboardList className="h-5 w-5 text-primary" />
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary" onClick={() => navigate(`/nova-avaliacao/${id}?edit=${a.id}`)}>
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Deletar avaliação?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Esta ação não pode ser desfeita. Todos os dados desta avaliação serão removidos permanentemente.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteAssessment(a.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                Deletar
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     </CardContent>
                   </Card>
                 ))
