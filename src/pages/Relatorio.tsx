@@ -35,29 +35,36 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores }: {
       // Draw analysis grid
       const w = img.naturalWidth;
       const h = img.naturalHeight;
-      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-      ctx.lineWidth = 1.5;
-      // Vertical lines (6 divisions)
-      for (let i = 1; i < 6; i++) {
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth = 0.8;
+      const cols = 16;
+      const rows = 20;
+      // Vertical lines
+      for (let i = 1; i < cols; i++) {
         ctx.beginPath();
-        ctx.moveTo((w / 6) * i, 0);
-        ctx.lineTo((w / 6) * i, h);
+        ctx.moveTo((w / cols) * i, 0);
+        ctx.lineTo((w / cols) * i, h);
         ctx.stroke();
       }
-      // Horizontal lines (8 divisions)
-      for (let i = 1; i < 8; i++) {
+      // Horizontal lines
+      for (let i = 1; i < rows; i++) {
         ctx.beginPath();
-        ctx.moveTo(0, (h / 8) * i);
-        ctx.lineTo(w, (h / 8) * i);
+        ctx.moveTo(0, (h / rows) * i);
+        ctx.lineTo(w, (h / rows) * i);
         ctx.stroke();
       }
-      // Center vertical line (symmetry reference)
-      ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+      // Center vertical line (symmetry)
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
       ctx.lineWidth = 2;
       ctx.setLineDash([10, 6]);
       ctx.beginPath();
       ctx.moveTo(w / 2, 0);
       ctx.lineTo(w / 2, h);
+      ctx.stroke();
+      // Center horizontal line
+      ctx.beginPath();
+      ctx.moveTo(0, h / 2);
+      ctx.lineTo(w, h / 2);
       ctx.stroke();
       ctx.setLineDash([]);
 
