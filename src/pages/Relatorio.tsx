@@ -37,18 +37,18 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores }: {
       const h = img.naturalHeight;
       ctx.strokeStyle = 'rgba(0,0,0,0.45)';
       ctx.lineWidth = 1.5;
-      // Vertical lines (thirds)
-      for (let i = 1; i < 3; i++) {
+      // Vertical lines (6 divisions)
+      for (let i = 1; i < 6; i++) {
         ctx.beginPath();
-        ctx.moveTo((w / 3) * i, 0);
-        ctx.lineTo((w / 3) * i, h);
+        ctx.moveTo((w / 6) * i, 0);
+        ctx.lineTo((w / 6) * i, h);
         ctx.stroke();
       }
-      // Horizontal lines (quarters)
-      for (let i = 1; i < 4; i++) {
+      // Horizontal lines (8 divisions)
+      for (let i = 1; i < 8; i++) {
         ctx.beginPath();
-        ctx.moveTo(0, (h / 4) * i);
-        ctx.lineTo(w, (h / 4) * i);
+        ctx.moveTo(0, (h / 8) * i);
+        ctx.lineTo(w, (h / 8) * i);
         ctx.stroke();
       }
       // Center vertical line (symmetry reference)
