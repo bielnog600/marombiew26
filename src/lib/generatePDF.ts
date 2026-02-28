@@ -71,8 +71,8 @@ const renderOverlayPhoto = async (
     // Draw grid (24x32)
     const cols = 24;
     const rows = 32;
-    ctx.strokeStyle = 'rgba(234, 179, 8, 0.15)';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(234, 179, 8, 0.2)';
+    ctx.lineWidth = 3;
     for (let i = 0; i <= cols; i++) {
       const x = (i / cols) * w;
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
@@ -82,8 +82,8 @@ const renderOverlayPhoto = async (
       ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(w, yy); ctx.stroke();
     }
     // Center lines
-    ctx.strokeStyle = 'rgba(234, 179, 8, 0.4)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(234, 179, 8, 0.5)';
+    ctx.lineWidth = 5;
     ctx.beginPath(); ctx.moveTo(w / 2, 0); ctx.lineTo(w / 2, h); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2); ctx.stroke();
     
@@ -123,7 +123,7 @@ const renderOverlayPhoto = async (
         [LANDMARKS.NOSE, LANDMARKS.RIGHT_SHOULDER, 'pescoco'],
       ];
       
-      ctx.lineWidth = 10;
+      ctx.lineWidth = 14;
       connections.forEach(([a, b, region]) => {
         const pa = get(a);
         const pb = get(b);
@@ -143,7 +143,7 @@ const renderOverlayPhoto = async (
         const p = get(idx);
         if (p.c > 0.3) {
           ctx.fillStyle = '#f59e0b';
-          ctx.beginPath(); ctx.arc(p.x, p.y, 16, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(p.x, p.y, 20, 0, Math.PI * 2); ctx.fill();
           ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke();
         }
       });
@@ -444,35 +444,61 @@ export const generatePDF = async (data: ReportData) => {
         if (postureScan.side_photo_url) photoEntries.push({ url: postureScan.side_photo_url, label: 'Lado', position: 'side' });
         if (postureScan.back_photo_url) photoEntries.push({ url: postureScan.back_photo_url, label: 'Costas', position: 'back' });
 
-        const photoWidth = photoEntries.length === 1 ? 80 : photoEntries.length === 2 ? 60 : 50;
-        const photoHeight = photoWidth * 1.33;
-        const totalWidth = photoEntries.length * photoWidth + (photoEntries.length - 1) * 5;
-        const startX = (pageW - totalWidth) / 2;
-
-        checkPage(photoHeight + 15);
-
-        for (let i = 0; i < photoEntries.length; i++) {
+        // Pre-load all images/canvases to get real dimensions
+        const loadedPhotos: { canvas: HTMLCanvasElement | null; img: HTMLImageElement | null; label: string; ratio: number }[] = [];
+        for (const entry of photoEntries) {
           try {
-            const x = startX + i * (photoWidth + 5);
-            // Try to render with overlay (grid + pose lines)
-            const overlayCanvas = await renderOverlayPhoto(
-              photoEntries[i].url, poseKeypoints, photoEntries[i].position, regionScores
-            );
+            const overlayCanvas = await renderOverlayPhoto(entry.url, poseKeypoints, entry.position, regionScores);
             if (overlayCanvas) {
-              doc.addImage(overlayCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', x, y, photoWidth, photoHeight);
+              loadedPhotos.push({ canvas: overlayCanvas, img: null, label: entry.label, ratio: overlayCanvas.height / overlayCanvas.width });
             } else {
-              const img = await loadImage(photoEntries[i].url);
-              doc.addImage(img, 'JPEG', x, y, photoWidth, photoHeight);
+              const img = await loadImage(entry.url);
+              loadedPhotos.push({ canvas: null, img, label: entry.label, ratio: img.naturalHeight / img.naturalWidth });
             }
-            // Label below photo
-            doc.setFontSize(7);
-            doc.setTextColor(...BRAND.gray);
-            doc.text(photoEntries[i].label, x + photoWidth / 2, y + photoHeight + 4, { align: 'center' });
           } catch {
-            // Skip photo if can't load
+            // Skip
           }
         }
-        y += photoHeight + 10;
+
+        if (loadedPhotos.length > 0) {
+          const maxPhotoWidth = loadedPhotos.length === 1 ? 80 : loadedPhotos.length === 2 ? 65 : 55;
+          const gap = 5;
+          const maxAvailHeight = pageH - y - 30;
+
+          // Calculate individual photo widths and heights preserving aspect ratio
+          const photoDims = loadedPhotos.map(p => {
+            let pw = maxPhotoWidth;
+            let ph = pw * p.ratio;
+            if (ph > maxAvailHeight) {
+              ph = maxAvailHeight;
+              pw = ph / p.ratio;
+            }
+            return { w: pw, h: ph };
+          });
+
+          const maxH = Math.max(...photoDims.map(d => d.h));
+          const totalWidth = photoDims.reduce((sum, d) => sum + d.w, 0) + (loadedPhotos.length - 1) * gap;
+          const startX = (pageW - totalWidth) / 2;
+
+          checkPage(maxH + 15);
+
+          let curX = startX;
+          for (let i = 0; i < loadedPhotos.length; i++) {
+            const { w: pw, h: ph } = photoDims[i];
+            const photo = loadedPhotos[i];
+            const imgY = y + (maxH - ph) / 2; // center vertically
+            if (photo.canvas) {
+              doc.addImage(photo.canvas.toDataURL('image/jpeg', 0.92), 'JPEG', curX, imgY, pw, ph);
+            } else if (photo.img) {
+              doc.addImage(photo.img, 'JPEG', curX, imgY, pw, ph);
+            }
+            doc.setFontSize(7);
+            doc.setTextColor(...BRAND.gray);
+            doc.text(photo.label, curX + pw / 2, y + maxH + 4, { align: 'center' });
+            curX += pw + gap;
+          }
+          y += maxH + 10;
+        }
       }
 
       // Region Scores — Resumo Postural
