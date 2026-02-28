@@ -1,14 +1,6 @@
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import logoUrl from '@/assets/logo_marombiew.png';
-
-// Extend jsPDF types for autoTable
-declare module 'jspdf' {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF;
-    lastAutoTable: { finalY: number };
-  }
-}
 
 interface ReportData {
   profile: { nome: string; email?: string; telefone?: string } | null;
@@ -89,7 +81,7 @@ export const generatePDF = async (data: ReportData) => {
   // ── Helper: key-value table ──
   const kvTable = (rows: [string, string][]) => {
     checkPage(rows.length * 7 + 5);
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       margin: { left: margin, right: margin },
       head: [],
@@ -102,7 +94,7 @@ export const generatePDF = async (data: ReportData) => {
       },
       alternateRowStyles: { fillColor: BRAND.light },
     });
-    y = doc.lastAutoTable.finalY + 4;
+    y = (doc as any).lastAutoTable.finalY + 4;
   };
 
   // ══════════════════════════════════════════════
