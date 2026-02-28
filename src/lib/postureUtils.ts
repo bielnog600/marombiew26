@@ -218,7 +218,7 @@ export function drawPoseOverlay(
     [LANDMARKS.NOSE, LANDMARKS.RIGHT_SHOULDER, 'pescoco'],
   ];
 
-  ctx.lineWidth = 2.5;
+  ctx.lineWidth = 5;
   connections.forEach(([a, b, region]) => {
     const pa = get(a);
     const pb = get(b);
@@ -244,7 +244,7 @@ export function drawPoseOverlay(
     if (p.c > 0.3) {
       ctx.fillStyle = '#f59e0b';
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 1;
