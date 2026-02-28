@@ -12,7 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import {
   Camera, ChevronRight, ChevronLeft, Check, AlertTriangle,
-  RotateCcw, Save, FileDown, ArrowLeft, Eye
+  RotateCcw, Save, FileDown, ArrowLeft, Eye, Upload
 } from 'lucide-react';
 import { calculatePostureAngles, calculateRegionScores, drawPoseOverlay, type PoseKeypoint, type PostureAngles, type RegionScore } from '@/lib/postureUtils';
 import BodyModel3D, { type BodyMeasurement } from '@/components/BodyModel3D';
@@ -42,10 +42,12 @@ const PostureAnalysis = () => {
   const [keypoints, setKeypoints] = useState<Record<CapturePosition, PoseKeypoint[] | null>>({ front: null, side: null, back: null });
   const [activeCapture, setActiveCapture] = useState<CapturePosition | null>(null);
 
-  // Camera
+  // Camera & file upload
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadTarget, setUploadTarget] = useState<CapturePosition | null>(null);
 
   // Results
   const [angles, setAngles] = useState<PostureAngles | null>(null);
@@ -157,6 +159,53 @@ const PostureAnalysis = () => {
     setActiveCapture(position);
     await startCamera();
   };
+
+  const handleFileUpload = (position: CapturePosition) => {
+    setUploadTarget(position);
+    fileInputRef.current?.click();
+  };
+
+  const onFileSelected = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !uploadTarget) return;
+
+    const dataUrl = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsDataURL(file);
+    });
+
+    setPhotos(prev => ({ ...prev, [uploadTarget]: dataUrl }));
+    setPhotoBlobs(prev => ({ ...prev, [uploadTarget]: file }));
+
+    // Run pose detection on uploaded image
+    if (poseLandmarkerRef.current) {
+      try {
+        const img = new Image();
+        img.src = dataUrl;
+        await new Promise(r => { img.onload = r; });
+        const result = poseLandmarkerRef.current.detect(img);
+        if (result.landmarks && result.landmarks.length > 0) {
+          const kp: PoseKeypoint[] = result.landmarks[0].map((lm: any, i: number) => ({
+            name: `point_${i}`,
+            x: lm.x,
+            y: lm.y,
+            confidence: lm.visibility ?? lm.score ?? 0.5,
+          }));
+          setKeypoints(prev => ({ ...prev, [uploadTarget]: kp }));
+          toast.success(`Pose detectada (${POSITION_LABELS[uploadTarget]})`);
+        } else {
+          toast.warning('Corpo não detectado na foto.');
+        }
+      } catch {
+        toast.warning('Falha na detecção. Continue mesmo assim.');
+      }
+    }
+
+    setUploadTarget(null);
+    // Reset input so same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [uploadTarget]);
 
   const processResults = useCallback(() => {
     setProcessing(true);
@@ -332,6 +381,15 @@ const PostureAnalysis = () => {
         {/* ─── Step 1: Capture ─── */}
         {step === 1 && (
           <div className="space-y-4">
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={onFileSelected}
+            />
+
             {/* Camera view */}
             {activeCapture && (
               <Card className="glass-card overflow-hidden">
@@ -368,10 +426,9 @@ const PostureAnalysis = () => {
                       {(['front', 'side', 'back'] as CapturePosition[]).map(pos => (
                         <div key={pos} className="space-y-2">
                           <div
-                            className={`aspect-[3/4] rounded-lg border-2 border-dashed flex items-center justify-center cursor-pointer transition-all overflow-hidden ${
-                              photos[pos] ? 'border-primary/50' : 'border-border hover:border-primary/30'
+                            className={`aspect-[3/4] rounded-lg border-2 border-dashed flex items-center justify-center transition-all overflow-hidden ${
+                              photos[pos] ? 'border-primary/50' : 'border-border'
                             }`}
-                            onClick={() => startCapture(pos)}
                           >
                             {photos[pos] ? (
                               <img src={photos[pos]!} className="w-full h-full object-cover" alt={pos} />
@@ -393,11 +450,27 @@ const PostureAnalysis = () => {
                               <span className="text-[10px] text-muted-foreground">Pendente</span>
                             )}
                           </div>
-                          {photos[pos] && (
-                            <Button variant="ghost" size="sm" className="w-full text-xs h-7" onClick={() => startCapture(pos)}>
-                              <RotateCcw className="w-3 h-3 mr-1" /> Refazer
+                          {/* Action buttons: Camera + Upload */}
+                          <div className="flex gap-1">
+                            <Button
+                              variant={photos[pos] ? 'ghost' : 'outline'}
+                              size="sm"
+                              className="flex-1 text-[10px] h-7 px-1"
+                              onClick={() => startCapture(pos)}
+                            >
+                              <Camera className="w-3 h-3 mr-0.5" />
+                              {photos[pos] ? 'Refazer' : 'Câmera'}
                             </Button>
-                          )}
+                            <Button
+                              variant={photos[pos] ? 'ghost' : 'outline'}
+                              size="sm"
+                              className="flex-1 text-[10px] h-7 px-1"
+                              onClick={() => handleFileUpload(pos)}
+                            >
+                              <Upload className="w-3 h-3 mr-0.5" />
+                              Anexar
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
