@@ -12,6 +12,7 @@ import AlunoDetail from "./pages/AlunoDetail";
 import NovaAvaliacao from "./pages/NovaAvaliacao";
 import Relatorio from "./pages/Relatorio";
 import MinhaArea from "./pages/MinhaArea";
+import PostureAnalysis from "./pages/PostureAnalysis";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,7 @@ const App = () => (
             <Route path="/nova-avaliacao/:studentId" element={<ProtectedRoute requiredRole="admin"><NovaAvaliacao /></ProtectedRoute>} />
             <Route path="/avaliacoes" element={<ProtectedRoute requiredRole="admin"><Alunos /></ProtectedRoute>} />
             <Route path="/relatorio/:id" element={<ProtectedRoute><Relatorio /></ProtectedRoute>} />
+            <Route path="/postura/:studentId" element={<ProtectedRoute requiredRole="admin"><PostureAnalysis /></ProtectedRoute>} />
             <Route path="/minha-area" element={<ProtectedRoute requiredRole="aluno"><MinhaArea /></ProtectedRoute>} />
             <Route path="/minhas-avaliacoes" element={<ProtectedRoute requiredRole="aluno"><MinhaArea /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />

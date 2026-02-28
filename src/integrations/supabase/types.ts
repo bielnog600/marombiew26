@@ -365,6 +365,80 @@ export type Database = {
           },
         ]
       }
+      posture_scans: {
+        Row: {
+          angles_json: Json | null
+          assessment_id: string | null
+          back_depth_url: string | null
+          back_photo_url: string | null
+          created_at: string
+          device_has_lidar: boolean | null
+          front_depth_url: string | null
+          front_photo_url: string | null
+          height_cm: number | null
+          id: string
+          mode: string | null
+          notes: string | null
+          pose_keypoints_json: Json | null
+          region_scores_json: Json | null
+          sex: string | null
+          shoulder_tests_json: Json | null
+          side_depth_url: string | null
+          side_photo_url: string | null
+          student_id: string
+        }
+        Insert: {
+          angles_json?: Json | null
+          assessment_id?: string | null
+          back_depth_url?: string | null
+          back_photo_url?: string | null
+          created_at?: string
+          device_has_lidar?: boolean | null
+          front_depth_url?: string | null
+          front_photo_url?: string | null
+          height_cm?: number | null
+          id?: string
+          mode?: string | null
+          notes?: string | null
+          pose_keypoints_json?: Json | null
+          region_scores_json?: Json | null
+          sex?: string | null
+          shoulder_tests_json?: Json | null
+          side_depth_url?: string | null
+          side_photo_url?: string | null
+          student_id: string
+        }
+        Update: {
+          angles_json?: Json | null
+          assessment_id?: string | null
+          back_depth_url?: string | null
+          back_photo_url?: string | null
+          created_at?: string
+          device_has_lidar?: boolean | null
+          front_depth_url?: string | null
+          front_photo_url?: string | null
+          height_cm?: number | null
+          id?: string
+          mode?: string | null
+          notes?: string | null
+          pose_keypoints_json?: Json | null
+          region_scores_json?: Json | null
+          sex?: string | null
+          shoulder_tests_json?: Json | null
+          side_depth_url?: string | null
+          side_photo_url?: string | null
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "posture_scans_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: false
+            referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
