@@ -236,14 +236,13 @@ const Relatorio = () => {
         {(() => {
           const pesoIdeal = anthro?.altura ? (22 * Math.pow(anthro.altura / 100, 2)).toFixed(1) : null;
           return (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               {[
                 { label: 'Peso', value: anthro?.peso, unit: 'kg', sub: '' },
                 { label: 'Peso Ideal', value: pesoIdeal, unit: 'kg', sub: 'IMC 22' },
                 { label: 'IMC', value: anthro?.imc, unit: '', sub: anthro?.imc ? classifyIMC(anthro.imc).label : '' },
                 { label: '% Gordura', value: comp?.percentual_gordura, unit: '%', sub: '' },
-                { label: 'Cintura', value: anthro?.cintura, unit: 'cm', sub: '' },
-                { label: 'Quadril', value: anthro?.quadril, unit: 'cm', sub: '' },
+                { label: 'Massa Magra', value: comp?.massa_magra, unit: 'kg', sub: '' },
                 { label: 'RCQ', value: anthro?.rcq, unit: '', sub: anthro?.rcq ? classifyRCQ(anthro.rcq).label : '' },
               ].map((item) => (
                 <Card key={item.label} className="glass-card">
