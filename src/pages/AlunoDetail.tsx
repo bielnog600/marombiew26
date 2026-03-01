@@ -103,14 +103,16 @@ const AlunoDetail = () => {
         </Card>
 
         <Tabs defaultValue="avaliacoes">
-          <TabsList className="bg-secondary">
-            <TabsTrigger value="perfil"><User className="mr-1 h-4 w-4" /> Perfil</TabsTrigger>
-            <TabsTrigger value="avaliacoes"><ClipboardList className="mr-1 h-4 w-4" /> Avaliações</TabsTrigger>
-            <TabsTrigger value="postura"><ScanLine className="mr-1 h-4 w-4" /> Análise Postural</TabsTrigger>
-            <TabsTrigger value="fc"><Heart className="mr-1 h-4 w-4" /> Zonas FC</TabsTrigger>
-            <TabsTrigger value="objetivos"><Target className="mr-1 h-4 w-4" /> Objetivos</TabsTrigger>
-            <TabsTrigger value="notas"><FileText className="mr-1 h-4 w-4" /> Observações</TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto -mx-4 px-4 pb-2">
+            <TabsList className="bg-secondary w-max min-w-full">
+              <TabsTrigger value="perfil" className="text-xs sm:text-sm"><User className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Perfil</span><span className="sm:hidden">Perfil</span></TabsTrigger>
+              <TabsTrigger value="avaliacoes" className="text-xs sm:text-sm"><ClipboardList className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Avaliações</span><span className="sm:hidden">Aval.</span></TabsTrigger>
+              <TabsTrigger value="postura" className="text-xs sm:text-sm"><ScanLine className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Análise Postural</span><span className="sm:hidden">Postura</span></TabsTrigger>
+              <TabsTrigger value="fc" className="text-xs sm:text-sm"><Heart className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Zonas FC</span><span className="sm:hidden">FC</span></TabsTrigger>
+              <TabsTrigger value="objetivos" className="text-xs sm:text-sm"><Target className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Objetivos</span><span className="sm:hidden">Obj.</span></TabsTrigger>
+              <TabsTrigger value="notas" className="text-xs sm:text-sm"><FileText className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Observações</span><span className="sm:hidden">Notas</span></TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="perfil">
             <Card className="glass-card">
