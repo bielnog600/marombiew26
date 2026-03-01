@@ -263,10 +263,18 @@ const Relatorio = () => {
         {(() => {
           const pesoIdeal = anthro?.altura ? (22 * Math.pow(anthro.altura / 100, 2)).toFixed(1) : null;
           return (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {/* Card combinado Peso + Altura */}
+              <Card className="glass-card">
+                <CardContent className="p-4 text-center">
+                  <p className="text-xs text-muted-foreground">Peso / Altura</p>
+                  <p className="text-xl font-bold text-primary">{anthro?.peso ?? '-'} <span className="text-sm font-normal text-muted-foreground">kg</span></p>
+                  <p className="text-base font-semibold text-primary">
+                    {anthro?.altura ? (anthro.altura / 100).toFixed(2) : (studentProfile?.altura ? (studentProfile.altura / 100).toFixed(2) : '-')} <span className="text-sm font-normal text-muted-foreground">m</span>
+                  </p>
+                </CardContent>
+              </Card>
               {[
-                { label: 'Peso', value: anthro?.peso, unit: 'kg', sub: '' },
-                { label: 'Altura', value: anthro?.altura ? (anthro.altura / 100).toFixed(2) : (studentProfile?.altura ? (studentProfile.altura / 100).toFixed(2) : null), unit: 'm', sub: '' },
                 { label: 'Peso Ideal', value: pesoIdeal, unit: 'kg', sub: 'IMC 22' },
                 { label: 'IMC', value: anthro?.imc, unit: '', sub: anthro?.imc ? classifyIMC(anthro.imc).label : '' },
                 { label: '% Gordura', value: comp?.percentual_gordura, unit: '%', sub: '' },
