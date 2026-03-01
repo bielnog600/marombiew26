@@ -241,6 +241,13 @@ const Relatorio = () => {
               <div>
                 <h2 className="text-xl font-bold">{profile?.nome || 'Aluno'}</h2>
                 <p className="text-sm text-muted-foreground">
+                  {studentProfile?.data_nascimento && (() => {
+                    const birth = new Date(studentProfile.data_nascimento + 'T00:00:00');
+                    const today = new Date();
+                    let age = today.getFullYear() - birth.getFullYear();
+                    if (today.getMonth() < birth.getMonth() || (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) age--;
+                    return `${age} anos · `;
+                  })()}
                   Avaliação em {new Date(assessment.created_at).toLocaleDateString('pt-BR')}
                 </p>
               </div>
