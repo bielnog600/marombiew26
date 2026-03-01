@@ -263,9 +263,10 @@ const Relatorio = () => {
         {(() => {
           const pesoIdeal = anthro?.altura ? (22 * Math.pow(anthro.altura / 100, 2)).toFixed(1) : null;
           return (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
               {[
                 { label: 'Peso', value: anthro?.peso, unit: 'kg', sub: '' },
+                { label: 'Altura', value: anthro?.altura ? (anthro.altura / 100).toFixed(2) : (studentProfile?.altura ? (studentProfile.altura / 100).toFixed(2) : null), unit: 'm', sub: '' },
                 { label: 'Peso Ideal', value: pesoIdeal, unit: 'kg', sub: 'IMC 22' },
                 { label: 'IMC', value: anthro?.imc, unit: '', sub: anthro?.imc ? classifyIMC(anthro.imc).label : '' },
                 { label: '% Gordura', value: comp?.percentual_gordura, unit: '%', sub: '' },
