@@ -149,15 +149,54 @@ const TreinoIA = () => {
     }]);
   };
 
+  const extractSection = (content: string, type: 'treino' | 'dieta'): string => {
+    const lines = content.split('\n');
+    
+    // Keywords that signal each section
+    const treinoKeywords = ['treino', 'exercício', 'série', 'repetições', 'rir', 'pausa', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira'];
+    const dietaKeywords = ['dieta', 'refeição', 'alimentos', 'kcal', 'proteína', 'carboidrato', 'gordura', 'café da manhã', 'almoço', 'jantar', 'lanche', 'macros', 'calorias'];
+    
+    // Try to find clear section breaks
+    const dietaSectionStarts = lines.findIndex((line, i) => {
+      const lower = line.toLowerCase();
+      return (lower.includes('dieta') || lower.includes('plano alimentar') || lower.includes('nutrição')) 
+        && (lower.includes('#') || lower.includes('===') || lower.includes('---'));
+    });
+
+    const treinoSectionStarts = lines.findIndex((line) => {
+      const lower = line.toLowerCase();
+      return (lower.includes('treino') || lower.includes('protocolo de treino') || lower.includes('plano de treino'))
+        && (lower.includes('#') || lower.includes('===') || lower.includes('---'));
+    });
+
+    // If we found clear section markers, split by them
+    if (type === 'treino' && dietaSectionStarts > 0) {
+      // Everything before the dieta section
+      return lines.slice(0, dietaSectionStarts).join('\n').trim();
+    }
+    if (type === 'dieta' && dietaSectionStarts > 0) {
+      // Everything from the dieta section onwards (but stop before WhatsApp messages)
+      const whatsappIdx = lines.findIndex((line, i) => i > dietaSectionStarts && line.toLowerCase().includes('whatsapp'));
+      const end = whatsappIdx > 0 ? whatsappIdx : lines.length;
+      return lines.slice(dietaSectionStarts, end).join('\n').trim();
+    }
+
+    // Fallback: return full content
+    return content;
+  };
+
   const saveAsPlan = async (type: 'treino' | 'dieta') => {
     const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
     if (!lastAssistant) return;
     setSaving(true);
+    
+    const extracted = extractSection(lastAssistant.content, type);
+    
     const { error } = await supabase.from('ai_plans').insert({
       student_id: studentId!,
       tipo: type,
       titulo: `${type === 'treino' ? 'Treino' : 'Dieta'} - ${new Date().toLocaleDateString('pt-BR')}`,
-      conteudo: lastAssistant.content,
+      conteudo: extracted,
     });
     if (error) toast.error('Erro ao salvar: ' + error.message);
     else toast.success(`${type === 'treino' ? 'Treino' : 'Dieta'} salvo(a) com sucesso!`);
