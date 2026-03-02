@@ -57,30 +57,57 @@ const blurFaceOnCanvas = (canvas: HTMLCanvasElement, keypoints: any, position: '
   const h = canvas.height;
   const kp = keypoints?.[position];
   
-  // We need at least nose (0) and shoulders (11,12) to estimate face region
-  if (!kp || kp.length < 13) return;
+  // We need at least nose (0) to estimate face region
+  if (!kp || kp.length < 1) return;
   
   const nose = kp[0];
-  const lShoulder = kp[11];
-  const rShoulder = kp[12];
+  const lShoulder = kp.length > 11 ? kp[11] : null;
+  const rShoulder = kp.length > 12 ? kp[12] : null;
+  const lEar = kp.length > 7 ? kp[7] : null;
+  const rEar = kp.length > 8 ? kp[8] : null;
   
-  if (!nose || nose.confidence < 0.2) return;
+  // For side view, nose confidence may be low; try ears as anchor
+  let anchorX: number | null = null;
+  let anchorY: number | null = null;
   
-  const noseX = nose.x * w;
-  const noseY = nose.y * h;
+  if (nose && nose.confidence >= 0.15) {
+    anchorX = nose.x * w;
+    anchorY = nose.y * h;
+  } else if (lEar && lEar.confidence >= 0.15) {
+    anchorX = lEar.x * w;
+    anchorY = lEar.y * h;
+  } else if (rEar && rEar.confidence >= 0.15) {
+    anchorX = rEar.x * w;
+    anchorY = rEar.y * h;
+  }
   
-  // Estimate face size from shoulder width
+  if (anchorX === null || anchorY === null) return;
+  
+  // Estimate face size
   let faceRadius: number;
-  if (lShoulder && rShoulder && lShoulder.confidence > 0.2 && rShoulder.confidence > 0.2) {
-    const shoulderDist = Math.abs(lShoulder.x - rShoulder.x) * w;
-    faceRadius = shoulderDist * 0.45; // face is roughly 45% of shoulder width
+  if (position === 'side') {
+    // Side view: shoulders overlap in X, use vertical nose-to-shoulder distance
+    const shoulder = (lShoulder && lShoulder.confidence > 0.2) ? lShoulder : ((rShoulder && rShoulder.confidence > 0.2) ? rShoulder : null);
+    if (shoulder) {
+      const noseToShoulder = Math.abs(anchorY / h - shoulder.y) * h;
+      faceRadius = noseToShoulder * 0.55;
+    } else {
+      faceRadius = w * 0.12;
+    }
+    faceRadius = Math.max(faceRadius, w * 0.08);
   } else {
-    faceRadius = w * 0.08; // fallback: 8% of image width
+    // Front/back: use shoulder width
+    if (lShoulder && rShoulder && lShoulder.confidence > 0.2 && rShoulder.confidence > 0.2) {
+      const shoulderDist = Math.abs(lShoulder.x - rShoulder.x) * w;
+      faceRadius = shoulderDist * 0.45;
+    } else {
+      faceRadius = w * 0.08;
+    }
   }
   
   // Define face ellipse bounding box
-  const fx = noseX - faceRadius;
-  const fy = noseY - faceRadius * 1.3; // face extends more above nose
+  const fx = anchorX - faceRadius;
+  const fy = anchorY - faceRadius * 1.3;
   const fw = faceRadius * 2;
   const fh = faceRadius * 2.6;
   
@@ -103,7 +130,7 @@ const blurFaceOnCanvas = (canvas: HTMLCanvasElement, keypoints: any, position: '
   // Draw back upscaled (pixelated blur) with elliptical clip
   ctx.save();
   ctx.beginPath();
-  ctx.ellipse(noseX, noseY + faceRadius * 0.15, faceRadius, faceRadius * 1.3, 0, 0, Math.PI * 2);
+  ctx.ellipse(anchorX, anchorY + faceRadius * 0.15, faceRadius, faceRadius * 1.3, 0, 0, Math.PI * 2);
   ctx.clip();
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(tmpCanvas, 0, 0, tmpCanvas.width, tmpCanvas.height, sx, sy, sw, sh);
