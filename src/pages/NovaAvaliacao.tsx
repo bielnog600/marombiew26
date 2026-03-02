@@ -74,23 +74,23 @@ const NovaAvaliacao = () => {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(!!editId);
   const [studentSex, setStudentSex] = useState<string | null>(null);
-  const [studentAge, setStudentAge] = useState<number | null>(null);
+  const [studentBirthDate, setStudentBirthDate] = useState<Date | null>(null);
 
-  // Load student profile for sex and age
+  // Load student profile for sex and birth date
   useEffect(() => {
     if (!studentId) return;
     const loadProfile = async () => {
-      const { data } = await supabase.from('students_profile').select('sexo, data_nascimento').eq('user_id', studentId).maybeSingle();
-      if (data) {
-        setStudentSex(data.sexo);
-        if (data.data_nascimento) {
-          const birth = new Date(data.data_nascimento);
-          const today = new Date();
-          let age = today.getFullYear() - birth.getFullYear();
-          const m = today.getMonth() - birth.getMonth();
-          if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-          setStudentAge(age);
-        }
+      const { data } = await supabase
+        .from('students_profile')
+        .select('sexo, data_nascimento')
+        .eq('user_id', studentId)
+        .maybeSingle();
+
+      if (!data) return;
+
+      setStudentSex(data.sexo);
+      if (data.data_nascimento) {
+        setStudentBirthDate(new Date(`${data.data_nascimento}T00:00:00`));
       }
     };
     loadProfile();
@@ -225,52 +225,77 @@ const NovaAvaliacao = () => {
   };
 
   const calcGordura = () => {
-    const age = studentAge;
+    const parseNum = (value: string) => {
+      if (!value) return NaN;
+      const normalized = value.replace(',', '.').replace(/[^\d.-]/g, '');
+      return parseFloat(normalized);
+    };
+
+    const normalizeSex = (value: string | null) => (value || '').trim().toLowerCase();
+
+    const calculateAgeOnDate = (birthDate: Date, referenceDate: Date) => {
+      let age = referenceDate.getFullYear() - birthDate.getFullYear();
+      const monthDiff = referenceDate.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && referenceDate.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      return age;
+    };
+
+    if (skinfolds.metodo === 'manual') return '-';
+    if (!studentBirthDate) return '-';
+
+    const age = calculateAgeOnDate(studentBirthDate, dataAvaliacao || new Date());
     if (!age || age <= 0) return '-';
 
-    const isFemale = studentSex === 'feminino' || studentSex === 'F' || studentSex === 'female';
+    const sex = normalizeSex(studentSex);
+    const isFemale = ['f', 'female', 'feminino', 'mulher'].includes(sex) || sex.startsWith('fem');
 
     if (skinfolds.metodo === 'jackson_pollock_7') {
-      // Jackson & Pollock 7 skinfolds
-      const vals = [skinfolds.peitoral, skinfolds.axilar_media, skinfolds.triceps,
-        skinfolds.subescapular, skinfolds.abdominal, skinfolds.suprailiaca, skinfolds.coxa].map(v => parseFloat(v));
-      if (vals.some(v => isNaN(v) || v <= 0)) return '-';
+      // 7 dobras: peitoral, axilar média, tríceps, subescapular, abdominal, suprailíaca, coxa
+      const vals = [
+        parseNum(skinfolds.peitoral),
+        parseNum(skinfolds.axilar_media),
+        parseNum(skinfolds.triceps),
+        parseNum(skinfolds.subescapular),
+        parseNum(skinfolds.abdominal),
+        parseNum(skinfolds.suprailiaca),
+        parseNum(skinfolds.coxa),
+      ];
+
+      if (vals.some((v) => isNaN(v) || v <= 0)) return '-';
       const soma = vals.reduce((a, b) => a + b, 0);
 
-      let dc: number;
-      if (isFemale) {
-        // Jackson, Pollock & Ward (1980) - Women 7 skinfolds
-        dc = 1.097 - (0.00046971 * soma) + (0.00000056 * soma * soma) - (0.00012828 * age);
-      } else {
-        // Jackson & Pollock (1978) - Men 7 skinfolds
-        dc = 1.112 - (0.00043499 * soma) + (0.00000055 * soma * soma) - (0.00028826 * age);
-      }
+      const dc = isFemale
+        ? 1.097 - (0.00046971 * soma) + (0.00000056 * soma * soma) - (0.00012828 * age)
+        : 1.112 - (0.00043499 * soma) + (0.00000055 * soma * soma) - (0.00028826 * age);
+
       const bf = ((4.95 / dc) - 4.5) * 100;
       return bf > 0 && bf < 60 ? bf.toFixed(1) : '-';
-    } else {
-      // Jackson & Pollock 3 skinfolds
-      if (isFemale) {
-        // Women: triceps, suprailiac, thigh
-        const t = parseFloat(skinfolds.triceps);
-        const si = parseFloat(skinfolds.suprailiaca);
-        const cx = parseFloat(skinfolds.coxa);
-        if (!(t > 0 && si > 0 && cx > 0)) return '-';
-        const soma = t + si + cx;
-        const dc = 1.0994921 - (0.0009929 * soma) + (0.0000023 * soma * soma) - (0.0001392 * age);
-        const bf = ((4.95 / dc) - 4.5) * 100;
-        return bf > 0 && bf < 60 ? bf.toFixed(1) : '-';
-      } else {
-        // Men: pectoral, abdominal, thigh
-        const p = parseFloat(skinfolds.peitoral);
-        const ab = parseFloat(skinfolds.abdominal);
-        const cx = parseFloat(skinfolds.coxa);
-        if (!(p > 0 && ab > 0 && cx > 0)) return '-';
-        const soma = p + ab + cx;
-        const dc = 1.10938 - (0.0008267 * soma) + (0.0000016 * soma * soma) - (0.0002574 * age);
-        const bf = ((4.95 / dc) - 4.5) * 100;
-        return bf > 0 && bf < 60 ? bf.toFixed(1) : '-';
-      }
     }
+
+    // Jackson & Pollock 3 dobras
+    if (isFemale) {
+      // Mulheres: tríceps, suprailíaca, coxa
+      const t = parseNum(skinfolds.triceps);
+      const si = parseNum(skinfolds.suprailiaca);
+      const cx = parseNum(skinfolds.coxa);
+      if (!(t > 0 && si > 0 && cx > 0)) return '-';
+      const soma = t + si + cx;
+      const dc = 1.0994921 - (0.0009929 * soma) + (0.0000023 * soma * soma) - (0.0001392 * age);
+      const bf = ((4.95 / dc) - 4.5) * 100;
+      return bf > 0 && bf < 60 ? bf.toFixed(1) : '-';
+    }
+
+    // Homens: peitoral, abdominal, coxa
+    const p = parseNum(skinfolds.peitoral);
+    const ab = parseNum(skinfolds.abdominal);
+    const cx = parseNum(skinfolds.coxa);
+    if (!(p > 0 && ab > 0 && cx > 0)) return '-';
+    const soma = p + ab + cx;
+    const dc = 1.10938 - (0.0008267 * soma) + (0.0000016 * soma * soma) - (0.0002574 * age);
+    const bf = ((4.95 / dc) - 4.5) * 100;
+    return bf > 0 && bf < 60 ? bf.toFixed(1) : '-';
   };
 
   const handleSave = async () => {
@@ -550,9 +575,19 @@ const NovaAvaliacao = () => {
                   <InputField label="Axilar Média" value={skinfolds.axilar_media} onChange={(e: any) => setSkinfolds({ ...skinfolds, axilar_media: e.target.value })} unit="mm" type="number" />
                   <InputField label="Coxa" value={skinfolds.coxa} onChange={(e: any) => setSkinfolds({ ...skinfolds, coxa: e.target.value })} unit="mm" type="number" />
                 </div>
-                <div className="p-3 rounded-lg bg-secondary/50">
-                  <span className="text-xs text-muted-foreground">% Gordura Estimado: </span>
-                  <span className="font-bold text-primary">{calcGordura()}%</span>
+                <div className="p-3 rounded-lg bg-secondary/50 space-y-1">
+                  <div>
+                    <span className="text-xs text-muted-foreground">% Gordura Estimado: </span>
+                    <span className="font-bold text-primary">{calcGordura()}%</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Método: {skinfolds.metodo === 'jackson_pollock_7' ? 'Pollock 7' : skinfolds.metodo === 'jackson_pollock_3' ? 'Pollock 3' : 'Manual'} • Sexo: {studentSex || 'não informado'} • Idade: {studentBirthDate ? (() => {
+                      let age = dataAvaliacao.getFullYear() - studentBirthDate.getFullYear();
+                      const monthDiff = dataAvaliacao.getMonth() - studentBirthDate.getMonth();
+                      if (monthDiff < 0 || (monthDiff === 0 && dataAvaliacao.getDate() < studentBirthDate.getDate())) age--;
+                      return age;
+                    })() : 'não informada'}
+                  </p>
                 </div>
               </div>
             )}
