@@ -4,12 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { BarChart3, Loader2, FileDown } from 'lucide-react';
+import { BarChart3, Loader2, FileDown, ImageDown } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
 } from 'recharts';
 import { generateComparisonPDF } from '@/lib/generateComparisonPDF';
+import { generateComparisonImage } from '@/lib/generateComparisonImage';
 
 interface Props {
   studentId: string;
@@ -23,6 +24,7 @@ const AssessmentComparison: React.FC<Props> = ({ studentId, studentName, assessm
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportingImg, setExportingImg] = useState(false);
   const [compData, setCompData] = useState<any>(null);
 
   const toggleSelection = (id: string) => {
@@ -197,7 +199,26 @@ const AssessmentComparison: React.FC<Props> = ({ studentId, studentName, assessm
     }
   };
 
-  const renderPostureView = (view: any, label: string) => {
+  const handleExportImage = async () => {
+    if (!compData) return;
+    setExportingImg(true);
+    try {
+      await generateComparisonImage({
+        dateLabels: compData.dateLabels,
+        compositionChartData: compData.compositionChartData,
+        measurementChartData: compData.measurementChartData,
+        skinfoldChartData: compData.skinfoldChartData,
+      });
+      toast.success('Imagem de comparação exportada!');
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao gerar imagem');
+    } finally {
+      setExportingImg(false);
+    }
+  };
+
+  const renderPostureView = (view: any, _label: string) => {
     if (!view || typeof view !== 'object') return null;
     const entries = Object.entries(view).filter(([_, v]) => v && v !== 'normal' && v !== 'Normal');
     if (entries.length === 0) return <p className="text-xs text-muted-foreground">Sem desvios</p>;
@@ -245,7 +266,11 @@ const AssessmentComparison: React.FC<Props> = ({ studentId, studentName, assessm
 
       {compData && (
         <div className="space-y-6">
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <Button onClick={handleExportImage} disabled={exportingImg} variant="outline" className="gap-2">
+              {exportingImg ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageDown className="h-4 w-4" />}
+              Exportar Imagem
+            </Button>
             <Button onClick={handleExportPDF} disabled={exporting} variant="outline" className="gap-2">
               {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
               Exportar PDF
