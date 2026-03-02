@@ -49,6 +49,67 @@ const loadImage = (src: string): Promise<HTMLImageElement> =>
     img.src = src;
   });
 
+/** Blur face region on a canvas using pose keypoints */
+const blurFaceOnCanvas = (canvas: HTMLCanvasElement, keypoints: any, position: 'front' | 'side' | 'back') => {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const w = canvas.width;
+  const h = canvas.height;
+  const kp = keypoints?.[position];
+  
+  // We need at least nose (0) and shoulders (11,12) to estimate face region
+  if (!kp || kp.length < 13) return;
+  
+  const nose = kp[0];
+  const lShoulder = kp[11];
+  const rShoulder = kp[12];
+  
+  if (!nose || nose.confidence < 0.2) return;
+  
+  const noseX = nose.x * w;
+  const noseY = nose.y * h;
+  
+  // Estimate face size from shoulder width
+  let faceRadius: number;
+  if (lShoulder && rShoulder && lShoulder.confidence > 0.2 && rShoulder.confidence > 0.2) {
+    const shoulderDist = Math.abs(lShoulder.x - rShoulder.x) * w;
+    faceRadius = shoulderDist * 0.45; // face is roughly 45% of shoulder width
+  } else {
+    faceRadius = w * 0.08; // fallback: 8% of image width
+  }
+  
+  // Define face ellipse bounding box
+  const fx = noseX - faceRadius;
+  const fy = noseY - faceRadius * 1.3; // face extends more above nose
+  const fw = faceRadius * 2;
+  const fh = faceRadius * 2.6;
+  
+  // Apply pixelated blur by downscaling then upscaling a cropped region
+  const sx = Math.max(0, Math.floor(fx));
+  const sy = Math.max(0, Math.floor(fy));
+  const sw = Math.min(Math.ceil(fw), w - sx);
+  const sh = Math.min(Math.ceil(fh), h - sy);
+  if (sw <= 0 || sh <= 0) return;
+  
+  // Create small temp canvas for pixelation
+  const scale = 0.04; // very small = more blur
+  const tmpCanvas = document.createElement('canvas');
+  tmpCanvas.width = Math.max(1, Math.round(sw * scale));
+  tmpCanvas.height = Math.max(1, Math.round(sh * scale));
+  const tmpCtx = tmpCanvas.getContext('2d')!;
+  tmpCtx.imageSmoothingEnabled = true;
+  tmpCtx.drawImage(canvas, sx, sy, sw, sh, 0, 0, tmpCanvas.width, tmpCanvas.height);
+  
+  // Draw back upscaled (pixelated blur) with elliptical clip
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(noseX, noseY + faceRadius * 0.15, faceRadius, faceRadius * 1.3, 0, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(tmpCanvas, 0, 0, tmpCanvas.width, tmpCanvas.height, sx, sy, sw, sh);
+  ctx.restore();
+};
+
 /** Render photo with grid + pose overlay onto a canvas and return as data URL */
 const renderOverlayPhoto = async (
   photoUrl: string,
@@ -65,6 +126,9 @@ const renderOverlayPhoto = async (
     
     // Draw base photo
     ctx.drawImage(img, 0, 0);
+    
+    // Blur face for privacy
+    blurFaceOnCanvas(canvas, allKeypoints, position);
     
     const w = canvas.width;
     const h = canvas.height;
@@ -619,7 +683,14 @@ export const generatePDF = async (data: ReportData) => {
               loadedPhotos.push({ canvas: overlayCanvas, img: null, label: entry.label, ratio: overlayCanvas.height / overlayCanvas.width });
             } else {
               const img = await loadImage(entry.url);
-              loadedPhotos.push({ canvas: null, img, label: entry.label, ratio: img.naturalHeight / img.naturalWidth });
+              // Create canvas from raw image so we can blur face
+              const fallbackCanvas = document.createElement('canvas');
+              fallbackCanvas.width = img.naturalWidth;
+              fallbackCanvas.height = img.naturalHeight;
+              const fCtx = fallbackCanvas.getContext('2d')!;
+              fCtx.drawImage(img, 0, 0);
+              blurFaceOnCanvas(fallbackCanvas, poseKeypoints, entry.position);
+              loadedPhotos.push({ canvas: fallbackCanvas, img: null, label: entry.label, ratio: img.naturalHeight / img.naturalWidth });
             }
           } catch {
             // Skip
