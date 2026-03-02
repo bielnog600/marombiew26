@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,10 +10,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { ArrowLeft, ArrowRight, Save, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Save, Loader2, CalendarIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const steps = [
   'Anamnese',
@@ -99,6 +104,7 @@ const NovaAvaliacao = () => {
   });
 
   const [notasGerais, setNotasGerais] = useState('');
+  const [dataAvaliacao, setDataAvaliacao] = useState<Date>(new Date());
 
   const str = (v: any) => (v != null && v !== '' ? String(v) : '');
 
@@ -113,7 +119,7 @@ const NovaAvaliacao = () => {
           supabase.from('anthropometrics').select('*').eq('assessment_id', editId).maybeSingle(),
           supabase.from('skinfolds').select('*').eq('assessment_id', editId).maybeSingle(),
           supabase.from('performance_tests').select('*').eq('assessment_id', editId).maybeSingle(),
-          supabase.from('assessments').select('notas_gerais').eq('id', editId).maybeSingle(),
+          supabase.from('assessments').select('notas_gerais, created_at').eq('id', editId).maybeSingle(),
         ]);
 
         if (aRes.data) {
@@ -168,6 +174,9 @@ const NovaAvaliacao = () => {
         }
         if (assessRes.data) {
           setNotasGerais(str(assessRes.data.notas_gerais));
+          if (assessRes.data.created_at) {
+            setDataAvaliacao(new Date(assessRes.data.created_at));
+          }
         }
       } catch (err: any) {
         toast.error('Erro ao carregar avaliação: ' + err.message);
@@ -223,7 +232,7 @@ const NovaAvaliacao = () => {
         // Update existing assessment
         const { error: aErr } = await supabase
           .from('assessments')
-          .update({ notas_gerais: notasGerais })
+          .update({ notas_gerais: notasGerais, created_at: dataAvaliacao.toISOString() })
           .eq('id', editId);
         if (aErr) throw aErr;
         aid = editId;
@@ -241,7 +250,7 @@ const NovaAvaliacao = () => {
         // Create new assessment
         const { data: assessment, error: aErr } = await supabase
           .from('assessments')
-          .insert({ student_id: studentId, avaliador_id: user.id, notas_gerais: notasGerais })
+          .insert({ student_id: studentId, avaliador_id: user.id, notas_gerais: notasGerais, created_at: dataAvaliacao.toISOString() } as any)
           .select()
           .single();
         if (aErr) throw aErr;
@@ -338,6 +347,30 @@ const NovaAvaliacao = () => {
         <Button variant="ghost" onClick={() => navigate(-1)}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
         </Button>
+
+        {/* Data da Avaliação */}
+        <div className="flex items-center gap-3">
+          <Label className="text-sm font-medium whitespace-nowrap">Data da Avaliação:</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("w-[200px] justify-start text-left font-normal")}>
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {format(dataAvaliacao, "dd/MM/yyyy")}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={dataAvaliacao}
+                onSelect={(d) => d && setDataAvaliacao(d)}
+                disabled={(date) => date > new Date()}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+
 
         {/* Stepper */}
         <div className="flex items-center gap-1 overflow-x-auto pb-2">
