@@ -6,7 +6,8 @@ import AiPlansList from '@/components/AiPlansList';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Plus, ClipboardList, User, Target, FileText, ScanLine, Pencil, Trash2, Heart, Bot, Download, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, ClipboardList, User, Target, FileText, ScanLine, Pencil, Trash2, Heart, Bot, Download, Loader2, BarChart3 } from 'lucide-react';
+import AssessmentComparison from '@/components/AssessmentComparison';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -142,6 +143,7 @@ const AlunoDetail = () => {
               <TabsTrigger value="fc" className="text-xs sm:text-sm"><Heart className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Zonas FC</span><span className="sm:hidden">FC</span></TabsTrigger>
               <TabsTrigger value="objetivos" className="text-xs sm:text-sm"><Target className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Objetivos</span><span className="sm:hidden">Obj.</span></TabsTrigger>
               <TabsTrigger value="notas" className="text-xs sm:text-sm"><FileText className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Observações</span><span className="sm:hidden">Notas</span></TabsTrigger>
+              <TabsTrigger value="comparar" className="text-xs sm:text-sm"><BarChart3 className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Comparar</span><span className="sm:hidden">Comp.</span></TabsTrigger>
               <TabsTrigger value="ia" className="text-xs sm:text-sm"><Bot className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Treino IA</span><span className="sm:hidden">IA</span></TabsTrigger>
             </TabsList>
           </div>
@@ -355,6 +357,10 @@ const AlunoDetail = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="comparar">
+            <AssessmentComparison studentId={id!} assessments={assessments} />
           </TabsContent>
 
           <TabsContent value="ia">
