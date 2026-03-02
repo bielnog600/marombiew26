@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { ArrowLeft, Send, Bot, User, Loader2, Save } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,6 +19,7 @@ const TreinoIA = () => {
   const [studentName, setStudentName] = useState('Aluno');
   const [saving, setSaving] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (studentId) loadStudentData();
@@ -47,15 +46,19 @@ const TreinoIA = () => {
     let skinfolds: any = null;
     let anamnese: any = null;
     let performance: any = null;
+    let posture: any = null;
+    let photos: any[] = [];
 
     if (latestAssessmentId) {
-      const [anthroRes, compRes, vitalsRes, sfRes, anRes, perfRes] = await Promise.all([
+      const [anthroRes, compRes, vitalsRes, sfRes, anRes, perfRes, postureRes, photosRes] = await Promise.all([
         supabase.from('anthropometrics').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
         supabase.from('composition').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
         supabase.from('vitals').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
         supabase.from('skinfolds').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
         supabase.from('anamnese').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
         supabase.from('performance_tests').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
+        supabase.from('posture').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
+        supabase.from('assessment_photos').select('*').eq('assessment_id', latestAssessmentId),
       ]);
       anthro = anthroRes.data;
       comp = compRes.data;
@@ -63,7 +66,18 @@ const TreinoIA = () => {
       skinfolds = sfRes.data;
       anamnese = anRes.data;
       performance = perfRes.data;
+      posture = postureRes.data;
+      photos = photosRes.data ?? [];
     }
+
+    // Load posture scans
+    const { data: postureScans } = await supabase
+      .from('posture_scans')
+      .select('*')
+      .eq('student_id', studentId!)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    const latestPostureScan = postureScans?.[0] ?? null;
 
     const ctx = {
       nome: profile?.nome,
@@ -76,7 +90,6 @@ const TreinoIA = () => {
       lesoes: sp?.lesoes,
       observacoes: sp?.observacoes,
       raca: sp?.raca,
-      // Anthropometrics
       peso: anthro?.peso,
       imc: anthro?.imc,
       cintura: anthro?.cintura,
@@ -92,25 +105,32 @@ const TreinoIA = () => {
       coxa_esquerda: anthro?.coxa_esquerda,
       panturrilha_direita: anthro?.panturrilha_direita,
       panturrilha_esquerda: anthro?.panturrilha_esquerda,
-      // Composition
       percentual_gordura: comp?.percentual_gordura,
       massa_magra: comp?.massa_magra,
       massa_gorda: comp?.massa_gorda,
-      // Vitals
       fc_repouso: vitals?.fc_repouso,
       pressao: vitals?.pressao,
       spo2: vitals?.spo2,
       glicemia: vitals?.glicemia,
-      // Full objects
       skinfolds: skinfolds ? { metodo: skinfolds.metodo, triceps: skinfolds.triceps, peitoral: skinfolds.peitoral, subescapular: skinfolds.subescapular, axilar_media: skinfolds.axilar_media, suprailiaca: skinfolds.suprailiaca, abdominal: skinfolds.abdominal, coxa: skinfolds.coxa } : null,
       anamnese: anamnese ? { historico_saude: anamnese.historico_saude, medicacao: anamnese.medicacao, suplementos: anamnese.suplementos, cirurgias: anamnese.cirurgias, dores: anamnese.dores, sono: anamnese.sono, stress: anamnese.stress, rotina: anamnese.rotina, treino_atual: anamnese.treino_atual, tabagismo: anamnese.tabagismo, alcool: anamnese.alcool } : null,
       performance: performance ? { cooper_12min: performance.cooper_12min, pushup: performance.pushup, plank: performance.plank, salto_vertical: performance.salto_vertical, agachamento_score: performance.agachamento_score, mobilidade_ombro: performance.mobilidade_ombro, mobilidade_quadril: performance.mobilidade_quadril, mobilidade_tornozelo: performance.mobilidade_tornozelo } : null,
+      // Posture data
+      posture: posture ? { vista_anterior: posture.vista_anterior, vista_lateral: posture.vista_lateral, vista_posterior: posture.vista_posterior, observacoes: posture.observacoes } : null,
+      posture_scan: latestPostureScan ? {
+        angles: latestPostureScan.angles_json,
+        attention_points: latestPostureScan.attention_points_json,
+        region_scores: latestPostureScan.region_scores_json,
+        notes: latestPostureScan.notes,
+      } : null,
+      // Photos
+      fotos_avaliacao: photos.length > 0 ? photos.map(p => ({ tipo: p.tipo, url: p.url })) : null,
+      fotos_perfil: sp?.fotos ?? null,
     };
 
     setStudentContext(ctx);
     setStudentName(profile?.nome || 'Aluno');
 
-    // Build summary of available data
     const dataPoints: string[] = [];
     if (ctx.objetivo) dataPoints.push(`objetivo: **${ctx.objetivo}**`);
     if (ctx.peso) dataPoints.push(`peso: ${ctx.peso}kg`);
@@ -118,12 +138,14 @@ const TreinoIA = () => {
     if (ctx.percentual_gordura) dataPoints.push(`gordura: ${ctx.percentual_gordura}%`);
     if (ctx.lesoes) dataPoints.push(`lesões: ${ctx.lesoes}`);
     if (ctx.restricoes) dataPoints.push(`restrições: ${ctx.restricoes}`);
+    if (ctx.posture || ctx.posture_scan) dataPoints.push('análise postural ✅');
+    if (ctx.fotos_avaliacao) dataPoints.push(`${ctx.fotos_avaliacao.length} foto(s) da avaliação`);
 
     const dataStr = dataPoints.length > 0 ? `\n\nDados já carregados: ${dataPoints.join(', ')}.` : '';
 
     setMessages([{
       role: 'assistant',
-      content: `Olá! Sou seu assistente de treino e dieta. Já tenho **todos os dados** do(a) **${profile?.nome || 'aluno'}** carregados do sistema (perfil, avaliação física, anamnese, composição corporal, sinais vitais e testes de performance).${dataStr}\n\nVou usar essas informações para montar um protocolo personalizado sem perguntar o que já sei. Vamos começar!\n\nQual é o **nível** desse aluno? (iniciante, intermediário ou avançado)`
+      content: `Olá! Sou seu assistente de treino e dieta. Já tenho **todos os dados** do(a) **${profile?.nome || 'aluno'}** carregados do sistema (perfil, avaliação física, anamnese, composição corporal, sinais vitais, testes de performance${ctx.posture_scan ? ', análise postural' : ''}${ctx.fotos_avaliacao ? ', fotos' : ''}).${dataStr}\n\nVou usar essas informações para montar um protocolo personalizado sem perguntar o que já sei. Vamos começar!\n\nQual é o **nível** desse aluno? (iniciante, intermediário ou avançado)`
     }]);
   };
 
@@ -217,7 +239,6 @@ const TreinoIA = () => {
         }
       }
 
-      // Flush remaining
       if (textBuffer.trim()) {
         for (let raw of textBuffer.split('\n')) {
           if (!raw) continue;
@@ -259,84 +280,89 @@ const TreinoIA = () => {
   const hasAssistantMessages = messages.some(m => m.role === 'assistant' && messages.some(u => u.role === 'user'));
 
   return (
-    <AppLayout title={`Treino IA - ${studentName}`}>
-      <div className="flex flex-col h-[calc(100vh-8rem)] animate-fade-in">
-        <div className="flex items-center justify-between mb-2">
-          <Button variant="ghost" onClick={() => navigate(`/alunos/${studentId}`)}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
-          </Button>
-          {hasAssistantMessages && !isLoading && (
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => saveAsPlan('treino')} disabled={saving}>
-                <Save className="mr-1 h-3 w-3" /> Salvar Treino
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => saveAsPlan('dieta')} disabled={saving}>
-                <Save className="mr-1 h-3 w-3" /> Salvar Dieta
-              </Button>
-            </div>
-          )}
+    <div className="fixed inset-0 z-50 flex flex-col bg-background">
+      {/* Header */}
+      <header className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0 safe-area-top bg-background">
+        <Button variant="ghost" size="sm" onClick={() => navigate(`/alunos/${studentId}`)} className="gap-1 px-2">
+          <ArrowLeft className="h-4 w-4" />
+          <span className="hidden sm:inline">Voltar</span>
+        </Button>
+        <div className="flex items-center gap-2 min-w-0">
+          <Bot className="h-5 w-5 text-primary shrink-0" />
+          <span className="font-semibold text-sm truncate">{studentName}</span>
         </div>
+        {hasAssistantMessages && !isLoading ? (
+          <div className="flex gap-1">
+            <Button variant="ghost" size="sm" onClick={() => saveAsPlan('treino')} disabled={saving} className="text-xs px-2">
+              <Save className="h-3 w-3 mr-1" /> Treino
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => saveAsPlan('dieta')} disabled={saving} className="text-xs px-2">
+              <Save className="h-3 w-3 mr-1" /> Dieta
+            </Button>
+          </div>
+        ) : <div className="w-20" />}
+      </header>
 
-        <Card className="glass-card flex-1 flex flex-col overflow-hidden">
-          <CardContent className="flex-1 flex flex-col p-4 overflow-hidden">
-            <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-4 pr-2 mb-4">
-              {messages.map((msg, i) => (
-                <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  {msg.role === 'assistant' && (
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary">
-                      <Bot className="h-4 w-4" />
-                    </div>
-                  )}
-                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
-                    msg.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-secondary text-foreground'
-                  }`}>
-                    {msg.role === 'assistant' ? (
-                      <div className="prose prose-sm dark:prose-invert max-w-none [&_table]:text-xs [&_table]:w-full [&_th]:bg-muted [&_th]:p-2 [&_td]:p-2 [&_td]:border [&_th]:border">
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
-                      </div>
-                    ) : (
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
-                    )}
-                  </div>
-                  {msg.role === 'user' && (
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                      <User className="h-4 w-4" />
-                    </div>
-                  )}
+      {/* Messages */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
+        {messages.map((msg, i) => (
+          <div key={i} className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            {msg.role === 'assistant' && (
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary mt-1">
+                <Bot className="h-3.5 w-3.5" />
+              </div>
+            )}
+            <div className={`max-w-[85%] rounded-2xl px-3 py-2.5 text-sm ${
+              msg.role === 'user'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-secondary text-foreground'
+            }`}>
+              {msg.role === 'assistant' ? (
+                <div className="prose prose-sm dark:prose-invert max-w-none [&_table]:text-xs [&_table]:w-full [&_th]:bg-muted [&_th]:p-1.5 [&_td]:p-1.5 [&_td]:border [&_th]:border [&_table]:block [&_table]:overflow-x-auto">
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
                 </div>
-              ))}
-              {isLoading && messages[messages.length - 1]?.role === 'user' && (
-                <div className="flex gap-3 justify-start">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary">
-                    <Bot className="h-4 w-4" />
-                  </div>
-                  <div className="bg-secondary rounded-2xl px-4 py-3">
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                  </div>
-                </div>
+              ) : (
+                <p className="whitespace-pre-wrap">{msg.content}</p>
               )}
             </div>
-
-            <div className="flex gap-2 items-end">
-              <Textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Digite sua mensagem..."
-                className="resize-none min-h-[44px] max-h-[120px]"
-                rows={1}
-                disabled={isLoading}
-              />
-              <Button onClick={sendMessage} disabled={isLoading || !input.trim()} size="icon" className="shrink-0">
-                <Send className="h-4 w-4" />
-              </Button>
+            {msg.role === 'user' && (
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground mt-1">
+                <User className="h-3.5 w-3.5" />
+              </div>
+            )}
+          </div>
+        ))}
+        {isLoading && messages[messages.length - 1]?.role === 'user' && (
+          <div className="flex gap-2 justify-start">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary">
+              <Bot className="h-3.5 w-3.5" />
             </div>
-          </CardContent>
-        </Card>
+            <div className="bg-secondary rounded-2xl px-3 py-2.5">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          </div>
+        )}
       </div>
-    </AppLayout>
+
+      {/* Input */}
+      <div className="border-t border-border px-3 py-2 shrink-0 safe-area-bottom bg-background">
+        <div className="flex gap-2 items-end max-w-3xl mx-auto">
+          <Textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Digite sua mensagem..."
+            className="resize-none min-h-[44px] max-h-[100px] text-base"
+            rows={1}
+            disabled={isLoading}
+          />
+          <Button onClick={sendMessage} disabled={isLoading || !input.trim()} size="icon" className="shrink-0 h-[44px] w-[44px]">
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 };
 

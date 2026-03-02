@@ -281,7 +281,36 @@ serve(async (req) => {
         if (pf.mobilidade_tornozelo) contextMessage += `Mobilidade tornozelo: ${pf.mobilidade_tornozelo}\n`;
       }
 
-      contextMessage += "\n=== FIM DOS DADOS ===\n\nIMPORTANTE: Todos os dados acima já são conhecidos. Comece perguntando APENAS o que falta (nível, dias/semana, semana do ciclo, divisão, equipamentos, preferências alimentares, etc). UMA PERGUNTA POR VEZ.";
+      // Posture analysis
+      if (studentContext.posture) {
+        const pos = studentContext.posture;
+        contextMessage += "\n--- Avaliação Postural (Manual) ---\n";
+        if (pos.vista_anterior) contextMessage += `Vista Anterior: ${JSON.stringify(pos.vista_anterior)}\n`;
+        if (pos.vista_lateral) contextMessage += `Vista Lateral: ${JSON.stringify(pos.vista_lateral)}\n`;
+        if (pos.vista_posterior) contextMessage += `Vista Posterior: ${JSON.stringify(pos.vista_posterior)}\n`;
+        if (pos.observacoes) contextMessage += `Observações posturais: ${pos.observacoes}\n`;
+      }
+
+      // Posture scan (2D analysis)
+      if (studentContext.posture_scan) {
+        const ps = studentContext.posture_scan;
+        contextMessage += "\n--- Análise Postural 2D (Automatizada) ---\n";
+        if (ps.angles) contextMessage += `Ângulos medidos: ${JSON.stringify(ps.angles)}\n`;
+        if (ps.attention_points) contextMessage += `Pontos de atenção: ${JSON.stringify(ps.attention_points)}\n`;
+        if (ps.region_scores) contextMessage += `Scores por região: ${JSON.stringify(ps.region_scores)}\n`;
+        if (ps.notes) contextMessage += `Notas da análise: ${ps.notes}\n`;
+      }
+
+      // Photos
+      if (studentContext.fotos_avaliacao && studentContext.fotos_avaliacao.length > 0) {
+        contextMessage += "\n--- Fotos da Avaliação ---\n";
+        contextMessage += `O aluno possui ${studentContext.fotos_avaliacao.length} foto(s) registradas: ${studentContext.fotos_avaliacao.map((f: any) => f.tipo || 'sem tipo').join(', ')}.\n`;
+      }
+      if (studentContext.fotos_perfil && studentContext.fotos_perfil.length > 0) {
+        contextMessage += `Fotos de perfil registradas: ${studentContext.fotos_perfil.length} foto(s).\n`;
+      }
+
+      contextMessage += "\n=== FIM DOS DADOS ===\n\nIMPORTANTE: Todos os dados acima já são conhecidos. Comece perguntando APENAS o que falta (nível, dias/semana, semana do ciclo, divisão, equipamentos, preferências alimentares, etc). UMA PERGUNTA POR VEZ.\n\nSe houver dados de análise postural, CONSIDERE-OS ao montar o treino: priorize exercícios corretivos para desvios identificados, inclua mobilidade específica e evite exercícios que possam agravar problemas posturais detectados.";
     }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
