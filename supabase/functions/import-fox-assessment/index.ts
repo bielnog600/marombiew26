@@ -75,6 +75,15 @@ Deno.serve(async (req) => {
 
     const html = await response.text();
 
+    // Extract assessment date from HTML
+    let dataAvaliacao: string | null = null;
+    const dateMatch = html.match(/Data da avalia[çc][ãa]o[\s\S]*?([\d]{2}\/[\d]{2}\/[\d]{4})/i)
+      || html.match(/(\d{2}\/\d{2}\/\d{4})/);
+    if (dateMatch) {
+      const [dd, mm, yyyy] = dateMatch[1].split("/");
+      dataAvaliacao = `${yyyy}-${mm}-${dd}`;
+    }
+
     // Extract data from HTML
     const peso = extractCardValue(html, "Peso");
     const altura = extractCardValue(html, "Altura");
@@ -136,14 +145,18 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create assessment
+    const insertData: Record<string, unknown> = {
+      student_id: studentId,
+      avaliador_id: user.id,
+      notas_gerais: "Importado do Fox Avaliação Física",
+    };
+    if (dataAvaliacao) {
+      insertData.created_at = dataAvaliacao;
+    }
+
     const { data: assessment, error: assessmentError } = await supabase
       .from("assessments")
-      .insert({
-        student_id: studentId,
-        avaliador_id: user.id,
-        notas_gerais: "Importado do Fox Avaliação Física",
-      })
+      .insert(insertData)
       .select()
       .single();
 
