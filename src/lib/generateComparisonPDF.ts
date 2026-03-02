@@ -144,13 +144,13 @@ export const generateComparisonPDF = async (data: ComparisonData) => {
   };
 
   // ═══ HEADER ═══
+  doc.setFillColor(...BRAND.dark);
+  doc.rect(0, 0, pageW, 50, 'F');
+
   try {
     const logo = await loadImage(logoUrl);
     doc.addImage(logo, 'PNG', margin, 10, 30, 30);
   } catch { /* skip */ }
-
-  doc.setFillColor(...BRAND.dark);
-  doc.rect(0, 0, pageW, 50, 'F');
   doc.setTextColor(...BRAND.gold);
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
