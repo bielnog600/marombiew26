@@ -73,6 +73,28 @@ const NovaAvaliacao = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(!!editId);
+  const [studentSex, setStudentSex] = useState<string | null>(null);
+  const [studentAge, setStudentAge] = useState<number | null>(null);
+
+  // Load student profile for sex and age
+  useEffect(() => {
+    if (!studentId) return;
+    const loadProfile = async () => {
+      const { data } = await supabase.from('students_profile').select('sexo, data_nascimento').eq('user_id', studentId).maybeSingle();
+      if (data) {
+        setStudentSex(data.sexo);
+        if (data.data_nascimento) {
+          const birth = new Date(data.data_nascimento);
+          const today = new Date();
+          let age = today.getFullYear() - birth.getFullYear();
+          const m = today.getMonth() - birth.getMonth();
+          if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+          setStudentAge(age);
+        }
+      }
+    };
+    loadProfile();
+  }, [studentId]);
 
   const [anamnese, setAnamnese] = useState({
     sono: '', stress: '', rotina: '', treino_atual: '', medicacao: '',
@@ -203,18 +225,52 @@ const NovaAvaliacao = () => {
   };
 
   const calcGordura = () => {
-    // Jackson & Pollock 3 dobras simplificado (masculino)
-    const t = parseFloat(skinfolds.triceps);
-    const si = parseFloat(skinfolds.suprailiaca);
-    const ab = parseFloat(skinfolds.abdominal);
-    if (t > 0 && si > 0 && ab > 0) {
-      const soma = t + si + ab;
-      // Fórmula simplificada
-      const dc = 1.10938 - (0.0008267 * soma) + (0.0000016 * soma * soma);
+    const age = studentAge;
+    if (!age || age <= 0) return '-';
+
+    const isFemale = studentSex === 'feminino' || studentSex === 'F' || studentSex === 'female';
+
+    if (skinfolds.metodo === 'jackson_pollock_7') {
+      // Jackson & Pollock 7 skinfolds
+      const vals = [skinfolds.peitoral, skinfolds.axilar_media, skinfolds.triceps,
+        skinfolds.subescapular, skinfolds.abdominal, skinfolds.suprailiaca, skinfolds.coxa].map(v => parseFloat(v));
+      if (vals.some(v => isNaN(v) || v <= 0)) return '-';
+      const soma = vals.reduce((a, b) => a + b, 0);
+
+      let dc: number;
+      if (isFemale) {
+        // Jackson, Pollock & Ward (1980) - Women 7 skinfolds
+        dc = 1.097 - (0.00046971 * soma) + (0.00000056 * soma * soma) - (0.00012828 * age);
+      } else {
+        // Jackson & Pollock (1978) - Men 7 skinfolds
+        dc = 1.112 - (0.00043499 * soma) + (0.00000055 * soma * soma) - (0.00028826 * age);
+      }
       const bf = ((4.95 / dc) - 4.5) * 100;
       return bf > 0 && bf < 60 ? bf.toFixed(1) : '-';
+    } else {
+      // Jackson & Pollock 3 skinfolds
+      if (isFemale) {
+        // Women: triceps, suprailiac, thigh
+        const t = parseFloat(skinfolds.triceps);
+        const si = parseFloat(skinfolds.suprailiaca);
+        const cx = parseFloat(skinfolds.coxa);
+        if (!(t > 0 && si > 0 && cx > 0)) return '-';
+        const soma = t + si + cx;
+        const dc = 1.0994921 - (0.0009929 * soma) + (0.0000023 * soma * soma) - (0.0001392 * age);
+        const bf = ((4.95 / dc) - 4.5) * 100;
+        return bf > 0 && bf < 60 ? bf.toFixed(1) : '-';
+      } else {
+        // Men: pectoral, abdominal, thigh
+        const p = parseFloat(skinfolds.peitoral);
+        const ab = parseFloat(skinfolds.abdominal);
+        const cx = parseFloat(skinfolds.coxa);
+        if (!(p > 0 && ab > 0 && cx > 0)) return '-';
+        const soma = p + ab + cx;
+        const dc = 1.10938 - (0.0008267 * soma) + (0.0000016 * soma * soma) - (0.0002574 * age);
+        const bf = ((4.95 / dc) - 4.5) * 100;
+        return bf > 0 && bf < 60 ? bf.toFixed(1) : '-';
+      }
     }
-    return '-';
   };
 
   const handleSave = async () => {
