@@ -319,9 +319,9 @@ const TreinoIA = () => {
   const hasAssistantMessages = messages.some(m => m.role === 'assistant' && messages.some(u => u.role === 'user'));
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background">
+    <div className="fixed inset-0 z-50 flex flex-col bg-background" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       {/* Header */}
-      <header className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0 safe-area-top bg-background">
+      <header className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0 bg-background"  >
         <Button variant="ghost" size="sm" onClick={() => navigate(`/alunos/${studentId}`)} className="gap-1 px-2">
           <ArrowLeft className="h-4 w-4" />
           <span className="hidden sm:inline">Voltar</span>
