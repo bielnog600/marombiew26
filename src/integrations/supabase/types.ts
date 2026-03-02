@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_plans: {
+        Row: {
+          conteudo: string
+          created_at: string
+          id: string
+          student_id: string
+          tipo: string
+          titulo: string
+        }
+        Insert: {
+          conteudo?: string
+          created_at?: string
+          id?: string
+          student_id: string
+          tipo?: string
+          titulo?: string
+        }
+        Update: {
+          conteudo?: string
+          created_at?: string
+          id?: string
+          student_id?: string
+          tipo?: string
+          titulo?: string
+        }
+        Relationships: []
+      }
       anamnese: {
         Row: {
           alcool: string | null

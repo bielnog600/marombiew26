@@ -140,14 +140,31 @@ Proteína: 1,6-2,2g/kg, Gordura: 0,6-1,0g/kg, Carboidrato: completar.
 Tabela: DIA | REFEIÇÃO | ALIMENTOS | QUANTIDADE | KCAL | P | C | G | OBS
 
 ========================================
-COLETA DE DADOS (UMA PERGUNTA POR VEZ)
+COLETA DE DADOS — REGRA CRÍTICA
 ========================================
 
-IMPORTANTE: Você receberá os dados do aluno no contexto. Use esses dados para pré-preencher. Pergunte APENAS o que falta, UMA PERGUNTA POR VEZ.
+IMPORTANTE: Você receberá TODOS os dados do aluno já disponíveis no sistema (perfil, avaliação física, anamnese, composição corporal, sinais vitais, testes de performance, dobras cutâneas, etc).
 
-Dados necessários:
-1) Nome 2) Idade 3) Objetivo 4) Nível 5) Dias/semana 6) Fotos 7) Gráfico de volume 8) Treino anterior 9) Semana do ciclo 10) Divisão 11) Equipamentos 12) Dor/lesão
-13) Altura 14) Peso 15) Rotina fora 16) Refeições/dia 17) Preferências 18) Restrições 19) Praticidade 20) Dieta atual
+USE ESSES DADOS DIRETAMENTE. NÃO pergunte informações que já foram fornecidas no contexto do aluno.
+
+Pergunte APENAS o que ainda falta para completar o protocolo, UMA PERGUNTA POR VEZ.
+
+Dados que você pode precisar perguntar (SE não estiverem no contexto):
+1) Nível (iniciante/intermediário/avançado)
+2) Dias/semana de treino
+3) Fotos do aluno (frente, lado, costas)
+4) Gráfico de volume mensal
+5) Treino anterior (últimas 1-2 semanas)
+6) Semana do ciclo (1, 2, 3 ou 4)
+7) Divisão desejada (ou "decida por mim")
+8) Equipamentos (academia completa ou limitado)
+9) Rotina fora da academia (ativo/sentado, passos/dia)
+10) Quantas refeições/dia consegue manter
+11) Preferências alimentares
+12) Praticidade (cozinha, marmita, comer fora)
+13) Dieta atual (se faz ou não)
+
+NÃO pergunte: nome, idade, sexo, altura, peso, objetivo, restrições, lesões, observações, IMC, % gordura, massa magra/gorda, FC repouso, pressão, SpO2, glicemia, dobras cutâneas, histórico de saúde, medicação, suplementos, sono, stress, rotina, tabagismo, álcool, cirurgias, dores, treino atual — SE esses dados já estiverem no contexto.
 
 ========================================
 MENSAGENS WHATSAPP (NO FINAL)
@@ -170,23 +187,101 @@ serve(async (req) => {
 
     let contextMessage = "";
     if (studentContext) {
-      contextMessage = "\n\n=== DADOS DO ALUNO (JÁ DISPONÍVEIS NO SISTEMA) ===\n";
+      contextMessage = "\n\n=== DADOS COMPLETOS DO ALUNO (JÁ DISPONÍVEIS NO SISTEMA — NÃO PERGUNTE NOVAMENTE) ===\n";
+      
+      // Profile
       if (studentContext.nome) contextMessage += `Nome: ${studentContext.nome}\n`;
       if (studentContext.email) contextMessage += `Email: ${studentContext.email}\n`;
       if (studentContext.sexo) contextMessage += `Sexo: ${studentContext.sexo}\n`;
-      if (studentContext.data_nascimento) contextMessage += `Data de nascimento: ${studentContext.data_nascimento}\n`;
+      if (studentContext.data_nascimento) {
+        const birth = new Date(studentContext.data_nascimento);
+        const age = Math.floor((Date.now() - birth.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+        contextMessage += `Data de nascimento: ${studentContext.data_nascimento} (${age} anos)\n`;
+      }
       if (studentContext.altura) contextMessage += `Altura: ${studentContext.altura} cm\n`;
       if (studentContext.objetivo) contextMessage += `Objetivo: ${studentContext.objetivo}\n`;
-      if (studentContext.restricoes) contextMessage += `Restrições: ${studentContext.restricoes}\n`;
+      if (studentContext.restricoes) contextMessage += `Restrições alimentares/treino: ${studentContext.restricoes}\n`;
       if (studentContext.lesoes) contextMessage += `Lesões: ${studentContext.lesoes}\n`;
-      if (studentContext.observacoes) contextMessage += `Observações: ${studentContext.observacoes}\n`;
+      if (studentContext.observacoes) contextMessage += `Observações gerais: ${studentContext.observacoes}\n`;
+      if (studentContext.raca) contextMessage += `Raça/etnia: ${studentContext.raca}\n`;
+
+      // Anthropometrics
+      contextMessage += "\n--- Dados Antropométricos ---\n";
       if (studentContext.peso) contextMessage += `Peso: ${studentContext.peso} kg\n`;
       if (studentContext.imc) contextMessage += `IMC: ${studentContext.imc}\n`;
+      if (studentContext.cintura) contextMessage += `Cintura: ${studentContext.cintura} cm\n`;
+      if (studentContext.quadril) contextMessage += `Quadril: ${studentContext.quadril} cm\n`;
+      if (studentContext.rcq) contextMessage += `RCQ: ${studentContext.rcq}\n`;
+      if (studentContext.torax) contextMessage += `Tórax: ${studentContext.torax} cm\n`;
+      if (studentContext.abdomen) contextMessage += `Abdômen: ${studentContext.abdomen} cm\n`;
+      if (studentContext.ombro) contextMessage += `Ombro: ${studentContext.ombro} cm\n`;
+      if (studentContext.pescoco) contextMessage += `Pescoço: ${studentContext.pescoco} cm\n`;
+      if (studentContext.braco_direito) contextMessage += `Braço D: ${studentContext.braco_direito} cm\n`;
+      if (studentContext.braco_esquerdo) contextMessage += `Braço E: ${studentContext.braco_esquerdo} cm\n`;
+      if (studentContext.coxa_direita) contextMessage += `Coxa D: ${studentContext.coxa_direita} cm\n`;
+      if (studentContext.coxa_esquerda) contextMessage += `Coxa E: ${studentContext.coxa_esquerda} cm\n`;
+      if (studentContext.panturrilha_direita) contextMessage += `Panturrilha D: ${studentContext.panturrilha_direita} cm\n`;
+      if (studentContext.panturrilha_esquerda) contextMessage += `Panturrilha E: ${studentContext.panturrilha_esquerda} cm\n`;
+
+      // Composition
+      contextMessage += "\n--- Composição Corporal ---\n";
       if (studentContext.percentual_gordura) contextMessage += `% Gordura: ${studentContext.percentual_gordura}%\n`;
       if (studentContext.massa_magra) contextMessage += `Massa Magra: ${studentContext.massa_magra} kg\n`;
       if (studentContext.massa_gorda) contextMessage += `Massa Gorda: ${studentContext.massa_gorda} kg\n`;
+
+      // Vitals
+      contextMessage += "\n--- Sinais Vitais ---\n";
       if (studentContext.fc_repouso) contextMessage += `FC Repouso: ${studentContext.fc_repouso} bpm\n`;
-      contextMessage += "=== FIM DOS DADOS ===\n\nUse esses dados e pergunte apenas o que falta, uma pergunta por vez.";
+      if (studentContext.pressao) contextMessage += `Pressão Arterial: ${studentContext.pressao}\n`;
+      if (studentContext.spo2) contextMessage += `SpO2: ${studentContext.spo2}%\n`;
+      if (studentContext.glicemia) contextMessage += `Glicemia: ${studentContext.glicemia} mg/dL\n`;
+
+      // Skinfolds
+      if (studentContext.skinfolds) {
+        const sf = studentContext.skinfolds;
+        contextMessage += "\n--- Dobras Cutâneas ---\n";
+        if (sf.metodo) contextMessage += `Método: ${sf.metodo}\n`;
+        if (sf.triceps) contextMessage += `Tríceps: ${sf.triceps} mm\n`;
+        if (sf.peitoral) contextMessage += `Peitoral: ${sf.peitoral} mm\n`;
+        if (sf.subescapular) contextMessage += `Subescapular: ${sf.subescapular} mm\n`;
+        if (sf.axilar_media) contextMessage += `Axilar Média: ${sf.axilar_media} mm\n`;
+        if (sf.suprailiaca) contextMessage += `Suprailíaca: ${sf.suprailiaca} mm\n`;
+        if (sf.abdominal) contextMessage += `Abdominal: ${sf.abdominal} mm\n`;
+        if (sf.coxa) contextMessage += `Coxa: ${sf.coxa} mm\n`;
+      }
+
+      // Anamnese
+      if (studentContext.anamnese) {
+        const an = studentContext.anamnese;
+        contextMessage += "\n--- Anamnese ---\n";
+        if (an.historico_saude) contextMessage += `Histórico de saúde: ${an.historico_saude}\n`;
+        if (an.medicacao) contextMessage += `Medicação: ${an.medicacao}\n`;
+        if (an.suplementos) contextMessage += `Suplementos: ${an.suplementos}\n`;
+        if (an.cirurgias) contextMessage += `Cirurgias: ${an.cirurgias}\n`;
+        if (an.dores) contextMessage += `Dores: ${an.dores}\n`;
+        if (an.sono) contextMessage += `Sono: ${an.sono}\n`;
+        if (an.stress) contextMessage += `Stress: ${an.stress}\n`;
+        if (an.rotina) contextMessage += `Rotina: ${an.rotina}\n`;
+        if (an.treino_atual) contextMessage += `Treino atual: ${an.treino_atual}\n`;
+        if (an.tabagismo) contextMessage += `Tabagismo: Sim\n`;
+        if (an.alcool) contextMessage += `Álcool: ${an.alcool}\n`;
+      }
+
+      // Performance
+      if (studentContext.performance) {
+        const pf = studentContext.performance;
+        contextMessage += "\n--- Testes de Performance ---\n";
+        if (pf.cooper_12min) contextMessage += `Cooper 12min: ${pf.cooper_12min} m\n`;
+        if (pf.pushup) contextMessage += `Flexões: ${pf.pushup}\n`;
+        if (pf.plank) contextMessage += `Prancha: ${pf.plank} seg\n`;
+        if (pf.salto_vertical) contextMessage += `Salto vertical: ${pf.salto_vertical} cm\n`;
+        if (pf.agachamento_score) contextMessage += `Score agachamento: ${pf.agachamento_score}\n`;
+        if (pf.mobilidade_ombro) contextMessage += `Mobilidade ombro: ${pf.mobilidade_ombro}\n`;
+        if (pf.mobilidade_quadril) contextMessage += `Mobilidade quadril: ${pf.mobilidade_quadril}\n`;
+        if (pf.mobilidade_tornozelo) contextMessage += `Mobilidade tornozelo: ${pf.mobilidade_tornozelo}\n`;
+      }
+
+      contextMessage += "\n=== FIM DOS DADOS ===\n\nIMPORTANTE: Todos os dados acima já são conhecidos. Comece perguntando APENAS o que falta (nível, dias/semana, semana do ciclo, divisão, equipamentos, preferências alimentares, etc). UMA PERGUNTA POR VEZ.";
     }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
