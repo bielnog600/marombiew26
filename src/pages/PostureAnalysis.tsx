@@ -233,6 +233,19 @@ const PostureAnalysis = () => {
 
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
+  // Auto-fill height and sex from student profile
+  useEffect(() => {
+    if (!studentId) return;
+    const loadStudentProfile = async () => {
+      const { data } = await supabase.from('students_profile').select('altura, sexo').eq('user_id', studentId).maybeSingle();
+      if (data) {
+        if (data.altura && !heightCm) setHeightCm(String(data.altura));
+        if (data.sexo) setSex(data.sexo);
+      }
+    };
+    loadStudentProfile();
+  }, [studentId]);
+
   const handleDeleteScan = async (scanId: string) => {
     const { error } = await supabase.from('posture_scans').delete().eq('id', scanId);
     if (error) { toast.error('Erro ao deletar: ' + error.message); return; }
