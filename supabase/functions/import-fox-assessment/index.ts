@@ -77,10 +77,19 @@ Deno.serve(async (req) => {
 
     // Extract assessment date from HTML
     let dataAvaliacao: string | null = null;
-    const dateMatch = html.match(/Data da avalia[çc][ãa]o[\s\S]*?([\d]{2}\/[\d]{2}\/[\d]{4})/i)
-      || html.match(/(\d{2}\/\d{2}\/\d{4})/);
+    // Try 4-digit year first, then 2-digit year
+    const dateMatch = html.match(/Data da [Aa]valia[çc][ãa]o[:\s]*([\d]{2}\/[\d]{2}\/[\d]{2,4})/i)
+      || html.match(/(\d{2}\/\d{2}\/\d{2,4})/);
     if (dateMatch) {
-      const [dd, mm, yyyy] = dateMatch[1].split("/");
+      const parts = dateMatch[1].split("/");
+      const dd = parts[0];
+      const mm = parts[1];
+      let yyyy = parts[2];
+      // Handle 2-digit year
+      if (yyyy.length === 2) {
+        const num = parseInt(yyyy);
+        yyyy = num > 50 ? `19${yyyy}` : `20${yyyy}`;
+      }
       dataAvaliacao = `${yyyy}-${mm}-${dd}`;
     }
 
