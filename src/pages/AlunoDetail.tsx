@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
+import AiPlansList from '@/components/AiPlansList';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
@@ -293,16 +294,20 @@ const AlunoDetail = () => {
           </TabsContent>
 
           <TabsContent value="ia">
-            <Card className="glass-card">
-              <CardContent className="p-6 text-center space-y-4">
-                <Bot className="h-12 w-12 mx-auto text-primary" />
-                <h3 className="text-lg font-bold">Agente de Treino & Dieta</h3>
-                <p className="text-muted-foreground text-sm">Use inteligência artificial para gerar treinos e dietas personalizadas com base nos dados deste aluno.</p>
-                <Button onClick={() => navigate(`/treino-ia/${id}`)} className="font-semibold">
-                  <Bot className="mr-2 h-4 w-4" /> Iniciar Chat IA
-                </Button>
-              </CardContent>
-            </Card>
+            <div className="space-y-4">
+              <Card className="glass-card">
+                <CardContent className="p-6 text-center space-y-4">
+                  <Bot className="h-12 w-12 mx-auto text-primary" />
+                  <h3 className="text-lg font-bold">Agente de Treino & Dieta</h3>
+                  <p className="text-muted-foreground text-sm">Use inteligência artificial para gerar treinos e dietas personalizadas com base nos dados deste aluno.</p>
+                  <Button onClick={() => navigate(`/treino-ia/${id}`)} className="font-semibold">
+                    <Bot className="mr-2 h-4 w-4" /> Iniciar Chat IA
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <AiPlansList studentId={id!} />
+            </div>
           </TabsContent>
         </Tabs>
       </div>

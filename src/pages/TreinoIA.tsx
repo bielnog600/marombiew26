@@ -4,7 +4,7 @@ import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Send, Bot, User, Loader2 } from 'lucide-react';
+import { ArrowLeft, Send, Bot, User, Loader2, Save } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
@@ -19,6 +19,7 @@ const TreinoIA = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [studentContext, setStudentContext] = useState<any>(null);
   const [studentName, setStudentName] = useState('Aluno');
+  const [saving, setSaving] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -43,16 +44,25 @@ const TreinoIA = () => {
     let anthro: any = null;
     let comp: any = null;
     let vitals: any = null;
+    let skinfolds: any = null;
+    let anamnese: any = null;
+    let performance: any = null;
 
     if (latestAssessmentId) {
-      const [anthroRes, compRes, vitalsRes] = await Promise.all([
+      const [anthroRes, compRes, vitalsRes, sfRes, anRes, perfRes] = await Promise.all([
         supabase.from('anthropometrics').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
         supabase.from('composition').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
         supabase.from('vitals').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
+        supabase.from('skinfolds').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
+        supabase.from('anamnese').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
+        supabase.from('performance_tests').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
       ]);
       anthro = anthroRes.data;
       comp = compRes.data;
       vitals = vitalsRes.data;
+      skinfolds = sfRes.data;
+      anamnese = anRes.data;
+      performance = perfRes.data;
     }
 
     const ctx = {
@@ -65,22 +75,71 @@ const TreinoIA = () => {
       restricoes: sp?.restricoes,
       lesoes: sp?.lesoes,
       observacoes: sp?.observacoes,
+      raca: sp?.raca,
+      // Anthropometrics
       peso: anthro?.peso,
       imc: anthro?.imc,
+      cintura: anthro?.cintura,
+      quadril: anthro?.quadril,
+      rcq: anthro?.rcq,
+      torax: anthro?.torax,
+      abdomen: anthro?.abdomen,
+      ombro: anthro?.ombro,
+      pescoco: anthro?.pescoco,
+      braco_direito: anthro?.braco_direito,
+      braco_esquerdo: anthro?.braco_esquerdo,
+      coxa_direita: anthro?.coxa_direita,
+      coxa_esquerda: anthro?.coxa_esquerda,
+      panturrilha_direita: anthro?.panturrilha_direita,
+      panturrilha_esquerda: anthro?.panturrilha_esquerda,
+      // Composition
       percentual_gordura: comp?.percentual_gordura,
       massa_magra: comp?.massa_magra,
       massa_gorda: comp?.massa_gorda,
+      // Vitals
       fc_repouso: vitals?.fc_repouso,
+      pressao: vitals?.pressao,
+      spo2: vitals?.spo2,
+      glicemia: vitals?.glicemia,
+      // Full objects
+      skinfolds: skinfolds ? { metodo: skinfolds.metodo, triceps: skinfolds.triceps, peitoral: skinfolds.peitoral, subescapular: skinfolds.subescapular, axilar_media: skinfolds.axilar_media, suprailiaca: skinfolds.suprailiaca, abdominal: skinfolds.abdominal, coxa: skinfolds.coxa } : null,
+      anamnese: anamnese ? { historico_saude: anamnese.historico_saude, medicacao: anamnese.medicacao, suplementos: anamnese.suplementos, cirurgias: anamnese.cirurgias, dores: anamnese.dores, sono: anamnese.sono, stress: anamnese.stress, rotina: anamnese.rotina, treino_atual: anamnese.treino_atual, tabagismo: anamnese.tabagismo, alcool: anamnese.alcool } : null,
+      performance: performance ? { cooper_12min: performance.cooper_12min, pushup: performance.pushup, plank: performance.plank, salto_vertical: performance.salto_vertical, agachamento_score: performance.agachamento_score, mobilidade_ombro: performance.mobilidade_ombro, mobilidade_quadril: performance.mobilidade_quadril, mobilidade_tornozelo: performance.mobilidade_tornozelo } : null,
     };
 
     setStudentContext(ctx);
     setStudentName(profile?.nome || 'Aluno');
 
-    // Auto-start conversation
+    // Build summary of available data
+    const dataPoints: string[] = [];
+    if (ctx.objetivo) dataPoints.push(`objetivo: **${ctx.objetivo}**`);
+    if (ctx.peso) dataPoints.push(`peso: ${ctx.peso}kg`);
+    if (ctx.altura) dataPoints.push(`altura: ${ctx.altura}cm`);
+    if (ctx.percentual_gordura) dataPoints.push(`gordura: ${ctx.percentual_gordura}%`);
+    if (ctx.lesoes) dataPoints.push(`lesões: ${ctx.lesoes}`);
+    if (ctx.restricoes) dataPoints.push(`restrições: ${ctx.restricoes}`);
+
+    const dataStr = dataPoints.length > 0 ? `\n\nDados já carregados: ${dataPoints.join(', ')}.` : '';
+
     setMessages([{
       role: 'assistant',
-      content: `Olá! Sou seu assistente de treino e dieta. Já tenho os dados do(a) **${profile?.nome || 'aluno'}** carregados do sistema. Vou usar essas informações para montar um protocolo personalizado.\n\nVamos começar! Me diga: qual é o **objetivo principal** desse aluno? (hipertrofia, emagrecimento, ou outro foco específico)`
+      content: `Olá! Sou seu assistente de treino e dieta. Já tenho **todos os dados** do(a) **${profile?.nome || 'aluno'}** carregados do sistema (perfil, avaliação física, anamnese, composição corporal, sinais vitais e testes de performance).${dataStr}\n\nVou usar essas informações para montar um protocolo personalizado sem perguntar o que já sei. Vamos começar!\n\nQual é o **nível** desse aluno? (iniciante, intermediário ou avançado)`
     }]);
+  };
+
+  const saveAsPlan = async (type: 'treino' | 'dieta') => {
+    const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
+    if (!lastAssistant) return;
+    setSaving(true);
+    const { error } = await supabase.from('ai_plans').insert({
+      student_id: studentId!,
+      tipo: type,
+      titulo: `${type === 'treino' ? 'Treino' : 'Dieta'} - ${new Date().toLocaleDateString('pt-BR')}`,
+      conteudo: lastAssistant.content,
+    });
+    if (error) toast.error('Erro ao salvar: ' + error.message);
+    else toast.success(`${type === 'treino' ? 'Treino' : 'Dieta'} salvo(a) com sucesso!`);
+    setSaving(false);
   };
 
   const sendMessage = async () => {
@@ -180,7 +239,6 @@ const TreinoIA = () => {
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || 'Erro ao gerar resposta');
-      // Remove failed assistant message if empty
       setMessages(prev => {
         const last = prev[prev.length - 1];
         if (last?.role === 'assistant' && !last.content) return prev.slice(0, -1);
@@ -198,16 +256,29 @@ const TreinoIA = () => {
     }
   };
 
+  const hasAssistantMessages = messages.some(m => m.role === 'assistant' && messages.some(u => u.role === 'user'));
+
   return (
     <AppLayout title={`Treino IA - ${studentName}`}>
       <div className="flex flex-col h-[calc(100vh-8rem)] animate-fade-in">
-        <Button variant="ghost" onClick={() => navigate(`/alunos/${studentId}`)} className="mb-2 self-start">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
-        </Button>
+        <div className="flex items-center justify-between mb-2">
+          <Button variant="ghost" onClick={() => navigate(`/alunos/${studentId}`)}>
+            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
+          </Button>
+          {hasAssistantMessages && !isLoading && (
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => saveAsPlan('treino')} disabled={saving}>
+                <Save className="mr-1 h-3 w-3" /> Salvar Treino
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => saveAsPlan('dieta')} disabled={saving}>
+                <Save className="mr-1 h-3 w-3" /> Salvar Dieta
+              </Button>
+            </div>
+          )}
+        </div>
 
         <Card className="glass-card flex-1 flex flex-col overflow-hidden">
           <CardContent className="flex-1 flex flex-col p-4 overflow-hidden">
-            {/* Messages */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-4 pr-2 mb-4">
               {messages.map((msg, i) => (
                 <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -248,7 +319,6 @@ const TreinoIA = () => {
               )}
             </div>
 
-            {/* Input */}
             <div className="flex gap-2 items-end">
               <Textarea
                 value={input}
