@@ -254,7 +254,7 @@ const Relatorio = () => {
                   {' · '}Avaliação em {new Date(assessment.created_at).toLocaleDateString('pt-BR')}
                 </p>
               </div>
-              <div className="text-2xl font-bold text-gradient">MarombiewPro</div>
+              {/* branding removido */}
             </div>
           </CardContent>
         </Card>
