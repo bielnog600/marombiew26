@@ -308,7 +308,7 @@ const AlunoDetail = () => {
 
 
           <TabsContent value="comparar">
-            <AssessmentComparison studentId={id!} assessments={assessments} />
+            <AssessmentComparison studentId={id!} studentName={profile?.nome} assessments={assessments} />
           </TabsContent>
 
           <TabsContent value="ia">

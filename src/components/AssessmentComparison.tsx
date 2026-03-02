@@ -4,22 +4,25 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { BarChart3, Loader2 } from 'lucide-react';
+import { BarChart3, Loader2, FileDown } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
 } from 'recharts';
+import { generateComparisonPDF } from '@/lib/generateComparisonPDF';
 
 interface Props {
   studentId: string;
+  studentName?: string;
   assessments: any[];
 }
 
 const COLORS = ['hsl(45,100%,50%)', 'hsl(200,80%,55%)', 'hsl(140,60%,45%)', 'hsl(280,70%,55%)', 'hsl(20,90%,55%)'];
 
-const AssessmentComparison: React.FC<Props> = ({ studentId, assessments }) => {
+const AssessmentComparison: React.FC<Props> = ({ studentId, studentName, assessments }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [compData, setCompData] = useState<any>(null);
 
   const toggleSelection = (id: string) => {
@@ -171,6 +174,29 @@ const AssessmentComparison: React.FC<Props> = ({ studentId, assessments }) => {
     setLoading(false);
   };
 
+  const handleExportPDF = async () => {
+    if (!compData) return;
+    setExporting(true);
+    try {
+      await generateComparisonPDF({
+        studentName: studentName || 'Aluno',
+        dateLabels: compData.dateLabels,
+        compositionChartData: compData.compositionChartData,
+        measurementChartData: compData.measurementChartData,
+        skinfoldChartData: compData.skinfoldChartData,
+        photosGrouped: compData.photosGrouped,
+        postureGrouped: compData.postureGrouped,
+        sortedAssessments: compData.sortedAssessments,
+      });
+      toast.success('PDF de comparação exportado!');
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao gerar PDF');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const renderPostureView = (view: any, label: string) => {
     if (!view || typeof view !== 'object') return null;
     const entries = Object.entries(view).filter(([_, v]) => v && v !== 'normal' && v !== 'Normal');
@@ -219,6 +245,12 @@ const AssessmentComparison: React.FC<Props> = ({ studentId, assessments }) => {
 
       {compData && (
         <div className="space-y-6">
+          <div className="flex justify-end">
+            <Button onClick={handleExportPDF} disabled={exporting} variant="outline" className="gap-2">
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+              Exportar PDF
+            </Button>
+          </div>
           {/* Composition Evolution */}
           <Card className="glass-card">
             <CardContent className="p-4 space-y-3">
