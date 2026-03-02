@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { Trash2, Dumbbell, UtensilsCrossed, ChevronDown, ChevronUp } from 'lucide-react';
+import { Trash2, Dumbbell, UtensilsCrossed, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 import {
@@ -13,6 +13,59 @@ import {
 interface AiPlansListProps {
   studentId: string;
 }
+
+const CopyableTable = ({ children, ...props }: React.HTMLAttributes<HTMLTableElement>) => {
+  const [copied, setCopied] = useState(false);
+  const tableRef = React.useRef<HTMLTableElement>(null);
+
+  const copyTable = useCallback(() => {
+    if (!tableRef.current) return;
+    // Select and copy as rich text (preserves table structure in Excel/Sheets)
+    const range = document.createRange();
+    range.selectNodeContents(tableRef.current);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    document.execCommand('copy');
+    selection?.removeAllRanges();
+    setCopied(true);
+    toast.success('Tabela copiada! Cole no Excel ou Google Sheets.');
+    setTimeout(() => setCopied(false), 2000);
+  }, []);
+
+  return (
+    <div className="relative group my-4">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={copyTable}
+        className="absolute -top-3 right-0 z-10 opacity-0 group-hover:opacity-100 transition-opacity text-xs gap-1 h-7"
+      >
+        {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+        {copied ? 'Copiado!' : 'Copiar tabela'}
+      </Button>
+      <div className="overflow-x-auto">
+        <table
+          ref={tableRef}
+          {...props}
+          className="w-full text-xs border-collapse select-text"
+        >
+          {children}
+        </table>
+      </div>
+    </div>
+  );
+};
+
+const markdownComponents = {
+  table: CopyableTable as any,
+  th: ({ children, ...props }: any) => (
+    <th className="bg-muted p-2 border border-border text-left font-semibold select-text" {...props}>{children}</th>
+  ),
+  td: ({ children, ...props }: any) => (
+    <td className="p-2 border border-border select-text" {...props}>{children}</td>
+  ),
+};
 
 const AiPlansList = ({ studentId }: AiPlansListProps) => {
   const [plans, setPlans] = useState<any[]>([]);
@@ -93,8 +146,8 @@ const AiPlansList = ({ studentId }: AiPlansListProps) => {
               </AlertDialog>
             </div>
             {expandedId === plan.id && (
-              <div className="mt-4 pt-4 border-t border-border prose prose-sm dark:prose-invert max-w-none [&_table]:text-xs [&_table]:w-full [&_th]:bg-muted [&_th]:p-2 [&_td]:p-2 [&_td]:border [&_th]:border">
-                <ReactMarkdown>{plan.conteudo}</ReactMarkdown>
+              <div className="mt-4 pt-4 border-t border-border prose prose-sm dark:prose-invert max-w-none select-text">
+                <ReactMarkdown components={markdownComponents}>{plan.conteudo}</ReactMarkdown>
               </div>
             )}
           </CardContent>
