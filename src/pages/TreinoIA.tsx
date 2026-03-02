@@ -18,8 +18,10 @@ const TreinoIA = () => {
   const [studentContext, setStudentContext] = useState<any>(null);
   const [studentName, setStudentName] = useState('Aluno');
   const [saving, setSaving] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState('100dvh');
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (studentId) loadStudentData();
@@ -28,6 +30,34 @@ const TreinoIA = () => {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
+
+  // Fix mobile keyboard pushing layout
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const onResize = () => {
+      setViewportHeight(`${vv.height}px`);
+      // Keep the container pinned to the top
+      if (containerRef.current) {
+        containerRef.current.style.height = `${vv.height}px`;
+        containerRef.current.style.transform = `translateY(${vv.offsetTop}px)`;
+      }
+      // Auto-scroll to bottom when keyboard opens
+      requestAnimationFrame(() => {
+        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+      });
+    };
+
+    vv.addEventListener('resize', onResize);
+    vv.addEventListener('scroll', onResize);
+    onResize();
+
+    return () => {
+      vv.removeEventListener('resize', onResize);
+      vv.removeEventListener('scroll', onResize);
+    };
+  }, []);
 
   const loadStudentData = async () => {
     const [profileRes, spRes, assessRes] = await Promise.all([
@@ -310,7 +340,7 @@ const TreinoIA = () => {
   const hasAssistantMessages = messages.some(m => m.role === 'assistant' && messages.some(u => u.role === 'user'));
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+    <div ref={containerRef} className="fixed inset-x-0 top-0 z-50 flex flex-col bg-background overflow-hidden" style={{ height: viewportHeight, paddingTop: 'env(safe-area-inset-top, 0px)' }}>
       {/* Header */}
       <header className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0 bg-background"  >
         <Button variant="ghost" size="sm" onClick={() => navigate(`/alunos/${studentId}`)} className="gap-1 px-2">
