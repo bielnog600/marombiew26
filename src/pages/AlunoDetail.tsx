@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Plus, ClipboardList, User, Target, FileText, ScanLine, Pencil, Trash2, Heart } from 'lucide-react';
+import { ArrowLeft, Plus, ClipboardList, User, Target, FileText, ScanLine, Pencil, Trash2, Heart, Bot } from 'lucide-react';
 import KarvonenZones from '@/components/KarvonenZones';
 import { toast } from 'sonner';
 import {
@@ -111,6 +111,7 @@ const AlunoDetail = () => {
               <TabsTrigger value="fc" className="text-xs sm:text-sm"><Heart className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Zonas FC</span><span className="sm:hidden">FC</span></TabsTrigger>
               <TabsTrigger value="objetivos" className="text-xs sm:text-sm"><Target className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Objetivos</span><span className="sm:hidden">Obj.</span></TabsTrigger>
               <TabsTrigger value="notas" className="text-xs sm:text-sm"><FileText className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Observações</span><span className="sm:hidden">Notas</span></TabsTrigger>
+              <TabsTrigger value="ia" className="text-xs sm:text-sm"><Bot className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Treino IA</span><span className="sm:hidden">IA</span></TabsTrigger>
             </TabsList>
           </div>
 
@@ -287,6 +288,19 @@ const AlunoDetail = () => {
                     ))}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="ia">
+            <Card className="glass-card">
+              <CardContent className="p-6 text-center space-y-4">
+                <Bot className="h-12 w-12 mx-auto text-primary" />
+                <h3 className="text-lg font-bold">Agente de Treino & Dieta</h3>
+                <p className="text-muted-foreground text-sm">Use inteligência artificial para gerar treinos e dietas personalizadas com base nos dados deste aluno.</p>
+                <Button onClick={() => navigate(`/treino-ia/${id}`)} className="font-semibold">
+                  <Bot className="mr-2 h-4 w-4" /> Iniciar Chat IA
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>

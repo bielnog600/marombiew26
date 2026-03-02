@@ -6,7 +6,7 @@ import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, useSidebar,
 } from '@/components/ui/sidebar';
-import { LayoutDashboard, Users, ClipboardList, User, LogOut, Dumbbell, Target, Clock, ScanLine } from 'lucide-react';
+import { LayoutDashboard, Users, ClipboardList, User, LogOut, Dumbbell, Target, Clock, ScanLine, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const adminItems = [
@@ -21,10 +21,7 @@ const alunoItems = [
   { title: 'Minhas Avaliações', url: '/minhas-avaliacoes', icon: ClipboardList },
 ];
 
-const futureItems = [
-  { title: 'Treinos', icon: Target },
-  { title: 'Dieta', icon: Clock },
-];
+const futureItems: any[] = [];
 
 export function AppSidebar() {
   const { role, signOut, user } = useAuth();
