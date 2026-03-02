@@ -140,9 +140,6 @@ const AlunoDetail = () => {
               <TabsTrigger value="perfil" className="text-xs sm:text-sm"><User className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Perfil</span><span className="sm:hidden">Perfil</span></TabsTrigger>
               <TabsTrigger value="avaliacoes" className="text-xs sm:text-sm"><ClipboardList className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Avaliações</span><span className="sm:hidden">Aval.</span></TabsTrigger>
               <TabsTrigger value="postura" className="text-xs sm:text-sm"><ScanLine className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Análise Postural</span><span className="sm:hidden">Postura</span></TabsTrigger>
-              <TabsTrigger value="fc" className="text-xs sm:text-sm"><Heart className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Zonas FC</span><span className="sm:hidden">FC</span></TabsTrigger>
-              <TabsTrigger value="objetivos" className="text-xs sm:text-sm"><Target className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Objetivos</span><span className="sm:hidden">Obj.</span></TabsTrigger>
-              <TabsTrigger value="notas" className="text-xs sm:text-sm"><FileText className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Observações</span><span className="sm:hidden">Notas</span></TabsTrigger>
               <TabsTrigger value="comparar" className="text-xs sm:text-sm"><BarChart3 className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Comparar</span><span className="sm:hidden">Comp.</span></TabsTrigger>
               <TabsTrigger value="ia" className="text-xs sm:text-sm"><Bot className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Treino IA</span><span className="sm:hidden">IA</span></TabsTrigger>
             </TabsList>
@@ -309,55 +306,6 @@ const AlunoDetail = () => {
             </div>
           </TabsContent>
 
-          <TabsContent value="fc">
-            <KarvonenZones
-              studentId={id!}
-              birthDate={studentProfile?.data_nascimento}
-              fcRepouso={latestFcRepouso}
-            />
-          </TabsContent>
-
-          <TabsContent value="objetivos">
-            <Card className="glass-card">
-              <CardContent className="p-6">
-                {goals.length === 0 ? (
-                  <p className="text-muted-foreground">Nenhum objetivo cadastrado.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {goals.map(g => (
-                      <div key={g.id} className="p-3 rounded-lg bg-secondary/50">
-                        <div className="flex gap-4 text-sm">
-                          {g.meta_peso && <span>Peso: {g.meta_peso} kg</span>}
-                          {g.meta_gordura && <span>Gordura: {g.meta_gordura}%</span>}
-                          {g.prazo && <span>Prazo: {new Date(g.prazo).toLocaleDateString('pt-BR')}</span>}
-                        </div>
-                        {g.observacoes && <p className="text-xs text-muted-foreground mt-1">{g.observacoes}</p>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="notas">
-            <Card className="glass-card">
-              <CardContent className="p-6">
-                {notes.length === 0 ? (
-                  <p className="text-muted-foreground">Nenhuma observação.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {notes.map(n => (
-                      <div key={n.id} className="p-3 rounded-lg bg-secondary/50">
-                        <p className="text-xs text-muted-foreground">{new Date(n.data).toLocaleDateString('pt-BR')}</p>
-                        <p className="text-sm mt-1">{n.nota}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           <TabsContent value="comparar">
             <AssessmentComparison studentId={id!} assessments={assessments} />
