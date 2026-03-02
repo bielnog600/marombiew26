@@ -6,7 +6,10 @@ import AiPlansList from '@/components/AiPlansList';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Plus, ClipboardList, User, Target, FileText, ScanLine, Pencil, Trash2, Heart, Bot } from 'lucide-react';
+import { ArrowLeft, Plus, ClipboardList, User, Target, FileText, ScanLine, Pencil, Trash2, Heart, Bot, Download, Loader2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import KarvonenZones from '@/components/KarvonenZones';
 import { toast } from 'sonner';
 import {
@@ -24,6 +27,9 @@ const AlunoDetail = () => {
   const [notes, setNotes] = useState<any[]>([]);
   const [postureScans, setPostureScans] = useState<any[]>([]);
   const [latestFcRepouso, setLatestFcRepouso] = useState<number | null>(null);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importUrl, setImportUrl] = useState('');
+  const [importLoading, setImportLoading] = useState(false);
 
   useEffect(() => {
     if (id) loadData();
@@ -71,6 +77,30 @@ const AlunoDetail = () => {
     if (error) { toast.error('Erro ao deletar: ' + error.message); return; }
     toast.success('Avaliação deletada.');
     setAssessments(prev => prev.filter(a => a.id !== assessmentId));
+  };
+
+  const handleImportFox = async () => {
+    if (!importUrl.trim()) {
+      toast.error('Cole a URL do relatório Fox');
+      return;
+    }
+    setImportLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('import-fox-assessment', {
+        body: { url: importUrl.trim(), studentId: id },
+      });
+      if (error || data?.error) {
+        toast.error(data?.error || error?.message || 'Erro ao importar');
+      } else {
+        toast.success('Avaliação importada com sucesso!');
+        setImportDialogOpen(false);
+        setImportUrl('');
+        loadData();
+      }
+    } catch (err: any) {
+      toast.error('Erro ao importar: ' + (err.message || 'erro desconhecido'));
+    }
+    setImportLoading(false);
   };
 
   if (!profile) {
@@ -138,9 +168,43 @@ const AlunoDetail = () => {
 
           <TabsContent value="avaliacoes">
             <div className="space-y-4">
-              <Button onClick={() => navigate(`/nova-avaliacao/${id}`)} className="font-semibold">
-                <Plus className="mr-2 h-4 w-4" /> Nova Avaliação
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => navigate(`/nova-avaliacao/${id}`)} className="font-semibold">
+                  <Plus className="mr-2 h-4 w-4" /> Nova Avaliação
+                </Button>
+                <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="font-semibold">
+                      <Download className="mr-2 h-4 w-4" /> Importar Fox
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="glass-card">
+                    <DialogHeader>
+                      <DialogTitle>Importar Avaliação do Fox</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>URL do Relatório Fox</Label>
+                        <Input
+                          placeholder="https://app.foxavaliacaofisica.com.br/relatorio/full/..."
+                          value={importUrl}
+                          onChange={(e) => setImportUrl(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Cole a URL completa do relatório do Fox Avaliação Física (incluindo o token).
+                        </p>
+                      </div>
+                      <Button
+                        onClick={handleImportFox}
+                        disabled={importLoading}
+                        className="w-full font-semibold"
+                      >
+                        {importLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Importando...</> : 'Importar Avaliação'}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
               {assessments.length === 0 ? (
                 <Card className="glass-card">
                   <CardContent className="p-6 text-center text-muted-foreground">Nenhuma avaliação registrada.</CardContent>
