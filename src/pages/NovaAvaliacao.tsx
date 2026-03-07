@@ -115,9 +115,23 @@ const NovaAvaliacao = () => {
 
   const [skinfolds, setSkinfolds] = useState({
     metodo: 'jackson_pollock_3',
-    triceps: '', subescapular: '', suprailiaca: '', abdominal: '',
-    peitoral: '', axilar_media: '', coxa: '',
+    triceps_1: '', triceps_2: '',
+    subescapular_1: '', subescapular_2: '',
+    suprailiaca_1: '', suprailiaca_2: '',
+    abdominal_1: '', abdominal_2: '',
+    peitoral_1: '', peitoral_2: '',
+    axilar_media_1: '', axilar_media_2: '',
+    coxa_1: '', coxa_2: '',
   });
+
+  const avgSk = (key: string): string => {
+    const v1 = parseFloat((skinfolds as any)[`${key}_1`]);
+    const v2 = parseFloat((skinfolds as any)[`${key}_2`]);
+    if (!isNaN(v1) && !isNaN(v2) && v1 > 0 && v2 > 0) return ((v1 + v2) / 2).toFixed(1);
+    if (!isNaN(v1) && v1 > 0) return v1.toString();
+    if (!isNaN(v2) && v2 > 0) return v2.toString();
+    return '';
+  };
 
   const [performance, setPerformance] = useState({
     pushup: '', plank: '', cooper_12min: '', salto_vertical: '',
