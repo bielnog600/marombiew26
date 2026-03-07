@@ -193,9 +193,13 @@ const NovaAvaliacao = () => {
           const d = skRes.data;
           setSkinfolds({
             metodo: d.metodo || 'jackson_pollock_3',
-            triceps: str(d.triceps), subescapular: str(d.subescapular),
-            suprailiaca: str(d.suprailiaca), abdominal: str(d.abdominal),
-            peitoral: str(d.peitoral), axilar_media: str(d.axilar_media), coxa: str(d.coxa),
+            triceps_1: str(d.triceps), triceps_2: '',
+            subescapular_1: str(d.subescapular), subescapular_2: '',
+            suprailiaca_1: str(d.suprailiaca), suprailiaca_2: '',
+            abdominal_1: str(d.abdominal), abdominal_2: '',
+            peitoral_1: str(d.peitoral), peitoral_2: '',
+            axilar_media_1: str(d.axilar_media), axilar_media_2: '',
+            coxa_1: str(d.coxa), coxa_2: '',
           });
         }
         if (perfRes.data) {
@@ -268,13 +272,13 @@ const NovaAvaliacao = () => {
     if (skinfolds.metodo === 'jackson_pollock_7') {
       // 7 dobras: peitoral, axilar média, tríceps, subescapular, abdominal, suprailíaca, coxa
       const vals = [
-        parseNum(skinfolds.peitoral),
-        parseNum(skinfolds.axilar_media),
-        parseNum(skinfolds.triceps),
-        parseNum(skinfolds.subescapular),
-        parseNum(skinfolds.abdominal),
-        parseNum(skinfolds.suprailiaca),
-        parseNum(skinfolds.coxa),
+        parseNum(avgSk('peitoral')),
+        parseNum(avgSk('axilar_media')),
+        parseNum(avgSk('triceps')),
+        parseNum(avgSk('subescapular')),
+        parseNum(avgSk('abdominal')),
+        parseNum(avgSk('suprailiaca')),
+        parseNum(avgSk('coxa')),
       ];
 
       if (vals.some((v) => isNaN(v) || v <= 0)) return '-';
@@ -291,9 +295,9 @@ const NovaAvaliacao = () => {
     // Jackson & Pollock 3 dobras
     if (isFemale) {
       // Mulheres: tríceps, suprailíaca, coxa
-      const t = parseNum(skinfolds.triceps);
-      const si = parseNum(skinfolds.suprailiaca);
-      const cx = parseNum(skinfolds.coxa);
+      const t = parseNum(avgSk('triceps'));
+      const si = parseNum(avgSk('suprailiaca'));
+      const cx = parseNum(avgSk('coxa'));
       if (!(t > 0 && si > 0 && cx > 0)) return '-';
       const soma = t + si + cx;
       const dc = 1.0994921 - (0.0009929 * soma) + (0.0000023 * soma * soma) - (0.0001392 * age);
@@ -302,9 +306,9 @@ const NovaAvaliacao = () => {
     }
 
     // Homens: peitoral, abdominal, coxa
-    const p = parseNum(skinfolds.peitoral);
-    const ab = parseNum(skinfolds.abdominal);
-    const cx = parseNum(skinfolds.coxa);
+    const p = parseNum(avgSk('peitoral'));
+    const ab = parseNum(avgSk('abdominal'));
+    const cx = parseNum(avgSk('coxa'));
     if (!(p > 0 && ab > 0 && cx > 0)) return '-';
     const soma = p + ab + cx;
     const dc = 1.10938 - (0.0008267 * soma) + (0.0000016 * soma * soma) - (0.0002574 * age);
@@ -389,13 +393,13 @@ const NovaAvaliacao = () => {
         supabase.from('skinfolds').insert({
           assessment_id: aid,
           metodo: skinfolds.metodo,
-          triceps: skinfolds.triceps ? parseFloat(skinfolds.triceps) : null,
-          subescapular: skinfolds.subescapular ? parseFloat(skinfolds.subescapular) : null,
-          suprailiaca: skinfolds.suprailiaca ? parseFloat(skinfolds.suprailiaca) : null,
-          abdominal: skinfolds.abdominal ? parseFloat(skinfolds.abdominal) : null,
-          peitoral: skinfolds.peitoral ? parseFloat(skinfolds.peitoral) : null,
-          axilar_media: skinfolds.axilar_media ? parseFloat(skinfolds.axilar_media) : null,
-          coxa: skinfolds.coxa ? parseFloat(skinfolds.coxa) : null,
+          triceps: avgSk('triceps') ? parseFloat(avgSk('triceps')) : null,
+          subescapular: avgSk('subescapular') ? parseFloat(avgSk('subescapular')) : null,
+          suprailiaca: avgSk('suprailiaca') ? parseFloat(avgSk('suprailiaca')) : null,
+          abdominal: avgSk('abdominal') ? parseFloat(avgSk('abdominal')) : null,
+          peitoral: avgSk('peitoral') ? parseFloat(avgSk('peitoral')) : null,
+          axilar_media: avgSk('axilar_media') ? parseFloat(avgSk('axilar_media')) : null,
+          coxa: avgSk('coxa') ? parseFloat(avgSk('coxa')) : null,
         }),
         supabase.from('composition').insert({
           assessment_id: aid,
@@ -580,14 +584,21 @@ const NovaAvaliacao = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <InputField label="Tríceps" value={skinfolds.triceps} onChange={(e: any) => setSkinfolds({ ...skinfolds, triceps: e.target.value })} unit="mm" type="number" />
-                  <InputField label="Subescapular" value={skinfolds.subescapular} onChange={(e: any) => setSkinfolds({ ...skinfolds, subescapular: e.target.value })} unit="mm" type="number" />
-                  <InputField label="Suprailíaca" value={skinfolds.suprailiaca} onChange={(e: any) => setSkinfolds({ ...skinfolds, suprailiaca: e.target.value })} unit="mm" type="number" />
-                  <InputField label="Abdominal" value={skinfolds.abdominal} onChange={(e: any) => setSkinfolds({ ...skinfolds, abdominal: e.target.value })} unit="mm" type="number" />
-                  <InputField label="Peitoral" value={skinfolds.peitoral} onChange={(e: any) => setSkinfolds({ ...skinfolds, peitoral: e.target.value })} unit="mm" type="number" />
-                  <InputField label="Axilar Média" value={skinfolds.axilar_media} onChange={(e: any) => setSkinfolds({ ...skinfolds, axilar_media: e.target.value })} unit="mm" type="number" />
-                  <InputField label="Coxa" value={skinfolds.coxa} onChange={(e: any) => setSkinfolds({ ...skinfolds, coxa: e.target.value })} unit="mm" type="number" />
+                <div className="space-y-4">
+                  {['triceps', 'subescapular', 'suprailiaca', 'abdominal', 'peitoral', 'axilar_media', 'coxa'].map((key) => {
+                    const labels: Record<string, string> = { triceps: 'Tríceps', subescapular: 'Subescapular', suprailiaca: 'Suprailíaca', abdominal: 'Abdominal', peitoral: 'Peitoral', axilar_media: 'Axilar Média', coxa: 'Coxa' };
+                    const avg = avgSk(key);
+                    return (
+                      <div key={key} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+                        <InputField label={`${labels[key]} - Med. 1`} value={(skinfolds as any)[`${key}_1`]} onChange={(e: any) => setSkinfolds({ ...skinfolds, [`${key}_1`]: e.target.value })} unit="mm" type="number" />
+                        <InputField label={`${labels[key]} - Med. 2`} value={(skinfolds as any)[`${key}_2`]} onChange={(e: any) => setSkinfolds({ ...skinfolds, [`${key}_2`]: e.target.value })} unit="mm" type="number" />
+                        <div className="pb-1 text-center min-w-[50px]">
+                          <span className="text-[10px] text-muted-foreground block">Média</span>
+                          <span className="font-bold text-sm text-primary">{avg || '-'}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
                 <div className="p-3 rounded-lg bg-secondary/50 space-y-1">
                   <div>
