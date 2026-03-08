@@ -154,7 +154,7 @@ const BeforeAfterPhotos = ({ currentAssessmentId, studentId, allAssessments }: B
               {zoomPhoto?.before ? (
                 <img
                   src={zoomPhoto.before}
-                  className="w-full rounded-lg object-contain max-h-[75vh]"
+                  className="w-full rounded-lg object-contain object-top max-h-[75vh] bg-muted"
                   alt="Antes"
                 />
               ) : (
@@ -168,7 +168,7 @@ const BeforeAfterPhotos = ({ currentAssessmentId, studentId, allAssessments }: B
               {zoomPhoto?.after ? (
                 <img
                   src={zoomPhoto.after}
-                  className="w-full rounded-lg object-contain max-h-[75vh]"
+                  className="w-full rounded-lg object-contain object-top max-h-[75vh] bg-muted"
                   alt="Depois"
                 />
               ) : (
