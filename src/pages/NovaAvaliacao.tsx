@@ -27,6 +27,18 @@ const steps = [
   'Resumo',
 ];
 
+const skinfoldFieldLabels: Record<string, string> = {
+  triceps: 'Tríceps',
+  subescapular: 'Subescapular',
+  suprailiaca: 'Suprailíaca',
+  abdominal: 'Abdominal',
+  peitoral: 'Peitoral',
+  axilar_media: 'Axilar Média',
+  coxa: 'Coxa',
+};
+
+const skinfoldFields = ['triceps', 'subescapular', 'suprailiaca', 'abdominal', 'peitoral', 'axilar_media', 'coxa'] as const;
+
 const classifyIMC = (imc: number): { label: string; color: string } => {
   if (imc < 18.5) return { label: 'Abaixo do peso', color: 'text-yellow-500' };
   if (imc < 25) return { label: 'Peso normal', color: 'text-green-500' };
