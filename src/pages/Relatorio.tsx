@@ -83,7 +83,7 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
 
   return (
     <div className="space-y-1.5">
-      <p className="text-xs font-semibold text-muted-foreground text-center">{label}</p>
+      {!hideLabel && <p className="text-xs font-semibold text-muted-foreground text-center">{label}</p>}
       <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-secondary/30">
         <img ref={imgRef} src={photoUrl} className="hidden" crossOrigin="anonymous" />
         <canvas ref={canvasRef} className="w-full h-full object-cover" />
