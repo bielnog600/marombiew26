@@ -185,7 +185,8 @@ const Relatorio = () => {
       .eq('student_id', a.student_id)
       .order('created_at', { ascending: true });
 
-    if (allAssessments) {
+    if (allAssessments_) {
+      setAllAssessments(allAssessments_.map(a => ({ id: a.id, created_at: a.created_at })));
       const histPromises = allAssessments.map(async (ass) => {
         const { data: an } = await supabase.from('anthropometrics').select('peso, imc, cintura').eq('assessment_id', ass.id).maybeSingle();
         const { data: co } = await supabase.from('composition').select('percentual_gordura').eq('assessment_id', ass.id).maybeSingle();
