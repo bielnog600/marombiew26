@@ -818,10 +818,12 @@ const Relatorio = () => {
                             keypoints={((previousPostureScan?.pose_keypoints_json as any)?.[key]) ?? null}
                             scores={((previousPostureScan?.region_scores_json as RegionScore[]) ?? [])}
                             onClick={() => setZoomData({
-                              url: beforeUrl,
-                              kp: ((previousPostureScan?.pose_keypoints_json as any)?.[key]) ?? null,
+                              beforeUrl: beforeUrl,
+                              afterUrl: afterUrl,
+                              beforeKp: ((previousPostureScan?.pose_keypoints_json as any)?.[key]) ?? null,
+                              afterKp: ((currentPostureScan?.pose_keypoints_json as any)?.[key]) ?? null,
                               scores: ((previousPostureScan?.region_scores_json as RegionScore[]) ?? []),
-                              title: `${label} — ANTES`,
+                              title: label,
                             })}
                           />
                         ) : (
@@ -842,10 +844,12 @@ const Relatorio = () => {
                             keypoints={((currentPostureScan?.pose_keypoints_json as any)?.[key]) ?? null}
                             scores={((currentPostureScan?.region_scores_json as RegionScore[]) ?? [])}
                             onClick={() => setZoomData({
-                              url: afterUrl,
-                              kp: ((currentPostureScan?.pose_keypoints_json as any)?.[key]) ?? null,
+                              beforeUrl: beforeUrl,
+                              afterUrl: afterUrl,
+                              beforeKp: ((previousPostureScan?.pose_keypoints_json as any)?.[key]) ?? null,
+                              afterKp: ((currentPostureScan?.pose_keypoints_json as any)?.[key]) ?? null,
                               scores: ((currentPostureScan?.region_scores_json as RegionScore[]) ?? []),
-                              title: `${label} — DEPOIS`,
+                              title: label,
                             })}
                           />
                         ) : (
