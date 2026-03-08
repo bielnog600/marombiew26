@@ -737,26 +737,50 @@ const NovaAvaliacao = () => {
                             </button>
                           </div>
                         ) : (
-                          <label className="flex flex-col items-center justify-center aspect-[3/4] rounded-lg border-2 border-dashed border-muted-foreground/30 cursor-pointer hover:border-primary/50 transition-colors bg-secondary/10">
-                            <Camera className="w-8 h-8 text-muted-foreground mb-1" />
-                            <span className="text-[10px] text-muted-foreground">Toque para adicionar</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              capture="environment"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                  setPhotos(prev => [...prev.filter(p => p.tipo !== pt.value), {
-                                    tipo: pt.value,
-                                    file,
-                                    preview: URL.createObjectURL(file),
-                                  }]);
-                                }
-                              }}
-                            />
-                          </label>
+                          <div className="flex flex-col items-center justify-center aspect-[3/4] rounded-lg border-2 border-dashed border-muted-foreground/30 bg-secondary/10 gap-2 p-2">
+                            <label className="flex flex-col items-center justify-center cursor-pointer hover:text-primary transition-colors w-full">
+                              <Camera className="w-6 h-6 text-muted-foreground mb-0.5" />
+                              <span className="text-[10px] text-muted-foreground">Tirar Foto</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    setPhotos(prev => [...prev.filter(p => p.tipo !== pt.value), {
+                                      tipo: pt.value,
+                                      file,
+                                      preview: URL.createObjectURL(file),
+                                    }]);
+                                  }
+                                  e.target.value = '';
+                                }}
+                              />
+                            </label>
+                            <div className="w-full border-t border-muted-foreground/20" />
+                            <label className="flex flex-col items-center justify-center cursor-pointer hover:text-primary transition-colors w-full">
+                              <Upload className="w-6 h-6 text-muted-foreground mb-0.5" />
+                              <span className="text-[10px] text-muted-foreground">Galeria</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    setPhotos(prev => [...prev.filter(p => p.tipo !== pt.value), {
+                                      tipo: pt.value,
+                                      file,
+                                      preview: URL.createObjectURL(file),
+                                    }]);
+                                  }
+                                  e.target.value = '';
+                                }}
+                              />
+                            </label>
+                          </div>
                         )}
                       </div>
                     );
