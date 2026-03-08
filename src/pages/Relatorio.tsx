@@ -159,17 +159,20 @@ const Relatorio = () => {
     const { data: sp } = await supabase.from('students_profile').select('*').eq('user_id', a.student_id).maybeSingle();
     setStudentProfile(sp);
 
-    // Posture scan da avaliação atual (se existir)
-    const { data: scan } = await supabase
+    // Últimas 2 avaliações posturais do aluno (independente de vínculo com assessment)
+    const { data: scans } = await supabase
       .from('posture_scans')
       .select('*')
       .eq('student_id', a.student_id)
-      .eq('assessment_id', a.id)
       .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    setPostureScan(scan);
-    setCurrentPostureScan(scan);
+      .limit(2);
+
+    const latestScan = scans?.[0] ?? null;
+    const previousScan = scans?.[1] ?? null;
+
+    setPostureScan(latestScan);
+    setCurrentPostureScan(latestScan);
+    setPreviousPostureScan(previousScan);
 
     // HR Zones (Karvonen)
     const { data: hz } = await supabase
@@ -190,25 +193,6 @@ const Relatorio = () => {
       .order('created_at', { ascending: true });
 
     if (allAssessments_) {
-      const orderedAssessments = allAssessments_.map(a => ({ id: a.id, created_at: a.created_at }));
-
-      const currentIdx = orderedAssessments.findIndex(ass => ass.id === a.id);
-      const previousAssessmentId = currentIdx > 0 ? orderedAssessments[currentIdx - 1].id : null;
-
-      if (previousAssessmentId) {
-        const { data: previousScan } = await supabase
-          .from('posture_scans')
-          .select('*')
-          .eq('student_id', a.student_id)
-          .eq('assessment_id', previousAssessmentId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        setPreviousPostureScan(previousScan);
-      } else {
-        setPreviousPostureScan(null);
-      }
-
       const histPromises = allAssessments_.map(async (ass) => {
         const { data: an } = await supabase.from('anthropometrics').select('peso, imc, cintura').eq('assessment_id', ass.id).maybeSingle();
         const { data: co } = await supabase.from('composition').select('percentual_gordura').eq('assessment_id', ass.id).maybeSingle();
