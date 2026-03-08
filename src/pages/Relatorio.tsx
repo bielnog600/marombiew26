@@ -7,7 +7,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Download, Eye, AlertTriangle, Loader2 } from 'lucide-react';
 import { generatePDF } from '@/lib/generatePDF';
 import KarvonenZones from '@/components/KarvonenZones';
-import BeforeAfterPhotos from '@/components/BeforeAfterPhotos';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { drawPoseOverlay, analyzePostureConditions, type PoseKeypoint, type RegionScore, type PostureCondition, type PostureAngles } from '@/lib/postureUtils';
 
