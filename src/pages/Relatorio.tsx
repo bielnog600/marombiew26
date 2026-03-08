@@ -769,68 +769,102 @@ const Relatorio = () => {
         )}
 
         {/* Comparativo Antes e Depois da Avaliação Postural */}
-        {(currentPostureScan || previousPostureScan) && (
-          <Card className="glass-card">
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Eye className="w-4 h-4 text-primary" /> Comparativo Postural — Antes e Depois
-              </CardTitle>
-              {previousPostureScan ? (
-                <p className="text-xs text-muted-foreground">
-                  {new Date(previousPostureScan.created_at).toLocaleDateString('pt-BR')} → {new Date(currentPostureScan?.created_at || assessment.created_at).toLocaleDateString('pt-BR')}
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground">Sem avaliação postural anterior vinculada para comparação.</p>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {[
-                { key: 'front', label: 'Frente', beforeUrl: previousPostureScan?.front_photo_url, afterUrl: currentPostureScan?.front_photo_url },
-                { key: 'side', label: 'Lado (Perfil)', beforeUrl: previousPostureScan?.side_photo_url, afterUrl: currentPostureScan?.side_photo_url },
-                { key: 'back', label: 'Costas', beforeUrl: previousPostureScan?.back_photo_url, afterUrl: currentPostureScan?.back_photo_url },
-              ].map(({ key, label, beforeUrl, afterUrl }) => (
-                <div key={key} className="space-y-2">
-                  <p className="text-xs font-semibold text-muted-foreground text-center">{label}</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-bold text-center text-muted-foreground">ANTES</p>
-                      {beforeUrl ? (
-                        <PosturePhotoWithGrid
-                          photoUrl={beforeUrl}
-                          label={label}
-                          hideLabel
-                          keypoints={((previousPostureScan?.pose_keypoints_json as any)?.[key]) ?? null}
-                          scores={((previousPostureScan?.region_scores_json as RegionScore[]) ?? [])}
-                        />
-                      ) : (
-                        <div className="aspect-[3/4] rounded-lg bg-secondary/30 flex items-center justify-center">
-                          <p className="text-xs text-muted-foreground">Sem foto anterior</p>
+        {(currentPostureScan || previousPostureScan) && (() => {
+          const [zoomData, setZoomData] = useState<{ url: string; kp: PoseKeypoint[] | null; scores: RegionScore[]; title: string } | null>(null);
+          return (
+            <>
+              <Card className="glass-card">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-primary" /> Comparativo Postural — Antes e Depois
+                  </CardTitle>
+                  {previousPostureScan ? (
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(previousPostureScan.created_at).toLocaleDateString('pt-BR')} → {new Date(currentPostureScan?.created_at || assessment.created_at).toLocaleDateString('pt-BR')}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Sem avaliação postural anterior vinculada para comparação.</p>
+                  )}
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {[
+                    { key: 'front', label: 'Frente', beforeUrl: previousPostureScan?.front_photo_url, afterUrl: currentPostureScan?.front_photo_url },
+                    { key: 'side', label: 'Lado (Perfil)', beforeUrl: previousPostureScan?.side_photo_url, afterUrl: currentPostureScan?.side_photo_url },
+                    { key: 'back', label: 'Costas', beforeUrl: previousPostureScan?.back_photo_url, afterUrl: currentPostureScan?.back_photo_url },
+                  ].map(({ key, label, beforeUrl, afterUrl }) => (
+                    <div key={key} className="space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground text-center">{label}</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold text-center text-muted-foreground">ANTES</p>
+                          {beforeUrl ? (
+                            <PosturePhotoWithGrid
+                              photoUrl={beforeUrl}
+                              label={label}
+                              hideLabel
+                              keypoints={((previousPostureScan?.pose_keypoints_json as any)?.[key]) ?? null}
+                              scores={((previousPostureScan?.region_scores_json as RegionScore[]) ?? [])}
+                              onClick={() => setZoomData({
+                                url: beforeUrl,
+                                kp: ((previousPostureScan?.pose_keypoints_json as any)?.[key]) ?? null,
+                                scores: ((previousPostureScan?.region_scores_json as RegionScore[]) ?? []),
+                                title: `${label} — ANTES`,
+                              })}
+                            />
+                          ) : (
+                            <div className="aspect-[3/4] rounded-lg bg-secondary/30 flex items-center justify-center">
+                              <p className="text-xs text-muted-foreground">Sem foto anterior</p>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
 
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-bold text-center text-primary">DEPOIS</p>
-                      {afterUrl ? (
-                        <PosturePhotoWithGrid
-                          photoUrl={afterUrl}
-                          label={label}
-                          hideLabel
-                          keypoints={((currentPostureScan?.pose_keypoints_json as any)?.[key]) ?? null}
-                          scores={((currentPostureScan?.region_scores_json as RegionScore[]) ?? [])}
-                        />
-                      ) : (
-                        <div className="aspect-[3/4] rounded-lg bg-secondary/30 flex items-center justify-center">
-                          <p className="text-xs text-muted-foreground">Sem foto atual</p>
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold text-center text-primary">DEPOIS</p>
+                          {afterUrl ? (
+                            <PosturePhotoWithGrid
+                              photoUrl={afterUrl}
+                              label={label}
+                              hideLabel
+                              keypoints={((currentPostureScan?.pose_keypoints_json as any)?.[key]) ?? null}
+                              scores={((currentPostureScan?.region_scores_json as RegionScore[]) ?? [])}
+                              onClick={() => setZoomData({
+                                url: afterUrl,
+                                kp: ((currentPostureScan?.pose_keypoints_json as any)?.[key]) ?? null,
+                                scores: ((currentPostureScan?.region_scores_json as RegionScore[]) ?? []),
+                                title: `${label} — DEPOIS`,
+                              })}
+                            />
+                          ) : (
+                            <div className="aspect-[3/4] rounded-lg bg-secondary/30 flex items-center justify-center">
+                              <p className="text-xs text-muted-foreground">Sem foto atual</p>
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Dialog open={!!zoomData} onOpenChange={() => setZoomData(null)}>
+                <DialogContent className="max-w-3xl p-2 bg-background">
+                  {zoomData && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-bold text-center text-foreground">{zoomData.title}</p>
+                      <PosturePhotoWithGrid
+                        photoUrl={zoomData.url}
+                        label=""
+                        hideLabel
+                        keypoints={zoomData.kp}
+                        scores={zoomData.scores}
+                      />
+                    </div>
+                  )}
+                </DialogContent>
+              </Dialog>
+            </>
+          );
+        })()}
 
         {assessment.notas_gerais && (
           <Card className="glass-card">
