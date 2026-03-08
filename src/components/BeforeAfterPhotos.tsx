@@ -10,12 +10,29 @@ interface BeforeAfterPhotosProps {
   allAssessments: { id: string; created_at: string }[];
 }
 
+interface AlignmentState {
+  zoom: number;
+  beforeX: number;
+  beforeY: number;
+  afterX: number;
+  afterY: number;
+}
+
+const defaultAlignment: AlignmentState = {
+  zoom: 1.2,
+  beforeX: 0,
+  beforeY: 0,
+  afterX: 0,
+  afterY: 0,
+};
+
 const BeforeAfterPhotos = ({ currentAssessmentId, studentId, allAssessments }: BeforeAfterPhotosProps) => {
   const [currentPhotos, setCurrentPhotos] = useState<any[]>([]);
   const [previousPhotos, setPreviousPhotos] = useState<any[]>([]);
   const [previousDate, setPreviousDate] = useState<string>('');
   const [currentDate, setCurrentDate] = useState<string>('');
   const [zoomPhoto, setZoomPhoto] = useState<{ before?: string; after?: string; label?: string } | null>(null);
+  const [alignment, setAlignment] = useState<AlignmentState>(defaultAlignment);
 
   useEffect(() => {
     loadPhotos();
@@ -95,13 +112,21 @@ const BeforeAfterPhotos = ({ currentAssessmentId, studentId, allAssessments }: B
                 <p className="text-xs font-semibold text-muted-foreground text-center">{label}</p>
                 <div
                   className="grid grid-cols-2 gap-2 cursor-pointer group"
-                  onClick={() => setZoomPhoto({ before: before?.url, after: after?.url, label })}
+                  onClick={() => {
+                    setAlignment(defaultAlignment);
+                    setZoomPhoto({ before: before?.url, after: after?.url, label });
+                  }}
                 >
                   {/* Before */}
                   <div className="relative aspect-[9/16] rounded-lg overflow-hidden bg-muted flex items-center justify-center">
                     {before ? (
                       <>
-                        <img src={before.url} className="w-full h-full object-contain object-top" alt={`Antes - ${label}`} />
+                        <img
+                          src={before.url}
+                          className="w-full h-full object-contain origin-top"
+                          style={{ transform: `translate(${alignment.beforeX}px, ${alignment.beforeY}px) scale(${alignment.zoom})` }}
+                          alt={`Antes - ${label}`}
+                        />
                         <div className="absolute top-1 left-1 bg-background/80 text-[10px] font-bold px-1.5 py-0.5 rounded">
                           ANTES
                         </div>
@@ -118,7 +143,12 @@ const BeforeAfterPhotos = ({ currentAssessmentId, studentId, allAssessments }: B
                   <div className="relative aspect-[9/16] rounded-lg overflow-hidden bg-muted flex items-center justify-center">
                     {after ? (
                       <>
-                        <img src={after.url} className="w-full h-full object-contain object-top" alt={`Depois - ${label}`} />
+                        <img
+                          src={after.url}
+                          className="w-full h-full object-contain origin-top"
+                          style={{ transform: `translate(${alignment.afterX}px, ${alignment.afterY}px) scale(${alignment.zoom})` }}
+                          alt={`Depois - ${label}`}
+                        />
                         <div className="absolute top-1 left-1 bg-primary/80 text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded">
                           DEPOIS
                         </div>
@@ -148,17 +178,61 @@ const BeforeAfterPhotos = ({ currentAssessmentId, studentId, allAssessments }: B
       <Dialog open={!!zoomPhoto} onOpenChange={() => setZoomPhoto(null)}>
         <DialogContent className="max-w-[95vw] max-h-[95vh] p-2 sm:p-4 glass-card">
           <p className="text-sm font-semibold text-center mb-2">{zoomPhoto?.label}</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3 text-xs">
+            <label className="space-y-1">
+              <span className="text-muted-foreground">Zoom (igual nas duas)</span>
+              <input
+                type="range"
+                min={100}
+                max={220}
+                value={Math.round(alignment.zoom * 100)}
+                className="w-full accent-primary"
+                onChange={(e) => setAlignment(prev => ({ ...prev, zoom: Number(e.target.value) / 100 }))}
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-muted-foreground">Mover ANTES (vertical)</span>
+              <input
+                type="range"
+                min={-120}
+                max={120}
+                value={alignment.beforeY}
+                className="w-full accent-primary"
+                onChange={(e) => setAlignment(prev => ({ ...prev, beforeY: Number(e.target.value) }))}
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-muted-foreground">Mover DEPOIS (vertical)</span>
+              <input
+                type="range"
+                min={-120}
+                max={120}
+                value={alignment.afterY}
+                className="w-full accent-primary"
+                onChange={(e) => setAlignment(prev => ({ ...prev, afterY: Number(e.target.value) }))}
+              />
+            </label>
+          </div>
+
           <div className="grid grid-cols-2 gap-2 max-h-[80vh] overflow-auto">
             <div className="space-y-1">
               <p className="text-[10px] font-bold text-center text-muted-foreground">ANTES</p>
               {zoomPhoto?.before ? (
-                <img
-                  src={zoomPhoto.before}
-                  className="w-full rounded-lg object-contain object-top max-h-[75vh] bg-muted"
-                  alt="Antes"
-                />
+                <div className="relative w-full aspect-[9/16] rounded-lg overflow-hidden bg-muted">
+                  <img
+                    src={zoomPhoto.before}
+                    className="w-full h-full object-contain origin-top"
+                    style={{ transform: `translate(${alignment.beforeX}px, ${alignment.beforeY}px) scale(${alignment.zoom})` }}
+                    alt="Antes"
+                  />
+                  <div className="absolute inset-0 pointer-events-none border border-border/60 rounded-lg" />
+                  <div className="absolute left-0 right-0 top-[14%] border-t border-border/70 pointer-events-none" />
+                  <div className="absolute left-0 right-0 top-[38%] border-t border-border/70 pointer-events-none" />
+                  <div className="absolute left-0 right-0 top-[62%] border-t border-border/70 pointer-events-none" />
+                </div>
               ) : (
-                <div className="flex items-center justify-center aspect-[3/4] bg-secondary/30 rounded-lg">
+                <div className="flex items-center justify-center aspect-[9/16] bg-secondary/30 rounded-lg">
                   <p className="text-xs text-muted-foreground">Sem foto</p>
                 </div>
               )}
@@ -166,13 +240,20 @@ const BeforeAfterPhotos = ({ currentAssessmentId, studentId, allAssessments }: B
             <div className="space-y-1">
               <p className="text-[10px] font-bold text-center text-primary">DEPOIS</p>
               {zoomPhoto?.after ? (
-                <img
-                  src={zoomPhoto.after}
-                  className="w-full rounded-lg object-contain object-top max-h-[75vh] bg-muted"
-                  alt="Depois"
-                />
+                <div className="relative w-full aspect-[9/16] rounded-lg overflow-hidden bg-muted">
+                  <img
+                    src={zoomPhoto.after}
+                    className="w-full h-full object-contain origin-top"
+                    style={{ transform: `translate(${alignment.afterX}px, ${alignment.afterY}px) scale(${alignment.zoom})` }}
+                    alt="Depois"
+                  />
+                  <div className="absolute inset-0 pointer-events-none border border-border/60 rounded-lg" />
+                  <div className="absolute left-0 right-0 top-[14%] border-t border-border/70 pointer-events-none" />
+                  <div className="absolute left-0 right-0 top-[38%] border-t border-border/70 pointer-events-none" />
+                  <div className="absolute left-0 right-0 top-[62%] border-t border-border/70 pointer-events-none" />
+                </div>
               ) : (
-                <div className="flex items-center justify-center aspect-[3/4] bg-secondary/30 rounded-lg">
+                <div className="flex items-center justify-center aspect-[9/16] bg-secondary/30 rounded-lg">
                   <p className="text-xs text-muted-foreground">Sem foto</p>
                 </div>
               )}
