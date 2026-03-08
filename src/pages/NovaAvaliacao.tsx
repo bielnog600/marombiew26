@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { ArrowLeft, ArrowRight, Save, Loader2, CalendarIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Save, Loader2, CalendarIcon, Camera, X, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const steps = [
