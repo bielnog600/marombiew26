@@ -93,11 +93,12 @@ const remapKeypointsToCrop = (keypoints: PoseKeypoint[], crop: CropBox, imgW: nu
 );
 
 // Photo with pose overlay + analysis grid
-const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = false, onClick }: {
+const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = false, onClick, showPoseOverlay = true }: {
   photoUrl: string | null; label: string;
   keypoints: PoseKeypoint[] | null; scores: RegionScore[];
   hideLabel?: boolean;
   onClick?: () => void;
+  showPoseOverlay?: boolean;
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -123,7 +124,7 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
       const crop = normalizeCropFromKeypoints(keypoints, imageW, imageH);
       ctx.drawImage(img, crop.x, crop.y, crop.width, crop.height, 0, 0, canvasW, canvasH);
 
-      // Draw analysis grid (subtle, behind overlay)
+      // Draw analysis grid (subtle)
       ctx.strokeStyle = 'rgba(0,0,0,0.25)';
       ctx.lineWidth = 1;
       const cols = 24;
@@ -153,8 +154,7 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Draw pose overlay ON TOP of grid for visibility
-      if (Array.isArray(keypoints) && keypoints.length >= 29) {
+      if (showPoseOverlay && Array.isArray(keypoints) && keypoints.length >= 29) {
         const safeScores = Array.isArray(scores) ? scores : [];
         const remapped = remapKeypointsToCrop(keypoints, crop, imageW, imageH);
         drawPoseOverlay(ctx, remapped, canvasW, canvasH, safeScores);
@@ -162,7 +162,7 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
     };
 
     if (img.complete) draw(); else img.onload = draw;
-  }, [photoUrl, keypoints, scores]);
+  }, [photoUrl, keypoints, scores, showPoseOverlay]);
 
   if (!photoUrl) return null;
 
@@ -172,6 +172,14 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
       <div
         className="relative aspect-[3/4] rounded-lg overflow-hidden bg-secondary/30 cursor-pointer group"
         onClick={onClick}
+        role={onClick ? 'button' : undefined}
+        tabIndex={onClick ? 0 : -1}
+        onKeyDown={(e) => {
+          if (onClick && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault();
+            onClick();
+          }
+        }}
       >
         <img ref={imgRef} src={photoUrl} className="hidden" crossOrigin="anonymous" />
         <canvas ref={canvasRef} className="w-full h-full" />
@@ -799,6 +807,7 @@ const Relatorio = () => {
                             photoUrl={beforeUrl}
                             label={label}
                             hideLabel
+                            showPoseOverlay={false}
                             keypoints={((previousPostureScan?.pose_keypoints_json as any)?.[key]) ?? null}
                             scores={((previousPostureScan?.region_scores_json as RegionScore[]) ?? [])}
                             onClick={() => setZoomData({
@@ -822,6 +831,7 @@ const Relatorio = () => {
                             photoUrl={afterUrl}
                             label={label}
                             hideLabel
+                            showPoseOverlay={false}
                             keypoints={((currentPostureScan?.pose_keypoints_json as any)?.[key]) ?? null}
                             scores={((currentPostureScan?.region_scores_json as RegionScore[]) ?? [])}
                             onClick={() => setZoomData({
@@ -852,6 +862,7 @@ const Relatorio = () => {
                       photoUrl={zoomData.url}
                       label=""
                       hideLabel
+                      showPoseOverlay={false}
                       keypoints={zoomData.kp}
                       scores={zoomData.scores}
                     />
