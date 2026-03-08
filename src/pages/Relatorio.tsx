@@ -179,7 +179,7 @@ const Relatorio = () => {
 
 
     // Histórico para gráficos
-    const { data: allAssessments } = await supabase
+    const { data: allAssessments_ } = await supabase
       .from('assessments')
       .select('id, created_at')
       .eq('student_id', a.student_id)
