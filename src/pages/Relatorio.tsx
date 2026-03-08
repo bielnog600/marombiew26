@@ -191,7 +191,6 @@ const Relatorio = () => {
 
     if (allAssessments_) {
       const orderedAssessments = allAssessments_.map(a => ({ id: a.id, created_at: a.created_at }));
-      setAllAssessments(orderedAssessments);
 
       const currentIdx = orderedAssessments.findIndex(ass => ass.id === a.id);
       const previousAssessmentId = currentIdx > 0 ? orderedAssessments[currentIdx - 1].id : null;
