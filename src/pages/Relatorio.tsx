@@ -190,7 +190,26 @@ const Relatorio = () => {
       .order('created_at', { ascending: true });
 
     if (allAssessments_) {
-      setAllAssessments(allAssessments_.map(a => ({ id: a.id, created_at: a.created_at })));
+      const orderedAssessments = allAssessments_.map(a => ({ id: a.id, created_at: a.created_at }));
+      setAllAssessments(orderedAssessments);
+
+      const currentIdx = orderedAssessments.findIndex(ass => ass.id === a.id);
+      const previousAssessmentId = currentIdx > 0 ? orderedAssessments[currentIdx - 1].id : null;
+
+      if (previousAssessmentId) {
+        const { data: previousScan } = await supabase
+          .from('posture_scans')
+          .select('*')
+          .eq('student_id', a.student_id)
+          .eq('assessment_id', previousAssessmentId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        setPreviousPostureScan(previousScan);
+      } else {
+        setPreviousPostureScan(null);
+      }
+
       const histPromises = allAssessments_.map(async (ass) => {
         const { data: an } = await supabase.from('anthropometrics').select('peso, imc, cintura').eq('assessment_id', ass.id).maybeSingle();
         const { data: co } = await supabase.from('composition').select('percentual_gordura').eq('assessment_id', ass.id).maybeSingle();
