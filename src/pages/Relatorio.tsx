@@ -807,6 +807,7 @@ const Relatorio = () => {
                             photoUrl={beforeUrl}
                             label={label}
                             hideLabel
+                            showPoseOverlay={false}
                             keypoints={((previousPostureScan?.pose_keypoints_json as any)?.[key]) ?? null}
                             scores={((previousPostureScan?.region_scores_json as RegionScore[]) ?? [])}
                             onClick={() => setZoomData({
@@ -816,20 +817,12 @@ const Relatorio = () => {
                               title: `${label} — ANTES`,
                             })}
                           />
-                        ) : (
-                          <div className="aspect-[3/4] rounded-lg bg-secondary/30 flex items-center justify-center">
-                            <p className="text-xs text-muted-foreground">Sem foto anterior</p>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="space-y-1">
-                        <p className="text-[10px] font-bold text-center text-primary">DEPOIS</p>
-                        {afterUrl ? (
+...
                           <PosturePhotoWithGrid
                             photoUrl={afterUrl}
                             label={label}
                             hideLabel
+                            showPoseOverlay={false}
                             keypoints={((currentPostureScan?.pose_keypoints_json as any)?.[key]) ?? null}
                             scores={((currentPostureScan?.region_scores_json as RegionScore[]) ?? [])}
                             onClick={() => setZoomData({
@@ -839,27 +832,12 @@ const Relatorio = () => {
                               title: `${label} — DEPOIS`,
                             })}
                           />
-                        ) : (
-                          <div className="aspect-[3/4] rounded-lg bg-secondary/30 flex items-center justify-center">
-                            <p className="text-xs text-muted-foreground">Sem foto atual</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            <Dialog open={!!zoomData} onOpenChange={() => setZoomData(null)}>
-              <DialogContent className="max-w-3xl p-2 bg-background">
-                {zoomData && (
-                  <div className="space-y-2">
-                    <p className="text-sm font-bold text-center text-foreground">{zoomData.title}</p>
+...
                     <PosturePhotoWithGrid
                       photoUrl={zoomData.url}
                       label=""
                       hideLabel
+                      showPoseOverlay={false}
                       keypoints={zoomData.kp}
                       scores={zoomData.scores}
                     />
