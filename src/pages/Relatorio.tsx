@@ -16,6 +16,81 @@ const statusColor = (status: string) =>
 const statusLabel = (status: string) =>
   status === 'risk' ? 'Risco' : status === 'attention' ? 'Atenção' : 'OK';
 
+const ALIGN_RATIO = 3 / 4;
+
+type CropBox = { x: number; y: number; width: number; height: number };
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const getRatioCrop = (imgW: number, imgH: number, ratio: number): CropBox => {
+  const imageRatio = imgW / imgH;
+  if (imageRatio > ratio) {
+    const width = imgH * ratio;
+    return { x: (imgW - width) / 2, y: 0, width, height: imgH };
+  }
+  const height = imgW / ratio;
+  return { x: 0, y: (imgH - height) / 2, width: imgW, height };
+};
+
+const normalizeCropFromKeypoints = (keypoints: PoseKeypoint[] | null, imgW: number, imgH: number): CropBox => {
+  if (!Array.isArray(keypoints) || keypoints.length < 10) return getRatioCrop(imgW, imgH, ALIGN_RATIO);
+
+  const valid = keypoints.filter(
+    (p) => Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.confidence) && p.confidence > 0.2
+  );
+  if (valid.length < 8) return getRatioCrop(imgW, imgH, ALIGN_RATIO);
+
+  const pointsPx = valid.map((p) => ({ x: p.x * imgW, y: p.y * imgH }));
+  const minX = Math.min(...pointsPx.map((p) => p.x));
+  const maxX = Math.max(...pointsPx.map((p) => p.x));
+  const minY = Math.min(...pointsPx.map((p) => p.y));
+  const maxY = Math.max(...pointsPx.map((p) => p.y));
+
+  const bodyW = Math.max(40, maxX - minX);
+  const bodyH = Math.max(80, maxY - minY);
+
+  const shoulderL = keypoints[11];
+  const shoulderR = keypoints[12];
+  const shoulderMidX = shoulderL && shoulderR
+    ? ((shoulderL.x + shoulderR.x) / 2) * imgW
+    : (minX + maxX) / 2;
+
+  const topCandidates = [keypoints[0], keypoints[7], keypoints[8], keypoints[11], keypoints[12]]
+    .filter((p): p is PoseKeypoint => !!p && p.confidence > 0.2)
+    .map((p) => p.y * imgH);
+
+  const topAnchorY = topCandidates.length ? Math.min(...topCandidates) : minY;
+
+  let cropWidth = Math.max(bodyW * 1.8, (bodyH * 1.45) * ALIGN_RATIO);
+  let cropHeight = cropWidth / ALIGN_RATIO;
+
+  if (cropHeight > imgH) {
+    cropHeight = imgH;
+    cropWidth = cropHeight * ALIGN_RATIO;
+  }
+
+  if (cropWidth > imgW) {
+    cropWidth = imgW;
+    cropHeight = cropWidth / ALIGN_RATIO;
+  }
+
+  let x = shoulderMidX - cropWidth / 2;
+  let y = topAnchorY - cropHeight * 0.16;
+
+  x = clamp(x, 0, imgW - cropWidth);
+  y = clamp(y, 0, imgH - cropHeight);
+
+  return { x, y, width: cropWidth, height: cropHeight };
+};
+
+const remapKeypointsToCrop = (keypoints: PoseKeypoint[], crop: CropBox, imgW: number, imgH: number): PoseKeypoint[] => (
+  keypoints.map((p) => ({
+    ...p,
+    x: ((p.x * imgW) - crop.x) / crop.width,
+    y: ((p.y * imgH) - crop.y) / crop.height,
+  }))
+);
+
 // Photo with pose overlay + analysis grid
 const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = false }: {
   photoUrl: string | null; label: string;
@@ -29,53 +104,60 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
     if (!photoUrl || !imgRef.current || !canvasRef.current) return;
     const img = imgRef.current;
     const canvas = canvasRef.current;
+
     const draw = () => {
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      const ctx = canvas.getContext('2d')!;
-      ctx.drawImage(img, 0, 0);
+      const imageW = img.naturalWidth;
+      const imageH = img.naturalHeight;
+      if (!imageW || !imageH) return;
+
+      const canvasW = 900;
+      const canvasH = Math.round(canvasW / ALIGN_RATIO);
+      canvas.width = canvasW;
+      canvas.height = canvasH;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const crop = normalizeCropFromKeypoints(keypoints, imageW, imageH);
+      ctx.drawImage(img, crop.x, crop.y, crop.width, crop.height, 0, 0, canvasW, canvasH);
 
       // Draw analysis grid
-      const w = img.naturalWidth;
-      const h = img.naturalHeight;
       ctx.strokeStyle = 'rgba(0,0,0,0.35)';
       ctx.lineWidth = 1.5;
       const cols = 24;
       const rows = 32;
-      // Vertical lines
       for (let i = 1; i < cols; i++) {
         ctx.beginPath();
-        ctx.moveTo((w / cols) * i, 0);
-        ctx.lineTo((w / cols) * i, h);
+        ctx.moveTo((canvasW / cols) * i, 0);
+        ctx.lineTo((canvasW / cols) * i, canvasH);
         ctx.stroke();
       }
-      // Horizontal lines
       for (let i = 1; i < rows; i++) {
         ctx.beginPath();
-        ctx.moveTo(0, (h / rows) * i);
-        ctx.lineTo(w, (h / rows) * i);
+        ctx.moveTo(0, (canvasH / rows) * i);
+        ctx.lineTo(canvasW, (canvasH / rows) * i);
         ctx.stroke();
       }
-      // Center vertical line (symmetry)
       ctx.strokeStyle = 'rgba(0,0,0,0.55)';
       ctx.lineWidth = 2;
       ctx.setLineDash([10, 6]);
       ctx.beginPath();
-      ctx.moveTo(w / 2, 0);
-      ctx.lineTo(w / 2, h);
+      ctx.moveTo(canvasW / 2, 0);
+      ctx.lineTo(canvasW / 2, canvasH);
       ctx.stroke();
-      // Center horizontal line
       ctx.beginPath();
-      ctx.moveTo(0, h / 2);
-      ctx.lineTo(w, h / 2);
+      ctx.moveTo(0, canvasH / 2);
+      ctx.lineTo(canvasW, canvasH / 2);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Draw pose overlay if keypoints exist
-      if (keypoints && keypoints.length >= 29) {
-        drawPoseOverlay(ctx, keypoints, w, h, scores);
+      if (Array.isArray(keypoints) && keypoints.length >= 29) {
+        const safeScores = Array.isArray(scores) ? scores : [];
+        const remapped = remapKeypointsToCrop(keypoints, crop, imageW, imageH);
+        drawPoseOverlay(ctx, remapped, canvasW, canvasH, safeScores);
       }
     };
+
     if (img.complete) draw(); else img.onload = draw;
   }, [photoUrl, keypoints, scores]);
 
@@ -86,7 +168,7 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
       {!hideLabel && <p className="text-xs font-semibold text-muted-foreground text-center">{label}</p>}
       <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-secondary/30">
         <img ref={imgRef} src={photoUrl} className="hidden" crossOrigin="anonymous" />
-        <canvas ref={canvasRef} className="w-full h-full object-cover" />
+        <canvas ref={canvasRef} className="w-full h-full" />
       </div>
     </div>
   );
