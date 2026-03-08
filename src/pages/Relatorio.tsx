@@ -123,7 +123,7 @@ const Relatorio = () => {
   const [studentProfile, setStudentProfile] = useState<any>(null);
   const [postureScan, setPostureScan] = useState<any>(null);
   const [hrZones, setHrZones] = useState<any>(null);
-  const [exporting, setExporting] = useState(false);
+  const [allAssessments, setAllAssessments] = useState<{ id: string; created_at: string }[]>([]);
 
   useEffect(() => {
     if (id) loadReport();
