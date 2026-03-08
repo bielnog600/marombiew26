@@ -159,17 +159,20 @@ const Relatorio = () => {
     const { data: sp } = await supabase.from('students_profile').select('*').eq('user_id', a.student_id).maybeSingle();
     setStudentProfile(sp);
 
-    // Posture scan da avaliação atual (se existir)
-    const { data: scan } = await supabase
+    // Últimas 2 avaliações posturais do aluno (independente de vínculo com assessment)
+    const { data: scans } = await supabase
       .from('posture_scans')
       .select('*')
       .eq('student_id', a.student_id)
-      .eq('assessment_id', a.id)
       .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    setPostureScan(scan);
-    setCurrentPostureScan(scan);
+      .limit(2);
+
+    const latestScan = scans?.[0] ?? null;
+    const previousScan = scans?.[1] ?? null;
+
+    setPostureScan(latestScan);
+    setCurrentPostureScan(latestScan);
+    setPreviousPostureScan(previousScan);
 
     // HR Zones (Karvonen)
     const { data: hz } = await supabase
