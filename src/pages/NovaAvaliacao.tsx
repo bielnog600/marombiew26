@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { ArrowLeft, ArrowRight, Save, Loader2, CalendarIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Save, Loader2, CalendarIcon, Camera, X, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const steps = [
@@ -24,6 +24,7 @@ const steps = [
   'Antropometria',
   'Dobras Cutâneas',
   'Testes Físicos',
+  'Fotos',
   'Resumo',
 ];
 
@@ -87,8 +88,16 @@ const NovaAvaliacao = () => {
   const [loading, setLoading] = useState(!!editId);
   const [studentSex, setStudentSex] = useState<string | null>(null);
   const [studentBirthDate, setStudentBirthDate] = useState<Date | null>(null);
+  const [photos, setPhotos] = useState<{ tipo: string; file: File; preview: string }[]>([]);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
 
-  // Load student profile for sex, birth date and height
+  const photoTypes = [
+    { value: 'frente', label: 'Frente' },
+    { value: 'costas', label: 'Costas' },
+    { value: 'lado_direito', label: 'Lado Direito' },
+    { value: 'lado_esquerdo', label: 'Lado Esquerdo' },
+  ];
+
   useEffect(() => {
     if (!studentId) return;
     const loadProfile = async () => {
@@ -437,6 +446,34 @@ const NovaAvaliacao = () => {
         }),
       ]);
 
+      // Upload photos
+      if (photos.length > 0) {
+        // Delete existing photos if editing
+        if (editId) {
+          await supabase.from('assessment_photos').delete().eq('assessment_id', aid);
+        }
+        
+        for (const photo of photos) {
+          const ext = photo.file.name.split('.').pop() || 'jpg';
+          const path = `${studentId}/${aid}/${photo.tipo}.${ext}`;
+          const { error: uploadErr } = await supabase.storage
+            .from('assessment-photos')
+            .upload(path, photo.file, { upsert: true });
+          
+          if (!uploadErr) {
+            const { data: urlData } = supabase.storage
+              .from('assessment-photos')
+              .getPublicUrl(path);
+            
+            await supabase.from('assessment_photos').insert({
+              assessment_id: aid,
+              url: urlData.publicUrl,
+              tipo: photo.tipo,
+            });
+          }
+        }
+      }
+
       toast.success(editId ? 'Avaliação atualizada!' : 'Avaliação salva com sucesso!');
       navigate(`/relatorio/${aid}`);
     } catch (err: any) {
@@ -675,6 +712,60 @@ const NovaAvaliacao = () => {
             )}
 
             {currentStep === 5 && (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Adicione fotos do aluno para comparação antes/depois nos relatórios.
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  {photoTypes.map(pt => {
+                    const existing = photos.find(p => p.tipo === pt.value);
+                    return (
+                      <div key={pt.value} className="space-y-1.5">
+                        <Label className="text-xs">{pt.label}</Label>
+                        {existing ? (
+                          <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-secondary/30">
+                            <img src={existing.preview} className="w-full h-full object-cover" alt={pt.label} />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                URL.revokeObjectURL(existing.preview);
+                                setPhotos(prev => prev.filter(p => p.tipo !== pt.value));
+                              }}
+                              className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="flex flex-col items-center justify-center aspect-[3/4] rounded-lg border-2 border-dashed border-muted-foreground/30 cursor-pointer hover:border-primary/50 transition-colors bg-secondary/10">
+                            <Camera className="w-8 h-8 text-muted-foreground mb-1" />
+                            <span className="text-[10px] text-muted-foreground">Toque para adicionar</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              capture="environment"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  setPhotos(prev => [...prev.filter(p => p.tipo !== pt.value), {
+                                    tipo: pt.value,
+                                    file,
+                                    preview: URL.createObjectURL(file),
+                                  }]);
+                                }
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {currentStep === 6 && (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                   <div className="p-3 rounded-lg bg-secondary/50">
