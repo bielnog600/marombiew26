@@ -125,7 +125,6 @@ const Relatorio = () => {
   const [currentPostureScan, setCurrentPostureScan] = useState<any>(null);
   const [previousPostureScan, setPreviousPostureScan] = useState<any>(null);
   const [hrZones, setHrZones] = useState<any>(null);
-  const [allAssessments, setAllAssessments] = useState<{ id: string; created_at: string }[]>([]);
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
