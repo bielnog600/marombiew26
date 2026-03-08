@@ -446,6 +446,34 @@ const NovaAvaliacao = () => {
         }),
       ]);
 
+      // Upload photos
+      if (photos.length > 0) {
+        // Delete existing photos if editing
+        if (editId) {
+          await supabase.from('assessment_photos').delete().eq('assessment_id', aid);
+        }
+        
+        for (const photo of photos) {
+          const ext = photo.file.name.split('.').pop() || 'jpg';
+          const path = `${studentId}/${aid}/${photo.tipo}.${ext}`;
+          const { error: uploadErr } = await supabase.storage
+            .from('assessment-photos')
+            .upload(path, photo.file, { upsert: true });
+          
+          if (!uploadErr) {
+            const { data: urlData } = supabase.storage
+              .from('assessment-photos')
+              .getPublicUrl(path);
+            
+            await supabase.from('assessment_photos').insert({
+              assessment_id: aid,
+              url: urlData.publicUrl,
+              tipo: photo.tipo,
+            });
+          }
+        }
+      }
+
       toast.success(editId ? 'Avaliação atualizada!' : 'Avaliação salva com sucesso!');
       navigate(`/relatorio/${aid}`);
     } catch (err: any) {
