@@ -221,6 +221,7 @@ const Relatorio = () => {
   const [previousPostureScan, setPreviousPostureScan] = useState<any>(null);
   const [hrZones, setHrZones] = useState<any>(null);
   const [exporting, setExporting] = useState(false);
+  const [zoomData, setZoomData] = useState<{ url: string; kp: PoseKeypoint[] | null; scores: RegionScore[]; title: string } | null>(null);
 
   useEffect(() => {
     if (id) loadReport();
