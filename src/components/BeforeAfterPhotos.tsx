@@ -98,10 +98,10 @@ const BeforeAfterPhotos = ({ currentAssessmentId, studentId, allAssessments }: B
                   onClick={() => setZoomPhoto({ before: before?.url, after: after?.url, label })}
                 >
                   {/* Before */}
-                  <div className="relative aspect-[9/16] rounded-lg overflow-hidden bg-black flex items-center justify-center">
+                  <div className="relative aspect-[9/16] rounded-lg overflow-hidden bg-muted flex items-center justify-center">
                     {before ? (
                       <>
-                        <img src={before.url} className="w-full h-full object-contain" alt={`Antes - ${label}`} />
+                        <img src={before.url} className="w-full h-full object-contain object-top" alt={`Antes - ${label}`} />
                         <div className="absolute top-1 left-1 bg-background/80 text-[10px] font-bold px-1.5 py-0.5 rounded">
                           ANTES
                         </div>
@@ -115,10 +115,10 @@ const BeforeAfterPhotos = ({ currentAssessmentId, studentId, allAssessments }: B
                   </div>
 
                   {/* After */}
-                  <div className="relative aspect-[9/16] rounded-lg overflow-hidden bg-black flex items-center justify-center">
+                  <div className="relative aspect-[9/16] rounded-lg overflow-hidden bg-muted flex items-center justify-center">
                     {after ? (
                       <>
-                        <img src={after.url} className="w-full h-full object-contain" alt={`Depois - ${label}`} />
+                        <img src={after.url} className="w-full h-full object-contain object-top" alt={`Depois - ${label}`} />
                         <div className="absolute top-1 left-1 bg-primary/80 text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded">
                           DEPOIS
                         </div>
@@ -154,7 +154,7 @@ const BeforeAfterPhotos = ({ currentAssessmentId, studentId, allAssessments }: B
               {zoomPhoto?.before ? (
                 <img
                   src={zoomPhoto.before}
-                  className="w-full rounded-lg object-contain max-h-[75vh]"
+                  className="w-full rounded-lg object-contain object-top max-h-[75vh] bg-muted"
                   alt="Antes"
                 />
               ) : (
@@ -168,7 +168,7 @@ const BeforeAfterPhotos = ({ currentAssessmentId, studentId, allAssessments }: B
               {zoomPhoto?.after ? (
                 <img
                   src={zoomPhoto.after}
-                  className="w-full rounded-lg object-contain max-h-[75vh]"
+                  className="w-full rounded-lg object-contain object-top max-h-[75vh] bg-muted"
                   alt="Depois"
                 />
               ) : (
