@@ -666,6 +666,15 @@ const Relatorio = () => {
           </Card>
         )}
 
+        {/* Fotos Antes e Depois */}
+        {assessment && history.length > 0 && (
+          <BeforeAfterPhotos
+            currentAssessmentId={assessment.id}
+            studentId={assessment.student_id}
+            allAssessments={history.length > 0 ? [] : []}
+          />
+        )}
+
         {assessment.notas_gerais && (
           <Card className="glass-card">
             <CardHeader><CardTitle className="text-base">Notas Gerais</CardTitle></CardHeader>
