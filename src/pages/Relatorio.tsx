@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Download, Eye, AlertTriangle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Download, Eye, AlertTriangle, Loader2, Maximize2 } from 'lucide-react';
 import { generatePDF } from '@/lib/generatePDF';
 import KarvonenZones from '@/components/KarvonenZones';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -92,10 +93,11 @@ const remapKeypointsToCrop = (keypoints: PoseKeypoint[], crop: CropBox, imgW: nu
 );
 
 // Photo with pose overlay + analysis grid
-const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = false }: {
+const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = false, onClick }: {
   photoUrl: string | null; label: string;
   keypoints: PoseKeypoint[] | null; scores: RegionScore[];
   hideLabel?: boolean;
+  onClick?: () => void;
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -121,9 +123,9 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
       const crop = normalizeCropFromKeypoints(keypoints, imageW, imageH);
       ctx.drawImage(img, crop.x, crop.y, crop.width, crop.height, 0, 0, canvasW, canvasH);
 
-      // Draw analysis grid
-      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-      ctx.lineWidth = 1.5;
+      // Draw analysis grid (subtle, behind overlay)
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth = 1;
       const cols = 24;
       const rows = 32;
       for (let i = 1; i < cols; i++) {
@@ -138,7 +140,7 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
         ctx.lineTo(canvasW, (canvasH / rows) * i);
         ctx.stroke();
       }
-      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
       ctx.lineWidth = 2;
       ctx.setLineDash([10, 6]);
       ctx.beginPath();
@@ -151,6 +153,7 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
       ctx.stroke();
       ctx.setLineDash([]);
 
+      // Draw pose overlay ON TOP of grid for visibility
       if (Array.isArray(keypoints) && keypoints.length >= 29) {
         const safeScores = Array.isArray(scores) ? scores : [];
         const remapped = remapKeypointsToCrop(keypoints, crop, imageW, imageH);
@@ -166,9 +169,17 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
   return (
     <div className="space-y-1.5">
       {!hideLabel && <p className="text-xs font-semibold text-muted-foreground text-center">{label}</p>}
-      <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-secondary/30">
+      <div
+        className="relative aspect-[3/4] rounded-lg overflow-hidden bg-secondary/30 cursor-pointer group"
+        onClick={onClick}
+      >
         <img ref={imgRef} src={photoUrl} className="hidden" crossOrigin="anonymous" />
         <canvas ref={canvasRef} className="w-full h-full" />
+        {onClick && (
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+            <Maximize2 className="w-6 h-6 text-white opacity-0 group-hover:opacity-80 transition-opacity drop-shadow-lg" />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -208,6 +219,7 @@ const Relatorio = () => {
   const [previousPostureScan, setPreviousPostureScan] = useState<any>(null);
   const [hrZones, setHrZones] = useState<any>(null);
   const [exporting, setExporting] = useState(false);
+  const [zoomData, setZoomData] = useState<{ url: string; kp: PoseKeypoint[] | null; scores: RegionScore[]; title: string } | null>(null);
 
   useEffect(() => {
     if (id) loadReport();
@@ -757,66 +769,97 @@ const Relatorio = () => {
 
         {/* Comparativo Antes e Depois da Avaliação Postural */}
         {(currentPostureScan || previousPostureScan) && (
-          <Card className="glass-card">
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Eye className="w-4 h-4 text-primary" /> Comparativo Postural — Antes e Depois
-              </CardTitle>
-              {previousPostureScan ? (
-                <p className="text-xs text-muted-foreground">
-                  {new Date(previousPostureScan.created_at).toLocaleDateString('pt-BR')} → {new Date(currentPostureScan?.created_at || assessment.created_at).toLocaleDateString('pt-BR')}
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground">Sem avaliação postural anterior vinculada para comparação.</p>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {[
-                { key: 'front', label: 'Frente', beforeUrl: previousPostureScan?.front_photo_url, afterUrl: currentPostureScan?.front_photo_url },
-                { key: 'side', label: 'Lado (Perfil)', beforeUrl: previousPostureScan?.side_photo_url, afterUrl: currentPostureScan?.side_photo_url },
-                { key: 'back', label: 'Costas', beforeUrl: previousPostureScan?.back_photo_url, afterUrl: currentPostureScan?.back_photo_url },
-              ].map(({ key, label, beforeUrl, afterUrl }) => (
-                <div key={key} className="space-y-2">
-                  <p className="text-xs font-semibold text-muted-foreground text-center">{label}</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-bold text-center text-muted-foreground">ANTES</p>
-                      {beforeUrl ? (
-                        <PosturePhotoWithGrid
-                          photoUrl={beforeUrl}
-                          label={label}
-                          hideLabel
-                          keypoints={((previousPostureScan?.pose_keypoints_json as any)?.[key]) ?? null}
-                          scores={((previousPostureScan?.region_scores_json as RegionScore[]) ?? [])}
-                        />
-                      ) : (
-                        <div className="aspect-[3/4] rounded-lg bg-secondary/30 flex items-center justify-center">
-                          <p className="text-xs text-muted-foreground">Sem foto anterior</p>
-                        </div>
-                      )}
-                    </div>
+          <>
+            <Card className="glass-card">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-primary" /> Comparativo Postural — Antes e Depois
+                </CardTitle>
+                {previousPostureScan ? (
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(previousPostureScan.created_at).toLocaleDateString('pt-BR')} → {new Date(currentPostureScan?.created_at || assessment.created_at).toLocaleDateString('pt-BR')}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Sem avaliação postural anterior vinculada para comparação.</p>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {[
+                  { key: 'front', label: 'Frente', beforeUrl: previousPostureScan?.front_photo_url, afterUrl: currentPostureScan?.front_photo_url },
+                  { key: 'side', label: 'Lado (Perfil)', beforeUrl: previousPostureScan?.side_photo_url, afterUrl: currentPostureScan?.side_photo_url },
+                  { key: 'back', label: 'Costas', beforeUrl: previousPostureScan?.back_photo_url, afterUrl: currentPostureScan?.back_photo_url },
+                ].map(({ key, label, beforeUrl, afterUrl }) => (
+                  <div key={key} className="space-y-2">
+                    <p className="text-xs font-semibold text-muted-foreground text-center">{label}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold text-center text-muted-foreground">ANTES</p>
+                        {beforeUrl ? (
+                          <PosturePhotoWithGrid
+                            photoUrl={beforeUrl}
+                            label={label}
+                            hideLabel
+                            keypoints={((previousPostureScan?.pose_keypoints_json as any)?.[key]) ?? null}
+                            scores={((previousPostureScan?.region_scores_json as RegionScore[]) ?? [])}
+                            onClick={() => setZoomData({
+                              url: beforeUrl,
+                              kp: ((previousPostureScan?.pose_keypoints_json as any)?.[key]) ?? null,
+                              scores: ((previousPostureScan?.region_scores_json as RegionScore[]) ?? []),
+                              title: `${label} — ANTES`,
+                            })}
+                          />
+                        ) : (
+                          <div className="aspect-[3/4] rounded-lg bg-secondary/30 flex items-center justify-center">
+                            <p className="text-xs text-muted-foreground">Sem foto anterior</p>
+                          </div>
+                        )}
+                      </div>
 
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-bold text-center text-primary">DEPOIS</p>
-                      {afterUrl ? (
-                        <PosturePhotoWithGrid
-                          photoUrl={afterUrl}
-                          label={label}
-                          hideLabel
-                          keypoints={((currentPostureScan?.pose_keypoints_json as any)?.[key]) ?? null}
-                          scores={((currentPostureScan?.region_scores_json as RegionScore[]) ?? [])}
-                        />
-                      ) : (
-                        <div className="aspect-[3/4] rounded-lg bg-secondary/30 flex items-center justify-center">
-                          <p className="text-xs text-muted-foreground">Sem foto atual</p>
-                        </div>
-                      )}
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold text-center text-primary">DEPOIS</p>
+                        {afterUrl ? (
+                          <PosturePhotoWithGrid
+                            photoUrl={afterUrl}
+                            label={label}
+                            hideLabel
+                            keypoints={((currentPostureScan?.pose_keypoints_json as any)?.[key]) ?? null}
+                            scores={((currentPostureScan?.region_scores_json as RegionScore[]) ?? [])}
+                            onClick={() => setZoomData({
+                              url: afterUrl,
+                              kp: ((currentPostureScan?.pose_keypoints_json as any)?.[key]) ?? null,
+                              scores: ((currentPostureScan?.region_scores_json as RegionScore[]) ?? []),
+                              title: `${label} — DEPOIS`,
+                            })}
+                          />
+                        ) : (
+                          <div className="aspect-[3/4] rounded-lg bg-secondary/30 flex items-center justify-center">
+                            <p className="text-xs text-muted-foreground">Sem foto atual</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Dialog open={!!zoomData} onOpenChange={() => setZoomData(null)}>
+              <DialogContent className="max-w-3xl p-2 bg-background">
+                {zoomData && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-bold text-center text-foreground">{zoomData.title}</p>
+                    <PosturePhotoWithGrid
+                      photoUrl={zoomData.url}
+                      label=""
+                      hideLabel
+                      keypoints={zoomData.kp}
+                      scores={zoomData.scores}
+                    />
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+          </>
         )}
 
         {assessment.notas_gerais && (

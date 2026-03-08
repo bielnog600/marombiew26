@@ -464,7 +464,8 @@ export function drawPoseOverlay(
     [LANDMARKS.NOSE, LANDMARKS.RIGHT_SHOULDER, 'pescoco'],
   ];
 
-  ctx.lineWidth = 10;
+  const scale = Math.max(1, width / 500);
+  ctx.lineWidth = Math.round(6 * scale);
   connections.forEach(([a, b, region]) => {
     const pa = get(a);
     const pb = get(b);
@@ -484,15 +485,16 @@ export function drawPoseOverlay(
     LANDMARKS.LEFT_ELBOW, LANDMARKS.RIGHT_ELBOW,
   ];
 
+  const pointRadius = Math.round(10 * scale);
   importantPoints.forEach(idx => {
     const p = get(idx);
     if (p.c > 0.3) {
       ctx.fillStyle = '#f59e0b';
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 16, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, pointRadius, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#000';
-      ctx.lineWidth = 1;
+      ctx.lineWidth = Math.max(1, scale);
       ctx.stroke();
     }
   });
