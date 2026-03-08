@@ -669,11 +669,11 @@ const Relatorio = () => {
         )}
 
         {/* Fotos Antes e Depois */}
-        {assessment && history.length > 0 && (
+        {assessment && allAssessments.length > 0 && (
           <BeforeAfterPhotos
             currentAssessmentId={assessment.id}
             studentId={assessment.student_id}
-            allAssessments={history.length > 0 ? [] : []}
+            allAssessments={allAssessments}
           />
         )}
 
