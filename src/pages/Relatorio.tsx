@@ -93,10 +93,11 @@ const remapKeypointsToCrop = (keypoints: PoseKeypoint[], crop: CropBox, imgW: nu
 );
 
 // Photo with pose overlay + analysis grid
-const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = false }: {
+const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = false, onClick }: {
   photoUrl: string | null; label: string;
   keypoints: PoseKeypoint[] | null; scores: RegionScore[];
   hideLabel?: boolean;
+  onClick?: () => void;
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -122,9 +123,9 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
       const crop = normalizeCropFromKeypoints(keypoints, imageW, imageH);
       ctx.drawImage(img, crop.x, crop.y, crop.width, crop.height, 0, 0, canvasW, canvasH);
 
-      // Draw analysis grid
-      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-      ctx.lineWidth = 1.5;
+      // Draw analysis grid (subtle, behind overlay)
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth = 1;
       const cols = 24;
       const rows = 32;
       for (let i = 1; i < cols; i++) {
@@ -139,7 +140,7 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
         ctx.lineTo(canvasW, (canvasH / rows) * i);
         ctx.stroke();
       }
-      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
       ctx.lineWidth = 2;
       ctx.setLineDash([10, 6]);
       ctx.beginPath();
@@ -152,9 +153,12 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
       ctx.stroke();
       ctx.setLineDash([]);
 
+      // Draw pose overlay ON TOP of grid for visibility
       if (Array.isArray(keypoints) && keypoints.length >= 29) {
         const safeScores = Array.isArray(scores) ? scores : [];
         const remapped = remapKeypointsToCrop(keypoints, crop, imageW, imageH);
+        // Use thicker lines & bigger points for visibility
+        const origLineWidth = ctx.lineWidth;
         drawPoseOverlay(ctx, remapped, canvasW, canvasH, safeScores);
       }
     };
@@ -167,9 +171,17 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
   return (
     <div className="space-y-1.5">
       {!hideLabel && <p className="text-xs font-semibold text-muted-foreground text-center">{label}</p>}
-      <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-secondary/30">
+      <div
+        className="relative aspect-[3/4] rounded-lg overflow-hidden bg-secondary/30 cursor-pointer group"
+        onClick={onClick}
+      >
         <img ref={imgRef} src={photoUrl} className="hidden" crossOrigin="anonymous" />
         <canvas ref={canvasRef} className="w-full h-full" />
+        {onClick && (
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+            <Maximize2 className="w-6 h-6 text-white opacity-0 group-hover:opacity-80 transition-opacity drop-shadow-lg" />
+          </div>
+        )}
       </div>
     </div>
   );
