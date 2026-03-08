@@ -17,9 +17,10 @@ const statusLabel = (status: string) =>
   status === 'risk' ? 'Risco' : status === 'attention' ? 'Atenção' : 'OK';
 
 // Photo with pose overlay + analysis grid
-const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores }: {
+const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = false }: {
   photoUrl: string | null; label: string;
   keypoints: PoseKeypoint[] | null; scores: RegionScore[];
+  hideLabel?: boolean;
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
