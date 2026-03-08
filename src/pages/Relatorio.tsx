@@ -227,7 +227,14 @@ const Relatorio = () => {
   const [previousPostureScan, setPreviousPostureScan] = useState<any>(null);
   const [hrZones, setHrZones] = useState<any>(null);
   const [exporting, setExporting] = useState(false);
-  const [zoomData, setZoomData] = useState<{ url: string; kp: PoseKeypoint[] | null; scores: RegionScore[]; title: string } | null>(null);
+  const [zoomData, setZoomData] = useState<{ 
+    beforeUrl: string | null; 
+    afterUrl: string | null; 
+    beforeKp: PoseKeypoint[] | null; 
+    afterKp: PoseKeypoint[] | null; 
+    scores: RegionScore[]; 
+    title: string;
+  } | null>(null);
 
   useEffect(() => {
     if (id) loadReport();
@@ -811,10 +818,12 @@ const Relatorio = () => {
                             keypoints={((previousPostureScan?.pose_keypoints_json as any)?.[key]) ?? null}
                             scores={((previousPostureScan?.region_scores_json as RegionScore[]) ?? [])}
                             onClick={() => setZoomData({
-                              url: beforeUrl,
-                              kp: ((previousPostureScan?.pose_keypoints_json as any)?.[key]) ?? null,
+                              beforeUrl: beforeUrl,
+                              afterUrl: afterUrl,
+                              beforeKp: ((previousPostureScan?.pose_keypoints_json as any)?.[key]) ?? null,
+                              afterKp: ((currentPostureScan?.pose_keypoints_json as any)?.[key]) ?? null,
                               scores: ((previousPostureScan?.region_scores_json as RegionScore[]) ?? []),
-                              title: `${label} — ANTES`,
+                              title: label,
                             })}
                           />
                         ) : (
@@ -835,10 +844,12 @@ const Relatorio = () => {
                             keypoints={((currentPostureScan?.pose_keypoints_json as any)?.[key]) ?? null}
                             scores={((currentPostureScan?.region_scores_json as RegionScore[]) ?? [])}
                             onClick={() => setZoomData({
-                              url: afterUrl,
-                              kp: ((currentPostureScan?.pose_keypoints_json as any)?.[key]) ?? null,
+                              beforeUrl: beforeUrl,
+                              afterUrl: afterUrl,
+                              beforeKp: ((previousPostureScan?.pose_keypoints_json as any)?.[key]) ?? null,
+                              afterKp: ((currentPostureScan?.pose_keypoints_json as any)?.[key]) ?? null,
                               scores: ((currentPostureScan?.region_scores_json as RegionScore[]) ?? []),
-                              title: `${label} — DEPOIS`,
+                              title: label,
                             })}
                           />
                         ) : (
@@ -854,18 +865,46 @@ const Relatorio = () => {
             </Card>
 
             <Dialog open={!!zoomData} onOpenChange={() => setZoomData(null)}>
-              <DialogContent className="max-w-3xl p-2 bg-background">
+              <DialogContent className="max-w-6xl p-3 bg-background">
                 {zoomData && (
-                  <div className="space-y-2">
-                    <p className="text-sm font-bold text-center text-foreground">{zoomData.title}</p>
-                    <PosturePhotoWithGrid
-                      photoUrl={zoomData.url}
-                      label=""
-                      hideLabel
-                      showPoseOverlay={false}
-                      keypoints={zoomData.kp}
-                      scores={zoomData.scores}
-                    />
+                  <div className="space-y-3">
+                    <p className="text-base font-bold text-center text-foreground">{zoomData.title} — Comparativo</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold text-center text-muted-foreground">ANTES</p>
+                        {zoomData.beforeUrl ? (
+                          <PosturePhotoWithGrid
+                            photoUrl={zoomData.beforeUrl}
+                            label=""
+                            hideLabel
+                            showPoseOverlay={false}
+                            keypoints={zoomData.beforeKp}
+                            scores={zoomData.scores}
+                          />
+                        ) : (
+                          <div className="aspect-[3/4] rounded-lg bg-secondary/30 flex items-center justify-center">
+                            <p className="text-xs text-muted-foreground">Sem foto anterior</p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold text-center text-primary">DEPOIS</p>
+                        {zoomData.afterUrl ? (
+                          <PosturePhotoWithGrid
+                            photoUrl={zoomData.afterUrl}
+                            label=""
+                            hideLabel
+                            showPoseOverlay={false}
+                            keypoints={zoomData.afterKp}
+                            scores={zoomData.scores}
+                          />
+                        ) : (
+                          <div className="aspect-[3/4] rounded-lg bg-secondary/30 flex items-center justify-center">
+                            <p className="text-xs text-muted-foreground">Sem foto atual</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
               </DialogContent>
