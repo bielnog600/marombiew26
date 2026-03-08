@@ -27,6 +27,18 @@ const steps = [
   'Resumo',
 ];
 
+const skinfoldFieldLabels: Record<string, string> = {
+  triceps: 'Tríceps',
+  subescapular: 'Subescapular',
+  suprailiaca: 'Suprailíaca',
+  abdominal: 'Abdominal',
+  peitoral: 'Peitoral',
+  axilar_media: 'Axilar Média',
+  coxa: 'Coxa',
+};
+
+const skinfoldFields = ['triceps', 'subescapular', 'suprailiaca', 'abdominal', 'peitoral', 'axilar_media', 'coxa'] as const;
+
 const classifyIMC = (imc: number): { label: string; color: string } => {
   if (imc < 18.5) return { label: 'Abaixo do peso', color: 'text-yellow-500' };
   if (imc < 25) return { label: 'Peso normal', color: 'text-green-500' };
@@ -584,17 +596,42 @@ const NovaAvaliacao = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-4">
-                  {['triceps', 'subescapular', 'suprailiaca', 'abdominal', 'peitoral', 'axilar_media', 'coxa'].map((key) => {
-                    const labels: Record<string, string> = { triceps: 'Tríceps', subescapular: 'Subescapular', suprailiaca: 'Suprailíaca', abdominal: 'Abdominal', peitoral: 'Peitoral', axilar_media: 'Axilar Média', coxa: 'Coxa' };
+                <div className="space-y-3">
+                  <div className="hidden md:grid md:grid-cols-[160px_1fr_1fr_90px] gap-2 px-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    <span>Dobra</span>
+                    <span>Med. 1 (mm)</span>
+                    <span>Med. 2 (mm)</span>
+                    <span className="text-center">Média</span>
+                  </div>
+
+                  {skinfoldFields.map((key) => {
                     const avg = avgSk(key);
+
                     return (
-                      <div key={key} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
-                        <InputField label={`${labels[key]} - Med. 1`} value={(skinfolds as any)[`${key}_1`]} onChange={(e: any) => setSkinfolds({ ...skinfolds, [`${key}_1`]: e.target.value })} unit="mm" type="number" />
-                        <InputField label={`${labels[key]} - Med. 2`} value={(skinfolds as any)[`${key}_2`]} onChange={(e: any) => setSkinfolds({ ...skinfolds, [`${key}_2`]: e.target.value })} unit="mm" type="number" />
-                        <div className="pb-1 text-center min-w-[50px]">
-                          <span className="text-[10px] text-muted-foreground block">Média</span>
-                          <span className="font-bold text-sm text-primary">{avg || '-'}</span>
+                      <div key={key} className="rounded-lg border border-border/60 p-3">
+                        <div className="grid grid-cols-1 md:grid-cols-[160px_1fr_1fr_90px] gap-3 items-end">
+                          <div className="text-sm font-medium text-foreground">{skinfoldFieldLabels[key]}</div>
+
+                          <InputField
+                            label="Med. 1"
+                            value={(skinfolds as any)[`${key}_1`]}
+                            onChange={(e: any) => setSkinfolds({ ...skinfolds, [`${key}_1`]: e.target.value })}
+                            unit="mm"
+                            type="number"
+                          />
+
+                          <InputField
+                            label="Med. 2"
+                            value={(skinfolds as any)[`${key}_2`]}
+                            onChange={(e: any) => setSkinfolds({ ...skinfolds, [`${key}_2`]: e.target.value })}
+                            unit="mm"
+                            type="number"
+                          />
+
+                          <div className="pb-1 text-center min-w-[60px]">
+                            <span className="text-[10px] text-muted-foreground block">Média</span>
+                            <span className="font-bold text-sm text-primary">{avg || '-'}</span>
+                          </div>
                         </div>
                       </div>
                     );
