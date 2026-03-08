@@ -88,13 +88,13 @@ const NovaAvaliacao = () => {
   const [studentSex, setStudentSex] = useState<string | null>(null);
   const [studentBirthDate, setStudentBirthDate] = useState<Date | null>(null);
 
-  // Load student profile for sex and birth date
+  // Load student profile for sex, birth date and height
   useEffect(() => {
     if (!studentId) return;
     const loadProfile = async () => {
       const { data } = await supabase
         .from('students_profile')
-        .select('sexo, data_nascimento')
+        .select('sexo, data_nascimento, altura')
         .eq('user_id', studentId)
         .maybeSingle();
 
@@ -104,9 +104,13 @@ const NovaAvaliacao = () => {
       if (data.data_nascimento) {
         setStudentBirthDate(new Date(`${data.data_nascimento}T00:00:00`));
       }
+      // Auto-fill height from profile if not editing and field is empty
+      if (!editId && data.altura) {
+        setAnthro(prev => prev.altura ? prev : { ...prev, altura: String(data.altura) });
+      }
     };
     loadProfile();
-  }, [studentId]);
+  }, [studentId, editId]);
 
   const [anamnese, setAnamnese] = useState({
     sono: '', stress: '', rotina: '', treino_atual: '', medicacao: '',
