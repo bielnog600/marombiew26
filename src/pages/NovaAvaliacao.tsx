@@ -24,6 +24,7 @@ const steps = [
   'Antropometria',
   'Dobras Cutâneas',
   'Testes Físicos',
+  'Fotos',
   'Resumo',
 ];
 
