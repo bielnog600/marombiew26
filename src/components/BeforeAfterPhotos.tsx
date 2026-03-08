@@ -98,10 +98,10 @@ const BeforeAfterPhotos = ({ currentAssessmentId, studentId, allAssessments }: B
                   onClick={() => setZoomPhoto({ before: before?.url, after: after?.url, label })}
                 >
                   {/* Before */}
-                  <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-secondary/30 flex items-center justify-center">
+                  <div className="relative aspect-[9/16] rounded-lg overflow-hidden bg-black flex items-center justify-center">
                     {before ? (
                       <>
-                        <img src={before.url} className="w-full h-full object-cover" alt={`Antes - ${label}`} />
+                        <img src={before.url} className="w-full h-full object-contain" alt={`Antes - ${label}`} />
                         <div className="absolute top-1 left-1 bg-background/80 text-[10px] font-bold px-1.5 py-0.5 rounded">
                           ANTES
                         </div>
