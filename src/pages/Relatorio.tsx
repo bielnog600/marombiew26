@@ -157,8 +157,6 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
       if (Array.isArray(keypoints) && keypoints.length >= 29) {
         const safeScores = Array.isArray(scores) ? scores : [];
         const remapped = remapKeypointsToCrop(keypoints, crop, imageW, imageH);
-        // Use thicker lines & bigger points for visibility
-        const origLineWidth = ctx.lineWidth;
         drawPoseOverlay(ctx, remapped, canvasW, canvasH, safeScores);
       }
     };
