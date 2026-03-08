@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Download, Eye, AlertTriangle, Loader2 } from 'lucide-react';
 import { generatePDF } from '@/lib/generatePDF';
 import KarvonenZones from '@/components/KarvonenZones';
+import BeforeAfterPhotos from '@/components/BeforeAfterPhotos';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { drawPoseOverlay, analyzePostureConditions, type PoseKeypoint, type RegionScore, type PostureCondition, type PostureAngles } from '@/lib/postureUtils';
 
@@ -122,6 +123,7 @@ const Relatorio = () => {
   const [studentProfile, setStudentProfile] = useState<any>(null);
   const [postureScan, setPostureScan] = useState<any>(null);
   const [hrZones, setHrZones] = useState<any>(null);
+  const [allAssessments, setAllAssessments] = useState<{ id: string; created_at: string }[]>([]);
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
@@ -178,14 +180,15 @@ const Relatorio = () => {
 
 
     // Histórico para gráficos
-    const { data: allAssessments } = await supabase
+    const { data: allAssessments_ } = await supabase
       .from('assessments')
       .select('id, created_at')
       .eq('student_id', a.student_id)
       .order('created_at', { ascending: true });
 
-    if (allAssessments) {
-      const histPromises = allAssessments.map(async (ass) => {
+    if (allAssessments_) {
+      setAllAssessments(allAssessments_.map(a => ({ id: a.id, created_at: a.created_at })));
+      const histPromises = allAssessments_.map(async (ass) => {
         const { data: an } = await supabase.from('anthropometrics').select('peso, imc, cintura').eq('assessment_id', ass.id).maybeSingle();
         const { data: co } = await supabase.from('composition').select('percentual_gordura').eq('assessment_id', ass.id).maybeSingle();
         return {
@@ -663,6 +666,15 @@ const Relatorio = () => {
               )}
             </CardContent>
           </Card>
+        )}
+
+        {/* Fotos Antes e Depois */}
+        {assessment && allAssessments.length > 0 && (
+          <BeforeAfterPhotos
+            currentAssessmentId={assessment.id}
+            studentId={assessment.student_id}
+            allAssessments={allAssessments}
+          />
         )}
 
         {assessment.notas_gerais && (
