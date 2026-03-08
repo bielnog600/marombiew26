@@ -7,7 +7,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Download, Eye, AlertTriangle, Loader2 } from 'lucide-react';
 import { generatePDF } from '@/lib/generatePDF';
 import KarvonenZones from '@/components/KarvonenZones';
-import BeforeAfterPhotos from '@/components/BeforeAfterPhotos';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { drawPoseOverlay, analyzePostureConditions, type PoseKeypoint, type RegionScore, type PostureCondition, type PostureAngles } from '@/lib/postureUtils';
 
@@ -18,9 +17,10 @@ const statusLabel = (status: string) =>
   status === 'risk' ? 'Risco' : status === 'attention' ? 'Atenção' : 'OK';
 
 // Photo with pose overlay + analysis grid
-const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores }: {
+const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = false }: {
   photoUrl: string | null; label: string;
   keypoints: PoseKeypoint[] | null; scores: RegionScore[];
+  hideLabel?: boolean;
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -83,7 +83,7 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores }: {
 
   return (
     <div className="space-y-1.5">
-      <p className="text-xs font-semibold text-muted-foreground text-center">{label}</p>
+      {!hideLabel && <p className="text-xs font-semibold text-muted-foreground text-center">{label}</p>}
       <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-secondary/30">
         <img ref={imgRef} src={photoUrl} className="hidden" crossOrigin="anonymous" />
         <canvas ref={canvasRef} className="w-full h-full object-cover" />
@@ -122,8 +122,9 @@ const Relatorio = () => {
   const [profile, setProfile] = useState<any>(null);
   const [studentProfile, setStudentProfile] = useState<any>(null);
   const [postureScan, setPostureScan] = useState<any>(null);
+  const [currentPostureScan, setCurrentPostureScan] = useState<any>(null);
+  const [previousPostureScan, setPreviousPostureScan] = useState<any>(null);
   const [hrZones, setHrZones] = useState<any>(null);
-  const [allAssessments, setAllAssessments] = useState<{ id: string; created_at: string }[]>([]);
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
@@ -158,15 +159,17 @@ const Relatorio = () => {
     const { data: sp } = await supabase.from('students_profile').select('*').eq('user_id', a.student_id).maybeSingle();
     setStudentProfile(sp);
 
-    // Posture scan mais recente do aluno (vinculada ou não a esta avaliação)
+    // Posture scan da avaliação atual (se existir)
     const { data: scan } = await supabase
       .from('posture_scans')
       .select('*')
       .eq('student_id', a.student_id)
+      .eq('assessment_id', a.id)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
     setPostureScan(scan);
+    setCurrentPostureScan(scan);
 
     // HR Zones (Karvonen)
     const { data: hz } = await supabase
@@ -187,7 +190,25 @@ const Relatorio = () => {
       .order('created_at', { ascending: true });
 
     if (allAssessments_) {
-      setAllAssessments(allAssessments_.map(a => ({ id: a.id, created_at: a.created_at })));
+      const orderedAssessments = allAssessments_.map(a => ({ id: a.id, created_at: a.created_at }));
+
+      const currentIdx = orderedAssessments.findIndex(ass => ass.id === a.id);
+      const previousAssessmentId = currentIdx > 0 ? orderedAssessments[currentIdx - 1].id : null;
+
+      if (previousAssessmentId) {
+        const { data: previousScan } = await supabase
+          .from('posture_scans')
+          .select('*')
+          .eq('student_id', a.student_id)
+          .eq('assessment_id', previousAssessmentId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        setPreviousPostureScan(previousScan);
+      } else {
+        setPreviousPostureScan(null);
+      }
+
       const histPromises = allAssessments_.map(async (ass) => {
         const { data: an } = await supabase.from('anthropometrics').select('peso, imc, cintura').eq('assessment_id', ass.id).maybeSingle();
         const { data: co } = await supabase.from('composition').select('percentual_gordura').eq('assessment_id', ass.id).maybeSingle();
@@ -668,13 +689,68 @@ const Relatorio = () => {
           </Card>
         )}
 
-        {/* Fotos Antes e Depois */}
-        {assessment && allAssessments.length > 0 && (
-          <BeforeAfterPhotos
-            currentAssessmentId={assessment.id}
-            studentId={assessment.student_id}
-            allAssessments={allAssessments}
-          />
+        {/* Comparativo Antes e Depois da Avaliação Postural */}
+        {(currentPostureScan || previousPostureScan) && (
+          <Card className="glass-card">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Eye className="w-4 h-4 text-primary" /> Comparativo Postural — Antes e Depois
+              </CardTitle>
+              {previousPostureScan ? (
+                <p className="text-xs text-muted-foreground">
+                  {new Date(previousPostureScan.created_at).toLocaleDateString('pt-BR')} → {new Date(currentPostureScan?.created_at || assessment.created_at).toLocaleDateString('pt-BR')}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">Sem avaliação postural anterior vinculada para comparação.</p>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {[
+                { key: 'front', label: 'Frente', beforeUrl: previousPostureScan?.front_photo_url, afterUrl: currentPostureScan?.front_photo_url },
+                { key: 'side', label: 'Lado (Perfil)', beforeUrl: previousPostureScan?.side_photo_url, afterUrl: currentPostureScan?.side_photo_url },
+                { key: 'back', label: 'Costas', beforeUrl: previousPostureScan?.back_photo_url, afterUrl: currentPostureScan?.back_photo_url },
+              ].map(({ key, label, beforeUrl, afterUrl }) => (
+                <div key={key} className="space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground text-center">{label}</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold text-center text-muted-foreground">ANTES</p>
+                      {beforeUrl ? (
+                        <PosturePhotoWithGrid
+                          photoUrl={beforeUrl}
+                          label={label}
+                          hideLabel
+                          keypoints={((previousPostureScan?.pose_keypoints_json as any)?.[key]) ?? null}
+                          scores={((previousPostureScan?.region_scores_json as RegionScore[]) ?? [])}
+                        />
+                      ) : (
+                        <div className="aspect-[3/4] rounded-lg bg-secondary/30 flex items-center justify-center">
+                          <p className="text-xs text-muted-foreground">Sem foto anterior</p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold text-center text-primary">DEPOIS</p>
+                      {afterUrl ? (
+                        <PosturePhotoWithGrid
+                          photoUrl={afterUrl}
+                          label={label}
+                          hideLabel
+                          keypoints={((currentPostureScan?.pose_keypoints_json as any)?.[key]) ?? null}
+                          scores={((currentPostureScan?.region_scores_json as RegionScore[]) ?? [])}
+                        />
+                      ) : (
+                        <div className="aspect-[3/4] rounded-lg bg-secondary/30 flex items-center justify-center">
+                          <p className="text-xs text-muted-foreground">Sem foto atual</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
         )}
 
         {assessment.notas_gerais && (
