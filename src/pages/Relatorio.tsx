@@ -121,6 +121,8 @@ const Relatorio = () => {
   const [profile, setProfile] = useState<any>(null);
   const [studentProfile, setStudentProfile] = useState<any>(null);
   const [postureScan, setPostureScan] = useState<any>(null);
+  const [currentPostureScan, setCurrentPostureScan] = useState<any>(null);
+  const [previousPostureScan, setPreviousPostureScan] = useState<any>(null);
   const [hrZones, setHrZones] = useState<any>(null);
   const [allAssessments, setAllAssessments] = useState<{ id: string; created_at: string }[]>([]);
   const [exporting, setExporting] = useState(false);
