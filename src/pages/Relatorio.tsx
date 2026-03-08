@@ -806,7 +806,7 @@ const Relatorio = () => {
                 ].map(({ key, label, beforeUrl, afterUrl }) => (
                   <div key={key} className="space-y-2">
                     <p className="text-xs font-semibold text-muted-foreground text-center">{label}</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <p className="text-[10px] font-bold text-center text-muted-foreground">ANTES</p>
                         {beforeUrl ? (
@@ -865,11 +865,11 @@ const Relatorio = () => {
             </Card>
 
             <Dialog open={!!zoomData} onOpenChange={() => setZoomData(null)}>
-              <DialogContent className="max-w-6xl p-3 bg-background">
+              <DialogContent className="max-w-6xl p-3 pr-10 bg-background [&>button]:z-20 [&>button]:opacity-100 [&>button]:bg-background [&>button]:border [&>button]:border-border [&>button]:text-foreground [&>button]:rounded-full">
                 {zoomData && (
                   <div className="space-y-3">
                     <p className="text-base font-bold text-center text-foreground">{zoomData.title} — Comparativo</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
                       <div className="space-y-2">
                         <p className="text-xs font-bold text-center text-muted-foreground">ANTES</p>
                         {zoomData.beforeUrl ? (
