@@ -88,8 +88,16 @@ const NovaAvaliacao = () => {
   const [loading, setLoading] = useState(!!editId);
   const [studentSex, setStudentSex] = useState<string | null>(null);
   const [studentBirthDate, setStudentBirthDate] = useState<Date | null>(null);
+  const [photos, setPhotos] = useState<{ tipo: string; file: File; preview: string }[]>([]);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
 
-  // Load student profile for sex, birth date and height
+  const photoTypes = [
+    { value: 'frente', label: 'Frente' },
+    { value: 'costas', label: 'Costas' },
+    { value: 'lado_direito', label: 'Lado Direito' },
+    { value: 'lado_esquerdo', label: 'Lado Esquerdo' },
+  ];
+
   useEffect(() => {
     if (!studentId) return;
     const loadProfile = async () => {
