@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Copy, Check, UtensilsCrossed, Calculator, MessageCircle, Lightbulb, Clock } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
@@ -54,6 +55,43 @@ const CopyButton: React.FC<{ text: string; label?: string }> = ({ text, label })
 };
 
 /** Parse a markdown table block into structured meals */
+const normalizeMealName = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\*\*/g, '')
+    .replace(/[:|-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+const mergeParsedMeals = (meals: ParsedMeal[]): ParsedMeal[] => {
+  const merged: ParsedMeal[] = [];
+
+  for (const meal of meals) {
+    const normalizedName = normalizeMealName(meal.name);
+    const normalizedTime = normalizeMealName(meal.time || '');
+    const existing = merged.find(
+      (item) =>
+        normalizeMealName(item.name) === normalizedName &&
+        normalizeMealName(item.time || '') === normalizedTime,
+    );
+
+    if (!existing) {
+      merged.push({ ...meal, foods: [...meal.foods] });
+      continue;
+    }
+
+    existing.foods.push(...meal.foods);
+    existing.totalKcal = meal.totalKcal || existing.totalKcal;
+    existing.totalP = meal.totalP || existing.totalP;
+    existing.totalC = meal.totalC || existing.totalC;
+    existing.totalG = meal.totalG || existing.totalG;
+  }
+
+  return merged;
+};
+
 const parseMealTable = (tableLines: string[]): ParsedMeal[] => {
   // Parse all rows
   const rows: string[][] = [];
@@ -122,7 +160,10 @@ const parseMealTable = (tableLines: string[]): ParsedMeal[] => {
 
     // Determine if this is a new meal or continuation
     const mealName = mealCell.replace(/\*\*/g, '').trim();
-    const isNewMeal = mealName && mealName !== lastMealName && mealName !== '-' && mealName !== '';
+    const normalizedMealName = normalizeMealName(mealName);
+    const isNewMeal = Boolean(
+      normalizedMealName && normalizedMealName !== normalizeMealName(lastMealName) && mealName !== '-',
+    );
 
     if (isNewMeal) {
       if (currentMeal && currentMeal.foods.length > 0) meals.push(currentMeal);
@@ -158,7 +199,7 @@ const parseMealTable = (tableLines: string[]): ParsedMeal[] => {
     }
   }
   if (currentMeal && currentMeal.foods.length > 0) meals.push(currentMeal);
-  return meals;
+  return mergeParsedMeals(meals);
 };
 
 const parseSections = (markdown: string): ParsedSection[] => {
@@ -253,7 +294,12 @@ const MEAL_COLORS = [
 
 const MealCard: React.FC<{ meal: ParsedMeal; index: number }> = ({ meal, index }) => {
   const color = MEAL_COLORS[index % MEAL_COLORS.length];
-  const mealText = `${meal.name}${meal.time ? ` (${meal.time})` : ''}:\n${meal.foods.map(f => `• ${f.food} - ${f.qty}`).join('\n')}`;
+  const mealText = `${meal.name}${meal.time ? ` (${meal.time})` : ''}:\n${meal.foods
+    .map(
+      (f) =>
+        `• ${f.food} - ${f.qty}${f.kcal ? ` | ${f.kcal} kcal` : ''}${f.p ? ` | P:${f.p}` : ''}${f.c ? ` | C:${f.c}` : ''}${f.g ? ` | G:${f.g}` : ''}`,
+    )
+    .join('\n')}`;
 
   return (
     <Card className={`border bg-gradient-to-br ${color} overflow-hidden`}>
@@ -270,21 +316,31 @@ const MealCard: React.FC<{ meal: ParsedMeal; index: number }> = ({ meal, index }
           </div>
           <CopyButton text={mealText} />
         </div>
-        <div className="divide-y divide-border/30">
-          {meal.foods.map((food, fi) => (
-            <div key={fi} className="px-4 py-2 flex items-center justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{food.food}</p>
-                <p className="text-xs text-muted-foreground">{food.qty}</p>
-              </div>
-              <div className="flex gap-3 text-xs text-muted-foreground shrink-0">
-                {food.kcal && <span className="font-medium text-foreground">{food.kcal}</span>}
-                {food.p && <span>P:{food.p}</span>}
-                {food.c && <span>C:{food.c}</span>}
-                {food.g && <span>G:{food.g}</span>}
-              </div>
-            </div>
-          ))}
+        <div className="px-2 py-2">
+          <Table className="text-xs">
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="h-9 px-3">Alimento</TableHead>
+                <TableHead className="h-9 px-3">Qtd</TableHead>
+                <TableHead className="h-9 px-3 text-right">Kcal</TableHead>
+                <TableHead className="h-9 px-3 text-right">P</TableHead>
+                <TableHead className="h-9 px-3 text-right">C</TableHead>
+                <TableHead className="h-9 px-3 text-right">G</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {meal.foods.map((food, fi) => (
+                <TableRow key={fi}>
+                  <TableCell className="px-3 py-2 font-medium align-top">{food.food}</TableCell>
+                  <TableCell className="px-3 py-2 align-top text-muted-foreground">{food.qty}</TableCell>
+                  <TableCell className="px-3 py-2 align-top text-right">{food.kcal || '—'}</TableCell>
+                  <TableCell className="px-3 py-2 align-top text-right">{food.p || '—'}</TableCell>
+                  <TableCell className="px-3 py-2 align-top text-right">{food.c || '—'}</TableCell>
+                  <TableCell className="px-3 py-2 align-top text-right">{food.g || '—'}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
         {(meal.totalKcal || meal.totalP) && (
           <div className="px-4 py-2 bg-background/50 border-t border-border/50 flex items-center justify-between">
