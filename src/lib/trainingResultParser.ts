@@ -1,10 +1,12 @@
 export interface ParsedExercise {
   exercise: string;
   series: string;
+  series2: string;
   reps: string;
   rir: string;
   pause: string;
   description: string;
+  description2: string;
   variation: string;
 }
 
@@ -67,11 +69,13 @@ export const parseTrainingTable = (tableLines: string[]): ParsedTrainingDay[] =>
     const dayCell = cleanCell(cells[0] || '');
     const exerciseCell = cleanCell(cells[1] || '');
     const seriesCell = cleanCell(cells[2] || '');
-    const repsCell = cleanCell(cells[3] || '');
-    const rirCell = cleanCell(cells[4] || '');
-    const pauseCell = cleanCell(cells[5] || '');
-    const descCell = cleanCell(cells[6] || '');
-    const variationCell = cleanCell(cells[7] || '');
+    const series2Cell = cleanCell(cells[3] || '');
+    const repsCell = cleanCell(cells[4] || '');
+    const rirCell = cleanCell(cells[5] || '');
+    const pauseCell = cleanCell(cells[6] || '');
+    const descCell = cleanCell(cells[7] || '');
+    const desc2Cell = cleanCell(cells[8] || '');
+    const variationCell = cleanCell(cells[9] || '');
 
     // Check if this is a new training day
     if (dayCell && dayCell !== '-' && dayCell.toLowerCase() !== lastDayName.toLowerCase()) {
@@ -91,10 +95,12 @@ export const parseTrainingTable = (tableLines: string[]): ParsedTrainingDay[] =>
       currentDay.exercises.push({
         exercise: exerciseCell,
         series: seriesCell,
+        series2: series2Cell,
         reps: repsCell,
         rir: rirCell,
         pause: pauseCell,
         description: descCell,
+        description2: desc2Cell,
         variation: variationCell,
       });
     }

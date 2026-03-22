@@ -15,7 +15,7 @@ const sanitizeForTsv = (value: string) => value.replace(/"/g, 'seg');
 const buildDayCopyText = (day: ParsedTrainingDay) => {
   const rows = day.exercises.map(
     (ex) =>
-      [day.day, ex.exercise, ex.series || '—', ex.reps || '—', ex.rir || '—', sanitizeForTsv(ex.pause || '—'), ex.description || '—', ex.variation || '—'].join('\t'),
+      [day.day, ex.exercise, ex.series || '—', ex.series2 || '—', ex.reps || '—', ex.rir || '—', sanitizeForTsv(ex.pause || '—'), ex.description || '—', ex.description2 || '—', ex.variation || '—'].join('\t'),
   );
   return rows.join('\n');
 };
@@ -48,10 +48,12 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy })
                 <TableHead className="h-9 px-3">Treino do Dia</TableHead>
                 <TableHead className="h-9 px-3">Exercício</TableHead>
                 <TableHead className="h-9 px-3 text-center">Séries</TableHead>
+                <TableHead className="h-9 px-3 text-center">Séries 2</TableHead>
                 <TableHead className="h-9 px-3 text-center">Reps</TableHead>
                 <TableHead className="h-9 px-3 text-center">RIR</TableHead>
                 <TableHead className="h-9 px-3 text-center">Pausa</TableHead>
                 <TableHead className="h-9 px-3 hidden sm:table-cell">Descrição</TableHead>
+                <TableHead className="h-9 px-3 hidden sm:table-cell">Descrição 2</TableHead>
                 <TableHead className="h-9 px-3">Variação</TableHead>
               </TableRow>
             </TableHeader>
@@ -61,11 +63,15 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy })
                   <TableCell className="px-3 py-2 font-semibold text-primary align-top whitespace-nowrap">{day.day}</TableCell>
                   <TableCell className="px-3 py-2 font-medium align-top">{ex.exercise}</TableCell>
                   <TableCell className="px-3 py-2 text-center align-top">{ex.series || '—'}</TableCell>
+                  <TableCell className="px-3 py-2 text-center align-top">{ex.series2 || '—'}</TableCell>
                   <TableCell className="px-3 py-2 text-center align-top">{ex.reps || '—'}</TableCell>
                   <TableCell className="px-3 py-2 text-center align-top">{ex.rir || '—'}</TableCell>
                   <TableCell className="px-3 py-2 text-center align-top">{ex.pause || '—'}</TableCell>
                   <TableCell className="px-3 py-2 align-top text-muted-foreground hidden sm:table-cell max-w-[200px]">
                     {ex.description || '—'}
+                  </TableCell>
+                  <TableCell className="px-3 py-2 align-top text-muted-foreground hidden sm:table-cell max-w-[200px]">
+                    {ex.description2 || '—'}
                   </TableCell>
                   <TableCell className="px-3 py-2 align-top text-muted-foreground">{ex.variation || '—'}</TableCell>
                 </TableRow>
