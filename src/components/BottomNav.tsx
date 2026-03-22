@@ -7,7 +7,7 @@ const adminItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
   { title: 'Alunos', url: '/alunos', icon: Users },
   { title: 'Avaliações', url: '/avaliacoes', icon: ClipboardList },
-  { title: 'Postura', url: '/alunos', icon: ScanLine },
+  { title: 'Alimentos', url: '/alimentos', icon: Apple },
 ];
 
 const alunoItems = [
