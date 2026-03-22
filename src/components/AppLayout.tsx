@@ -23,7 +23,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title }) => {
               {title && <h1 className="text-lg font-semibold text-foreground truncate">{title}</h1>}
             </header>
           )}
-          <main className={`flex-1 overflow-auto ${isMobile ? 'pt-[calc(3.5rem+env(safe-area-inset-top,0px))] p-4 pb-4' : 'p-4 md:p-6'}`}>
+          <main className={`flex-1 overflow-auto ${isMobile ? 'p-4 pb-4' : 'p-4 md:p-6'}`} style={isMobile ? { paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' } : undefined}>
             {children}
           </main>
         </div>
