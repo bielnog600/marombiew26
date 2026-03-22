@@ -152,9 +152,7 @@ const AiPlansList = ({ studentId }: AiPlansListProps) => {
                 {plan.tipo === 'dieta' ? (
                   <DietResultCards markdown={plan.conteudo} />
                 ) : (
-                  <div className="prose prose-sm dark:prose-invert max-w-none select-text">
-                    <ReactMarkdown components={markdownComponents}>{plan.conteudo}</ReactMarkdown>
-                  </div>
+                  <TrainingResultCards markdown={plan.conteudo} />
                 )}
               </div>
             )}
