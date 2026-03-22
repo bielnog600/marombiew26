@@ -9,10 +9,19 @@ interface DietResultCardsProps {
   markdown: string;
 }
 
+interface ParsedFood {
+  food: string;
+  qty: string;
+  kcal: string;
+  p: string;
+  c: string;
+  g: string;
+}
+
 interface ParsedMeal {
   name: string;
   time?: string;
-  foods: { food: string; qty: string; kcal: string; p: string; c: string; g: string }[];
+  foods: ParsedFood[];
   totalKcal?: string;
   totalP?: string;
   totalC?: string;
@@ -28,18 +37,14 @@ interface ParsedSection {
 
 const CopyButton: React.FC<{ text: string; label?: string }> = ({ text, label }) => {
   const [copied, setCopied] = useState(false);
-
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
       toast.success('Copiado!');
       setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error('Erro ao copiar');
-    }
+    } catch { toast.error('Erro ao copiar'); }
   };
-
   return (
     <Button variant="ghost" size="sm" onClick={handleCopy} className="text-xs gap-1 h-7 px-2">
       {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
@@ -48,59 +53,111 @@ const CopyButton: React.FC<{ text: string; label?: string }> = ({ text, label })
   );
 };
 
+/** Parse a markdown table block into structured meals */
 const parseMealTable = (tableLines: string[]): ParsedMeal[] => {
-  const meals: ParsedMeal[] = [];
-  let currentMeal: ParsedMeal | null = null;
+  // Parse all rows
+  const rows: string[][] = [];
+  let headerCells: string[] = [];
 
   for (const line of tableLines) {
-    if (!line.trim().startsWith('|') || line.includes('---')) continue;
+    if (!line.trim().startsWith('|')) continue;
+    if (line.includes('---')) continue;
     const cells = line.split('|').map(c => c.trim()).filter(Boolean);
     if (cells.length < 5) continue;
-    // Skip header row
-    if (cells[0]?.toLowerCase().includes('refeição') || cells[0]?.toLowerCase().includes('refeicao')) continue;
 
-    const mealName = cells[0];
-    const isTotal = mealName.toLowerCase().includes('total');
+    // Detect header
+    if (!headerCells.length && (
+      cells[0]?.toLowerCase().includes('refei') ||
+      cells[0]?.toLowerCase().includes('meal')
+    )) {
+      headerCells = cells.map(c => c.toLowerCase());
+      continue;
+    }
+    rows.push(cells);
+  }
 
-    if (isTotal && currentMeal) {
-      currentMeal.totalKcal = cells.find((_, i) => i >= 3) || '';
-      const numCells = cells.filter(c => /^\d/.test(c));
-      if (numCells.length >= 4) {
-        currentMeal.totalKcal = numCells[0];
-        currentMeal.totalP = numCells[1];
-        currentMeal.totalC = numCells[2];
-        currentMeal.totalG = numCells[3];
+  if (rows.length === 0) return [];
+
+  // Detect column indices based on header or assume standard layout
+  // Standard: Refeição | Horário | Alimento | Quantidade | Kcal | P | C | G
+  // Or:       Refeição | Alimento | Quantidade | Kcal | P | C | G
+  const hasTimeCol = headerCells.some(h => h.includes('horário') || h.includes('hora') || h.includes('time'));
+  const colCount = rows[0]?.length || 0;
+  // Heuristic: if 8+ columns, likely has time column
+  const hasTime = hasTimeCol || colCount >= 8;
+
+  const idx = {
+    meal: 0,
+    time: hasTime ? 1 : -1,
+    food: hasTime ? 2 : 1,
+    qty: hasTime ? 3 : 2,
+    kcal: hasTime ? 4 : 3,
+    p: hasTime ? 5 : 4,
+    c: hasTime ? 6 : 5,
+    g: hasTime ? 7 : 6,
+  };
+
+  const meals: ParsedMeal[] = [];
+  let currentMeal: ParsedMeal | null = null;
+  let lastMealName = '';
+
+  for (const cells of rows) {
+    const mealCell = cells[idx.meal] || '';
+    const isTotal = mealCell.toLowerCase().includes('total') ||
+      (cells[idx.food] && cells[idx.food].toLowerCase().includes('total'));
+
+    if (isTotal) {
+      // Assign totals to current meal
+      if (currentMeal) {
+        const numCells = cells.filter(c => /^\d/.test(c));
+        if (numCells.length >= 4) {
+          currentMeal.totalKcal = numCells[0];
+          currentMeal.totalP = numCells[1];
+          currentMeal.totalC = numCells[2];
+          currentMeal.totalG = numCells[3];
+        }
       }
       continue;
     }
 
-    if (mealName && !isTotal) {
-      // Check if this is a new meal or continuation
-      const isNewMeal = mealName.toLowerCase().match(/^(café|almoço|lanche|jantar|ceia|pré|pós|refeição|ref\.|1[ªa]|2[ªa]|3[ªa]|4[ªa]|5[ªa]|6[ªa]|7[ªa])/i) ||
-        (mealName.length > 2 && !currentMeal?.foods.some(f => f.food === ''));
+    // Determine if this is a new meal or continuation
+    const mealName = mealCell.replace(/\*\*/g, '').trim();
+    const isNewMeal = mealName && mealName !== lastMealName && mealName !== '-' && mealName !== '';
 
-      if (isNewMeal && mealName.length > 1 && !/^\d+$/.test(mealName)) {
-        if (currentMeal) meals.push(currentMeal);
-        currentMeal = { name: mealName, foods: [], time: cells.length > 6 ? cells[1] : undefined };
-      }
+    if (isNewMeal) {
+      if (currentMeal && currentMeal.foods.length > 0) meals.push(currentMeal);
+      currentMeal = {
+        name: mealName,
+        time: idx.time >= 0 ? (cells[idx.time] || '').replace(/\*\*/g, '').trim() : undefined,
+        foods: [],
+      };
+      lastMealName = mealName;
+    }
 
-      if (currentMeal) {
-        const offset = cells.length > 6 ? 2 : 1; // has time column or not
-        currentMeal.foods.push({
-          food: cells[offset] || cells[1] || '',
-          qty: cells[offset + 1] || '',
-          kcal: cells[offset + 2] || '',
-          p: cells[offset + 3] || '',
-          c: cells[offset + 4] || '',
-          g: cells[offset + 5] || '',
-        });
-        if (!currentMeal.time && cells.length > 6) {
-          currentMeal.time = cells[1];
-        }
-      }
+    if (!currentMeal) {
+      // First row without a meal name — create a generic meal
+      currentMeal = { name: mealName || 'Refeição', foods: [] };
+      if (mealName) lastMealName = mealName;
+    }
+
+    const foodName = (cells[idx.food] || '').replace(/\*\*/g, '').trim();
+    if (foodName && !foodName.toLowerCase().includes('alimento')) {
+      currentMeal.foods.push({
+        food: foodName,
+        qty: (cells[idx.qty] || '').replace(/\*\*/g, '').trim(),
+        kcal: (cells[idx.kcal] || '').replace(/\*\*/g, '').trim(),
+        p: (cells[idx.p] || '').replace(/\*\*/g, '').trim(),
+        c: (cells[idx.c] || '').replace(/\*\*/g, '').trim(),
+        g: (cells[idx.g] || '').replace(/\*\*/g, '').trim(),
+      });
+    }
+
+    // Update time if present
+    if (idx.time >= 0 && cells[idx.time] && !currentMeal.time) {
+      currentMeal.time = cells[idx.time].replace(/\*\*/g, '').trim();
     }
   }
-  if (currentMeal) meals.push(currentMeal);
+  if (currentMeal && currentMeal.foods.length > 0) meals.push(currentMeal);
   return meals;
 };
 
@@ -112,81 +169,47 @@ const parseSections = (markdown: string): ParsedSection[] => {
   while (i < lines.length) {
     const line = lines[i].trim();
 
-    // Detect WhatsApp messages section
-    if (line.toLowerCase().includes('whatsapp') || line.toLowerCase().includes('mensagen')) {
+    // WhatsApp messages
+    if (line.toLowerCase().includes('whatsapp') || (line.startsWith('#') && line.toLowerCase().includes('mensagen'))) {
       let msgContent = '';
       i++;
       while (i < lines.length) {
         const l = lines[i].trim();
-        if (l.startsWith('#') && !l.toLowerCase().includes('whatsapp') && !l.toLowerCase().includes('mensag') && !l.toLowerCase().includes('parte')) {
-          break;
-        }
+        if (l.startsWith('#') && !l.toLowerCase().includes('whatsapp') && !l.toLowerCase().includes('mensag') && !l.toLowerCase().includes('parte')) break;
         msgContent += lines[i] + '\n';
         i++;
       }
-      // Split into individual messages
       const msgBlocks = msgContent.split(/(?=(?:^|\n)(?:\*\*Parte|\*\*Mensagem|---|\*\*\d))/gi).filter(b => b.trim());
       for (const block of msgBlocks) {
-        if (block.trim()) {
-          sections.push({ type: 'message', content: block.trim() });
-        }
+        if (block.trim()) sections.push({ type: 'message', content: block.trim() });
       }
       continue;
     }
 
-    // Detect tips/dicas section
-    if (line.toLowerCase().includes('dica') || line.toLowerCase().includes('timing') || line.toLowerCase().includes('observ')) {
+    // Tips
+    if ((line.startsWith('#') || line.startsWith('**')) && (line.toLowerCase().includes('dica') || line.toLowerCase().includes('timing') || line.toLowerCase().includes('observ'))) {
       let tipContent = line + '\n';
       i++;
       while (i < lines.length) {
         const l = lines[i].trim();
         if (l.startsWith('#') && !l.toLowerCase().includes('dica') && !l.toLowerCase().includes('timing')) break;
-        if (l.startsWith('|')) break; // new table
+        if (l.startsWith('|')) break;
         tipContent += lines[i] + '\n';
         i++;
       }
-      if (tipContent.trim()) {
-        sections.push({ type: 'tip', content: tipContent.trim() });
-      }
+      if (tipContent.trim()) sections.push({ type: 'tip', content: tipContent.trim() });
       continue;
     }
 
-    // Detect meal table (has | and food-related headers)
-    if (line.startsWith('|') && (
-      line.toLowerCase().includes('refeição') || line.toLowerCase().includes('alimento') ||
-      line.toLowerCase().includes('refeicao') || line.toLowerCase().includes('horário')
-    )) {
-      const tableLines: string[] = [];
-      let title = '';
-      // Check if previous line was a heading
-      if (sections.length > 0 && sections[sections.length - 1].type === 'text') {
-        const lastText = sections[sections.length - 1].content.trim();
-        if (lastText.startsWith('#') || lastText.toLowerCase().includes('opção') || lastText.toLowerCase().includes('cardápio')) {
-          title = lastText.replace(/^#+\s*/, '');
-          sections.pop();
-        }
-      }
-      while (i < lines.length && (lines[i].trim().startsWith('|') || lines[i].trim() === '')) {
-        if (lines[i].trim()) tableLines.push(lines[i]);
-        i++;
-      }
-      const meals = parseMealTable(tableLines);
-      if (meals.length > 0) {
-        sections.push({ type: 'meal', title, content: tableLines.join('\n'), meals });
-      } else {
-        sections.push({ type: 'table', title, content: tableLines.join('\n') });
-      }
-      continue;
-    }
-
-    // Detect other tables (TMB, strategy, etc)
+    // Table detection
     if (line.startsWith('|')) {
       const tableLines: string[] = [];
       let title = '';
+      // Grab preceding heading
       if (sections.length > 0 && sections[sections.length - 1].type === 'text') {
         const lastText = sections[sections.length - 1].content.trim();
-        if (lastText.startsWith('#') || lastText.toLowerCase().includes('tmb') || lastText.toLowerCase().includes('estratég')) {
-          title = lastText.replace(/^#+\s*/, '');
+        if (lastText.startsWith('#') || lastText.startsWith('**') || lastText.toLowerCase().includes('opção') || lastText.toLowerCase().includes('cardápio')) {
+          title = lastText.replace(/^#+\s*/, '').replace(/\*\*/g, '');
           sections.pop();
         }
       }
@@ -194,33 +217,43 @@ const parseSections = (markdown: string): ParsedSection[] => {
         if (lines[i].trim()) tableLines.push(lines[i]);
         i++;
       }
-      sections.push({ type: 'summary', title, content: tableLines.join('\n') });
+
+      // Check if it's a meal table
+      const firstLine = tableLines[0]?.toLowerCase() || '';
+      const isMealTable = firstLine.includes('refei') && (firstLine.includes('alimento') || firstLine.includes('kcal') || firstLine.includes('proteí') || firstLine.includes('quantidade'));
+
+      if (isMealTable) {
+        const meals = parseMealTable(tableLines);
+        if (meals.length > 0) {
+          sections.push({ type: 'meal', title, content: tableLines.join('\n'), meals });
+        } else {
+          sections.push({ type: 'table', title, content: tableLines.join('\n') });
+        }
+      } else {
+        sections.push({ type: 'summary', title, content: tableLines.join('\n') });
+      }
       continue;
     }
 
-    // Regular text
-    if (line) {
-      sections.push({ type: 'text', content: lines[i] });
-    }
+    if (line) sections.push({ type: 'text', content: lines[i] });
     i++;
   }
-
   return sections;
 };
 
-const MealCard: React.FC<{ meal: ParsedMeal; index: number }> = ({ meal, index }) => {
-  const colors = [
-    'from-amber-500/20 to-orange-500/10 border-amber-500/30',
-    'from-green-500/20 to-emerald-500/10 border-green-500/30',
-    'from-blue-500/20 to-cyan-500/10 border-blue-500/30',
-    'from-purple-500/20 to-violet-500/10 border-purple-500/30',
-    'from-pink-500/20 to-rose-500/10 border-pink-500/30',
-    'from-teal-500/20 to-green-500/10 border-teal-500/30',
-    'from-indigo-500/20 to-blue-500/10 border-indigo-500/30',
-  ];
-  const color = colors[index % colors.length];
+const MEAL_COLORS = [
+  'from-amber-500/20 to-orange-500/10 border-amber-500/30',
+  'from-green-500/20 to-emerald-500/10 border-green-500/30',
+  'from-blue-500/20 to-cyan-500/10 border-blue-500/30',
+  'from-purple-500/20 to-violet-500/10 border-purple-500/30',
+  'from-pink-500/20 to-rose-500/10 border-pink-500/30',
+  'from-teal-500/20 to-green-500/10 border-teal-500/30',
+  'from-indigo-500/20 to-blue-500/10 border-indigo-500/30',
+];
 
-  const mealText = meal.foods.map(f => `${f.food} - ${f.qty}`).join('\n');
+const MealCard: React.FC<{ meal: ParsedMeal; index: number }> = ({ meal, index }) => {
+  const color = MEAL_COLORS[index % MEAL_COLORS.length];
+  const mealText = `${meal.name}${meal.time ? ` (${meal.time})` : ''}:\n${meal.foods.map(f => `• ${f.food} - ${f.qty}`).join('\n')}`;
 
   return (
     <Card className={`border bg-gradient-to-br ${color} overflow-hidden`}>
@@ -235,17 +268,17 @@ const MealCard: React.FC<{ meal: ParsedMeal; index: number }> = ({ meal, index }
               </span>
             )}
           </div>
-          <CopyButton text={`${meal.name}${meal.time ? ` (${meal.time})` : ''}:\n${mealText}`} />
+          <CopyButton text={mealText} />
         </div>
         <div className="divide-y divide-border/30">
-          {meal.foods.filter(f => f.food).map((food, fi) => (
+          {meal.foods.map((food, fi) => (
             <div key={fi} className="px-4 py-2 flex items-center justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{food.food}</p>
                 <p className="text-xs text-muted-foreground">{food.qty}</p>
               </div>
               <div className="flex gap-3 text-xs text-muted-foreground shrink-0">
-                {food.kcal && <span className="font-medium text-foreground">{food.kcal} kcal</span>}
+                {food.kcal && <span className="font-medium text-foreground">{food.kcal}</span>}
                 {food.p && <span>P:{food.p}</span>}
                 {food.c && <span>C:{food.c}</span>}
                 {food.g && <span>G:{food.g}</span>}
@@ -271,8 +304,6 @@ const MealCard: React.FC<{ meal: ParsedMeal; index: number }> = ({ meal, index }
 
 const DietResultCards: React.FC<DietResultCardsProps> = ({ markdown }) => {
   const sections = parseSections(markdown);
-
-  // Group consecutive messages
   const rendered: React.ReactNode[] = [];
   let messageGroup: string[] = [];
 
@@ -303,10 +334,7 @@ const DietResultCards: React.FC<DietResultCardsProps> = ({ markdown }) => {
   };
 
   for (const section of sections) {
-    if (section.type === 'message') {
-      messageGroup.push(section.content);
-      continue;
-    }
+    if (section.type === 'message') { messageGroup.push(section.content); continue; }
     flushMessages();
 
     if (section.type === 'meal' && section.meals) {
@@ -336,9 +364,7 @@ const DietResultCards: React.FC<DietResultCardsProps> = ({ markdown }) => {
             <div className="prose prose-sm dark:prose-invert max-w-none [&_table]:text-xs [&_table]:w-full [&_th]:bg-muted [&_th]:p-1.5 [&_td]:p-1.5 [&_td]:border [&_th]:border [&_table]:block [&_table]:overflow-x-auto">
               <ReactMarkdown>{section.content}</ReactMarkdown>
             </div>
-            <div className="flex justify-end mt-2">
-              <CopyButton text={section.content} />
-            </div>
+            <div className="flex justify-end mt-2"><CopyButton text={section.content} /></div>
           </CardContent>
         </Card>
       );
@@ -374,7 +400,6 @@ const DietResultCards: React.FC<DietResultCardsProps> = ({ markdown }) => {
     } else if (section.type === 'text' && section.content.trim()) {
       const trimmed = section.content.trim();
       if (trimmed.startsWith('#')) {
-        // Don't render standalone headings, they'll be picked up by next section
         rendered.push(
           <h3 key={`h-${rendered.length}`} className="font-bold text-base mt-2">
             {trimmed.replace(/^#+\s*/, '')}
@@ -382,9 +407,7 @@ const DietResultCards: React.FC<DietResultCardsProps> = ({ markdown }) => {
         );
       } else if (trimmed.length > 10) {
         rendered.push(
-          <p key={`p-${rendered.length}`} className="text-sm text-muted-foreground">
-            {trimmed}
-          </p>
+          <p key={`p-${rendered.length}`} className="text-sm text-muted-foreground">{trimmed}</p>
         );
       }
     }
