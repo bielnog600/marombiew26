@@ -24,6 +24,16 @@ export interface ParsedSection {
   meals?: ParsedMeal[];
 }
 
+const splitMarkdownRow = (line: string) => {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith('|')) return [];
+
+  return trimmed
+    .split('|')
+    .slice(1, -1)
+    .map((cell) => cell.trim());
+};
+
 const normalizeMealName = (value: string) =>
   value
     .normalize('NFD')
@@ -134,7 +144,7 @@ export const parseMealTable = (tableLines: string[]): ParsedMeal[] => {
     if (!line.trim().startsWith('|')) continue;
     if (line.includes('---')) continue;
 
-    const cells = line.split('|').map((c) => c.trim()).filter(Boolean);
+    const cells = splitMarkdownRow(line);
     if (cells.length < 5) continue;
 
     if (!headerCells.length && (cells[0]?.toLowerCase().includes('refei') || cells[0]?.toLowerCase().includes('meal'))) {
