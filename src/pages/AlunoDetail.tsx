@@ -320,7 +320,7 @@ const AlunoDetail = () => {
                     <h3 className="text-lg font-bold">Agente de Treino</h3>
                     <p className="text-muted-foreground text-sm">Gere treinos personalizados com IA baseados nos dados do aluno.</p>
                     <Button onClick={() => navigate(`/treino-ia/${id}`)} className="font-semibold">
-                      <Bot className="mr-2 h-4 w-4" /> Iniciar Chat Treino
+                      <Bot className="mr-2 h-4 w-4" /> Gerar Treino
                     </Button>
                   </CardContent>
                 </Card>
