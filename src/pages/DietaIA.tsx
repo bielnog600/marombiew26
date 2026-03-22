@@ -245,22 +245,12 @@ GERE TUDO DE UMA VEZ:
   const savePlan = async () => {
     if (!result) return;
     setSaving(true);
-    // Extract tables only
-    const lines = result.split('\n');
-    const tables: string[] = [];
-    let inTable = false;
-    let currentTable: string[] = [];
-    for (const line of lines) {
-      if (line.trim().startsWith('|')) { if (!inTable) inTable = true; currentTable.push(line); }
-      else { if (inTable) { tables.push(currentTable.join('\n')); currentTable = []; inTable = false; } }
-    }
-    if (currentTable.length > 0) tables.push(currentTable.join('\n'));
 
     const { error } = await supabase.from('ai_plans').insert({
       student_id: studentId!,
       tipo: 'dieta',
       titulo: `Dieta - ${new Date().toLocaleDateString('pt-BR')}`,
-      conteudo: tables.length > 0 ? tables.join('\n\n') : result,
+      conteudo: result,
     });
     if (error) toast.error('Erro: ' + error.message);
     else toast.success('Dieta salva!');
