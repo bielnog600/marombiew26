@@ -141,7 +141,7 @@ const AlunoDetail = () => {
               <TabsTrigger value="avaliacoes" className="text-xs sm:text-sm"><ClipboardList className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Avaliações</span><span className="sm:hidden">Aval.</span></TabsTrigger>
               <TabsTrigger value="postura" className="text-xs sm:text-sm"><ScanLine className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Análise Postural</span><span className="sm:hidden">Postura</span></TabsTrigger>
               <TabsTrigger value="comparar" className="text-xs sm:text-sm"><BarChart3 className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Comparar</span><span className="sm:hidden">Comp.</span></TabsTrigger>
-              <TabsTrigger value="ia" className="text-xs sm:text-sm"><Bot className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Treino IA</span><span className="sm:hidden">IA</span></TabsTrigger>
+              <TabsTrigger value="ia" className="text-xs sm:text-sm"><Bot className="mr-1 h-4 w-4 shrink-0" /> IA</TabsTrigger>
             </TabsList>
           </div>
 
@@ -320,7 +320,7 @@ const AlunoDetail = () => {
                     <h3 className="text-lg font-bold">Agente de Treino</h3>
                     <p className="text-muted-foreground text-sm">Gere treinos personalizados com IA baseados nos dados do aluno.</p>
                     <Button onClick={() => navigate(`/treino-ia/${id}`)} className="font-semibold">
-                      <Bot className="mr-2 h-4 w-4" /> Iniciar Chat Treino
+                      <Bot className="mr-2 h-4 w-4" /> Gerar Treino
                     </Button>
                   </CardContent>
                 </Card>
@@ -331,7 +331,7 @@ const AlunoDetail = () => {
                     <h3 className="text-lg font-bold">Agente de Dieta</h3>
                     <p className="text-muted-foreground text-sm">Calcule TMB, GET e gere dietas personalizadas com múltiplas estratégias.</p>
                     <Button onClick={() => navigate(`/dieta-ia/${id}`)} className="font-semibold">
-                      <UtensilsCrossed className="mr-2 h-4 w-4" /> Iniciar Chat Dieta
+                      <UtensilsCrossed className="mr-2 h-4 w-4" /> Gerar Dieta
                     </Button>
                   </CardContent>
                 </Card>
