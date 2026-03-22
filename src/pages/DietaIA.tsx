@@ -4,9 +4,10 @@ import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Loader2, Save, UtensilsCrossed, ChevronRight, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, UtensilsCrossed, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
+import DietResultCards from '@/components/DietResultCards';
 
 type StudentCtx = Record<string, any>;
 
@@ -427,29 +428,40 @@ GERE TUDO DE UMA VEZ:
           )}
         </Button>
 
-        {/* Result */}
-        {result && (
+        {/* Result - streaming raw markdown */}
+        {result && generating && (
           <Card className="glass-card" ref={resultRef}>
             <CardContent className="p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-lg flex items-center gap-2">
-                  <UtensilsCrossed className="h-5 w-5 text-primary" />
-                  Plano Alimentar Gerado
-                </h3>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan(); }} disabled={generating}>
-                    <RotateCcw className="h-3 w-3 mr-1" /> Regenerar
-                  </Button>
-                  <Button size="sm" onClick={savePlan} disabled={saving || generating}>
-                    <Save className="h-3 w-3 mr-1" /> Salvar
-                  </Button>
-                </div>
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <h3 className="font-bold text-sm">Gerando plano...</h3>
               </div>
               <div className="prose prose-sm dark:prose-invert max-w-none [&_table]:text-xs [&_table]:w-full [&_th]:bg-muted [&_th]:p-1.5 [&_td]:p-1.5 [&_td]:border [&_th]:border [&_table]:block [&_table]:overflow-x-auto">
                 <ReactMarkdown>{result}</ReactMarkdown>
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {/* Result - final cards view */}
+        {result && !generating && (
+          <div ref={resultRef} className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-lg flex items-center gap-2">
+                <UtensilsCrossed className="h-5 w-5 text-primary" />
+                Plano Alimentar
+              </h3>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan(); }}>
+                  <RotateCcw className="h-3 w-3 mr-1" /> Regenerar
+                </Button>
+                <Button size="sm" onClick={savePlan} disabled={saving}>
+                  <Save className="h-3 w-3 mr-1" /> Salvar
+                </Button>
+              </div>
+            </div>
+            <DietResultCards markdown={result} />
+          </div>
         )}
       </div>
     </AppLayout>
