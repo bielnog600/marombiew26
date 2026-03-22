@@ -331,7 +331,7 @@ const AlunoDetail = () => {
                     <h3 className="text-lg font-bold">Agente de Dieta</h3>
                     <p className="text-muted-foreground text-sm">Calcule TMB, GET e gere dietas personalizadas com múltiplas estratégias.</p>
                     <Button onClick={() => navigate(`/dieta-ia/${id}`)} className="font-semibold">
-                      <UtensilsCrossed className="mr-2 h-4 w-4" /> Iniciar Chat Dieta
+                      <UtensilsCrossed className="mr-2 h-4 w-4" /> Gerar Dieta
                     </Button>
                   </CardContent>
                 </Card>
