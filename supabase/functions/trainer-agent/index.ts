@@ -100,7 +100,10 @@ Quando houver reconhecimento:
 - SÉRIE 2 = número de séries de trabalho (ex: 2 ou 3)
 - REPETIÇÕES = repetições mais altas para o reconhecimento (ex: 12, 15, ou 12 a 15)
 - RIR = formato com "+" antes das séries de trabalho (ex: + 2x6, + 2x8, + 2x6 a 8, + 3x8). O "+" indica que há uma série de reconhecimento antes.
-- DESCRIÇÃO = explicar resumidamente: "1ª série reconhecimento leve, depois séries de trabalho pesadas"
+  IMPORTANTE: O número antes do "x" no RIR DEVE ser IGUAL ao valor da coluna SÉRIE 2.
+  Exemplo: Se SÉRIE 2 = 3, então RIR = + 3x8 ou + 3x10 ou + 3x6 a 8 ou + 3x8 a 10.
+  Se SÉRIE 2 = 2, então RIR = + 2x6 ou + 2x8 ou + 2x6 a 8.
+- DESCRIÇÃO = explicar resumidamente: "1ª série reconhecimento leve, 2ª, 3ª e 4ª séries de trabalho com carga para X repetições" (ajustar conforme o número de séries de trabalho)
 
 Quando NÃO houver reconhecimento (MAIORIA dos exercícios):
 - SÉRIE = número TOTAL de séries normais (ex: 3 ou 4). OBRIGATÓRIO, NUNCA VAZIO!
@@ -110,7 +113,7 @@ Quando NÃO houver reconhecimento (MAIORIA dos exercícios):
 - DESCRIÇÃO = técnica, postura, respiração, posicionamento, dicas práticas
 
 DESCRIÇÃO (MUITO DIDÁTICA)
-Explicar: técnica, postura, respiração, posicionamento, dicas práticas. Se tiver reconhecimento, descrever resumidamente nesta mesma coluna.
+Explicar: técnica, postura, respiração, posicionamento, dicas práticas. Se tiver reconhecimento, descrever na coluna DESCRIÇÃO quais séries são de trabalho e a carga esperada (ex: "1ª série reconhecimento leve, 2ª, 3ª e 4ª séries de trabalho com carga para 8 repetições").
 
 ${EXERCISE_DATABASE}
 
