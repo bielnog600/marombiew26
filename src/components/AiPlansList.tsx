@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { Trash2, Dumbbell, UtensilsCrossed, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
-import ReactMarkdown from 'react-markdown';
+
 import DietResultCards from '@/components/DietResultCards';
 import TrainingResultCards from '@/components/TrainingResultCards';
 import {
