@@ -160,6 +160,7 @@ export const parseMealTable = (tableLines: string[]): ParsedMeal[] => {
   const hasTimeCol = headerCells.some((h) => h.includes('horário') || h.includes('hora') || h.includes('time'));
   const colCount = rows[0]?.length || 0;
   const hasTime = hasTimeCol || colCount >= 8;
+  const expectedCols = hasTime ? 8 : 7;
 
   const idx = {
     meal: 0,
@@ -176,7 +177,12 @@ export const parseMealTable = (tableLines: string[]): ParsedMeal[] => {
   let currentMeal: ParsedMeal | null = null;
   let lastMealName = '';
 
-  for (const cells of rows) {
+  for (const rawCells of rows) {
+    const cells =
+      rawCells.length >= expectedCols
+        ? rawCells.slice(0, expectedCols)
+        : Array.from({ length: expectedCols - rawCells.length }, () => '').concat(rawCells);
+
     const mealCell = cleanCell(cells[idx.meal] || '');
     const foodCell = cleanCell(cells[idx.food] || '');
     const qtyCell = cleanCell(cells[idx.qty] || '');
