@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import AnimatedSection from '@/components/AnimatedSection';
 import { Calculator, Check, Copy, Lightbulb, MessageCircle, UtensilsCrossed } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
