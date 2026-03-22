@@ -4,6 +4,7 @@ import { Calculator, Check, Copy, Lightbulb, MessageCircle, UtensilsCrossed } fr
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import MealCard from '@/components/diet/MealCard';
 import { parseSections } from '@/lib/dietResultParser';
 
@@ -12,6 +13,25 @@ interface DietResultCardsProps {
 }
 
 const markdownTableClasses = 'prose prose-sm dark:prose-invert max-w-none [&_table]:text-xs [&_table]:w-full [&_th]:bg-muted [&_th]:p-1.5 [&_td]:p-1.5 [&_td]:border [&_th]:border [&_table]:block [&_table]:overflow-x-auto';
+
+const parseMarkdownTable = (content: string): { headers: string[]; rows: string[][] } | null => {
+  const lines = content.trim().split('\n').filter(l => l.trim().startsWith('|'));
+  if (lines.length < 3) return null;
+
+  const splitRow = (line: string) =>
+    line.trim().split('|').slice(1, -1).map(c => c.replace(/\*\*/g, '').trim());
+
+  const headers = splitRow(lines[0]);
+  const rows: string[][] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].includes('---')) continue;
+    const cells = splitRow(lines[i]);
+    if (cells.length > 0 && cells.some(c => c)) rows.push(cells);
+  }
+
+  return headers.length > 0 && rows.length > 0 ? { headers, rows } : null;
+};
 
 const sanitizeCopyText = (value: string) => value.replace(/\*\*/g, '').replace(/^#+\s*/gm, '').trim();
 
