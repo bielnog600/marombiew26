@@ -82,7 +82,7 @@ A tabela do TREINO deve ter exatamente 8 colunas com estes títulos, nessa ordem
 TREINO DO DIA | EXERCÍCIO | SÉRIE | REPETIÇÕES | RIR | PAUSA | DESCRIÇÃO 2 | VARIAÇÃO
 
 REGRAS DA TABELA
-1) A coluna "TREINO DO DIA" deve usar: SEGUNDA-FEIRA, TERÇA-FEIRA, QUARTA-FEIRA, QUINTA-FEIRA, SEXTA-FEIRA, SÁBADO ou DOMINGO.
+1) A coluna "TREINO DO DIA" deve usar SEMPRE EM MAIÚSCULAS: SEGUNDA-FEIRA, TERÇA-FEIRA, QUARTA-FEIRA, QUINTA-FEIRA, SEXTA-FEIRA, SÁBADO ou DOMINGO.
 2) A coluna "RIR" deve ser preenchida exatamente nesse modelo: a 8 ou a 10 ou a 12 ou a 15 (sempre com "a" antes).
 3) "PAUSA" deve ser assim: 45", 60", 90", 120".
 
