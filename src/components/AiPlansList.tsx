@@ -6,6 +6,7 @@ import { Trash2, Dumbbell, UtensilsCrossed, ChevronDown, ChevronUp, Copy, Check 
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
+import TrainingResultCards from '@/components/TrainingResultCards';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
