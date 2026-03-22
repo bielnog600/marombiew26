@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Trash2, Dumbbell, UtensilsCrossed, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
+import DietResultCards from '@/components/DietResultCards';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
@@ -146,8 +147,14 @@ const AiPlansList = ({ studentId }: AiPlansListProps) => {
               </AlertDialog>
             </div>
             {expandedId === plan.id && (
-              <div className="mt-4 pt-4 border-t border-border prose prose-sm dark:prose-invert max-w-none select-text">
-                <ReactMarkdown components={markdownComponents}>{plan.conteudo}</ReactMarkdown>
+              <div className="mt-4 pt-4 border-t border-border">
+                {plan.tipo === 'dieta' ? (
+                  <DietResultCards markdown={plan.conteudo} />
+                ) : (
+                  <div className="prose prose-sm dark:prose-invert max-w-none select-text">
+                    <ReactMarkdown components={markdownComponents}>{plan.conteudo}</ReactMarkdown>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
