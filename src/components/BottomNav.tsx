@@ -26,8 +26,8 @@ const BottomNav: React.FC = () => {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background md:hidden pb-[env(safe-area-inset-bottom,0px)]">
-      <div className="flex items-center justify-around h-14">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background md:hidden">
+      <div className="flex h-[calc(3.5rem+env(safe-area-inset-bottom,0px))] items-start justify-around px-1 pb-[env(safe-area-inset-bottom,0px)] pt-2">
         {items.map((item) => {
           const isActive = location.pathname === item.url || location.pathname.startsWith(item.url + '/');
           return (
