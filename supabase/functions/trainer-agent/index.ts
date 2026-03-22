@@ -86,9 +86,19 @@ REGRAS DA TABELA
 2) A coluna "RIR" deve ser preenchida exatamente nesse modelo: a 8 ou a 10 ou a 12 ou a 15 (sempre com "a" antes).
 3) "PAUSA" deve ser assim: 45", 60", 90", 120".
 
-REGRA MUITO IMPORTANTE (REPETIÇÕES)
-A coluna "REPETIÇÕES" deve conter APENAS NÚMEROS inteiros.
-Exemplo: Se for "12 a 15", REPETIÇÕES = 12, RIR = a 15.
+REGRA MUITO IMPORTANTE (REPETIÇÕES e RIR — exercícios SEM reconhecimento)
+A coluna "REPETIÇÕES" deve conter APENAS UM NÚMERO inteiro (o valor MÍNIMO do range).
+A coluna "RIR" indica o valor MÁXIMO do range, usando "a" antes do número.
+REGRA: REPETIÇÕES e RIR NUNCA podem ter o MESMO número. O RIR deve ser MAIOR que REPETIÇÕES.
+Exemplos corretos:
+- Range 8-10: REPETIÇÕES = 8, RIR = a 10
+- Range 10-12: REPETIÇÕES = 10, RIR = a 12
+- Range 12-15: REPETIÇÕES = 12, RIR = a 15
+- Range 6-8: REPETIÇÕES = 6, RIR = a 8
+Exemplos ERRADOS (NUNCA faça isso):
+- REPETIÇÕES = 10, RIR = a 10 ❌ (mesmo número!)
+- REPETIÇÕES = 8, RIR = a 8 ❌ (mesmo número!)
+
 
 REGRA DE SÉRIE DE RECONHECIMENTO (SÉRIE / SÉRIE 2)
 
