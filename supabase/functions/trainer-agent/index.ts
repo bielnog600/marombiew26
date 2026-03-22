@@ -104,10 +104,10 @@ Quando NÃO houver reconhecimento:
 - SÉRIE 2 = "—"
 - REPETIÇÕES = repetições normais
 - RIR = formato normal (a 8, a 10, etc)
-- DESCRIÇÃO 2 = "—"
+- DESCRIÇÃO = "—"
 
 DESCRIÇÃO (MUITO DIDÁTICA)
-Explicar: técnica, postura, respiração, posicionamento, dicas práticas.
+Explicar: técnica, postura, respiração, posicionamento, dicas práticas. Se tiver reconhecimento, descrever resumidamente nesta mesma coluna.
 
 ${EXERCISE_DATABASE}
 
