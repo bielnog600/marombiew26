@@ -235,9 +235,9 @@ const DietResultCards: React.FC<DietResultCardsProps> = ({ markdown }) => {
         );
       } else if (trimmed.length > 10) {
         rendered.push(
-          <p key={`p-${rendered.length}`} className="text-sm text-muted-foreground">
-            {trimmed}
-          </p>,
+          <div key={`p-${rendered.length}`} className="prose prose-sm dark:prose-invert max-w-none text-sm text-muted-foreground [&_strong]:text-foreground [&_strong]:font-semibold">
+            <ReactMarkdown>{trimmed}</ReactMarkdown>
+          </div>,
         );
       }
     }
