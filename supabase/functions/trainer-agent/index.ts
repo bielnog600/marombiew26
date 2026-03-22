@@ -96,7 +96,7 @@ Quando houver reconhecimento:
 - SÉRIE = número de séries de reconhecimento (geralmente 1)
 - SÉRIE 2 = número de séries de trabalho (ex: 2 ou 3)
 - REPETIÇÕES = repetições mais altas para o reconhecimento (ex: 12, 15, ou 12 a 15)
-- RIR = formato das séries de trabalho (ex: 2x6, 2x8, 2x6 a 8, 2x10)
+- RIR = formato com "+" antes das séries de trabalho (ex: + 2x6, + 2x8, + 2x6 a 8, + 3x8). O "+" indica que há uma série de reconhecimento antes.
 - DESCRIÇÃO = explicar resumidamente: "1ª série reconhecimento leve, depois séries de trabalho pesadas"
 
 Quando NÃO houver reconhecimento:
