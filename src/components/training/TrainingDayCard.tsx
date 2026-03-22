@@ -10,13 +10,14 @@ const DAY_SURFACES = [
   'bg-gradient-to-br from-accent/12 to-primary/8 border-accent/25',
 ];
 
-const buildDayCopyText = (day: ParsedTrainingDay) =>
-  `${day.day}:\n${day.exercises
-    .map(
-      (ex) =>
-        `• ${ex.exercise} - ${ex.series} séries x ${ex.reps} reps${ex.rir ? ` (RIR ${ex.rir})` : ''}${ex.pause ? ` | Pausa: ${ex.pause}` : ''}${ex.variation ? ` | Variação: ${ex.variation}` : ''}`,
-    )
-    .join('\n')}`;
+const buildDayCopyText = (day: ParsedTrainingDay) => {
+  const header = ['Treino do Dia', 'Exercício', 'Séries', 'Reps', 'RIR', 'Pausa', 'Descrição', 'Variação'].join('\t');
+  const rows = day.exercises.map(
+    (ex) =>
+      [day.day, ex.exercise, ex.series || '—', ex.reps || '—', ex.rir || '—', ex.pause || '—', ex.description || '—', ex.variation || '—'].join('\t'),
+  );
+  return [header, ...rows].join('\n');
+};
 
 interface TrainingDayCardProps {
   day: ParsedTrainingDay;
@@ -43,6 +44,7 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy })
           <Table className="text-xs">
             <TableHeader>
               <TableRow className="hover:bg-transparent">
+                <TableHead className="h-9 px-3">Treino do Dia</TableHead>
                 <TableHead className="h-9 px-3">Exercício</TableHead>
                 <TableHead className="h-9 px-3 text-center">Séries</TableHead>
                 <TableHead className="h-9 px-3 text-center">Reps</TableHead>
@@ -55,6 +57,7 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy })
             <TableBody>
               {day.exercises.map((ex, exIndex) => (
                 <TableRow key={`${day.day}-${ex.exercise}-${exIndex}`}>
+                  <TableCell className="px-3 py-2 font-semibold text-primary align-top whitespace-nowrap">{day.day}</TableCell>
                   <TableCell className="px-3 py-2 font-medium align-top">{ex.exercise}</TableCell>
                   <TableCell className="px-3 py-2 text-center align-top">{ex.series || '—'}</TableCell>
                   <TableCell className="px-3 py-2 text-center align-top">{ex.reps || '—'}</TableCell>
