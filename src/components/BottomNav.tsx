@@ -6,7 +6,6 @@ import { LayoutDashboard, Users, ClipboardList, ScanLine, LogOut, User, Apple } 
 const adminItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
   { title: 'Alunos', url: '/alunos', icon: Users },
-  { title: 'Avaliações', url: '/avaliacoes', icon: ClipboardList },
   { title: 'Alimentos', url: '/alimentos', icon: Apple },
 ];
 
