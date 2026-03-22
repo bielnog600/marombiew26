@@ -347,7 +347,7 @@ serve(async (req) => {
         });
       }
       if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos insuficientes. Adicione créditos ao workspace." }), {
+        return new Response(JSON.stringify({ error: "Créditos insuficientes na sua conta OpenAI." }), {
           status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
