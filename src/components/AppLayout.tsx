@@ -21,7 +21,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title }) => {
             {!isMobile && <SidebarTrigger className="mr-4" />}
             {title && <h1 className="text-lg font-semibold text-foreground truncate">{title}</h1>}
           </header>
-          <main className={`flex-1 p-4 md:p-6 overflow-auto ${isMobile ? 'pb-20' : ''}`}>
+          <main className={`flex-1 p-4 md:p-6 overflow-auto ${isMobile ? 'pb-24' : ''}`} style={isMobile ? { paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' } : undefined}>
             {children}
           </main>
         </div>
