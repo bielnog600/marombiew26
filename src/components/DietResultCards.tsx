@@ -4,6 +4,7 @@ import { Calculator, Check, Copy, Lightbulb, MessageCircle, UtensilsCrossed } fr
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import MealCard from '@/components/diet/MealCard';
 import { parseSections } from '@/lib/dietResultParser';
 
@@ -12,6 +13,25 @@ interface DietResultCardsProps {
 }
 
 const markdownTableClasses = 'prose prose-sm dark:prose-invert max-w-none [&_table]:text-xs [&_table]:w-full [&_th]:bg-muted [&_th]:p-1.5 [&_td]:p-1.5 [&_td]:border [&_th]:border [&_table]:block [&_table]:overflow-x-auto';
+
+const parseMarkdownTable = (content: string): { headers: string[]; rows: string[][] } | null => {
+  const lines = content.trim().split('\n').filter(l => l.trim().startsWith('|'));
+  if (lines.length < 3) return null;
+
+  const splitRow = (line: string) =>
+    line.trim().split('|').slice(1, -1).map(c => c.replace(/\*\*/g, '').trim());
+
+  const headers = splitRow(lines[0]);
+  const rows: string[][] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].includes('---')) continue;
+    const cells = splitRow(lines[i]);
+    if (cells.length > 0 && cells.some(c => c)) rows.push(cells);
+  }
+
+  return headers.length > 0 && rows.length > 0 ? { headers, rows } : null;
+};
 
 const sanitizeCopyText = (value: string) => value.replace(/\*\*/g, '').replace(/^#+\s*/gm, '').trim();
 
@@ -110,23 +130,59 @@ const DietResultCards: React.FC<DietResultCardsProps> = ({ markdown }) => {
     }
 
     if (section.type === 'summary') {
+      const parsed = parseMarkdownTable(section.content);
       rendered.push(
-        <Card key={`summary-${rendered.length}`} className="border-primary/20 bg-gradient-to-br from-background to-secondary/40">
-          <CardContent className="p-4">
+        <Card key={`summary-${rendered.length}`} className="overflow-hidden border-primary/20 bg-gradient-to-br from-background to-secondary/40">
+          <CardContent className="p-0">
             {section.title && (
-              <div className="mb-3 flex items-center gap-2">
-                <Calculator className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-bold">{section.title}</h3>
+              <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <Calculator className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-bold">{section.title}</h3>
+                </div>
+                <CopyButton text={sanitizeCopyText(section.content)} />
               </div>
             )}
 
-            <div className={markdownTableClasses}>
-              <ReactMarkdown>{section.content}</ReactMarkdown>
-            </div>
+            {parsed ? (
+              <div className="px-2 py-2">
+                <Table className="text-xs">
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      {parsed.headers.map((h, hi) => (
+                        <TableHead key={hi} className="h-9 px-3 text-xs font-semibold">
+                          {h}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {parsed.rows.map((row, ri) => (
+                      <TableRow key={ri}>
+                        {row.map((cell, ci) => (
+                          <TableCell
+                            key={ci}
+                            className={`px-3 py-2 ${ci === 0 ? 'font-medium' : 'text-muted-foreground'}`}
+                          >
+                            {cell || '—'}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <div className={`p-4 ${markdownTableClasses}`}>
+                <ReactMarkdown>{section.content}</ReactMarkdown>
+              </div>
+            )}
 
-            <div className="mt-2 flex justify-end">
-              <CopyButton text={sanitizeCopyText(section.content)} />
-            </div>
+            {!section.title && (
+              <div className="flex justify-end border-t border-border/60 px-4 py-2">
+                <CopyButton text={sanitizeCopyText(section.content)} />
+              </div>
+            )}
           </CardContent>
         </Card>,
       );
