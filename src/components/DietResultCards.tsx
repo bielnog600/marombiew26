@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Copy, Check, UtensilsCrossed, Calculator, MessageCircle, Lightbulb, Clock } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
 
 interface DietResultCardsProps {
