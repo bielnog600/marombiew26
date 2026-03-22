@@ -6,13 +6,14 @@ import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, useSidebar,
 } from '@/components/ui/sidebar';
-import { LayoutDashboard, Users, ClipboardList, User, LogOut, Dumbbell, Target, Clock, ScanLine, Bot } from 'lucide-react';
+import { LayoutDashboard, Users, ClipboardList, User, LogOut, Dumbbell, Target, Clock, ScanLine, Bot, Apple } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const adminItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
   { title: 'Alunos', url: '/alunos', icon: Users },
   { title: 'Avaliações', url: '/avaliacoes', icon: ClipboardList },
+  { title: 'Alimentos', url: '/alimentos', icon: Apple },
   { title: 'Análise Postura', url: '/alunos', icon: ScanLine },
 ];
 
