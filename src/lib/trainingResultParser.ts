@@ -6,7 +6,6 @@ export interface ParsedExercise {
   rir: string;
   pause: string;
   description: string;
-  description2: string;
   variation: string;
 }
 
@@ -30,9 +29,6 @@ const splitMarkdownRow = (line: string) => {
 
 const cleanCell = (value: string) => value.replace(/\*\*/g, '').trim();
 
-const sanitizeCopyText = (value: string) =>
-  value.replace(/\*\*/g, '').replace(/^#+\s*/gm, '').trim();
-
 const isTrainingTable = (firstLine: string) => {
   const lower = firstLine.toLowerCase();
   return (
@@ -50,7 +46,6 @@ export const parseTrainingTable = (tableLines: string[]): ParsedTrainingDay[] =>
     const cells = splitMarkdownRow(line);
     if (cells.length < 4) continue;
 
-    // Skip header row
     const first = cells[0]?.toLowerCase() || '';
     if (first.includes('treino do dia') || first.includes('exercício') || first.includes('exercicio')) {
       continue;
@@ -74,10 +69,8 @@ export const parseTrainingTable = (tableLines: string[]): ParsedTrainingDay[] =>
     const rirCell = cleanCell(cells[5] || '');
     const pauseCell = cleanCell(cells[6] || '');
     const descCell = cleanCell(cells[7] || '');
-    const desc2Cell = cleanCell(cells[8] || '');
-    const variationCell = cleanCell(cells[9] || '');
+    const variationCell = cleanCell(cells[8] || '');
 
-    // Check if this is a new training day
     if (dayCell && dayCell !== '-' && dayCell.toLowerCase() !== lastDayName.toLowerCase()) {
       if (currentDay && currentDay.exercises.length > 0) {
         days.push(currentDay);
@@ -100,7 +93,6 @@ export const parseTrainingTable = (tableLines: string[]): ParsedTrainingDay[] =>
         rir: rirCell,
         pause: pauseCell,
         description: descCell,
-        description2: desc2Cell,
         variation: variationCell,
       });
     }
@@ -121,7 +113,6 @@ export const parseTrainingSections = (markdown: string): ParsedTrainingSection[]
   while (i < lines.length) {
     const line = lines[i].trim();
 
-    // WhatsApp messages
     if (line.toLowerCase().includes('whatsapp') || (line.startsWith('#') && line.toLowerCase().includes('mensagen'))) {
       let msgContent = '';
       i++;
@@ -138,7 +129,6 @@ export const parseTrainingSections = (markdown: string): ParsedTrainingSection[]
       continue;
     }
 
-    // Tips
     if ((line.startsWith('#') || line.startsWith('**')) && (line.toLowerCase().includes('dica') || line.toLowerCase().includes('observ') || line.toLowerCase().includes('nota'))) {
       let tipContent = line + '\n';
       i++;
@@ -153,7 +143,6 @@ export const parseTrainingSections = (markdown: string): ParsedTrainingSection[]
       continue;
     }
 
-    // Tables
     if (line.startsWith('|')) {
       const tableLines: string[] = [];
       let title = '';
