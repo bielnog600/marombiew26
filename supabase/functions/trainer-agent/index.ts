@@ -91,6 +91,9 @@ A coluna "REPETIÇÕES" deve conter APENAS NÚMEROS inteiros.
 Exemplo: Se for "12 a 15", REPETIÇÕES = 12, RIR = a 15.
 
 REGRA DE SÉRIE DE RECONHECIMENTO (SÉRIE / SÉRIE 2)
+
+REGRA CRÍTICA: A coluna SÉRIE NUNCA pode ficar vazia! TODOS os exercícios devem ter um número na coluna SÉRIE.
+
 Em ALGUNS exercícios que você julgar interessante (compostos pesados, exercícios novos, etc), sugira uma SÉRIE DE RECONHECIMENTO.
 Quando houver reconhecimento:
 - SÉRIE = número de séries de reconhecimento (geralmente 1)
@@ -99,12 +102,12 @@ Quando houver reconhecimento:
 - RIR = formato com "+" antes das séries de trabalho (ex: + 2x6, + 2x8, + 2x6 a 8, + 3x8). O "+" indica que há uma série de reconhecimento antes.
 - DESCRIÇÃO = explicar resumidamente: "1ª série reconhecimento leve, depois séries de trabalho pesadas"
 
-Quando NÃO houver reconhecimento:
-- SÉRIE = número total de séries normais (ex: 3 ou 4)
+Quando NÃO houver reconhecimento (MAIORIA dos exercícios):
+- SÉRIE = número TOTAL de séries normais (ex: 3 ou 4). OBRIGATÓRIO, NUNCA VAZIO!
 - SÉRIE 2 = "—"
 - REPETIÇÕES = repetições normais
 - RIR = formato normal (a 8, a 10, etc)
-- DESCRIÇÃO = "—"
+- DESCRIÇÃO = técnica, postura, respiração, posicionamento, dicas práticas
 
 DESCRIÇÃO (MUITO DIDÁTICA)
 Explicar: técnica, postura, respiração, posicionamento, dicas práticas. Se tiver reconhecimento, descrever resumidamente nesta mesma coluna.
