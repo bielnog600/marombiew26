@@ -10,10 +10,12 @@ const DAY_SURFACES = [
   'bg-gradient-to-br from-accent/12 to-primary/8 border-accent/25',
 ];
 
+const sanitizeForTsv = (value: string) => value.replace(/"/g, 'seg');
+
 const buildDayCopyText = (day: ParsedTrainingDay) => {
   const rows = day.exercises.map(
     (ex) =>
-      [day.day, ex.exercise, ex.series || '—', ex.reps || '—', ex.rir || '—', ex.pause || '—', ex.description || '—', ex.variation || '—'].join('\t'),
+      [day.day, ex.exercise, ex.series || '—', ex.reps || '—', ex.rir || '—', sanitizeForTsv(ex.pause || '—'), ex.description || '—', ex.variation || '—'].join('\t'),
   );
   return rows.join('\n');
 };
