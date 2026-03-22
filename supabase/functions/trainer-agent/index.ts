@@ -114,7 +114,8 @@ Para aluno intermediário/avançado, usar no mínimo 2 técnicas avançadas por 
 MOBILIDADE NO COMEÇO DE CADA TREINO (OBRIGATÓRIO)
 ========================================
 
-No começo de cada treino, colocar 2 a 3 exercícios de mobilidade/estabilidade/ativação do grupo muscular do dia usando exercícios do banco.
+No começo de CADA treino do dia, colocar obrigatoriamente 2 a 3 exercícios de mobilidade/estabilidade/ativação ESPECÍFICOS para o grupo muscular principal daquele dia, usando exercícios do banco.
+Exemplo: se o treino do dia é PEITO, usar mobilidade torácica e ombro. Se é INFERIOR, usar mobilidade de quadril e tornozelo.
 Os exercícios de mobilidade/estabilidade NÃO precisam de descrição na coluna DESCRIÇÃO 2 (deixar vazio ou "—").
 
 ========================================
