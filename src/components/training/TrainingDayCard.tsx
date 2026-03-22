@@ -11,12 +11,11 @@ const DAY_SURFACES = [
 ];
 
 const buildDayCopyText = (day: ParsedTrainingDay) => {
-  const header = ['Treino do Dia', 'Exercício', 'Séries', 'Reps', 'RIR', 'Pausa', 'Descrição', 'Variação'].join('\t');
   const rows = day.exercises.map(
     (ex) =>
       [day.day, ex.exercise, ex.series || '—', ex.reps || '—', ex.rir || '—', ex.pause || '—', ex.description || '—', ex.variation || '—'].join('\t'),
   );
-  return [header, ...rows].join('\n');
+  return rows.join('\n');
 };
 
 interface TrainingDayCardProps {
