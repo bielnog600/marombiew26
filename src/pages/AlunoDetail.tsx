@@ -313,16 +313,29 @@ const AlunoDetail = () => {
 
           <TabsContent value="ia">
             <div className="space-y-4">
-              <Card className="glass-card">
-                <CardContent className="p-6 text-center space-y-4">
-                  <Bot className="h-12 w-12 mx-auto text-primary" />
-                  <h3 className="text-lg font-bold">Agente de Treino & Dieta</h3>
-                  <p className="text-muted-foreground text-sm">Use inteligência artificial para gerar treinos e dietas personalizadas com base nos dados deste aluno.</p>
-                  <Button onClick={() => navigate(`/treino-ia/${id}`)} className="font-semibold">
-                    <Bot className="mr-2 h-4 w-4" /> Iniciar Chat IA
-                  </Button>
-                </CardContent>
-              </Card>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Card className="glass-card">
+                  <CardContent className="p-6 text-center space-y-4">
+                    <Bot className="h-12 w-12 mx-auto text-primary" />
+                    <h3 className="text-lg font-bold">Agente de Treino</h3>
+                    <p className="text-muted-foreground text-sm">Gere treinos personalizados com IA baseados nos dados do aluno.</p>
+                    <Button onClick={() => navigate(`/treino-ia/${id}`)} className="font-semibold">
+                      <Bot className="mr-2 h-4 w-4" /> Iniciar Chat Treino
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="glass-card">
+                  <CardContent className="p-6 text-center space-y-4">
+                    <UtensilsCrossed className="h-12 w-12 mx-auto text-primary" />
+                    <h3 className="text-lg font-bold">Agente de Dieta</h3>
+                    <p className="text-muted-foreground text-sm">Calcule TMB, GET e gere dietas personalizadas com múltiplas estratégias.</p>
+                    <Button onClick={() => navigate(`/dieta-ia/${id}`)} className="font-semibold">
+                      <UtensilsCrossed className="mr-2 h-4 w-4" /> Iniciar Chat Dieta
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
 
               <AiPlansList studentId={id!} />
             </div>
