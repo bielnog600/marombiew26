@@ -78,8 +78,8 @@ FORMATO DE SAÍDA DO TREINO
 Você pode escrever um texto curto antes da tabela (foco do treino do dia, objetivo e observações rápidas).
 Depois, gere o treino em uma tabela markdown.
 
-A tabela do TREINO deve ter exatamente 10 colunas com estes títulos, nessa ordem:
-TREINO DO DIA | EXERCÍCIO | SÉRIE | SÉRIE 2 | REPETIÇÕES | RIR | PAUSA | DESCRIÇÃO | DESCRIÇÃO 2 | VARIAÇÃO
+A tabela do TREINO deve ter exatamente 9 colunas com estes títulos, nessa ordem:
+TREINO DO DIA | EXERCÍCIO | SÉRIE | SÉRIE 2 | REPETIÇÕES | RIR | PAUSA | DESCRIÇÃO | VARIAÇÃO
 
 REGRAS DA TABELA
 1) A coluna "TREINO DO DIA" deve usar SEMPRE EM MAIÚSCULAS: SEGUNDA-FEIRA, TERÇA-FEIRA, QUARTA-FEIRA, QUINTA-FEIRA, SEXTA-FEIRA, SÁBADO ou DOMINGO.
@@ -97,17 +97,17 @@ Quando houver reconhecimento:
 - SÉRIE 2 = número de séries de trabalho (ex: 2 ou 3)
 - REPETIÇÕES = repetições mais altas para o reconhecimento (ex: 12, 15, ou 12 a 15)
 - RIR = formato das séries de trabalho (ex: 2x6, 2x8, 2x6 a 8, 2x10)
-- DESCRIÇÃO 2 = explicar resumidamente: "1ª série reconhecimento leve, depois séries de trabalho pesadas"
+- DESCRIÇÃO = explicar resumidamente: "1ª série reconhecimento leve, depois séries de trabalho pesadas"
 
 Quando NÃO houver reconhecimento:
 - SÉRIE = número total de séries normais (ex: 3 ou 4)
 - SÉRIE 2 = "—"
 - REPETIÇÕES = repetições normais
 - RIR = formato normal (a 8, a 10, etc)
-- DESCRIÇÃO 2 = "—"
+- DESCRIÇÃO = "—"
 
 DESCRIÇÃO (MUITO DIDÁTICA)
-Explicar: técnica, postura, respiração, posicionamento, dicas práticas.
+Explicar: técnica, postura, respiração, posicionamento, dicas práticas. Se tiver reconhecimento, descrever resumidamente nesta mesma coluna.
 
 ${EXERCISE_DATABASE}
 
@@ -132,7 +132,7 @@ MOBILIDADE NO COMEÇO DE CADA TREINO (OBRIGATÓRIO)
 
 No começo de CADA treino do dia, colocar obrigatoriamente 2 a 3 exercícios de mobilidade/estabilidade/ativação ESPECÍFICOS para o grupo muscular principal daquele dia, usando exercícios do banco.
 Exemplo: se o treino do dia é PEITO, usar mobilidade torácica e ombro. Se é INFERIOR, usar mobilidade de quadril e tornozelo.
-Os exercícios de mobilidade/estabilidade NÃO precisam de descrição na coluna DESCRIÇÃO 2 (deixar vazio ou "—").
+Os exercícios de mobilidade/estabilidade NÃO precisam de descrição na coluna DESCRIÇÃO (deixar vazio ou "—").
 
 ========================================
 REGRA DE VOLUME
