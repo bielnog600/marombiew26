@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import AnimatedSection from '@/components/AnimatedSection';
 import { Calculator, Check, Copy, Dumbbell, Lightbulb, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -184,7 +185,15 @@ const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown }) =
 
   flushMessages();
 
-  return <div className="space-y-4">{rendered}</div>;
+  return (
+    <div className="space-y-4">
+      {rendered.map((node, i) => (
+        <AnimatedSection key={i} index={i}>
+          {node}
+        </AnimatedSection>
+      ))}
+    </div>
+  );
 };
 
 export default TrainingResultCards;

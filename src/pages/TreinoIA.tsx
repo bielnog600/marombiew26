@@ -167,7 +167,7 @@ ${notes ? `- Observações adicionais: ${notes}` : ''}
 
 GERE TUDO DE UMA VEZ:
 1) Resumo do protocolo e foco da semana
-2) Tabela completa do treino com TODAS as colunas: TREINO DO DIA | EXERCÍCIO | SÉRIE | REPETIÇÕES | RIR | PAUSA | DESCRIÇÃO 2 | VARIAÇÃO
+2) Tabela completa do treino com TODAS as colunas: TREINO DO DIA | EXERCÍCIO | SÉRIE | SÉRIE 2 | REPETIÇÕES | RIR | PAUSA | DESCRIÇÃO | VARIAÇÃO
 3) Inclua mobilidade no início de cada dia
 4) Use técnicas avançadas conforme o nível
 5) Mensagens prontas para WhatsApp explicando o protocolo`;
