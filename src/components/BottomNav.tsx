@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, ClipboardList, ScanLine, LogOut, User } from 'lucide-react';
+import { LayoutDashboard, Users, ClipboardList, ScanLine, LogOut, User, Apple } from 'lucide-react';
 
 const adminItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
