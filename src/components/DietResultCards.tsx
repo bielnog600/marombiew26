@@ -130,23 +130,59 @@ const DietResultCards: React.FC<DietResultCardsProps> = ({ markdown }) => {
     }
 
     if (section.type === 'summary') {
+      const parsed = parseMarkdownTable(section.content);
       rendered.push(
-        <Card key={`summary-${rendered.length}`} className="border-primary/20 bg-gradient-to-br from-background to-secondary/40">
-          <CardContent className="p-4">
+        <Card key={`summary-${rendered.length}`} className="overflow-hidden border-primary/20 bg-gradient-to-br from-background to-secondary/40">
+          <CardContent className="p-0">
             {section.title && (
-              <div className="mb-3 flex items-center gap-2">
-                <Calculator className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-bold">{section.title}</h3>
+              <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <Calculator className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-bold">{section.title}</h3>
+                </div>
+                <CopyButton text={sanitizeCopyText(section.content)} />
               </div>
             )}
 
-            <div className={markdownTableClasses}>
-              <ReactMarkdown>{section.content}</ReactMarkdown>
-            </div>
+            {parsed ? (
+              <div className="px-2 py-2">
+                <Table className="text-xs">
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      {parsed.headers.map((h, hi) => (
+                        <TableHead key={hi} className="h-9 px-3 text-xs font-semibold">
+                          {h}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {parsed.rows.map((row, ri) => (
+                      <TableRow key={ri}>
+                        {row.map((cell, ci) => (
+                          <TableCell
+                            key={ci}
+                            className={`px-3 py-2 ${ci === 0 ? 'font-medium' : 'text-muted-foreground'}`}
+                          >
+                            {cell || '—'}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <div className={`p-4 ${markdownTableClasses}`}>
+                <ReactMarkdown>{section.content}</ReactMarkdown>
+              </div>
+            )}
 
-            <div className="mt-2 flex justify-end">
-              <CopyButton text={sanitizeCopyText(section.content)} />
-            </div>
+            {!section.title && (
+              <div className="flex justify-end border-t border-border/60 px-4 py-2">
+                <CopyButton text={sanitizeCopyText(section.content)} />
+              </div>
+            )}
           </CardContent>
         </Card>,
       );
