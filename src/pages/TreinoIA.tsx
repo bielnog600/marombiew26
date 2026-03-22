@@ -1,65 +1,84 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Send, Bot, User, Loader2, Save } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
+import { ArrowLeft, Loader2, Save, Dumbbell, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
+import TrainingResultCards from '@/components/TrainingResultCards';
 
-type Msg = { role: 'user' | 'assistant'; content: string };
+type StudentCtx = Record<string, any>;
+
+const LEVELS = [
+  { value: 'iniciante', label: 'Iniciante', desc: 'Menos de 6 meses de treino' },
+  { value: 'intermediario', label: 'Intermediário', desc: '6 meses a 2 anos' },
+  { value: 'avancado', label: 'Avançado', desc: 'Mais de 2 anos consistentes' },
+];
+
+const DAYS_PER_WEEK = [
+  { value: '3', label: '3 dias' },
+  { value: '4', label: '4 dias' },
+  { value: '5', label: '5 dias' },
+  { value: '6', label: '6 dias' },
+];
+
+const SPLITS = [
+  { value: 'fullbody', label: 'Full Body', desc: 'Corpo inteiro por sessão' },
+  { value: 'upper_lower', label: 'Upper/Lower', desc: 'Superior e inferior alternados' },
+  { value: 'push_pull_legs', label: 'Push/Pull/Legs', desc: 'Empurrar/Puxar/Pernas' },
+  { value: 'abcde', label: 'ABCDE', desc: 'Um grupo muscular por dia' },
+  { value: 'decida', label: 'Decida por mim', desc: 'IA escolhe a melhor divisão' },
+];
+
+const WEEKS = [
+  { value: '1', label: 'Semana 1', desc: 'Adaptação / Volume base' },
+  { value: '2', label: 'Semana 2', desc: 'Progressão de carga' },
+  { value: '3', label: 'Semana 3', desc: 'Intensificação' },
+  { value: '4', label: 'Semana 4', desc: 'Deload / Recuperação' },
+];
+
+const EQUIPMENT = [
+  { value: 'completa', label: 'Academia Completa', desc: 'Todos os equipamentos' },
+  { value: 'limitado', label: 'Equipamento Limitado', desc: 'Halteres, barras e poucos aparelhos' },
+  { value: 'casa', label: 'Home Gym', desc: 'Treino em casa com básico' },
+];
 
 const TreinoIA = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
-  const [messages, setMessages] = useState<Msg[]>([]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [studentContext, setStudentContext] = useState<any>(null);
+
+  const [studentCtx, setStudentCtx] = useState<StudentCtx | null>(null);
   const [studentName, setStudentName] = useState('Aluno');
+  const [loading, setLoading] = useState(true);
+
+  // Selections
+  const [level, setLevel] = useState('');
+  const [daysPerWeek, setDaysPerWeek] = useState('');
+  const [split, setSplit] = useState('');
+  const [week, setWeek] = useState('');
+  const [equipment, setEquipment] = useState('');
+  const [notes, setNotes] = useState('');
+
+  // Result
+  const [generating, setGenerating] = useState(false);
+  const [result, setResult] = useState('');
   const [saving, setSaving] = useState(false);
-  const [viewportHeight, setViewportHeight] = useState('100dvh');
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (studentId) loadStudentData();
   }, [studentId]);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages]);
-
-  // Fix mobile keyboard pushing layout
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-
-    const onResize = () => {
-      setViewportHeight(`${vv.height}px`);
-      // Keep the container pinned to the top
-      if (containerRef.current) {
-        containerRef.current.style.height = `${vv.height}px`;
-        containerRef.current.style.transform = `translateY(${vv.offsetTop}px)`;
-      }
-      // Auto-scroll to bottom when keyboard opens
-      requestAnimationFrame(() => {
-        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-      });
-    };
-
-    vv.addEventListener('resize', onResize);
-    vv.addEventListener('scroll', onResize);
-    onResize();
-
-    return () => {
-      vv.removeEventListener('resize', onResize);
-      vv.removeEventListener('scroll', onResize);
-    };
-  }, []);
+    if (result && resultRef.current) {
+      resultRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [result]);
 
   const loadStudentData = async () => {
+    setLoading(true);
     const [profileRes, spRes, assessRes] = await Promise.all([
       supabase.from('profiles').select('*').eq('user_id', studentId!).maybeSingle(),
       supabase.from('students_profile').select('*').eq('user_id', studentId!).maybeSingle(),
@@ -70,13 +89,8 @@ const TreinoIA = () => {
     const sp = spRes.data;
     const latestAssessmentId = assessRes.data?.[0]?.id;
 
-    let anthro: any = null;
-    let comp: any = null;
-    let vitals: any = null;
-    let skinfolds: any = null;
-    let anamnese: any = null;
-    let performance: any = null;
-    let posture: any = null;
+    let anthro: any = null, comp: any = null, vitals: any = null, anamnese: any = null;
+    let skinfolds: any = null, performance: any = null, posture: any = null;
     let photos: any[] = [];
 
     if (latestAssessmentId) {
@@ -100,139 +114,63 @@ const TreinoIA = () => {
       photos = photosRes.data ?? [];
     }
 
-    // Load posture scans
     const { data: postureScans } = await supabase
-      .from('posture_scans')
-      .select('*')
-      .eq('student_id', studentId!)
-      .order('created_at', { ascending: false })
-      .limit(1);
-    const latestPostureScan = postureScans?.[0] ?? null;
+      .from('posture_scans').select('*').eq('student_id', studentId!)
+      .order('created_at', { ascending: false }).limit(1);
 
-    const ctx = {
-      nome: profile?.nome,
-      email: profile?.email,
-      sexo: sp?.sexo,
-      data_nascimento: sp?.data_nascimento,
-      altura: sp?.altura || anthro?.altura,
-      objetivo: sp?.objetivo,
-      restricoes: sp?.restricoes,
-      lesoes: sp?.lesoes,
-      observacoes: sp?.observacoes,
-      raca: sp?.raca,
-      peso: anthro?.peso,
-      imc: anthro?.imc,
-      cintura: anthro?.cintura,
-      quadril: anthro?.quadril,
-      rcq: anthro?.rcq,
-      torax: anthro?.torax,
-      abdomen: anthro?.abdomen,
-      ombro: anthro?.ombro,
-      pescoco: anthro?.pescoco,
-      braco_direito: anthro?.braco_direito,
-      braco_esquerdo: anthro?.braco_esquerdo,
-      coxa_direita: anthro?.coxa_direita,
-      coxa_esquerda: anthro?.coxa_esquerda,
-      panturrilha_direita: anthro?.panturrilha_direita,
-      panturrilha_esquerda: anthro?.panturrilha_esquerda,
-      percentual_gordura: comp?.percentual_gordura,
-      massa_magra: comp?.massa_magra,
-      massa_gorda: comp?.massa_gorda,
-      fc_repouso: vitals?.fc_repouso,
-      pressao: vitals?.pressao,
-      spo2: vitals?.spo2,
-      glicemia: vitals?.glicemia,
+    const ctx: StudentCtx = {
+      nome: profile?.nome, email: profile?.email, sexo: sp?.sexo,
+      data_nascimento: sp?.data_nascimento, altura: sp?.altura || anthro?.altura,
+      objetivo: sp?.objetivo, restricoes: sp?.restricoes, lesoes: sp?.lesoes,
+      observacoes: sp?.observacoes, raca: sp?.raca,
+      peso: anthro?.peso, imc: anthro?.imc, cintura: anthro?.cintura,
+      quadril: anthro?.quadril, rcq: anthro?.rcq, torax: anthro?.torax,
+      abdomen: anthro?.abdomen, ombro: anthro?.ombro, pescoco: anthro?.pescoco,
+      braco_direito: anthro?.braco_direito, braco_esquerdo: anthro?.braco_esquerdo,
+      coxa_direita: anthro?.coxa_direita, coxa_esquerda: anthro?.coxa_esquerda,
+      panturrilha_direita: anthro?.panturrilha_direita, panturrilha_esquerda: anthro?.panturrilha_esquerda,
+      percentual_gordura: comp?.percentual_gordura, massa_magra: comp?.massa_magra, massa_gorda: comp?.massa_gorda,
+      fc_repouso: vitals?.fc_repouso, pressao: vitals?.pressao, spo2: vitals?.spo2, glicemia: vitals?.glicemia,
       skinfolds: skinfolds ? { metodo: skinfolds.metodo, triceps: skinfolds.triceps, peitoral: skinfolds.peitoral, subescapular: skinfolds.subescapular, axilar_media: skinfolds.axilar_media, suprailiaca: skinfolds.suprailiaca, abdominal: skinfolds.abdominal, coxa: skinfolds.coxa } : null,
       anamnese: anamnese ? { historico_saude: anamnese.historico_saude, medicacao: anamnese.medicacao, suplementos: anamnese.suplementos, cirurgias: anamnese.cirurgias, dores: anamnese.dores, sono: anamnese.sono, stress: anamnese.stress, rotina: anamnese.rotina, treino_atual: anamnese.treino_atual, tabagismo: anamnese.tabagismo, alcool: anamnese.alcool } : null,
       performance: performance ? { cooper_12min: performance.cooper_12min, pushup: performance.pushup, plank: performance.plank, salto_vertical: performance.salto_vertical, agachamento_score: performance.agachamento_score, mobilidade_ombro: performance.mobilidade_ombro, mobilidade_quadril: performance.mobilidade_quadril, mobilidade_tornozelo: performance.mobilidade_tornozelo } : null,
-      // Posture data
       posture: posture ? { vista_anterior: posture.vista_anterior, vista_lateral: posture.vista_lateral, vista_posterior: posture.vista_posterior, observacoes: posture.observacoes } : null,
-      posture_scan: latestPostureScan ? {
-        angles: latestPostureScan.angles_json,
-        attention_points: latestPostureScan.attention_points_json,
-        region_scores: latestPostureScan.region_scores_json,
-        notes: latestPostureScan.notes,
-      } : null,
-      // Photos
+      posture_scan: postureScans?.[0] ? { angles: postureScans[0].angles_json, attention_points: postureScans[0].attention_points_json, region_scores: postureScans[0].region_scores_json, notes: postureScans[0].notes } : null,
       fotos_avaliacao: photos.length > 0 ? photos.map(p => ({ tipo: p.tipo, url: p.url })) : null,
       fotos_perfil: sp?.fotos ?? null,
     };
 
-    setStudentContext(ctx);
+    setStudentCtx(ctx);
     setStudentName(profile?.nome || 'Aluno');
-
-    const dataPoints: string[] = [];
-    if (ctx.objetivo) dataPoints.push(`objetivo: **${ctx.objetivo}**`);
-    if (ctx.peso) dataPoints.push(`peso: ${ctx.peso}kg`);
-    if (ctx.altura) dataPoints.push(`altura: ${ctx.altura}cm`);
-    if (ctx.percentual_gordura) dataPoints.push(`gordura: ${ctx.percentual_gordura}%`);
-    if (ctx.lesoes) dataPoints.push(`lesões: ${ctx.lesoes}`);
-    if (ctx.restricoes) dataPoints.push(`restrições: ${ctx.restricoes}`);
-    if (ctx.posture || ctx.posture_scan) dataPoints.push('análise postural ✅');
-    if (ctx.fotos_avaliacao) dataPoints.push(`${ctx.fotos_avaliacao.length} foto(s) da avaliação`);
-
-    const dataStr = dataPoints.length > 0 ? `\n\nDados já carregados: ${dataPoints.join(', ')}.` : '';
-
-    setMessages([{
-      role: 'assistant',
-      content: `Olá! Sou seu assistente de treino e dieta. Já tenho **todos os dados** do(a) **${profile?.nome || 'aluno'}** carregados do sistema (perfil, avaliação física, anamnese, composição corporal, sinais vitais, testes de performance${ctx.posture_scan ? ', análise postural' : ''}${ctx.fotos_avaliacao ? ', fotos' : ''}).${dataStr}\n\nVou usar essas informações para montar um protocolo personalizado sem perguntar o que já sei. Vamos começar!\n\nQual é o **nível** desse aluno? (iniciante, intermediário ou avançado)`
-    }]);
+    setLoading(false);
   };
 
-  const extractTablesOnly = (content: string): string => {
-    const lines = content.split('\n');
-    const tables: string[] = [];
-    let inTable = false;
-    let currentTable: string[] = [];
+  const canGenerate = level && daysPerWeek && split && week && equipment;
 
-    for (const line of lines) {
-      const trimmed = line.trim();
-      // A markdown table row starts with |
-      if (trimmed.startsWith('|')) {
-        if (!inTable) inTable = true;
-        currentTable.push(line);
-      } else {
-        if (inTable) {
-          tables.push(currentTable.join('\n'));
-          currentTable = [];
-          inTable = false;
-        }
-      }
-    }
-    if (currentTable.length > 0) {
-      tables.push(currentTable.join('\n'));
-    }
+  const generatePlan = async () => {
+    if (!canGenerate || !studentCtx) return;
+    setGenerating(true);
+    setResult('');
 
-    return tables.length > 0 ? tables.join('\n\n') : content;
-  };
+    const selectedLevel = LEVELS.find(l => l.value === level);
+    const selectedSplit = SPLITS.find(s => s.value === split);
+    const selectedEquip = EQUIPMENT.find(e => e.value === equipment);
 
-  const saveAsPlan = async (type: 'treino' | 'dieta') => {
-    const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
-    if (!lastAssistant) return;
-    setSaving(true);
-    
-    const extracted = extractTablesOnly(lastAssistant.content);
-    
-    const { error } = await supabase.from('ai_plans').insert({
-      student_id: studentId!,
-      tipo: type,
-      titulo: `${type === 'treino' ? 'Treino' : 'Dieta'} - ${new Date().toLocaleDateString('pt-BR')}`,
-      conteudo: extracted,
-    });
-    if (error) toast.error('Erro ao salvar: ' + error.message);
-    else toast.success(`${type === 'treino' ? 'Treino' : 'Dieta'} salvo(a) com sucesso!`);
-    setSaving(false);
-  };
+    const prompt = `Gere o TREINO COMPLETO agora com as seguintes configurações:
 
-  const sendMessage = async () => {
-    if (!input.trim() || isLoading) return;
-    const userMsg: Msg = { role: 'user', content: input.trim() };
-    setMessages(prev => [...prev, userMsg]);
-    setInput('');
-    setIsLoading(true);
+- Nível: ${selectedLevel?.label}
+- Dias por semana: ${daysPerWeek}
+- Divisão: ${selectedSplit?.label}
+- Semana do ciclo: ${week} de 4
+- Equipamento: ${selectedEquip?.label}
+${notes ? `- Observações adicionais: ${notes}` : ''}
 
-    let assistantSoFar = '';
-    const allMessages = [...messages, userMsg];
+GERE TUDO DE UMA VEZ:
+1) Resumo do protocolo e foco da semana
+2) Tabela completa do treino com TODAS as colunas: TREINO DO DIA | EXERCÍCIO | SÉRIE | REPETIÇÕES | RIR | PAUSA | DESCRIÇÃO 2 | VARIAÇÃO
+3) Inclua mobilidade no início de cada dia
+4) Use técnicas avançadas conforme o nível
+5) Mensagens prontas para WhatsApp explicando o protocolo`;
 
     try {
       const resp = await fetch(
@@ -244,8 +182,8 @@ const TreinoIA = () => {
             Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
           body: JSON.stringify({
-            messages: allMessages.map(m => ({ role: m.role, content: m.content })),
-            studentContext,
+            messages: [{ role: 'user', content: prompt }],
+            studentContext: studentCtx,
           }),
         }
       );
@@ -254,175 +192,258 @@ const TreinoIA = () => {
         const err = await resp.json().catch(() => ({ error: 'Erro desconhecido' }));
         throw new Error(err.error || `Erro ${resp.status}`);
       }
-
-      if (!resp.body) throw new Error('Sem resposta do servidor');
+      if (!resp.body) throw new Error('Sem resposta');
 
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let textBuffer = '';
+      let accumulated = '';
       let streamDone = false;
 
       while (!streamDone) {
         const { done, value } = await reader.read();
         if (done) break;
         textBuffer += decoder.decode(value, { stream: true });
-
-        let newlineIndex: number;
-        while ((newlineIndex = textBuffer.indexOf('\n')) !== -1) {
-          let line = textBuffer.slice(0, newlineIndex);
-          textBuffer = textBuffer.slice(newlineIndex + 1);
-
+        let idx: number;
+        while ((idx = textBuffer.indexOf('\n')) !== -1) {
+          let line = textBuffer.slice(0, idx);
+          textBuffer = textBuffer.slice(idx + 1);
           if (line.endsWith('\r')) line = line.slice(0, -1);
           if (line.startsWith(':') || line.trim() === '') continue;
           if (!line.startsWith('data: ')) continue;
-
           const jsonStr = line.slice(6).trim();
           if (jsonStr === '[DONE]') { streamDone = true; break; }
-
           try {
             const parsed = JSON.parse(jsonStr);
             const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-            if (content) {
-              assistantSoFar += content;
-              setMessages(prev => {
-                const last = prev[prev.length - 1];
-                if (last?.role === 'assistant' && prev.length > 1 && prev[prev.length - 2]?.role === 'user') {
-                  return prev.map((m, i) => i === prev.length - 1 ? { ...m, content: assistantSoFar } : m);
-                }
-                return [...prev, { role: 'assistant', content: assistantSoFar }];
-              });
-            }
+            if (content) { accumulated += content; setResult(accumulated); }
           } catch {
             textBuffer = line + '\n' + textBuffer;
             break;
           }
         }
       }
-
       if (textBuffer.trim()) {
         for (let raw of textBuffer.split('\n')) {
-          if (!raw) continue;
+          if (!raw || raw.startsWith(':') || raw.trim() === '') continue;
           if (raw.endsWith('\r')) raw = raw.slice(0, -1);
-          if (raw.startsWith(':') || raw.trim() === '') continue;
           if (!raw.startsWith('data: ')) continue;
           const jsonStr = raw.slice(6).trim();
           if (jsonStr === '[DONE]') continue;
           try {
             const parsed = JSON.parse(jsonStr);
             const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-            if (content) {
-              assistantSoFar += content;
-              setMessages(prev => prev.map((m, i) => i === prev.length - 1 ? { ...m, content: assistantSoFar } : m));
-            }
+            if (content) { accumulated += content; setResult(accumulated); }
           } catch { /* ignore */ }
         }
       }
     } catch (e: any) {
       console.error(e);
-      toast.error(e.message || 'Erro ao gerar resposta');
-      setMessages(prev => {
-        const last = prev[prev.length - 1];
-        if (last?.role === 'assistant' && !last.content) return prev.slice(0, -1);
-        return prev;
-      });
+      toast.error(e.message || 'Erro ao gerar treino');
     } finally {
-      setIsLoading(false);
+      setGenerating(false);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
+  const savePlan = async () => {
+    if (!result) return;
+    setSaving(true);
+    const { error } = await supabase.from('ai_plans').insert({
+      student_id: studentId!,
+      tipo: 'treino',
+      titulo: `Treino - ${new Date().toLocaleDateString('pt-BR')}`,
+      conteudo: result,
+    });
+    if (error) toast.error('Erro: ' + error.message);
+    else toast.success('Treino salvo!');
+    setSaving(false);
   };
 
-  const hasAssistantMessages = messages.some(m => m.role === 'assistant' && messages.some(u => u.role === 'user'));
+  if (loading) {
+    return (
+      <AppLayout title="Treino IA">
+        <div className="flex items-center justify-center h-64 text-muted-foreground">
+          <Loader2 className="h-6 w-6 animate-spin mr-2" /> Carregando dados...
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
-    <div ref={containerRef} className="fixed inset-x-0 top-0 z-50 flex flex-col bg-background overflow-hidden" style={{ height: viewportHeight, paddingTop: 'env(safe-area-inset-top, 0px)' }}>
-      {/* Header */}
-      <header className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0 bg-background"  >
-        <Button variant="ghost" size="sm" onClick={() => navigate(`/alunos/${studentId}`)} className="gap-1 px-2">
-          <ArrowLeft className="h-4 w-4" />
-          <span className="hidden sm:inline">Voltar</span>
+    <AppLayout title={`Treino IA - ${studentName}`}>
+      <div className="space-y-6 animate-fade-in">
+        <Button variant="ghost" onClick={() => navigate(`/alunos/${studentId}`)} className="mb-2">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
         </Button>
-        <div className="flex items-center gap-2 min-w-0">
-          <Bot className="h-5 w-5 text-primary shrink-0" />
-          <span className="font-semibold text-sm truncate">{studentName}</span>
-        </div>
-        {hasAssistantMessages && !isLoading ? (
-          <div className="flex gap-1">
-            <Button variant="ghost" size="sm" onClick={() => saveAsPlan('treino')} disabled={saving} className="text-xs px-2">
-              <Save className="h-3 w-3 mr-1" /> Treino
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => saveAsPlan('dieta')} disabled={saving} className="text-xs px-2">
-              <Save className="h-3 w-3 mr-1" /> Dieta
-            </Button>
-          </div>
-        ) : <div className="w-20" />}
-      </header>
 
-      {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            {msg.role === 'assistant' && (
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary mt-1">
-                <Bot className="h-3.5 w-3.5" />
-              </div>
+        {/* Student Summary */}
+        <Card className="glass-card">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <Dumbbell className="h-6 w-6 text-primary" />
+              <h2 className="text-lg font-bold">Protocolo de Treino - {studentName}</h2>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+              {studentCtx?.peso && <div className="bg-secondary rounded-lg p-2 text-center"><span className="text-muted-foreground text-xs block">Peso</span><span className="font-bold">{studentCtx.peso} kg</span></div>}
+              {studentCtx?.altura && <div className="bg-secondary rounded-lg p-2 text-center"><span className="text-muted-foreground text-xs block">Altura</span><span className="font-bold">{studentCtx.altura} cm</span></div>}
+              {studentCtx?.percentual_gordura && <div className="bg-secondary rounded-lg p-2 text-center"><span className="text-muted-foreground text-xs block">% Gordura</span><span className="font-bold">{studentCtx.percentual_gordura}%</span></div>}
+              {studentCtx?.massa_magra && <div className="bg-secondary rounded-lg p-2 text-center"><span className="text-muted-foreground text-xs block">Massa Magra</span><span className="font-bold">{studentCtx.massa_magra} kg</span></div>}
+            </div>
+            {studentCtx?.objetivo && (
+              <p className="text-sm text-muted-foreground mt-2">Objetivo: <span className="text-foreground font-medium">{studentCtx.objetivo}</span></p>
             )}
-            <div className={`max-w-[85%] rounded-2xl px-3 py-2.5 text-sm ${
-              msg.role === 'user'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-secondary text-foreground'
-            }`}>
-              {msg.role === 'assistant' ? (
-                <div className="prose prose-sm dark:prose-invert max-w-none [&_table]:text-xs [&_table]:w-full [&_th]:bg-muted [&_th]:p-1.5 [&_td]:p-1.5 [&_td]:border [&_th]:border [&_table]:block [&_table]:overflow-x-auto">
-                  <ReactMarkdown>{msg.content}</ReactMarkdown>
-                </div>
-              ) : (
-                <p className="whitespace-pre-wrap">{msg.content}</p>
-              )}
-            </div>
-            {msg.role === 'user' && (
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground mt-1">
-                <User className="h-3.5 w-3.5" />
-              </div>
+            {studentCtx?.lesoes && (
+              <p className="text-sm text-muted-foreground mt-1">Lesões: <span className="text-foreground font-medium">{studentCtx.lesoes}</span></p>
             )}
-          </div>
-        ))}
-        {isLoading && messages[messages.length - 1]?.role === 'user' && (
-          <div className="flex gap-2 justify-start">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary">
-              <Bot className="h-3.5 w-3.5" />
+          </CardContent>
+        </Card>
+
+        {/* Step 1: Level */}
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-3">
+            <h3 className="font-bold text-sm flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">1</span>
+              Nível do Aluno
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {LEVELS.map(l => (
+                <button key={l.value} onClick={() => setLevel(l.value)}
+                  className={`rounded-xl border-2 p-3 text-left transition-all ${level === l.value ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
+                  <span className="font-semibold text-sm block">{l.label}</span>
+                  <span className="text-xs text-muted-foreground">{l.desc}</span>
+                </button>
+              ))}
             </div>
-            <div className="bg-secondary rounded-2xl px-3 py-2.5">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </CardContent>
+        </Card>
+
+        {/* Step 2: Days + Split */}
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-4">
+            <h3 className="font-bold text-sm flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">2</span>
+              Frequência e Divisão
+            </h3>
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Dias por semana</p>
+              <div className="flex gap-2 flex-wrap">
+                {DAYS_PER_WEEK.map(d => (
+                  <button key={d.value} onClick={() => setDaysPerWeek(d.value)}
+                    className={`rounded-xl border-2 px-4 py-2 text-sm font-medium transition-all ${daysPerWeek === d.value ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
+                    {d.label}
+                  </button>
+                ))}
+              </div>
             </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Divisão de treino</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {SPLITS.map(s => (
+                  <button key={s.value} onClick={() => setSplit(s.value)}
+                    className={`rounded-xl border-2 p-3 text-left transition-all ${split === s.value ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
+                    <span className="font-semibold text-sm block">{s.label}</span>
+                    <span className="text-xs text-muted-foreground">{s.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Step 3: Week + Equipment */}
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-4">
+            <h3 className="font-bold text-sm flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">3</span>
+              Periodização e Equipamento
+            </h3>
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Semana do ciclo (periodização de 4 semanas)</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {WEEKS.map(w => (
+                  <button key={w.value} onClick={() => setWeek(w.value)}
+                    className={`rounded-xl border-2 p-3 text-left transition-all ${week === w.value ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
+                    <span className="font-semibold text-sm block">{w.label}</span>
+                    <span className="text-xs text-muted-foreground">{w.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Equipamento disponível</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {EQUIPMENT.map(e => (
+                  <button key={e.value} onClick={() => setEquipment(e.value)}
+                    className={`rounded-xl border-2 p-3 text-left transition-all ${equipment === e.value ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
+                    <span className="font-semibold text-sm block">{e.label}</span>
+                    <span className="text-xs text-muted-foreground">{e.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Observações adicionais (opcional)</p>
+              <input
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Ex: foco em glúteos, evitar supino reto, treino anterior foi PPL..."
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Generate Button */}
+        <Button
+          onClick={generatePlan}
+          disabled={!canGenerate || generating}
+          className="w-full font-bold text-base py-6 rounded-xl"
+          size="lg"
+        >
+          {generating ? (
+            <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Gerando Protocolo de Treino...</>
+          ) : (
+            <><Dumbbell className="mr-2 h-5 w-5" /> Gerar Protocolo de Treino</>
+          )}
+        </Button>
+
+        {/* Result - streaming raw markdown */}
+        {result && generating && (
+          <Card className="glass-card" ref={resultRef}>
+            <CardContent className="p-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <h3 className="font-bold text-sm">Gerando treino...</h3>
+              </div>
+              <div className="prose prose-sm dark:prose-invert max-w-none [&_table]:text-xs [&_table]:w-full [&_th]:bg-muted [&_th]:p-1.5 [&_td]:p-1.5 [&_td]:border [&_th]:border [&_table]:block [&_table]:overflow-x-auto">
+                <ReactMarkdown>{result}</ReactMarkdown>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Result - final cards view */}
+        {result && !generating && (
+          <div ref={resultRef} className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-lg flex items-center gap-2">
+                <Dumbbell className="h-5 w-5 text-primary" />
+                Protocolo de Treino
+              </h3>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan(); }}>
+                  <RotateCcw className="h-3 w-3 mr-1" /> Regenerar
+                </Button>
+                <Button size="sm" onClick={savePlan} disabled={saving}>
+                  <Save className="h-3 w-3 mr-1" /> Salvar
+                </Button>
+              </div>
+            </div>
+            <TrainingResultCards markdown={result} />
           </div>
         )}
       </div>
-
-      {/* Input */}
-      <div className="border-t border-border px-3 py-2 shrink-0 safe-area-bottom bg-background">
-        <div className="flex gap-2 items-end max-w-3xl mx-auto">
-          <Textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Digite sua mensagem..."
-            className="resize-none min-h-[44px] max-h-[100px] text-base"
-            rows={1}
-            disabled={isLoading}
-          />
-          <Button onClick={sendMessage} disabled={isLoading || !input.trim()} size="icon" className="shrink-0 h-[44px] w-[44px]">
-            <Send className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-    </div>
+    </AppLayout>
   );
 };
 
