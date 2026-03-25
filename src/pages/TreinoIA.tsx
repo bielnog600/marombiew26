@@ -619,7 +619,7 @@ GERE TUDO DE UMA VEZ:
                   <RotateCcw className="h-3 w-3 mr-1" /> Regenerar
                 </Button>
                 <Button size="sm" onClick={savePlan} disabled={saving}>
-                  <Save className="h-3 w-3 mr-1" /> Salvar
+                  <Save className="h-3 w-3 mr-1" /> {editPlanId ? 'Atualizar' : 'Salvar'}
                 </Button>
               </div>
             </div>
