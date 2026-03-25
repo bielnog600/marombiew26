@@ -4,7 +4,9 @@ import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Loader2, Save, Dumbbell, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Dumbbell, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 import TrainingResultCards from '@/components/TrainingResultCards';
@@ -60,6 +62,22 @@ const TreinoIA = () => {
   const [week, setWeek] = useState('');
   const [equipment, setEquipment] = useState('');
   const [notes, setNotes] = useState('');
+
+  // Health & Injuries
+  const [hasLesao, setHasLesao] = useState(false);
+  const [lesaoLocal, setLesaoLocal] = useState<string[]>([]);
+  const [hasDor, setHasDor] = useState(false);
+  const [dorLocal, setDorLocal] = useState('');
+  const [limitacaoArticular, setLimitacaoArticular] = useState(false);
+  const [limitacaoLocal, setLimitacaoLocal] = useState('');
+  const [hipercifose, setHipercifose] = useState(false);
+  const [escoliose, setEscoliose] = useState(false);
+  const [hiperlordose, setHiperlordose] = useState(false);
+  const [protrusaoOmbro, setProtrusaoOmbro] = useState(false);
+  const [valgoJoelho, setValgoJoelho] = useState(false);
+  const [tabagismo, setTabagismo] = useState(false);
+  const [stressAlto, setStressAlto] = useState(false);
+  const [sonoRuim, setSonoRuim] = useState(false);
 
   // Result
   const [generating, setGenerating] = useState(false);
@@ -142,6 +160,25 @@ const TreinoIA = () => {
 
     setStudentCtx(ctx);
     setStudentName(profile?.nome || 'Aluno');
+
+    // Auto-fill health conditions from student data
+    if (sp?.lesoes) { setHasLesao(true); }
+    if (anamnese?.dores) { setHasDor(true); setDorLocal(anamnese.dores); }
+    if (anamnese?.tabagismo) { setTabagismo(true); }
+    if (anamnese?.stress && ['alto', 'muito alto'].some(s => anamnese.stress?.toLowerCase().includes(s))) { setStressAlto(true); }
+    if (anamnese?.sono && ['ruim', 'péssimo', 'insônia', 'pouco'].some(s => anamnese.sono?.toLowerCase().includes(s))) { setSonoRuim(true); }
+
+    // Auto-fill from posture scan
+    const attentionPoints = postureScans?.[0]?.attention_points_json as any[] | null;
+    if (attentionPoints?.length) {
+      const labels = attentionPoints.map((p: any) => (p.label || p.name || '').toLowerCase());
+      if (labels.some(l => l.includes('cifose') || l.includes('kyphosis'))) setHipercifose(true);
+      if (labels.some(l => l.includes('escoliose') || l.includes('scoliosis'))) setEscoliose(true);
+      if (labels.some(l => l.includes('lordose') || l.includes('lordosis'))) setHiperlordose(true);
+      if (labels.some(l => l.includes('ombro') || l.includes('shoulder'))) setProtrusaoOmbro(true);
+      if (labels.some(l => l.includes('valgo') || l.includes('valgus'))) setValgoJoelho(true);
+    }
+
     setLoading(false);
   };
 
@@ -156,6 +193,30 @@ const TreinoIA = () => {
     const selectedSplit = SPLITS.find(s => s.value === split);
     const selectedEquip = EQUIPMENT.find(e => e.value === equipment);
 
+    // Build health conditions string
+    const healthLines: string[] = [];
+    if (hasLesao) {
+      healthLines.push(`- LESÃO: ${lesaoLocal.length > 0 ? lesaoLocal.join(', ') : 'Sim (local não especificado)'}`);
+    }
+    if (hasDor) {
+      healthLines.push(`- DOR: ${dorLocal || 'Sim (local não especificado)'}`);
+    }
+    if (limitacaoArticular) {
+      healthLines.push(`- LIMITAÇÃO ARTICULAR: ${limitacaoLocal || 'Sim (local não especificado)'}`);
+    }
+    if (hipercifose) healthLines.push('- DESVIO POSTURAL: Hipercifose');
+    if (escoliose) healthLines.push('- DESVIO POSTURAL: Escoliose');
+    if (hiperlordose) healthLines.push('- DESVIO POSTURAL: Hiperlordose');
+    if (protrusaoOmbro) healthLines.push('- DESVIO POSTURAL: Protrusão de ombros');
+    if (valgoJoelho) healthLines.push('- DESVIO POSTURAL: Valgo de joelho');
+    if (tabagismo) healthLines.push('- HÁBITO: Tabagismo (considerar capacidade cardiorrespiratória reduzida)');
+    if (stressAlto) healthLines.push('- HÁBITO: Stress alto (priorizar exercícios com efeito ansiolítico)');
+    if (sonoRuim) healthLines.push('- HÁBITO: Sono ruim (evitar treinos muito intensos, priorizar recuperação)');
+
+    const healthBlock = healthLines.length > 0
+      ? `\n\nCONDIÇÕES DE SAÚDE E RESTRIÇÕES DO ALUNO (ADAPTAR O TREINO OBRIGATORIAMENTE):\n${healthLines.join('\n')}\n\nIMPORTANTE: Adapte exercícios, amplitude, carga e volume considerando as condições acima. Inclua exercícios corretivos/compensatórios quando houver desvios posturais. Evite exercícios que agravem lesões ou dores reportadas.`
+      : '';
+
     const prompt = `Gere o TREINO COMPLETO agora com as seguintes configurações:
 
 - Nível: ${selectedLevel?.label}
@@ -163,7 +224,7 @@ const TreinoIA = () => {
 - Divisão: ${selectedSplit?.label}
 - Semana do ciclo: ${week} de 4
 - Equipamento: ${selectedEquip?.label}
-${notes ? `- Observações adicionais: ${notes}` : ''}
+${notes ? `- Observações adicionais: ${notes}` : ''}${healthBlock}
 
 GERE TUDO DE UMA VEZ:
 1) Resumo do protocolo e foco da semana
@@ -393,7 +454,108 @@ GERE TUDO DE UMA VEZ:
           </CardContent>
         </Card>
 
-        {/* Generate Button */}
+        {/* Step 4: Health & Injuries */}
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-4">
+            <h3 className="font-bold text-sm flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">4</span>
+              <AlertTriangle className="h-4 w-4 text-orange-500" />
+              Saúde e Restrições
+            </h3>
+            {(studentCtx?.lesoes || studentCtx?.anamnese?.dores) && (
+              <p className="text-xs text-muted-foreground bg-muted rounded-lg p-2">
+                ℹ️ Algumas opções foram pré-selecionadas com base na ficha do aluno.
+              </p>
+            )}
+
+            {/* Lesão */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="lesao" className="text-sm font-medium">Possui Lesão</Label>
+                <Switch id="lesao" checked={hasLesao} onCheckedChange={setHasLesao} />
+              </div>
+              {hasLesao && (
+                <div className="pl-2 space-y-2">
+                  <p className="text-xs text-muted-foreground">Local da lesão (selecione)</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['Ombro', 'Cotovelo', 'Punho', 'Coluna Cervical', 'Coluna Lombar', 'Coluna Torácica', 'Quadril', 'Joelho', 'Tornozelo', 'Outro'].map(loc => (
+                      <button key={loc} onClick={() => setLesaoLocal(prev => prev.includes(loc) ? prev.filter(l => l !== loc) : [...prev, loc])}
+                        className={`rounded-lg border px-2.5 py-1 text-xs transition-all ${lesaoLocal.includes(loc) ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-border hover:border-primary/50'}`}>
+                        {loc}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Dor */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="dor" className="text-sm font-medium">Sente Dor</Label>
+                <Switch id="dor" checked={hasDor} onCheckedChange={setHasDor} />
+              </div>
+              {hasDor && (
+                <input value={dorLocal} onChange={(e) => setDorLocal(e.target.value)}
+                  placeholder="Ex: dor no ombro direito ao elevar o braço..."
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none" />
+              )}
+            </div>
+
+            {/* Limitação Articular */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="limitacao" className="text-sm font-medium">Limitação Articular</Label>
+                <Switch id="limitacao" checked={limitacaoArticular} onCheckedChange={setLimitacaoArticular} />
+              </div>
+              {limitacaoArticular && (
+                <input value={limitacaoLocal} onChange={(e) => setLimitacaoLocal(e.target.value)}
+                  placeholder="Ex: limitação de flexão de ombro, extensão de joelho..."
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none" />
+              )}
+            </div>
+
+            {/* Desvios Posturais */}
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Desvios Posturais</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {[
+                  { id: 'hipercifose', label: 'Hipercifose', desc: 'Curvatura torácica acentuada', checked: hipercifose, set: setHipercifose },
+                  { id: 'escoliose', label: 'Escoliose', desc: 'Desvio lateral da coluna', checked: escoliose, set: setEscoliose },
+                  { id: 'hiperlordose', label: 'Hiperlordose', desc: 'Curvatura lombar acentuada', checked: hiperlordose, set: setHiperlordose },
+                  { id: 'protrusao', label: 'Protrusão de Ombros', desc: 'Ombros projetados à frente', checked: protrusaoOmbro, set: setProtrusaoOmbro },
+                  { id: 'valgo', label: 'Valgo de Joelho', desc: 'Joelhos convergem para dentro', checked: valgoJoelho, set: setValgoJoelho },
+                ].map(item => (
+                  <div key={item.id} className={`flex items-center justify-between rounded-xl border-2 p-3 transition-all ${item.checked ? 'border-orange-400 bg-orange-500/10' : 'border-border'}`}>
+                    <div>
+                      <span className="text-sm font-medium block">{item.label}</span>
+                      <span className="text-xs text-muted-foreground">{item.desc}</span>
+                    </div>
+                    <Switch checked={item.checked} onCheckedChange={item.set} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Hábitos */}
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Hábitos e Condições</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {[
+                  { id: 'tabagismo2', label: 'Tabagismo', checked: tabagismo, set: setTabagismo },
+                  { id: 'stress2', label: 'Stress Alto', checked: stressAlto, set: setStressAlto },
+                  { id: 'sono2', label: 'Sono Ruim', checked: sonoRuim, set: setSonoRuim },
+                ].map(item => (
+                  <div key={item.id} className={`flex items-center justify-between rounded-xl border-2 p-3 transition-all ${item.checked ? 'border-orange-400 bg-orange-500/10' : 'border-border'}`}>
+                    <span className="text-sm font-medium">{item.label}</span>
+                    <Switch checked={item.checked} onCheckedChange={item.set} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Button
           onClick={generatePlan}
           disabled={!canGenerate || generating}
