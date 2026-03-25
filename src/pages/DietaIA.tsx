@@ -76,6 +76,17 @@ const DietaIA = () => {
   }, [studentId]);
 
   useEffect(() => {
+    if (editPlanId && studentId) loadEditPlan();
+  }, [editPlanId]);
+
+  const loadEditPlan = async () => {
+    const { data } = await supabase.from('ai_plans').select('*').eq('id', editPlanId!).maybeSingle();
+    if (data) {
+      setResult(data.conteudo);
+    }
+  };
+
+  useEffect(() => {
     if (result && resultRef.current) {
       resultRef.current.scrollIntoView({ behavior: 'smooth' });
     }
