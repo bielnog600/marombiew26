@@ -46,6 +46,8 @@ const DIET_STYLES = [
 const DietaIA = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const editPlanId = searchParams.get('edit');
 
   const [studentCtx, setStudentCtx] = useState<StudentCtx | null>(null);
   const [studentName, setStudentName] = useState('Aluno');
