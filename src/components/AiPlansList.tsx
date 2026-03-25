@@ -83,8 +83,8 @@ const AiPlansList = ({ studentId }: AiPlansListProps) => {
                 className="text-muted-foreground hover:text-primary ml-1"
                 onClick={() => {
                   const route = plan.tipo === 'treino'
-                    ? `/alunos/${studentId}/treino-ia?edit=${plan.id}`
-                    : `/alunos/${studentId}/dieta-ia?edit=${plan.id}`;
+                    ? `/treino-ia/${studentId}?edit=${plan.id}`
+                    : `/dieta-ia/${studentId}?edit=${plan.id}`;
                   navigate(route);
                 }}
               >
