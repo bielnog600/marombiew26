@@ -63,6 +63,22 @@ const TreinoIA = () => {
   const [equipment, setEquipment] = useState('');
   const [notes, setNotes] = useState('');
 
+  // Health & Injuries
+  const [hasLesao, setHasLesao] = useState(false);
+  const [lesaoLocal, setLesaoLocal] = useState<string[]>([]);
+  const [hasDor, setHasDor] = useState(false);
+  const [dorLocal, setDorLocal] = useState('');
+  const [limitacaoArticular, setLimitacaoArticular] = useState(false);
+  const [limitacaoLocal, setLimitacaoLocal] = useState('');
+  const [hipercifose, setHipercifose] = useState(false);
+  const [escoliose, setEscoliose] = useState(false);
+  const [hiperlordose, setHiperlordose] = useState(false);
+  const [protrusaoOmbro, setProtrusaoOmbro] = useState(false);
+  const [valgoJoelho, setValgoJoelho] = useState(false);
+  const [tabagismo, setTabagismo] = useState(false);
+  const [stressAlto, setStressAlto] = useState(false);
+  const [sonoRuim, setSonoRuim] = useState(false);
+
   // Result
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState('');
