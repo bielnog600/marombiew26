@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { Trash2, Dumbbell, UtensilsCrossed, ChevronDown, ChevronUp } from 'lucide-react';
+import { Trash2, Dumbbell, UtensilsCrossed, ChevronDown, ChevronUp, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { useNavigate } from 'react-router-dom';
 import DietResultCards from '@/components/DietResultCards';
 import TrainingResultCards from '@/components/TrainingResultCards';
 import {
@@ -18,6 +19,7 @@ interface AiPlansListProps {
 
 
 const AiPlansList = ({ studentId }: AiPlansListProps) => {
+  const navigate = useNavigate();
   const [plans, setPlans] = useState<any[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -75,9 +77,22 @@ const AiPlansList = ({ studentId }: AiPlansListProps) => {
                 </div>
                 {expandedId === plan.id ? <ChevronUp className="h-4 w-4 ml-auto text-muted-foreground" /> : <ChevronDown className="h-4 w-4 ml-auto text-muted-foreground" />}
               </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-primary ml-1"
+                onClick={() => {
+                  const route = plan.tipo === 'treino'
+                    ? `/alunos/${studentId}/treino-ia?edit=${plan.id}`
+                    : `/alunos/${studentId}/dieta-ia?edit=${plan.id}`;
+                  navigate(route);
+                }}
+              >
+                <Pencil className="w-4 h-4" />
+              </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive ml-2">
+                  <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive ml-1">
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 </AlertDialogTrigger>

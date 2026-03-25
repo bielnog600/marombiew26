@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -46,6 +46,8 @@ const DIET_STYLES = [
 const DietaIA = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const editPlanId = searchParams.get('edit');
 
   const [studentCtx, setStudentCtx] = useState<StudentCtx | null>(null);
   const [studentName, setStudentName] = useState('Aluno');
@@ -72,6 +74,17 @@ const DietaIA = () => {
   useEffect(() => {
     if (studentId) loadStudentData();
   }, [studentId]);
+
+  useEffect(() => {
+    if (editPlanId && studentId) loadEditPlan();
+  }, [editPlanId]);
+
+  const loadEditPlan = async () => {
+    const { data } = await supabase.from('ai_plans').select('*').eq('id', editPlanId!).maybeSingle();
+    if (data) {
+      setResult(data.conteudo);
+    }
+  };
 
   useEffect(() => {
     if (result && resultRef.current) {
@@ -257,15 +270,23 @@ ${Number(enableFitoterapia) + Number(enableSuplementos) + Number(enableEmagrecim
   const savePlan = async () => {
     if (!result) return;
     setSaving(true);
-
-    const { error } = await supabase.from('ai_plans').insert({
-      student_id: studentId!,
-      tipo: 'dieta',
-      titulo: `Dieta - ${new Date().toLocaleDateString('pt-BR')}`,
-      conteudo: result,
-    });
-    if (error) toast.error('Erro: ' + error.message);
-    else toast.success('Dieta salva!');
+    if (editPlanId) {
+      const { error } = await supabase.from('ai_plans').update({
+        conteudo: result,
+        titulo: `Dieta - ${new Date().toLocaleDateString('pt-BR')} (editada)`,
+      }).eq('id', editPlanId);
+      if (error) toast.error('Erro: ' + error.message);
+      else toast.success('Dieta atualizada!');
+    } else {
+      const { error } = await supabase.from('ai_plans').insert({
+        student_id: studentId!,
+        tipo: 'dieta',
+        titulo: `Dieta - ${new Date().toLocaleDateString('pt-BR')}`,
+        conteudo: result,
+      });
+      if (error) toast.error('Erro: ' + error.message);
+      else toast.success('Dieta salva!');
+    }
     setSaving(false);
   };
 
@@ -501,7 +522,7 @@ ${Number(enableFitoterapia) + Number(enableSuplementos) + Number(enableEmagrecim
                   <RotateCcw className="h-3 w-3 mr-1" /> Regenerar
                 </Button>
                 <Button size="sm" onClick={savePlan} disabled={saving}>
-                  <Save className="h-3 w-3 mr-1" /> Salvar
+                  <Save className="h-3 w-3 mr-1" /> {editPlanId ? 'Atualizar' : 'Salvar'}
                 </Button>
               </div>
             </div>
