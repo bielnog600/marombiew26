@@ -13,7 +13,6 @@ const adminItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
   { title: 'Alunos', url: '/alunos', icon: Users },
   { title: 'Alimentos', url: '/alimentos', icon: Apple },
-  { title: 'Análise Postura', url: '/alunos', icon: ScanLine },
 ];
 
 const alunoItems = [
