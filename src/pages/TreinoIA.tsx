@@ -193,6 +193,30 @@ const TreinoIA = () => {
     const selectedSplit = SPLITS.find(s => s.value === split);
     const selectedEquip = EQUIPMENT.find(e => e.value === equipment);
 
+    // Build health conditions string
+    const healthLines: string[] = [];
+    if (hasLesao) {
+      healthLines.push(`- LESÃO: ${lesaoLocal.length > 0 ? lesaoLocal.join(', ') : 'Sim (local não especificado)'}`);
+    }
+    if (hasDor) {
+      healthLines.push(`- DOR: ${dorLocal || 'Sim (local não especificado)'}`);
+    }
+    if (limitacaoArticular) {
+      healthLines.push(`- LIMITAÇÃO ARTICULAR: ${limitacaoLocal || 'Sim (local não especificado)'}`);
+    }
+    if (hipercifose) healthLines.push('- DESVIO POSTURAL: Hipercifose');
+    if (escoliose) healthLines.push('- DESVIO POSTURAL: Escoliose');
+    if (hiperlordose) healthLines.push('- DESVIO POSTURAL: Hiperlordose');
+    if (protrusaoOmbro) healthLines.push('- DESVIO POSTURAL: Protrusão de ombros');
+    if (valgoJoelho) healthLines.push('- DESVIO POSTURAL: Valgo de joelho');
+    if (tabagismo) healthLines.push('- HÁBITO: Tabagismo (considerar capacidade cardiorrespiratória reduzida)');
+    if (stressAlto) healthLines.push('- HÁBITO: Stress alto (priorizar exercícios com efeito ansiolítico)');
+    if (sonoRuim) healthLines.push('- HÁBITO: Sono ruim (evitar treinos muito intensos, priorizar recuperação)');
+
+    const healthBlock = healthLines.length > 0
+      ? `\n\nCONDIÇÕES DE SAÚDE E RESTRIÇÕES DO ALUNO (ADAPTAR O TREINO OBRIGATORIAMENTE):\n${healthLines.join('\n')}\n\nIMPORTANTE: Adapte exercícios, amplitude, carga e volume considerando as condições acima. Inclua exercícios corretivos/compensatórios quando houver desvios posturais. Evite exercícios que agravem lesões ou dores reportadas.`
+      : '';
+
     const prompt = `Gere o TREINO COMPLETO agora com as seguintes configurações:
 
 - Nível: ${selectedLevel?.label}
@@ -200,7 +224,7 @@ const TreinoIA = () => {
 - Divisão: ${selectedSplit?.label}
 - Semana do ciclo: ${week} de 4
 - Equipamento: ${selectedEquip?.label}
-${notes ? `- Observações adicionais: ${notes}` : ''}
+${notes ? `- Observações adicionais: ${notes}` : ''}${healthBlock}
 
 GERE TUDO DE UMA VEZ:
 1) Resumo do protocolo e foco da semana
