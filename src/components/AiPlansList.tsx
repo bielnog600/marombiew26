@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Trash2, Dumbbell, UtensilsCrossed, ChevronDown, ChevronUp, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { useNavigate } from 'react-router-dom';
 import DietResultCards from '@/components/DietResultCards';
 import TrainingResultCards from '@/components/TrainingResultCards';
 import {
