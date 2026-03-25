@@ -416,7 +416,50 @@ ${Number(enableFitoterapia) + Number(enableSuplementos) + Number(enableEmagrecim
           </CardContent>
         </Card>
 
-        {/* Generate Button */}
+        {/* Step 4: Extras */}
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-3">
+            <h3 className="font-bold text-sm flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">4</span>
+              Extras (opcional)
+            </h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between rounded-xl border-2 border-border p-3 transition-all hover:border-primary/50" style={enableFitoterapia ? { borderColor: 'hsl(var(--primary))', backgroundColor: 'hsl(var(--primary) / 0.1)' } : {}}>
+                <div className="flex items-center gap-3">
+                  <Leaf className="h-5 w-5 text-green-500" />
+                  <div>
+                    <span className="font-semibold text-sm block">Receitas de Fitoterapia</span>
+                    <span className="text-xs text-muted-foreground">Chás, infusões e preparações fitoterápicas</span>
+                  </div>
+                </div>
+                <Switch checked={enableFitoterapia} onCheckedChange={setEnableFitoterapia} />
+              </div>
+
+              <div className="flex items-center justify-between rounded-xl border-2 border-border p-3 transition-all hover:border-primary/50" style={enableSuplementos ? { borderColor: 'hsl(var(--primary))', backgroundColor: 'hsl(var(--primary) / 0.1)' } : {}}>
+                <div className="flex items-center gap-3">
+                  <Pill className="h-5 w-5 text-blue-500" />
+                  <div>
+                    <span className="font-semibold text-sm block">Suplementação</span>
+                    <span className="text-xs text-muted-foreground">Whey, creatina, ômega-3, vitaminas e mais</span>
+                  </div>
+                </div>
+                <Switch checked={enableSuplementos} onCheckedChange={setEnableSuplementos} />
+              </div>
+
+              <div className="flex items-center justify-between rounded-xl border-2 border-border p-3 transition-all hover:border-primary/50" style={enableEmagrecimentoRapido ? { borderColor: 'hsl(var(--primary))', backgroundColor: 'hsl(var(--primary) / 0.1)' } : {}}>
+                <div className="flex items-center gap-3">
+                  <Zap className="h-5 w-5 text-amber-500" />
+                  <div>
+                    <span className="font-semibold text-sm block">Emagrecimento Rápido</span>
+                    <span className="text-xs text-muted-foreground">Jejum intermitente, carb cycling, termogênicos</span>
+                  </div>
+                </div>
+                <Switch checked={enableEmagrecimentoRapido} onCheckedChange={setEnableEmagrecimentoRapido} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Button
           onClick={generatePlan}
           disabled={!canGenerate || generating}
