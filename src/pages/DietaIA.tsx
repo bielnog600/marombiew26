@@ -163,6 +163,9 @@ const DietaIA = () => {
 - Número de refeições: ${mealCount} por dia
 - Estilo de dieta: ${selectedStyle?.label}
 ${preferences ? `- Preferências/restrições adicionais: ${preferences}` : ''}
+${enableFitoterapia ? `- INCLUIR RECEITAS DE FITOTERAPIA: Sugira chás, infusões e preparações fitoterápicas complementares ao plano (ex: chá verde, cavalinha, hibisco, gengibre, canela). Inclua dosagens, horários ideais e benefícios de cada fitoterápico.` : ''}
+${enableSuplementos ? `- INCLUIR SUPLEMENTAÇÃO: Sugira suplementos adequados ao objetivo (ex: whey protein, creatina, cafeína, ômega-3, multivitamínico, melatonina). Inclua dosagem, horário de uso e justificativa científica para cada um.` : ''}
+${enableEmagrecimentoRapido ? `- ESTRATÉGIA DE EMAGRECIMENTO RÁPIDO: Inclua uma seção extra com estratégias avançadas para acelerar o emagrecimento (ex: jejum intermitente, carb cycling, refeeds, dia do lixo estratégico, HIIT pós-treino, termogênicos naturais). Explique prós, contras e cuidados de cada estratégia.` : ''}
 
 GERE TUDO DE UMA VEZ:
 1) Tabela comparativa de TMB por todas as fórmulas
@@ -172,7 +175,10 @@ GERE TUDO DE UMA VEZ:
 5) 2-3 opções de cardápio completo em tabela com: Refeição | Horário | Alimento | Quantidade (g) | Kcal | P | C | G
 6) Total de cada refeição e do dia
 7) Dicas de timing nutricional (pré/pós treino)
-8) Mensagens prontas para WhatsApp`;
+${enableFitoterapia ? '8) Receitas e protocolos de fitoterapia' : ''}
+${enableSuplementos ? `${enableFitoterapia ? '9' : '8'}) Protocolo de suplementação completo` : ''}
+${enableEmagrecimentoRapido ? `${enableFitoterapia && enableSuplementos ? '10' : enableFitoterapia || enableSuplementos ? '9' : '8'}) Estratégias avançadas de emagrecimento rápido` : ''}
+${Number(enableFitoterapia) + Number(enableSuplementos) + Number(enableEmagrecimentoRapido) > 0 ? `${enableFitoterapia && enableSuplementos && enableEmagrecimentoRapido ? '11' : enableFitoterapia && enableSuplementos || enableFitoterapia && enableEmagrecimentoRapido || enableSuplementos && enableEmagrecimentoRapido ? '10' : '9'}) Mensagens prontas para WhatsApp` : '8) Mensagens prontas para WhatsApp'}`;
 
     try {
       const resp = await fetch(
