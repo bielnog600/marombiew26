@@ -322,14 +322,23 @@ GERE TUDO DE UMA VEZ:
   const savePlan = async () => {
     if (!result) return;
     setSaving(true);
-    const { error } = await supabase.from('ai_plans').insert({
-      student_id: studentId!,
-      tipo: 'treino',
-      titulo: `Treino - ${new Date().toLocaleDateString('pt-BR')}`,
-      conteudo: result,
-    });
-    if (error) toast.error('Erro: ' + error.message);
-    else toast.success('Treino salvo!');
+    if (editPlanId) {
+      const { error } = await supabase.from('ai_plans').update({
+        conteudo: result,
+        titulo: `Treino - ${new Date().toLocaleDateString('pt-BR')} (editado)`,
+      }).eq('id', editPlanId);
+      if (error) toast.error('Erro: ' + error.message);
+      else toast.success('Treino atualizado!');
+    } else {
+      const { error } = await supabase.from('ai_plans').insert({
+        student_id: studentId!,
+        tipo: 'treino',
+        titulo: `Treino - ${new Date().toLocaleDateString('pt-BR')}`,
+        conteudo: result,
+      });
+      if (error) toast.error('Erro: ' + error.message);
+      else toast.success('Treino salvo!');
+    }
     setSaving(false);
   };
 
