@@ -149,25 +149,33 @@ TABELA DE ESTRATÉGIAS:
 | ... | ... | ... | ... | ... | ... |
 
 TABELA DO PLANO ALIMENTAR (para cada opção):
+
+REGRA CRÍTICA: Cada alimento DEVE ter quantidade em gramas E valor calórico calculado proporcionalmente.
+Use os dados do banco: se o alimento tem X kcal por 100g e a porção é 150g, Kcal = X × 1.5.
+NUNCA deixe colunas Kcal, P, C ou G vazias. Sempre preencha com valores numéricos.
+
 | Refeição | Horário | Alimento | Quantidade (g) | Kcal | Proteína (g) | Carboidrato (g) | Gordura (g) |
 |----------|---------|----------|----------------|------|-------------|-----------------|-------------|
-| ... | ... | ... | ... | ... | ... | ... | ... |
+| Café da Manhã | 07:00 | Ovo inteiro | 100 g | 143 | 13.0 | 0.7 | 9.5 |
+| Café da Manhã |  | Pão integral | 50 g | 124 | 5.5 | 23.0 | 1.5 |
+| **TOTAL Café** |  |  |  | **267** | **18.5** | **23.7** | **11.0** |
 
-TOTAL do dia no final de cada tabela.
+Inclua TOTAL de cada refeição e TOTAL DIÁRIO no final de cada tabela.
 
 ========================================
 REGRAS
 ========================================
 
 1) Use APENAS alimentos do banco fornecido
-2) As quantidades devem ser PRECISAS para atingir os macros calculados
-3) Apresente o TOTAL de cada refeição e do dia
-4) Gere pelo menos 3 estratégias diferentes (ex: déficit moderado, déficit agressivo, manutenção)
+2) As quantidades devem ser em GRAMAS e PRECISAS para atingir os macros calculados
+3) CALCULE as calorias e macros de cada alimento PROPORCIONALMENTE à quantidade em gramas
+4) Apresente o TOTAL de cada refeição e TOTAL DIÁRIO
 5) Para cada estratégia escolhida, gere 2-3 opções de cardápio variadas
 6) Considere as preferências e restrições alimentares do aluno
 7) Inclua dicas de timing nutricional (pré/pós treino)
 8) Pergunte APENAS o que falta, UMA PERGUNTA POR VEZ
 9) NÃO pergunte dados que já foram fornecidos no contexto
+10) JAMAIS deixe células da tabela vazias - sempre coloque o valor numérico
 
 ========================================
 MENSAGENS WHATSAPP (NO FINAL)
@@ -248,7 +256,7 @@ serve(async (req) => {
           ...messages,
         ],
         stream: true,
-        max_tokens: 16000,
+        max_tokens: 32000,
       }),
     });
 
