@@ -160,6 +160,25 @@ const TreinoIA = () => {
 
     setStudentCtx(ctx);
     setStudentName(profile?.nome || 'Aluno');
+
+    // Auto-fill health conditions from student data
+    if (sp?.lesoes) { setHasLesao(true); }
+    if (anamnese?.dores) { setHasDor(true); setDorLocal(anamnese.dores); }
+    if (anamnese?.tabagismo) { setTabagismo(true); }
+    if (anamnese?.stress && ['alto', 'muito alto'].some(s => anamnese.stress?.toLowerCase().includes(s))) { setStressAlto(true); }
+    if (anamnese?.sono && ['ruim', 'péssimo', 'insônia', 'pouco'].some(s => anamnese.sono?.toLowerCase().includes(s))) { setSonoRuim(true); }
+
+    // Auto-fill from posture scan
+    const attentionPoints = postureScans?.[0]?.attention_points_json as any[] | null;
+    if (attentionPoints?.length) {
+      const labels = attentionPoints.map((p: any) => (p.label || p.name || '').toLowerCase());
+      if (labels.some(l => l.includes('cifose') || l.includes('kyphosis'))) setHipercifose(true);
+      if (labels.some(l => l.includes('escoliose') || l.includes('scoliosis'))) setEscoliose(true);
+      if (labels.some(l => l.includes('lordose') || l.includes('lordosis'))) setHiperlordose(true);
+      if (labels.some(l => l.includes('ombro') || l.includes('shoulder'))) setProtrusaoOmbro(true);
+      if (labels.some(l => l.includes('valgo') || l.includes('valgus'))) setValgoJoelho(true);
+    }
+
     setLoading(false);
   };
 
