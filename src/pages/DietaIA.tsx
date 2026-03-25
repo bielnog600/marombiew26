@@ -4,7 +4,8 @@ import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Loader2, Save, UtensilsCrossed, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, UtensilsCrossed, RotateCcw, Leaf, Pill, Zap } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
@@ -56,6 +57,11 @@ const DietaIA = () => {
   const [mealCount, setMealCount] = useState('');
   const [dietStyle, setDietStyle] = useState('');
   const [preferences, setPreferences] = useState('');
+
+  // Extras toggles
+  const [enableFitoterapia, setEnableFitoterapia] = useState(false);
+  const [enableSuplementos, setEnableSuplementos] = useState(false);
+  const [enableEmagrecimentoRapido, setEnableEmagrecimentoRapido] = useState(false);
 
   // Result
   const [generating, setGenerating] = useState(false);
@@ -157,6 +163,9 @@ const DietaIA = () => {
 - Número de refeições: ${mealCount} por dia
 - Estilo de dieta: ${selectedStyle?.label}
 ${preferences ? `- Preferências/restrições adicionais: ${preferences}` : ''}
+${enableFitoterapia ? `- INCLUIR RECEITAS DE FITOTERAPIA: Sugira chás, infusões e preparações fitoterápicas complementares ao plano (ex: chá verde, cavalinha, hibisco, gengibre, canela). Inclua dosagens, horários ideais e benefícios de cada fitoterápico.` : ''}
+${enableSuplementos ? `- INCLUIR SUPLEMENTAÇÃO: Sugira suplementos adequados ao objetivo (ex: whey protein, creatina, cafeína, ômega-3, multivitamínico, melatonina). Inclua dosagem, horário de uso e justificativa científica para cada um.` : ''}
+${enableEmagrecimentoRapido ? `- ESTRATÉGIA DE EMAGRECIMENTO RÁPIDO: Inclua uma seção extra com estratégias avançadas para acelerar o emagrecimento (ex: jejum intermitente, carb cycling, refeeds, dia do lixo estratégico, HIIT pós-treino, termogênicos naturais). Explique prós, contras e cuidados de cada estratégia.` : ''}
 
 GERE TUDO DE UMA VEZ:
 1) Tabela comparativa de TMB por todas as fórmulas
@@ -166,7 +175,10 @@ GERE TUDO DE UMA VEZ:
 5) 2-3 opções de cardápio completo em tabela com: Refeição | Horário | Alimento | Quantidade (g) | Kcal | P | C | G
 6) Total de cada refeição e do dia
 7) Dicas de timing nutricional (pré/pós treino)
-8) Mensagens prontas para WhatsApp`;
+${enableFitoterapia ? '8) Receitas e protocolos de fitoterapia' : ''}
+${enableSuplementos ? `${enableFitoterapia ? '9' : '8'}) Protocolo de suplementação completo` : ''}
+${enableEmagrecimentoRapido ? `${enableFitoterapia && enableSuplementos ? '10' : enableFitoterapia || enableSuplementos ? '9' : '8'}) Estratégias avançadas de emagrecimento rápido` : ''}
+${Number(enableFitoterapia) + Number(enableSuplementos) + Number(enableEmagrecimentoRapido) > 0 ? `${enableFitoterapia && enableSuplementos && enableEmagrecimentoRapido ? '11' : enableFitoterapia && enableSuplementos || enableFitoterapia && enableEmagrecimentoRapido || enableSuplementos && enableEmagrecimentoRapido ? '10' : '9'}) Mensagens prontas para WhatsApp` : '8) Mensagens prontas para WhatsApp'}`;
 
     try {
       const resp = await fetch(
@@ -404,7 +416,50 @@ GERE TUDO DE UMA VEZ:
           </CardContent>
         </Card>
 
-        {/* Generate Button */}
+        {/* Step 4: Extras */}
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-3">
+            <h3 className="font-bold text-sm flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">4</span>
+              Extras (opcional)
+            </h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between rounded-xl border-2 border-border p-3 transition-all hover:border-primary/50" style={enableFitoterapia ? { borderColor: 'hsl(var(--primary))', backgroundColor: 'hsl(var(--primary) / 0.1)' } : {}}>
+                <div className="flex items-center gap-3">
+                  <Leaf className="h-5 w-5 text-green-500" />
+                  <div>
+                    <span className="font-semibold text-sm block">Receitas de Fitoterapia</span>
+                    <span className="text-xs text-muted-foreground">Chás, infusões e preparações fitoterápicas</span>
+                  </div>
+                </div>
+                <Switch checked={enableFitoterapia} onCheckedChange={setEnableFitoterapia} />
+              </div>
+
+              <div className="flex items-center justify-between rounded-xl border-2 border-border p-3 transition-all hover:border-primary/50" style={enableSuplementos ? { borderColor: 'hsl(var(--primary))', backgroundColor: 'hsl(var(--primary) / 0.1)' } : {}}>
+                <div className="flex items-center gap-3">
+                  <Pill className="h-5 w-5 text-blue-500" />
+                  <div>
+                    <span className="font-semibold text-sm block">Suplementação</span>
+                    <span className="text-xs text-muted-foreground">Whey, creatina, ômega-3, vitaminas e mais</span>
+                  </div>
+                </div>
+                <Switch checked={enableSuplementos} onCheckedChange={setEnableSuplementos} />
+              </div>
+
+              <div className="flex items-center justify-between rounded-xl border-2 border-border p-3 transition-all hover:border-primary/50" style={enableEmagrecimentoRapido ? { borderColor: 'hsl(var(--primary))', backgroundColor: 'hsl(var(--primary) / 0.1)' } : {}}>
+                <div className="flex items-center gap-3">
+                  <Zap className="h-5 w-5 text-amber-500" />
+                  <div>
+                    <span className="font-semibold text-sm block">Emagrecimento Rápido</span>
+                    <span className="text-xs text-muted-foreground">Jejum intermitente, carb cycling, termogênicos</span>
+                  </div>
+                </div>
+                <Switch checked={enableEmagrecimentoRapido} onCheckedChange={setEnableEmagrecimentoRapido} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Button
           onClick={generatePlan}
           disabled={!canGenerate || generating}
