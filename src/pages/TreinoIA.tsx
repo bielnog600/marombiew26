@@ -454,7 +454,108 @@ GERE TUDO DE UMA VEZ:
           </CardContent>
         </Card>
 
-        {/* Generate Button */}
+        {/* Step 4: Health & Injuries */}
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-4">
+            <h3 className="font-bold text-sm flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">4</span>
+              <AlertTriangle className="h-4 w-4 text-orange-500" />
+              Saúde e Restrições
+            </h3>
+            {(studentCtx?.lesoes || studentCtx?.anamnese?.dores) && (
+              <p className="text-xs text-muted-foreground bg-muted rounded-lg p-2">
+                ℹ️ Algumas opções foram pré-selecionadas com base na ficha do aluno.
+              </p>
+            )}
+
+            {/* Lesão */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="lesao" className="text-sm font-medium">Possui Lesão</Label>
+                <Switch id="lesao" checked={hasLesao} onCheckedChange={setHasLesao} />
+              </div>
+              {hasLesao && (
+                <div className="pl-2 space-y-2">
+                  <p className="text-xs text-muted-foreground">Local da lesão (selecione)</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['Ombro', 'Cotovelo', 'Punho', 'Coluna Cervical', 'Coluna Lombar', 'Coluna Torácica', 'Quadril', 'Joelho', 'Tornozelo', 'Outro'].map(loc => (
+                      <button key={loc} onClick={() => setLesaoLocal(prev => prev.includes(loc) ? prev.filter(l => l !== loc) : [...prev, loc])}
+                        className={`rounded-lg border px-2.5 py-1 text-xs transition-all ${lesaoLocal.includes(loc) ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-border hover:border-primary/50'}`}>
+                        {loc}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Dor */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="dor" className="text-sm font-medium">Sente Dor</Label>
+                <Switch id="dor" checked={hasDor} onCheckedChange={setHasDor} />
+              </div>
+              {hasDor && (
+                <input value={dorLocal} onChange={(e) => setDorLocal(e.target.value)}
+                  placeholder="Ex: dor no ombro direito ao elevar o braço..."
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none" />
+              )}
+            </div>
+
+            {/* Limitação Articular */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="limitacao" className="text-sm font-medium">Limitação Articular</Label>
+                <Switch id="limitacao" checked={limitacaoArticular} onCheckedChange={setLimitacaoArticular} />
+              </div>
+              {limitacaoArticular && (
+                <input value={limitacaoLocal} onChange={(e) => setLimitacaoLocal(e.target.value)}
+                  placeholder="Ex: limitação de flexão de ombro, extensão de joelho..."
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none" />
+              )}
+            </div>
+
+            {/* Desvios Posturais */}
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Desvios Posturais</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {[
+                  { id: 'hipercifose', label: 'Hipercifose', desc: 'Curvatura torácica acentuada', checked: hipercifose, set: setHipercifose },
+                  { id: 'escoliose', label: 'Escoliose', desc: 'Desvio lateral da coluna', checked: escoliose, set: setEscoliose },
+                  { id: 'hiperlordose', label: 'Hiperlordose', desc: 'Curvatura lombar acentuada', checked: hiperlordose, set: setHiperlordose },
+                  { id: 'protrusao', label: 'Protrusão de Ombros', desc: 'Ombros projetados à frente', checked: protrusaoOmbro, set: setProtrusaoOmbro },
+                  { id: 'valgo', label: 'Valgo de Joelho', desc: 'Joelhos convergem para dentro', checked: valgoJoelho, set: setValgoJoelho },
+                ].map(item => (
+                  <div key={item.id} className={`flex items-center justify-between rounded-xl border-2 p-3 transition-all ${item.checked ? 'border-orange-400 bg-orange-500/10' : 'border-border'}`}>
+                    <div>
+                      <span className="text-sm font-medium block">{item.label}</span>
+                      <span className="text-xs text-muted-foreground">{item.desc}</span>
+                    </div>
+                    <Switch checked={item.checked} onCheckedChange={item.set} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Hábitos */}
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Hábitos e Condições</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {[
+                  { id: 'tabagismo2', label: 'Tabagismo', checked: tabagismo, set: setTabagismo },
+                  { id: 'stress2', label: 'Stress Alto', checked: stressAlto, set: setStressAlto },
+                  { id: 'sono2', label: 'Sono Ruim', checked: sonoRuim, set: setSonoRuim },
+                ].map(item => (
+                  <div key={item.id} className={`flex items-center justify-between rounded-xl border-2 p-3 transition-all ${item.checked ? 'border-orange-400 bg-orange-500/10' : 'border-border'}`}>
+                    <span className="text-sm font-medium">{item.label}</span>
+                    <Switch checked={item.checked} onCheckedChange={item.set} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Button
           onClick={generatePlan}
           disabled={!canGenerate || generating}
