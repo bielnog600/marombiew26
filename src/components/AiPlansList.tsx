@@ -19,6 +19,7 @@ interface AiPlansListProps {
 
 
 const AiPlansList = ({ studentId }: AiPlansListProps) => {
+  const navigate = useNavigate();
   const [plans, setPlans] = useState<any[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
