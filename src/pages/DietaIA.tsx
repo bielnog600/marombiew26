@@ -58,6 +58,11 @@ const DietaIA = () => {
   const [dietStyle, setDietStyle] = useState('');
   const [preferences, setPreferences] = useState('');
 
+  // Extras toggles
+  const [enableFitoterapia, setEnableFitoterapia] = useState(false);
+  const [enableSuplementos, setEnableSuplementos] = useState(false);
+  const [enableEmagrecimentoRapido, setEnableEmagrecimentoRapido] = useState(false);
+
   // Result
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState('');
