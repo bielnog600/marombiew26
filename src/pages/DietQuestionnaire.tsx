@@ -95,7 +95,7 @@ const DietQuestionnaire = () => {
           setSubmitted(true);
         }
       }
-    } catch (err: any) {
+    } catch {
       setError('Erro ao carregar questionário');
     }
     setLoading(false);
