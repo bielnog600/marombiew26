@@ -61,6 +61,18 @@ const TRAINING_DAYS_OPTIONS = [
   { value: '7', label: 'Todos os dias' },
 ];
 
+const RESTRICTION_OPTIONS = [
+  'Sem lactose', 'Sem glúten', 'Sem frutos do mar', 'Sem carne vermelha',
+  'Sem porco', 'Vegetariano', 'Vegano', 'Sem ovo', 'Sem soja',
+  'Diabético', 'Hipertenso', 'Intolerância à frutose', 'Alergia a amendoim',
+];
+
+const PREFERENCE_OPTIONS = [
+  'Frango', 'Carne vermelha', 'Peixe', 'Ovos', 'Arroz integral',
+  'Batata doce', 'Aveia', 'Whey no shake', 'Frutas', 'Pasta de amendoim',
+  'Iogurte', 'Queijo cottage', 'Tapioca', 'Macarrão integral', 'Abacate',
+];
+
 const PROTOCOL_ADJUSTMENTS = [
   { id: 'calorie_adjust', label: 'Ajuste de Calorias', desc: 'Aumento ou redução calórica semanal', icon: SlidersHorizontal },
   { id: 'carb_adjust', label: 'Ajuste de Carboidrato', desc: 'Manipulação de carbs por dia da semana', icon: SlidersHorizontal },
