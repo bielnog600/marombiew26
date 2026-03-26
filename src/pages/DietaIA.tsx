@@ -270,8 +270,8 @@ const DietaIA = () => {
 - Fator de Atividade: ${selectedActivity?.label} (FA = ${activityLevel})
 - Estratégia: ${selectedStrategy?.label} (${selectedStrategy?.pct! > 0 ? '+' : ''}${selectedStrategy?.pct}%)
 - Número de refeições: ${mealCount} por dia
-${restrictions ? `- Restrições alimentares: ${restrictions}` : ''}
-${preferences ? `- Preferências alimentares: ${preferences}` : ''}
+${getRestrictionsText() ? `- Restrições alimentares: ${getRestrictionsText()}` : ''}
+${getPreferencesText() ? `- Preferências alimentares: ${getPreferencesText()}` : ''}
 
 === AJUSTES DO PROTOCOLO ===
 ${adjustmentLabels.length > 0 ? adjustmentLabels.map(a => `- ${a}`).join('\n') : '- Nenhum ajuste selecionado'}
