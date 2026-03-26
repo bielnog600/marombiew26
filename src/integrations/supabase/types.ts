@@ -274,6 +274,90 @@ export type Database = {
           },
         ]
       }
+      diet_questionnaires: {
+        Row: {
+          alimentos_por_refeicao: Json | null
+          baixa_energia: boolean | null
+          como_se_sente: string | null
+          created_at: string
+          dias_treino: string | null
+          dor_cabeca: boolean | null
+          estilo_dieta: string | null
+          fase_atual: string | null
+          fome_excessiva: boolean | null
+          fraqueza: boolean | null
+          horario_treino: string | null
+          id: string
+          insonia: boolean | null
+          irritabilidade: boolean | null
+          num_refeicoes: number | null
+          observacoes: string | null
+          pele_fina: boolean | null
+          preferencias_alimentares: string | null
+          reduziu_peso: boolean | null
+          responded_at: string | null
+          restricoes_alimentares: string | null
+          status: string
+          student_id: string
+          token: string
+          usa_hormonios: string | null
+        }
+        Insert: {
+          alimentos_por_refeicao?: Json | null
+          baixa_energia?: boolean | null
+          como_se_sente?: string | null
+          created_at?: string
+          dias_treino?: string | null
+          dor_cabeca?: boolean | null
+          estilo_dieta?: string | null
+          fase_atual?: string | null
+          fome_excessiva?: boolean | null
+          fraqueza?: boolean | null
+          horario_treino?: string | null
+          id?: string
+          insonia?: boolean | null
+          irritabilidade?: boolean | null
+          num_refeicoes?: number | null
+          observacoes?: string | null
+          pele_fina?: boolean | null
+          preferencias_alimentares?: string | null
+          reduziu_peso?: boolean | null
+          responded_at?: string | null
+          restricoes_alimentares?: string | null
+          status?: string
+          student_id: string
+          token?: string
+          usa_hormonios?: string | null
+        }
+        Update: {
+          alimentos_por_refeicao?: Json | null
+          baixa_energia?: boolean | null
+          como_se_sente?: string | null
+          created_at?: string
+          dias_treino?: string | null
+          dor_cabeca?: boolean | null
+          estilo_dieta?: string | null
+          fase_atual?: string | null
+          fome_excessiva?: boolean | null
+          fraqueza?: boolean | null
+          horario_treino?: string | null
+          id?: string
+          insonia?: boolean | null
+          irritabilidade?: boolean | null
+          num_refeicoes?: number | null
+          observacoes?: string | null
+          pele_fina?: boolean | null
+          preferencias_alimentares?: string | null
+          reduziu_peso?: boolean | null
+          responded_at?: string | null
+          restricoes_alimentares?: string | null
+          status?: string
+          student_id?: string
+          token?: string
+          usa_hormonios?: string | null
+        }
+        Relationships: []
+      }
       foods: {
         Row: {
           calories: number

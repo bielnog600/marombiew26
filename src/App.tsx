@@ -18,6 +18,7 @@ import PostureAnalysis from "./pages/PostureAnalysis";
 import TreinoIA from "./pages/TreinoIA";
 import DietaIA from "./pages/DietaIA";
 import Alimentos from "./pages/Alimentos";
+import DietQuestionnaire from "./pages/DietQuestionnaire";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -54,6 +55,7 @@ const App = () => {
               <Route path="/treino-ia/:studentId" element={<ProtectedRoute requiredRole="admin"><TreinoIA /></ProtectedRoute>} />
               <Route path="/dieta-ia/:studentId" element={<ProtectedRoute requiredRole="admin"><DietaIA /></ProtectedRoute>} />
               <Route path="/alimentos" element={<ProtectedRoute requiredRole="admin"><Alimentos /></ProtectedRoute>} />
+              <Route path="/questionario-dieta" element={<DietQuestionnaire />} />
               <Route path="/minha-area" element={<ProtectedRoute requiredRole="aluno"><MinhaArea /></ProtectedRoute>} />
               <Route path="/minhas-avaliacoes" element={<ProtectedRoute requiredRole="aluno"><MinhaArea /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />

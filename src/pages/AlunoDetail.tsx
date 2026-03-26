@@ -6,8 +6,9 @@ import AiPlansList from '@/components/AiPlansList';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Plus, ClipboardList, User, Target, FileText, ScanLine, Pencil, Trash2, Heart, Bot, Download, Loader2, BarChart3, UtensilsCrossed } from 'lucide-react';
+import { ArrowLeft, Plus, ClipboardList, User, Target, FileText, ScanLine, Pencil, Trash2, Heart, Bot, Download, Loader2, BarChart3, UtensilsCrossed, FileQuestion } from 'lucide-react';
 import AssessmentComparison from '@/components/AssessmentComparison';
+import DietQuestionnairesList from '@/components/DietQuestionnairesList';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -141,6 +142,7 @@ const AlunoDetail = () => {
               <TabsTrigger value="avaliacoes" className="text-xs sm:text-sm"><ClipboardList className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Avaliações</span><span className="sm:hidden">Aval.</span></TabsTrigger>
               <TabsTrigger value="postura" className="text-xs sm:text-sm"><ScanLine className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Análise Postural</span><span className="sm:hidden">Postura</span></TabsTrigger>
               <TabsTrigger value="comparar" className="text-xs sm:text-sm"><BarChart3 className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Comparar</span><span className="sm:hidden">Comp.</span></TabsTrigger>
+              <TabsTrigger value="fichas" className="text-xs sm:text-sm"><FileQuestion className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Fichas</span><span className="sm:hidden">Fichas</span></TabsTrigger>
               <TabsTrigger value="ia" className="text-xs sm:text-sm"><Bot className="mr-1 h-4 w-4 shrink-0" /> IA</TabsTrigger>
             </TabsList>
           </div>
@@ -309,6 +311,10 @@ const AlunoDetail = () => {
 
           <TabsContent value="comparar">
             <AssessmentComparison studentId={id!} studentName={profile?.nome} assessments={assessments} />
+          </TabsContent>
+
+          <TabsContent value="fichas">
+            <DietQuestionnairesList studentId={id!} />
           </TabsContent>
 
           <TabsContent value="ia">
