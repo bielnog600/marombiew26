@@ -568,20 +568,50 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-2">Restrições alimentares</p>
+              <div className="flex gap-2 flex-wrap">
+                {RESTRICTION_OPTIONS.map(r => (
+                  <button
+                    key={r}
+                    onClick={() => toggleRestriction(r)}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
+                      selectedRestrictions.includes(r)
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border text-muted-foreground hover:border-primary/50'
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
               <input
-                value={restrictions}
-                onChange={(e) => setRestrictions(e.target.value)}
-                placeholder="Ex: sem lactose, sem glúten, alergia a frutos do mar..."
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                value={customRestriction}
+                onChange={(e) => setCustomRestriction(e.target.value)}
+                placeholder="Outro: digite aqui..."
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none mt-2"
               />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground mb-2">Preferências alimentares (opcional)</p>
+              <p className="text-xs text-muted-foreground mb-2">Preferências alimentares</p>
+              <div className="flex gap-2 flex-wrap">
+                {PREFERENCE_OPTIONS.map(p => (
+                  <button
+                    key={p}
+                    onClick={() => togglePreference(p)}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
+                      selectedPreferences.includes(p)
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border text-muted-foreground hover:border-primary/50'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
               <input
-                value={preferences}
-                onChange={(e) => setPreferences(e.target.value)}
-                placeholder="Ex: prefere frango, gosta de arroz integral, não come peixe..."
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                value={customPreference}
+                onChange={(e) => setCustomPreference(e.target.value)}
+                placeholder="Outro: digite aqui..."
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none mt-2"
               />
             </div>
           </CardContent>
