@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/badge';
 
 interface Props {
   studentId: string;
+  studentPhone?: string;
+  studentName?: string;
 }
 
 const DietQuestionnairesList: React.FC<Props> = ({ studentId }) => {
