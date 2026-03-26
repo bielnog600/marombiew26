@@ -83,6 +83,7 @@ const DietQuestionnaire = () => {
         }
       } else {
         setQuestionnaire(result);
+        if (result.foods) setFoodOptions(result.foods);
         if (result.status === 'completed') {
           setSubmitted(true);
         }
