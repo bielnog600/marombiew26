@@ -118,6 +118,9 @@ const DietQuestionnairesList: React.FC<Props> = ({ studentId, studentPhone, stud
                     <Eye className="h-4 w-4" />
                   </Button>
                 )}
+                <Button variant="ghost" size="icon" onClick={() => sendWhatsApp(q.token)} title="Enviar via WhatsApp">
+                  <MessageCircle className="h-4 w-4" />
+                </Button>
                 <Button variant="ghost" size="icon" onClick={() => copyLink(q.token)} title="Copiar link">
                   <Copy className="h-4 w-4" />
                 </Button>
