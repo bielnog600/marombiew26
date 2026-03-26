@@ -111,8 +111,10 @@ const DietaIA = () => {
 
   // Step 4 - Refeições & Preferências
   const [mealCount, setMealCount] = useState('');
-  const [preferences, setPreferences] = useState('');
-  const [restrictions, setRestrictions] = useState('');
+  const [selectedRestrictions, setSelectedRestrictions] = useState<string[]>([]);
+  const [customRestriction, setCustomRestriction] = useState('');
+  const [selectedPreferences, setSelectedPreferences] = useState<string[]>([]);
+  const [customPreference, setCustomPreference] = useState('');
 
   // Step 5 - Ajustes do Protocolo
   const [selectedAdjustments, setSelectedAdjustments] = useState<string[]>([]);
