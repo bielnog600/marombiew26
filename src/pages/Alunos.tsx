@@ -136,7 +136,18 @@ const Alunos = () => {
     setEditLoading(false);
   };
 
-  const filteredStudents = students.filter(s => {
+  const handleDeleteStudent = async (userId: string) => {
+    const { data, error } = await supabase.functions.invoke('delete-student', {
+      body: { student_user_id: userId },
+    });
+    if (error || data?.error) {
+      toast.error(data?.error || error?.message || 'Erro ao deletar aluno');
+    } else {
+      toast.success('Aluno deletado com sucesso!');
+      setStudents(prev => prev.filter(s => s.user_id !== userId));
+    }
+  };
+
     const matchSearch = s.nome?.toLowerCase().includes(search.toLowerCase()) || s.email?.toLowerCase().includes(search.toLowerCase());
     if (filterAtivo === 'all') return matchSearch;
     const sp = Array.isArray(s.students_profile) ? s.students_profile[0] : s.students_profile;
