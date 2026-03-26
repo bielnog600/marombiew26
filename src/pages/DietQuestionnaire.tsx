@@ -11,14 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { Loader2, CheckCircle, UtensilsCrossed } from 'lucide-react';
 
-const FOOD_OPTIONS = [
-  'Frango', 'Carne vermelha', 'Peixe/Tilápia', 'Ovos', 'Whey Protein',
-  'Arroz branco', 'Arroz integral', 'Batata doce', 'Macarrão integral', 'Aveia',
-  'Pão integral', 'Tapioca', 'Mandioca', 'Banana', 'Maçã',
-  'Brócolis', 'Espinafre', 'Abobrinha', 'Tomate', 'Pepino',
-  'Azeite de oliva', 'Pasta de amendoim', 'Castanhas', 'Abacate', 'Queijo cottage',
-  'Iogurte natural', 'Leite desnatado', 'Atum enlatado', 'Sardinha', 'Peru/Chester',
-];
 
 const ESTILO_OPTIONS = [
   'Flexível (IIFYM)', 'Clean eating', 'Low carb', 'Cetogênica', 'Vegana',
