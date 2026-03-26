@@ -331,6 +331,28 @@ ${enableSuplementos ? '- INCLUIR SUPLEMENTAÇÃO COMPLETA: Protocolo de suplemen
 ${enableEmagrecimentoRapido ? '- ESTRATÉGIA DE EMAGRECIMENTO RÁPIDO: Estratégias avançadas (jejum intermitente, HIIT, termogênicos).' : ''}
 
 GERE TUDO DE UMA VEZ:
+${studentCtx.questionario_dieta ? `
+=== FEEDBACK DO ALUNO (Questionário respondido em ${new Date(studentCtx.questionario_dieta.respondido_em).toLocaleDateString('pt-BR')}) ===
+- Estilo de dieta preferido: ${studentCtx.questionario_dieta.estilo_dieta || 'Não informado'}
+- Fase informada pelo aluno: ${studentCtx.questionario_dieta.fase_atual || 'Não informada'}
+- Alimentos preferidos: ${studentCtx.questionario_dieta.preferencias_alimentares || 'Não informado'}
+- Restrições do aluno: ${studentCtx.questionario_dieta.restricoes_alimentares || 'Nenhuma'}
+- Usa hormônios: ${studentCtx.questionario_dieta.usa_hormonios || 'Não informado'}
+- Como se sente: ${studentCtx.questionario_dieta.como_se_sente || 'Não informou'}
+- Sintomas relatados: ${[
+    studentCtx.questionario_dieta.fraqueza && 'Fraqueza muscular',
+    studentCtx.questionario_dieta.dor_cabeca && 'Dor de cabeça',
+    studentCtx.questionario_dieta.reduziu_peso && 'Reduziu peso',
+    studentCtx.questionario_dieta.pele_fina && 'Pele mais fina',
+    studentCtx.questionario_dieta.fome_excessiva && 'Fome excessiva',
+    studentCtx.questionario_dieta.insonia && 'Insônia',
+    studentCtx.questionario_dieta.baixa_energia && 'Baixa energia',
+    studentCtx.questionario_dieta.irritabilidade && 'Irritabilidade',
+  ].filter(Boolean).join(', ') || 'Nenhum'}
+- Observações do aluno: ${studentCtx.questionario_dieta.observacoes || 'Nenhuma'}
+
+IMPORTANTE: Considere os sintomas e feedback do aluno ao montar a dieta. Se há fraqueza/baixa energia, priorize mais calorias ou distribuição melhor. Se há insônia, evite estimulantes à noite. Se reduziu peso, pode estar em déficit excessivo.
+` : ''}
 1) Tabela comparativa de TMB por todas as fórmulas
 2) Escolha da fórmula mais adequada e justificativa
 3) Cálculo do GET e Consumo Energético
