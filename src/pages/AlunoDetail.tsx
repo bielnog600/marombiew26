@@ -313,6 +313,10 @@ const AlunoDetail = () => {
             <AssessmentComparison studentId={id!} studentName={profile?.nome} assessments={assessments} />
           </TabsContent>
 
+          <TabsContent value="fichas">
+            <DietQuestionnairesList studentId={id!} />
+          </TabsContent>
+
           <TabsContent value="ia">
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
