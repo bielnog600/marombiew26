@@ -3,8 +3,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Copy, Plus, CheckCircle, Clock, Eye, Loader2, MessageCircle } from 'lucide-react';
+import { Copy, Plus, CheckCircle, Clock, Eye, Loader2, MessageCircle, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 
 interface Props {
@@ -113,17 +117,39 @@ const DietQuestionnairesList: React.FC<Props> = ({ studentId, studentPhone, stud
                 </p>
               </div>
               <div className="flex items-center gap-1">
-                {q.status === 'completed' && (
-                  <Button variant="ghost" size="icon" onClick={() => setViewItem(q)} title="Ver respostas">
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                )}
+                <Button variant="ghost" size="icon" onClick={() => setViewItem(q)} title="Ver detalhes">
+                  <Eye className="h-4 w-4" />
+                </Button>
                 <Button variant="ghost" size="icon" onClick={() => sendWhatsApp(q.token)} title="Enviar via WhatsApp">
                   <MessageCircle className="h-4 w-4" />
                 </Button>
                 <Button variant="ghost" size="icon" onClick={() => copyLink(q.token)} title="Copiar link">
                   <Copy className="h-4 w-4" />
                 </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" title="Deletar">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Deletar questionário?</AlertDialogTitle>
+                      <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={async () => {
+                        const { error } = await supabase.from('diet_questionnaires').delete().eq('id', q.id);
+                        if (error) { toast.error('Erro ao deletar'); return; }
+                        toast.success('Questionário deletado.');
+                        setQuestionnaires(prev => prev.filter(x => x.id !== q.id));
+                      }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        Deletar
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </CardContent>
           </Card>
