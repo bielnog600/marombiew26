@@ -209,10 +209,11 @@ const DietQuestionnaire = () => {
         <Card>
           <CardContent className="p-6 space-y-4">
             <h3 className="font-semibold text-lg">Estilo de Dieta</h3>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {ESTILO_OPTIONS.map(e => (
-                <Button key={e} type="button" variant={estiloDieta === e ? 'default' : 'outline'} size="sm" onClick={() => setEstiloDieta(e)}>
-                  {e}
+                <Button key={e.label} type="button" variant={estiloDieta === e.label ? 'default' : 'outline'} size="sm" className="h-auto py-2 px-3 text-left justify-start flex-col items-start" onClick={() => setEstiloDieta(e.label)}>
+                  <span className="font-medium">{e.label}</span>
+                  <span className={`text-xs ${estiloDieta === e.label ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{e.desc}</span>
                 </Button>
               ))}
             </div>
