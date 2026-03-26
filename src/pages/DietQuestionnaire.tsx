@@ -12,13 +12,25 @@ import { toast } from 'sonner';
 import { Loader2, CheckCircle, UtensilsCrossed } from 'lucide-react';
 
 
-const ESTILO_OPTIONS = [
-  'Flexível (IIFYM)', 'Clean eating', 'Low carb', 'Cetogênica', 'Vegana',
-  'Vegetariana', 'Mediterrânea', 'Carnívora', 'Sem preferência',
+const ESTILO_OPTIONS: { label: string; desc: string }[] = [
+  { label: 'Flexível (IIFYM)', desc: 'Você pode comer o que quiser, desde que bata os macros (proteína, carbo, gordura) do dia.' },
+  { label: 'Clean eating', desc: 'Foco em alimentos naturais e minimamente processados, sem industrializados.' },
+  { label: 'Low carb', desc: 'Redução de carboidratos, priorizando proteínas e gorduras boas.' },
+  { label: 'Cetogênica', desc: 'Muito baixa em carboidratos e alta em gorduras, forçando o corpo a usar gordura como energia.' },
+  { label: 'Vegana', desc: 'Apenas alimentos de origem vegetal, sem carne, ovos ou laticínios.' },
+  { label: 'Vegetariana', desc: 'Sem carnes, mas permite ovos e laticínios.' },
+  { label: 'Mediterrânea', desc: 'Rica em azeite, peixes, grãos integrais, frutas e vegetais.' },
+  { label: 'Carnívora', desc: 'Baseada apenas em alimentos de origem animal: carnes, ovos e laticínios.' },
+  { label: 'Sem preferência', desc: 'Deixe o treinador escolher o melhor estilo para você.' },
 ];
 
-const FASE_OPTIONS = [
-  'Bulking', 'Cutting', 'Manutenção', 'Recomposição', 'Pré-contest', 'Não sei',
+const FASE_OPTIONS: { label: string; desc: string }[] = [
+  { label: 'Bulking', desc: 'Fase de ganho de massa muscular com superávit calórico (comer mais do que gasta).' },
+  { label: 'Cutting', desc: 'Fase de perda de gordura com déficit calórico, mantendo o máximo de massa magra.' },
+  { label: 'Manutenção', desc: 'Manter o peso e composição corporal atuais, comendo o necessário.' },
+  { label: 'Recomposição', desc: 'Perder gordura e ganhar músculo ao mesmo tempo, com dieta equilibrada.' },
+  { label: 'Pré-contest', desc: 'Preparação para competição: dieta restrita para máxima definição muscular.' },
+  { label: 'Não sei', desc: 'Seu treinador vai definir a melhor fase para o seu objetivo.' },
 ];
 
 const SINTOMAS = [
@@ -197,10 +209,11 @@ const DietQuestionnaire = () => {
         <Card>
           <CardContent className="p-6 space-y-4">
             <h3 className="font-semibold text-lg">Estilo de Dieta</h3>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {ESTILO_OPTIONS.map(e => (
-                <Button key={e} type="button" variant={estiloDieta === e ? 'default' : 'outline'} size="sm" onClick={() => setEstiloDieta(e)}>
-                  {e}
+                <Button key={e.label} type="button" variant={estiloDieta === e.label ? 'default' : 'outline'} size="sm" className="h-auto py-2 px-3 text-left justify-start flex-col items-start" onClick={() => setEstiloDieta(e.label)}>
+                  <span className="font-medium">{e.label}</span>
+                  <span className={`text-xs ${estiloDieta === e.label ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{e.desc}</span>
                 </Button>
               ))}
             </div>
@@ -211,10 +224,11 @@ const DietQuestionnaire = () => {
         <Card>
           <CardContent className="p-6 space-y-4">
             <h3 className="font-semibold text-lg">Fase Atual</h3>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {FASE_OPTIONS.map(f => (
-                <Button key={f} type="button" variant={faseAtual === f ? 'default' : 'outline'} size="sm" onClick={() => setFaseAtual(f)}>
-                  {f}
+                <Button key={f.label} type="button" variant={faseAtual === f.label ? 'default' : 'outline'} size="sm" className="h-auto py-2 px-3 text-left justify-start flex-col items-start" onClick={() => setFaseAtual(f.label)}>
+                  <span className="font-medium">{f.label}</span>
+                  <span className={`text-xs ${faseAtual === f.label ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{f.desc}</span>
                 </Button>
               ))}
             </div>
