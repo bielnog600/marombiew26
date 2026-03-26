@@ -50,10 +50,22 @@ const DietQuestionnairesList: React.FC<Props> = ({ studentId, studentPhone, stud
     setCreating(false);
   };
 
+  const getLink = (token: string) => `${window.location.origin}/questionario-dieta?token=${token}`;
+
   const copyLink = (token: string) => {
-    const link = `${window.location.origin}/questionario-dieta?token=${token}`;
-    navigator.clipboard.writeText(link);
+    navigator.clipboard.writeText(getLink(token));
     toast.success('Link copiado!');
+  };
+
+  const sendWhatsApp = (token: string) => {
+    if (!studentPhone) {
+      toast.error('Aluno não possui telefone cadastrado.');
+      return;
+    }
+    const phone = studentPhone.replace(/\D/g, '');
+    const link = getLink(token);
+    const msg = encodeURIComponent(`Olá${studentName ? ` ${studentName}` : ''}! 🏋️\n\nPreencha seu questionário de dieta para montarmos seu plano alimentar personalizado:\n\n${link}\n\nQualquer dúvida, estou à disposição!`);
+    window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
   };
 
   const SINTOMAS_LABELS: Record<string, string> = {
