@@ -5,7 +5,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Search, Pencil } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -135,6 +136,18 @@ const Alunos = () => {
     setEditLoading(false);
   };
 
+  const handleDeleteStudent = async (userId: string) => {
+    const { data, error } = await supabase.functions.invoke('delete-student', {
+      body: { student_user_id: userId },
+    });
+    if (error || data?.error) {
+      toast.error(data?.error || error?.message || 'Erro ao deletar aluno');
+    } else {
+      toast.success('Aluno deletado com sucesso!');
+      setStudents(prev => prev.filter(s => s.user_id !== userId));
+    }
+  };
+
   const filteredStudents = students.filter(s => {
     const matchSearch = s.nome?.toLowerCase().includes(search.toLowerCase()) || s.email?.toLowerCase().includes(search.toLowerCase());
     if (filterAtivo === 'all') return matchSearch;
@@ -258,6 +271,35 @@ const Alunos = () => {
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="shrink-0 text-muted-foreground hover:text-destructive"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Deletar aluno</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Tem certeza que deseja deletar <strong>{s.nome || 'este aluno'}</strong>? Todos os dados (avaliações, planos, fichas) serão removidos permanentemente.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={() => handleDeleteStudent(s.user_id)}
+                          >
+                            Deletar
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </CardContent>
               </Card>
