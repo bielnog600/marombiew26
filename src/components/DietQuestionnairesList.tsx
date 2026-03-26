@@ -13,7 +13,7 @@ interface Props {
   studentName?: string;
 }
 
-const DietQuestionnairesList: React.FC<Props> = ({ studentId }) => {
+const DietQuestionnairesList: React.FC<Props> = ({ studentId, studentPhone, studentName }) => {
   const [questionnaires, setQuestionnaires] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
