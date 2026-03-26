@@ -148,6 +148,7 @@ const Alunos = () => {
     }
   };
 
+  const filteredStudents = students.filter(s => {
     const matchSearch = s.nome?.toLowerCase().includes(search.toLowerCase()) || s.email?.toLowerCase().includes(search.toLowerCase());
     if (filterAtivo === 'all') return matchSearch;
     const sp = Array.isArray(s.students_profile) ? s.students_profile[0] : s.students_profile;
