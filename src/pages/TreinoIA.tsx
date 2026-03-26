@@ -64,6 +64,7 @@ const TreinoIA = () => {
   const [week, setWeek] = useState('');
   const [equipment, setEquipment] = useState('');
   const [notes, setNotes] = useState('');
+  const [treinoReferencia, setTreinoReferencia] = useState('');
 
   // Health & Injuries
   const [hasLesao, setHasLesao] = useState(false);
