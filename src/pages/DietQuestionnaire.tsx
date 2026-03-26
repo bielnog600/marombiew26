@@ -253,11 +253,25 @@ const DietQuestionnaire = () => {
               </div>
               <div className="space-y-2">
                 <Label>Horário do treino</Label>
-                <Input placeholder="Ex: 06:00, 18:00" value={horarioTreino} onChange={e => setHorarioTreino(e.target.value)} />
+                <Select value={horarioTreino} onValueChange={setHorarioTreino}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    {['05:00', '06:00', '07:00', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00'].map(h => (
+                      <SelectItem key={h} value={h}>{h}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label>Dias de treino por semana</Label>
-                <Input placeholder="Ex: Seg a Sex, 5x" value={diasTreino} onChange={e => setDiasTreino(e.target.value)} />
+                <Select value={diasTreino} onValueChange={setDiasTreino}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    {['2x', '3x', '4x', '5x', '6x', '7x'].map(d => (
+                      <SelectItem key={d} value={d}>{d} por semana</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label>Usa hormônios?</Label>
