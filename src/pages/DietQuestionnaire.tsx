@@ -281,7 +281,7 @@ const DietQuestionnaire = () => {
             <h3 className="font-semibold text-lg">Alimentos que gostaria na dieta</h3>
             <p className="text-sm text-muted-foreground">Selecione os alimentos que você gosta e gostaria de ter no plano.</p>
             <div className="flex flex-wrap gap-2">
-              {FOOD_OPTIONS.map(f => (
+              {foodOptions.map(f => (
                 <Button key={f} type="button" variant={selectedFoods.includes(f) ? 'default' : 'outline'} size="sm" onClick={() => toggleFood(f)}>
                   {f}
                 </Button>
