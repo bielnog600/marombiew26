@@ -117,11 +117,9 @@ const DietQuestionnairesList: React.FC<Props> = ({ studentId, studentPhone, stud
                 </p>
               </div>
               <div className="flex items-center gap-1">
-                {q.status === 'completed' && (
-                  <Button variant="ghost" size="icon" onClick={() => setViewItem(q)} title="Ver respostas">
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                )}
+                <Button variant="ghost" size="icon" onClick={() => setViewItem(q)} title="Ver detalhes">
+                  <Eye className="h-4 w-4" />
+                </Button>
                 <Button variant="ghost" size="icon" onClick={() => sendWhatsApp(q.token)} title="Enviar via WhatsApp">
                   <MessageCircle className="h-4 w-4" />
                 </Button>
