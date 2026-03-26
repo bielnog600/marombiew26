@@ -149,15 +149,17 @@ const DietaIA = () => {
 
   const loadStudentData = async () => {
     setLoading(true);
-    const [profileRes, spRes, assessRes] = await Promise.all([
+    const [profileRes, spRes, assessRes, questRes] = await Promise.all([
       supabase.from('profiles').select('*').eq('user_id', studentId!).maybeSingle(),
       supabase.from('students_profile').select('*').eq('user_id', studentId!).maybeSingle(),
       supabase.from('assessments').select('id').eq('student_id', studentId!).order('created_at', { ascending: false }).limit(1),
+      supabase.from('diet_questionnaires').select('*').eq('student_id', studentId!).eq('status', 'completed').order('created_at', { ascending: false }).limit(1),
     ]);
 
     const profile = profileRes.data;
     const sp = spRes.data;
     const latestAssessmentId = assessRes.data?.[0]?.id;
+    const latestQuestionnaire = questRes.data?.[0] || null;
 
     let anthro: any = null, comp: any = null, vitals: any = null, anamnese: any = null;
     let photos: any[] = [];
@@ -192,12 +194,59 @@ const DietaIA = () => {
         rotina: anamnese.rotina, treino_atual: anamnese.treino_atual,
       } : null,
       fotos_avaliacao: photos.length > 0 ? photos.map(p => ({ tipo: p.tipo, url: p.url })) : null,
+      questionario_dieta: latestQuestionnaire ? {
+        estilo_dieta: latestQuestionnaire.estilo_dieta,
+        fase_atual: latestQuestionnaire.fase_atual,
+        num_refeicoes: latestQuestionnaire.num_refeicoes,
+        horario_treino: latestQuestionnaire.horario_treino,
+        dias_treino: latestQuestionnaire.dias_treino,
+        usa_hormonios: latestQuestionnaire.usa_hormonios,
+        restricoes_alimentares: latestQuestionnaire.restricoes_alimentares,
+        preferencias_alimentares: latestQuestionnaire.preferencias_alimentares,
+        como_se_sente: latestQuestionnaire.como_se_sente,
+        fraqueza: latestQuestionnaire.fraqueza,
+        dor_cabeca: latestQuestionnaire.dor_cabeca,
+        reduziu_peso: latestQuestionnaire.reduziu_peso,
+        pele_fina: latestQuestionnaire.pele_fina,
+        fome_excessiva: latestQuestionnaire.fome_excessiva,
+        insonia: latestQuestionnaire.insonia,
+        baixa_energia: latestQuestionnaire.baixa_energia,
+        irritabilidade: latestQuestionnaire.irritabilidade,
+        observacoes: latestQuestionnaire.observacoes,
+        respondido_em: latestQuestionnaire.responded_at,
+      } : null,
     };
 
     setStudentCtx(ctx);
     setStudentName(profile?.nome || 'Aluno');
 
-    if (comp?.percentual_gordura) {
+    // Pre-fill from questionnaire if available
+    if (latestQuestionnaire) {
+      if (latestQuestionnaire.estilo_dieta) {
+        // No direct state for estilo_dieta in DietaIA, but it goes into the prompt via ctx
+      }
+      if (latestQuestionnaire.fase_atual) {
+        const faseMap: Record<string, string> = { 'Bulking': 'bulking', 'Cutting': 'cutting', 'Manutenção': 'manutencao', 'Recomposição': 'recomposicao', 'Pré-contest': 'pre_contest' };
+        if (faseMap[latestQuestionnaire.fase_atual]) setPhase(faseMap[latestQuestionnaire.fase_atual]);
+      }
+      if (latestQuestionnaire.num_refeicoes) setMealCount(String(latestQuestionnaire.num_refeicoes));
+      if (latestQuestionnaire.horario_treino) {
+        const timeMap: Record<string, string> = { '05:00': 'manha', '06:00': 'manha', '07:00': 'manha', '08:00': 'manha', '09:00': 'manha', '10:00': 'manha', '11:00': 'manha', '12:00': 'tarde', '13:00': 'tarde', '14:00': 'tarde', '15:00': 'tarde', '16:00': 'tarde', '17:00': 'noite', '18:00': 'noite', '19:00': 'noite', '20:00': 'noite', '21:00': 'noite', '22:00': 'madrugada' };
+        if (timeMap[latestQuestionnaire.horario_treino]) setTrainingTime(timeMap[latestQuestionnaire.horario_treino]);
+      }
+      if (latestQuestionnaire.dias_treino) {
+        const days = latestQuestionnaire.dias_treino.replace('x', '');
+        if (['3','4','5','6','7'].includes(days)) setTrainingDays(days);
+      }
+      if (latestQuestionnaire.restricoes_alimentares) {
+        setCustomRestriction(latestQuestionnaire.restricoes_alimentares);
+      }
+      if (latestQuestionnaire.preferencias_alimentares) {
+        setCustomPreference(latestQuestionnaire.preferencias_alimentares);
+      }
+    }
+
+    if (comp?.percentual_gordura && !latestQuestionnaire?.fase_atual) {
       const bf = Number(comp.percentual_gordura);
       const isMale = sp?.sexo === 'masculino';
       if ((isMale && bf > 20) || (!isMale && bf > 28)) setStrategy('deficit_moderado');
@@ -205,8 +254,8 @@ const DietaIA = () => {
       else setStrategy('manutencao');
     }
 
-    // Pre-fill restrictions from profile
-    if (sp?.restricoes) setCustomRestriction(sp.restricoes);
+    // Pre-fill restrictions from profile (only if no questionnaire)
+    if (!latestQuestionnaire && sp?.restricoes) setCustomRestriction(sp.restricoes);
 
     setLoading(false);
   };
@@ -282,6 +331,28 @@ ${enableSuplementos ? '- INCLUIR SUPLEMENTAÇÃO COMPLETA: Protocolo de suplemen
 ${enableEmagrecimentoRapido ? '- ESTRATÉGIA DE EMAGRECIMENTO RÁPIDO: Estratégias avançadas (jejum intermitente, HIIT, termogênicos).' : ''}
 
 GERE TUDO DE UMA VEZ:
+${studentCtx.questionario_dieta ? `
+=== FEEDBACK DO ALUNO (Questionário respondido em ${new Date(studentCtx.questionario_dieta.respondido_em).toLocaleDateString('pt-BR')}) ===
+- Estilo de dieta preferido: ${studentCtx.questionario_dieta.estilo_dieta || 'Não informado'}
+- Fase informada pelo aluno: ${studentCtx.questionario_dieta.fase_atual || 'Não informada'}
+- Alimentos preferidos: ${studentCtx.questionario_dieta.preferencias_alimentares || 'Não informado'}
+- Restrições do aluno: ${studentCtx.questionario_dieta.restricoes_alimentares || 'Nenhuma'}
+- Usa hormônios: ${studentCtx.questionario_dieta.usa_hormonios || 'Não informado'}
+- Como se sente: ${studentCtx.questionario_dieta.como_se_sente || 'Não informou'}
+- Sintomas relatados: ${[
+    studentCtx.questionario_dieta.fraqueza && 'Fraqueza muscular',
+    studentCtx.questionario_dieta.dor_cabeca && 'Dor de cabeça',
+    studentCtx.questionario_dieta.reduziu_peso && 'Reduziu peso',
+    studentCtx.questionario_dieta.pele_fina && 'Pele mais fina',
+    studentCtx.questionario_dieta.fome_excessiva && 'Fome excessiva',
+    studentCtx.questionario_dieta.insonia && 'Insônia',
+    studentCtx.questionario_dieta.baixa_energia && 'Baixa energia',
+    studentCtx.questionario_dieta.irritabilidade && 'Irritabilidade',
+  ].filter(Boolean).join(', ') || 'Nenhum'}
+- Observações do aluno: ${studentCtx.questionario_dieta.observacoes || 'Nenhuma'}
+
+IMPORTANTE: Considere os sintomas e feedback do aluno ao montar a dieta. Se há fraqueza/baixa energia, priorize mais calorias ou distribuição melhor. Se há insônia, evite estimulantes à noite. Se reduziu peso, pode estar em déficit excessivo.
+` : ''}
 1) Tabela comparativa de TMB por todas as fórmulas
 2) Escolha da fórmula mais adequada e justificativa
 3) Cálculo do GET e Consumo Energético
