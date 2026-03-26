@@ -239,6 +239,7 @@ const TreinoIA = () => {
 - Semana do ciclo: ${week} de 4
 - Equipamento: ${selectedEquip?.label}
 ${notes ? `- Observações adicionais: ${notes}` : ''}${healthBlock}
+${treinoReferencia ? `\n\nREFERÊNCIA DE TREINO FORNECIDA PELO PROFESSOR (USE COMO BASE EXATA para estruturar o treino, exercícios, divisão, volume e faixas de repetição):\n---\n${treinoReferencia}\n---\nSiga essa estrutura o mais fielmente possível, adaptando apenas para as condições de saúde e equipamento informados.` : ''}
 
 GERE TUDO DE UMA VEZ:
 1) Resumo do protocolo e foco da semana
