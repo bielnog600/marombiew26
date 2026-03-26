@@ -314,7 +314,7 @@ const AlunoDetail = () => {
           </TabsContent>
 
           <TabsContent value="fichas">
-            <DietQuestionnairesList studentId={id!} />
+            <DietQuestionnairesList studentId={id!} studentPhone={profile?.telefone} studentName={profile?.nome} />
           </TabsContent>
 
           <TabsContent value="ia">

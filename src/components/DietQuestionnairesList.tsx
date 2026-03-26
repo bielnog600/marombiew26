@@ -3,15 +3,17 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Copy, Plus, CheckCircle, Clock, Eye, Loader2 } from 'lucide-react';
+import { Copy, Plus, CheckCircle, Clock, Eye, Loader2, MessageCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 
 interface Props {
   studentId: string;
+  studentPhone?: string;
+  studentName?: string;
 }
 
-const DietQuestionnairesList: React.FC<Props> = ({ studentId }) => {
+const DietQuestionnairesList: React.FC<Props> = ({ studentId, studentPhone, studentName }) => {
   const [questionnaires, setQuestionnaires] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -48,10 +50,22 @@ const DietQuestionnairesList: React.FC<Props> = ({ studentId }) => {
     setCreating(false);
   };
 
+  const getLink = (token: string) => `${window.location.origin}/questionario-dieta?token=${token}`;
+
   const copyLink = (token: string) => {
-    const link = `${window.location.origin}/questionario-dieta?token=${token}`;
-    navigator.clipboard.writeText(link);
+    navigator.clipboard.writeText(getLink(token));
     toast.success('Link copiado!');
+  };
+
+  const sendWhatsApp = (token: string) => {
+    if (!studentPhone) {
+      toast.error('Aluno não possui telefone cadastrado.');
+      return;
+    }
+    const phone = studentPhone.replace(/\D/g, '');
+    const link = getLink(token);
+    const msg = encodeURIComponent(`Olá${studentName ? ` ${studentName}` : ''}! 🏋️\n\nPreencha seu questionário de dieta para montarmos seu plano alimentar personalizado:\n\n${link}\n\nQualquer dúvida, estou à disposição!`);
+    window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
   };
 
   const SINTOMAS_LABELS: Record<string, string> = {
@@ -104,6 +118,9 @@ const DietQuestionnairesList: React.FC<Props> = ({ studentId }) => {
                     <Eye className="h-4 w-4" />
                   </Button>
                 )}
+                <Button variant="ghost" size="icon" onClick={() => sendWhatsApp(q.token)} title="Enviar via WhatsApp">
+                  <MessageCircle className="h-4 w-4" />
+                </Button>
                 <Button variant="ghost" size="icon" onClick={() => copyLink(q.token)} title="Copiar link">
                   <Copy className="h-4 w-4" />
                 </Button>
