@@ -217,6 +217,30 @@ const DietaIA = () => {
     );
   };
 
+  const toggleRestriction = (r: string) => {
+    setSelectedRestrictions(prev =>
+      prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r]
+    );
+  };
+
+  const togglePreference = (p: string) => {
+    setSelectedPreferences(prev =>
+      prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]
+    );
+  };
+
+  const getRestrictionsText = () => {
+    const parts = [...selectedRestrictions];
+    if (customRestriction.trim()) parts.push(customRestriction.trim());
+    return parts.join(', ');
+  };
+
+  const getPreferencesText = () => {
+    const parts = [...selectedPreferences];
+    if (customPreference.trim()) parts.push(customPreference.trim());
+    return parts.join(', ');
+  };
+
   const canGenerate = activityLevel && strategy && mealCount && phase;
 
   const generatePlan = async () => {
