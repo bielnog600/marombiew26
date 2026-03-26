@@ -41,14 +41,15 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Also fetch student name
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("nome")
-        .eq("user_id", data.student_id)
-        .maybeSingle();
+      // Also fetch student name and foods list
+      const [{ data: profile }, { data: foods }] = await Promise.all([
+        supabase.from("profiles").select("nome").eq("user_id", data.student_id).maybeSingle(),
+        supabase.from("foods").select("name").order("name"),
+      ]);
 
-      return new Response(JSON.stringify({ ...data, student_name: profile?.nome || "Aluno" }), {
+      const foodNames = [...new Set((foods || []).map((f: any) => f.name))];
+
+      return new Response(JSON.stringify({ ...data, student_name: profile?.nome || "Aluno", foods: foodNames }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

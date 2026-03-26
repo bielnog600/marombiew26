@@ -11,14 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { Loader2, CheckCircle, UtensilsCrossed } from 'lucide-react';
 
-const FOOD_OPTIONS = [
-  'Frango', 'Carne vermelha', 'Peixe/Tilápia', 'Ovos', 'Whey Protein',
-  'Arroz branco', 'Arroz integral', 'Batata doce', 'Macarrão integral', 'Aveia',
-  'Pão integral', 'Tapioca', 'Mandioca', 'Banana', 'Maçã',
-  'Brócolis', 'Espinafre', 'Abobrinha', 'Tomate', 'Pepino',
-  'Azeite de oliva', 'Pasta de amendoim', 'Castanhas', 'Abacate', 'Queijo cottage',
-  'Iogurte natural', 'Leite desnatado', 'Atum enlatado', 'Sardinha', 'Peru/Chester',
-];
 
 const ESTILO_OPTIONS = [
   'Flexível (IIFYM)', 'Clean eating', 'Low carb', 'Cetogênica', 'Vegana',
@@ -53,7 +45,7 @@ const DietQuestionnaire = () => {
   const [submitted, setSubmitted] = useState(false);
   const [questionnaire, setQuestionnaire] = useState<any>(null);
   const [error, setError] = useState('');
-
+  const [foodOptions, setFoodOptions] = useState<string[]>([]);
   // Form state
   const [estiloDieta, setEstiloDieta] = useState('');
   const [numRefeicoes, setNumRefeicoes] = useState(5);
@@ -91,6 +83,7 @@ const DietQuestionnaire = () => {
         }
       } else {
         setQuestionnaire(result);
+        if (result.foods) setFoodOptions(result.foods);
         if (result.status === 'completed') {
           setSubmitted(true);
         }
@@ -288,7 +281,7 @@ const DietQuestionnaire = () => {
             <h3 className="font-semibold text-lg">Alimentos que gostaria na dieta</h3>
             <p className="text-sm text-muted-foreground">Selecione os alimentos que você gosta e gostaria de ter no plano.</p>
             <div className="flex flex-wrap gap-2">
-              {FOOD_OPTIONS.map(f => (
+              {foodOptions.map(f => (
                 <Button key={f} type="button" variant={selectedFoods.includes(f) ? 'default' : 'outline'} size="sm" onClick={() => toggleFood(f)}>
                   {f}
                 </Button>
