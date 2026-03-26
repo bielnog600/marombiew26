@@ -128,6 +128,30 @@ const DietQuestionnairesList: React.FC<Props> = ({ studentId, studentPhone, stud
                 <Button variant="ghost" size="icon" onClick={() => copyLink(q.token)} title="Copiar link">
                   <Copy className="h-4 w-4" />
                 </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" title="Deletar">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Deletar questionário?</AlertDialogTitle>
+                      <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={async () => {
+                        const { error } = await supabase.from('diet_questionnaires').delete().eq('id', q.id);
+                        if (error) { toast.error('Erro ao deletar'); return; }
+                        toast.success('Questionário deletado.');
+                        setQuestionnaires(prev => prev.filter(x => x.id !== q.id));
+                      }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        Deletar
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </CardContent>
           </Card>
