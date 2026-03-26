@@ -12,13 +12,25 @@ import { toast } from 'sonner';
 import { Loader2, CheckCircle, UtensilsCrossed } from 'lucide-react';
 
 
-const ESTILO_OPTIONS = [
-  'Flexível (IIFYM)', 'Clean eating', 'Low carb', 'Cetogênica', 'Vegana',
-  'Vegetariana', 'Mediterrânea', 'Carnívora', 'Sem preferência',
+const ESTILO_OPTIONS: { label: string; desc: string }[] = [
+  { label: 'Flexível (IIFYM)', desc: 'Você pode comer o que quiser, desde que bata os macros (proteína, carbo, gordura) do dia.' },
+  { label: 'Clean eating', desc: 'Foco em alimentos naturais e minimamente processados, sem industrializados.' },
+  { label: 'Low carb', desc: 'Redução de carboidratos, priorizando proteínas e gorduras boas.' },
+  { label: 'Cetogênica', desc: 'Muito baixa em carboidratos e alta em gorduras, forçando o corpo a usar gordura como energia.' },
+  { label: 'Vegana', desc: 'Apenas alimentos de origem vegetal, sem carne, ovos ou laticínios.' },
+  { label: 'Vegetariana', desc: 'Sem carnes, mas permite ovos e laticínios.' },
+  { label: 'Mediterrânea', desc: 'Rica em azeite, peixes, grãos integrais, frutas e vegetais.' },
+  { label: 'Carnívora', desc: 'Baseada apenas em alimentos de origem animal: carnes, ovos e laticínios.' },
+  { label: 'Sem preferência', desc: 'Deixe o treinador escolher o melhor estilo para você.' },
 ];
 
-const FASE_OPTIONS = [
-  'Bulking', 'Cutting', 'Manutenção', 'Recomposição', 'Pré-contest', 'Não sei',
+const FASE_OPTIONS: { label: string; desc: string }[] = [
+  { label: 'Bulking', desc: 'Fase de ganho de massa muscular com superávit calórico (comer mais do que gasta).' },
+  { label: 'Cutting', desc: 'Fase de perda de gordura com déficit calórico, mantendo o máximo de massa magra.' },
+  { label: 'Manutenção', desc: 'Manter o peso e composição corporal atuais, comendo o necessário.' },
+  { label: 'Recomposição', desc: 'Perder gordura e ganhar músculo ao mesmo tempo, com dieta equilibrada.' },
+  { label: 'Pré-contest', desc: 'Preparação para competição: dieta restrita para máxima definição muscular.' },
+  { label: 'Não sei', desc: 'Seu treinador vai definir a melhor fase para o seu objetivo.' },
 ];
 
 const SINTOMAS = [
