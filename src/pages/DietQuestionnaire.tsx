@@ -45,7 +45,7 @@ const DietQuestionnaire = () => {
   const [submitted, setSubmitted] = useState(false);
   const [questionnaire, setQuestionnaire] = useState<any>(null);
   const [error, setError] = useState('');
-
+  const [foodOptions, setFoodOptions] = useState<string[]>([]);
   // Form state
   const [estiloDieta, setEstiloDieta] = useState('');
   const [numRefeicoes, setNumRefeicoes] = useState(5);
