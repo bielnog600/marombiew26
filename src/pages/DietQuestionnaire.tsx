@@ -224,10 +224,11 @@ const DietQuestionnaire = () => {
         <Card>
           <CardContent className="p-6 space-y-4">
             <h3 className="font-semibold text-lg">Fase Atual</h3>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {FASE_OPTIONS.map(f => (
-                <Button key={f} type="button" variant={faseAtual === f ? 'default' : 'outline'} size="sm" onClick={() => setFaseAtual(f)}>
-                  {f}
+                <Button key={f.label} type="button" variant={faseAtual === f.label ? 'default' : 'outline'} size="sm" className="h-auto py-2 px-3 text-left justify-start flex-col items-start" onClick={() => setFaseAtual(f.label)}>
+                  <span className="font-medium">{f.label}</span>
+                  <span className={`text-xs ${faseAtual === f.label ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{f.desc}</span>
                 </Button>
               ))}
             </div>
