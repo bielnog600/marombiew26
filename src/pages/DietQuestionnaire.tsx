@@ -79,13 +79,6 @@ const DietQuestionnaire = () => {
 
   const loadQuestionnaire = async () => {
     try {
-      const { data, error: fetchError } = await supabase.functions.invoke('diet-questionnaire', {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        body: null,
-      });
-      
-      // Use fetch directly since functions.invoke doesn't support GET params well
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/diet-questionnaire?token=${token}`;
       const res = await fetch(url);
       const result = await res.json();
