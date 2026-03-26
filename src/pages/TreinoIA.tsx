@@ -478,6 +478,26 @@ GERE TUDO DE UMA VEZ:
           </CardContent>
         </Card>
 
+        {/* Step 5: Training Reference */}
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-3">
+            <h3 className="font-bold text-sm flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">5</span>
+              Referência de Treino (opcional)
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Cole aqui um treino base, estrutura de divisão, faixa de volume ou dicas para a IA seguir como referência exata.
+            </p>
+            <textarea
+              value={treinoReferencia}
+              onChange={(e) => setTreinoReferencia(e.target.value)}
+              placeholder={"Ex:\nSegunda – Lower 1 / quadríceps + glúteo\n  Agachamento goblet\n  Afundo\n  Leg press\n  Extensora\n  Flexora\n  Panturrilha\n\nFaixa de volume semanal:\n  Quadríceps: 10–14 séries\n  Glúteos: 12–16 séries..."}
+              rows={8}
+              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none resize-y min-h-[100px]"
+            />
+          </CardContent>
+        </Card>
+
         {/* Step 4: Health & Injuries */}
         <Card className="glass-card">
           <CardContent className="p-4 space-y-4">
