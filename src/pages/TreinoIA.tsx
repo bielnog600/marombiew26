@@ -64,6 +64,7 @@ const TreinoIA = () => {
   const [week, setWeek] = useState('');
   const [equipment, setEquipment] = useState('');
   const [notes, setNotes] = useState('');
+  const [treinoReferencia, setTreinoReferencia] = useState('');
 
   // Health & Injuries
   const [hasLesao, setHasLesao] = useState(false);
@@ -238,6 +239,7 @@ const TreinoIA = () => {
 - Semana do ciclo: ${week} de 4
 - Equipamento: ${selectedEquip?.label}
 ${notes ? `- Observações adicionais: ${notes}` : ''}${healthBlock}
+${treinoReferencia ? `\n\nREFERÊNCIA DE TREINO FORNECIDA PELO PROFESSOR (USE COMO BASE EXATA para estruturar o treino, exercícios, divisão, volume e faixas de repetição):\n---\n${treinoReferencia}\n---\nSiga essa estrutura o mais fielmente possível, adaptando apenas para as condições de saúde e equipamento informados.` : ''}
 
 GERE TUDO DE UMA VEZ:
 1) Resumo do protocolo e foco da semana
@@ -473,6 +475,26 @@ GERE TUDO DE UMA VEZ:
                 className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
               />
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Step 5: Training Reference */}
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-3">
+            <h3 className="font-bold text-sm flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">5</span>
+              Referência de Treino (opcional)
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Cole aqui um treino base, estrutura de divisão, faixa de volume ou dicas para a IA seguir como referência exata.
+            </p>
+            <textarea
+              value={treinoReferencia}
+              onChange={(e) => setTreinoReferencia(e.target.value)}
+              placeholder={"Ex:\nSegunda – Lower 1 / quadríceps + glúteo\n  Agachamento goblet\n  Afundo\n  Leg press\n  Extensora\n  Flexora\n  Panturrilha\n\nFaixa de volume semanal:\n  Quadríceps: 10–14 séries\n  Glúteos: 12–16 séries..."}
+              rows={8}
+              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none resize-y min-h-[100px]"
+            />
           </CardContent>
         </Card>
 
