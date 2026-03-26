@@ -179,7 +179,7 @@ const DietQuestionnaire = () => {
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="max-w-md w-full">
           <CardContent className="p-8 text-center space-y-4">
-            <CheckCircle className="h-16 w-16 mx-auto text-green-500" />
+            <CheckCircle className="h-16 w-16 mx-auto text-primary" />
             <h2 className="text-2xl font-bold">Obrigado!</h2>
             <p className="text-muted-foreground">Seu questionário de dieta foi enviado com sucesso. Seu treinador irá analisar suas respostas.</p>
           </CardContent>

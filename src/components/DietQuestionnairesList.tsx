@@ -88,7 +88,7 @@ const DietQuestionnairesList: React.FC<Props> = ({ studentId }) => {
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   {q.status === 'completed' ? (
-                    <Badge variant="default" className="bg-green-600"><CheckCircle className="mr-1 h-3 w-3" /> Respondido</Badge>
+                    <Badge variant="default"><CheckCircle className="mr-1 h-3 w-3" /> Respondido</Badge>
                   ) : (
                     <Badge variant="secondary"><Clock className="mr-1 h-3 w-3" /> Pendente</Badge>
                   )}
