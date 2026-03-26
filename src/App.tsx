@@ -18,6 +18,7 @@ import PostureAnalysis from "./pages/PostureAnalysis";
 import TreinoIA from "./pages/TreinoIA";
 import DietaIA from "./pages/DietaIA";
 import Alimentos from "./pages/Alimentos";
+import DietQuestionnaire from "./pages/DietQuestionnaire";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
