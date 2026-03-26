@@ -4,7 +4,7 @@ import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Loader2, Save, UtensilsCrossed, RotateCcw, Leaf, Pill, Zap } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, UtensilsCrossed, RotateCcw, Leaf, Pill, Zap, Dumbbell, Clock, Syringe, Target, SlidersHorizontal } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
@@ -26,8 +26,8 @@ const STRATEGIES = [
   { value: 'deficit_moderado', label: 'Déficit Moderado (-20%)', desc: 'Emagrecimento acelerado', pct: -20 },
   { value: 'deficit_agressivo', label: 'Déficit Agressivo (-30%)', desc: 'Perda rápida, mais restritivo', pct: -30 },
   { value: 'manutencao', label: 'Manutenção (0%)', desc: 'Manter peso e composição', pct: 0 },
-  { value: 'superavit_leve', label: 'Superávit Leve (+10%)', desc: 'Ganho de massa gradual (lean bulk)', pct: 10 },
-  { value: 'superavit_moderado', label: 'Superávit Moderado (+20%)', desc: 'Ganho de massa acelerado', pct: 20 },
+  { value: 'superavit_leve', label: 'Superávit Leve (+10%)', desc: 'Lean bulk — ganho limpo', pct: 10 },
+  { value: 'superavit_moderado', label: 'Superávit Moderado (+20%)', desc: 'Bulk agressivo', pct: 20 },
 ];
 
 const MEAL_COUNTS = [
@@ -37,10 +37,40 @@ const MEAL_COUNTS = [
   { value: '7', label: '7 refeições' },
 ];
 
-const DIET_STYLES = [
-  { value: 'flexivel', label: 'Flexível por Macros', desc: 'Opções variadas respeitando macros' },
-  { value: 'estruturado', label: 'Cardápio Estruturado', desc: 'Refeições fixas e organizadas' },
-  { value: 'ciclagem', label: 'Ciclagem de Carboidratos', desc: 'High/Medium/Low carb por dia' },
+const PHASES = [
+  { value: 'bulking', label: 'Bulking', desc: 'Fase de ganho de massa' },
+  { value: 'cutting', label: 'Cutting', desc: 'Fase de definição' },
+  { value: 'manutencao', label: 'Manutenção', desc: 'Manter composição corporal' },
+  { value: 'recomposicao', label: 'Recomposição', desc: 'Perder gordura e ganhar massa simultaneamente' },
+  { value: 'pre_contest', label: 'Pré-Contest', desc: 'Preparação para competição' },
+];
+
+const TRAINING_TIMES = [
+  { value: 'manha_jejum', label: 'Manhã (jejum)' },
+  { value: 'manha', label: 'Manhã' },
+  { value: 'tarde', label: 'Tarde' },
+  { value: 'noite', label: 'Noite' },
+  { value: 'madrugada', label: 'Madrugada' },
+];
+
+const TRAINING_DAYS_OPTIONS = [
+  { value: '3', label: '3x/semana' },
+  { value: '4', label: '4x/semana' },
+  { value: '5', label: '5x/semana' },
+  { value: '6', label: '6x/semana' },
+  { value: '7', label: 'Todos os dias' },
+];
+
+const PROTOCOL_ADJUSTMENTS = [
+  { id: 'calorie_adjust', label: 'Ajuste de Calorias', desc: 'Aumento ou redução calórica semanal', icon: SlidersHorizontal },
+  { id: 'carb_adjust', label: 'Ajuste de Carboidrato', desc: 'Manipulação de carbs por dia da semana', icon: SlidersHorizontal },
+  { id: 'sodium_adjust', label: 'Ajuste de Sódio', desc: 'Protocolo de manipulação de sódio', icon: SlidersHorizontal },
+  { id: 'water_adjust', label: 'Ajuste de Água', desc: 'Protocolo de ingestão hídrica', icon: SlidersHorizontal },
+  { id: 'meal_change', label: 'Mudança de Refeições', desc: 'Alterar número/distribuição de refeições', icon: SlidersHorizontal },
+  { id: 'plato', label: 'Estratégia para Platô', desc: 'Quebrar estagnação metabólica', icon: Target },
+  { id: 'refeed', label: 'Refeed', desc: 'Dias de recarga de carboidrato', icon: Zap },
+  { id: 'diet_break', label: 'Diet Break', desc: 'Pausa programada na dieta', icon: Clock },
+  { id: 'carb_cycling', label: 'Carb Cycling', desc: 'Ciclagem de carboidrato (high/medium/low)', icon: SlidersHorizontal },
 ];
 
 const DietaIA = () => {
@@ -53,14 +83,29 @@ const DietaIA = () => {
   const [studentName, setStudentName] = useState('Aluno');
   const [loading, setLoading] = useState(true);
 
-  // Selections
+  // Step 1 - Rotina
+  const [dailyRoutine, setDailyRoutine] = useState('');
+  const [trainingTime, setTrainingTime] = useState('');
+  const [trainingDays, setTrainingDays] = useState('');
+
+  // Step 2 - Fase & Hormônios
+  const [phase, setPhase] = useState('');
+  const [usesHormones, setUsesHormones] = useState<boolean | null>(null);
+  const [hormoneDetails, setHormoneDetails] = useState('');
+
+  // Step 3 - Atividade & Estratégia
   const [activityLevel, setActivityLevel] = useState('');
   const [strategy, setStrategy] = useState('');
-  const [mealCount, setMealCount] = useState('');
-  const [dietStyle, setDietStyle] = useState('');
-  const [preferences, setPreferences] = useState('');
 
-  // Extras toggles
+  // Step 4 - Refeições & Preferências
+  const [mealCount, setMealCount] = useState('');
+  const [preferences, setPreferences] = useState('');
+  const [restrictions, setRestrictions] = useState('');
+
+  // Step 5 - Ajustes do Protocolo
+  const [selectedAdjustments, setSelectedAdjustments] = useState<string[]>([]);
+
+  // Step 6 - Extras
   const [enableFitoterapia, setEnableFitoterapia] = useState(false);
   const [enableSuplementos, setEnableSuplementos] = useState(false);
   const [enableEmagrecimentoRapido, setEnableEmagrecimentoRapido] = useState(false);
@@ -81,15 +126,11 @@ const DietaIA = () => {
 
   const loadEditPlan = async () => {
     const { data } = await supabase.from('ai_plans').select('*').eq('id', editPlanId!).maybeSingle();
-    if (data) {
-      setResult(data.conteudo);
-    }
+    if (data) setResult(data.conteudo);
   };
 
   useEffect(() => {
-    if (result && resultRef.current) {
-      resultRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
+    if (result && resultRef.current) resultRef.current.scrollIntoView({ behavior: 'smooth' });
   }, [result]);
 
   const loadStudentData = async () => {
@@ -142,23 +183,27 @@ const DietaIA = () => {
     setStudentCtx(ctx);
     setStudentName(profile?.nome || 'Aluno');
 
-    // Auto-suggest strategy based on body fat
     if (comp?.percentual_gordura) {
       const bf = Number(comp.percentual_gordura);
       const isMale = sp?.sexo === 'masculino';
-      if ((isMale && bf > 20) || (!isMale && bf > 28)) {
-        setStrategy('deficit_moderado');
-      } else if ((isMale && bf < 12) || (!isMale && bf < 18)) {
-        setStrategy('superavit_leve');
-      } else {
-        setStrategy('manutencao');
-      }
+      if ((isMale && bf > 20) || (!isMale && bf > 28)) setStrategy('deficit_moderado');
+      else if ((isMale && bf < 12) || (!isMale && bf < 18)) setStrategy('superavit_leve');
+      else setStrategy('manutencao');
     }
+
+    // Pre-fill restrictions from profile
+    if (sp?.restricoes) setRestrictions(sp.restricoes);
 
     setLoading(false);
   };
 
-  const canGenerate = activityLevel && strategy && mealCount && dietStyle;
+  const toggleAdjustment = (id: string) => {
+    setSelectedAdjustments(prev =>
+      prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]
+    );
+  };
+
+  const canGenerate = activityLevel && strategy && mealCount && phase;
 
   const generatePlan = async () => {
     if (!canGenerate || !studentCtx) return;
@@ -167,18 +212,36 @@ const DietaIA = () => {
 
     const selectedStrategy = STRATEGIES.find(s => s.value === strategy);
     const selectedActivity = ACTIVITY_LEVELS.find(a => a.value === activityLevel);
-    const selectedStyle = DIET_STYLES.find(d => d.value === dietStyle);
+    const selectedPhase = PHASES.find(p => p.value === phase);
+    const selectedTrainingTime = TRAINING_TIMES.find(t => t.value === trainingTime);
 
-    const prompt = `Gere o plano alimentar COMPLETO agora com as seguintes configurações:
+    const adjustmentLabels = selectedAdjustments.map(id => PROTOCOL_ADJUSTMENTS.find(a => a.id === id)?.label).filter(Boolean);
 
+    const prompt = `Gere o plano alimentar COMPLETO para fisiculturismo com as seguintes configurações:
+
+=== ROTINA DO ALUNO ===
+- Rotina diária: ${dailyRoutine || 'Não informada'}
+- Horário de treino: ${selectedTrainingTime?.label || 'Não informado'}
+- Dias de treino: ${trainingDays ? `${trainingDays}x/semana` : 'Não informado'}
+
+=== FASE ATUAL ===
+- Fase: ${selectedPhase?.label} — ${selectedPhase?.desc}
+- Uso de hormônios: ${usesHormones === null ? 'Não informado' : usesHormones ? `Sim — ${hormoneDetails || 'detalhes não especificados'}` : 'Não (natural)'}
+
+=== PARÂMETROS NUTRICIONAIS ===
 - Fator de Atividade: ${selectedActivity?.label} (FA = ${activityLevel})
 - Estratégia: ${selectedStrategy?.label} (${selectedStrategy?.pct! > 0 ? '+' : ''}${selectedStrategy?.pct}%)
 - Número de refeições: ${mealCount} por dia
-- Estilo de dieta: ${selectedStyle?.label}
-${preferences ? `- Preferências/restrições adicionais: ${preferences}` : ''}
-${enableFitoterapia ? `- INCLUIR RECEITAS DE FITOTERAPIA: Sugira chás, infusões e preparações fitoterápicas complementares ao plano (ex: chá verde, cavalinha, hibisco, gengibre, canela). Inclua dosagens, horários ideais e benefícios de cada fitoterápico.` : ''}
-${enableSuplementos ? `- INCLUIR SUPLEMENTAÇÃO: Sugira suplementos adequados ao objetivo (ex: whey protein, creatina, cafeína, ômega-3, multivitamínico, melatonina). Inclua dosagem, horário de uso e justificativa científica para cada um.` : ''}
-${enableEmagrecimentoRapido ? `- ESTRATÉGIA DE EMAGRECIMENTO RÁPIDO: Inclua uma seção extra com estratégias avançadas para acelerar o emagrecimento (ex: jejum intermitente, carb cycling, refeeds, dia do lixo estratégico, HIIT pós-treino, termogênicos naturais). Explique prós, contras e cuidados de cada estratégia.` : ''}
+${restrictions ? `- Restrições alimentares: ${restrictions}` : ''}
+${preferences ? `- Preferências alimentares: ${preferences}` : ''}
+
+=== AJUSTES DO PROTOCOLO ===
+${adjustmentLabels.length > 0 ? adjustmentLabels.map(a => `- ${a}`).join('\n') : '- Nenhum ajuste selecionado'}
+
+=== EXTRAS ===
+${enableFitoterapia ? '- INCLUIR RECEITAS DE FITOTERAPIA: Sugira chás, infusões e preparações fitoterápicas complementares. Inclua dosagens, horários e benefícios.' : ''}
+${enableSuplementos ? '- INCLUIR SUPLEMENTAÇÃO COMPLETA: Protocolo de suplementos com dosagem, horário e justificativa.' : ''}
+${enableEmagrecimentoRapido ? '- ESTRATÉGIA DE EMAGRECIMENTO RÁPIDO: Estratégias avançadas (jejum intermitente, HIIT, termogênicos).' : ''}
 
 GERE TUDO DE UMA VEZ:
 1) Tabela comparativa de TMB por todas as fórmulas
@@ -187,11 +250,17 @@ GERE TUDO DE UMA VEZ:
 4) Distribuição de macronutrientes (proteína, carboidrato, gordura)
 5) 2-3 opções de cardápio completo em tabela com: Refeição | Horário | Alimento | Quantidade (g) | Kcal | P | C | G
 6) Total de cada refeição e do dia
-7) Dicas de timing nutricional (pré/pós treino)
-${enableFitoterapia ? '8) Receitas e protocolos de fitoterapia' : ''}
-${enableSuplementos ? `${enableFitoterapia ? '9' : '8'}) Protocolo de suplementação completo` : ''}
-${enableEmagrecimentoRapido ? `${enableFitoterapia && enableSuplementos ? '10' : enableFitoterapia || enableSuplementos ? '9' : '8'}) Estratégias avançadas de emagrecimento rápido` : ''}
-${Number(enableFitoterapia) + Number(enableSuplementos) + Number(enableEmagrecimentoRapido) > 0 ? `${enableFitoterapia && enableSuplementos && enableEmagrecimentoRapido ? '11' : enableFitoterapia && enableSuplementos || enableFitoterapia && enableEmagrecimentoRapido || enableSuplementos && enableEmagrecimentoRapido ? '10' : '9'}) Mensagens prontas para WhatsApp` : '8) Mensagens prontas para WhatsApp'}`;
+7) Timing nutricional (pré-treino, intra-treino, pós-treino) baseado no horário de treino informado
+${selectedAdjustments.includes('carb_cycling') ? '8) Protocolo de Carb Cycling com tabela de dias High/Medium/Low' : ''}
+${selectedAdjustments.includes('refeed') ? '9) Protocolo de Refeed: frequência, calorias e macros no dia de refeed' : ''}
+${selectedAdjustments.includes('diet_break') ? '10) Protocolo de Diet Break: duração, calorias de manutenção' : ''}
+${selectedAdjustments.includes('plato') ? '11) Estratégias para quebrar platô metabólico' : ''}
+${selectedAdjustments.includes('sodium_adjust') ? '12) Protocolo de manipulação de sódio (especialmente para pré-contest)' : ''}
+${selectedAdjustments.includes('water_adjust') ? '13) Protocolo de manipulação hídrica' : ''}
+${enableFitoterapia ? '14) Receitas e protocolos de fitoterapia' : ''}
+${enableSuplementos ? '15) Protocolo de suplementação completo' : ''}
+${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : ''}
+17) Mensagens prontas para WhatsApp`;
 
     try {
       const resp = await fetch(
@@ -244,7 +313,6 @@ ${Number(enableFitoterapia) + Number(enableSuplementos) + Number(enableEmagrecim
           }
         }
       }
-      // flush
       if (textBuffer.trim()) {
         for (let raw of textBuffer.split('\n')) {
           if (!raw || raw.startsWith(':') || raw.trim() === '') continue;
@@ -290,6 +358,24 @@ ${Number(enableFitoterapia) + Number(enableSuplementos) + Number(enableEmagrecim
     setSaving(false);
   };
 
+  const SelectionButton = ({ selected, onClick, children, className = '' }: { selected: boolean; onClick: () => void; children: React.ReactNode; className?: string }) => (
+    <button
+      onClick={onClick}
+      className={`rounded-xl border-2 p-3 text-left transition-all ${
+        selected ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+      } ${className}`}
+    >
+      {children}
+    </button>
+  );
+
+  const StepHeader = ({ step, title }: { step: number; title: string }) => (
+    <h3 className="font-bold text-sm flex items-center gap-2">
+      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">{step}</span>
+      {title}
+    </h3>
+  );
+
   if (loading) {
     return (
       <AppLayout title="Dieta IA">
@@ -323,129 +409,180 @@ ${Number(enableFitoterapia) + Number(enableSuplementos) + Number(enableEmagrecim
             {studentCtx?.objetivo && (
               <p className="text-sm text-muted-foreground mt-2">Objetivo: <span className="text-foreground font-medium">{studentCtx.objetivo}</span></p>
             )}
-            {studentCtx?.restricoes && (
-              <p className="text-sm text-muted-foreground mt-1">Restrições: <span className="text-foreground font-medium">{studentCtx.restricoes}</span></p>
-            )}
           </CardContent>
         </Card>
 
-        {/* Step 1: Activity Level */}
-        <Card className="glass-card">
-          <CardContent className="p-4 space-y-3">
-            <h3 className="font-bold text-sm flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">1</span>
-              Nível de Atividade Física
-            </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {ACTIVITY_LEVELS.map(a => (
-                <button
-                  key={a.value}
-                  onClick={() => setActivityLevel(a.value)}
-                  className={`rounded-xl border-2 p-3 text-left transition-all ${
-                    activityLevel === a.value
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border hover:border-primary/50'
-                  }`}
-                >
-                  <span className="font-semibold text-sm block">{a.label}</span>
-                  <span className="text-xs text-muted-foreground">{a.desc}</span>
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Step 2: Strategy */}
-        <Card className="glass-card">
-          <CardContent className="p-4 space-y-3">
-            <h3 className="font-bold text-sm flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">2</span>
-              Estratégia Nutricional
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {STRATEGIES.map(s => (
-                <button
-                  key={s.value}
-                  onClick={() => setStrategy(s.value)}
-                  className={`rounded-xl border-2 p-3 text-left transition-all ${
-                    strategy === s.value
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border hover:border-primary/50'
-                  }`}
-                >
-                  <span className="font-semibold text-sm block">{s.label}</span>
-                  <span className="text-xs text-muted-foreground">{s.desc}</span>
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Step 3: Meals & Style */}
+        {/* Step 1: Rotina e Treino */}
         <Card className="glass-card">
           <CardContent className="p-4 space-y-4">
-            <h3 className="font-bold text-sm flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">3</span>
-              Refeições e Estilo
-            </h3>
+            <StepHeader step={1} title="Rotina e Treino" />
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Descreva a rotina diária do aluno (trabalho, horários, etc.)</p>
+              <input
+                value={dailyRoutine}
+                onChange={(e) => setDailyRoutine(e.target.value)}
+                placeholder="Ex: trabalha das 8h às 17h, treina de manhã..."
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Horário de treino</p>
+              <div className="flex gap-2 flex-wrap">
+                {TRAINING_TIMES.map(t => (
+                  <SelectionButton key={t.value} selected={trainingTime === t.value} onClick={() => setTrainingTime(t.value)} className="px-4 py-2">
+                    <span className="font-medium text-sm">{t.label}</span>
+                  </SelectionButton>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Frequência de treino</p>
+              <div className="flex gap-2 flex-wrap">
+                {TRAINING_DAYS_OPTIONS.map(d => (
+                  <SelectionButton key={d.value} selected={trainingDays === d.value} onClick={() => setTrainingDays(d.value)} className="px-4 py-2">
+                    <span className="font-medium text-sm">{d.label}</span>
+                  </SelectionButton>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Step 2: Fase Atual & Hormônios */}
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-4">
+            <StepHeader step={2} title="Fase Atual e Hormônios" />
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Fase atual do aluno</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {PHASES.map(p => (
+                  <SelectionButton key={p.value} selected={phase === p.value} onClick={() => setPhase(p.value)}>
+                    <span className="font-semibold text-sm block">{p.label}</span>
+                    <span className="text-xs text-muted-foreground">{p.desc}</span>
+                  </SelectionButton>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Uso de hormônios / TRT</p>
+              <div className="flex gap-2">
+                <SelectionButton selected={usesHormones === false} onClick={() => setUsesHormones(false)} className="px-4 py-2">
+                  <span className="font-medium text-sm">Natural</span>
+                </SelectionButton>
+                <SelectionButton selected={usesHormones === true} onClick={() => setUsesHormones(true)} className="px-4 py-2">
+                  <span className="font-medium text-sm">Sim, usa hormônios</span>
+                </SelectionButton>
+              </div>
+              {usesHormones && (
+                <input
+                  value={hormoneDetails}
+                  onChange={(e) => setHormoneDetails(e.target.value)}
+                  placeholder="Ex: TRT 200mg/sem, GH 4ui/dia..."
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none mt-2"
+                />
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Step 3: Atividade & Estratégia */}
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-4">
+            <StepHeader step={3} title="Atividade e Estratégia" />
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Nível de atividade física</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {ACTIVITY_LEVELS.map(a => (
+                  <SelectionButton key={a.value} selected={activityLevel === a.value} onClick={() => setActivityLevel(a.value)}>
+                    <span className="font-semibold text-sm block">{a.label}</span>
+                    <span className="text-xs text-muted-foreground">{a.desc}</span>
+                  </SelectionButton>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Estratégia nutricional</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {STRATEGIES.map(s => (
+                  <SelectionButton key={s.value} selected={strategy === s.value} onClick={() => setStrategy(s.value)}>
+                    <span className="font-semibold text-sm block">{s.label}</span>
+                    <span className="text-xs text-muted-foreground">{s.desc}</span>
+                  </SelectionButton>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Step 4: Refeições & Preferências */}
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-4">
+            <StepHeader step={4} title="Refeições e Preferências" />
             <div>
               <p className="text-xs text-muted-foreground mb-2">Número de refeições por dia</p>
               <div className="flex gap-2 flex-wrap">
                 {MEAL_COUNTS.map(m => (
-                  <button
-                    key={m.value}
-                    onClick={() => setMealCount(m.value)}
-                    className={`rounded-xl border-2 px-4 py-2 text-sm font-medium transition-all ${
-                      mealCount === m.value
-                        ? 'border-primary bg-primary/10'
-                        : 'border-border hover:border-primary/50'
-                    }`}
-                  >
-                    {m.label}
-                  </button>
+                  <SelectionButton key={m.value} selected={mealCount === m.value} onClick={() => setMealCount(m.value)} className="px-4 py-2">
+                    <span className="font-medium text-sm">{m.label}</span>
+                  </SelectionButton>
                 ))}
               </div>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground mb-2">Estilo de dieta</p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {DIET_STYLES.map(d => (
-                  <button
-                    key={d.value}
-                    onClick={() => setDietStyle(d.value)}
-                    className={`rounded-xl border-2 p-3 text-left transition-all ${
-                      dietStyle === d.value
-                        ? 'border-primary bg-primary/10'
-                        : 'border-border hover:border-primary/50'
-                    }`}
-                  >
-                    <span className="font-semibold text-sm block">{d.label}</span>
-                    <span className="text-xs text-muted-foreground">{d.desc}</span>
-                  </button>
-                ))}
-              </div>
+              <p className="text-xs text-muted-foreground mb-2">Restrições alimentares</p>
+              <input
+                value={restrictions}
+                onChange={(e) => setRestrictions(e.target.value)}
+                placeholder="Ex: sem lactose, sem glúten, alergia a frutos do mar..."
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+              />
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-2">Preferências alimentares (opcional)</p>
               <input
                 value={preferences}
                 onChange={(e) => setPreferences(e.target.value)}
-                placeholder="Ex: sem lactose, prefere frango, não gosta de peixe..."
+                placeholder="Ex: prefere frango, gosta de arroz integral, não come peixe..."
                 className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
               />
             </div>
           </CardContent>
         </Card>
 
-        {/* Step 4: Extras */}
+        {/* Step 5: Ajustes do Protocolo */}
         <Card className="glass-card">
           <CardContent className="p-4 space-y-3">
-            <h3 className="font-bold text-sm flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">4</span>
-              Extras (opcional)
-            </h3>
+            <StepHeader step={5} title="Ajustes do Protocolo (opcional)" />
+            <p className="text-xs text-muted-foreground">Selecione os ajustes que deseja incluir no plano</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {PROTOCOL_ADJUSTMENTS.map(adj => {
+                const isSelected = selectedAdjustments.includes(adj.id);
+                return (
+                  <button
+                    key={adj.id}
+                    onClick={() => toggleAdjustment(adj.id)}
+                    className={`flex items-center gap-3 rounded-xl border-2 p-3 text-left transition-all ${
+                      isSelected ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <adj.icon className={`h-4 w-4 shrink-0 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
+                    <div>
+                      <span className="font-semibold text-sm block">{adj.label}</span>
+                      <span className="text-xs text-muted-foreground">{adj.desc}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Step 6: Extras */}
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-3">
+            <StepHeader step={6} title="Extras (opcional)" />
             <div className="space-y-3">
-              <div className="flex items-center justify-between rounded-xl border-2 border-border p-3 transition-all hover:border-primary/50" style={enableFitoterapia ? { borderColor: 'hsl(var(--primary))', backgroundColor: 'hsl(var(--primary) / 0.1)' } : {}}>
+              <div className={`flex items-center justify-between rounded-xl border-2 p-3 transition-all hover:border-primary/50 ${enableFitoterapia ? 'border-primary bg-primary/10' : 'border-border'}`}>
                 <div className="flex items-center gap-3">
                   <Leaf className="h-5 w-5 text-green-500" />
                   <div>
@@ -456,7 +593,7 @@ ${Number(enableFitoterapia) + Number(enableSuplementos) + Number(enableEmagrecim
                 <Switch checked={enableFitoterapia} onCheckedChange={setEnableFitoterapia} />
               </div>
 
-              <div className="flex items-center justify-between rounded-xl border-2 border-border p-3 transition-all hover:border-primary/50" style={enableSuplementos ? { borderColor: 'hsl(var(--primary))', backgroundColor: 'hsl(var(--primary) / 0.1)' } : {}}>
+              <div className={`flex items-center justify-between rounded-xl border-2 p-3 transition-all hover:border-primary/50 ${enableSuplementos ? 'border-primary bg-primary/10' : 'border-border'}`}>
                 <div className="flex items-center gap-3">
                   <Pill className="h-5 w-5 text-blue-500" />
                   <div>
@@ -467,7 +604,7 @@ ${Number(enableFitoterapia) + Number(enableSuplementos) + Number(enableEmagrecim
                 <Switch checked={enableSuplementos} onCheckedChange={setEnableSuplementos} />
               </div>
 
-              <div className="flex items-center justify-between rounded-xl border-2 border-border p-3 transition-all hover:border-primary/50" style={enableEmagrecimentoRapido ? { borderColor: 'hsl(var(--primary))', backgroundColor: 'hsl(var(--primary) / 0.1)' } : {}}>
+              <div className={`flex items-center justify-between rounded-xl border-2 p-3 transition-all hover:border-primary/50 ${enableEmagrecimentoRapido ? 'border-primary bg-primary/10' : 'border-border'}`}>
                 <div className="flex items-center gap-3">
                   <Zap className="h-5 w-5 text-amber-500" />
                   <div>
@@ -494,7 +631,6 @@ ${Number(enableFitoterapia) + Number(enableSuplementos) + Number(enableEmagrecim
           )}
         </Button>
 
-        {/* Result - streaming raw markdown */}
         {result && generating && (
           <Card className="glass-card" ref={resultRef}>
             <CardContent className="p-4 space-y-4">
@@ -509,7 +645,6 @@ ${Number(enableFitoterapia) + Number(enableSuplementos) + Number(enableEmagrecim
           </Card>
         )}
 
-        {/* Result - final cards view */}
         {result && !generating && (
           <div ref={resultRef} className="space-y-4">
             <div className="flex items-center justify-between">
