@@ -61,6 +61,18 @@ const TRAINING_DAYS_OPTIONS = [
   { value: '7', label: 'Todos os dias' },
 ];
 
+const RESTRICTION_OPTIONS = [
+  'Sem lactose', 'Sem glúten', 'Sem frutos do mar', 'Sem carne vermelha',
+  'Sem porco', 'Vegetariano', 'Vegano', 'Sem ovo', 'Sem soja',
+  'Diabético', 'Hipertenso', 'Intolerância à frutose', 'Alergia a amendoim',
+];
+
+const PREFERENCE_OPTIONS = [
+  'Frango', 'Carne vermelha', 'Peixe', 'Ovos', 'Arroz integral',
+  'Batata doce', 'Aveia', 'Whey no shake', 'Frutas', 'Pasta de amendoim',
+  'Iogurte', 'Queijo cottage', 'Tapioca', 'Macarrão integral', 'Abacate',
+];
+
 const PROTOCOL_ADJUSTMENTS = [
   { id: 'calorie_adjust', label: 'Ajuste de Calorias', desc: 'Aumento ou redução calórica semanal', icon: SlidersHorizontal },
   { id: 'carb_adjust', label: 'Ajuste de Carboidrato', desc: 'Manipulação de carbs por dia da semana', icon: SlidersHorizontal },
@@ -99,8 +111,10 @@ const DietaIA = () => {
 
   // Step 4 - Refeições & Preferências
   const [mealCount, setMealCount] = useState('');
-  const [preferences, setPreferences] = useState('');
-  const [restrictions, setRestrictions] = useState('');
+  const [selectedRestrictions, setSelectedRestrictions] = useState<string[]>([]);
+  const [customRestriction, setCustomRestriction] = useState('');
+  const [selectedPreferences, setSelectedPreferences] = useState<string[]>([]);
+  const [customPreference, setCustomPreference] = useState('');
 
   // Step 5 - Ajustes do Protocolo
   const [selectedAdjustments, setSelectedAdjustments] = useState<string[]>([]);
@@ -192,7 +206,7 @@ const DietaIA = () => {
     }
 
     // Pre-fill restrictions from profile
-    if (sp?.restricoes) setRestrictions(sp.restricoes);
+    if (sp?.restricoes) setCustomRestriction(sp.restricoes);
 
     setLoading(false);
   };
@@ -201,6 +215,30 @@ const DietaIA = () => {
     setSelectedAdjustments(prev =>
       prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]
     );
+  };
+
+  const toggleRestriction = (r: string) => {
+    setSelectedRestrictions(prev =>
+      prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r]
+    );
+  };
+
+  const togglePreference = (p: string) => {
+    setSelectedPreferences(prev =>
+      prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]
+    );
+  };
+
+  const getRestrictionsText = () => {
+    const parts = [...selectedRestrictions];
+    if (customRestriction.trim()) parts.push(customRestriction.trim());
+    return parts.join(', ');
+  };
+
+  const getPreferencesText = () => {
+    const parts = [...selectedPreferences];
+    if (customPreference.trim()) parts.push(customPreference.trim());
+    return parts.join(', ');
   };
 
   const canGenerate = activityLevel && strategy && mealCount && phase;
@@ -232,8 +270,8 @@ const DietaIA = () => {
 - Fator de Atividade: ${selectedActivity?.label} (FA = ${activityLevel})
 - Estratégia: ${selectedStrategy?.label} (${selectedStrategy?.pct! > 0 ? '+' : ''}${selectedStrategy?.pct}%)
 - Número de refeições: ${mealCount} por dia
-${restrictions ? `- Restrições alimentares: ${restrictions}` : ''}
-${preferences ? `- Preferências alimentares: ${preferences}` : ''}
+${getRestrictionsText() ? `- Restrições alimentares: ${getRestrictionsText()}` : ''}
+${getPreferencesText() ? `- Preferências alimentares: ${getPreferencesText()}` : ''}
 
 === AJUSTES DO PROTOCOLO ===
 ${adjustmentLabels.length > 0 ? adjustmentLabels.map(a => `- ${a}`).join('\n') : '- Nenhum ajuste selecionado'}
@@ -530,20 +568,50 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-2">Restrições alimentares</p>
+              <div className="flex gap-2 flex-wrap">
+                {RESTRICTION_OPTIONS.map(r => (
+                  <button
+                    key={r}
+                    onClick={() => toggleRestriction(r)}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
+                      selectedRestrictions.includes(r)
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border text-muted-foreground hover:border-primary/50'
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
               <input
-                value={restrictions}
-                onChange={(e) => setRestrictions(e.target.value)}
-                placeholder="Ex: sem lactose, sem glúten, alergia a frutos do mar..."
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                value={customRestriction}
+                onChange={(e) => setCustomRestriction(e.target.value)}
+                placeholder="Outro: digite aqui..."
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none mt-2"
               />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground mb-2">Preferências alimentares (opcional)</p>
+              <p className="text-xs text-muted-foreground mb-2">Preferências alimentares</p>
+              <div className="flex gap-2 flex-wrap">
+                {PREFERENCE_OPTIONS.map(p => (
+                  <button
+                    key={p}
+                    onClick={() => togglePreference(p)}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
+                      selectedPreferences.includes(p)
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border text-muted-foreground hover:border-primary/50'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
               <input
-                value={preferences}
-                onChange={(e) => setPreferences(e.target.value)}
-                placeholder="Ex: prefere frango, gosta de arroz integral, não come peixe..."
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                value={customPreference}
+                onChange={(e) => setCustomPreference(e.target.value)}
+                placeholder="Outro: digite aqui..."
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none mt-2"
               />
             </div>
           </CardContent>
