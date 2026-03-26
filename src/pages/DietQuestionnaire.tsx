@@ -211,7 +211,7 @@ const DietQuestionnaire = () => {
             <h3 className="font-semibold text-lg">Estilo de Dieta</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {ESTILO_OPTIONS.map(e => (
-                <Button key={e.label} type="button" variant={estiloDieta === e.label ? 'default' : 'outline'} size="sm" className="h-auto py-2 px-3 text-left justify-start flex-col items-start" onClick={() => setEstiloDieta(e.label)}>
+                <Button key={e.label} type="button" variant={estiloDieta === e.label ? 'default' : 'outline'} size="sm" className="h-auto py-3 px-4 text-left justify-start flex-col items-start whitespace-normal overflow-hidden w-full" onClick={() => setEstiloDieta(e.label)}>
                   <span className="font-medium">{e.label}</span>
                   <span className={`text-xs ${estiloDieta === e.label ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{e.desc}</span>
                 </Button>
@@ -226,7 +226,7 @@ const DietQuestionnaire = () => {
             <h3 className="font-semibold text-lg">Fase Atual</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {FASE_OPTIONS.map(f => (
-                <Button key={f.label} type="button" variant={faseAtual === f.label ? 'default' : 'outline'} size="sm" className="h-auto py-2 px-3 text-left justify-start flex-col items-start" onClick={() => setFaseAtual(f.label)}>
+                <Button key={f.label} type="button" variant={faseAtual === f.label ? 'default' : 'outline'} size="sm" className="h-auto py-3 px-4 text-left justify-start flex-col items-start whitespace-normal overflow-hidden w-full" onClick={() => setFaseAtual(f.label)}>
                   <span className="font-medium">{f.label}</span>
                   <span className={`text-xs ${faseAtual === f.label ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{f.desc}</span>
                 </Button>
