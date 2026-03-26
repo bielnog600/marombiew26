@@ -206,7 +206,7 @@ const DietaIA = () => {
     }
 
     // Pre-fill restrictions from profile
-    if (sp?.restricoes) setRestrictions(sp.restricoes);
+    if (sp?.restricoes) setCustomRestriction(sp.restricoes);
 
     setLoading(false);
   };
