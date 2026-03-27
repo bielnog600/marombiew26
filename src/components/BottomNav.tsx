@@ -1,12 +1,13 @@
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, ClipboardList, ScanLine, LogOut, User, Apple } from 'lucide-react';
+import { LayoutDashboard, Users, ClipboardList, ScanLine, LogOut, User, Apple, Bell } from 'lucide-react';
 
 const adminItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
   { title: 'Alunos', url: '/alunos', icon: Users },
   { title: 'Alimentos', url: '/alimentos', icon: Apple },
+  { title: 'Alertas', url: '/notificacoes', icon: Bell },
 ];
 
 const alunoItems = [

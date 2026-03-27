@@ -57,6 +57,7 @@ const App = () => {
               <Route path="/dieta-ia/:studentId" element={<ProtectedRoute requiredRole="admin"><DietaIA /></ProtectedRoute>} />
               <Route path="/alimentos" element={<ProtectedRoute requiredRole="admin"><Alimentos /></ProtectedRoute>} />
               <Route path="/questionario-dieta" element={<DietQuestionnaire />} />
+              <Route path="/notificacoes" element={<ProtectedRoute requiredRole="admin"><Notificacoes /></ProtectedRoute>} />
               <Route path="/minha-area" element={<ProtectedRoute requiredRole="aluno"><MinhaArea /></ProtectedRoute>} />
               <Route path="/minhas-avaliacoes" element={<ProtectedRoute requiredRole="aluno"><MinhaArea /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
