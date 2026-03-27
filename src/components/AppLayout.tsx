@@ -13,6 +13,7 @@ interface AppLayoutProps {
 
 const AppLayout: React.FC<AppLayoutProps> = ({ children, title }) => {
   const isMobile = useIsMobile();
+  const { role } = useAuth();
 
   return (
     <SidebarProvider>
@@ -23,6 +24,15 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title }) => {
             <header className="h-14 flex items-center border-b border-border px-4 shrink-0">
               <SidebarTrigger className="mr-4" />
               {title && <h1 className="text-lg font-semibold text-foreground truncate">{title}</h1>}
+              <div className="ml-auto flex items-center">
+                {role === 'admin' && <NotificationBell />}
+              </div>
+            </header>
+          )}
+          {isMobile && role === 'admin' && (
+            <header className="h-12 flex items-center justify-between border-b border-border px-4 shrink-0">
+              {title && <h1 className="text-sm font-semibold text-foreground truncate">{title}</h1>}
+              <NotificationBell />
             </header>
           )}
           <main className={`flex-1 overflow-auto ${isMobile ? 'p-4 pb-4' : 'p-4 md:p-6'}`} style={isMobile ? { paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' } : undefined}>
