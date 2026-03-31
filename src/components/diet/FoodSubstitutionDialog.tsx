@@ -42,13 +42,13 @@ const FoodSubstitutionDialog: React.FC<FoodSubstitutionDialogProps> = ({
     staleTime: 5 * 60 * 1000,
   });
 
+  const origKcal = parseNum(originalFood.kcal);
   const origP = parseNum(originalFood.p);
   const origC = parseNum(originalFood.c);
   const origG = parseNum(originalFood.g);
 
   // Score: lower = closer macros. Compares macro ratios per calorie.
   const macroScore = useCallback((food: typeof foods[number]) => {
-    const ps = food.portion_size || 100;
     const totalCal = food.calories || 1;
     // Ratio per calorie for the DB food
     const pRatio = food.protein / totalCal;
