@@ -311,6 +311,28 @@ const DietaIA = () => {
 
     const adjustmentLabels = selectedAdjustments.map(id => PROTOCOL_ADJUSTMENTS.find(a => a.id === id)?.label).filter(Boolean);
 
+    // Build meal names based on count
+    const getMealNames = (count: number): string[] => {
+      const base = ['Café da Manhã', 'Almoço', 'Lanche da Tarde', 'Jantar'];
+      if (count <= 4) return base.slice(0, count);
+      const extra = ['Pós-Treino', 'Ceia', 'Lanche da Manhã'];
+      return [...base, ...extra.slice(0, count - 4)];
+    };
+
+    const mealNames = getMealNames(Number(mealCount));
+
+    // Build alimentos_por_refeicao info from questionnaire
+    let alimentosPorRefeicaoText = '';
+    if (studentCtx.questionario_dieta?.alimentos_por_refeicao) {
+      const apr = studentCtx.questionario_dieta.alimentos_por_refeicao;
+      if (typeof apr === 'object' && apr !== null) {
+        const entries = Object.entries(apr as Record<string, any>).filter(([, v]) => v && String(v).trim());
+        if (entries.length > 0) {
+          alimentosPorRefeicaoText = `\n=== ALIMENTOS POR REFEIÇÃO (informados pelo aluno na ficha) ===\n${entries.map(([k, v]) => `- ${k}: ${v}`).join('\n')}\nIMPORTANTE: Respeite esses alimentos nas refeições correspondentes.\n`;
+        }
+      }
+    }
+
     const prompt = `Gere o plano alimentar COMPLETO para fisiculturismo com as seguintes configurações:
 
 === ROTINA DO ALUNO ===
@@ -324,11 +346,12 @@ const DietaIA = () => {
 
 === PARÂMETROS NUTRICIONAIS ===
 - Fator de Atividade: ${selectedActivity?.label} (FA = ${activityLevel})
-- Estratégia: ${selectedStrategy?.label} (${selectedStrategy?.pct! > 0 ? '+' : ''}${selectedStrategy?.pct}%)
+- Estratégia: ${selectedStrategy?.label} (${(selectedStrategy?.pct ?? 0) > 0 ? '+' : ''}${selectedStrategy?.pct}%)
 - Número de refeições: ${mealCount} por dia
+- NOMES DAS REFEIÇÕES (use EXATAMENTE estes nomes na coluna "Refeição" da tabela): ${mealNames.join(', ')}
 ${getRestrictionsText() ? `- Restrições alimentares: ${getRestrictionsText()}` : ''}
 ${getPreferencesText() ? `- Preferências alimentares: ${getPreferencesText()}` : ''}
-
+${alimentosPorRefeicaoText}
 === AJUSTES DO PROTOCOLO ===
 ${adjustmentLabels.length > 0 ? adjustmentLabels.map(a => `- ${a}`).join('\n') : '- Nenhum ajuste selecionado'}
 
@@ -342,7 +365,13 @@ ${substitutions.length > 0 ? `Use PREFERENCIALMENTE os alimentos abaixo como op�
 ${studentCtx.questionario_dieta?.preferencias_alimentares ? `Considere as preferências do aluno: ${studentCtx.questionario_dieta.preferencias_alimentares}` : ''}
 ${studentCtx.questionario_dieta?.restricoes_alimentares ? `Respeite as restrições: ${studentCtx.questionario_dieta.restricoes_alimentares}` : ''}
 Use também a base de alimentos disponível do sistema para escolher substituições adequadas.
-A tabela de refeições DEVE ter as colunas: Refeição | Horário | Alimento | Quantidade (g) | Kcal | P | C | G | Substituição
+
+=== ESTRUTURA OBRIGATÓRIA DA TABELA ===
+A tabela DEVE ter as colunas: Refeição | Horário | Alimento | Quantidade (g) | Kcal | P | C | G | Substituição
+REGRA CRÍTICA: A coluna "Refeição" deve conter SOMENTE os nomes das refeições: ${mealNames.join(', ')}
+Cada refeição deve ter VÁRIOS alimentos (linhas), onde a primeira linha de cada refeição mostra o nome da refeição e as linhas seguintes ficam com a célula "Refeição" VAZIA (continuação da mesma refeição).
+NÃO coloque nomes de refeições na coluna "Alimento". A coluna "Alimento" é SOMENTE para os alimentos.
+Inclua uma linha de TOTAL por refeição e TOTAL DIÁRIO no final.
 
 GERE TUDO DE UMA VEZ:
 ${studentCtx.questionario_dieta ? `
