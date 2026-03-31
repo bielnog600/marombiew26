@@ -337,8 +337,9 @@ ${enableSuplementos ? '- INCLUIR SUPLEMENTAÇÃO COMPLETA: Protocolo de suplemen
 ${enableEmagrecimentoRapido ? '- ESTRATÉGIA DE EMAGRECIMENTO RÁPIDO: Estratégias avançadas (jejum intermitente, HIIT, termogênicos).' : ''}
 ${substitutions.length > 0 ? `
 === ALIMENTOS PARA SUBSTITUIÇÃO ===
-O aluno tem os seguintes alimentos disponíveis para substituição. Inclua uma TABELA DE SUBSTITUIÇÕES ao final do plano com estes alimentos e suas porções equivalentes:
+IMPORTANTE: Para cada alimento na tabela de refeições, adicione uma coluna "Substituição" com uma opção de troca equivalente em macros e calorias. Use os alimentos abaixo como base de substituição quando possível:
 ${substitutions.map(s => `- ${s.food}: ${s.portion}`).join('\n')}
+A tabela de refeições DEVE ter as colunas: Refeição | Horário | Alimento | Quantidade (g) | Kcal | P | C | G | Substituição
 ` : ''}
 
 GERE TUDO DE UMA VEZ:
