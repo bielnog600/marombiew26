@@ -4,11 +4,12 @@ import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Loader2, Save, UtensilsCrossed, RotateCcw, Leaf, Pill, Zap, Clock, Target, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, UtensilsCrossed, RotateCcw, Leaf, Pill, Zap, Clock, Target, SlidersHorizontal, FileDown, Plus, X } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
+import { generateDietPDF } from '@/lib/generateDietPDF';
 
 type StudentCtx = Record<string, any>;
 
@@ -123,6 +124,11 @@ const DietaIA = () => {
   const [enableFitoterapia, setEnableFitoterapia] = useState(false);
   const [enableSuplementos, setEnableSuplementos] = useState(false);
   const [enableEmagrecimentoRapido, setEnableEmagrecimentoRapido] = useState(false);
+
+  // Substitutions
+  const [substitutions, setSubstitutions] = useState<{ food: string; portion: string }[]>([]);
+  const [newSubFood, setNewSubFood] = useState('');
+  const [newSubPortion, setNewSubPortion] = useState('');
 
   // Result
   const [generating, setGenerating] = useState(false);
@@ -329,6 +335,11 @@ ${adjustmentLabels.length > 0 ? adjustmentLabels.map(a => `- ${a}`).join('\n') :
 ${enableFitoterapia ? '- INCLUIR RECEITAS DE FITOTERAPIA: Sugira chás, infusões e preparações fitoterápicas complementares. Inclua dosagens, horários e benefícios.' : ''}
 ${enableSuplementos ? '- INCLUIR SUPLEMENTAÇÃO COMPLETA: Protocolo de suplementos com dosagem, horário e justificativa.' : ''}
 ${enableEmagrecimentoRapido ? '- ESTRATÉGIA DE EMAGRECIMENTO RÁPIDO: Estratégias avançadas (jejum intermitente, HIIT, termogênicos).' : ''}
+${substitutions.length > 0 ? `
+=== ALIMENTOS PARA SUBSTITUIÇÃO ===
+O aluno tem os seguintes alimentos disponíveis para substituição. Inclua uma TABELA DE SUBSTITUIÇÕES ao final do plano com estes alimentos e suas porções equivalentes:
+${substitutions.map(s => `- ${s.food}: ${s.portion}`).join('\n')}
+` : ''}
 
 GERE TUDO DE UMA VEZ:
 ${studentCtx.questionario_dieta ? `
@@ -757,6 +768,56 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
           </CardContent>
         </Card>
 
+        {/* Step 7: Substituições */}
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-3">
+            <StepHeader step={7} title="Alimentos para Substituição (opcional)" />
+            <p className="text-xs text-muted-foreground">Adicione alimentos que o aluno pode usar como substituição. Serão incluídos no plano.</p>
+            
+            <div className="flex gap-2">
+              <input
+                value={newSubFood}
+                onChange={(e) => setNewSubFood(e.target.value)}
+                placeholder="Alimento (ex: Batata inglesa)"
+                className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+              />
+              <input
+                value={newSubPortion}
+                onChange={(e) => setNewSubPortion(e.target.value)}
+                placeholder="Porção (ex: 150g)"
+                className="w-28 rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => {
+                  if (newSubFood.trim()) {
+                    setSubstitutions(prev => [...prev, { food: newSubFood.trim(), portion: newSubPortion.trim() || 'a definir' }]);
+                    setNewSubFood('');
+                    setNewSubPortion('');
+                  }
+                }}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {substitutions.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {substitutions.map((sub, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/5 px-3 py-1 text-xs font-medium">
+                    {sub.food} — {sub.portion}
+                    <button onClick={() => setSubstitutions(prev => prev.filter((_, idx) => idx !== i))} className="ml-1 hover:text-destructive">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <Button
           onClick={generatePlan}
           disabled={!canGenerate || generating}
@@ -791,9 +852,12 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
                 <UtensilsCrossed className="h-5 w-5 text-primary" />
                 Plano Alimentar
               </h3>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan(); }}>
                   <RotateCcw className="h-3 w-3 mr-1" /> Regenerar
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => generateDietPDF(result, studentName)}>
+                  <FileDown className="h-3 w-3 mr-1" /> PDF
                 </Button>
                 <Button size="sm" onClick={savePlan} disabled={saving}>
                   <Save className="h-3 w-3 mr-1" /> {editPlanId ? 'Atualizar' : 'Salvar'}
