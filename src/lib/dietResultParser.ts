@@ -237,6 +237,7 @@ export const parseMealTable = (tableLines: string[]): ParsedMeal[] => {
         p: cleanCell(cells[idx.p] || ''),
         c: cleanCell(cells[idx.c] || ''),
         g: cleanCell(cells[idx.g] || ''),
+        sub: idx.sub >= 0 ? cleanCell(cells[idx.sub] || '') || undefined : undefined,
       });
     }
 
