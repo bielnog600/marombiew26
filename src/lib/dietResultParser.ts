@@ -159,9 +159,10 @@ export const parseMealTable = (tableLines: string[]): ParsedMeal[] => {
   if (rows.length === 0) return [];
 
   const hasTimeCol = headerCells.some((h) => h.includes('horário') || h.includes('hora') || h.includes('time'));
+  const hasSubCol = headerCells.some((h) => h.includes('substitu'));
   const colCount = rows[0]?.length || 0;
   const hasTime = hasTimeCol || colCount >= 8;
-  const expectedCols = hasTime ? 8 : 7;
+  const hasSub = hasSubCol || colCount >= 9;
 
   const idx = {
     meal: 0,
@@ -172,6 +173,7 @@ export const parseMealTable = (tableLines: string[]): ParsedMeal[] => {
     p: hasTime ? 5 : 4,
     c: hasTime ? 6 : 5,
     g: hasTime ? 7 : 6,
+    sub: hasSub ? (hasTime ? 8 : 7) : -1,
   };
 
   const meals: ParsedMeal[] = [];
