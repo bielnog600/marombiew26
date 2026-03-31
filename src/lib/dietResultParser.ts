@@ -5,6 +5,7 @@ export interface ParsedFood {
   p: string;
   c: string;
   g: string;
+  sub?: string;
 }
 
 export interface ParsedMeal {
@@ -158,9 +159,10 @@ export const parseMealTable = (tableLines: string[]): ParsedMeal[] => {
   if (rows.length === 0) return [];
 
   const hasTimeCol = headerCells.some((h) => h.includes('horário') || h.includes('hora') || h.includes('time'));
+  const hasSubCol = headerCells.some((h) => h.includes('substitu'));
   const colCount = rows[0]?.length || 0;
   const hasTime = hasTimeCol || colCount >= 8;
-  const expectedCols = hasTime ? 8 : 7;
+  const hasSub = hasSubCol || colCount >= 9;
 
   const idx = {
     meal: 0,
@@ -171,6 +173,7 @@ export const parseMealTable = (tableLines: string[]): ParsedMeal[] => {
     p: hasTime ? 5 : 4,
     c: hasTime ? 6 : 5,
     g: hasTime ? 7 : 6,
+    sub: hasSub ? (hasTime ? 8 : 7) : -1,
   };
 
   const meals: ParsedMeal[] = [];
@@ -178,10 +181,11 @@ export const parseMealTable = (tableLines: string[]): ParsedMeal[] => {
   let lastMealName = '';
 
   for (const rawCells of rows) {
+    const maxCols = Math.max(...Object.values(idx).filter(v => v >= 0)) + 1;
     const cells =
-      rawCells.length >= expectedCols
-        ? rawCells.slice(0, expectedCols)
-        : Array.from({ length: expectedCols - rawCells.length }, () => '').concat(rawCells);
+      rawCells.length >= maxCols
+        ? rawCells
+        : [...rawCells, ...Array.from({ length: maxCols - rawCells.length }, () => '')];
 
     const mealCell = cleanCell(cells[idx.meal] || '');
     const foodCell = cleanCell(cells[idx.food] || '');
@@ -234,6 +238,7 @@ export const parseMealTable = (tableLines: string[]): ParsedMeal[] => {
         p: cleanCell(cells[idx.p] || ''),
         c: cleanCell(cells[idx.c] || ''),
         g: cleanCell(cells[idx.g] || ''),
+        sub: idx.sub >= 0 ? cleanCell(cells[idx.sub] || '') || undefined : undefined,
       });
     }
 
