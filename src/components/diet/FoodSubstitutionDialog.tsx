@@ -42,11 +42,35 @@ const FoodSubstitutionDialog: React.FC<FoodSubstitutionDialogProps> = ({
     staleTime: 5 * 60 * 1000,
   });
 
+  const origP = parseNum(originalFood.p);
+  const origC = parseNum(originalFood.c);
+  const origG = parseNum(originalFood.g);
+
+  // Score: lower = closer macros. Compares macro ratios per calorie.
+  const macroScore = useCallback((food: typeof foods[number]) => {
+    const ps = food.portion_size || 100;
+    const totalCal = food.calories || 1;
+    // Ratio per calorie for the DB food
+    const pRatio = food.protein / totalCal;
+    const cRatio = food.carbs / totalCal;
+    const gRatio = food.fats / totalCal;
+    // Ratio per calorie for original
+    const oTotal = origKcal || 1;
+    const oPRatio = origP / oTotal;
+    const oCRatio = origC / oTotal;
+    const oGRatio = origG / oTotal;
+
+    return Math.abs(pRatio - oPRatio) + Math.abs(cRatio - oCRatio) + Math.abs(gRatio - oGRatio);
+  }, [origKcal, origP, origC, origG]);
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return foods;
-    const q = search.toLowerCase();
-    return foods.filter((f) => f.name.toLowerCase().includes(q));
-  }, [foods, search]);
+    let list = foods;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = foods.filter((f) => f.name.toLowerCase().includes(q));
+    }
+    return [...list].sort((a, b) => macroScore(a) - macroScore(b));
+  }, [foods, search, macroScore]);
 
   const origKcal = parseNum(originalFood.kcal);
 
