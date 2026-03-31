@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
+import { generateDietPDF } from '@/lib/generateDietPDF';
 
 type StudentCtx = Record<string, any>;
 
