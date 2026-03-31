@@ -72,7 +72,6 @@ const FoodSubstitutionDialog: React.FC<FoodSubstitutionDialogProps> = ({
     return [...list].sort((a, b) => macroScore(a) - macroScore(b));
   }, [foods, search, macroScore]);
 
-  const origKcal = parseNum(originalFood.kcal);
 
   const handleSelect = useCallback(
     (food: typeof foods[number]) => {
