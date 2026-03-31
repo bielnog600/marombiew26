@@ -189,8 +189,21 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy })
                     <TableCell className="px-3 py-2 text-right align-top">{food.c || '—'}</TableCell>
                     <TableCell className="px-3 py-2 text-right align-top">{food.g || '—'}</TableCell>
                     {hasSubs && (
-                      <TableCell className="px-3 py-2 align-top text-muted-foreground italic">
-                        {food.sub || '—'}
+                      <TableCell className="px-3 py-2 align-top">
+                        {food.sub ? (
+                          <div className="flex flex-col gap-0.5">
+                            {parseSubItems(food.sub).map((item, si) => (
+                              <button
+                                key={si}
+                                onClick={() => handleQuickSwap(foodIndex, item.name, item.portion)}
+                                className="text-left text-muted-foreground italic hover:text-primary hover:underline transition-colors text-xs"
+                                title={`Trocar por ${item.name}`}
+                              >
+                                {item.name} {item.portion && <span className="text-primary/70">({item.portion})</span>}
+                              </button>
+                            ))}
+                          </div>
+                        ) : '—'}
                       </TableCell>
                     )}
                   </TableRow>
