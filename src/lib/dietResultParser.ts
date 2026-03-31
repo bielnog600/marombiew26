@@ -5,6 +5,7 @@ export interface ParsedFood {
   p: string;
   c: string;
   g: string;
+  sub?: string;
 }
 
 export interface ParsedMeal {
