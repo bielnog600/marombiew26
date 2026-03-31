@@ -335,12 +335,13 @@ ${adjustmentLabels.length > 0 ? adjustmentLabels.map(a => `- ${a}`).join('\n') :
 ${enableFitoterapia ? '- INCLUIR RECEITAS DE FITOTERAPIA: Sugira chás, infusões e preparações fitoterápicas complementares. Inclua dosagens, horários e benefícios.' : ''}
 ${enableSuplementos ? '- INCLUIR SUPLEMENTAÇÃO COMPLETA: Protocolo de suplementos com dosagem, horário e justificativa.' : ''}
 ${enableEmagrecimentoRapido ? '- ESTRATÉGIA DE EMAGRECIMENTO RÁPIDO: Estratégias avançadas (jejum intermitente, HIIT, termogênicos).' : ''}
-${substitutions.length > 0 ? `
-=== ALIMENTOS PARA SUBSTITUIÇÃO ===
-IMPORTANTE: Para cada alimento na tabela de refeições, adicione uma coluna "Substituição" com uma opção de troca equivalente em macros e calorias. Use os alimentos abaixo como base de substituição quando possível:
-${substitutions.map(s => `- ${s.food}: ${s.portion}`).join('\n')}
+=== SUBSTITUIÇÕES DE ALIMENTOS ===
+OBRIGATÓRIO: Para CADA alimento na tabela de refeições, adicione uma coluna "Substituição" com uma opção de troca equivalente em macros e calorias.
+${substitutions.length > 0 ? `Use PREFERENCIALMENTE os alimentos abaixo como opções de substituição:\n${substitutions.map(s => `- ${s.food}: ${s.portion}`).join('\n')}` : ''}
+${studentCtx.questionario_dieta?.preferencias_alimentares ? `Considere as preferências do aluno: ${studentCtx.questionario_dieta.preferencias_alimentares}` : ''}
+${studentCtx.questionario_dieta?.restricoes_alimentares ? `Respeite as restrições: ${studentCtx.questionario_dieta.restricoes_alimentares}` : ''}
+Use também a base de alimentos disponível do sistema para escolher substituições adequadas.
 A tabela de refeições DEVE ter as colunas: Refeição | Horário | Alimento | Quantidade (g) | Kcal | P | C | G | Substituição
-` : ''}
 
 GERE TUDO DE UMA VEZ:
 ${studentCtx.questionario_dieta ? `
@@ -369,7 +370,7 @@ IMPORTANTE: Considere os sintomas e feedback do aluno ao montar a dieta. Se há 
 2) Escolha da fórmula mais adequada e justificativa
 3) Cálculo do GET e Consumo Energético
 4) Distribuição de macronutrientes (proteína, carboidrato, gordura)
-5) 2-3 opções de cardápio completo em tabela com: Refeição | Horário | Alimento | Quantidade (g) | Kcal | P | C | G${substitutions.length > 0 ? ' | Substituição' : ''}
+5) 2-3 opções de cardápio completo em tabela com: Refeição | Horário | Alimento | Quantidade (g) | Kcal | P | C | G | Substituição
 6) Total de cada refeição e do dia
 7) Timing nutricional (pré-treino, intra-treino, pós-treino) baseado no horário de treino informado
 ${selectedAdjustments.includes('carb_cycling') ? '8) Protocolo de Carb Cycling com tabela de dias High/Medium/Low' : ''}
