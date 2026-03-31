@@ -72,6 +72,76 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy })
     toast.success(`Substituído por ${newFood.food}`);
   };
 
+  // Parse sub text like "1) Batata-doce (150g); 2) Inhame (140g); 3) Mandioca (120g)"
+  const parseSubItems = (sub: string) => {
+    return sub.split(/;\s*/).map((item) => {
+      const cleaned = item.replace(/^\d+\)\s*/, '').trim();
+      const match = cleaned.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+      if (match) return { name: match[1].trim(), portion: match[2].trim() };
+      return { name: cleaned, portion: '' };
+    }).filter((i) => i.name);
+  };
+
+  const handleQuickSwap = useCallback(async (foodIndex: number, subName: string, subPortion: string) => {
+    const original = foods[foodIndex];
+    const origKcalVal = parseNum(original.kcal);
+
+    // Try to find in DB
+    const { data } = await supabase
+      .from('foods')
+      .select('*')
+      .ilike('name', `%${subName}%`)
+      .limit(1);
+
+    if (data && data.length > 0) {
+      const dbFood = data[0];
+      const kcalPer100 = dbFood.calories > 0 ? dbFood.calories / (dbFood.portion_size || 100) : 0;
+      let newPortionG: number, newKcal: number, newP: number, newC: number, newG: number;
+
+      if (kcalPer100 > 0 && origKcalVal > 0) {
+        newPortionG = Math.round((origKcalVal / kcalPer100) * 10) / 10;
+        const scale = newPortionG / (dbFood.portion_size || 100);
+        newKcal = Math.round(dbFood.calories * scale);
+        newP = Math.round(dbFood.protein * scale * 10) / 10;
+        newC = Math.round(dbFood.carbs * scale * 10) / 10;
+        newG = Math.round(dbFood.fats * scale * 10) / 10;
+      } else {
+        newPortionG = dbFood.portion_size || 100;
+        newKcal = dbFood.calories;
+        newP = dbFood.protein;
+        newC = dbFood.carbs;
+        newG = dbFood.fats;
+      }
+
+      setFoods((prev) => {
+        const updated = [...prev];
+        updated[foodIndex] = {
+          food: dbFood.name,
+          qty: `${newPortionG} g`,
+          kcal: String(newKcal),
+          p: String(newP),
+          c: String(newC),
+          g: String(newG),
+          sub: original.sub,
+        };
+        return updated;
+      });
+      toast.success(`Substituído por ${dbFood.name}`);
+    } else {
+      // Not found in DB, just swap name/portion
+      setFoods((prev) => {
+        const updated = [...prev];
+        updated[foodIndex] = {
+          ...original,
+          food: subName,
+          qty: subPortion || original.qty,
+        };
+        return updated;
+      });
+      toast.success(`Substituído por ${subName}`);
+    }
+  }, [foods]);
+
   return (
     <>
       <Card className={`overflow-hidden border ${surface}`}>
