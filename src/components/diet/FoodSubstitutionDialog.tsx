@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, ArrowRightLeft, Check } from 'lucide-react';
+import { Search, ArrowRightLeft } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import type { ParsedFood } from '@/lib/dietResultParser';
@@ -42,13 +42,36 @@ const FoodSubstitutionDialog: React.FC<FoodSubstitutionDialogProps> = ({
     staleTime: 5 * 60 * 1000,
   });
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return foods;
-    const q = search.toLowerCase();
-    return foods.filter((f) => f.name.toLowerCase().includes(q));
-  }, [foods, search]);
-
   const origKcal = parseNum(originalFood.kcal);
+  const origP = parseNum(originalFood.p);
+  const origC = parseNum(originalFood.c);
+  const origG = parseNum(originalFood.g);
+
+  // Score: lower = closer macros. Compares macro ratios per calorie.
+  const macroScore = useCallback((food: typeof foods[number]) => {
+    const totalCal = food.calories || 1;
+    // Ratio per calorie for the DB food
+    const pRatio = food.protein / totalCal;
+    const cRatio = food.carbs / totalCal;
+    const gRatio = food.fats / totalCal;
+    // Ratio per calorie for original
+    const oTotal = origKcal || 1;
+    const oPRatio = origP / oTotal;
+    const oCRatio = origC / oTotal;
+    const oGRatio = origG / oTotal;
+
+    return Math.abs(pRatio - oPRatio) + Math.abs(cRatio - oCRatio) + Math.abs(gRatio - oGRatio);
+  }, [origKcal, origP, origC, origG]);
+
+  const filtered = useMemo(() => {
+    let list = foods;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = foods.filter((f) => f.name.toLowerCase().includes(q));
+    }
+    return [...list].sort((a, b) => macroScore(a) - macroScore(b));
+  }, [foods, search, macroScore]);
+
 
   const handleSelect = useCallback(
     (food: typeof foods[number]) => {
