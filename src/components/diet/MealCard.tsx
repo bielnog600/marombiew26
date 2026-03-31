@@ -25,6 +25,7 @@ interface MealCardProps {
 
 const MealCard: React.FC<MealCardProps> = ({ meal, index, onCopy }) => {
   const surface = MEAL_SURFACES[index % MEAL_SURFACES.length];
+  const hasSubs = meal.foods.some(f => f.sub);
 
   return (
     <Card className={`overflow-hidden border ${surface}`}>
@@ -53,6 +54,7 @@ const MealCard: React.FC<MealCardProps> = ({ meal, index, onCopy }) => {
                 <TableHead className="h-9 px-3 text-right">P</TableHead>
                 <TableHead className="h-9 px-3 text-right">C</TableHead>
                 <TableHead className="h-9 px-3 text-right">G</TableHead>
+                {hasSubs && <TableHead className="h-9 px-3">Substituição</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -64,6 +66,7 @@ const MealCard: React.FC<MealCardProps> = ({ meal, index, onCopy }) => {
                   <TableCell className="px-3 py-2 text-right align-top">{food.p || '—'}</TableCell>
                   <TableCell className="px-3 py-2 text-right align-top">{food.c || '—'}</TableCell>
                   <TableCell className="px-3 py-2 text-right align-top">{food.g || '—'}</TableCell>
+                  {hasSubs && <TableCell className="px-3 py-2 align-top text-muted-foreground italic">{food.sub || '—'}</TableCell>}
                 </TableRow>
               ))}
             </TableBody>
