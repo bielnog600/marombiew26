@@ -125,6 +125,11 @@ const DietaIA = () => {
   const [enableSuplementos, setEnableSuplementos] = useState(false);
   const [enableEmagrecimentoRapido, setEnableEmagrecimentoRapido] = useState(false);
 
+  // Substitutions
+  const [substitutions, setSubstitutions] = useState<{ food: string; portion: string }[]>([]);
+  const [newSubFood, setNewSubFood] = useState('');
+  const [newSubPortion, setNewSubPortion] = useState('');
+
   // Result
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState('');
