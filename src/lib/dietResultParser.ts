@@ -118,23 +118,26 @@ const mergeParsedMeals = (meals: ParsedMeal[]): ParsedMeal[] => {
   return merged.map((meal) => finalizeMeal(meal)!).filter(Boolean);
 };
 
+const MEAL_LABELS = [
+  'cafe da manha',
+  'lanche da manha',
+  'almoco',
+  'lanche da tarde',
+  'jantar',
+  'ceia',
+  'pre treino',
+  'pos treino',
+  'desjejum',
+  'colacao',
+  'merenda',
+  'lanche noturno',
+  'refeicao',
+];
+
 const isMealBoundary = (value: string) => {
   const normalized = normalizeMealName(value);
   if (!normalized) return false;
-
-  return [
-    'cafe da manha',
-    'lanche da manha',
-    'almoco',
-    'lanche da tarde',
-    'jantar',
-    'ceia',
-    'pre treino',
-    'pos treino',
-    'desjejum',
-    'colacao',
-    'merenda',
-  ].some((label) => normalized.includes(label));
+  return MEAL_LABELS.some((label) => normalized.includes(label));
 };
 
 export const parseMealTable = (tableLines: string[]): ParsedMeal[] => {
@@ -230,7 +233,19 @@ export const parseMealTable = (tableLines: string[]): ParsedMeal[] => {
       if (mealCell) lastMealName = mealCell;
     }
 
-    if (foodCell && !foodCell.toLowerCase().includes('alimento') && qtyCell) {
+    // If food cell looks like a meal name (AI put meal name in wrong column), treat as meal boundary
+    const foodLooksMeal = isMealBoundary(foodCell);
+    if (foodLooksMeal && !qtyCell) {
+      // This row is a meal header placed in the food column — start new meal
+      const finalized2 = finalizeMeal(currentMeal);
+      if (finalized2) meals.push(finalized2);
+      currentMeal = {
+        name: foodCell,
+        time: idx.time >= 0 ? cleanCell(cells[idx.time] || '') || undefined : undefined,
+        foods: [],
+      };
+      lastMealName = foodCell;
+    } else if (foodCell && !foodCell.toLowerCase().includes('alimento') && qtyCell) {
       currentMeal.foods.push({
         food: foodCell,
         qty: ensureGrams(qtyCell),
