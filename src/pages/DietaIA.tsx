@@ -360,7 +360,10 @@ ${enableFitoterapia ? '- INCLUIR RECEITAS DE FITOTERAPIA: Sugira chás, infusõe
 ${enableSuplementos ? '- INCLUIR SUPLEMENTAÇÃO COMPLETA: Protocolo de suplementos com dosagem, horário e justificativa.' : ''}
 ${enableEmagrecimentoRapido ? '- ESTRATÉGIA DE EMAGRECIMENTO RÁPIDO: Estratégias avançadas (jejum intermitente, HIIT, termogênicos).' : ''}
 === SUBSTITUIÇÕES DE ALIMENTOS ===
-OBRIGATÓRIO: Para CADA alimento na tabela de refeições, adicione uma coluna "Substituição" com uma opção de troca equivalente em macros e calorias.
+OBRIGATÓRIO: Para CADA alimento na tabela de refeições, a coluna "Substituição" deve conter EXATAMENTE 3 opções de troca, cada uma com nome e quantidade (em gramas), que tenham macros e calorias equivalentes ao alimento principal.
+Formato da coluna Substituição: "1) Alimento X (Xg); 2) Alimento Y (Xg); 3) Alimento Z (Xg)"
+Exemplo: "1) Batata-doce (150g); 2) Inhame (140g); 3) Mandioca (120g)"
+As 3 opções devem ser alimentos DIFERENTES entre si e diferentes do alimento principal, respeitando os macros e calorias equivalentes.
 ${substitutions.length > 0 ? `Use PREFERENCIALMENTE os alimentos abaixo como opções de substituição:\n${substitutions.map(s => `- ${s.food}: ${s.portion}`).join('\n')}` : ''}
 ${studentCtx.questionario_dieta?.preferencias_alimentares ? `Considere as preferências do aluno: ${studentCtx.questionario_dieta.preferencias_alimentares}` : ''}
 ${studentCtx.questionario_dieta?.restricoes_alimentares ? `Respeite as restrições: ${studentCtx.questionario_dieta.restricoes_alimentares}` : ''}
