@@ -335,6 +335,11 @@ ${adjustmentLabels.length > 0 ? adjustmentLabels.map(a => `- ${a}`).join('\n') :
 ${enableFitoterapia ? '- INCLUIR RECEITAS DE FITOTERAPIA: Sugira chás, infusões e preparações fitoterápicas complementares. Inclua dosagens, horários e benefícios.' : ''}
 ${enableSuplementos ? '- INCLUIR SUPLEMENTAÇÃO COMPLETA: Protocolo de suplementos com dosagem, horário e justificativa.' : ''}
 ${enableEmagrecimentoRapido ? '- ESTRATÉGIA DE EMAGRECIMENTO RÁPIDO: Estratégias avançadas (jejum intermitente, HIIT, termogênicos).' : ''}
+${substitutions.length > 0 ? `
+=== ALIMENTOS PARA SUBSTITUIÇÃO ===
+O aluno tem os seguintes alimentos disponíveis para substituição. Inclua uma TABELA DE SUBSTITUIÇÕES ao final do plano com estes alimentos e suas porções equivalentes:
+${substitutions.map(s => `- ${s.food}: ${s.portion}`).join('\n')}
+` : ''}
 
 GERE TUDO DE UMA VEZ:
 ${studentCtx.questionario_dieta ? `
