@@ -209,6 +209,7 @@ const DietaIA = () => {
         usa_hormonios: latestQuestionnaire.usa_hormonios,
         restricoes_alimentares: latestQuestionnaire.restricoes_alimentares,
         preferencias_alimentares: latestQuestionnaire.preferencias_alimentares,
+        alimentos_por_refeicao: latestQuestionnaire.alimentos_por_refeicao,
         como_se_sente: latestQuestionnaire.como_se_sente,
         fraqueza: latestQuestionnaire.fraqueza,
         dor_cabeca: latestQuestionnaire.dor_cabeca,
