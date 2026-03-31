@@ -181,10 +181,11 @@ export const parseMealTable = (tableLines: string[]): ParsedMeal[] => {
   let lastMealName = '';
 
   for (const rawCells of rows) {
+    const maxCols = Math.max(...Object.values(idx).filter(v => v >= 0)) + 1;
     const cells =
-      rawCells.length >= expectedCols
-        ? rawCells.slice(0, expectedCols)
-        : Array.from({ length: expectedCols - rawCells.length }, () => '').concat(rawCells);
+      rawCells.length >= maxCols
+        ? rawCells
+        : [...rawCells, ...Array.from({ length: maxCols - rawCells.length }, () => '')];
 
     const mealCell = cleanCell(cells[idx.meal] || '');
     const foodCell = cleanCell(cells[idx.food] || '');
