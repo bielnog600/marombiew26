@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Clock, UtensilsCrossed } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import type { ParsedFood, ParsedMeal } from '@/lib/dietResultParser';
 import FoodSubstitutionDialog from './FoodSubstitutionDialog';
 
@@ -71,6 +72,76 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy })
     toast.success(`Substituído por ${newFood.food}`);
   };
 
+  // Parse sub text like "1) Batata-doce (150g); 2) Inhame (140g); 3) Mandioca (120g)"
+  const parseSubItems = (sub: string) => {
+    return sub.split(/;\s*/).map((item) => {
+      const cleaned = item.replace(/^\d+\)\s*/, '').trim();
+      const match = cleaned.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+      if (match) return { name: match[1].trim(), portion: match[2].trim() };
+      return { name: cleaned, portion: '' };
+    }).filter((i) => i.name);
+  };
+
+  const handleQuickSwap = useCallback(async (foodIndex: number, subName: string, subPortion: string) => {
+    const original = foods[foodIndex];
+    const origKcalVal = parseNum(original.kcal);
+
+    // Try to find in DB
+    const { data } = await supabase
+      .from('foods')
+      .select('*')
+      .ilike('name', `%${subName}%`)
+      .limit(1);
+
+    if (data && data.length > 0) {
+      const dbFood = data[0];
+      const kcalPer100 = dbFood.calories > 0 ? dbFood.calories / (dbFood.portion_size || 100) : 0;
+      let newPortionG: number, newKcal: number, newP: number, newC: number, newG: number;
+
+      if (kcalPer100 > 0 && origKcalVal > 0) {
+        newPortionG = Math.round((origKcalVal / kcalPer100) * 10) / 10;
+        const scale = newPortionG / (dbFood.portion_size || 100);
+        newKcal = Math.round(dbFood.calories * scale);
+        newP = Math.round(dbFood.protein * scale * 10) / 10;
+        newC = Math.round(dbFood.carbs * scale * 10) / 10;
+        newG = Math.round(dbFood.fats * scale * 10) / 10;
+      } else {
+        newPortionG = dbFood.portion_size || 100;
+        newKcal = dbFood.calories;
+        newP = dbFood.protein;
+        newC = dbFood.carbs;
+        newG = dbFood.fats;
+      }
+
+      setFoods((prev) => {
+        const updated = [...prev];
+        updated[foodIndex] = {
+          food: dbFood.name,
+          qty: `${newPortionG} g`,
+          kcal: String(newKcal),
+          p: String(newP),
+          c: String(newC),
+          g: String(newG),
+          sub: original.sub,
+        };
+        return updated;
+      });
+      toast.success(`Substituído por ${dbFood.name}`);
+    } else {
+      // Not found in DB, just swap name/portion
+      setFoods((prev) => {
+        const updated = [...prev];
+        updated[foodIndex] = {
+          ...original,
+          food: subName,
+          qty: subPortion || original.qty,
+        };
+        return updated;
+      });
+      toast.success(`Substituído por ${subName}`);
+    }
+  }, [foods]);
+
   return (
     <>
       <Card className={`overflow-hidden border ${surface}`}>
@@ -118,8 +189,21 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy })
                     <TableCell className="px-3 py-2 text-right align-top">{food.c || '—'}</TableCell>
                     <TableCell className="px-3 py-2 text-right align-top">{food.g || '—'}</TableCell>
                     {hasSubs && (
-                      <TableCell className="px-3 py-2 align-top text-muted-foreground italic">
-                        {food.sub || '—'}
+                      <TableCell className="px-3 py-2 align-top">
+                        {food.sub ? (
+                          <div className="flex flex-col gap-0.5">
+                            {parseSubItems(food.sub).map((item, si) => (
+                              <button
+                                key={si}
+                                onClick={() => handleQuickSwap(foodIndex, item.name, item.portion)}
+                                className="text-left text-muted-foreground italic hover:text-primary hover:underline transition-colors text-xs"
+                                title={`Trocar por ${item.name}`}
+                              >
+                                {item.name} {item.portion && <span className="text-primary/70">({item.portion})</span>}
+                              </button>
+                            ))}
+                          </div>
+                        ) : '—'}
                       </TableCell>
                     )}
                   </TableRow>
