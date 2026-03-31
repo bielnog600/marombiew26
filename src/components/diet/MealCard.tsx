@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Clock, UtensilsCrossed } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import type { ParsedFood, ParsedMeal } from '@/lib/dietResultParser';
 import FoodSubstitutionDialog from './FoodSubstitutionDialog';
 
