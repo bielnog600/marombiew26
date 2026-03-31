@@ -118,23 +118,26 @@ const mergeParsedMeals = (meals: ParsedMeal[]): ParsedMeal[] => {
   return merged.map((meal) => finalizeMeal(meal)!).filter(Boolean);
 };
 
+const MEAL_LABELS = [
+  'cafe da manha',
+  'lanche da manha',
+  'almoco',
+  'lanche da tarde',
+  'jantar',
+  'ceia',
+  'pre treino',
+  'pos treino',
+  'desjejum',
+  'colacao',
+  'merenda',
+  'lanche noturno',
+  'refeicao',
+];
+
 const isMealBoundary = (value: string) => {
   const normalized = normalizeMealName(value);
   if (!normalized) return false;
-
-  return [
-    'cafe da manha',
-    'lanche da manha',
-    'almoco',
-    'lanche da tarde',
-    'jantar',
-    'ceia',
-    'pre treino',
-    'pos treino',
-    'desjejum',
-    'colacao',
-    'merenda',
-  ].some((label) => normalized.includes(label));
+  return MEAL_LABELS.some((label) => normalized.includes(label));
 };
 
 export const parseMealTable = (tableLines: string[]): ParsedMeal[] => {
