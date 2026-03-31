@@ -847,9 +847,12 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
                 <UtensilsCrossed className="h-5 w-5 text-primary" />
                 Plano Alimentar
               </h3>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan(); }}>
                   <RotateCcw className="h-3 w-3 mr-1" /> Regenerar
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => generateDietPDF(result, studentName)}>
+                  <FileDown className="h-3 w-3 mr-1" /> PDF
                 </Button>
                 <Button size="sm" onClick={savePlan} disabled={saving}>
                   <Save className="h-3 w-3 mr-1" /> {editPlanId ? 'Atualizar' : 'Salvar'}
