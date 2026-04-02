@@ -321,6 +321,7 @@ const DietaIA = () => {
     const selectedActivity = ACTIVITY_LEVELS.find(a => a.value === activityLevel);
     const selectedPhase = PHASES.find(p => p.value === phase);
     const selectedTrainingTime = TRAINING_TIMES.find(t => t.value === trainingTime);
+    const selectedDietStyle = DIET_STYLES.find(d => d.value === dietStyle);
 
     const adjustmentLabels = selectedAdjustments.map(id => PROTOCOL_ADJUSTMENTS.find(a => a.id === id)?.label).filter(Boolean);
 
