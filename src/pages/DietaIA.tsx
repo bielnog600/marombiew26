@@ -621,10 +621,21 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
           </CardContent>
         </Card>
 
-        {/* Step 2: Fase Atual & Hormônios */}
+        {/* Step 2: Estilo, Fase Atual & Hormônios */}
         <Card className="glass-card">
           <CardContent className="p-4 space-y-4">
-            <StepHeader step={2} title="Fase Atual e Hormônios" />
+            <StepHeader step={2} title="Estilo da Dieta, Fase e Hormônios" />
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Estilo da dieta</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {DIET_STYLES.map(d => (
+                  <SelectionButton key={d.value} selected={dietStyle === d.value} onClick={() => setDietStyle(d.value)}>
+                    <span className="font-semibold text-sm block">{d.label}</span>
+                    <span className="text-xs text-muted-foreground">{d.desc}</span>
+                  </SelectionButton>
+                ))}
+              </div>
+            </div>
             <div>
               <p className="text-xs text-muted-foreground mb-2">Fase atual do aluno</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
