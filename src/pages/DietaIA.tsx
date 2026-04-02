@@ -38,6 +38,17 @@ const MEAL_COUNTS = [
   { value: '7', label: '7 refeições' },
 ];
 
+const DIET_STYLES = [
+  { value: 'flexivel', label: 'Flexível (IIFYM)', desc: 'Foco nos macros, liberdade de escolha dos alimentos' },
+  { value: 'low_carb', label: 'Low Carb', desc: 'Redução significativa de carboidratos' },
+  { value: 'cetogenica', label: 'Cetogênica', desc: 'Ultra low carb, alto em gorduras' },
+  { value: 'mediterranea', label: 'Mediterrânea', desc: 'Baseada em azeite, peixes, grãos integrais' },
+  { value: 'paleolitica', label: 'Paleolítica', desc: 'Alimentos naturais, sem processados' },
+  { value: 'vegetariana', label: 'Vegetariana', desc: 'Sem carnes, permite ovos/laticínios' },
+  { value: 'vegana', label: 'Vegana', desc: 'Sem alimentos de origem animal' },
+  { value: 'convencional', label: 'Convencional', desc: 'Dieta tradicional balanceada' },
+];
+
 const PHASES = [
   { value: 'bulking', label: 'Bulking', desc: 'Fase de ganho de massa' },
   { value: 'cutting', label: 'Cutting', desc: 'Fase de definição' },
