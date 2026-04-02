@@ -112,7 +112,8 @@ const DietaIA = () => {
   const [trainingTime, setTrainingTime] = useState('');
   const [trainingDays, setTrainingDays] = useState('');
 
-  // Step 2 - Fase & Hormônios
+  // Step 2 - Estilo, Fase & Hormônios
+  const [dietStyle, setDietStyle] = useState('');
   const [phase, setPhase] = useState('');
   const [usesHormones, setUsesHormones] = useState<boolean | null>(null);
   const [hormoneDetails, setHormoneDetails] = useState('');
