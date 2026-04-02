@@ -38,6 +38,17 @@ const MEAL_COUNTS = [
   { value: '7', label: '7 refeições' },
 ];
 
+const DIET_STYLES = [
+  { value: 'flexivel', label: 'Flexível (IIFYM)', desc: 'Foco nos macros, liberdade de escolha dos alimentos' },
+  { value: 'low_carb', label: 'Low Carb', desc: 'Redução significativa de carboidratos' },
+  { value: 'cetogenica', label: 'Cetogênica', desc: 'Ultra low carb, alto em gorduras' },
+  { value: 'mediterranea', label: 'Mediterrânea', desc: 'Baseada em azeite, peixes, grãos integrais' },
+  { value: 'paleolitica', label: 'Paleolítica', desc: 'Alimentos naturais, sem processados' },
+  { value: 'vegetariana', label: 'Vegetariana', desc: 'Sem carnes, permite ovos/laticínios' },
+  { value: 'vegana', label: 'Vegana', desc: 'Sem alimentos de origem animal' },
+  { value: 'convencional', label: 'Convencional', desc: 'Dieta tradicional balanceada' },
+];
+
 const PHASES = [
   { value: 'bulking', label: 'Bulking', desc: 'Fase de ganho de massa' },
   { value: 'cutting', label: 'Cutting', desc: 'Fase de definição' },
@@ -101,7 +112,8 @@ const DietaIA = () => {
   const [trainingTime, setTrainingTime] = useState('');
   const [trainingDays, setTrainingDays] = useState('');
 
-  // Step 2 - Fase & Hormônios
+  // Step 2 - Estilo, Fase & Hormônios
+  const [dietStyle, setDietStyle] = useState('');
   const [phase, setPhase] = useState('');
   const [usesHormones, setUsesHormones] = useState<boolean | null>(null);
   const [hormoneDetails, setHormoneDetails] = useState('');
@@ -230,7 +242,8 @@ const DietaIA = () => {
     // Pre-fill from questionnaire if available
     if (latestQuestionnaire) {
       if (latestQuestionnaire.estilo_dieta) {
-        // No direct state for estilo_dieta in DietaIA, but it goes into the prompt via ctx
+        const estiloMap: Record<string, string> = { 'Flexível (IIFYM)': 'flexivel', 'Low Carb': 'low_carb', 'Cetogênica': 'cetogenica', 'Mediterrânea': 'mediterranea', 'Paleolítica': 'paleolitica', 'Vegetariana': 'vegetariana', 'Vegana': 'vegana', 'Convencional': 'convencional' };
+        if (estiloMap[latestQuestionnaire.estilo_dieta]) setDietStyle(estiloMap[latestQuestionnaire.estilo_dieta]);
       }
       if (latestQuestionnaire.fase_atual) {
         const faseMap: Record<string, string> = { 'Bulking': 'bulking', 'Cutting': 'cutting', 'Manutenção': 'manutencao', 'Recomposição': 'recomposicao', 'Pré-contest': 'pre_contest' };
@@ -308,6 +321,7 @@ const DietaIA = () => {
     const selectedActivity = ACTIVITY_LEVELS.find(a => a.value === activityLevel);
     const selectedPhase = PHASES.find(p => p.value === phase);
     const selectedTrainingTime = TRAINING_TIMES.find(t => t.value === trainingTime);
+    const selectedDietStyle = DIET_STYLES.find(d => d.value === dietStyle);
 
     const adjustmentLabels = selectedAdjustments.map(id => PROTOCOL_ADJUSTMENTS.find(a => a.id === id)?.label).filter(Boolean);
 
@@ -339,6 +353,10 @@ const DietaIA = () => {
 - Rotina diária: ${dailyRoutine || 'Não informada'}
 - Horário de treino: ${selectedTrainingTime?.label || 'Não informado'}
 - Dias de treino: ${trainingDays ? `${trainingDays}x/semana` : 'Não informado'}
+
+=== ESTILO DE DIETA ===
+- Estilo: ${selectedDietStyle?.label || 'Não definido'} — ${selectedDietStyle?.desc || ''}
+IMPORTANTE: Siga RIGOROSAMENTE o estilo de dieta selecionado. Se Low Carb, mantenha carboidratos abaixo de 100g/dia. Se Cetogênica, abaixo de 30g/dia. Se Flexível, foque nos macros. Se Vegetariana/Vegana, respeite as restrições proteicas.
 
 === FASE ATUAL ===
 - Fase: ${selectedPhase?.label} — ${selectedPhase?.desc}
@@ -603,10 +621,21 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
           </CardContent>
         </Card>
 
-        {/* Step 2: Fase Atual & Hormônios */}
+        {/* Step 2: Estilo, Fase Atual & Hormônios */}
         <Card className="glass-card">
           <CardContent className="p-4 space-y-4">
-            <StepHeader step={2} title="Fase Atual e Hormônios" />
+            <StepHeader step={2} title="Estilo da Dieta, Fase e Hormônios" />
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Estilo da dieta</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {DIET_STYLES.map(d => (
+                  <SelectionButton key={d.value} selected={dietStyle === d.value} onClick={() => setDietStyle(d.value)}>
+                    <span className="font-semibold text-sm block">{d.label}</span>
+                    <span className="text-xs text-muted-foreground">{d.desc}</span>
+                  </SelectionButton>
+                ))}
+              </div>
+            </div>
             <div>
               <p className="text-xs text-muted-foreground mb-2">Fase atual do aluno</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
