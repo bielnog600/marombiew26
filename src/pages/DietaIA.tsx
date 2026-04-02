@@ -354,6 +354,10 @@ const DietaIA = () => {
 - Horário de treino: ${selectedTrainingTime?.label || 'Não informado'}
 - Dias de treino: ${trainingDays ? `${trainingDays}x/semana` : 'Não informado'}
 
+=== ESTILO DE DIETA ===
+- Estilo: ${selectedDietStyle?.label || 'Não definido'} — ${selectedDietStyle?.desc || ''}
+IMPORTANTE: Siga RIGOROSAMENTE o estilo de dieta selecionado. Se Low Carb, mantenha carboidratos abaixo de 100g/dia. Se Cetogênica, abaixo de 30g/dia. Se Flexível, foque nos macros. Se Vegetariana/Vegana, respeite as restrições proteicas.
+
 === FASE ATUAL ===
 - Fase: ${selectedPhase?.label} — ${selectedPhase?.desc}
 - Uso de hormônios: ${usesHormones === null ? 'Não informado' : usesHormones ? `Sim — ${hormoneDetails || 'detalhes não especificados'}` : 'Não (natural)'}
