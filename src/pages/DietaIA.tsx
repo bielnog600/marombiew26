@@ -242,7 +242,8 @@ const DietaIA = () => {
     // Pre-fill from questionnaire if available
     if (latestQuestionnaire) {
       if (latestQuestionnaire.estilo_dieta) {
-        // No direct state for estilo_dieta in DietaIA, but it goes into the prompt via ctx
+        const estiloMap: Record<string, string> = { 'Flexível (IIFYM)': 'flexivel', 'Low Carb': 'low_carb', 'Cetogênica': 'cetogenica', 'Mediterrânea': 'mediterranea', 'Paleolítica': 'paleolitica', 'Vegetariana': 'vegetariana', 'Vegana': 'vegana', 'Convencional': 'convencional' };
+        if (estiloMap[latestQuestionnaire.estilo_dieta]) setDietStyle(estiloMap[latestQuestionnaire.estilo_dieta]);
       }
       if (latestQuestionnaire.fase_atual) {
         const faseMap: Record<string, string> = { 'Bulking': 'bulking', 'Cutting': 'cutting', 'Manutenção': 'manutencao', 'Recomposição': 'recomposicao', 'Pré-contest': 'pre_contest' };
