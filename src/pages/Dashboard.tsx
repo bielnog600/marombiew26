@@ -27,7 +27,6 @@ const Dashboard = () => {
     mensagem_semanal: 'text-blue-500',
     sem_telefone: 'text-red-500',
   };
-  const [chartData, setChartData] = useState<any[]>([]);
 
   useEffect(() => {
     loadStats();
