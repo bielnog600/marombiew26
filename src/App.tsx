@@ -20,6 +20,7 @@ import DietaIA from "./pages/DietaIA";
 import Alimentos from "./pages/Alimentos";
 import DietQuestionnaire from "./pages/DietQuestionnaire";
 import Notificacoes from "./pages/Notificacoes";
+import WhatsAppWeb from "./pages/WhatsAppWeb";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -58,6 +59,7 @@ const App = () => {
               <Route path="/alimentos" element={<ProtectedRoute requiredRole="admin"><Alimentos /></ProtectedRoute>} />
               <Route path="/questionario-dieta" element={<DietQuestionnaire />} />
               <Route path="/notificacoes" element={<ProtectedRoute requiredRole="admin"><Notificacoes /></ProtectedRoute>} />
+              <Route path="/whatsapp" element={<ProtectedRoute requiredRole="admin"><WhatsAppWeb /></ProtectedRoute>} />
               <Route path="/minha-area" element={<ProtectedRoute requiredRole="aluno"><MinhaArea /></ProtectedRoute>} />
               <Route path="/minhas-avaliacoes" element={<ProtectedRoute requiredRole="aluno"><MinhaArea /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
