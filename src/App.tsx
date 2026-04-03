@@ -59,7 +59,7 @@ const App = () => {
               <Route path="/alimentos" element={<ProtectedRoute requiredRole="admin"><Alimentos /></ProtectedRoute>} />
               <Route path="/questionario-dieta" element={<DietQuestionnaire />} />
               <Route path="/notificacoes" element={<ProtectedRoute requiredRole="admin"><Notificacoes /></ProtectedRoute>} />
-              <Route path="/whatsapp" element={<ProtectedRoute requiredRole="admin"><WhatsAppWeb /></ProtectedRoute>} />
+              
               <Route path="/minha-area" element={<ProtectedRoute requiredRole="aluno"><MinhaArea /></ProtectedRoute>} />
               <Route path="/minhas-avaliacoes" element={<ProtectedRoute requiredRole="aluno"><MinhaArea /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
