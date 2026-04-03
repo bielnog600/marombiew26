@@ -23,8 +23,35 @@ const Alunos = () => {
   const [editStudent, setEditStudent] = useState<any>(null);
   const [editLoading, setEditLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => { loadStudents(); }, []);
+
+  // Auto-open edit dialog if ?edit=userId is present
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (editId && students.length > 0) {
+      const student = students.find(s => s.user_id === editId);
+      if (student) {
+        const sp = student.students_profile;
+        setEditStudent({
+          user_id: student.user_id,
+          nome: student.nome || '',
+          telefone: student.telefone || '',
+          sexo: sp?.sexo || '',
+          raca: sp?.raca || '',
+          objetivo: sp?.objetivo || '',
+          data_nascimento: sp?.data_nascimento || '',
+          altura: sp?.altura || '',
+          restricoes: sp?.restricoes || '',
+          lesoes: sp?.lesoes || '',
+          observacoes: sp?.observacoes || '',
+        });
+        setEditDialogOpen(true);
+        setSearchParams({}, { replace: true });
+      }
+    }
+  }, [students, searchParams]);
 
   const loadStudents = async () => {
     const { data: roleData } = await supabase
