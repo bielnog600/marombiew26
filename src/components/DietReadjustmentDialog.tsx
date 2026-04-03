@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,8 +8,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, ClipboardCheck } from 'lucide-react';
+import { Loader2, ClipboardCheck, Sparkles, ArrowLeft } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import ReactMarkdown from 'react-markdown';
 
 interface Props {
   open: boolean;
@@ -38,6 +39,12 @@ const DietReadjustmentDialog = ({ open, onOpenChange, planId, studentId, onSaved
   const [history, setHistory] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
 
+  // AI analysis state
+  const [aiAnalysis, setAiAnalysis] = useState('');
+  const [analyzingAi, setAnalyzingAi] = useState(false);
+  const [showAiResult, setShowAiResult] = useState(false);
+  const aiResultRef = useRef<HTMLDivElement>(null);
+
   const [pesoAtual, setPesoAtual] = useState('');
   const [perdeuPeso, setPerdeuPeso] = useState(false);
   const [ganhouMassa, setGanhouMassa] = useState(false);
@@ -54,6 +61,8 @@ const DietReadjustmentDialog = ({ open, onOpenChange, planId, studentId, onSaved
     if (open) {
       loadHistory();
       setShowForm(false);
+      setShowAiResult(false);
+      setAiAnalysis('');
     }
   }, [open, planId]);
 
@@ -82,9 +91,148 @@ const DietReadjustmentDialog = ({ open, onOpenChange, planId, studentId, onSaved
     setObservacoes('');
   };
 
+  const runAiAnalysis = async (readjustmentData: Record<string, any>) => {
+    setAnalyzingAi(true);
+    setShowAiResult(true);
+    setAiAnalysis('');
+
+    try {
+      // Fetch the current plan content
+      const { data: plan } = await supabase
+        .from('ai_plans')
+        .select('conteudo, titulo')
+        .eq('id', planId)
+        .maybeSingle();
+
+      if (!plan) {
+        setAiAnalysis('Erro: Plano não encontrado.');
+        setAnalyzingAi(false);
+        return;
+      }
+
+      // Fetch student context
+      const [profileRes, spRes] = await Promise.all([
+        supabase.from('profiles').select('nome').eq('user_id', studentId).maybeSingle(),
+        supabase.from('students_profile').select('sexo, data_nascimento, altura, objetivo').eq('user_id', studentId).maybeSingle(),
+      ]);
+
+      // Also fetch all previous readjustments for this plan
+      const { data: allReadjustments } = await supabase
+        .from('diet_readjustments')
+        .select('*')
+        .eq('plan_id', planId)
+        .order('created_at', { ascending: true });
+
+      const readjustmentHistory = (allReadjustments ?? []).map((r: any) => {
+        const date = new Date(r.created_at).toLocaleDateString('pt-BR');
+        return `[${date}] Peso: ${r.peso_atual ?? '?'}kg | Perdeu peso: ${r.perdeu_peso ? 'Sim' : 'Não'} | Ganhou massa: ${r.ganhou_massa ? 'Sim' : 'Não'} | Energia OK: ${r.energia_ok ? 'Sim' : 'Não'} | Fome excessiva: ${r.fome_excessiva ? 'Sim' : 'Não'} | Insônia: ${r.insonia ? 'Sim' : 'Não'} | Intestino OK: ${r.intestino_ok ? 'Sim' : 'Não'} | Humor OK: ${r.humor_ok ? 'Sim' : 'Não'} | Rendimento: ${r.rendimento_treino} | Satisfação: ${r.satisfacao} | Obs: ${r.observacoes || '-'}`;
+      }).join('\n');
+
+      const prompt = `
+O aluno ${profileRes.data?.nome || 'sem nome'} (${spRes.data?.sexo || '?'}, objetivo: ${spRes.data?.objetivo || '?'}) respondeu o questionário de reajuste da dieta "${plan.titulo}".
+
+=== DADOS DO QUESTIONÁRIO ATUAL ===
+- Peso atual: ${readjustmentData.peso_atual ?? 'Não informado'} kg
+- Perdeu peso: ${readjustmentData.perdeu_peso ? 'Sim' : 'Não'}
+- Ganhou massa: ${readjustmentData.ganhou_massa ? 'Sim' : 'Não'}
+- Energia OK: ${readjustmentData.energia_ok ? 'Sim' : 'Não'}
+- Fome excessiva: ${readjustmentData.fome_excessiva ? 'Sim' : 'Não'}
+- Insônia: ${readjustmentData.insonia ? 'Sim' : 'Não'}
+- Intestino OK: ${readjustmentData.intestino_ok ? 'Sim' : 'Não'}
+- Humor OK: ${readjustmentData.humor_ok ? 'Sim' : 'Não'}
+- Rendimento no treino: ${readjustmentData.rendimento_treino}
+- Satisfação com a dieta: ${readjustmentData.satisfacao}
+- Observações: ${readjustmentData.observacoes || 'Nenhuma'}
+
+=== HISTÓRICO DE REAJUSTES ANTERIORES ===
+${readjustmentHistory || 'Nenhum reajuste anterior.'}
+
+=== DIETA ATUAL ===
+${plan.conteudo}
+
+Com base nos dados acima, faça uma análise detalhada e sugira ajustes específicos na dieta:
+
+1. **Análise dos Resultados**: Interprete os dados do questionário (positivos e negativos)
+2. **Diagnóstico**: Identifique possíveis problemas (ex: déficit muito agressivo, falta de fibras, baixo carb peri-treino, etc.)
+3. **Sugestões de Ajuste**: Liste alterações específicas recomendadas:
+   - Ajuste calórico (aumentar/diminuir e quanto)
+   - Ajuste de macros (qual macro ajustar e por quê)
+   - Troca de alimentos específicos
+   - Timing nutricional
+   - Suplementação adicional se necessário
+4. **Próximos Passos**: O que monitorar nas próximas semanas
+
+Seja direto e específico nas recomendações. Use os dados reais da dieta atual para propor mudanças concretas.
+`.trim();
+
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/diet-agent`;
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: prompt }],
+          studentContext: {
+            nome: profileRes.data?.nome,
+            sexo: spRes.data?.sexo,
+            data_nascimento: spRes.data?.data_nascimento,
+            altura: spRes.data?.altura,
+            objetivo: spRes.data?.objetivo,
+          },
+        }),
+      });
+
+      if (!resp.ok || !resp.body) {
+        const errText = await resp.text();
+        console.error('AI error:', errText);
+        setAiAnalysis('Erro ao analisar com IA. Tente novamente.');
+        setAnalyzingAi(false);
+        return;
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let textBuffer = '';
+      let accumulated = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        textBuffer += decoder.decode(value, { stream: true });
+
+        let newlineIndex: number;
+        while ((newlineIndex = textBuffer.indexOf('\n')) !== -1) {
+          let line = textBuffer.slice(0, newlineIndex);
+          textBuffer = textBuffer.slice(newlineIndex + 1);
+          if (line.endsWith('\r')) line = line.slice(0, -1);
+          if (line.startsWith(':') || line.trim() === '') continue;
+          if (!line.startsWith('data: ')) continue;
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === '[DONE]') break;
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              accumulated += content;
+              setAiAnalysis(accumulated);
+            }
+          } catch { /* partial */ }
+        }
+      }
+    } catch (err) {
+      console.error('AI analysis error:', err);
+      setAiAnalysis('Erro ao conectar com a IA. Tente novamente.');
+    } finally {
+      setAnalyzingAi(false);
+    }
+  };
+
   const handleSubmit = async () => {
     setLoading(true);
-    const { error } = await supabase.from('diet_readjustments').insert({
+
+    const readjustmentData = {
       plan_id: planId,
       student_id: studentId,
       peso_atual: pesoAtual ? Number(pesoAtual) : null,
@@ -98,7 +246,9 @@ const DietReadjustmentDialog = ({ open, onOpenChange, planId, studentId, onSaved
       rendimento_treino: rendimentoTreino,
       satisfacao: satisfacao,
       observacoes: observacoes || null,
-    } as any);
+    };
+
+    const { error } = await supabase.from('diet_readjustments').insert(readjustmentData as any);
     setLoading(false);
 
     if (error) {
@@ -106,11 +256,17 @@ const DietReadjustmentDialog = ({ open, onOpenChange, planId, studentId, onSaved
       return;
     }
 
-    toast.success('Questionário de reajuste salvo!');
-    resetForm();
+    toast.success('Questionário salvo! Analisando com IA...');
     setShowForm(false);
     loadHistory();
     onSaved?.();
+
+    // Trigger AI analysis
+    runAiAnalysis(readjustmentData);
+  };
+
+  const handleAnalyzeExisting = async (readjustment: any) => {
+    runAiAnalysis(readjustment);
   };
 
   const formatDate = (d: string) =>
@@ -118,7 +274,7 @@ const DietReadjustmentDialog = ({ open, onOpenChange, planId, studentId, onSaved
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[90vh]">
+      <DialogContent className="max-w-lg max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ClipboardCheck className="h-5 w-5 text-primary" />
@@ -127,7 +283,34 @@ const DietReadjustmentDialog = ({ open, onOpenChange, planId, studentId, onSaved
         </DialogHeader>
 
         <ScrollArea className="max-h-[70vh] pr-3">
-          {!showForm ? (
+          {showAiResult ? (
+            <div className="space-y-4" ref={aiResultRef}>
+              <Button variant="outline" size="sm" onClick={() => setShowAiResult(false)} className="gap-2">
+                <ArrowLeft className="h-4 w-4" /> Voltar
+              </Button>
+              <div className="flex items-center gap-2 text-primary">
+                <Sparkles className="h-5 w-5" />
+                <h4 className="font-semibold text-sm">Análise e Sugestões da IA</h4>
+              </div>
+              {analyzingAi && !aiAnalysis && (
+                <div className="flex items-center gap-2 text-muted-foreground py-4">
+                  <Loader2 className="animate-spin h-4 w-4" />
+                  <span className="text-sm">Analisando dados e gerando sugestões...</span>
+                </div>
+              )}
+              {aiAnalysis && (
+                <div className="prose prose-sm prose-invert max-w-none rounded-lg border border-border p-4 bg-muted/30">
+                  <ReactMarkdown>{aiAnalysis}</ReactMarkdown>
+                </div>
+              )}
+              {analyzingAi && aiAnalysis && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="animate-spin h-3 w-3" />
+                  <span className="text-xs">Gerando...</span>
+                </div>
+              )}
+            </div>
+          ) : !showForm ? (
             <div className="space-y-4">
               <Button onClick={() => { resetForm(); setShowForm(true); }} className="w-full">
                 Novo Questionário de Reajuste
@@ -156,6 +339,15 @@ const DietReadjustmentDialog = ({ open, onOpenChange, planId, studentId, onSaved
                       <p><span className="font-medium">Rendimento:</span> {h.rendimento_treino === 'melhorou' ? 'Melhorou' : h.rendimento_treino === 'piorou' ? 'Piorou' : 'Manteve'}</p>
                       <p><span className="font-medium">Satisfação:</span> {h.satisfacao?.replace('_', ' ')}</p>
                       {h.observacoes && <p className="text-muted-foreground italic">{h.observacoes}</p>}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 gap-2 w-full"
+                        onClick={() => handleAnalyzeExisting(h)}
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        Analisar com IA
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -227,8 +419,8 @@ const DietReadjustmentDialog = ({ open, onOpenChange, planId, studentId, onSaved
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setShowForm(false)} className="flex-1">Cancelar</Button>
                 <Button onClick={handleSubmit} disabled={loading} className="flex-1">
-                  {loading ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
-                  Salvar
+                  {loading ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                  Salvar & Analisar
                 </Button>
               </div>
             </div>
