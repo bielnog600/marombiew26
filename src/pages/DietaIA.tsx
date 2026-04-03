@@ -529,7 +529,22 @@ const DietaIA = () => {
       }
     }
 
+    // Build recommendation context for AI
+    const rec = studentCtx.recomendacao_ia;
+    const recText = rec ? `
+=== RECOMENDAÇÃO CALCULADA (valores precisos — use como base) ===
+- TMB: ${rec.tmb} kcal (${rec.formula})
+- Fator de Atividade: ${rec.fa}
+- GET: ${rec.get} kcal
+- Calorias alvo: ${rec.calorias_total} kcal
+- Proteína: ${rec.proteina_g}g (${rec.proteina_kg}g/kg)
+- Carboidrato: ${rec.carboidrato_g}g
+- Gordura: ${rec.gordura_g}g (${rec.gordura_kg}g/kg)
+IMPORTANTE: Use esses valores como referência principal para os macros e calorias totais. A dieta gerada DEVE respeitar esses totais com precisão.
+` : '';
+
     const prompt = `Gere o plano alimentar COMPLETO para fisiculturismo com as seguintes configurações:
+${recText}
 
 === ROTINA DO ALUNO ===
 - Rotina diária: ${dailyRoutine || 'Não informada'}
