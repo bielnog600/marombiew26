@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { Trash2, Dumbbell, UtensilsCrossed, ChevronDown, ChevronUp, Pencil } from 'lucide-react';
+import { Trash2, Dumbbell, UtensilsCrossed, ChevronDown, ChevronUp, Pencil, ClipboardCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useNavigate } from 'react-router-dom';
