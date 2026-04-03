@@ -114,7 +114,7 @@ const Notificacoes: React.FC = () => {
                                 size="sm"
                                 variant="outline"
                                 className="h-7 text-xs"
-                                onClick={() => navigate(`/alunos/${n.studentId}`)}
+                                onClick={() => navigate(`/alunos?edit=${n.studentId}`)}
                               >
                                 <ExternalLink className="h-3 w-3 mr-1" />
                                 Editar cadastro
