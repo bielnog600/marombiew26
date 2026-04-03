@@ -14,12 +14,12 @@ import { generateDietPDF } from '@/lib/generateDietPDF';
 type StudentCtx = Record<string, any>;
 
 const ACTIVITY_LEVELS = [
-  { value: '1.0', label: 'Sedentário', desc: 'Pouca ou nenhuma atividade' },
-  { value: '1.2', label: 'Super Leve', desc: 'Atividade leve ocasional' },
-  { value: '1.4', label: 'Leve', desc: '1-3x/semana exercício leve' },
-  { value: '1.6', label: 'Moderado', desc: '3-5x/semana exercício moderado' },
-  { value: '1.8', label: 'Alto', desc: '5-7x/semana exercício intenso' },
-  { value: '2.0', label: 'Extremo', desc: 'Atleta, 2x/dia' },
+  { value: '1.0', label: 'Sedentário', desc: 'Pouca ou nenhuma atividade no dia' },
+  { value: '1.2', label: 'Super Leve', desc: 'Trabalho leve, caminhadas curtas' },
+  { value: '1.4', label: 'Leve', desc: 'Trabalho em pé, atividades leves' },
+  { value: '1.6', label: 'Moderado', desc: 'Trabalho ativo, se movimenta bastante' },
+  { value: '1.8', label: 'Alto', desc: 'Trabalho físico pesado ou muito ativo' },
+  { value: '2.0', label: 'Extremo', desc: 'Atleta profissional, treina 2x/dia' },
 ];
 
 const STRATEGIES = [
@@ -256,7 +256,15 @@ const DietaIA = () => {
       }
       if (latestQuestionnaire.dias_treino) {
         const days = latestQuestionnaire.dias_treino.replace('x', '');
-        if (['3','4','5','6','7'].includes(days)) setTrainingDays(days);
+        if (['3','4','5','6','7'].includes(days)) {
+          setTrainingDays(days);
+          // Auto-fill activity level based on training days
+          const daysNum = Number(days);
+          if (daysNum <= 3) setActivityLevel('1.4');
+          else if (daysNum <= 4) setActivityLevel('1.6');
+          else if (daysNum <= 5) setActivityLevel('1.6');
+          else setActivityLevel('1.8');
+        }
       }
       if (latestQuestionnaire.restricoes_alimentares) {
         setCustomRestriction(latestQuestionnaire.restricoes_alimentares);
