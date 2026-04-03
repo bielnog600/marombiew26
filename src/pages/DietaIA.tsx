@@ -767,6 +767,59 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
           </CardContent>
         </Card>
 
+        {/* AI Recommendation Card */}
+        {studentCtx?.recomendacao_ia && (
+          <Card className="border-primary/30 bg-primary/5">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Zap className="h-5 w-5 text-primary" />
+                <h3 className="font-bold text-sm">Recomendação da IA (baseada na avaliação completa)</h3>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+                <div className="bg-background rounded-lg p-2 text-center border border-border">
+                  <span className="text-muted-foreground text-xs block">TMB</span>
+                  <span className="font-bold text-primary">{studentCtx.recomendacao_ia.tmb} kcal</span>
+                  <span className="text-[10px] text-muted-foreground block">{studentCtx.recomendacao_ia.formula}</span>
+                </div>
+                <div className="bg-background rounded-lg p-2 text-center border border-border">
+                  <span className="text-muted-foreground text-xs block">GET</span>
+                  <span className="font-bold text-primary">{studentCtx.recomendacao_ia.get} kcal</span>
+                  <span className="text-[10px] text-muted-foreground block">FA: {studentCtx.recomendacao_ia.fa}</span>
+                </div>
+                <div className="bg-background rounded-lg p-2 text-center border border-border">
+                  <span className="text-muted-foreground text-xs block">Calorias Alvo</span>
+                  <span className="font-bold text-primary">{studentCtx.recomendacao_ia.calorias_total} kcal</span>
+                  <span className="text-[10px] text-muted-foreground block">{STRATEGIES.find(s => s.value === studentCtx.recomendacao_ia.estrategia)?.label}</span>
+                </div>
+                <div className="bg-background rounded-lg p-2 text-center border border-border">
+                  <span className="text-muted-foreground text-xs block">Estratégia</span>
+                  <span className="font-bold text-primary text-xs">{STRATEGIES.find(s => s.value === studentCtx.recomendacao_ia.estrategia)?.label}</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-sm">
+                <div className="bg-background rounded-lg p-2 text-center border border-border">
+                  <span className="text-muted-foreground text-xs block">Proteína</span>
+                  <span className="font-bold">{studentCtx.recomendacao_ia.proteina_g}g</span>
+                  <span className="text-[10px] text-muted-foreground block">{studentCtx.recomendacao_ia.proteina_kg}g/kg</span>
+                </div>
+                <div className="bg-background rounded-lg p-2 text-center border border-border">
+                  <span className="text-muted-foreground text-xs block">Carboidrato</span>
+                  <span className="font-bold">{studentCtx.recomendacao_ia.carboidrato_g}g</span>
+                  <span className="text-[10px] text-muted-foreground block">{Math.round(studentCtx.recomendacao_ia.carboidrato_g * 4)} kcal</span>
+                </div>
+                <div className="bg-background rounded-lg p-2 text-center border border-border">
+                  <span className="text-muted-foreground text-xs block">Gordura</span>
+                  <span className="font-bold">{studentCtx.recomendacao_ia.gordura_g}g</span>
+                  <span className="text-[10px] text-muted-foreground block">{studentCtx.recomendacao_ia.gordura_kg}g/kg</span>
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground italic">
+                * Valores calculados com base no perfil, avaliação física, composição corporal e ficha do aluno. Ajuste nos passos abaixo se necessário.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Step 1: Rotina e Treino */}
         <Card className="glass-card">
           <CardContent className="p-4 space-y-4">
