@@ -164,6 +164,8 @@ serve(async (req) => {
       if (studentContext.lesoes) contextMessage += `Lesões: ${studentContext.lesoes}\n`;
       if (studentContext.observacoes) contextMessage += `Observações: ${studentContext.observacoes}\n`;
 
+      if (studentContext.raca) contextMessage += `Raça/Etnia: ${studentContext.raca}\n`;
+
       contextMessage += "\n--- Dados Antropométricos ---\n";
       if (studentContext.peso) contextMessage += `Peso: ${studentContext.peso} kg\n`;
       if (studentContext.imc) contextMessage += `IMC: ${studentContext.imc}\n`;
@@ -171,10 +173,80 @@ serve(async (req) => {
       if (studentContext.quadril) contextMessage += `Quadril: ${studentContext.quadril} cm\n`;
       if (studentContext.rcq) contextMessage += `RCQ: ${studentContext.rcq}\n`;
 
+      if (studentContext.antropometria_completa) {
+        const ac = studentContext.antropometria_completa;
+        const measures: [string, any][] = [
+          ['Pescoço', ac.pescoco], ['Tórax', ac.torax], ['Ombro', ac.ombro],
+          ['Abdômen', ac.abdomen], ['Braço D', ac.braco_direito], ['Braço E', ac.braco_esquerdo],
+          ['Antebraço D', ac.antebraco], ['Antebraço E', ac.antebraco_esquerdo],
+          ['Bíceps Contr. D', ac.biceps_contraido_direito], ['Bíceps Contr. E', ac.biceps_contraido_esquerdo],
+          ['Coxa D', ac.coxa_direita], ['Coxa E', ac.coxa_esquerda],
+          ['Panturrilha D', ac.panturrilha_direita], ['Panturrilha E', ac.panturrilha_esquerda],
+        ];
+        const filled = measures.filter(([, v]) => v != null);
+        if (filled.length > 0) {
+          contextMessage += `Circunferências: ${filled.map(([k, v]) => `${k}: ${v}cm`).join(' | ')}\n`;
+        }
+      }
+
       contextMessage += "\n--- Composição Corporal ---\n";
       if (studentContext.percentual_gordura) contextMessage += `% Gordura: ${studentContext.percentual_gordura}%\n`;
       if (studentContext.massa_magra) contextMessage += `Massa Magra: ${studentContext.massa_magra} kg\n`;
       if (studentContext.massa_gorda) contextMessage += `Massa Gorda: ${studentContext.massa_gorda} kg\n`;
+      if (studentContext.composicao_obs) contextMessage += `Observações composição: ${studentContext.composicao_obs}\n`;
+
+      if (studentContext.dobras_cutaneas) {
+        const dc = studentContext.dobras_cutaneas;
+        contextMessage += "\n--- Dobras Cutâneas ---\n";
+        if (dc.metodo) contextMessage += `Método: ${dc.metodo}\n`;
+        const folds: [string, any][] = [
+          ['Tríceps', dc.triceps], ['Subescapular', dc.subescapular], ['Suprailíaca', dc.suprailiaca],
+          ['Abdominal', dc.abdominal], ['Peitoral', dc.peitoral], ['Axilar Média', dc.axilar_media], ['Coxa', dc.coxa],
+        ];
+        const filledFolds = folds.filter(([, v]) => v != null);
+        if (filledFolds.length > 0) {
+          contextMessage += `Dobras: ${filledFolds.map(([k, v]) => `${k}: ${v}mm`).join(' | ')}\n`;
+        }
+      }
+
+      if (studentContext.sinais_vitais) {
+        const sv = studentContext.sinais_vitais;
+        contextMessage += "\n--- Sinais Vitais ---\n";
+        if (sv.fc_repouso) contextMessage += `FC Repouso: ${sv.fc_repouso} bpm\n`;
+        if (sv.pressao) contextMessage += `Pressão: ${sv.pressao}\n`;
+        if (sv.spo2) contextMessage += `SpO2: ${sv.spo2}%\n`;
+        if (sv.glicemia) contextMessage += `Glicemia: ${sv.glicemia} mg/dL\n`;
+        if (sv.observacoes) contextMessage += `Obs vitais: ${sv.observacoes}\n`;
+      }
+
+      if (studentContext.testes_performance) {
+        const tp = studentContext.testes_performance;
+        contextMessage += "\n--- Testes de Performance ---\n";
+        if (tp.pushup) contextMessage += `Flexões: ${tp.pushup}\n`;
+        if (tp.plank) contextMessage += `Prancha: ${tp.plank}s\n`;
+        if (tp.cooper_12min) contextMessage += `Cooper 12min: ${tp.cooper_12min}m\n`;
+        if (tp.salto_vertical) contextMessage += `Salto vertical: ${tp.salto_vertical}cm\n`;
+        if (tp.agachamento_score) contextMessage += `Score agachamento: ${tp.agachamento_score}\n`;
+        if (tp.mobilidade_ombro) contextMessage += `Mobilidade ombro: ${tp.mobilidade_ombro}\n`;
+        if (tp.mobilidade_quadril) contextMessage += `Mobilidade quadril: ${tp.mobilidade_quadril}\n`;
+        if (tp.mobilidade_tornozelo) contextMessage += `Mobilidade tornozelo: ${tp.mobilidade_tornozelo}\n`;
+        if (tp.observacoes) contextMessage += `Obs performance: ${tp.observacoes}\n`;
+      }
+
+      if (studentContext.analise_postural) {
+        const ap = studentContext.analise_postural;
+        contextMessage += "\n--- Análise Postural ---\n";
+        if (ap.attention_points && Array.isArray(ap.attention_points) && ap.attention_points.length > 0) {
+          contextMessage += `Pontos de atenção: ${ap.attention_points.map((p: any) => typeof p === 'string' ? p : `${p.label || p.name}: ${p.severity || p.value}`).join('; ')}\n`;
+        }
+        if (ap.notes) contextMessage += `Notas posturais: ${ap.notes}\n`;
+      }
+
+      if (studentContext.zonas_fc) {
+        const zf = studentContext.zonas_fc;
+        contextMessage += "\n--- Zonas de FC (Karvonen) ---\n";
+        contextMessage += `FC Repouso: ${zf.fc_repouso} | FCmax: ${zf.fcmax} (${zf.formula})\n`;
+      }
 
       if (studentContext.anamnese) {
         const an = studentContext.anamnese;
@@ -185,9 +257,17 @@ serve(async (req) => {
         if (an.rotina) contextMessage += `Rotina: ${an.rotina}\n`;
         if (an.sono) contextMessage += `Sono: ${an.sono}\n`;
         if (an.stress) contextMessage += `Stress: ${an.stress}\n`;
+        if (an.dores) contextMessage += `Dores: ${an.dores}\n`;
+        if (an.cirurgias) contextMessage += `Cirurgias: ${an.cirurgias}\n`;
+        if (an.tabagismo) contextMessage += `Tabagismo: Sim\n`;
+        if (an.alcool) contextMessage += `Álcool: ${an.alcool}\n`;
       }
 
-      contextMessage += "\n=== FIM DOS DADOS ===\n\nIMPORTANTE: Use TODOS os dados acima. Gere o plano completo conforme solicitado. NÃO pergunte dados já fornecidos.\n";
+      if (studentContext.fotos_avaliacao && studentContext.fotos_avaliacao.length > 0) {
+        contextMessage += `\n--- Fotos da Avaliação ---\nO aluno possui ${studentContext.fotos_avaliacao.length} foto(s) registrada(s) na avaliação (${studentContext.fotos_avaliacao.map((f: any) => f.tipo || 'foto').join(', ')}).\n`;
+      }
+
+      contextMessage += "\n=== FIM DOS DADOS ===\n\nIMPORTANTE: Use TODOS os dados acima para personalizar a dieta. Considere a composição corporal, postura, performance, sinais vitais e anamnese completa. NÃO pergunte dados já fornecidos.\n";
     }
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
