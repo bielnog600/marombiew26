@@ -256,7 +256,15 @@ const DietaIA = () => {
       }
       if (latestQuestionnaire.dias_treino) {
         const days = latestQuestionnaire.dias_treino.replace('x', '');
-        if (['3','4','5','6','7'].includes(days)) setTrainingDays(days);
+        if (['3','4','5','6','7'].includes(days)) {
+          setTrainingDays(days);
+          // Auto-fill activity level based on training days
+          const daysNum = Number(days);
+          if (daysNum <= 3) setActivityLevel('1.4');
+          else if (daysNum <= 4) setActivityLevel('1.6');
+          else if (daysNum <= 5) setActivityLevel('1.6');
+          else setActivityLevel('1.8');
+        }
       }
       if (latestQuestionnaire.restricoes_alimentares) {
         setCustomRestriction(latestQuestionnaire.restricoes_alimentares);
