@@ -260,7 +260,7 @@ const Alunos = () => {
                       {(s.nome || '?')[0].toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium truncate">{s.nome || 'Sem nome'}</p>
+                      <p className="font-medium break-words">{s.nome || 'Sem nome'}</p>
                       <p className="text-sm text-muted-foreground truncate">{s.email}</p>
                     </div>
                     <Button
