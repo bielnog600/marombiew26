@@ -358,6 +358,68 @@ export type Database = {
         }
         Relationships: []
       }
+      diet_readjustments: {
+        Row: {
+          created_at: string
+          energia_ok: boolean | null
+          fome_excessiva: boolean | null
+          ganhou_massa: boolean | null
+          humor_ok: boolean | null
+          id: string
+          insonia: boolean | null
+          intestino_ok: boolean | null
+          observacoes: string | null
+          perdeu_peso: boolean | null
+          peso_atual: number | null
+          plan_id: string
+          rendimento_treino: string | null
+          satisfacao: string | null
+          student_id: string
+        }
+        Insert: {
+          created_at?: string
+          energia_ok?: boolean | null
+          fome_excessiva?: boolean | null
+          ganhou_massa?: boolean | null
+          humor_ok?: boolean | null
+          id?: string
+          insonia?: boolean | null
+          intestino_ok?: boolean | null
+          observacoes?: string | null
+          perdeu_peso?: boolean | null
+          peso_atual?: number | null
+          plan_id: string
+          rendimento_treino?: string | null
+          satisfacao?: string | null
+          student_id: string
+        }
+        Update: {
+          created_at?: string
+          energia_ok?: boolean | null
+          fome_excessiva?: boolean | null
+          ganhou_massa?: boolean | null
+          humor_ok?: boolean | null
+          id?: string
+          insonia?: boolean | null
+          intestino_ok?: boolean | null
+          observacoes?: string | null
+          perdeu_peso?: boolean | null
+          peso_atual?: number | null
+          plan_id?: string
+          rendimento_treino?: string | null
+          satisfacao?: string | null
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diet_readjustments_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "ai_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       foods: {
         Row: {
           calories: number

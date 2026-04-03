@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { Trash2, Dumbbell, UtensilsCrossed, ChevronDown, ChevronUp, Pencil } from 'lucide-react';
+import { Trash2, Dumbbell, UtensilsCrossed, ChevronDown, ChevronUp, Pencil, ClipboardCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useNavigate } from 'react-router-dom';
@@ -12,6 +12,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
+import DietReadjustmentDialog from '@/components/DietReadjustmentDialog';
 
 interface AiPlansListProps {
   studentId: string;
@@ -22,6 +23,7 @@ const AiPlansList = ({ studentId }: AiPlansListProps) => {
   const navigate = useNavigate();
   const [plans, setPlans] = useState<any[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [readjustPlanId, setReadjustPlanId] = useState<string | null>(null);
 
   useEffect(() => {
     loadPlans();
@@ -77,6 +79,17 @@ const AiPlansList = ({ studentId }: AiPlansListProps) => {
                 </div>
                 {expandedId === plan.id ? <ChevronUp className="h-4 w-4 ml-auto text-muted-foreground" /> : <ChevronDown className="h-4 w-4 ml-auto text-muted-foreground" />}
               </div>
+              {plan.tipo === 'dieta' && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-primary ml-1"
+                  title="Questionário de Reajuste"
+                  onClick={() => setReadjustPlanId(plan.id)}
+                >
+                  <ClipboardCheck className="w-4 h-4" />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -122,6 +135,14 @@ const AiPlansList = ({ studentId }: AiPlansListProps) => {
           </CardContent>
         </Card>
       ))}
+      {readjustPlanId && (
+        <DietReadjustmentDialog
+          open={!!readjustPlanId}
+          onOpenChange={(open) => { if (!open) setReadjustPlanId(null); }}
+          planId={readjustPlanId}
+          studentId={studentId}
+        />
+      )}
     </div>
   );
 };
