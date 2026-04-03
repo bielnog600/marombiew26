@@ -20,6 +20,7 @@ import DietaIA from "./pages/DietaIA";
 import Alimentos from "./pages/Alimentos";
 import DietQuestionnaire from "./pages/DietQuestionnaire";
 import Notificacoes from "./pages/Notificacoes";
+import WhatsAppWeb from "./pages/WhatsAppWeb";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
