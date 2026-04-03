@@ -181,35 +181,98 @@ const DietaIA = () => {
 
     let anthro: any = null, comp: any = null, vitals: any = null, anamnese: any = null;
     let photos: any[] = [];
+    let skinfolds: any = null, perfTests: any = null, posture: any = null;
+
+    // Also fetch posture scans and HR zones (not assessment-dependent)
+    const [postureScansRes, hrZonesRes] = await Promise.all([
+      supabase.from('posture_scans').select('*').eq('student_id', studentId!).order('created_at', { ascending: false }).limit(1),
+      supabase.from('hr_zones').select('*').eq('student_id', studentId!).order('created_at', { ascending: false }).limit(1),
+    ]);
+    const latestPostureScan = postureScansRes.data?.[0] || null;
+    const latestHrZones = hrZonesRes.data?.[0] || null;
 
     if (latestAssessmentId) {
-      const [anthroRes, compRes, vitalsRes, anRes, photosRes] = await Promise.all([
+      const [anthroRes, compRes, vitalsRes, anRes, photosRes, skinRes, perfRes, postureRes] = await Promise.all([
         supabase.from('anthropometrics').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
         supabase.from('composition').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
         supabase.from('vitals').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
         supabase.from('anamnese').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
         supabase.from('assessment_photos').select('*').eq('assessment_id', latestAssessmentId),
+        supabase.from('skinfolds').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
+        supabase.from('performance_tests').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
+        supabase.from('posture').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
       ]);
       anthro = anthroRes.data;
       comp = compRes.data;
       vitals = vitalsRes.data;
       anamnese = anRes.data;
       photos = photosRes.data ?? [];
+      skinfolds = skinRes.data;
+      perfTests = perfRes.data;
+      posture = postureRes.data;
     }
 
     const ctx: StudentCtx = {
       nome: profile?.nome, sexo: sp?.sexo, data_nascimento: sp?.data_nascimento,
+      raca: sp?.raca,
       altura: sp?.altura || anthro?.altura, objetivo: sp?.objetivo,
       restricoes: sp?.restricoes, lesoes: sp?.lesoes, observacoes: sp?.observacoes,
       peso: anthro?.peso, imc: anthro?.imc, cintura: anthro?.cintura,
       quadril: anthro?.quadril, rcq: anthro?.rcq,
+      // All anthropometric measurements
+      antropometria_completa: anthro ? {
+        pescoco: anthro.pescoco, torax: anthro.torax, ombro: anthro.ombro,
+        abdomen: anthro.abdomen, braco_direito: anthro.braco_direito,
+        braco_esquerdo: anthro.braco_esquerdo, antebraco: anthro.antebraco,
+        antebraco_esquerdo: anthro.antebraco_esquerdo,
+        biceps_contraido_direito: anthro.biceps_contraido_direito,
+        biceps_contraido_esquerdo: anthro.biceps_contraido_esquerdo,
+        coxa_direita: anthro.coxa_direita, coxa_esquerda: anthro.coxa_esquerda,
+        panturrilha_direita: anthro.panturrilha_direita, panturrilha_esquerda: anthro.panturrilha_esquerda,
+      } : null,
       percentual_gordura: comp?.percentual_gordura,
       massa_magra: comp?.massa_magra, massa_gorda: comp?.massa_gorda,
+      composicao_obs: comp?.observacoes,
+      // Skinfolds
+      dobras_cutaneas: skinfolds ? {
+        metodo: skinfolds.metodo, triceps: skinfolds.triceps, subescapular: skinfolds.subescapular,
+        suprailiaca: skinfolds.suprailiaca, abdominal: skinfolds.abdominal,
+        peitoral: skinfolds.peitoral, axilar_media: skinfolds.axilar_media, coxa: skinfolds.coxa,
+      } : null,
+      // Vitals
+      sinais_vitais: vitals ? {
+        fc_repouso: vitals.fc_repouso, pressao: vitals.pressao,
+        spo2: vitals.spo2, glicemia: vitals.glicemia, observacoes: vitals.observacoes,
+      } : null,
       fc_repouso: vitals?.fc_repouso,
+      // Performance tests
+      testes_performance: perfTests ? {
+        pushup: perfTests.pushup, plank: perfTests.plank, cooper_12min: perfTests.cooper_12min,
+        salto_vertical: perfTests.salto_vertical, agachamento_score: perfTests.agachamento_score,
+        mobilidade_ombro: perfTests.mobilidade_ombro, mobilidade_quadril: perfTests.mobilidade_quadril,
+        mobilidade_tornozelo: perfTests.mobilidade_tornozelo, observacoes: perfTests.observacoes,
+      } : null,
+      // Posture (from assessment)
+      postura: posture ? {
+        vista_anterior: posture.vista_anterior, vista_lateral: posture.vista_lateral,
+        vista_posterior: posture.vista_posterior, observacoes: posture.observacoes,
+      } : null,
+      // Posture scan (latest)
+      analise_postural: latestPostureScan ? {
+        angles: latestPostureScan.angles_json, region_scores: latestPostureScan.region_scores_json,
+        attention_points: latestPostureScan.attention_points_json, notes: latestPostureScan.notes,
+      } : null,
+      // HR zones
+      zonas_fc: latestHrZones ? {
+        fc_repouso: latestHrZones.fc_repouso, fcmax: latestHrZones.fcmax_estimada,
+        formula: latestHrZones.fcmax_formula, zonas: latestHrZones.zonas_karvonen,
+      } : null,
       anamnese: anamnese ? {
         historico_saude: anamnese.historico_saude, medicacao: anamnese.medicacao,
         suplementos: anamnese.suplementos, sono: anamnese.sono, stress: anamnese.stress,
         rotina: anamnese.rotina, treino_atual: anamnese.treino_atual,
+        dores: anamnese.dores, cirurgias: anamnese.cirurgias,
+        tabagismo: anamnese.tabagismo, alcool: anamnese.alcool,
       } : null,
       fotos_avaliacao: photos.length > 0 ? photos.map(p => ({ tipo: p.tipo, url: p.url })) : null,
       questionario_dieta: latestQuestionnaire ? {
