@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, ClipboardList, TrendingUp, UserPlus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Users, ClipboardList, TrendingUp, UserPlus, Bell, CalendarClock, Cake, Phone, MessageSquare, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useNotifications, NotificationType } from '@/hooks/useNotifications';
 
 const Dashboard = () => {
   const [stats, setStats] = useState({ totalAlunos: 0, avaliacoesMes: 0 });
