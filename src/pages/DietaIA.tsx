@@ -356,10 +356,10 @@ const DietaIA = () => {
       const mifflin = isMale
         ? 10 * peso + 6.25 * altura - 5 * birthAge + 5
         : 10 * peso + 6.25 * altura - 5 * birthAge - 161;
-      const faoOms = isMale ? 15.3 * peso + 679 : 14.7 * peso + 496;
+      const _faoOms = isMale ? 15.3 * peso + 679 : 14.7 * peso + 496;
       const cunningham = mlg ? 500 + 22 * mlg : null;
-      const tinsleyMlg = mlg ? 25.9 * mlg + 284 : null;
-      const tinsleyPeso = 24.8 * peso + 10;
+      const _tinsleyMlg = mlg ? 25.9 * mlg + 284 : null;
+      const _tinsleyPeso = 24.8 * peso + 10;
 
       // Choose best formula
       let bestTmb: number;
