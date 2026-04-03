@@ -12,6 +12,22 @@ const Dashboard = () => {
   const [stats, setStats] = useState({ totalAlunos: 0, avaliacoesMes: 0 });
   const [recentStudents, setRecentStudents] = useState<any[]>([]);
   const [chartData, setChartData] = useState<any[]>([]);
+  const { notifications, count: notifCount } = useNotifications();
+  const navigate = useNavigate();
+
+  const notifIconMap: Record<NotificationType, React.ElementType> = {
+    reavaliacao: CalendarClock,
+    aniversario: Cake,
+    mensagem_semanal: MessageSquare,
+    sem_telefone: Phone,
+  };
+  const notifColorMap: Record<NotificationType, string> = {
+    reavaliacao: 'text-orange-500',
+    aniversario: 'text-pink-500',
+    mensagem_semanal: 'text-blue-500',
+    sem_telefone: 'text-red-500',
+  };
+  const [chartData, setChartData] = useState<any[]>([]);
 
   useEffect(() => {
     loadStats();
