@@ -118,6 +118,44 @@ const Dashboard = () => {
           ))}
         </div>
 
+        {/* Alerts Card */}
+        {notifCount > 0 && (
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center justify-between text-base">
+                <div className="flex items-center gap-2">
+                  <Bell className="h-5 w-5 text-primary" />
+                  Alertas ({notifCount})
+                </div>
+                <Button variant="ghost" size="sm" className="text-xs" onClick={() => navigate('/notificacoes')}>
+                  Ver todos <ChevronRight className="h-3 w-3 ml-1" />
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="space-y-2">
+                {notifications.slice(0, 5).map((n) => {
+                  const Icon = notifIconMap[n.type];
+                  const color = notifColorMap[n.type];
+                  return (
+                    <div
+                      key={n.id}
+                      className="flex items-center gap-3 p-2.5 rounded-lg bg-background/60 cursor-pointer hover:bg-background transition-colors"
+                      onClick={() => navigate(`/alunos/${n.studentId}`)}
+                    >
+                      <Icon className={`h-4 w-4 shrink-0 ${color}`} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium leading-tight">{n.title}</p>
+                        <p className="text-xs text-muted-foreground truncate">{n.description}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card className="glass-card">
             <CardHeader>
