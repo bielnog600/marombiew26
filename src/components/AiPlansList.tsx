@@ -79,6 +79,17 @@ const AiPlansList = ({ studentId }: AiPlansListProps) => {
                 </div>
                 {expandedId === plan.id ? <ChevronUp className="h-4 w-4 ml-auto text-muted-foreground" /> : <ChevronDown className="h-4 w-4 ml-auto text-muted-foreground" />}
               </div>
+              {plan.tipo === 'dieta' && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-primary ml-1"
+                  title="Questionário de Reajuste"
+                  onClick={() => setReadjustPlanId(plan.id)}
+                >
+                  <ClipboardCheck className="w-4 h-4" />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
