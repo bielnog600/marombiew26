@@ -135,6 +135,14 @@ const AiPlansList = ({ studentId }: AiPlansListProps) => {
           </CardContent>
         </Card>
       ))}
+      {readjustPlanId && (
+        <DietReadjustmentDialog
+          open={!!readjustPlanId}
+          onOpenChange={(open) => { if (!open) setReadjustPlanId(null); }}
+          planId={readjustPlanId}
+          studentId={studentId}
+        />
+      )}
     </div>
   );
 };
