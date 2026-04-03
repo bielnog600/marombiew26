@@ -302,16 +302,8 @@ const DietaIA = () => {
     setStudentCtx(ctx);
     setStudentName(profile?.nome || 'Aluno');
 
-    // Pre-fill from questionnaire if available
+    // Pre-fill from questionnaire (only fields NOT handled by recommendation block)
     if (latestQuestionnaire) {
-      if (latestQuestionnaire.estilo_dieta) {
-        const estiloMap: Record<string, string> = { 'Flexível (IIFYM)': 'flexivel', 'Low Carb': 'low_carb', 'Cetogênica': 'cetogenica', 'Mediterrânea': 'mediterranea', 'Paleolítica': 'paleolitica', 'Vegetariana': 'vegetariana', 'Vegana': 'vegana', 'Convencional': 'convencional' };
-        if (estiloMap[latestQuestionnaire.estilo_dieta]) setDietStyle(estiloMap[latestQuestionnaire.estilo_dieta]);
-      }
-      if (latestQuestionnaire.fase_atual) {
-        const faseMap: Record<string, string> = { 'Bulking': 'bulking', 'Cutting': 'cutting', 'Manutenção': 'manutencao', 'Recomposição': 'recomposicao', 'Pré-contest': 'pre_contest' };
-        if (faseMap[latestQuestionnaire.fase_atual]) setPhase(faseMap[latestQuestionnaire.fase_atual]);
-      }
       if (latestQuestionnaire.num_refeicoes) setMealCount(String(latestQuestionnaire.num_refeicoes));
       if (latestQuestionnaire.horario_treino) {
         const timeMap: Record<string, string> = { '05:00': 'manha', '06:00': 'manha', '07:00': 'manha', '08:00': 'manha', '09:00': 'manha', '10:00': 'manha', '11:00': 'manha', '12:00': 'tarde', '13:00': 'tarde', '14:00': 'tarde', '15:00': 'tarde', '16:00': 'tarde', '17:00': 'noite', '18:00': 'noite', '19:00': 'noite', '20:00': 'noite', '21:00': 'noite', '22:00': 'madrugada' };
@@ -319,21 +311,14 @@ const DietaIA = () => {
       }
       if (latestQuestionnaire.dias_treino) {
         const days = latestQuestionnaire.dias_treino.replace('x', '');
-        if (['3','4','5','6','7'].includes(days)) {
-          setTrainingDays(days);
-          // Auto-fill activity level based on training days
-          const daysNum = Number(days);
-          if (daysNum <= 3) setActivityLevel('1.4');
-          else if (daysNum <= 4) setActivityLevel('1.6');
-          else if (daysNum <= 5) setActivityLevel('1.6');
-          else setActivityLevel('1.8');
-        }
+        if (['3','4','5','6','7'].includes(days)) setTrainingDays(days);
       }
-      if (latestQuestionnaire.restricoes_alimentares) {
-        setCustomRestriction(latestQuestionnaire.restricoes_alimentares);
-      }
-      if (latestQuestionnaire.preferencias_alimentares) {
-        setCustomPreference(latestQuestionnaire.preferencias_alimentares);
+      if (latestQuestionnaire.restricoes_alimentares) setCustomRestriction(latestQuestionnaire.restricoes_alimentares);
+      if (latestQuestionnaire.preferencias_alimentares) setCustomPreference(latestQuestionnaire.preferencias_alimentares);
+      if (latestQuestionnaire.usa_hormonios) {
+        const uh = latestQuestionnaire.usa_hormonios;
+        if (uh === 'Não' || uh === 'não' || uh === 'Natural') setUsesHormones(false);
+        else { setUsesHormones(true); setHormoneDetails(uh); }
       }
     }
 
@@ -377,20 +362,35 @@ const DietaIA = () => {
 
       // Auto-suggest strategy based on body composition + objective + questionnaire symptoms
       let suggestedStrategy = 'manutencao';
+      let suggestedPhase = 'manutencao';
+      let suggestedDietStyle = 'convencional';
+
       if (bf !== null) {
-        if ((isMale && bf > 20) || (!isMale && bf > 28)) suggestedStrategy = 'deficit_moderado';
-        else if ((isMale && bf < 12) || (!isMale && bf < 18)) suggestedStrategy = 'superavit_leve';
+        if ((isMale && bf > 20) || (!isMale && bf > 28)) { suggestedStrategy = 'deficit_moderado'; suggestedPhase = 'cutting'; }
+        else if ((isMale && bf < 12) || (!isMale && bf < 18)) { suggestedStrategy = 'superavit_leve'; suggestedPhase = 'bulking'; }
       }
       // Override from objective
       const obj = (sp?.objetivo || '').toLowerCase();
-      if (obj.includes('emagrec') || obj.includes('perd') || obj.includes('defin')) suggestedStrategy = 'deficit_leve';
-      if (obj.includes('hipertrofia') || obj.includes('massa') || obj.includes('ganho')) suggestedStrategy = 'superavit_leve';
+      if (obj.includes('emagrec') || obj.includes('perd') || obj.includes('defin')) { suggestedStrategy = 'deficit_leve'; suggestedPhase = 'cutting'; }
+      if (obj.includes('hipertrofia') || obj.includes('massa') || obj.includes('ganho')) { suggestedStrategy = 'superavit_leve'; suggestedPhase = 'bulking'; }
+      if (obj.includes('recomp')) { suggestedStrategy = 'manutencao'; suggestedPhase = 'recomposicao'; }
       // Override from questionnaire phase
       if (latestQuestionnaire?.fase_atual) {
         const fase = latestQuestionnaire.fase_atual.toLowerCase();
-        if (fase.includes('bulk')) suggestedStrategy = 'superavit_leve';
-        if (fase.includes('cut')) suggestedStrategy = 'deficit_moderado';
-        if (fase.includes('recomp')) suggestedStrategy = 'manutencao';
+        if (fase.includes('bulk')) { suggestedStrategy = 'superavit_leve'; suggestedPhase = 'bulking'; }
+        if (fase.includes('cut')) { suggestedStrategy = 'deficit_moderado'; suggestedPhase = 'cutting'; }
+        if (fase.includes('recomp')) { suggestedStrategy = 'manutencao'; suggestedPhase = 'recomposicao'; }
+        if (fase.includes('manutenção') || fase.includes('manut')) { suggestedPhase = 'manutencao'; }
+        if (fase.includes('pré-contest') || fase.includes('pre_contest') || fase.includes('contest')) { suggestedPhase = 'pre_contest'; suggestedStrategy = 'deficit_agressivo'; }
+      }
+      // Diet style from questionnaire
+      if (latestQuestionnaire?.estilo_dieta) {
+        const estiloMap: Record<string, string> = { 'Flexível (IIFYM)': 'flexivel', 'Low Carb': 'low_carb', 'Cetogênica': 'cetogenica', 'Mediterrânea': 'mediterranea', 'Paleolítica': 'paleolitica', 'Vegetariana': 'vegetariana', 'Vegana': 'vegana', 'Convencional': 'convencional' };
+        suggestedDietStyle = estiloMap[latestQuestionnaire.estilo_dieta] || suggestedDietStyle;
+      }
+      // If cutting + high BF, suggest low carb
+      if (suggestedPhase === 'cutting' && bf !== null && bf > (isMale ? 25 : 32) && !latestQuestionnaire?.estilo_dieta) {
+        suggestedDietStyle = 'low_carb';
       }
       // Check symptoms: if low energy/weakness, ease up deficit
       if (latestQuestionnaire && (latestQuestionnaire.baixa_energia || latestQuestionnaire.fraqueza)) {
@@ -399,6 +399,8 @@ const DietaIA = () => {
       }
 
       if (!strategy) setStrategy(suggestedStrategy);
+      if (!phase) setPhase(suggestedPhase);
+      if (!dietStyle) setDietStyle(suggestedDietStyle);
 
       // Auto-suggest activity level from training days
       const tDays = Number(trainingDays || latestQuestionnaire?.dias_treino?.replace('x', '') || 0);
