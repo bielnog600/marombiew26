@@ -239,8 +239,17 @@ const PostureAnalysis = () => {
     const loadStudentProfile = async () => {
       const { data } = await supabase.from('students_profile').select('altura, sexo').eq('user_id', studentId).maybeSingle();
       if (data) {
-        if (data.altura && !heightCm) setHeightCm(String(data.altura));
         if (data.sexo) setSex(data.sexo);
+        if (data.altura && !heightCm) {
+          setHeightCm(String(data.altura));
+        } else if (!data.altura && !heightCm) {
+          // Fallback: get height from latest assessment anthropometrics
+          const { data: assessData } = await supabase.from('assessments').select('id').eq('student_id', studentId).order('created_at', { ascending: false }).limit(1);
+          if (assessData?.[0]?.id) {
+            const { data: anthroData } = await supabase.from('anthropometrics').select('altura').eq('assessment_id', assessData[0].id).maybeSingle();
+            if (anthroData?.altura) setHeightCm(String(anthroData.altura));
+          }
+        }
       }
     };
     loadStudentProfile();
