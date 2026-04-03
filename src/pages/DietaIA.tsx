@@ -337,12 +337,123 @@ const DietaIA = () => {
       }
     }
 
-    if (comp?.percentual_gordura && !latestQuestionnaire?.fase_atual) {
-      const bf = Number(comp.percentual_gordura);
-      const isMale = sp?.sexo === 'masculino';
-      if ((isMale && bf > 20) || (!isMale && bf > 28)) setStrategy('deficit_moderado');
-      else if ((isMale && bf < 12) || (!isMale && bf < 18)) setStrategy('superavit_leve');
-      else setStrategy('manutencao');
+    // ── Compute AI recommendation based on all student data ──
+    const peso = anthro?.peso ? Number(anthro.peso) : null;
+    const altura = sp?.altura || anthro?.altura ? Number(sp?.altura || anthro?.altura) : null;
+    const bf = comp?.percentual_gordura ? Number(comp.percentual_gordura) : null;
+    const mlg = comp?.massa_magra ? Number(comp.massa_magra) : null;
+    const isMale = sp?.sexo === 'masculino';
+    let birthAge: number | null = null;
+    if (sp?.data_nascimento) {
+      birthAge = Math.floor((Date.now() - new Date(sp.data_nascimento).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+    }
+
+    if (peso && altura && birthAge) {
+      // Calculate TMB by multiple formulas
+      const harrisBenedict = isMale
+        ? 66.47 + 13.75 * peso + 5.003 * altura - 6.755 * birthAge
+        : 655.1 + 9.563 * peso + 1.85 * altura - 4.676 * birthAge;
+      const mifflin = isMale
+        ? 10 * peso + 6.25 * altura - 5 * birthAge + 5
+        : 10 * peso + 6.25 * altura - 5 * birthAge - 161;
+      const faoOms = isMale ? 15.3 * peso + 679 : 14.7 * peso + 496;
+      const cunningham = mlg ? 500 + 22 * mlg : null;
+      const tinsleyMlg = mlg ? 25.9 * mlg + 284 : null;
+      const tinsleyPeso = 24.8 * peso + 10;
+
+      // Choose best formula
+      let bestTmb: number;
+      let bestFormula: string;
+      if (bf !== null && bf < (isMale ? 15 : 22) && mlg && cunningham) {
+        bestTmb = cunningham;
+        bestFormula = 'Cunningham (atleta, baixo %G)';
+      } else if (bf !== null && bf > (isMale ? 25 : 32)) {
+        bestTmb = mifflin;
+        bestFormula = 'Mifflin (sobrepeso/obeso)';
+      } else {
+        bestTmb = harrisBenedict;
+        bestFormula = 'Harris-Benedict (eutrófico)';
+      }
+
+      // Auto-suggest strategy based on body composition + objective + questionnaire symptoms
+      let suggestedStrategy = 'manutencao';
+      if (bf !== null) {
+        if ((isMale && bf > 20) || (!isMale && bf > 28)) suggestedStrategy = 'deficit_moderado';
+        else if ((isMale && bf < 12) || (!isMale && bf < 18)) suggestedStrategy = 'superavit_leve';
+      }
+      // Override from objective
+      const obj = (sp?.objetivo || '').toLowerCase();
+      if (obj.includes('emagrec') || obj.includes('perd') || obj.includes('defin')) suggestedStrategy = 'deficit_leve';
+      if (obj.includes('hipertrofia') || obj.includes('massa') || obj.includes('ganho')) suggestedStrategy = 'superavit_leve';
+      // Override from questionnaire phase
+      if (latestQuestionnaire?.fase_atual) {
+        const fase = latestQuestionnaire.fase_atual.toLowerCase();
+        if (fase.includes('bulk')) suggestedStrategy = 'superavit_leve';
+        if (fase.includes('cut')) suggestedStrategy = 'deficit_moderado';
+        if (fase.includes('recomp')) suggestedStrategy = 'manutencao';
+      }
+      // Check symptoms: if low energy/weakness, ease up deficit
+      if (latestQuestionnaire && (latestQuestionnaire.baixa_energia || latestQuestionnaire.fraqueza)) {
+        if (suggestedStrategy === 'deficit_agressivo') suggestedStrategy = 'deficit_moderado';
+        else if (suggestedStrategy === 'deficit_moderado') suggestedStrategy = 'deficit_leve';
+      }
+
+      if (!strategy) setStrategy(suggestedStrategy);
+
+      // Auto-suggest activity level from training days
+      const tDays = Number(trainingDays || latestQuestionnaire?.dias_treino?.replace('x', '') || 0);
+      let suggestedFA = 1.4;
+      if (tDays >= 6) suggestedFA = 1.8;
+      else if (tDays >= 5) suggestedFA = 1.6;
+      else if (tDays >= 3) suggestedFA = 1.4;
+      else suggestedFA = 1.2;
+      // If anamnese shows active routine, bump
+      if (anamnese?.rotina && (anamnese.rotina.toLowerCase().includes('pesado') || anamnese.rotina.toLowerCase().includes('físico'))) {
+        suggestedFA = Math.min(suggestedFA + 0.2, 2.0);
+      }
+      if (!activityLevel) setActivityLevel(String(suggestedFA));
+
+      const strategyPct = STRATEGIES.find(s => s.value === suggestedStrategy)?.pct ?? 0;
+      const get = bestTmb * suggestedFA;
+      const consumo = get * (1 + strategyPct / 100);
+
+      // Macros based on phase
+      let protPerKg = 2.0, fatPerKg = 0.9;
+      if (suggestedStrategy.includes('deficit')) { protPerKg = 2.4; fatPerKg = 0.7; }
+      if (suggestedStrategy.includes('superavit')) { protPerKg = 1.8; fatPerKg = 1.0; }
+      if (latestQuestionnaire?.usa_hormonios && latestQuestionnaire.usa_hormonios !== 'Não') {
+        protPerKg = Math.min(protPerKg + 0.3, 3.0);
+      }
+
+      const protGrams = Math.round(protPerKg * peso);
+      const fatGrams = Math.round(fatPerKg * peso);
+      const protCal = protGrams * 4;
+      const fatCal = fatGrams * 9;
+      const carbCal = Math.max(consumo - protCal - fatCal, 0);
+      const carbGrams = Math.round(carbCal / 4);
+
+      ctx.recomendacao_ia = {
+        tmb: Math.round(bestTmb),
+        formula: bestFormula,
+        fa: suggestedFA,
+        get: Math.round(get),
+        consumo: Math.round(consumo),
+        estrategia: suggestedStrategy,
+        proteina_g: protGrams,
+        carboidrato_g: carbGrams,
+        gordura_g: fatGrams,
+        proteina_kg: protPerKg,
+        gordura_kg: fatPerKg,
+        calorias_total: Math.round(consumo),
+      };
+      setStudentCtx({ ...ctx });
+    } else {
+      // Basic fallback - only strategy from BF
+      if (bf !== null && !strategy) {
+        if ((isMale && bf > 20) || (!isMale && bf > 28)) setStrategy('deficit_moderado');
+        else if ((isMale && bf < 12) || (!isMale && bf < 18)) setStrategy('superavit_leve');
+        else setStrategy('manutencao');
+      }
     }
 
     // Pre-fill restrictions from profile (only if no questionnaire)
