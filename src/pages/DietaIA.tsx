@@ -531,6 +531,27 @@ const DietaIA = () => {
       }
     }
 
+    const observationsList = [
+      dailyRoutine && `Observações digitadas no wizard: ${dailyRoutine}`,
+      studentCtx.observacoes && `Observações do perfil do aluno: ${studentCtx.observacoes}`,
+      studentCtx.anamnese?.rotina && `Rotina registrada na anamnese: ${studentCtx.anamnese.rotina}`,
+      studentCtx.questionario_dieta?.observacoes && `Observações do questionário: ${studentCtx.questionario_dieta.observacoes}`,
+      studentCtx.questionario_dieta?.como_se_sente && `Como o aluno se sente: ${studentCtx.questionario_dieta.como_se_sente}`,
+    ].filter(Boolean);
+
+    const criticalInputsText = `
+=== INPUTS OBRIGATÓRIOS DO WIZARD E DA FICHA ===
+Use TODOS os dados abaixo como prioridade máxima. NÃO ignore, NÃO substitua por suposições e NÃO contradiga esses campos.
+- Frequência de treino selecionada: ${trainingDays ? `${trainingDays}x/semana` : studentCtx.questionario_dieta?.dias_treino || 'Não informada'}
+- Fase atual selecionada: ${selectedPhase?.label || studentCtx.questionario_dieta?.fase_atual || 'Não informada'}
+- Nível de atividade física selecionado: ${selectedActivity?.label || 'Não informado'} (FA = ${activityLevel || 'não informado'})
+- Restrições alimentares obrigatórias: ${getRestrictionsText() || studentCtx.questionario_dieta?.restricoes_alimentares || studentCtx.restricoes || 'Nenhuma informada'}
+- Preferências alimentares: ${getPreferencesText() || studentCtx.questionario_dieta?.preferencias_alimentares || 'Não informadas'}
+- Estilo de dieta selecionado: ${selectedDietStyle?.label || studentCtx.questionario_dieta?.estilo_dieta || 'Não informado'}
+${observationsList.length > 0 ? observationsList.map(item => `- ${item}`).join('\n') : '- Observações adicionais: Nenhuma informada'}
+IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os dados acima vencem.
+`;
+
     // Recalculate recommendation using CURRENT wizard selections (not the initial suggestion)
     let recText = '';
     const baseRec = studentCtx.recomendacao_ia;
@@ -542,7 +563,6 @@ const DietaIA = () => {
 
       // Recalculate macros based on current phase/strategy
       const peso = studentCtx.peso || 70;
-      const isMale = studentCtx.sexo === 'masculino';
       let protPerKg = 2.0, fatPerKg = 0.9;
       if (strategy.includes('deficit')) { protPerKg = 2.4; fatPerKg = 0.7; }
       if (strategy.includes('superavit')) { protPerKg = 1.8; fatPerKg = 1.0; }
@@ -572,6 +592,7 @@ const DietaIA = () => {
     }
 
     const prompt = `Gere o plano alimentar COMPLETO para fisiculturismo com as seguintes configurações:
+${criticalInputsText}
 ${recText}
 
 === ROTINA DO ALUNO ===
