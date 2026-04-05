@@ -667,7 +667,7 @@ IMPORTANTE: Considere os sintomas e feedback do aluno ao montar a dieta. Se há 
 2) Escolha da fórmula mais adequada e justificativa
 3) Cálculo do GET e Consumo Energético
 4) Distribuição de macronutrientes (proteína, carboidrato, gordura)
-5) 2-3 opções de cardápio completo em tabela com: Refeição | Horário | Alimento | Quantidade (g) | Kcal | P | C | G | Substituição
+5) EXATAMENTE 3 opções de cardápio completo e DIVERSIFICADO em tabela com: Refeição | Horário | Alimento | Quantidade (g) | Kcal | P | C | G | Substituição. As 3 opções devem ser SIGNIFICATIVAMENTE diferentes entre si (proteínas, carboidratos e preparações variadas).
 6) Total de cada refeição e do dia
 7) Timing nutricional (pré-treino, intra-treino, pós-treino) baseado no horário de treino informado
 ${selectedAdjustments.includes('carb_cycling') ? '8) Protocolo de Carb Cycling com tabela de dias High/Medium/Low' : ''}
