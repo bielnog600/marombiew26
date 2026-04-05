@@ -531,19 +531,45 @@ const DietaIA = () => {
       }
     }
 
-    // Build recommendation context for AI
-    const rec = studentCtx.recomendacao_ia;
-    const recText = rec ? `
+    // Recalculate recommendation using CURRENT wizard selections (not the initial suggestion)
+    let recText = '';
+    const baseRec = studentCtx.recomendacao_ia;
+    if (baseRec) {
+      const currentFA = parseFloat(activityLevel);
+      const currentStrategyPct = selectedStrategy?.pct ?? 0;
+      const currentGET = baseRec.tmb * currentFA;
+      const currentCalories = Math.round(currentGET * (1 + currentStrategyPct / 100));
+
+      // Recalculate macros based on current phase/strategy
+      const peso = studentCtx.peso || 70;
+      const isMale = studentCtx.sexo === 'masculino';
+      let protPerKg = 2.0, fatPerKg = 0.9;
+      if (strategy.includes('deficit')) { protPerKg = 2.4; fatPerKg = 0.7; }
+      if (strategy.includes('superavit')) { protPerKg = 1.8; fatPerKg = 1.0; }
+      if (phase === 'pre_contest') { protPerKg = 2.8; fatPerKg = 0.6; }
+      if (phase === 'recomposicao') { protPerKg = 2.3; fatPerKg = 0.8; }
+      if (usesHormones) { protPerKg = Math.min(protPerKg + 0.3, 3.0); }
+
+      const protGrams = Math.round(protPerKg * peso);
+      const fatGrams = Math.round(fatPerKg * peso);
+      const protCal = protGrams * 4;
+      const fatCal = fatGrams * 9;
+      const carbCal = Math.max(currentCalories - protCal - fatCal, 0);
+      const carbGrams = Math.round(carbCal / 4);
+
+      recText = `
 === RECOMENDAÇÃO CALCULADA (VALORES OBRIGATÓRIOS — NÃO RECALCULE) ===
-- TMB: ${rec.tmb} kcal (calculado por ${rec.formula})
-- Fator de Atividade: ${rec.fa}
-- GET: ${rec.get} kcal
-- Calorias alvo EXATAS: ${rec.calorias_total} kcal
-- Proteína EXATA: ${rec.proteina_g}g (${rec.proteina_kg}g/kg)
-- Carboidrato EXATO: ${rec.carboidrato_g}g
-- Gordura EXATA: ${rec.gordura_g}g (${rec.gordura_kg}g/kg)
-⚠️ OBRIGATÓRIO: O TOTAL DIÁRIO da tabela DEVE ser EXATAMENTE ${rec.calorias_total} kcal (tolerância ±50 kcal). Proteína total = ${rec.proteina_g}g, Carboidrato total = ${rec.carboidrato_g}g, Gordura total = ${rec.gordura_g}g. NÃO use outros valores. NÃO recalcule a TMB. Estes valores já são definitivos.
-` : '';
+- TMB: ${baseRec.tmb} kcal (calculado por ${baseRec.formula})
+- Fator de Atividade: ${currentFA}
+- GET: ${Math.round(currentGET)} kcal
+- Estratégia: ${selectedStrategy?.label} (${currentStrategyPct > 0 ? '+' : ''}${currentStrategyPct}%)
+- Calorias alvo EXATAS: ${currentCalories} kcal
+- Proteína EXATA: ${protGrams}g (${protPerKg}g/kg)
+- Carboidrato EXATO: ${carbGrams}g
+- Gordura EXATA: ${fatGrams}g (${fatPerKg}g/kg)
+⚠️ OBRIGATÓRIO: O TOTAL DIÁRIO da tabela DEVE ser EXATAMENTE ${currentCalories} kcal (tolerância ±50 kcal). Proteína total = ${protGrams}g, Carboidrato total = ${carbGrams}g, Gordura total = ${fatGrams}g. NÃO use outros valores. NÃO recalcule a TMB. Estes valores já são definitivos.
+`;
+    }
 
     const prompt = `Gere o plano alimentar COMPLETO para fisiculturismo com as seguintes configurações:
 ${recText}
