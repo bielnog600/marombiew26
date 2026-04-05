@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import AppLayout from '@/components/AppLayout';
-import { useNotifications, NotificationType } from '@/hooks/useNotifications';
+import { useNotifications, NotificationType, buildWhatsAppUrl } from '@/hooks/useNotifications';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MessageSquare, CalendarClock, Cake, Phone, AlertTriangle, RefreshCw, ExternalLink } from 'lucide-react';
+import { MessageSquare, CalendarClock, Cake, Phone, AlertTriangle, RefreshCw, ExternalLink, Dumbbell, UtensilsCrossed } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -14,6 +14,8 @@ const typeConfig: Record<NotificationType, { icon: React.ElementType; label: str
   aniversario: { icon: Cake, label: 'Aniversário', color: 'text-pink-500' },
   mensagem_semanal: { icon: MessageSquare, label: 'Mensagem Semanal', color: 'text-blue-500' },
   sem_telefone: { icon: Phone, label: 'Sem Telefone', color: 'text-red-500' },
+  sem_treino: { icon: Dumbbell, label: 'Sem Treino', color: 'text-amber-500' },
+  sem_dieta: { icon: UtensilsCrossed, label: 'Sem Dieta', color: 'text-emerald-500' },
 };
 
 const priorityBadge: Record<string, string> = {
@@ -28,12 +30,6 @@ const Notificacoes: React.FC = () => {
   const [tab, setTab] = useState('all');
 
   const filtered = tab === 'all' ? notifications : notifications.filter(n => n.type === tab);
-
-  const buildWhatsAppUrl = (phone: string, message: string) => {
-    const cleaned = phone.replace(/\D/g, '');
-    const num = cleaned.startsWith('55') ? cleaned : `55${cleaned}`;
-    return `https://wa.me/${num}?text=${encodeURIComponent(message)}`;
-  };
 
   const getQuickMessage = (n: typeof notifications[0]) => {
     switch (n.type) {
@@ -54,6 +50,8 @@ const Notificacoes: React.FC = () => {
     aniversario: notifications.filter(n => n.type === 'aniversario').length,
     mensagem_semanal: notifications.filter(n => n.type === 'mensagem_semanal').length,
     sem_telefone: notifications.filter(n => n.type === 'sem_telefone').length,
+    sem_treino: notifications.filter(n => n.type === 'sem_treino').length,
+    sem_dieta: notifications.filter(n => n.type === 'sem_dieta').length,
   };
 
   return (
@@ -76,6 +74,8 @@ const Notificacoes: React.FC = () => {
             <TabsTrigger value="aniversario" className="flex-1 min-w-0">Aniversário ({tabCounts.aniversario})</TabsTrigger>
             <TabsTrigger value="mensagem_semanal" className="flex-1 min-w-0">Semanal ({tabCounts.mensagem_semanal})</TabsTrigger>
             <TabsTrigger value="sem_telefone" className="flex-1 min-w-0">Sem Tel ({tabCounts.sem_telefone})</TabsTrigger>
+            <TabsTrigger value="sem_treino" className="flex-1 min-w-0">Sem Treino ({tabCounts.sem_treino})</TabsTrigger>
+            <TabsTrigger value="sem_dieta" className="flex-1 min-w-0">Sem Dieta ({tabCounts.sem_dieta})</TabsTrigger>
           </TabsList>
 
           <TabsContent value={tab} className="mt-4 space-y-3">
@@ -118,6 +118,16 @@ const Notificacoes: React.FC = () => {
                               >
                                 <ExternalLink className="h-3 w-3 mr-1" />
                                 Editar cadastro
+                              </Button>
+                            ) : (n.type === 'sem_treino' || n.type === 'sem_dieta') ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                onClick={() => navigate(`/alunos/${n.studentId}`)}
+                              >
+                                <ExternalLink className="h-3 w-3 mr-1" />
+                                {n.type === 'sem_treino' ? 'Gerar treino' : 'Gerar dieta'}
                               </Button>
                             ) : n.studentPhone ? (
                               <Button
