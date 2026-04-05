@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { differenceInDays, parseISO, format } from 'date-fns';
 
-export type NotificationType = 'reavaliacao' | 'aniversario' | 'mensagem_semanal' | 'sem_telefone';
+export type NotificationType = 'reavaliacao' | 'aniversario' | 'mensagem_semanal' | 'sem_telefone' | 'sem_treino' | 'sem_dieta';
 
 export interface Notification {
   id: string;
@@ -14,6 +14,37 @@ export interface Notification {
   studentPhone?: string | null;
   date?: string;
   priority: 'high' | 'medium' | 'low';
+}
+
+/**
+ * Builds a WhatsApp URL detecting country code from the phone number.
+ * Supports Brazil (+55) and Portugal (+351). If the number already starts
+ * with a country code it is kept; otherwise we try to infer from length:
+ *   - 10-11 digits → Brazil (55)
+ *   - 9 digits → Portugal (351)
+ * Falls back to raw number (no prefix) when unsure.
+ */
+export function buildWhatsAppUrl(phone: string, message: string) {
+  const cleaned = phone.replace(/\D/g, '');
+
+  let num = cleaned;
+
+  if (cleaned.startsWith('55') && cleaned.length >= 12) {
+    // Already has Brazil code
+    num = cleaned;
+  } else if (cleaned.startsWith('351') && cleaned.length >= 12) {
+    // Already has Portugal code
+    num = cleaned;
+  } else if (cleaned.length === 10 || cleaned.length === 11) {
+    // Brazilian local number (DDD + 8-9 digits)
+    num = `55${cleaned}`;
+  } else if (cleaned.length === 9) {
+    // Portuguese mobile number (9 digits)
+    num = `351${cleaned}`;
+  }
+  // else: keep as-is (could be already formatted or another country)
+
+  return `https://wa.me/${num}?text=${encodeURIComponent(message)}`;
 }
 
 export function useNotifications() {
@@ -49,6 +80,12 @@ export function useNotifications() {
         .in('student_id', userIds)
         .order('created_at', { ascending: false });
 
+      // Get AI plans per student
+      const { data: aiPlans } = await supabase
+        .from('ai_plans')
+        .select('student_id, tipo')
+        .in('student_id', userIds);
+
       const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
 
       // Build latest assessment map
@@ -57,6 +94,15 @@ export function useNotifications() {
         if (!latestAssessmentMap.has(a.student_id)) {
           latestAssessmentMap.set(a.student_id, a.created_at);
         }
+      });
+
+      // Build AI plans map
+      const studentPlansMap = new Map<string, Set<string>>();
+      aiPlans?.forEach(p => {
+        if (!studentPlansMap.has(p.student_id)) {
+          studentPlansMap.set(p.student_id, new Set());
+        }
+        studentPlansMap.get(p.student_id)!.add(p.tipo);
       });
 
       const today = new Date();
@@ -85,7 +131,7 @@ export function useNotifications() {
         const lastAssessment = latestAssessmentMap.get(student.user_id);
         if (lastAssessment) {
           const daysSince = differenceInDays(today, parseISO(lastAssessment));
-          if (daysSince >= 55) { // alert 5 days before
+          if (daysSince >= 55) {
             notifs.push({
               id: `reav-${student.user_id}`,
               type: 'reavaliacao',
@@ -99,7 +145,6 @@ export function useNotifications() {
             });
           }
         } else {
-          // Never assessed
           notifs.push({
             id: `reav-never-${student.user_id}`,
             type: 'reavaliacao',
@@ -135,7 +180,7 @@ export function useNotifications() {
 
         // 4. Weekly message reminder (every Monday)
         const dayOfWeek = today.getDay();
-        if (dayOfWeek === 1) { // Monday
+        if (dayOfWeek === 1) {
           notifs.push({
             id: `weekly-${student.user_id}`,
             type: 'mensagem_semanal',
@@ -145,6 +190,35 @@ export function useNotifications() {
             studentName: name,
             studentPhone: phone,
             priority: 'low',
+          });
+        }
+
+        // 5. Missing training plan
+        const plans = studentPlansMap.get(student.user_id);
+        if (!plans || !plans.has('treino')) {
+          notifs.push({
+            id: `no-treino-${student.user_id}`,
+            type: 'sem_treino',
+            title: 'Sem treino gerado',
+            description: `${name} ainda não possui um plano de treino gerado pela IA.`,
+            studentId: student.user_id,
+            studentName: name,
+            studentPhone: phone,
+            priority: 'medium',
+          });
+        }
+
+        // 6. Missing diet plan
+        if (!plans || !plans.has('dieta')) {
+          notifs.push({
+            id: `no-dieta-${student.user_id}`,
+            type: 'sem_dieta',
+            title: 'Sem dieta gerada',
+            description: `${name} ainda não possui um plano de dieta gerado pela IA.`,
+            studentId: student.user_id,
+            studentName: name,
+            studentPhone: phone,
+            priority: 'medium',
           });
         }
       }

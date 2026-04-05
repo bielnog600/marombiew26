@@ -20,12 +20,16 @@ const Dashboard = () => {
     aniversario: Cake,
     mensagem_semanal: MessageSquare,
     sem_telefone: Phone,
+    sem_treino: ClipboardList,
+    sem_dieta: ClipboardList,
   };
   const notifColorMap: Record<NotificationType, string> = {
     reavaliacao: 'text-orange-500',
     aniversario: 'text-pink-500',
     mensagem_semanal: 'text-blue-500',
     sem_telefone: 'text-red-500',
+    sem_treino: 'text-amber-500',
+    sem_dieta: 'text-emerald-500',
   };
 
   useEffect(() => {
