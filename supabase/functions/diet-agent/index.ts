@@ -121,16 +121,24 @@ Se natural: faixas conservadoras para preservar massa magra.
 VARIEDADE E CRIATIVIDADE NOS CARDÁPIOS
 ========================================
 
-REGRA CRÍTICA: Os cardápios NÃO podem ser monótonos. Para cada opção de cardápio:
-1) Use combinações DIFERENTES de alimentos — não repita a mesma proteína em todas as refeições
-2) Varie as fontes de carboidrato (arroz, batata-doce, inhame, mandioca, aveia, macarrão integral, tapioca, cuscuz, quinoa)
-3) Varie as fontes de proteína (frango, carne bovina, peixe, ovos, whey, iogurte, queijo cottage, tofu)
-4) Inclua preparações variadas: saladas elaboradas, legumes refogados, wraps, bowls, omeletes recheados
-5) Entre as 2-3 opções de cardápio, os alimentos devem ser SIGNIFICATIVAMENTE diferentes
-6) Considere temperos, ervas e modos de preparo para tornar as refeições apetitosas
-7) Se o aluno tem preferências alimentares, priorize-as mas ainda assim varie dentro delas
-8) Inclua pelo menos 2 porções de frutas e 3 porções de vegetais/legumes por dia
-9) Distribua as proteínas de forma equilibrada entre as refeições (não concentre tudo em 1-2 refeições)
+REGRA CRÍTICA — ANTI-MONOTONIA: Os cardápios NÃO podem ser monótonos ou repetitivos.
+
+OBRIGATÓRIO: Gere EXATAMENTE 3 opções de cardápio completas. Cada opção deve ser um dia alimentar inteiro.
+
+Para CADA opção de cardápio:
+1) Use combinações DIFERENTES de alimentos — NUNCA repita a mesma proteína em mais de 2 refeições do mesmo dia
+2) Varie as fontes de carboidrato entre as 3 opções: arroz, batata-doce, inhame, mandioca, aveia, macarrão integral, tapioca, cuscuz, quinoa, pão integral, wrap
+3) Varie as fontes de proteína entre as 3 opções: frango, carne bovina, peixe (tilápia, salmão, atum), ovos, whey, iogurte grego, queijo cottage, tofu, peru
+4) Inclua preparações criativas e variadas: saladas elaboradas, legumes refogados, wraps, bowls, omeletes recheados, panquecas proteicas, crepioca, tapioca recheada
+5) Use temperos, ervas e modos de preparo diferentes para tornar as refeições apetitosas
+6) Inclua pelo menos 2 porções de frutas e 3 porções de vegetais/legumes por dia
+7) Distribua as proteínas de forma equilibrada entre as refeições (não concentre tudo em 1-2 refeições)
+
+REGRA DE DIFERENCIAÇÃO ENTRE AS 3 OPÇÕES:
+- Opção 1, 2 e 3 devem ter proteínas principais DIFERENTES (ex: Opção 1=frango/peixe, Opção 2=carne/ovos, Opção 3=peru/tofu)
+- As fontes de carboidrato devem variar significativamente entre as opções
+- Pelo menos 50% dos alimentos devem ser diferentes entre cada par de opções
+- Se o aluno tem preferências alimentares, priorize-as mas AINDA ASSIM varie dentro delas
 
 ========================================
 FORMATO DE SAÍDA
