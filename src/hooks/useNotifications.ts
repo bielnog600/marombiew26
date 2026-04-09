@@ -244,7 +244,10 @@ export function useNotifications() {
       const priorityOrder = { high: 0, medium: 1, low: 2 };
       notifs.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
 
-      setNotifications(notifs);
+      // Filter out dismissed notifications
+      const activeNotifs = notifs.filter(n => !dismissedSet.has(n.id));
+
+      setNotifications(activeNotifs);
     } catch (err) {
       console.error('Error loading notifications:', err);
     } finally {
@@ -252,8 +255,23 @@ export function useNotifications() {
     }
   };
 
+  const dismissNotification = async (notificationId: string) => {
+    const currentMonth = getCurrentMonth();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    await supabase.from('dismissed_notifications').upsert({
+      user_id: user.id,
+      notification_key: notificationId,
+      dismissed_month: currentMonth,
+    }, { onConflict: 'user_id,notification_key,dismissed_month' });
+
+    setNotifications(prev => prev.filter(n => n.id !== notificationId));
+    setDismissedKeys(prev => new Set([...prev, notificationId]));
+  };
+
   const count = notifications.length;
   const highPriorityCount = notifications.filter(n => n.priority === 'high').length;
 
-  return { notifications, loading, count, highPriorityCount, refresh: loadNotifications };
+  return { notifications, loading, count, highPriorityCount, refresh: loadNotifications, dismissNotification };
 }
