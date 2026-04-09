@@ -121,10 +121,15 @@ const Consultoria = () => {
 
   const fmtDate = (d: string | null) => d ? format(new Date(d), "dd/MM/yy", { locale: ptBR }) : '—';
 
+  const semDieta = students.filter(s => s.totalDietas === 0);
+  const semTreino = students.filter(s => s.totalTreinos === 0);
+
   const statCards = [
     { title: 'Alunos Ativos', value: totals.alunos, icon: Users, color: 'text-primary' },
     { title: 'Dietas Geradas', value: totals.dietas, sub: totals.dietasVencidas > 0 ? `${totals.dietasVencidas} vencida${totals.dietasVencidas > 1 ? 's' : ''}` : undefined, icon: Utensils, color: 'text-emerald-500' },
     { title: 'Treinos Gerados', value: totals.treinos, sub: totals.treinosVencidos > 0 ? `${totals.treinosVencidos} vencido${totals.treinosVencidos > 1 ? 's' : ''}` : undefined, icon: Dumbbell, color: 'text-blue-500' },
+    { title: 'Sem Dieta', value: semDieta.length, icon: Utensils, color: 'text-destructive' },
+    { title: 'Sem Treino', value: semTreino.length, icon: Dumbbell, color: 'text-destructive' },
     { title: 'Fichas Pendentes', value: totals.fichasPendentes, icon: ClipboardList, color: 'text-orange-500' },
   ];
 
@@ -147,7 +152,7 @@ const Consultoria = () => {
       <div
         key={s.userId}
         className="p-3 rounded-lg bg-secondary/50 cursor-pointer hover:bg-secondary transition-colors"
-        onClick={() => navigate(`/alunos/${s.userId}`)}
+        onClick={() => navigate(`/alunos/${s.userId}?tab=ia`)}
       >
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-3 min-w-0">
@@ -172,7 +177,7 @@ const Consultoria = () => {
   return (
     <AppLayout title="Consultoria">
       <div className="space-y-6 animate-fade-in">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
           {statCards.map(stat => (
             <Card key={stat.title} className="glass-card">
               <CardContent className="flex items-center gap-3 p-4">
