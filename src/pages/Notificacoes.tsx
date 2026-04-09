@@ -88,6 +88,7 @@ const Notificacoes: React.FC = () => {
     sem_telefone: notifications.filter(n => n.type === 'sem_telefone').length,
     sem_treino: notifications.filter(n => n.type === 'sem_treino').length,
     sem_dieta: notifications.filter(n => n.type === 'sem_dieta').length,
+    ficha_mensal: notifications.filter(n => n.type === 'ficha_mensal').length,
   };
 
   const renderNotifAction = (n: Notification) => {
@@ -104,6 +105,14 @@ const Notificacoes: React.FC = () => {
         <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => navigate(`/alunos/${n.studentId}`)}>
           <ExternalLink className="h-3 w-3 mr-1" />
           {n.type === 'sem_treino' ? 'Gerar treino' : 'Gerar dieta'}
+        </Button>
+      );
+    }
+    if (n.type === 'ficha_mensal') {
+      return (
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => navigate(`/alunos/${n.studentId}`)}>
+          <FileText className="h-3 w-3 mr-1" />
+          Enviar ficha
         </Button>
       );
     }
@@ -147,6 +156,7 @@ const Notificacoes: React.FC = () => {
             <TabsTrigger value="sem_telefone" className="flex-1 min-w-0">Sem Tel ({tabCounts.sem_telefone})</TabsTrigger>
             <TabsTrigger value="sem_treino" className="flex-1 min-w-0">Sem Treino ({tabCounts.sem_treino})</TabsTrigger>
             <TabsTrigger value="sem_dieta" className="flex-1 min-w-0">Sem Dieta ({tabCounts.sem_dieta})</TabsTrigger>
+            <TabsTrigger value="ficha_mensal" className="flex-1 min-w-0">Ficha ({tabCounts.ficha_mensal})</TabsTrigger>
           </TabsList>
 
           <TabsContent value={tab} className="mt-4 space-y-3">
