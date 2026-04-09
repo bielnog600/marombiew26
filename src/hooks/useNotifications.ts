@@ -118,6 +118,14 @@ export function useNotifications() {
         .select('student_id, tipo')
         .in('student_id', userIds);
 
+      // Get latest completed questionnaire per student
+      const { data: questionnaires } = await supabase
+        .from('diet_questionnaires')
+        .select('student_id, created_at, status')
+        .in('student_id', userIds)
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false });
+
       const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
 
       // Build latest assessment map
@@ -135,6 +143,14 @@ export function useNotifications() {
           studentPlansMap.set(p.student_id, new Set());
         }
         studentPlansMap.get(p.student_id)!.add(p.tipo);
+      });
+
+      // Build latest questionnaire map
+      const latestQuestionnaireMap = new Map<string, string>();
+      questionnaires?.forEach(q => {
+        if (!latestQuestionnaireMap.has(q.student_id)) {
+          latestQuestionnaireMap.set(q.student_id, q.created_at);
+        }
       });
 
       const today = new Date();
