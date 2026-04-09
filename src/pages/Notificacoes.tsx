@@ -107,12 +107,6 @@ const Notificacoes: React.FC = () => {
                               {n.priority === 'high' ? 'Urgente' : n.priority === 'medium' ? 'Atenção' : 'Info'}
                             </Badge>
                           </div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium text-sm">{n.title}</span>
-                            <Badge variant="outline" className={`text-[10px] ${priorityBadge[n.priority]}`}>
-                              {n.priority === 'high' ? 'Urgente' : n.priority === 'medium' ? 'Atenção' : 'Info'}
-                            </Badge>
-                          </div>
                           <p className="text-sm text-muted-foreground">{n.description}</p>
                           <div className="flex items-center gap-2 pt-1 flex-wrap">
                             {n.type === 'sem_telefone' ? (
