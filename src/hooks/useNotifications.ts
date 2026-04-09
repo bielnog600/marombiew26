@@ -47,8 +47,14 @@ export function buildWhatsAppUrl(phone: string, message: string) {
   return `https://wa.me/${num}?text=${encodeURIComponent(message)}`;
 }
 
+export function getCurrentMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export function useNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -58,6 +64,17 @@ export function useNotifications() {
   const loadNotifications = async () => {
     setLoading(true);
     try {
+      const currentMonth = getCurrentMonth();
+
+      // Fetch dismissed notifications for this month
+      const { data: dismissed } = await supabase
+        .from('dismissed_notifications')
+        .select('notification_key')
+        .eq('dismissed_month', currentMonth);
+
+      const dismissedSet = new Set<string>((dismissed ?? []).map(d => d.notification_key));
+      setDismissedKeys(dismissedSet);
+
       // Fetch students with profiles
       const { data: students } = await supabase
         .from('students_profile')
@@ -227,7 +244,10 @@ export function useNotifications() {
       const priorityOrder = { high: 0, medium: 1, low: 2 };
       notifs.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
 
-      setNotifications(notifs);
+      // Filter out dismissed notifications
+      const activeNotifs = notifs.filter(n => !dismissedSet.has(n.id));
+
+      setNotifications(activeNotifs);
     } catch (err) {
       console.error('Error loading notifications:', err);
     } finally {
@@ -235,8 +255,23 @@ export function useNotifications() {
     }
   };
 
+  const dismissNotification = async (notificationId: string) => {
+    const currentMonth = getCurrentMonth();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    await supabase.from('dismissed_notifications').upsert({
+      user_id: user.id,
+      notification_key: notificationId,
+      dismissed_month: currentMonth,
+    }, { onConflict: 'user_id,notification_key,dismissed_month' });
+
+    setNotifications(prev => prev.filter(n => n.id !== notificationId));
+    setDismissedKeys(prev => { const next = new Set(Array.from(prev)); next.add(notificationId); return next; });
+  };
+
   const count = notifications.length;
   const highPriorityCount = notifications.filter(n => n.priority === 'high').length;
 
-  return { notifications, loading, count, highPriorityCount, refresh: loadNotifications };
+  return { notifications, loading, count, highPriorityCount, refresh: loadNotifications, dismissNotification };
 }
