@@ -6,7 +6,7 @@ import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, useSidebar,
 } from '@/components/ui/sidebar';
-import { LayoutDashboard, Users, ClipboardList, User, LogOut, Dumbbell, Target, Clock, ScanLine, Bot, Apple, Bell } from 'lucide-react';
+import { LayoutDashboard, Users, ClipboardList, User, LogOut, Dumbbell, Target, Clock, ScanLine, Bot, Apple, Bell, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const adminItems = [
@@ -14,7 +14,7 @@ const adminItems = [
   { title: 'Alunos', url: '/alunos', icon: Users },
   { title: 'Alimentos', url: '/alimentos', icon: Apple },
   { title: 'Notificações', url: '/notificacoes', icon: Bell },
-  
+  { title: 'Consultoria', url: '/consultoria', icon: Briefcase },
 ];
 
 const alunoItems = [
