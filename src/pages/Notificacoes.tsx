@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MessageSquare, CalendarClock, Cake, Phone, AlertTriangle, RefreshCw, ExternalLink, Dumbbell, UtensilsCrossed, X } from 'lucide-react';
+import { MessageSquare, CalendarClock, Cake, Phone, AlertTriangle, RefreshCw, ExternalLink, Dumbbell, UtensilsCrossed, X, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -16,6 +16,7 @@ const typeConfig: Record<NotificationType, { icon: React.ElementType; label: str
   sem_telefone: { icon: Phone, label: 'Sem Telefone', color: 'text-red-500' },
   sem_treino: { icon: Dumbbell, label: 'Sem Treino', color: 'text-amber-500' },
   sem_dieta: { icon: UtensilsCrossed, label: 'Sem Dieta', color: 'text-emerald-500' },
+  ficha_mensal: { icon: FileText, label: 'Ficha Mensal', color: 'text-violet-500' },
 };
 
 const priorityBadge: Record<string, string> = {
@@ -87,6 +88,7 @@ const Notificacoes: React.FC = () => {
     sem_telefone: notifications.filter(n => n.type === 'sem_telefone').length,
     sem_treino: notifications.filter(n => n.type === 'sem_treino').length,
     sem_dieta: notifications.filter(n => n.type === 'sem_dieta').length,
+    ficha_mensal: notifications.filter(n => n.type === 'ficha_mensal').length,
   };
 
   const renderNotifAction = (n: Notification) => {
@@ -103,6 +105,14 @@ const Notificacoes: React.FC = () => {
         <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => navigate(`/alunos/${n.studentId}`)}>
           <ExternalLink className="h-3 w-3 mr-1" />
           {n.type === 'sem_treino' ? 'Gerar treino' : 'Gerar dieta'}
+        </Button>
+      );
+    }
+    if (n.type === 'ficha_mensal') {
+      return (
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => navigate(`/alunos/${n.studentId}`)}>
+          <FileText className="h-3 w-3 mr-1" />
+          Enviar ficha
         </Button>
       );
     }
@@ -146,6 +156,7 @@ const Notificacoes: React.FC = () => {
             <TabsTrigger value="sem_telefone" className="flex-1 min-w-0">Sem Tel ({tabCounts.sem_telefone})</TabsTrigger>
             <TabsTrigger value="sem_treino" className="flex-1 min-w-0">Sem Treino ({tabCounts.sem_treino})</TabsTrigger>
             <TabsTrigger value="sem_dieta" className="flex-1 min-w-0">Sem Dieta ({tabCounts.sem_dieta})</TabsTrigger>
+            <TabsTrigger value="ficha_mensal" className="flex-1 min-w-0">Ficha ({tabCounts.ficha_mensal})</TabsTrigger>
           </TabsList>
 
           <TabsContent value={tab} className="mt-4 space-y-3">

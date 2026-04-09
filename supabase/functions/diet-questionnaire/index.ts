@@ -41,15 +41,29 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Also fetch student name and foods list
-      const [{ data: profile }, { data: foods }] = await Promise.all([
+      // Also fetch student name, foods list, and previous answers
+      const [{ data: profile }, { data: foods }, { data: previousAnswers }] = await Promise.all([
         supabase.from("profiles").select("nome").eq("user_id", data.student_id).maybeSingle(),
         supabase.from("foods").select("name").order("name"),
+        // Fetch the latest completed questionnaire for pre-filling
+        supabase
+          .from("diet_questionnaires")
+          .select("*")
+          .eq("student_id", data.student_id)
+          .eq("status", "completed")
+          .order("responded_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
       ]);
 
       const foodNames = [...new Set((foods || []).map((f: any) => f.name))];
 
-      return new Response(JSON.stringify({ ...data, student_name: profile?.nome || "Aluno", foods: foodNames }), {
+      return new Response(JSON.stringify({
+        ...data,
+        student_name: profile?.nome || "Aluno",
+        foods: foodNames,
+        previous_answers: data.status === 'pending' ? previousAnswers : null,
+      }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

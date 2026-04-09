@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { differenceInDays, parseISO, format } from 'date-fns';
 
-export type NotificationType = 'reavaliacao' | 'aniversario' | 'mensagem_semanal' | 'sem_telefone' | 'sem_treino' | 'sem_dieta';
+export type NotificationType = 'reavaliacao' | 'aniversario' | 'mensagem_semanal' | 'sem_telefone' | 'sem_treino' | 'sem_dieta' | 'ficha_mensal';
 
 export interface Notification {
   id: string;
@@ -118,6 +118,14 @@ export function useNotifications() {
         .select('student_id, tipo')
         .in('student_id', userIds);
 
+      // Get latest completed questionnaire per student
+      const { data: questionnaires } = await supabase
+        .from('diet_questionnaires')
+        .select('student_id, created_at, status')
+        .in('student_id', userIds)
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false });
+
       const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
 
       // Build latest assessment map
@@ -135,6 +143,14 @@ export function useNotifications() {
           studentPlansMap.set(p.student_id, new Set());
         }
         studentPlansMap.get(p.student_id)!.add(p.tipo);
+      });
+
+      // Build latest questionnaire map
+      const latestQuestionnaireMap = new Map<string, string>();
+      questionnaires?.forEach(q => {
+        if (!latestQuestionnaireMap.has(q.student_id)) {
+          latestQuestionnaireMap.set(q.student_id, q.created_at);
+        }
       });
 
       const today = new Date();
@@ -247,6 +263,37 @@ export function useNotifications() {
             type: 'sem_dieta',
             title: 'Sem dieta gerada',
             description: `${name} ainda não possui um plano de dieta gerado pela IA.`,
+            studentId: student.user_id,
+            studentName: name,
+            studentPhone: phone,
+            priority: 'medium',
+          });
+        }
+
+        // 7. Monthly questionnaire renewal
+        const lastQ = latestQuestionnaireMap.get(student.user_id);
+        if (lastQ) {
+          const qDate = parseISO(lastQ);
+          const qMonth = `${qDate.getFullYear()}-${String(qDate.getMonth() + 1).padStart(2, '0')}`;
+          if (qMonth !== currentMonth) {
+            notifs.push({
+              id: `ficha-${student.user_id}`,
+              type: 'ficha_mensal',
+              title: 'Ficha alimentar desatualizada',
+              description: `${name} — última ficha respondida em ${format(qDate, 'dd/MM/yyyy')}. Envie uma nova ficha para o mês atual.`,
+              studentId: student.user_id,
+              studentName: name,
+              studentPhone: phone,
+              date: lastQ,
+              priority: 'medium',
+            });
+          }
+        } else {
+          notifs.push({
+            id: `ficha-never-${student.user_id}`,
+            type: 'ficha_mensal',
+            title: 'Sem ficha alimentar',
+            description: `${name} nunca respondeu um questionário de dieta.`,
             studentId: student.user_id,
             studentName: name,
             studentPhone: phone,
