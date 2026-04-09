@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import AppLayout from '@/components/AppLayout';
-import { useNotifications, NotificationType, buildWhatsAppUrl } from '@/hooks/useNotifications';
+import { useNotifications, NotificationType, buildWhatsAppUrl, Notification } from '@/hooks/useNotifications';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +24,14 @@ const priorityBadge: Record<string, string> = {
   low: 'bg-muted text-muted-foreground',
 };
 
+interface GroupedStudent {
+  studentId: string;
+  studentName: string;
+  studentPhone?: string | null;
+  notifications: Notification[];
+  highestPriority: 'high' | 'medium' | 'low';
+}
+
 const Notificacoes: React.FC = () => {
   const { notifications, loading, count, refresh, dismissNotification } = useNotifications();
   const navigate = useNavigate();
@@ -31,7 +39,34 @@ const Notificacoes: React.FC = () => {
 
   const filtered = tab === 'all' ? notifications : notifications.filter(n => n.type === tab);
 
-  const getQuickMessage = (n: typeof notifications[0]) => {
+  // Group filtered notifications by student
+  const grouped = useMemo(() => {
+    const map = new Map<string, GroupedStudent>();
+    const priorityOrder = { high: 0, medium: 1, low: 2 };
+
+    for (const n of filtered) {
+      if (!map.has(n.studentId)) {
+        map.set(n.studentId, {
+          studentId: n.studentId,
+          studentName: n.studentName,
+          studentPhone: n.studentPhone,
+          notifications: [],
+          highestPriority: n.priority,
+        });
+      }
+      const group = map.get(n.studentId)!;
+      group.notifications.push(n);
+      if (priorityOrder[n.priority] < priorityOrder[group.highestPriority]) {
+        group.highestPriority = n.priority;
+      }
+    }
+
+    return Array.from(map.values()).sort(
+      (a, b) => priorityOrder[a.highestPriority] - priorityOrder[b.highestPriority]
+    );
+  }, [filtered]);
+
+  const getQuickMessage = (n: Notification) => {
     switch (n.type) {
       case 'reavaliacao':
         return `Olá ${n.studentName}! 😊 Está na hora da sua reavaliação. Vamos agendar? Entre em contato para marcarmos o melhor horário!`;
@@ -52,6 +87,41 @@ const Notificacoes: React.FC = () => {
     sem_telefone: notifications.filter(n => n.type === 'sem_telefone').length,
     sem_treino: notifications.filter(n => n.type === 'sem_treino').length,
     sem_dieta: notifications.filter(n => n.type === 'sem_dieta').length,
+  };
+
+  const renderNotifAction = (n: Notification) => {
+    if (n.type === 'sem_telefone') {
+      return (
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => navigate(`/alunos?edit=${n.studentId}`)}>
+          <ExternalLink className="h-3 w-3 mr-1" />
+          Editar cadastro
+        </Button>
+      );
+    }
+    if (n.type === 'sem_treino' || n.type === 'sem_dieta') {
+      return (
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => navigate(`/alunos/${n.studentId}`)}>
+          <ExternalLink className="h-3 w-3 mr-1" />
+          {n.type === 'sem_treino' ? 'Gerar treino' : 'Gerar dieta'}
+        </Button>
+      );
+    }
+    if (n.studentPhone) {
+      return (
+        <Button size="sm" variant="outline" className="h-7 text-xs text-green-600 border-green-500/30 hover:bg-green-500/10" asChild>
+          <a href={buildWhatsAppUrl(n.studentPhone, getQuickMessage(n))} target="_blank" rel="noopener noreferrer">
+            <MessageSquare className="h-3 w-3 mr-1" />
+            WhatsApp
+          </a>
+        </Button>
+      );
+    }
+    return (
+      <div className="flex items-center gap-1 text-xs text-destructive">
+        <AlertTriangle className="h-3 w-3" />
+        Sem telefone
+      </div>
+    );
   };
 
   return (
@@ -83,99 +153,71 @@ const Notificacoes: React.FC = () => {
               Array.from({ length: 3 }).map((_, i) => (
                 <Skeleton key={i} className="h-24 w-full rounded-lg" />
               ))
-            ) : filtered.length === 0 ? (
+            ) : grouped.length === 0 ? (
               <Card>
                 <CardContent className="py-8 text-center text-muted-foreground">
                   Nenhum alerta nesta categoria 🎉
                 </CardContent>
               </Card>
             ) : (
-              filtered.map((n) => {
-                const config = typeConfig[n.type];
-                const Icon = config.icon;
-                return (
-                  <Card key={n.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-3">
-                        <div className={`mt-0.5 ${config.color}`}>
-                          <Icon className="h-5 w-5" />
+              grouped.map((group) => (
+                <Card key={group.studentId} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-4 space-y-3">
+                    {/* Student header */}
+                    <div className="flex items-center justify-between">
+                      <div
+                        className="flex items-center gap-2 cursor-pointer hover:opacity-80"
+                        onClick={() => navigate(`/alunos/${group.studentId}`)}
+                      >
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-primary font-semibold text-xs">
+                          {group.studentName[0]?.toUpperCase() || '?'}
                         </div>
-                        <div className="flex-1 min-w-0 space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium text-sm">{n.title}</span>
-                            <Badge variant="outline" className={`text-[10px] ${priorityBadge[n.priority]}`}>
-                              {n.priority === 'high' ? 'Urgente' : n.priority === 'medium' ? 'Atenção' : 'Info'}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground">{n.description}</p>
-                          <div className="flex items-center gap-2 pt-1 flex-wrap">
-                            {n.type === 'sem_telefone' ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs"
-                                onClick={() => navigate(`/alunos?edit=${n.studentId}`)}
-                              >
-                                <ExternalLink className="h-3 w-3 mr-1" />
-                                Editar cadastro
-                              </Button>
-                            ) : (n.type === 'sem_treino' || n.type === 'sem_dieta') ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs"
-                                onClick={() => navigate(`/alunos/${n.studentId}`)}
-                              >
-                                <ExternalLink className="h-3 w-3 mr-1" />
-                                {n.type === 'sem_treino' ? 'Gerar treino' : 'Gerar dieta'}
-                              </Button>
-                            ) : n.studentPhone ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs text-green-600 border-green-500/30 hover:bg-green-500/10"
-                                asChild
-                              >
-                                <a
-                                  href={buildWhatsAppUrl(n.studentPhone, getQuickMessage(n))}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                >
-                                  <MessageSquare className="h-3 w-3 mr-1" />
-                                  Enviar WhatsApp
-                                </a>
-                              </Button>
-                            ) : (
-                              <div className="flex items-center gap-1 text-xs text-destructive">
-                                <AlertTriangle className="h-3 w-3" />
-                                Sem telefone cadastrado
-                              </div>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 text-xs"
-                              onClick={() => navigate(`/alunos/${n.studentId}`)}
-                            >
-                              Ver aluno
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 text-xs text-destructive hover:text-destructive"
-                              onClick={(e) => { e.stopPropagation(); dismissNotification(n.id); }}
-                              title="Dispensar até o próximo mês"
-                            >
-                              <X className="h-3 w-3 mr-1" />
-                              Dispensar
-                            </Button>
-                          </div>
-                        </div>
+                        <span className="font-medium text-sm">{group.studentName}</span>
+                        <Badge variant="outline" className={`text-[10px] ${priorityBadge[group.highestPriority]}`}>
+                          {group.notifications.length} alerta{group.notifications.length > 1 ? 's' : ''}
+                        </Badge>
                       </div>
-                    </CardContent>
-                  </Card>
-                );
-              })
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs"
+                        onClick={() => navigate(`/alunos/${group.studentId}`)}
+                      >
+                        Ver aluno
+                      </Button>
+                    </div>
+
+                    {/* Individual alerts within the group */}
+                    <div className="space-y-2 pl-10">
+                      {group.notifications.map((n) => {
+                        const config = typeConfig[n.type];
+                        const Icon = config.icon;
+                        return (
+                          <div key={n.id} className="flex items-center gap-3 p-2 rounded-lg bg-secondary/30">
+                            <Icon className={`h-4 w-4 shrink-0 ${config.color}`} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium">{n.title}</p>
+                              <p className="text-xs text-muted-foreground truncate">{n.description}</p>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {renderNotifAction(n)}
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                onClick={() => dismissNotification(n.id)}
+                                title="Dispensar até o próximo mês"
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
             )}
           </TabsContent>
         </Tabs>
