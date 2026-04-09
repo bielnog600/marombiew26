@@ -99,6 +99,41 @@ const DietQuestionnaire = () => {
         if (result.status === 'completed') {
           setSubmitted(true);
         }
+        // Pre-fill from previous answers if available
+        if (result.previous_answers && result.status === 'pending') {
+          const prev = result.previous_answers;
+          if (prev.estilo_dieta) setEstiloDieta(prev.estilo_dieta);
+          if (prev.num_refeicoes) setNumRefeicoes(prev.num_refeicoes);
+          if (prev.fase_atual) setFaseAtual(prev.fase_atual);
+          if (prev.horario_treino) setHorarioTreino(prev.horario_treino);
+          if (prev.dias_treino) setDiasTreino(prev.dias_treino);
+          if (prev.usa_hormonios) setUsaHormonios(prev.usa_hormonios);
+          if (prev.como_se_sente) setComoSeSente(prev.como_se_sente);
+          if (prev.observacoes) setObservacoes(prev.observacoes);
+          // Pre-fill foods
+          if (prev.alimentos_por_refeicao) {
+            try {
+              const foodsObj = typeof prev.alimentos_por_refeicao === 'string'
+                ? JSON.parse(prev.alimentos_por_refeicao)
+                : prev.alimentos_por_refeicao;
+              const allFoods = Object.values(foodsObj).flat() as string[];
+              setSelectedFoods([...new Set(allFoods)]);
+            } catch { /* ignore parse errors */ }
+          }
+          // Pre-fill restrictions
+          if (prev.restricoes_alimentares) {
+            const restrictions = prev.restricoes_alimentares.split(', ');
+            const known = restrictions.filter((r: string) => RESTRICTION_OPTIONS.includes(r));
+            const custom = restrictions.filter((r: string) => !RESTRICTION_OPTIONS.includes(r));
+            setSelectedRestrictions(known);
+            if (custom.length) setCustomRestriction(custom.join(', '));
+          }
+          // Pre-fill symptoms
+          const symptomKeys = ['fraqueza', 'dor_cabeca', 'reduziu_peso', 'pele_fina', 'fome_excessiva', 'insonia', 'baixa_energia', 'irritabilidade'];
+          const symptomState: Record<string, boolean> = {};
+          symptomKeys.forEach(k => { if (prev[k]) symptomState[k] = true; });
+          setSintomas(symptomState);
+        }
       }
     } catch {
       setError('Erro ao carregar questionário');
