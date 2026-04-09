@@ -75,6 +75,8 @@ const Notificacoes: React.FC = () => {
         return `Parabéns ${n.studentName}! 🎂🎉 Desejo tudo de melhor nesse novo ciclo! Continue firme nos treinos! 💪`;
       case 'mensagem_semanal':
         return `Olá ${n.studentName}! Como foi a semana de treinos? Alguma dúvida ou feedback? Estou aqui para ajudar! 💪`;
+      case 'ficha_mensal':
+        return `Olá ${n.studentName}! 📋 Enviei uma ficha alimentar para você preencher. Pode responder quando puder? É rapidinho e vai me ajudar a montar seu plano! 💪`;
       default:
         return '';
     }
