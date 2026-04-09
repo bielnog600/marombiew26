@@ -16,6 +16,7 @@ const typeConfig: Record<NotificationType, { icon: React.ElementType; label: str
   sem_telefone: { icon: Phone, label: 'Sem Telefone', color: 'text-red-500' },
   sem_treino: { icon: Dumbbell, label: 'Sem Treino', color: 'text-amber-500' },
   sem_dieta: { icon: UtensilsCrossed, label: 'Sem Dieta', color: 'text-emerald-500' },
+  ficha_mensal: { icon: FileText, label: 'Ficha Mensal', color: 'text-violet-500' },
 };
 
 const priorityBadge: Record<string, string> = {
