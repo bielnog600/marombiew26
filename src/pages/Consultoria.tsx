@@ -199,6 +199,8 @@ const Consultoria = () => {
             <TabsTrigger value="overview">Visão Geral</TabsTrigger>
             <TabsTrigger value="dietas">Dietas</TabsTrigger>
             <TabsTrigger value="treinos">Treinos</TabsTrigger>
+            <TabsTrigger value="sem-dieta">Sem Dieta{semDieta.length > 0 ? ` (${semDieta.length})` : ''}</TabsTrigger>
+            <TabsTrigger value="sem-treino">Sem Treino{semTreino.length > 0 ? ` (${semTreino.length})` : ''}</TabsTrigger>
             <TabsTrigger value="fichas">Fichas</TabsTrigger>
           </TabsList>
 
