@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MessageSquare, CalendarClock, Cake, Phone, AlertTriangle, RefreshCw, ExternalLink, Dumbbell, UtensilsCrossed } from 'lucide-react';
+import { MessageSquare, CalendarClock, Cake, Phone, AlertTriangle, RefreshCw, ExternalLink, Dumbbell, UtensilsCrossed, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -25,7 +25,7 @@ const priorityBadge: Record<string, string> = {
 };
 
 const Notificacoes: React.FC = () => {
-  const { notifications, loading, count, refresh } = useNotifications();
+  const { notifications, loading, count, refresh, dismissNotification } = useNotifications();
   const navigate = useNavigate();
   const [tab, setTab] = useState('all');
 
@@ -107,6 +107,12 @@ const Notificacoes: React.FC = () => {
                               {n.priority === 'high' ? 'Urgente' : n.priority === 'medium' ? 'Atenção' : 'Info'}
                             </Badge>
                           </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-sm">{n.title}</span>
+                            <Badge variant="outline" className={`text-[10px] ${priorityBadge[n.priority]}`}>
+                              {n.priority === 'high' ? 'Urgente' : n.priority === 'medium' ? 'Atenção' : 'Info'}
+                            </Badge>
+                          </div>
                           <p className="text-sm text-muted-foreground">{n.description}</p>
                           <div className="flex items-center gap-2 pt-1 flex-wrap">
                             {n.type === 'sem_telefone' ? (
@@ -158,6 +164,16 @@ const Notificacoes: React.FC = () => {
                               onClick={() => navigate(`/alunos/${n.studentId}`)}
                             >
                               Ver aluno
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs text-destructive hover:text-destructive"
+                              onClick={(e) => { e.stopPropagation(); dismissNotification(n.id); }}
+                              title="Dispensar até o próximo mês"
+                            >
+                              <X className="h-3 w-3 mr-1" />
+                              Dispensar
                             </Button>
                           </div>
                         </div>
