@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import AiPlansList from '@/components/AiPlansList';
@@ -22,6 +22,8 @@ import {
 const AlunoDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'avaliacoes';
   const [profile, setProfile] = useState<any>(null);
   const [studentProfile, setStudentProfile] = useState<any>(null);
   const [assessments, setAssessments] = useState<any[]>([]);
@@ -135,7 +137,7 @@ const AlunoDetail = () => {
           </CardContent>
         </Card>
 
-        <Tabs defaultValue="avaliacoes">
+        <Tabs defaultValue={initialTab}>
           <div className="overflow-x-auto -mx-4 px-4 pb-2">
             <TabsList className="bg-secondary w-max min-w-full">
               <TabsTrigger value="perfil" className="text-xs sm:text-sm"><User className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Perfil</span><span className="sm:hidden">Perfil</span></TabsTrigger>

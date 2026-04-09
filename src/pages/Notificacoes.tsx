@@ -110,7 +110,7 @@ const Notificacoes: React.FC = () => {
     }
     if (n.type === 'ficha_mensal') {
       return (
-        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => navigate(`/alunos/${n.studentId}`)}>
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => navigate(`/alunos/${n.studentId}?tab=fichas`)}>
           <FileText className="h-3 w-3 mr-1" />
           Enviar ficha
         </Button>
