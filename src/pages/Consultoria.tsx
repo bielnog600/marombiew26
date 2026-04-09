@@ -226,7 +226,7 @@ const Consultoria = () => {
                         <div
                           key={s.userId}
                           className="p-3 rounded-lg bg-secondary/50 cursor-pointer hover:bg-secondary transition-colors"
-                          onClick={() => navigate(`/alunos/${s.userId}`)}
+                          onClick={() => navigate(`/alunos/${s.userId}?tab=ia`)}
                         >
                           <div className="flex items-center gap-3">
                             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/20 text-primary font-semibold text-sm shrink-0">
@@ -314,6 +314,80 @@ const Consultoria = () => {
                         .sort((a, b) => getCycleInfo(b.ultimoTreino).days - getCycleInfo(a.ultimoTreino).days)
                         .map(s => renderPlanRow(s, 'treino'))
                     )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="sem-dieta">
+            <Card className="glass-card">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Utensils className="h-5 w-5 text-destructive" />
+                  Alunos Sem Dieta
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <p className="text-sm text-muted-foreground">Carregando...</p>
+                ) : semDieta.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Todos os alunos possuem dieta gerada. 🎉</p>
+                ) : (
+                  <div className="space-y-2">
+                    {semDieta.map(s => (
+                      <div
+                        key={s.userId}
+                        className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 cursor-pointer hover:bg-secondary transition-colors"
+                        onClick={() => navigate(`/alunos/${s.userId}?tab=ia`)}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Utensils className="h-4 w-4 text-destructive shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{s.nome}</p>
+                            <p className="text-xs text-muted-foreground">Nenhuma dieta gerada</p>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30 text-xs">Gerar dieta →</Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="sem-treino">
+            <Card className="glass-card">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Dumbbell className="h-5 w-5 text-destructive" />
+                  Alunos Sem Treino
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <p className="text-sm text-muted-foreground">Carregando...</p>
+                ) : semTreino.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Todos os alunos possuem treino gerado. 🎉</p>
+                ) : (
+                  <div className="space-y-2">
+                    {semTreino.map(s => (
+                      <div
+                        key={s.userId}
+                        className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 cursor-pointer hover:bg-secondary transition-colors"
+                        onClick={() => navigate(`/alunos/${s.userId}?tab=ia`)}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Dumbbell className="h-4 w-4 text-destructive shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{s.nome}</p>
+                            <p className="text-xs text-muted-foreground">Nenhum treino gerado</p>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30 text-xs">Gerar treino →</Badge>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>
