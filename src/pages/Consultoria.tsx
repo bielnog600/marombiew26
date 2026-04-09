@@ -3,11 +3,12 @@ import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
-import { FileText, Utensils, Dumbbell, ClipboardList, Users, MessageSquare, ChevronRight } from 'lucide-react';
+import { FileText, Utensils, Dumbbell, ClipboardList, Users, ChevronRight, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
-import { format } from 'date-fns';
+import { format, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Progress } from '@/components/ui/progress';
 
 interface StudentSummary {
   userId: string;
