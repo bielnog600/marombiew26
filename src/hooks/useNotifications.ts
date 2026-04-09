@@ -283,6 +283,9 @@ export function useNotifications() {
 
     setNotifications(prev => prev.filter(n => n.id !== notificationId));
     setDismissedKeys(prev => { const next = new Set(Array.from(prev)); next.add(notificationId); return next; });
+
+    // Notify all other hook instances
+    dismissListeners.forEach(fn => fn(notificationId));
   };
 
   const count = notifications.length;
