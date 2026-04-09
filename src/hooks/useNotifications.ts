@@ -118,12 +118,11 @@ export function useNotifications() {
         .select('student_id, tipo')
         .in('student_id', userIds);
 
-      // Get latest completed questionnaire per student
+      // Get all questionnaires per student (completed + pending)
       const { data: questionnaires } = await supabase
         .from('diet_questionnaires')
         .select('student_id, created_at, status')
         .in('student_id', userIds)
-        .eq('status', 'completed')
         .order('created_at', { ascending: false });
 
       const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
@@ -145,11 +144,19 @@ export function useNotifications() {
         studentPlansMap.get(p.student_id)!.add(p.tipo);
       });
 
-      // Build latest questionnaire map
+      // Build latest completed questionnaire map
       const latestQuestionnaireMap = new Map<string, string>();
       questionnaires?.forEach(q => {
-        if (!latestQuestionnaireMap.has(q.student_id)) {
+        if (q.status === 'completed' && !latestQuestionnaireMap.has(q.student_id)) {
           latestQuestionnaireMap.set(q.student_id, q.created_at);
+        }
+      });
+
+      // Build latest pending questionnaire map
+      const latestPendingMap = new Map<string, string>();
+      questionnaires?.forEach(q => {
+        if (q.status === 'pending' && !latestPendingMap.has(q.student_id)) {
+          latestPendingMap.set(q.student_id, q.created_at);
         }
       });
 
@@ -272,33 +279,54 @@ export function useNotifications() {
 
         // 7. Monthly questionnaire renewal
         const lastQ = latestQuestionnaireMap.get(student.user_id);
-        if (lastQ) {
-          const qDate = parseISO(lastQ);
-          const daysSinceQ = differenceInDays(today, qDate);
-          if (daysSinceQ >= 30) {
+        const pendingQ = latestPendingMap.get(student.user_id);
+        const daysSincePending = pendingQ ? differenceInDays(today, parseISO(pendingQ)) : null;
+
+        // If there's a pending questionnaire sent less than 2 days ago, skip notification
+        const hasFreshPending = daysSincePending !== null && daysSincePending < 2;
+
+        if (!hasFreshPending) {
+          // If pending exists but older than 2 days → remind to follow up
+          if (daysSincePending !== null && daysSincePending >= 2) {
             notifs.push({
-              id: `ficha-${student.user_id}`,
+              id: `ficha-pend-${student.user_id}`,
               type: 'ficha_mensal',
-              title: 'Ficha alimentar desatualizada',
-              description: `${name} — última ficha respondida há ${daysSinceQ} dias (${format(qDate, 'dd/MM/yyyy')}). Envie uma nova ficha.`,
+              title: 'Ficha pendente sem resposta',
+              description: `${name} — ficha enviada há ${daysSincePending} dias e ainda não respondeu. Envie um lembrete!`,
               studentId: student.user_id,
               studentName: name,
               studentPhone: phone,
-              date: lastQ,
-              priority: daysSinceQ >= 40 ? 'high' : 'medium',
+              date: pendingQ,
+              priority: daysSincePending >= 5 ? 'high' : 'medium',
+            });
+          } else if (lastQ) {
+            const qDate = parseISO(lastQ);
+            const daysSinceQ = differenceInDays(today, qDate);
+            if (daysSinceQ >= 30) {
+              notifs.push({
+                id: `ficha-${student.user_id}`,
+                type: 'ficha_mensal',
+                title: 'Ficha alimentar desatualizada',
+                description: `${name} — última ficha respondida há ${daysSinceQ} dias (${format(qDate, 'dd/MM/yyyy')}). Envie uma nova ficha.`,
+                studentId: student.user_id,
+                studentName: name,
+                studentPhone: phone,
+                date: lastQ,
+                priority: daysSinceQ >= 40 ? 'high' : 'medium',
+              });
+            }
+          } else {
+            notifs.push({
+              id: `ficha-never-${student.user_id}`,
+              type: 'ficha_mensal',
+              title: 'Sem ficha alimentar',
+              description: `${name} nunca respondeu um questionário de dieta.`,
+              studentId: student.user_id,
+              studentName: name,
+              studentPhone: phone,
+              priority: 'medium',
             });
           }
-        } else {
-          notifs.push({
-            id: `ficha-never-${student.user_id}`,
-            type: 'ficha_mensal',
-            title: 'Sem ficha alimentar',
-            description: `${name} nunca respondeu um questionário de dieta.`,
-            studentId: student.user_id,
-            studentName: name,
-            studentPhone: phone,
-            priority: 'medium',
-          });
         }
       }
 
