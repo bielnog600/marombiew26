@@ -274,7 +274,7 @@ export function useNotifications() {
         const lastQ = latestQuestionnaireMap.get(student.user_id);
         if (lastQ) {
           const qDate = parseISO(lastQ);
-          const daysSinceQ = differenceInDays(now, qDate);
+          const daysSinceQ = differenceInDays(today, qDate);
           if (daysSinceQ >= 30) {
             notifs.push({
               id: `ficha-${student.user_id}`,
