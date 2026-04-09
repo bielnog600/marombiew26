@@ -111,6 +111,17 @@ const Notificacoes: React.FC = () => {
       );
     }
     if (n.type === 'ficha_mensal') {
+      // If it's a pending reminder (id starts with ficha-pend), show WhatsApp button
+      if (n.id.startsWith('ficha-pend') && n.studentPhone) {
+        return (
+          <Button size="sm" variant="outline" className="h-7 text-xs text-green-600 border-green-500/30 hover:bg-green-500/10" asChild>
+            <a href={buildWhatsAppUrl(n.studentPhone, getQuickMessage(n))} target="_blank" rel="noopener noreferrer">
+              <MessageSquare className="h-3 w-3 mr-1" />
+              Lembrar
+            </a>
+          </Button>
+        );
+      }
       return (
         <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => navigate(`/alunos/${n.studentId}?tab=fichas`)}>
           <FileText className="h-3 w-3 mr-1" />
