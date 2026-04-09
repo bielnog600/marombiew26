@@ -72,7 +72,7 @@ export function useNotifications() {
         .select('notification_key')
         .eq('dismissed_month', currentMonth);
 
-      const dismissedSet = new Set((dismissed ?? []).map(d => d.notification_key));
+      const dismissedSet = new Set<string>((dismissed ?? []).map(d => d.notification_key));
       setDismissedKeys(dismissedSet);
 
       // Fetch students with profiles
@@ -267,7 +267,7 @@ export function useNotifications() {
     }, { onConflict: 'user_id,notification_key,dismissed_month' });
 
     setNotifications(prev => prev.filter(n => n.id !== notificationId));
-    setDismissedKeys(prev => new Set([...prev, notificationId]));
+    setDismissedKeys(prev => { const next = new Set(Array.from(prev)); next.add(notificationId); return next; });
   };
 
   const count = notifications.length;
