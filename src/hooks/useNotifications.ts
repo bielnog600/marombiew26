@@ -52,6 +52,10 @@ export function getCurrentMonth() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
+// Simple event bus so all hook instances stay in sync
+const dismissListeners = new Set<(id: string) => void>();
+const refreshListeners = new Set<() => void>();
+
 export function useNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(new Set());
@@ -59,6 +63,17 @@ export function useNotifications() {
 
   useEffect(() => {
     loadNotifications();
+  }, []);
+
+  // Listen for cross-instance dismiss events
+  useEffect(() => {
+    const onDismiss = (id: string) => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    };
+    const onRefresh = () => { loadNotifications(); };
+    dismissListeners.add(onDismiss);
+    refreshListeners.add(onRefresh);
+    return () => { dismissListeners.delete(onDismiss); refreshListeners.delete(onRefresh); };
   }, []);
 
   const loadNotifications = async () => {
