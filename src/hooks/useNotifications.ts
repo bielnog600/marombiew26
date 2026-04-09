@@ -274,18 +274,18 @@ export function useNotifications() {
         const lastQ = latestQuestionnaireMap.get(student.user_id);
         if (lastQ) {
           const qDate = parseISO(lastQ);
-          const qMonth = `${qDate.getFullYear()}-${String(qDate.getMonth() + 1).padStart(2, '0')}`;
-          if (qMonth !== currentMonth) {
+          const daysSinceQ = differenceInDays(now, qDate);
+          if (daysSinceQ >= 30) {
             notifs.push({
               id: `ficha-${student.user_id}`,
               type: 'ficha_mensal',
               title: 'Ficha alimentar desatualizada',
-              description: `${name} — última ficha respondida em ${format(qDate, 'dd/MM/yyyy')}. Envie uma nova ficha para o mês atual.`,
+              description: `${name} — última ficha respondida há ${daysSinceQ} dias (${format(qDate, 'dd/MM/yyyy')}). Envie uma nova ficha.`,
               studentId: student.user_id,
               studentName: name,
               studentPhone: phone,
               date: lastQ,
-              priority: 'medium',
+              priority: daysSinceQ >= 40 ? 'high' : 'medium',
             });
           }
         } else {
