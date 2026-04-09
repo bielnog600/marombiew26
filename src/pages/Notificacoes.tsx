@@ -4,7 +4,7 @@ import { useNotifications, NotificationType, buildWhatsAppUrl, Notification } fr
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { MessageSquare, CalendarClock, Cake, Phone, AlertTriangle, RefreshCw, ExternalLink, Dumbbell, UtensilsCrossed, X, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -148,16 +148,44 @@ const Notificacoes: React.FC = () => {
         </div>
 
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="w-full flex overflow-x-auto">
-            <TabsTrigger value="all" className="flex-1 min-w-0">Todos ({tabCounts.all})</TabsTrigger>
-            <TabsTrigger value="reavaliacao" className="flex-1 min-w-0">Reavaliação ({tabCounts.reavaliacao})</TabsTrigger>
-            <TabsTrigger value="aniversario" className="flex-1 min-w-0">Aniversário ({tabCounts.aniversario})</TabsTrigger>
-            <TabsTrigger value="mensagem_semanal" className="flex-1 min-w-0">Semanal ({tabCounts.mensagem_semanal})</TabsTrigger>
-            <TabsTrigger value="sem_telefone" className="flex-1 min-w-0">Sem Tel ({tabCounts.sem_telefone})</TabsTrigger>
-            <TabsTrigger value="sem_treino" className="flex-1 min-w-0">Sem Treino ({tabCounts.sem_treino})</TabsTrigger>
-            <TabsTrigger value="sem_dieta" className="flex-1 min-w-0">Sem Dieta ({tabCounts.sem_dieta})</TabsTrigger>
-            <TabsTrigger value="ficha_mensal" className="flex-1 min-w-0">Ficha ({tabCounts.ficha_mensal})</TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
+            <div className="flex gap-2 w-max">
+              {[
+                { value: 'all', label: 'Todos', count: tabCounts.all, icon: null },
+                { value: 'reavaliacao', label: 'Reavaliação', count: tabCounts.reavaliacao, icon: CalendarClock },
+                { value: 'aniversario', label: 'Aniversário', count: tabCounts.aniversario, icon: Cake },
+                { value: 'mensagem_semanal', label: 'Semanal', count: tabCounts.mensagem_semanal, icon: MessageSquare },
+                { value: 'sem_telefone', label: 'Sem Tel', count: tabCounts.sem_telefone, icon: Phone },
+                { value: 'sem_treino', label: 'Sem Treino', count: tabCounts.sem_treino, icon: Dumbbell },
+                { value: 'sem_dieta', label: 'Sem Dieta', count: tabCounts.sem_dieta, icon: UtensilsCrossed },
+                { value: 'ficha_mensal', label: 'Ficha', count: tabCounts.ficha_mensal, icon: FileText },
+              ].map((t) => {
+                const isActive = tab === t.value;
+                const Icon = t.icon;
+                return (
+                  <button
+                    key={t.value}
+                    onClick={() => setTab(t.value)}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium whitespace-nowrap transition-all border ${
+                      isActive
+                        ? 'bg-primary text-primary-foreground border-primary shadow-md shadow-primary/20'
+                        : 'bg-secondary/50 text-muted-foreground border-border hover:bg-secondary hover:text-foreground'
+                    }`}
+                  >
+                    {Icon && <Icon className="h-3.5 w-3.5" />}
+                    {t.label}
+                    {t.count > 0 && (
+                      <span className={`ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${
+                        isActive ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'
+                      }`}>
+                        {t.count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           <TabsContent value={tab} className="mt-4 space-y-3">
             {loading ? (
