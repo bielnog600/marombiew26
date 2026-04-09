@@ -47,8 +47,14 @@ export function buildWhatsAppUrl(phone: string, message: string) {
   return `https://wa.me/${num}?text=${encodeURIComponent(message)}`;
 }
 
+export function getCurrentMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export function useNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -58,6 +64,17 @@ export function useNotifications() {
   const loadNotifications = async () => {
     setLoading(true);
     try {
+      const currentMonth = getCurrentMonth();
+
+      // Fetch dismissed notifications for this month
+      const { data: dismissed } = await supabase
+        .from('dismissed_notifications')
+        .select('notification_key')
+        .eq('dismissed_month', currentMonth);
+
+      const dismissedSet = new Set((dismissed ?? []).map(d => d.notification_key));
+      setDismissedKeys(dismissedSet);
+
       // Fetch students with profiles
       const { data: students } = await supabase
         .from('students_profile')
