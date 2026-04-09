@@ -121,10 +121,15 @@ const Consultoria = () => {
 
   const fmtDate = (d: string | null) => d ? format(new Date(d), "dd/MM/yy", { locale: ptBR }) : '—';
 
+  const semDieta = students.filter(s => s.totalDietas === 0);
+  const semTreino = students.filter(s => s.totalTreinos === 0);
+
   const statCards = [
     { title: 'Alunos Ativos', value: totals.alunos, icon: Users, color: 'text-primary' },
     { title: 'Dietas Geradas', value: totals.dietas, sub: totals.dietasVencidas > 0 ? `${totals.dietasVencidas} vencida${totals.dietasVencidas > 1 ? 's' : ''}` : undefined, icon: Utensils, color: 'text-emerald-500' },
     { title: 'Treinos Gerados', value: totals.treinos, sub: totals.treinosVencidos > 0 ? `${totals.treinosVencidos} vencido${totals.treinosVencidos > 1 ? 's' : ''}` : undefined, icon: Dumbbell, color: 'text-blue-500' },
+    { title: 'Sem Dieta', value: semDieta.length, icon: Utensils, color: 'text-destructive' },
+    { title: 'Sem Treino', value: semTreino.length, icon: Dumbbell, color: 'text-destructive' },
     { title: 'Fichas Pendentes', value: totals.fichasPendentes, icon: ClipboardList, color: 'text-orange-500' },
   ];
 
@@ -147,7 +152,7 @@ const Consultoria = () => {
       <div
         key={s.userId}
         className="p-3 rounded-lg bg-secondary/50 cursor-pointer hover:bg-secondary transition-colors"
-        onClick={() => navigate(`/alunos/${s.userId}`)}
+        onClick={() => navigate(`/alunos/${s.userId}?tab=ia`)}
       >
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-3 min-w-0">
@@ -172,7 +177,7 @@ const Consultoria = () => {
   return (
     <AppLayout title="Consultoria">
       <div className="space-y-6 animate-fade-in">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
           {statCards.map(stat => (
             <Card key={stat.title} className="glass-card">
               <CardContent className="flex items-center gap-3 p-4">
@@ -194,6 +199,8 @@ const Consultoria = () => {
             <TabsTrigger value="overview">Visão Geral</TabsTrigger>
             <TabsTrigger value="dietas">Dietas</TabsTrigger>
             <TabsTrigger value="treinos">Treinos</TabsTrigger>
+            <TabsTrigger value="sem-dieta">Sem Dieta{semDieta.length > 0 ? ` (${semDieta.length})` : ''}</TabsTrigger>
+            <TabsTrigger value="sem-treino">Sem Treino{semTreino.length > 0 ? ` (${semTreino.length})` : ''}</TabsTrigger>
             <TabsTrigger value="fichas">Fichas</TabsTrigger>
           </TabsList>
 
@@ -219,7 +226,7 @@ const Consultoria = () => {
                         <div
                           key={s.userId}
                           className="p-3 rounded-lg bg-secondary/50 cursor-pointer hover:bg-secondary transition-colors"
-                          onClick={() => navigate(`/alunos/${s.userId}`)}
+                          onClick={() => navigate(`/alunos/${s.userId}?tab=ia`)}
                         >
                           <div className="flex items-center gap-3">
                             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/20 text-primary font-semibold text-sm shrink-0">
@@ -307,6 +314,80 @@ const Consultoria = () => {
                         .sort((a, b) => getCycleInfo(b.ultimoTreino).days - getCycleInfo(a.ultimoTreino).days)
                         .map(s => renderPlanRow(s, 'treino'))
                     )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="sem-dieta">
+            <Card className="glass-card">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Utensils className="h-5 w-5 text-destructive" />
+                  Alunos Sem Dieta
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <p className="text-sm text-muted-foreground">Carregando...</p>
+                ) : semDieta.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Todos os alunos possuem dieta gerada. 🎉</p>
+                ) : (
+                  <div className="space-y-2">
+                    {semDieta.map(s => (
+                      <div
+                        key={s.userId}
+                        className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 cursor-pointer hover:bg-secondary transition-colors"
+                        onClick={() => navigate(`/alunos/${s.userId}?tab=ia`)}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Utensils className="h-4 w-4 text-destructive shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{s.nome}</p>
+                            <p className="text-xs text-muted-foreground">Nenhuma dieta gerada</p>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30 text-xs">Gerar dieta →</Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="sem-treino">
+            <Card className="glass-card">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Dumbbell className="h-5 w-5 text-destructive" />
+                  Alunos Sem Treino
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <p className="text-sm text-muted-foreground">Carregando...</p>
+                ) : semTreino.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Todos os alunos possuem treino gerado. 🎉</p>
+                ) : (
+                  <div className="space-y-2">
+                    {semTreino.map(s => (
+                      <div
+                        key={s.userId}
+                        className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 cursor-pointer hover:bg-secondary transition-colors"
+                        onClick={() => navigate(`/alunos/${s.userId}?tab=ia`)}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Dumbbell className="h-4 w-4 text-destructive shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{s.nome}</p>
+                            <p className="text-xs text-muted-foreground">Nenhum treino gerado</p>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30 text-xs">Gerar treino →</Badge>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>
