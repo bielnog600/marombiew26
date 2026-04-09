@@ -22,6 +22,7 @@ const Dashboard = () => {
     sem_telefone: Phone,
     sem_treino: ClipboardList,
     sem_dieta: ClipboardList,
+    ficha_mensal: ClipboardList,
   };
   const notifColorMap: Record<NotificationType, string> = {
     reavaliacao: 'text-orange-500',
@@ -30,6 +31,7 @@ const Dashboard = () => {
     sem_telefone: 'text-red-500',
     sem_treino: 'text-amber-500',
     sem_dieta: 'text-emerald-500',
+    ficha_mensal: 'text-violet-500',
   };
 
   useEffect(() => {

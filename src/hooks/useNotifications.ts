@@ -269,6 +269,37 @@ export function useNotifications() {
             priority: 'medium',
           });
         }
+
+        // 7. Monthly questionnaire renewal
+        const lastQ = latestQuestionnaireMap.get(student.user_id);
+        if (lastQ) {
+          const qDate = parseISO(lastQ);
+          const qMonth = `${qDate.getFullYear()}-${String(qDate.getMonth() + 1).padStart(2, '0')}`;
+          if (qMonth !== currentMonth) {
+            notifs.push({
+              id: `ficha-${student.user_id}`,
+              type: 'ficha_mensal',
+              title: 'Ficha alimentar desatualizada',
+              description: `${name} — última ficha respondida em ${format(qDate, 'dd/MM/yyyy')}. Envie uma nova ficha para o mês atual.`,
+              studentId: student.user_id,
+              studentName: name,
+              studentPhone: phone,
+              date: lastQ,
+              priority: 'medium',
+            });
+          }
+        } else {
+          notifs.push({
+            id: `ficha-never-${student.user_id}`,
+            type: 'ficha_mensal',
+            title: 'Sem ficha alimentar',
+            description: `${name} nunca respondeu um questionário de dieta.`,
+            studentId: student.user_id,
+            studentName: name,
+            studentPhone: phone,
+            priority: 'medium',
+          });
+        }
       }
 
       // Sort by priority
