@@ -3,10 +3,10 @@ import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Dumbbell, UtensilsCrossed, Weight, TrendingUp, ClipboardList, ChevronRight, Flame, Activity } from 'lucide-react';
+import { Dumbbell, UtensilsCrossed, Weight, ClipboardList, ChevronRight, Flame, Activity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { parseTrainingResult, type ParsedTrainingDay } from '@/lib/trainingResultParser';
-import { parseDietResult, type ParsedMeal } from '@/lib/dietResultParser';
+import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
+import { parseSections, type ParsedMeal } from '@/lib/dietResultParser';
 
 const MinhaArea = () => {
   const { user } = useAuth();
@@ -17,8 +17,8 @@ const MinhaArea = () => {
   const [assessmentCount, setAssessmentCount] = useState(0);
   const [trainingDays, setTrainingDays] = useState<ParsedTrainingDay[]>([]);
   const [meals, setMeals] = useState<ParsedMeal[]>([]);
-  const [trainingTitle, setTrainingTitle] = useState('');
-  const [dietTitle, setDietTitle] = useState('');
+  const [_trainingTitle, setTrainingTitle] = useState('');
+  const [_dietTitle, setDietTitle] = useState('');
 
   useEffect(() => {
     if (user) loadData();
