@@ -62,7 +62,7 @@ const MinhaArea = () => {
       .maybeSingle();
     if (treino) {
       setTrainingTitle(treino.titulo);
-      const sections = parseTrainingResult(treino.conteudo);
+      const sections = parseTrainingSections(treino.conteudo);
       const allDays = sections.flatMap(s => s.days ?? []);
       setTrainingDays(allDays);
     }
@@ -78,7 +78,7 @@ const MinhaArea = () => {
       .maybeSingle();
     if (dieta) {
       setDietTitle(dieta.titulo);
-      const sections = parseDietResult(dieta.conteudo);
+      const sections = parseSections(dieta.conteudo);
       const allMeals = sections.flatMap(s => s.meals ?? []);
       setMeals(allMeals);
     }
