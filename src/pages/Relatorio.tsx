@@ -446,7 +446,9 @@ const Relatorio = () => {
               <DataRow label="Pescoço" value={anthro?.pescoco} unit="cm" />
               <DataRow label="Tórax" value={anthro?.torax} unit="cm" />
               <DataRow label="Ombro" value={anthro?.ombro} unit="cm" />
+              <DataRow label="Cintura" value={anthro?.cintura} unit="cm" />
               <DataRow label="Abdômen" value={anthro?.abdomen} unit="cm" />
+              <DataRow label="Quadril" value={anthro?.quadril} unit="cm" />
               <DataRow label="Braço Dir." value={anthro?.braco_direito} unit="cm" />
               <DataRow label="Braço Esq." value={anthro?.braco_esquerdo} unit="cm" />
               <DataRow label="Bíceps Contr. Dir." value={anthro?.biceps_contraido_direito} unit="cm" />
