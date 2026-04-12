@@ -3,8 +3,9 @@ import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Dumbbell, UtensilsCrossed, Weight, ClipboardList, ChevronRight, Flame, Activity } from 'lucide-react';
+import { Dumbbell, UtensilsCrossed, Weight, ClipboardList, ChevronRight, Flame, Activity, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import workoutHero from '@/assets/workout-hero.jpg';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { parseSections, type ParsedMeal } from '@/lib/dietResultParser';
 
