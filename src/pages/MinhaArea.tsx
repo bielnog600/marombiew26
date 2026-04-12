@@ -139,6 +139,19 @@ const MinhaArea = () => {
     return workoutHero;
   }, [todayTraining, exerciseImages]);
 
+  // Main muscle groups for today's training
+  const todayMuscleGroups = useMemo(() => {
+    if (!todayTraining) return '';
+    const groups: string[] = [];
+    const startIndex = Math.min(2, todayTraining.exercises.length - 1);
+    for (let i = startIndex; i < todayTraining.exercises.length; i++) {
+      const key = todayTraining.exercises[i].exercise.toUpperCase().trim();
+      const muscle = exerciseMuscles[key];
+      if (muscle && !groups.includes(muscle)) groups.push(muscle);
+    }
+    return groups.slice(0, 3).join(' • ');
+  }, [todayTraining, exerciseMuscles]);
+
   return (
     <AppLayout>
       <div className="space-y-5 animate-fade-in">
