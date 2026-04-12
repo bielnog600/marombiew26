@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, ClipboardList, ScanLine, LogOut, User, Apple, Bell, Briefcase } from 'lucide-react';
+import { LayoutDashboard, Users, ClipboardList, User, Bell, Briefcase } from 'lucide-react';
 
 const adminItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
@@ -13,18 +13,14 @@ const adminItems = [
 const alunoItems = [
   { title: 'Minha Área', url: '/minha-area', icon: LayoutDashboard },
   { title: 'Avaliações', url: '/minhas-avaliacoes', icon: ClipboardList },
+  { title: 'Perfil', url: '/perfil', icon: User },
 ];
 
 const BottomNav: React.FC = () => {
-  const { role, signOut } = useAuth();
+  const { role } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const items = role === 'admin' ? adminItems : alunoItems;
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/login');
-  };
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background md:hidden pb-[env(safe-area-inset-bottom)]">
@@ -44,13 +40,6 @@ const BottomNav: React.FC = () => {
             </button>
           );
         })}
-        <button
-          onClick={handleSignOut}
-          className="flex flex-col items-center justify-center flex-1 h-full gap-0.5 text-[10px] text-muted-foreground"
-        >
-          <LogOut className="h-5 w-5" />
-          <span>Sair</span>
-        </button>
       </div>
     </nav>
   );
