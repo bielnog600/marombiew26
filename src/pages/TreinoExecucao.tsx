@@ -387,19 +387,22 @@ const TreinoExecucao = () => {
           <span className="bg-background/80 backdrop-blur rounded-full px-3 py-1 text-xs font-medium text-foreground">{currentIndex + 1}/{exercises.length}</span>
         </div>
 
-        {exercise.variation && (
-          <button
-            onClick={() => setShowingVariation(!showingVariation)}
-            className={`absolute bottom-20 right-4 z-30 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider backdrop-blur transition-colors ${showingVariation ? 'bg-primary text-primary-foreground' : 'bg-background/80 text-foreground border border-border/50'}`}
-          >
-            {showingVariation ? 'Original' : 'Variação'}
-          </button>
-        )}
-
         <div className="absolute bottom-0 left-0 right-0 p-4 z-30">
-          <p className="text-[10px] uppercase tracking-widest text-primary font-semibold mb-1">{activeExercise?.grupo_muscular || dayName}</p>
-          <h1 className="text-xl font-bold text-foreground leading-tight">{showingVariation && exercise.variation ? exercise.variation : exercise.exercise}</h1>
-          {exercise.description && <p className="text-xs text-muted-foreground mt-1">{exercise.description}</p>}
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] uppercase tracking-widest text-primary font-semibold mb-1">{activeExercise?.grupo_muscular || dayName}</p>
+              <h1 className="text-xl font-bold text-foreground leading-tight">{showingVariation && exercise.variation ? exercise.variation : exercise.exercise}</h1>
+              {exercise.description && <p className="text-xs text-muted-foreground mt-1">{exercise.description}</p>}
+            </div>
+            {exercise.variation && (
+              <button
+                onClick={() => setShowingVariation(!showingVariation)}
+                className={`shrink-0 mt-1 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider backdrop-blur transition-colors ${showingVariation ? 'bg-primary text-primary-foreground' : 'bg-background/80 text-foreground border border-border/50'}`}
+              >
+                {showingVariation ? 'Original' : 'Variação'}
+              </button>
+            )}
+          </div>
           <div className="flex items-center gap-3 mt-2 flex-wrap">
             {exercise.series && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.series} séries</span>}
             {exercise.reps && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.reps} reps</span>}
