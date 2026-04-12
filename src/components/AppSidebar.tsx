@@ -19,7 +19,7 @@ const adminItems = [
 
 const alunoItems = [
   { title: 'Home', url: '/minha-area', icon: Home },
-  { title: 'Treinos', url: '/treino-execucao', icon: Dumbbell },
+  { title: 'Treinos', url: '/meus-treinos', icon: Dumbbell },
   { title: 'Dieta', url: '/minhas-dietas', icon: UtensilsCrossed },
   { title: 'Minhas Avaliações', url: '/minhas-avaliacoes', icon: ClipboardList },
   { title: 'Perfil', url: '/perfil', icon: User },
