@@ -146,13 +146,14 @@ const TreinoExecucao = () => {
       <div className="relative w-full aspect-video bg-secondary/30 overflow-hidden">
         {videoUrl ? (
           <iframe
-            src={videoUrl}
+            src={videoUrl.includes('autoplay=true') ? videoUrl : `${videoUrl}${videoUrl.includes('?') ? '&' : '?'}autoplay=true&muted=true&loop=true`}
             className="absolute inset-0 w-full h-full"
             style={{ border: 'none' }}
-            allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+            allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
             allowFullScreen
-          />
-        ) : imageUrl ? (
+            // @ts-ignore
+            playsInline
+          />) : imageUrl ? (
           <img
             src={imageUrl}
             alt={exercise.exercise}
