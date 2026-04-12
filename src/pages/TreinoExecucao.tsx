@@ -1,14 +1,22 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Timer, Play, Pause, RotateCcw, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Play, Pause, RotateCcw, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { supabase } from '@/integrations/supabase/client';
 import { type ParsedExercise } from '@/lib/trainingResultParser';
 
 interface ExerciseSet {
   reps: string;
   weight: string;
   completed: boolean;
+}
+
+interface ExerciseDBData {
+  nome: string;
+  imagem_url: string | null;
+  video_embed: string | null;
+  grupo_muscular: string;
 }
 
 const TreinoExecucao = () => {
@@ -21,9 +29,33 @@ const TreinoExecucao = () => {
   const [timerActive, setTimerActive] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [restMode, setRestMode] = useState(false);
+  const [exerciseDB, setExerciseDB] = useState<ExerciseDBData[]>([]);
 
   const exercise = exercises[currentIndex];
   const totalSeries = parseInt(exercise?.series || '3') || 3;
+
+  // Load exercise database
+  useEffect(() => {
+    const loadExercises = async () => {
+      const { data } = await supabase
+        .from('exercises')
+        .select('nome, imagem_url, video_embed, grupo_muscular');
+      if (data) setExerciseDB(data);
+    };
+    loadExercises();
+  }, []);
+
+  // Match current exercise to DB by fuzzy name
+  const matchedExercise = useMemo(() => {
+    if (!exercise || exerciseDB.length === 0) return null;
+    const name = exercise.exercise.toUpperCase().trim();
+    // Try exact match first
+    let match = exerciseDB.find(e => e.nome.toUpperCase().trim() === name);
+    if (match) return match;
+    // Try contains match
+    match = exerciseDB.find(e => name.includes(e.nome.toUpperCase().trim()) || e.nome.toUpperCase().trim().includes(name));
+    return match || null;
+  }, [exercise, exerciseDB]);
 
   // Initialize sets for current exercise
   useEffect(() => {
@@ -55,9 +87,7 @@ const TreinoExecucao = () => {
   };
 
   const toggleTimer = () => {
-    if (restMode && !timerActive) {
-      setTimerSeconds(0);
-    }
+    if (restMode && !timerActive) setTimerSeconds(0);
     setTimerActive(!timerActive);
     setRestMode(true);
   };
@@ -82,7 +112,6 @@ const TreinoExecucao = () => {
       current[setIndex] = { ...current[setIndex], completed: !current[setIndex].completed };
       return { ...prev, [currentIndex]: current };
     });
-    // Start rest timer automatically
     resetTimer();
     setRestMode(true);
     setTimerActive(true);
@@ -101,21 +130,42 @@ const TreinoExecucao = () => {
     );
   }
 
-  // Video placeholder search term based on exercise name
-  const exerciseName = exercise.exercise.toLowerCase();
-  const videoSearchTerm = encodeURIComponent(exerciseName + ' exercise gym');
+  // Extract iframe src from embed HTML for clean rendering
+  const getVideoUrl = (embed: string | null | undefined): string | null => {
+    if (!embed) return null;
+    const match = embed.match(/src="([^"]+)"/);
+    return match ? match[1] : null;
+  };
+
+  const videoUrl = getVideoUrl(matchedExercise?.video_embed);
+  const imageUrl = matchedExercise?.imagem_url;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Video / Visual Area */}
       <div className="relative w-full aspect-video bg-secondary/30 overflow-hidden">
-        <img
-          src={`https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg`}
-          alt={exercise.exercise}
-          className="w-full h-full object-cover opacity-30"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
-        
+        {videoUrl ? (
+          <iframe
+            src={videoUrl}
+            className="absolute inset-0 w-full h-full"
+            style={{ border: 'none' }}
+            allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+            allowFullScreen
+          />
+        ) : imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={exercise.exercise}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <span className="text-muted-foreground text-sm">Sem mídia disponível</span>
+          </div>
+        )}
+
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent pointer-events-none" />
+
         {/* Back button */}
         <button
           onClick={() => navigate(-1)}
@@ -133,12 +183,14 @@ const TreinoExecucao = () => {
 
         {/* Exercise info overlay */}
         <div className="absolute bottom-0 left-0 right-0 p-4 z-10">
-          <p className="text-[10px] uppercase tracking-widest text-primary font-semibold mb-1">{dayName}</p>
+          <p className="text-[10px] uppercase tracking-widest text-primary font-semibold mb-1">
+            {matchedExercise?.grupo_muscular || dayName}
+          </p>
           <h1 className="text-xl font-bold text-foreground leading-tight">{exercise.exercise}</h1>
           {exercise.description && (
             <p className="text-xs text-muted-foreground mt-1">{exercise.description}</p>
           )}
-          <div className="flex items-center gap-4 mt-2">
+          <div className="flex items-center gap-3 mt-2 flex-wrap">
             {exercise.series && (
               <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">
                 {exercise.series} séries
@@ -248,10 +300,7 @@ const TreinoExecucao = () => {
           <Button
             variant="outline"
             className="flex-1"
-            onClick={() => {
-              setCurrentIndex(Math.max(0, currentIndex - 1));
-              resetTimer();
-            }}
+            onClick={() => { setCurrentIndex(Math.max(0, currentIndex - 1)); resetTimer(); }}
             disabled={currentIndex === 0}
           >
             <ChevronLeft className="h-4 w-4 mr-1" />
@@ -260,19 +309,13 @@ const TreinoExecucao = () => {
           {currentIndex < exercises.length - 1 ? (
             <Button
               className="flex-1"
-              onClick={() => {
-                setCurrentIndex(currentIndex + 1);
-                resetTimer();
-              }}
+              onClick={() => { setCurrentIndex(currentIndex + 1); resetTimer(); }}
             >
               Próximo
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           ) : (
-            <Button
-              className="flex-1"
-              onClick={() => navigate(-1)}
-            >
+            <Button className="flex-1" onClick={() => navigate(-1)}>
               Finalizar
               <Check className="h-4 w-4 ml-1" />
             </Button>
