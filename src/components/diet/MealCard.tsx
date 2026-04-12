@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Clock, UtensilsCrossed } from 'lucide-react';
+import { Clock, UtensilsCrossed, Check } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
@@ -38,9 +38,11 @@ interface MealCardProps {
   meal: ParsedMeal;
   index: number;
   onCopy: (text: string, label?: string) => React.ReactNode;
+  isCompleted?: boolean;
+  onToggleComplete?: () => void;
 }
 
-const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy }) => {
+const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, isCompleted, onToggleComplete }) => {
   const [foods, setFoods] = useState<ParsedFood[]>(initialMeal.foods);
   const [selectedFoodIndex, setSelectedFoodIndex] = useState<number | null>(null);
 
@@ -221,6 +223,21 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy })
               <span>G: {meal.totalG || '—'}</span>
             </div>
           </div>
+
+          {onToggleComplete && (
+            <button
+              type="button"
+              onClick={onToggleComplete}
+              className={`w-full flex items-center justify-center gap-2 py-2.5 text-xs font-semibold transition-all duration-300 ${
+                isCompleted
+                  ? 'bg-green-500/15 text-green-500'
+                  : 'bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground'
+              }`}
+            >
+              <Check className={`h-4 w-4 ${isCompleted ? '' : 'opacity-40'}`} />
+              {isCompleted ? 'Refeição concluída ✓' : 'Registrar refeição'}
+            </button>
+          )}
         </CardContent>
       </Card>
 
