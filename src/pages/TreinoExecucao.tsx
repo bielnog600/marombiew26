@@ -352,7 +352,7 @@ const TreinoExecucao = () => {
 
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent pointer-events-none" />
 
-        <button onClick={() => navigate(-1)} className="absolute top-4 left-4 z-30 h-10 w-10 rounded-full bg-background/80 backdrop-blur flex items-center justify-center">
+        <button onClick={() => navigate('/minha-area')} className="absolute top-4 left-4 z-30 h-10 w-10 rounded-full bg-background/80 backdrop-blur flex items-center justify-center">
           <ArrowLeft className="h-5 w-5 text-foreground" />
         </button>
 
@@ -417,7 +417,7 @@ const TreinoExecucao = () => {
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           ) : (
-            <Button className="flex-1" onClick={() => { completeWorkout(); navigate(-1); }}>
+            <Button className="flex-1" onClick={() => { completeWorkout(); navigate('/minha-area'); }}>
               Finalizar
               <Check className="h-4 w-4 ml-1" />
             </Button>
