@@ -176,11 +176,9 @@ const MinhaArea = () => {
           >
             <div className="relative h-40 overflow-hidden">
               <img
-                src={workoutHero}
+                src={todayHeroImage}
                 alt="Treino do dia"
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                width={800}
-                height={512}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-card via-card/60 to-transparent" />
               <div className="absolute bottom-0 left-0 right-0 p-4">
