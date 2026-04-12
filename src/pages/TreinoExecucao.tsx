@@ -56,9 +56,10 @@ const RestTimerOverlay = ({ totalSeconds, onClose }: { totalSeconds: number; onC
   const secs = Math.abs(timeLeft) % 60;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in">
-      <button onClick={onClose} className="absolute top-4 right-4 h-10 w-10 rounded-full bg-secondary flex items-center justify-center">
-        <X className="h-5 w-5 text-foreground" />
+    <div className="fixed inset-0 z-[100] bg-background flex flex-col items-center justify-center animate-fade-in">
+      <button onClick={onClose} className="absolute z-[110] h-12 w-12 rounded-full bg-destructive flex items-center justify-center shadow-lg"
+        style={{ top: 'calc(env(safe-area-inset-top, 16px) + 8px)', right: '16px' }}>
+        <X className="h-6 w-6 text-destructive-foreground" />
       </button>
 
       <p className="text-sm uppercase tracking-widest text-muted-foreground mb-8 font-semibold">Descanso</p>
