@@ -7,7 +7,8 @@ import { Dumbbell, UtensilsCrossed, Weight, ClipboardList, ChevronRight, Flame, 
 import { useNavigate } from 'react-router-dom';
 import workoutHero from '@/assets/workout-hero.jpg';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
-import { parseSections, type ParsedMeal } from '@/lib/dietResultParser';
+import { parseSections, type ParsedMeal, type ParsedSection } from '@/lib/dietResultParser';
+import DietPlanCard from '@/components/DietPlanCard';
 
 const MinhaArea = () => {
   const { user } = useAuth();
@@ -18,6 +19,7 @@ const MinhaArea = () => {
   const [assessmentCount, setAssessmentCount] = useState(0);
   const [trainingDays, setTrainingDays] = useState<ParsedTrainingDay[]>([]);
   const [meals, setMeals] = useState<ParsedMeal[]>([]);
+  const [dietSections, setDietSections] = useState<ParsedSection[]>([]);
   const [_trainingTitle, setTrainingTitle] = useState('');
   const [_dietTitle, setDietTitle] = useState('');
   const [exerciseImages, setExerciseImages] = useState<Record<string, string>>({});
@@ -115,6 +117,7 @@ const MinhaArea = () => {
     if (dieta) {
       setDietTitle(dieta.titulo);
       const sections = parseSections(dieta.conteudo);
+      setDietSections(sections);
       const allMeals = sections.flatMap(s => s.meals ?? []);
       setMeals(allMeals);
     }
@@ -240,36 +243,7 @@ const MinhaArea = () => {
         )}
 
         {/* Diet Summary */}
-        {meals.length > 0 && (
-          <Card className="glass-card overflow-hidden">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <UtensilsCrossed className="h-4 w-4 text-chart-3" />
-                Plano Alimentar
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="space-y-1.5">
-                {meals.slice(0, 6).map((meal, i) => (
-                  <div key={i} className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm text-foreground truncate block">{meal.name}</span>
-                      {meal.time && <span className="text-[10px] text-muted-foreground">{meal.time}</span>}
-                    </div>
-                    <span className="text-xs text-primary font-medium ml-2 whitespace-nowrap">
-                      {meal.totalKcal ? `${meal.totalKcal} kcal` : `${meal.foods.length} itens`}
-                    </span>
-                  </div>
-                ))}
-                {meals.length > 6 && (
-                  <p className="text-xs text-muted-foreground text-center pt-1">
-                    +{meals.length - 6} refeições
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {meals.length > 0 && <DietPlanCard sections={dietSections} />}
 
         {/* No plans message */}
         {trainingDays.length === 0 && meals.length === 0 && (
