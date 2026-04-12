@@ -1,9 +1,12 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/AppLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Dumbbell, UtensilsCrossed, Weight, ClipboardList, ChevronRight, Flame, Activity, Play } from 'lucide-react';
+import { Dumbbell, ClipboardList, ChevronRight, Play } from 'lucide-react';
+import WeeklyRoutineCard from '@/components/home/WeeklyRoutineCard';
+import WaterIntakeCard from '@/components/home/WaterIntakeCard';
+import MealsCompletedCard from '@/components/home/MealsCompletedCard';
 import { useNavigate } from 'react-router-dom';
 import workoutHero from '@/assets/workout-hero.jpg';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
@@ -14,14 +17,14 @@ const MinhaArea = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<any>(null);
-  const [latestAnthro, setLatestAnthro] = useState<any>(null);
-  const [latestComp, setLatestComp] = useState<any>(null);
   const [assessmentCount, setAssessmentCount] = useState(0);
   const [trainingDays, setTrainingDays] = useState<ParsedTrainingDay[]>([]);
   const [meals, setMeals] = useState<ParsedMeal[]>([]);
   const [dietSections, setDietSections] = useState<ParsedSection[]>([]);
   const [_trainingTitle, setTrainingTitle] = useState('');
   const [_dietTitle, setDietTitle] = useState('');
+  const [waterGlasses, setWaterGlasses] = useState(0);
+  const [mealsCompleted, setMealsCompleted] = useState(0);
   const [exerciseImages, setExerciseImages] = useState<Record<string, string>>({});
   const [exerciseMuscles, setExerciseMuscles] = useState<Record<string, string>>({});
   const [exerciseMedia, setExerciseMedia] = useState<Record<string, { imageUrl?: string; videoEmbed?: string; muscleGroup?: string }>>({});
@@ -46,15 +49,7 @@ const MinhaArea = () => {
       .order('created_at', { ascending: false });
     setAssessmentCount(avals?.length ?? 0);
 
-    if (avals && avals.length > 0) {
-      const latest = avals[0];
-      const [anthroR, compR] = await Promise.all([
-        supabase.from('anthropometrics').select('peso, imc').eq('assessment_id', latest.id).maybeSingle(),
-        supabase.from('composition').select('percentual_gordura, massa_magra').eq('assessment_id', latest.id).maybeSingle(),
-      ]);
-      setLatestAnthro(anthroR.data);
-      setLatestComp(compR.data);
-    }
+    // (assessment detail stats removed - no longer displayed on home)
 
     // Latest training plan
     const { data: treino } = await supabase
@@ -179,29 +174,22 @@ const MinhaArea = () => {
           </div>
         </div>
 
-        {/* Stats Cards */}
+        {/* Dashboard Cards */}
         <div className="grid grid-cols-3 gap-3">
-          <Card className="glass-card">
-            <CardContent className="p-3 text-center">
-              <Weight className="h-6 w-6 text-primary mx-auto mb-1" />
-              <p className="text-xl font-bold">{latestAnthro?.peso ?? '-'}</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Peso (kg)</p>
-            </CardContent>
-          </Card>
-          <Card className="glass-card">
-            <CardContent className="p-3 text-center">
-              <Flame className="h-6 w-6 text-chart-5 mx-auto mb-1" />
-              <p className="text-xl font-bold">{latestComp?.percentual_gordura ?? '-'}<span className="text-sm">%</span></p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Gordura</p>
-            </CardContent>
-          </Card>
-          <Card className="glass-card">
-            <CardContent className="p-3 text-center">
-              <Activity className="h-6 w-6 text-chart-2 mx-auto mb-1" />
-              <p className="text-xl font-bold">{latestAnthro?.imc ?? '-'}</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">IMC</p>
-            </CardContent>
-          </Card>
+          <WeeklyRoutineCard
+            trainingDaysCount={trainingDays.length}
+            totalDays={7}
+          />
+          <WaterIntakeCard
+            glasses={waterGlasses}
+            goal={8}
+            onAdd={() => setWaterGlasses(g => Math.min(g + 1, 12))}
+            onRemove={() => setWaterGlasses(g => Math.max(g - 1, 0))}
+          />
+          <MealsCompletedCard
+            completed={mealsCompleted}
+            total={meals.length}
+          />
         </div>
 
         {/* Today's Training */}
