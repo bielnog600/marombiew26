@@ -126,6 +126,7 @@ const TreinoExecucao = () => {
   const [showRestTimer, setShowRestTimer] = useState(false);
   const [restDuration, setRestDuration] = useState(60);
   const [showPlayFallback, setShowPlayFallback] = useState(false);
+  const [showingVariation, setShowingVariation] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
 
