@@ -352,7 +352,7 @@ const TreinoExecucao = () => {
             <video
               key={streamVideoId ?? currentIndex}
               ref={videoRef}
-              className="absolute inset-0 w-full h-full object-cover"
+              className="absolute inset-0 w-full h-full object-cover pointer-events-none"
               muted
               autoPlay
               loop
@@ -396,8 +396,9 @@ const TreinoExecucao = () => {
             </div>
             {exercise.variation && (
               <button
+                type="button"
                 onClick={() => setShowingVariation(!showingVariation)}
-                className={`shrink-0 mt-1 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider backdrop-blur transition-colors ${showingVariation ? 'bg-primary text-primary-foreground' : 'bg-background/80 text-foreground border border-border/50'}`}
+                className={`relative z-10 shrink-0 mt-1 touch-manipulation rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider backdrop-blur transition-colors ${showingVariation ? 'bg-primary text-primary-foreground' : 'bg-background/80 text-foreground border border-border/50'}`}
               >
                 {showingVariation ? 'Original' : 'Variação'}
               </button>
