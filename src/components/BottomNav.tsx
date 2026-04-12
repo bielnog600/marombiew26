@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, ClipboardList, User, Bell, Briefcase, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, ClipboardList, User, Bell, Briefcase, LogOut, Home, Dumbbell, UtensilsCrossed } from 'lucide-react';
 
 const adminItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
@@ -11,7 +11,9 @@ const adminItems = [
 ];
 
 const alunoItems = [
-  { title: 'Minha Área', url: '/minha-area', icon: LayoutDashboard },
+  { title: 'Home', url: '/minha-area', icon: Home },
+  { title: 'Treinos', url: '/treino-execucao', icon: Dumbbell },
+  { title: 'Dieta', url: '/minhas-dietas', icon: UtensilsCrossed },
   { title: 'Avaliações', url: '/minhas-avaliacoes', icon: ClipboardList },
   { title: 'Perfil', url: '/perfil', icon: User },
 ];
