@@ -66,6 +66,28 @@ const MinhaArea = () => {
       const sections = parseTrainingSections(treino.conteudo);
       const allDays = sections.flatMap(s => s.days ?? []);
       setTrainingDays(allDays);
+
+      // Fetch exercise images from DB for matching
+      const exerciseNames = allDays.flatMap(d => d.exercises.map(e => e.exercise.toUpperCase().trim()));
+      const uniqueNames = [...new Set(exerciseNames)];
+      if (uniqueNames.length > 0) {
+        const { data: dbExercises } = await supabase
+          .from('exercises')
+          .select('nome, imagem_url')
+          .not('imagem_url', 'is', null);
+        if (dbExercises) {
+          const imgMap: Record<string, string> = {};
+          for (const name of uniqueNames) {
+            const match = dbExercises.find(e =>
+              e.nome.toUpperCase().trim() === name ||
+              name.includes(e.nome.toUpperCase().trim()) ||
+              e.nome.toUpperCase().trim().includes(name)
+            );
+            if (match?.imagem_url) imgMap[name] = match.imagem_url;
+          }
+          setExerciseImages(imgMap);
+        }
+      }
     }
 
     // Latest diet plan
