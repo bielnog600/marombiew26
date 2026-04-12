@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { UtensilsCrossed, Droplets, Plus, Minus, Target, ArrowLeft, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { parseSections, type ParsedMeal, type ParsedSection } from '@/lib/dietResultParser';
+import { parseSections, type ParsedSection } from '@/lib/dietResultParser';
 import MealCard from '@/components/diet/MealCard';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
