@@ -17,8 +17,6 @@ const MinhaArea = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<any>(null);
-  const [latestAnthro, setLatestAnthro] = useState<any>(null);
-  const [latestComp, setLatestComp] = useState<any>(null);
   const [assessmentCount, setAssessmentCount] = useState(0);
   const [trainingDays, setTrainingDays] = useState<ParsedTrainingDay[]>([]);
   const [meals, setMeals] = useState<ParsedMeal[]>([]);
