@@ -21,6 +21,7 @@ const MinhaArea = () => {
   const [_trainingTitle, setTrainingTitle] = useState('');
   const [_dietTitle, setDietTitle] = useState('');
   const [exerciseImages, setExerciseImages] = useState<Record<string, string>>({});
+  const [exerciseMuscles, setExerciseMuscles] = useState<Record<string, string>>({});
   useEffect(() => {
     if (user) loadData();
   }, [user]);
@@ -73,10 +74,10 @@ const MinhaArea = () => {
       if (uniqueNames.length > 0) {
         const { data: dbExercises } = await supabase
           .from('exercises')
-          .select('nome, imagem_url')
-          .not('imagem_url', 'is', null);
+          .select('nome, imagem_url, grupo_muscular');
         if (dbExercises) {
           const imgMap: Record<string, string> = {};
+          const muscleMap: Record<string, string> = {};
           for (const name of uniqueNames) {
             const match = dbExercises.find(e =>
               e.nome.toUpperCase().trim() === name ||
@@ -84,8 +85,10 @@ const MinhaArea = () => {
               e.nome.toUpperCase().trim().includes(name)
             );
             if (match?.imagem_url) imgMap[name] = match.imagem_url;
+            if (match?.grupo_muscular) muscleMap[name] = match.grupo_muscular;
           }
           setExerciseImages(imgMap);
+          setExerciseMuscles(muscleMap);
         }
       }
     }
@@ -135,6 +138,19 @@ const MinhaArea = () => {
     }
     return workoutHero;
   }, [todayTraining, exerciseImages]);
+
+  // Main muscle groups for today's training
+  const todayMuscleGroups = useMemo(() => {
+    if (!todayTraining) return '';
+    const groups: string[] = [];
+    const startIndex = Math.min(2, todayTraining.exercises.length - 1);
+    for (let i = startIndex; i < todayTraining.exercises.length; i++) {
+      const key = todayTraining.exercises[i].exercise.toUpperCase().trim();
+      const muscle = exerciseMuscles[key];
+      if (muscle && !groups.includes(muscle)) groups.push(muscle);
+    }
+    return groups.slice(0, 3).join(' • ');
+  }, [todayTraining, exerciseMuscles]);
 
   return (
     <AppLayout>
@@ -193,6 +209,9 @@ const MinhaArea = () => {
                   <div>
                     <p className="text-[10px] uppercase tracking-widest text-primary font-semibold">{todayTraining.day}</p>
                     <h3 className="text-base font-bold text-foreground mt-0.5">Treino de Hoje</h3>
+                    {todayMuscleGroups && (
+                      <p className="text-xs text-primary/80 font-medium mt-0.5">{todayMuscleGroups}</p>
+                    )}
                     <p className="text-xs text-muted-foreground mt-0.5">{todayTraining.exercises.length} exercícios</p>
                   </div>
                   <div className="h-12 w-12 rounded-full bg-primary flex items-center justify-center shadow-lg">
