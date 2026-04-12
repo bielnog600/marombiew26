@@ -3,13 +3,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Calendar } from 'lucide-react';
 
 interface WeeklyRoutineCardProps {
-  trainingDaysCount: number;
+  completedThisWeek: number;
+  totalDays: number;
   completedToday: boolean;
 }
 
 const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
-const WeeklyRoutineCard: React.FC<WeeklyRoutineCardProps> = ({ trainingDaysCount, completedToday }) => {
+const WeeklyRoutineCard: React.FC<WeeklyRoutineCardProps> = ({ completedThisWeek, totalDays, completedToday }) => {
   const today = new Date().getDay();
 
   return (
@@ -19,7 +20,6 @@ const WeeklyRoutineCard: React.FC<WeeklyRoutineCardProps> = ({ trainingDaysCount
         <div className="flex justify-center gap-[3px] mb-1">
           {WEEKDAYS.map((d, i) => {
             const isToday = i === today;
-            const isTrainingDay = i > 0 && i <= trainingDaysCount;
             return (
               <div
                 key={i}
@@ -28,8 +28,6 @@ const WeeklyRoutineCard: React.FC<WeeklyRoutineCardProps> = ({ trainingDaysCount
                     ? 'bg-green-500 text-white scale-110 ring-1 ring-green-400/50'
                     : isToday
                     ? 'bg-primary text-primary-foreground scale-110 ring-1 ring-primary/50'
-                    : isTrainingDay
-                    ? 'bg-primary/20 text-primary'
                     : 'bg-muted text-muted-foreground'
                 }`}
               >
@@ -38,7 +36,7 @@ const WeeklyRoutineCard: React.FC<WeeklyRoutineCardProps> = ({ trainingDaysCount
             );
           })}
         </div>
-        <p className="text-lg font-bold">{trainingDaysCount}<span className="text-xs text-muted-foreground">/7</span></p>
+        <p className="text-lg font-bold">{completedThisWeek}<span className="text-xs text-muted-foreground">/{totalDays}</span></p>
         <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
           {completedToday ? '✓ Feito!' : 'Semana'}
         </p>

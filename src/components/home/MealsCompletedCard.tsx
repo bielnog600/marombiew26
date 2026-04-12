@@ -8,7 +8,7 @@ interface MealsCompletedCardProps {
 }
 
 const MealsCompletedCard: React.FC<MealsCompletedCardProps> = ({ completed, total }) => {
-  const pct = total > 0 ? (completed / total) * 100 : 0;
+  const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
 
   return (
     <Card className="glass-card">
@@ -25,8 +25,8 @@ const MealsCompletedCard: React.FC<MealsCompletedCardProps> = ({ completed, tota
               className="transition-all duration-700 ease-out"
             />
           </svg>
-          <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">
-            {completed}
+          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold">
+            {pct}%
           </span>
         </div>
         <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Refeições</p>
