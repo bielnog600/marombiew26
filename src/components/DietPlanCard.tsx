@@ -108,7 +108,7 @@ const DietPlanCard: React.FC<DietPlanCardProps> = ({ sections }) => {
         {hasDays && (
           <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1">
             {DAY_LABELS.map((label, i) => {
-              const isActive = selectedDay === i;
+              const isActive = dayIndex === i;
               const hasMealsForDay = Boolean(mealsByDay[i]?.meals?.length);
 
               return (
