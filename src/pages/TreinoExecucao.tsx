@@ -5,6 +5,7 @@ import { ArrowLeft, Play, Pause, Check, ChevronLeft, ChevronRight, Timer, X } fr
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
+import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { useAuth } from '@/contexts/AuthContext';
 import { type ParsedExercise, parseTrainingSections } from '@/lib/trainingResultParser';
 
