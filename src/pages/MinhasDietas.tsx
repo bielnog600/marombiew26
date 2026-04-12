@@ -104,7 +104,7 @@ const MinhasDietas = () => {
 
         {/* Day selector */}
         {hasDays && (
-          <div className="flex gap-1 overflow-x-auto pb-1">
+          <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             {DAY_LABELS.map((label, i) => {
               const isActive = dayIndex === i;
               const hasMealsForDay = Boolean(mealsByDay[i]?.meals?.length);
