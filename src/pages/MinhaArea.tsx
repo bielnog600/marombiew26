@@ -122,6 +122,13 @@ const MinhaArea = () => {
   // Pick an exercise image from today's training
   const todayHeroImage = useMemo(() => {
     if (!todayTraining) return workoutHero;
+    // Skip first 2 exercises (usually mobility), start from 3rd
+    const startIndex = Math.min(2, todayTraining.exercises.length - 1);
+    for (let i = startIndex; i < todayTraining.exercises.length; i++) {
+      const key = todayTraining.exercises[i].exercise.toUpperCase().trim();
+      if (exerciseImages[key]) return exerciseImages[key];
+    }
+    // Fallback: try any exercise
     for (const ex of todayTraining.exercises) {
       const key = ex.exercise.toUpperCase().trim();
       if (exerciseImages[key]) return exerciseImages[key];
