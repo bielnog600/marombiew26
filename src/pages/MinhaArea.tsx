@@ -22,6 +22,7 @@ const MinhaArea = () => {
   const [_dietTitle, setDietTitle] = useState('');
   const [exerciseImages, setExerciseImages] = useState<Record<string, string>>({});
   const [exerciseMuscles, setExerciseMuscles] = useState<Record<string, string>>({});
+  const [exerciseMedia, setExerciseMedia] = useState<Record<string, { imageUrl?: string; videoEmbed?: string; muscleGroup?: string }>>({});
   useEffect(() => {
     if (user) loadData();
   }, [user]);
@@ -74,10 +75,11 @@ const MinhaArea = () => {
       if (uniqueNames.length > 0) {
         const { data: dbExercises } = await supabase
           .from('exercises')
-          .select('nome, imagem_url, grupo_muscular');
+          .select('nome, imagem_url, grupo_muscular, video_embed');
         if (dbExercises) {
           const imgMap: Record<string, string> = {};
           const muscleMap: Record<string, string> = {};
+          const mediaMap: Record<string, { imageUrl?: string; videoEmbed?: string; muscleGroup?: string }> = {};
           for (const name of uniqueNames) {
             const match = dbExercises.find(e =>
               e.nome.toUpperCase().trim() === name ||
@@ -86,9 +88,17 @@ const MinhaArea = () => {
             );
             if (match?.imagem_url) imgMap[name] = match.imagem_url;
             if (match?.grupo_muscular) muscleMap[name] = match.grupo_muscular;
+            if (match) {
+              mediaMap[name] = {
+                imageUrl: match.imagem_url || undefined,
+                videoEmbed: match.video_embed || undefined,
+                muscleGroup: match.grupo_muscular || undefined,
+              };
+            }
           }
           setExerciseImages(imgMap);
           setExerciseMuscles(muscleMap);
+          setExerciseMedia(mediaMap);
         }
       }
     }
@@ -195,7 +205,13 @@ const MinhaArea = () => {
         {todayTraining && (
           <Card
             className="glass-card overflow-hidden cursor-pointer group"
-            onClick={() => navigate('/treino-execucao', { state: { exercises: todayTraining.exercises, dayName: todayTraining.day } })}
+            onClick={() => navigate('/treino-execucao', {
+              state: {
+                exercises: todayTraining.exercises,
+                dayName: todayTraining.day,
+                exerciseMedia,
+              },
+            })}
           >
             <div className="relative h-40 overflow-hidden">
               <img
