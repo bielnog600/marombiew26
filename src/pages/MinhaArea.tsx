@@ -136,6 +136,13 @@ const MinhaArea = () => {
     return mealSections[dayIndex]?.meals?.length ?? 0;
   }, [dietSections]);
 
+  const completedTodayMealsCount = useMemo(() => {
+    if (todayMealCount <= 0) return 0;
+    return [...new Set(tracking.meals_completed)].filter(
+      (mealIndex) => Number.isInteger(mealIndex) && mealIndex >= 0 && mealIndex < todayMealCount,
+    ).length;
+  }, [tracking.meals_completed, todayMealCount]);
+
   // Today's training (cycle through days based on weekday)
   const todayIndex = trainingDays.length > 0 ? new Date().getDay() % trainingDays.length : 0;
   const todayTraining = trainingDays[todayIndex];
@@ -240,7 +247,7 @@ const MinhaArea = () => {
             onRemove={removeWater}
           />
           <MealsCompletedCard
-            completed={tracking.meals_completed.length}
+            completed={completedTodayMealsCount}
             total={todayMealCount}
           />
         </div>
