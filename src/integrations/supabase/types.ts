@@ -444,6 +444,33 @@ export type Database = {
         }
         Relationships: []
       }
+      exercises: {
+        Row: {
+          created_at: string
+          grupo_muscular: string
+          id: string
+          imagem_url: string | null
+          nome: string
+          video_embed: string | null
+        }
+        Insert: {
+          created_at?: string
+          grupo_muscular: string
+          id?: string
+          imagem_url?: string | null
+          nome: string
+          video_embed?: string | null
+        }
+        Update: {
+          created_at?: string
+          grupo_muscular?: string
+          id?: string
+          imagem_url?: string | null
+          nome?: string
+          video_embed?: string | null
+        }
+        Relationships: []
+      }
       foods: {
         Row: {
           calories: number
