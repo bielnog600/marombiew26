@@ -129,46 +129,14 @@ const MinhasDietas = () => {
           </div>
         )}
 
-        {/* Macro summary */}
-        <div className="grid grid-cols-4 gap-2">
-          <div className="text-center p-2 rounded-lg bg-secondary/50">
-            <p className="text-sm font-bold text-primary">{Math.round(totalKcal)}</p>
-            <p className="text-[9px] text-muted-foreground uppercase tracking-wider">kcal</p>
-          </div>
-          <div className="text-center p-2 rounded-lg bg-secondary/50">
-            <p className="text-sm font-bold text-chart-2">{Math.round(totalP)}g</p>
-            <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Proteína</p>
-          </div>
-          <div className="text-center p-2 rounded-lg bg-secondary/50">
-            <p className="text-sm font-bold text-chart-3">{Math.round(totalC)}g</p>
-            <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Carbs</p>
-          </div>
-          <div className="text-center p-2 rounded-lg bg-secondary/50">
-            <p className="text-sm font-bold text-chart-5">{Math.round(totalG)}g</p>
-            <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Gordura</p>
-          </div>
-        </div>
-
-        {/* Meals */}
-        <div className="space-y-3">
-          {currentMeals.map((meal, i) => (
-            <MealCard
-              key={`${meal.name}-${meal.time || 'sem-hora'}-${i}`}
-              meal={meal}
-              index={i}
-              onCopy={() => null}
-            />
-          ))}
-        </div>
-
-        {/* Daily targets */}
+        {/* Daily targets - TOP */}
         {targets && (
           <div className="rounded-xl border border-border/50 bg-secondary/20 p-3 space-y-3">
             <div className="flex items-center gap-2">
               <Target className="h-4 w-4 text-primary" />
               <p className="text-xs font-semibold text-foreground">Metas do dia</p>
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="grid grid-cols-4 gap-2">
               <div className="rounded-lg bg-background/70 p-2 text-center">
                 <p className="text-sm font-bold text-primary">{formatValue(targets.calories, ' kcal')}</p>
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Calorias</p>
@@ -189,7 +157,35 @@ const MinhasDietas = () => {
           </div>
         )}
 
-        {/* Water counter */}
+        {/* Macro summary (fallback when no targets parsed) */}
+        {!targets && currentMeals.length > 0 && (
+          <div className="rounded-xl border border-border/50 bg-secondary/20 p-3 space-y-3">
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-primary" />
+              <p className="text-xs font-semibold text-foreground">Totais do dia</p>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              <div className="rounded-lg bg-background/70 p-2 text-center">
+                <p className="text-sm font-bold text-primary">{Math.round(totalKcal)}</p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">kcal</p>
+              </div>
+              <div className="rounded-lg bg-background/70 p-2 text-center">
+                <p className="text-sm font-bold text-chart-2">{Math.round(totalP)}g</p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Proteína</p>
+              </div>
+              <div className="rounded-lg bg-background/70 p-2 text-center">
+                <p className="text-sm font-bold text-chart-3">{Math.round(totalC)}g</p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Carbs</p>
+              </div>
+              <div className="rounded-lg bg-background/70 p-2 text-center">
+                <p className="text-sm font-bold text-chart-5">{Math.round(totalG)}g</p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Gordura</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Water counter - TOP */}
         <div className="rounded-xl border border-border/50 bg-secondary/30 p-3 space-y-3">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -226,6 +222,20 @@ const MinhasDietas = () => {
             ))}
           </div>
         </div>
+
+        {/* Meals */}
+        {currentMeals.length > 0 && (
+          <div className="space-y-3">
+            {currentMeals.map((meal, i) => (
+              <MealCard
+                key={`${meal.name}-${meal.time || 'sem-hora'}-${i}`}
+                meal={meal}
+                index={i}
+                onCopy={() => null}
+              />
+            ))}
+          </div>
+        )}
 
         {currentMeals.length === 0 && (
           <Card className="glass-card">
