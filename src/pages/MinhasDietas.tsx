@@ -48,6 +48,27 @@ const MinhasDietas = () => {
     if (user) loadDiet();
   }, [user]);
 
+  // Realtime: re-fetch when admin edits diet plans
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel('minhas-dietas-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'ai_plans',
+          filter: `student_id=eq.${user.id}`,
+        },
+        () => {
+          loadDiet();
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
+
   const loadDiet = async () => {
     const { data: dieta } = await supabase
       .from('ai_plans')

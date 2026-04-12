@@ -19,6 +19,27 @@ const MeusTreinos = () => {
     if (user) loadTraining();
   }, [user]);
 
+  // Realtime: re-fetch when admin edits training plans
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel('meus-treinos-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'ai_plans',
+          filter: `student_id=eq.${user.id}`,
+        },
+        () => {
+          loadTraining();
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
+
   const loadTraining = async () => {
     const { data: treino } = await supabase
       .from('ai_plans')
