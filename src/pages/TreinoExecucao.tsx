@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Hls from 'hls.js';
-import { ArrowLeft, Play, Pause, Check, ChevronLeft, ChevronRight, Timer, X, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Play, Pause, Check, ChevronLeft, ChevronRight, Timer, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
@@ -383,13 +383,22 @@ const TreinoExecucao = () => {
           <ArrowLeft className="h-5 w-5 text-foreground" />
         </button>
 
-        <div className="absolute top-4 right-4 z-30 bg-background/80 backdrop-blur rounded-full px-3 py-1">
-          <span className="text-xs font-medium text-foreground">{currentIndex + 1}/{exercises.length}</span>
+        <div className="absolute top-4 right-4 z-30 flex items-center gap-2">
+          <span className="bg-background/80 backdrop-blur rounded-full px-3 py-1 text-xs font-medium text-foreground">{currentIndex + 1}/{exercises.length}</span>
         </div>
+
+        {exercise.variation && (
+          <button
+            onClick={() => setShowingVariation(!showingVariation)}
+            className={`absolute bottom-20 right-4 z-30 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider backdrop-blur transition-colors ${showingVariation ? 'bg-primary text-primary-foreground' : 'bg-background/80 text-foreground border border-border/50'}`}
+          >
+            {showingVariation ? 'Original' : 'Variação'}
+          </button>
+        )}
 
         <div className="absolute bottom-0 left-0 right-0 p-4 z-30">
           <p className="text-[10px] uppercase tracking-widest text-primary font-semibold mb-1">{activeExercise?.grupo_muscular || dayName}</p>
-          <h1 className="text-xl font-bold text-foreground leading-tight">{exercise.exercise}</h1>
+          <h1 className="text-xl font-bold text-foreground leading-tight">{showingVariation && exercise.variation ? exercise.variation : exercise.exercise}</h1>
           {exercise.description && <p className="text-xs text-muted-foreground mt-1">{exercise.description}</p>}
           <div className="flex items-center gap-3 mt-2 flex-wrap">
             {exercise.series && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.series} séries</span>}
@@ -425,22 +434,6 @@ const TreinoExecucao = () => {
           ))}
         </div>
 
-        {exercise.variation && (
-          <div className="bg-secondary/30 p-3 rounded-lg space-y-2">
-            <p className="text-xs text-muted-foreground">
-              <span className="font-semibold text-foreground">Variação:</span> {exercise.variation}
-            </p>
-            <Button
-              variant={showingVariation ? 'default' : 'outline'}
-              size="sm"
-              className="w-full gap-2 text-xs"
-              onClick={() => setShowingVariation(!showingVariation)}
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${showingVariation ? 'animate-spin' : ''}`} style={showingVariation ? { animationDuration: '1s', animationIterationCount: '1' } : {}} />
-              {showingVariation ? 'Voltar ao original' : 'Ver vídeo da variação'}
-            </Button>
-          </div>
-        )}
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-t border-border p-3" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}>
