@@ -3,12 +3,13 @@ import AppLayout from '@/components/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { UtensilsCrossed, Droplets, Plus, Minus, Target, ArrowLeft } from 'lucide-react';
+import { UtensilsCrossed, Droplets, Plus, Minus, Target, ArrowLeft, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { parseSections, type ParsedMeal, type ParsedSection } from '@/lib/dietResultParser';
 import MealCard from '@/components/diet/MealCard';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
+import { useDailyTracking } from '@/hooks/useDailyTracking';
 
 const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -40,7 +41,7 @@ const MinhasDietas = () => {
   const navigate = useNavigate();
   const [sections, setSections] = useState<ParsedSection[]>([]);
   const [selectedDay, setSelectedDay] = useState(new Date().getDay());
-  const [waterCount, setWaterCount] = useState(0);
+  const { tracking, addWater, removeWater, toggleMeal } = useDailyTracking();
   const waterGoal = 8;
 
   useEffect(() => {
