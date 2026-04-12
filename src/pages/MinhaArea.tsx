@@ -247,7 +247,7 @@ const MinhaArea = () => {
             onRemove={removeWater}
           />
           <MealsCompletedCard
-            completed={tracking.meals_completed.length}
+            completed={completedTodayMealsCount}
             total={todayMealCount}
           />
         </div>
