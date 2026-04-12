@@ -274,6 +274,39 @@ export type Database = {
           },
         ]
       }
+      daily_tracking: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          meals_completed: Json
+          student_id: string
+          updated_at: string
+          water_glasses: number
+          workout_completed: boolean
+        }
+        Insert: {
+          created_at?: string
+          date?: string
+          id?: string
+          meals_completed?: Json
+          student_id: string
+          updated_at?: string
+          water_glasses?: number
+          workout_completed?: boolean
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          meals_completed?: Json
+          student_id?: string
+          updated_at?: string
+          water_glasses?: number
+          workout_completed?: boolean
+        }
+        Relationships: []
+      }
       diet_questionnaires: {
         Row: {
           alimentos_por_refeicao: Json | null
