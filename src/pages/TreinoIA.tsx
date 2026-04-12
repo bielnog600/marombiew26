@@ -645,7 +645,7 @@ GERE TUDO DE UMA VEZ:
                 </Button>
               </div>
             </div>
-            <TrainingResultCards markdown={result} />
+            <TrainingResultCards markdown={result} editable={!!editPlanId} onMarkdownChange={setResult} />
           </div>
         )}
       </div>
