@@ -1,8 +1,10 @@
-import React from 'react';
-import { Dumbbell } from 'lucide-react';
+import React, { useState } from 'react';
+import { Dumbbell, Pencil, Check } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { ParsedTrainingDay } from '@/lib/trainingResultParser';
+import type { ParsedTrainingDay, ParsedExercise } from '@/lib/trainingResultParser';
 
 const DAY_SURFACES = [
   'bg-gradient-to-br from-primary/12 to-accent/8 border-primary/25',
@@ -24,10 +26,46 @@ interface TrainingDayCardProps {
   day: ParsedTrainingDay;
   index: number;
   onCopy: (text: string, label?: string) => React.ReactNode;
+  editable?: boolean;
+  onDayChange?: (updatedDay: ParsedTrainingDay) => void;
 }
 
-const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy }) => {
+const EDITABLE_FIELDS: { key: keyof ParsedExercise; label: string }[] = [
+  { key: 'exercise', label: 'Exercício' },
+  { key: 'series', label: 'Séries' },
+  { key: 'series2', label: 'Séries 2' },
+  { key: 'reps', label: 'Reps' },
+  { key: 'rir', label: 'RIR' },
+  { key: 'pause', label: 'Pausa' },
+  { key: 'variation', label: 'Variação' },
+];
+
+const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, editable, onDayChange }) => {
   const surface = DAY_SURFACES[index % DAY_SURFACES.length];
+  const [editing, setEditing] = useState(false);
+  const [localExercises, setLocalExercises] = useState<ParsedExercise[]>(day.exercises);
+
+  const handleFieldChange = (exIndex: number, field: keyof ParsedExercise, value: string) => {
+    setLocalExercises(prev => {
+      const copy = [...prev];
+      copy[exIndex] = { ...copy[exIndex], [field]: value };
+      return copy;
+    });
+  };
+
+  const commitEdits = () => {
+    setEditing(false);
+    if (onDayChange) {
+      onDayChange({ ...day, exercises: localExercises });
+    }
+  };
+
+  const startEditing = () => {
+    setLocalExercises(day.exercises);
+    setEditing(true);
+  };
+
+  const displayExercises = editing ? localExercises : day.exercises;
 
   return (
     <Card className={`overflow-hidden border ${surface}`}>
@@ -38,7 +76,19 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy })
             <h4 className="font-semibold text-sm">{day.day}</h4>
             <span className="text-xs text-muted-foreground">({day.exercises.length} exercícios)</span>
           </div>
-          {onCopy(buildDayCopyText(day))}
+          <div className="flex items-center gap-1">
+            {editable && !editing && (
+              <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={startEditing}>
+                <Pencil className="h-3 w-3" /> Editar
+              </Button>
+            )}
+            {editing && (
+              <Button variant="default" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={commitEdits}>
+                <Check className="h-3 w-3" /> Confirmar
+              </Button>
+            )}
+            {onCopy(buildDayCopyText(day))}
+          </div>
         </div>
 
         <div className="px-2 py-2 overflow-x-auto">
@@ -57,19 +107,33 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy })
               </TableRow>
             </TableHeader>
             <TableBody>
-              {day.exercises.map((ex, exIndex) => (
+              {displayExercises.map((ex, exIndex) => (
                 <TableRow key={`${day.day}-${ex.exercise}-${exIndex}`}>
                   <TableCell className="px-3 py-2 font-semibold text-primary align-top whitespace-nowrap">{day.day}</TableCell>
-                  <TableCell className="px-3 py-2 font-medium align-top">{ex.exercise}</TableCell>
-                  <TableCell className="px-3 py-2 text-center align-top">{ex.series || '—'}</TableCell>
-                  <TableCell className="px-3 py-2 text-center align-top">{ex.series2 || '—'}</TableCell>
-                  <TableCell className="px-3 py-2 text-center align-top">{ex.reps || '—'}</TableCell>
-                  <TableCell className="px-3 py-2 text-center align-top">{ex.rir || '—'}</TableCell>
-                  <TableCell className="px-3 py-2 text-center align-top">{ex.pause || '—'}</TableCell>
+                  <TableCell className="px-3 py-2 font-medium align-top">
+                    {editing ? <Input value={ex.exercise} onChange={e => handleFieldChange(exIndex, 'exercise', e.target.value)} className="h-7 text-xs min-w-[120px]" /> : ex.exercise}
+                  </TableCell>
+                  <TableCell className="px-3 py-2 text-center align-top">
+                    {editing ? <Input value={ex.series} onChange={e => handleFieldChange(exIndex, 'series', e.target.value)} className="h-7 text-xs w-14 text-center" /> : (ex.series || '—')}
+                  </TableCell>
+                  <TableCell className="px-3 py-2 text-center align-top">
+                    {editing ? <Input value={ex.series2} onChange={e => handleFieldChange(exIndex, 'series2', e.target.value)} className="h-7 text-xs w-14 text-center" /> : (ex.series2 || '—')}
+                  </TableCell>
+                  <TableCell className="px-3 py-2 text-center align-top">
+                    {editing ? <Input value={ex.reps} onChange={e => handleFieldChange(exIndex, 'reps', e.target.value)} className="h-7 text-xs w-14 text-center" /> : (ex.reps || '—')}
+                  </TableCell>
+                  <TableCell className="px-3 py-2 text-center align-top">
+                    {editing ? <Input value={ex.rir} onChange={e => handleFieldChange(exIndex, 'rir', e.target.value)} className="h-7 text-xs w-14 text-center" /> : (ex.rir || '—')}
+                  </TableCell>
+                  <TableCell className="px-3 py-2 text-center align-top">
+                    {editing ? <Input value={ex.pause} onChange={e => handleFieldChange(exIndex, 'pause', e.target.value)} className="h-7 text-xs w-16 text-center" /> : (ex.pause || '—')}
+                  </TableCell>
                   <TableCell className="px-3 py-2 align-top text-muted-foreground hidden sm:table-cell max-w-[200px]">
                     {ex.description || '—'}
                   </TableCell>
-                  <TableCell className="px-3 py-2 align-top text-muted-foreground">{ex.variation || '—'}</TableCell>
+                  <TableCell className="px-3 py-2 align-top text-muted-foreground">
+                    {editing ? <Input value={ex.variation} onChange={e => handleFieldChange(exIndex, 'variation', e.target.value)} className="h-7 text-xs min-w-[100px]" /> : (ex.variation || '—')}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
