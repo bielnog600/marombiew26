@@ -20,6 +20,7 @@ const adminItems = [
 const alunoItems = [
   { title: 'Minha Área', url: '/minha-area', icon: LayoutDashboard },
   { title: 'Minhas Avaliações', url: '/minhas-avaliacoes', icon: ClipboardList },
+  { title: 'Perfil', url: '/perfil', icon: User },
 ];
 
 const futureItems: any[] = [];
