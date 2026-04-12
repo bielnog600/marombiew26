@@ -138,9 +138,9 @@ const MinhaArea = () => {
 
   const completedTodayMealsCount = useMemo(() => {
     if (todayMealCount <= 0) return 0;
-    return [...new Set(tracking.meals_completed)].filter(
-      (mealIndex) => Number.isInteger(mealIndex) && mealIndex >= 0 && mealIndex < todayMealCount,
-    ).length;
+    return [...new Set(tracking.meals_completed)]
+      .map((mealIndex) => Number(mealIndex))
+      .filter((mealIndex) => Number.isInteger(mealIndex) && mealIndex >= 0 && mealIndex < todayMealCount).length;
   }, [tracking.meals_completed, todayMealCount]);
 
   // Today's training (cycle through days based on weekday)
