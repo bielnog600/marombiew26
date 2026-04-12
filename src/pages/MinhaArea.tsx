@@ -209,6 +209,9 @@ const MinhaArea = () => {
                   <div>
                     <p className="text-[10px] uppercase tracking-widest text-primary font-semibold">{todayTraining.day}</p>
                     <h3 className="text-base font-bold text-foreground mt-0.5">Treino de Hoje</h3>
+                    {todayMuscleGroups && (
+                      <p className="text-xs text-primary/80 font-medium mt-0.5">{todayMuscleGroups}</p>
+                    )}
                     <p className="text-xs text-muted-foreground mt-0.5">{todayTraining.exercises.length} exercícios</p>
                   </div>
                   <div className="h-12 w-12 rounded-full bg-primary flex items-center justify-center shadow-lg">
