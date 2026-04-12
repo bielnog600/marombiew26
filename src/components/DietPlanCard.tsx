@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { UtensilsCrossed, ChevronRight, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { ParsedSection } from '@/lib/dietResultParser';
@@ -73,7 +73,7 @@ const DietPlanCard: React.FC<DietPlanCardProps> = ({ sections, mealsCompleted = 
                     {done && <Check className="h-3 w-3 text-white" />}
                   </div>
                   <span className={`text-xs font-medium truncate ${done ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
-                    {meal.title}
+                    {meal.name}
                   </span>
                 </button>
               );
