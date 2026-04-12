@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Play, Pause, RotateCcw, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Play, Pause, Check, ChevronLeft, ChevronRight, Timer, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,6 +19,127 @@ interface ExerciseDBData {
   grupo_muscular: string;
 }
 
+/** Extract the Cloudflare Stream video ID from embed HTML */
+const extractStreamVideoId = (embed: string | null | undefined): string | null => {
+  if (!embed) return null;
+  // Match the video ID from cloudflarestream.com URLs
+  const match = embed.match(/cloudflarestream\.com\/([a-f0-9]{32})\//);
+  return match ? match[1] : null;
+};
+
+/** Extract iframe src as fallback */
+const getVideoUrl = (embed: string | null | undefined): string | null => {
+  if (!embed) return null;
+  const match = embed.match(/src="([^"]+)"/);
+  return match ? match[1] : null;
+};
+
+const RestTimerOverlay = ({ 
+  totalSeconds, 
+  onClose 
+}: { 
+  totalSeconds: number; 
+  onClose: () => void;
+}) => {
+  const [timeLeft, setTimeLeft] = useState(totalSeconds);
+  const [isRunning, setIsRunning] = useState(true);
+
+  useEffect(() => {
+    if (!isRunning || timeLeft <= 0) return;
+    const id = setInterval(() => setTimeLeft(t => t - 1), 1000);
+    return () => clearInterval(id);
+  }, [isRunning, timeLeft]);
+
+  useEffect(() => {
+    if (timeLeft <= 0) {
+      // Vibrate if available
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    }
+  }, [timeLeft]);
+
+  const radius = 54;
+  const circumference = 2 * Math.PI * radius;
+  const progress = totalSeconds > 0 ? timeLeft / totalSeconds : 0;
+  const dashOffset = circumference * (1 - progress);
+
+  const mins = Math.floor(Math.abs(timeLeft) / 60);
+  const secs = Math.abs(timeLeft) % 60;
+  const display = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in">
+      {/* Close */}
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 h-10 w-10 rounded-full bg-secondary flex items-center justify-center"
+      >
+        <X className="h-5 w-5 text-foreground" />
+      </button>
+
+      <p className="text-sm uppercase tracking-widest text-muted-foreground mb-8 font-semibold">Descanso</p>
+
+      {/* Circular spinner */}
+      <div className="relative w-48 h-48">
+        <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
+          {/* Background circle */}
+          <circle
+            cx="60" cy="60" r={radius}
+            fill="none"
+            stroke="hsl(var(--secondary))"
+            strokeWidth="6"
+          />
+          {/* Progress circle */}
+          <circle
+            cx="60" cy="60" r={radius}
+            fill="none"
+            stroke={timeLeft <= 0 ? 'hsl(var(--destructive))' : 'hsl(45, 100%, 50%)'}
+            strokeWidth="6"
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={dashOffset}
+            className="transition-[stroke-dashoffset] duration-1000 ease-linear"
+          />
+        </svg>
+        {/* Time display */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className={`text-5xl font-mono font-bold tabular-nums ${timeLeft <= 0 ? 'text-destructive' : 'text-foreground'}`}>
+            {timeLeft < 0 && '+'}{display}
+          </span>
+          {timeLeft <= 0 && (
+            <span className="text-xs text-destructive mt-1 animate-pulse">Tempo excedido</span>
+          )}
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div className="flex items-center gap-4 mt-10">
+        <Button
+          size="lg"
+          variant="outline"
+          className="rounded-full h-14 w-14"
+          onClick={() => setIsRunning(!isRunning)}
+        >
+          {isRunning ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
+        </Button>
+        <Button
+          size="lg"
+          className="rounded-full h-14 px-8 bg-[hsl(45,100%,50%)] text-[hsl(220,20%,7%)] hover:bg-[hsl(45,100%,45%)] font-bold"
+          onClick={onClose}
+        >
+          Continuar
+        </Button>
+      </div>
+
+      {/* Quick adjust */}
+      <div className="flex items-center gap-3 mt-6">
+        <button onClick={() => setTimeLeft(t => t + 15)} className="text-xs text-muted-foreground bg-secondary px-3 py-1.5 rounded-full">+15s</button>
+        <button onClick={() => setTimeLeft(t => t + 30)} className="text-xs text-muted-foreground bg-secondary px-3 py-1.5 rounded-full">+30s</button>
+        <button onClick={() => setTimeLeft(t => t + 60)} className="text-xs text-muted-foreground bg-secondary px-3 py-1.5 rounded-full">+60s</button>
+      </div>
+    </div>
+  );
+};
+
 const TreinoExecucao = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -26,10 +147,9 @@ const TreinoExecucao = () => {
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [sets, setSets] = useState<Record<number, ExerciseSet[]>>({});
-  const [timerActive, setTimerActive] = useState(false);
-  const [timerSeconds, setTimerSeconds] = useState(0);
-  const [restMode, setRestMode] = useState(false);
   const [exerciseDB, setExerciseDB] = useState<ExerciseDBData[]>([]);
+  const [showRestTimer, setShowRestTimer] = useState(false);
+  const [restDuration, setRestDuration] = useState(60);
 
   const exercise = exercises[currentIndex];
   const totalSeries = parseInt(exercise?.series || '3') || 3;
@@ -45,19 +165,17 @@ const TreinoExecucao = () => {
     loadExercises();
   }, []);
 
-  // Match current exercise to DB by fuzzy name
+  // Match current exercise to DB
   const matchedExercise = useMemo(() => {
     if (!exercise || exerciseDB.length === 0) return null;
     const name = exercise.exercise.toUpperCase().trim();
-    // Try exact match first
     let match = exerciseDB.find(e => e.nome.toUpperCase().trim() === name);
     if (match) return match;
-    // Try contains match
     match = exerciseDB.find(e => name.includes(e.nome.toUpperCase().trim()) || e.nome.toUpperCase().trim().includes(name));
     return match || null;
   }, [exercise, exerciseDB]);
 
-  // Initialize sets for current exercise
+  // Initialize sets
   useEffect(() => {
     if (!sets[currentIndex]) {
       setSets(prev => ({
@@ -71,32 +189,13 @@ const TreinoExecucao = () => {
     }
   }, [currentIndex, totalSeries]);
 
-  // Timer
+  // Parse rest duration from exercise
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (timerActive) {
-      interval = setInterval(() => setTimerSeconds(s => s + 1), 1000);
+    if (exercise?.pause) {
+      const match = exercise.pause.match(/(\d+)/);
+      if (match) setRestDuration(parseInt(match[1]));
     }
-    return () => clearInterval(interval);
-  }, [timerActive]);
-
-  const formatTime = (s: number) => {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
-  };
-
-  const toggleTimer = () => {
-    if (restMode && !timerActive) setTimerSeconds(0);
-    setTimerActive(!timerActive);
-    setRestMode(true);
-  };
-
-  const resetTimer = () => {
-    setTimerActive(false);
-    setTimerSeconds(0);
-    setRestMode(false);
-  };
+  }, [exercise]);
 
   const updateSet = (setIndex: number, field: 'reps' | 'weight', value: string) => {
     setSets(prev => {
@@ -109,12 +208,12 @@ const TreinoExecucao = () => {
   const toggleSetComplete = (setIndex: number) => {
     setSets(prev => {
       const current = [...(prev[currentIndex] || [])];
-      current[setIndex] = { ...current[setIndex], completed: !current[setIndex].completed };
+      const wasCompleted = current[setIndex].completed;
+      current[setIndex] = { ...current[setIndex], completed: !wasCompleted };
       return { ...prev, [currentIndex]: current };
     });
-    resetTimer();
-    setRestMode(true);
-    setTimerActive(true);
+    // Auto-open rest timer when completing a set
+    setShowRestTimer(true);
   };
 
   const currentSets = sets[currentIndex] || [];
@@ -130,35 +229,53 @@ const TreinoExecucao = () => {
     );
   }
 
-  // Extract iframe src from embed HTML for clean rendering
-  const getVideoUrl = (embed: string | null | undefined): string | null => {
-    if (!embed) return null;
-    const match = embed.match(/src="([^"]+)"/);
-    return match ? match[1] : null;
-  };
-
-  const videoUrl = getVideoUrl(matchedExercise?.video_embed);
+  const streamVideoId = extractStreamVideoId(matchedExercise?.video_embed);
+  const iframeVideoUrl = getVideoUrl(matchedExercise?.video_embed);
   const imageUrl = matchedExercise?.imagem_url;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      {/* Rest Timer Overlay */}
+      {showRestTimer && (
+        <RestTimerOverlay
+          totalSeconds={restDuration}
+          onClose={() => setShowRestTimer(false)}
+        />
+      )}
+
       {/* Video / Visual Area */}
       <div className="relative w-full aspect-video bg-secondary/30 overflow-hidden">
-        {videoUrl ? (
+        {streamVideoId ? (
+          // Use Cloudflare Stream HLS for native autoplay on iOS
+          <video
+            key={streamVideoId}
+            className="absolute inset-0 w-full h-full object-cover"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="auto"
+            poster={`https://customer-vqfal80lir76xyf0.cloudflarestream.com/${streamVideoId}/thumbnails/thumbnail.jpg?height=600`}
+          >
+            <source
+              src={`https://customer-vqfal80lir76xyf0.cloudflarestream.com/${streamVideoId}/manifest/video.m3u8`}
+              type="application/x-mpegURL"
+            />
+            <source
+              src={`https://customer-vqfal80lir76xyf0.cloudflarestream.com/${streamVideoId}/manifest/video.mpd`}
+              type="application/dash+xml"
+            />
+          </video>
+        ) : iframeVideoUrl ? (
           <iframe
-            src={videoUrl.includes('autoplay=true') ? videoUrl : `${videoUrl}${videoUrl.includes('?') ? '&' : '?'}autoplay=true&muted=true&loop=true`}
+            src={iframeVideoUrl.includes('autoplay=true') ? iframeVideoUrl : `${iframeVideoUrl}${iframeVideoUrl.includes('?') ? '&' : '?'}autoplay=true&muted=true&loop=true`}
             className="absolute inset-0 w-full h-full"
             style={{ border: 'none' }}
             allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
             allowFullScreen
-            // @ts-ignore
-            playsInline
-          />) : imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={exercise.exercise}
-            className="w-full h-full object-cover"
           />
+        ) : imageUrl ? (
+          <img src={imageUrl} alt={exercise.exercise} className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <span className="text-muted-foreground text-sm">Sem mídia disponível</span>
@@ -218,30 +335,14 @@ const TreinoExecucao = () => {
 
       {/* Content */}
       <div className="flex-1 p-4 space-y-4 pb-28">
-        {/* Timer */}
-        <div className="flex items-center justify-center gap-3">
-          <div className={`text-3xl font-mono font-bold tabular-nums ${restMode && timerActive ? 'text-primary' : 'text-foreground'}`}>
-            {formatTime(timerSeconds)}
-          </div>
-          <div className="flex gap-2">
-            <Button
-              size="icon"
-              variant={timerActive ? 'default' : 'outline'}
-              className="h-10 w-10 rounded-full"
-              onClick={toggleTimer}
-            >
-              {timerActive ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-10 w-10 rounded-full"
-              onClick={resetTimer}
-            >
-              <RotateCcw className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+        {/* Rest Timer Button - Yellow */}
+        <Button
+          className="w-full h-12 rounded-xl bg-[hsl(45,100%,50%)] text-[hsl(220,20%,7%)] hover:bg-[hsl(45,100%,45%)] font-bold text-sm gap-2"
+          onClick={() => setShowRestTimer(true)}
+        >
+          <Timer className="h-5 w-5" />
+          Descanso — {restDuration}s
+        </Button>
 
         {/* Sets table */}
         <div className="space-y-2">
@@ -301,7 +402,7 @@ const TreinoExecucao = () => {
           <Button
             variant="outline"
             className="flex-1"
-            onClick={() => { setCurrentIndex(Math.max(0, currentIndex - 1)); resetTimer(); }}
+            onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
             disabled={currentIndex === 0}
           >
             <ChevronLeft className="h-4 w-4 mr-1" />
@@ -310,7 +411,7 @@ const TreinoExecucao = () => {
           {currentIndex < exercises.length - 1 ? (
             <Button
               className="flex-1"
-              onClick={() => { setCurrentIndex(currentIndex + 1); resetTimer(); }}
+              onClick={() => setCurrentIndex(currentIndex + 1)}
             >
               Próximo
               <ChevronRight className="h-4 w-4 ml-1" />
