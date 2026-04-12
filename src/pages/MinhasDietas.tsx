@@ -3,7 +3,7 @@ import AppLayout from '@/components/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { UtensilsCrossed, Droplets, Plus, Minus, Target, ArrowLeft, Check } from 'lucide-react';
+import { UtensilsCrossed, Droplets, Plus, Minus, Target, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { parseSections, type ParsedSection } from '@/lib/dietResultParser';
 import MealCard from '@/components/diet/MealCard';

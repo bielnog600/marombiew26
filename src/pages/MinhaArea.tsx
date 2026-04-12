@@ -12,7 +12,6 @@ import { useNavigate } from 'react-router-dom';
 import workoutHero from '@/assets/workout-hero.jpg';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { parseSections, type ParsedMeal, type ParsedSection } from '@/lib/dietResultParser';
-import { useMemo } from 'react';
 import DietPlanCard from '@/components/DietPlanCard';
 
 const MinhaArea = () => {
