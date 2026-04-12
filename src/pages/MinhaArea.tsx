@@ -126,6 +126,16 @@ const MinhaArea = () => {
     return 'Boa noite';
   })();
 
+  // Compute today's meal count (same logic as MinhasDietas)
+  const todayMealCount = useMemo(() => {
+    const mealSections = dietSections.filter(s => s.type === 'meal' && s.meals && s.meals.length > 0);
+    if (mealSections.length <= 1) {
+      return dietSections.filter(s => s.type === 'meal' && s.meals).flatMap(s => s.meals!).length;
+    }
+    const dayIndex = new Date().getDay() % mealSections.length;
+    return mealSections[dayIndex]?.meals?.length ?? 0;
+  }, [dietSections]);
+
   // Today's training (cycle through days based on weekday)
   const todayIndex = trainingDays.length > 0 ? new Date().getDay() % trainingDays.length : 0;
   const todayTraining = trainingDays[todayIndex];
@@ -231,7 +241,7 @@ const MinhaArea = () => {
           />
           <MealsCompletedCard
             completed={tracking.meals_completed.length}
-            total={meals.length}
+            total={todayMealCount}
           />
         </div>
         {/* No plans message */}

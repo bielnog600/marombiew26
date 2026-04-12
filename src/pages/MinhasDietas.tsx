@@ -3,7 +3,7 @@ import AppLayout from '@/components/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { UtensilsCrossed, Droplets, Plus, Minus, Target, ArrowLeft, Check } from 'lucide-react';
+import { UtensilsCrossed, Droplets, Plus, Minus, Target, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { parseSections, type ParsedSection } from '@/lib/dietResultParser';
 import MealCard from '@/components/diet/MealCard';
@@ -230,18 +230,14 @@ const MinhasDietas = () => {
             {currentMeals.map((meal, i) => {
               const done = tracking.meals_completed.includes(i);
               return (
-                <div key={`${meal.name}-${meal.time || 'sem-hora'}-${i}`} className="relative">
-                  <button
-                    onClick={() => toggleMeal(i)}
-                    className={`absolute -left-1 top-3 z-10 h-6 w-6 rounded-full flex items-center justify-center transition-all duration-300 ${
-                      done ? 'bg-green-500 scale-110' : 'border-2 border-muted-foreground/30 bg-background'
-                    }`}
-                  >
-                    {done && <Check className="h-3.5 w-3.5 text-white" />}
-                  </button>
-                  <div className={`ml-6 transition-opacity duration-300 ${done ? 'opacity-60' : ''}`}>
-                    <MealCard meal={meal} index={i} onCopy={() => null} />
-                  </div>
+                <div key={`${meal.name}-${meal.time || 'sem-hora'}-${i}`}>
+                  <MealCard
+                    meal={meal}
+                    index={i}
+                    onCopy={() => null}
+                    isCompleted={done}
+                    onToggleComplete={() => toggleMeal(i)}
+                  />
                 </div>
               );
             })}
