@@ -25,6 +25,7 @@ import Notificacoes from "./pages/Notificacoes";
 import Consultoria from "./pages/Consultoria";
 import Perfil from "./pages/Perfil";
 import MinhasDietas from "./pages/MinhasDietas";
+import MeusTreinos from "./pages/MeusTreinos";
 
 import NotFound from "./pages/NotFound";
 
@@ -67,6 +68,7 @@ const App = () => {
               <Route path="/consultoria" element={<ProtectedRoute requiredRole="admin"><Consultoria /></ProtectedRoute>} />
               
               <Route path="/minha-area" element={<ProtectedRoute requiredRole="aluno"><MinhaArea /></ProtectedRoute>} />
+              <Route path="/meus-treinos" element={<ProtectedRoute requiredRole="aluno"><MeusTreinos /></ProtectedRoute>} />
               <Route path="/minhas-avaliacoes" element={<ProtectedRoute requiredRole="aluno"><MinhasAvaliacoes /></ProtectedRoute>} />
               <Route path="/treino-execucao" element={<ProtectedRoute requiredRole="aluno"><TreinoExecucao /></ProtectedRoute>} />
               <Route path="/perfil" element={<ProtectedRoute requiredRole="aluno"><Perfil /></ProtectedRoute>} />
