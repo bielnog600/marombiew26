@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, ClipboardList, ScanLine, User, Apple, Bell, Briefcase, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, ClipboardList, User, Bell, Briefcase } from 'lucide-react';
 
 const adminItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
@@ -40,15 +40,6 @@ const BottomNav: React.FC = () => {
             </button>
           );
         })}
-        {role === 'admin' && (
-          <button
-            onClick={async () => {
-              const { signOut } = await import('@/contexts/AuthContext').then(m => ({ signOut: undefined }));
-              // admin still has logout in sidebar, no bottom nav logout needed
-            }}
-            className="hidden"
-          />
-        )}
       </div>
     </nav>
   );
