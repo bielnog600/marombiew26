@@ -383,9 +383,18 @@ const TreinoExecucao = () => {
           <ArrowLeft className="h-5 w-5 text-foreground" />
         </button>
 
-        <div className="absolute top-4 right-4 z-30 bg-background/80 backdrop-blur rounded-full px-3 py-1">
-          <span className="text-xs font-medium text-foreground">{currentIndex + 1}/{exercises.length}</span>
+        <div className="absolute top-4 right-4 z-30 flex items-center gap-2">
+          <span className="bg-background/80 backdrop-blur rounded-full px-3 py-1 text-xs font-medium text-foreground">{currentIndex + 1}/{exercises.length}</span>
         </div>
+
+        {exercise.variation && (
+          <button
+            onClick={() => setShowingVariation(!showingVariation)}
+            className={`absolute bottom-20 right-4 z-30 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider backdrop-blur transition-colors ${showingVariation ? 'bg-primary text-primary-foreground' : 'bg-background/80 text-foreground border border-border/50'}`}
+          >
+            {showingVariation ? 'Original' : 'Variação'}
+          </button>
+        )}
 
         <div className="absolute bottom-0 left-0 right-0 p-4 z-30">
           <p className="text-[10px] uppercase tracking-widest text-primary font-semibold mb-1">{activeExercise?.grupo_muscular || dayName}</p>
