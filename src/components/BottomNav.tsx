@@ -34,9 +34,9 @@ const BottomNav: React.FC = () => {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-      <div className="mx-3 mb-2 rounded-2xl bg-card/95 backdrop-blur-xl border border-border/30 shadow-2xl">
-        <div className="flex items-center justify-around px-2 h-16">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-background">
+      <div className="mx-2 mb-[env(safe-area-inset-bottom,2px)] rounded-2xl bg-card/95 backdrop-blur-xl border border-border/30 shadow-2xl">
+        <div className="flex items-center justify-around px-2 h-14">
           {items.map((item) => {
             const isActive = location.pathname === item.url || location.pathname.startsWith(item.url + '/');
             return (
