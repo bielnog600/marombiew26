@@ -24,7 +24,7 @@ const MinhaArea = () => {
   const [dietSections, setDietSections] = useState<ParsedSection[]>([]);
   const [_trainingTitle, setTrainingTitle] = useState('');
   const [_dietTitle, setDietTitle] = useState('');
-  const { tracking, addWater, removeWater } = useDailyTracking();
+  const { tracking, addWater, removeWater, weeklyWorkouts } = useDailyTracking();
   const [exerciseImages, setExerciseImages] = useState<Record<string, string>>({});
   const [exerciseMuscles, setExerciseMuscles] = useState<Record<string, string>>({});
   const [exerciseMedia, setExerciseMedia] = useState<Record<string, { imageUrl?: string; videoEmbed?: string; muscleGroup?: string }>>({});
@@ -219,7 +219,8 @@ const MinhaArea = () => {
         {/* Dashboard Cards */}
         <div className="grid grid-cols-3 gap-3">
           <WeeklyRoutineCard
-            trainingDaysCount={trainingDays.length}
+            completedThisWeek={weeklyWorkouts}
+            totalDays={trainingDays.length}
             completedToday={tracking.workout_completed}
           />
           <WaterIntakeCard

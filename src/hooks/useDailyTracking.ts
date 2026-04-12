@@ -11,6 +11,16 @@ interface DailyTracking {
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
+function getWeekRange() {
+  const now = new Date();
+  const day = now.getDay(); // 0=Sun
+  const start = new Date(now);
+  start.setDate(now.getDate() - day);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+}
+
 export function useDailyTracking() {
   const { user } = useAuth();
   const [tracking, setTracking] = useState<DailyTracking>({
@@ -18,6 +28,7 @@ export function useDailyTracking() {
     meals_completed: [],
     workout_completed: false,
   });
+  const [weeklyWorkouts, setWeeklyWorkouts] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -37,6 +48,18 @@ export function useDailyTracking() {
         workout_completed: data.workout_completed,
       });
     }
+
+    // Count workouts completed this week
+    const { start, end } = getWeekRange();
+    const { data: weekData } = await supabase
+      .from('daily_tracking')
+      .select('id')
+      .eq('student_id', user.id)
+      .eq('workout_completed', true)
+      .gte('date', start)
+      .lte('date', end);
+    setWeeklyWorkouts(weekData?.length ?? 0);
+
     setLoading(false);
   }, [user]);
 
@@ -81,6 +104,7 @@ export function useDailyTracking() {
   return {
     tracking,
     loading,
+    weeklyWorkouts,
     addWater,
     removeWater,
     toggleMeal,
