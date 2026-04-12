@@ -5,6 +5,7 @@ import { ArrowLeft, Play, Pause, Check, ChevronLeft, ChevronRight, Timer, X } fr
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
+import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { useAuth } from '@/contexts/AuthContext';
 import { type ParsedExercise, parseTrainingSections } from '@/lib/trainingResultParser';
 
@@ -104,6 +105,7 @@ const TreinoExecucao = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { completeWorkout } = useDailyTracking();
   const stateData = location.state as {
     exercises?: ParsedExercise[];
     dayName?: string;
@@ -415,7 +417,7 @@ const TreinoExecucao = () => {
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           ) : (
-            <Button className="flex-1" onClick={() => navigate(-1)}>
+            <Button className="flex-1" onClick={() => { completeWorkout(); navigate(-1); }}>
               Finalizar
               <Check className="h-4 w-4 ml-1" />
             </Button>

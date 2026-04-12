@@ -7,6 +7,7 @@ import { Dumbbell, ClipboardList, ChevronRight, Play } from 'lucide-react';
 import WeeklyRoutineCard from '@/components/home/WeeklyRoutineCard';
 import WaterIntakeCard from '@/components/home/WaterIntakeCard';
 import MealsCompletedCard from '@/components/home/MealsCompletedCard';
+import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { useNavigate } from 'react-router-dom';
 import workoutHero from '@/assets/workout-hero.jpg';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
@@ -23,8 +24,7 @@ const MinhaArea = () => {
   const [dietSections, setDietSections] = useState<ParsedSection[]>([]);
   const [_trainingTitle, setTrainingTitle] = useState('');
   const [_dietTitle, setDietTitle] = useState('');
-  const [waterGlasses, setWaterGlasses] = useState(0);
-  const [mealsCompleted, setMealsCompleted] = useState(0);
+  const { tracking, addWater, removeWater, toggleMeal } = useDailyTracking();
   const [exerciseImages, setExerciseImages] = useState<Record<string, string>>({});
   const [exerciseMuscles, setExerciseMuscles] = useState<Record<string, string>>({});
   const [exerciseMedia, setExerciseMedia] = useState<Record<string, { imageUrl?: string; videoEmbed?: string; muscleGroup?: string }>>({});
@@ -214,23 +214,25 @@ const MinhaArea = () => {
         )}
 
         {/* Diet Summary */}
-        {meals.length > 0 && <DietPlanCard sections={dietSections} />}
+        {meals.length > 0 && <DietPlanCard sections={dietSections} mealsCompleted={tracking.meals_completed} onToggleMeal={toggleMeal} />}
 
         {/* Dashboard Cards */}
         <div className="grid grid-cols-3 gap-3">
           <WeeklyRoutineCard
             trainingDaysCount={trainingDays.length}
-            totalDays={7}
+            completedToday={tracking.workout_completed}
           />
           <WaterIntakeCard
-            glasses={waterGlasses}
+            glasses={tracking.water_glasses}
             goal={8}
-            onAdd={() => setWaterGlasses(g => Math.min(g + 1, 12))}
-            onRemove={() => setWaterGlasses(g => Math.max(g - 1, 0))}
+            onAdd={addWater}
+            onRemove={removeWater}
           />
           <MealsCompletedCard
-            completed={mealsCompleted}
+            completed={tracking.meals_completed.length}
             total={meals.length}
+            mealsCompleted={tracking.meals_completed}
+            onToggleMeal={toggleMeal}
           />
         </div>
         {/* No plans message */}
