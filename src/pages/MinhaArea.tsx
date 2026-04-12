@@ -174,23 +174,6 @@ const MinhaArea = () => {
           </div>
         </div>
 
-        {/* Dashboard Cards */}
-        <div className="grid grid-cols-3 gap-3">
-          <WeeklyRoutineCard
-            trainingDaysCount={trainingDays.length}
-            totalDays={7}
-          />
-          <WaterIntakeCard
-            glasses={waterGlasses}
-            goal={8}
-            onAdd={() => setWaterGlasses(g => Math.min(g + 1, 12))}
-            onRemove={() => setWaterGlasses(g => Math.max(g - 1, 0))}
-          />
-          <MealsCompletedCard
-            completed={mealsCompleted}
-            total={meals.length}
-          />
-        </div>
 
         {/* Today's Training */}
         {todayTraining && (
