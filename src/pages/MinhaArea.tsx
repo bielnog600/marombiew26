@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/AppLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Dumbbell, UtensilsCrossed, ClipboardList, ChevronRight, Play } from 'lucide-react';
+import { Dumbbell, ClipboardList, ChevronRight, Play } from 'lucide-react';
 import WeeklyRoutineCard from '@/components/home/WeeklyRoutineCard';
 import WaterIntakeCard from '@/components/home/WaterIntakeCard';
 import MealsCompletedCard from '@/components/home/MealsCompletedCard';
@@ -49,15 +49,7 @@ const MinhaArea = () => {
       .order('created_at', { ascending: false });
     setAssessmentCount(avals?.length ?? 0);
 
-    if (avals && avals.length > 0) {
-      const latest = avals[0];
-      const [anthroR, compR] = await Promise.all([
-        supabase.from('anthropometrics').select('peso, imc').eq('assessment_id', latest.id).maybeSingle(),
-        supabase.from('composition').select('percentual_gordura, massa_magra').eq('assessment_id', latest.id).maybeSingle(),
-      ]);
-      setLatestAnthro(anthroR.data);
-      setLatestComp(compR.data);
-    }
+    // (assessment detail stats removed - no longer displayed on home)
 
     // Latest training plan
     const { data: treino } = await supabase
