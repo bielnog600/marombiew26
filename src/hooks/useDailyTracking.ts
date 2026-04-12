@@ -41,10 +41,17 @@ export function useDailyTracking() {
       .maybeSingle();
 
     if (data) {
+      const mealsCompletedRaw = data.meals_completed;
+      const mealsCompleted = Array.isArray(mealsCompletedRaw)
+        ? mealsCompletedRaw.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item >= 0)
+        : typeof mealsCompletedRaw === 'string'
+        ? JSON.parse(mealsCompletedRaw).map((item: unknown) => Number(item)).filter((item: number) => Number.isInteger(item) && item >= 0)
+        : [];
+
       setTracking({
         id: data.id,
         water_glasses: data.water_glasses,
-        meals_completed: (data.meals_completed as number[]) || [],
+        meals_completed: mealsCompleted,
         workout_completed: data.workout_completed,
       });
     }
@@ -74,7 +81,7 @@ export function useDailyTracking() {
       student_id: user.id,
       date: todayStr(),
       water_glasses: next.water_glasses,
-      meals_completed: JSON.stringify(next.meals_completed),
+      meals_completed: next.meals_completed,
       workout_completed: next.workout_completed,
     };
 
