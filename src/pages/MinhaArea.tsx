@@ -119,6 +119,16 @@ const MinhaArea = () => {
   const todayIndex = trainingDays.length > 0 ? new Date().getDay() % trainingDays.length : 0;
   const todayTraining = trainingDays[todayIndex];
 
+  // Pick an exercise image from today's training
+  const todayHeroImage = useMemo(() => {
+    if (!todayTraining) return workoutHero;
+    for (const ex of todayTraining.exercises) {
+      const key = ex.exercise.toUpperCase().trim();
+      if (exerciseImages[key]) return exerciseImages[key];
+    }
+    return workoutHero;
+  }, [todayTraining, exerciseImages]);
+
   return (
     <AppLayout>
       <div className="space-y-5 animate-fade-in">
