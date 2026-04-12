@@ -152,7 +152,10 @@ const TreinoExecucao = () => {
           setLoadedDayName(today.day);
 
           // Load exercise media
-          const names = today.exercises.map(e => e.exercise.toUpperCase().trim());
+          const names = today.exercises
+            .flatMap((e) => [e.exercise, e.variation])
+            .map((name) => name?.toUpperCase().trim())
+            .filter(Boolean) as string[];
           const uniqueNames = [...new Set(names)];
           const { data: dbEx } = await supabase.from('exercises').select('nome, imagem_url, video_embed, grupo_muscular');
           if (dbEx) {
@@ -187,8 +190,9 @@ const TreinoExecucao = () => {
       const { data } = await supabase.from('exercises').select('nome, imagem_url, video_embed, grupo_muscular');
       if (data) setExerciseDB(data);
     };
-    if (!Object.keys(exerciseMedia).length) loadExercises();
-  }, [exerciseMedia]);
+
+    loadExercises();
+  }, []);
 
   const matchedExercise = useMemo(() => {
     if (!exercise) return null;
