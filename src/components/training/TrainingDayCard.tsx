@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
-import { Dumbbell, Pencil, Check } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Dumbbell, Pencil, Check, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import type { ParsedTrainingDay, ParsedExercise } from '@/lib/trainingResultParser';
+import { supabase } from '@/integrations/supabase/client';
 
 const DAY_SURFACES = [
   'bg-gradient-to-br from-primary/12 to-accent/8 border-primary/25',
@@ -30,20 +33,76 @@ interface TrainingDayCardProps {
   onDayChange?: (updatedDay: ParsedTrainingDay) => void;
 }
 
-const EDITABLE_FIELDS: { key: keyof ParsedExercise; label: string }[] = [
-  { key: 'exercise', label: 'Exercício' },
-  { key: 'series', label: 'Séries' },
-  { key: 'series2', label: 'Séries 2' },
-  { key: 'reps', label: 'Reps' },
-  { key: 'rir', label: 'RIR' },
-  { key: 'pause', label: 'Pausa' },
-  { key: 'variation', label: 'Variação' },
-];
+interface ExerciseOption {
+  nome: string;
+  grupo_muscular: string;
+}
+
+const ExerciseCombobox: React.FC<{
+  value: string;
+  options: ExerciseOption[];
+  onChange: (val: string) => void;
+}> = ({ value, options, onChange }) => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="h-7 w-full min-w-[140px] justify-between text-xs font-normal px-2"
+        >
+          <span className="truncate">{value || 'Selecionar...'}</span>
+          <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[260px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Buscar exercício..." className="h-8 text-xs" />
+          <CommandList>
+            <CommandEmpty className="py-2 text-center text-xs">Nenhum encontrado</CommandEmpty>
+            <CommandGroup className="max-h-[200px] overflow-y-auto">
+              {options.map((opt) => (
+                <CommandItem
+                  key={opt.nome}
+                  value={opt.nome}
+                  onSelect={() => {
+                    onChange(opt.nome);
+                    setOpen(false);
+                  }}
+                  className="text-xs"
+                >
+                  <span className="flex-1">{opt.nome}</span>
+                  <span className="text-[10px] text-muted-foreground ml-2">{opt.grupo_muscular}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, editable, onDayChange }) => {
   const surface = DAY_SURFACES[index % DAY_SURFACES.length];
   const [editing, setEditing] = useState(false);
   const [localExercises, setLocalExercises] = useState<ParsedExercise[]>(day.exercises);
+  const [exerciseOptions, setExerciseOptions] = useState<ExerciseOption[]>([]);
+
+  useEffect(() => {
+    if (editing && exerciseOptions.length === 0) {
+      supabase
+        .from('exercises')
+        .select('nome, grupo_muscular')
+        .order('nome')
+        .then(({ data }) => {
+          if (data) setExerciseOptions(data);
+        });
+    }
+  }, [editing, exerciseOptions.length]);
 
   const handleFieldChange = (exIndex: number, field: keyof ParsedExercise, value: string) => {
     setLocalExercises(prev => {
@@ -111,7 +170,13 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
                 <TableRow key={`${day.day}-${ex.exercise}-${exIndex}`}>
                   <TableCell className="px-3 py-2 font-semibold text-primary align-top whitespace-nowrap">{day.day}</TableCell>
                   <TableCell className="px-3 py-2 font-medium align-top">
-                    {editing ? <Input value={ex.exercise} onChange={e => handleFieldChange(exIndex, 'exercise', e.target.value)} className="h-7 text-xs min-w-[120px]" /> : ex.exercise}
+                    {editing ? (
+                      <ExerciseCombobox
+                        value={ex.exercise}
+                        options={exerciseOptions}
+                        onChange={(val) => handleFieldChange(exIndex, 'exercise', val)}
+                      />
+                    ) : ex.exercise}
                   </TableCell>
                   <TableCell className="px-3 py-2 text-center align-top">
                     {editing ? <Input value={ex.series} onChange={e => handleFieldChange(exIndex, 'series', e.target.value)} className="h-7 text-xs w-14 text-center" /> : (ex.series || '—')}
@@ -132,7 +197,13 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
                     {ex.description || '—'}
                   </TableCell>
                   <TableCell className="px-3 py-2 align-top text-muted-foreground">
-                    {editing ? <Input value={ex.variation} onChange={e => handleFieldChange(exIndex, 'variation', e.target.value)} className="h-7 text-xs min-w-[100px]" /> : (ex.variation || '—')}
+                    {editing ? (
+                      <ExerciseCombobox
+                        value={ex.variation}
+                        options={exerciseOptions}
+                        onChange={(val) => handleFieldChange(exIndex, 'variation', val)}
+                      />
+                    ) : (ex.variation || '—')}
                   </TableCell>
                 </TableRow>
               ))}
