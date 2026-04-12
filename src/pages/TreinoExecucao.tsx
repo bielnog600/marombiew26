@@ -210,6 +210,32 @@ const TreinoExecucao = () => {
     return match || null;
   }, [exercise, exerciseDB, exerciseMedia]);
 
+  const matchedVariation = useMemo(() => {
+    if (!exercise?.variation || !showingVariation) return null;
+    const name = exercise.variation.toUpperCase().trim();
+
+    if (exerciseMedia[name]) {
+      return {
+        nome: name,
+        imagem_url: exerciseMedia[name].imageUrl ?? null,
+        video_embed: exerciseMedia[name].videoEmbed ?? null,
+        grupo_muscular: exerciseMedia[name].muscleGroup ?? '',
+      } as ExerciseDBData;
+    }
+
+    if (!exerciseDB.length) return null;
+    let match = exerciseDB.find((e) => e.nome.toUpperCase().trim() === name);
+    if (match) return match;
+    match = exerciseDB.find((e) => name.includes(e.nome.toUpperCase().trim()) || e.nome.toUpperCase().trim().includes(name));
+    return match || null;
+  }, [exercise, exerciseDB, exerciseMedia, showingVariation]);
+
+  const activeExercise = showingVariation && matchedVariation ? matchedVariation : matchedExercise;
+
+  useEffect(() => {
+    setShowingVariation(false);
+  }, [currentIndex]);
+
   useEffect(() => {
     if (!sets[currentIndex]) {
       setSets((prev) => ({
@@ -245,8 +271,8 @@ const TreinoExecucao = () => {
 
   const currentSets = sets[currentIndex] || [];
 
-  const streamVideoId = extractStreamVideoId(matchedExercise?.video_embed);
-  const imageUrl = matchedExercise?.imagem_url;
+  const streamVideoId = extractStreamVideoId(activeExercise?.video_embed);
+  const imageUrl = activeExercise?.imagem_url;
   const hlsUrl = streamVideoId ? `https://customer-vqfal80lir76xyf0.cloudflarestream.com/${streamVideoId}/manifest/video.m3u8` : null;
   const posterUrl = streamVideoId ? `https://customer-vqfal80lir76xyf0.cloudflarestream.com/${streamVideoId}/thumbnails/thumbnail.jpg?height=600` : imageUrl || undefined;
 
