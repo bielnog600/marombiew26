@@ -20,7 +20,7 @@ const MinhaArea = () => {
   const [meals, setMeals] = useState<ParsedMeal[]>([]);
   const [_trainingTitle, setTrainingTitle] = useState('');
   const [_dietTitle, setDietTitle] = useState('');
-
+  const [exerciseImages, setExerciseImages] = useState<Record<string, string>>({});
   useEffect(() => {
     if (user) loadData();
   }, [user]);
