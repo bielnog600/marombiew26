@@ -21,6 +21,7 @@ const MinhaArea = () => {
   const [_trainingTitle, setTrainingTitle] = useState('');
   const [_dietTitle, setDietTitle] = useState('');
   const [exerciseImages, setExerciseImages] = useState<Record<string, string>>({});
+  const [exerciseMuscles, setExerciseMuscles] = useState<Record<string, string>>({});
   useEffect(() => {
     if (user) loadData();
   }, [user]);
@@ -73,10 +74,10 @@ const MinhaArea = () => {
       if (uniqueNames.length > 0) {
         const { data: dbExercises } = await supabase
           .from('exercises')
-          .select('nome, imagem_url')
-          .not('imagem_url', 'is', null);
+          .select('nome, imagem_url, grupo_muscular');
         if (dbExercises) {
           const imgMap: Record<string, string> = {};
+          const muscleMap: Record<string, string> = {};
           for (const name of uniqueNames) {
             const match = dbExercises.find(e =>
               e.nome.toUpperCase().trim() === name ||
@@ -84,8 +85,10 @@ const MinhaArea = () => {
               e.nome.toUpperCase().trim().includes(name)
             );
             if (match?.imagem_url) imgMap[name] = match.imagem_url;
+            if (match?.grupo_muscular) muscleMap[name] = match.grupo_muscular;
           }
           setExerciseImages(imgMap);
+          setExerciseMuscles(muscleMap);
         }
       }
     }
