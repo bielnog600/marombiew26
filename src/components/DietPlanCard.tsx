@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { UtensilsCrossed, ChevronRight } from 'lucide-react';
+import { UtensilsCrossed, ChevronRight, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { ParsedSection } from '@/lib/dietResultParser';
 
@@ -12,9 +12,11 @@ const parseNum = (v?: string) => {
 
 interface DietPlanCardProps {
   sections: ParsedSection[];
+  mealsCompleted?: number[];
+  onToggleMeal?: (index: number) => void;
 }
 
-const DietPlanCard: React.FC<DietPlanCardProps> = ({ sections }) => {
+const DietPlanCard: React.FC<DietPlanCardProps> = ({ sections, mealsCompleted = [], onToggleMeal }) => {
   const navigate = useNavigate();
 
   const allMeals = useMemo(() =>
@@ -30,15 +32,14 @@ const DietPlanCard: React.FC<DietPlanCardProps> = ({ sections }) => {
   if (allMeals.length === 0) return null;
 
   return (
-    <Card
-      className="glass-card overflow-hidden cursor-pointer group"
-      onClick={() => navigate('/minhas-dietas')}
-    >
+    <Card className="glass-card overflow-hidden">
       <div className="relative p-4">
-        {/* Decorative background */}
         <div className="absolute top-0 right-0 w-24 h-24 bg-chart-3/10 rounded-full -translate-y-6 translate-x-6" />
         
-        <div className="flex items-center justify-between relative">
+        <div
+          className="flex items-center justify-between relative cursor-pointer group"
+          onClick={() => navigate('/minhas-dietas')}
+        >
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 rounded-xl bg-chart-3/20 flex items-center justify-center">
               <UtensilsCrossed className="h-6 w-6 text-chart-3" />
@@ -52,6 +53,33 @@ const DietPlanCard: React.FC<DietPlanCardProps> = ({ sections }) => {
             <ChevronRight className="h-5 w-5 text-primary-foreground" />
           </div>
         </div>
+
+        {/* Meal checklist */}
+        {onToggleMeal && (
+          <div className="mt-3 space-y-1.5">
+            {allMeals.map((meal, i) => {
+              const done = mealsCompleted.includes(i);
+              return (
+                <button
+                  key={i}
+                  onClick={(e) => { e.stopPropagation(); onToggleMeal(i); }}
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all duration-200 ${
+                    done ? 'bg-green-500/10' : 'bg-secondary/30 hover:bg-secondary/50'
+                  }`}
+                >
+                  <div className={`h-5 w-5 rounded-full flex items-center justify-center shrink-0 transition-all duration-300 ${
+                    done ? 'bg-green-500 scale-110' : 'border-2 border-muted-foreground/30'
+                  }`}>
+                    {done && <Check className="h-3 w-3 text-white" />}
+                  </div>
+                  <span className={`text-xs font-medium truncate ${done ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
+                    {meal.title}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Macro pills */}
         <div className="grid grid-cols-4 gap-2 mt-4">
@@ -73,8 +101,7 @@ const DietPlanCard: React.FC<DietPlanCardProps> = ({ sections }) => {
           </div>
         </div>
 
-        {/* CTA */}
-        <p className="text-xs text-primary font-medium text-center mt-3 group-hover:underline">
+        <p className="text-xs text-primary font-medium text-center mt-3 cursor-pointer hover:underline" onClick={() => navigate('/minhas-dietas')}>
           Ver refeições →
         </p>
       </div>
