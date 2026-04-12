@@ -417,7 +417,7 @@ const TreinoExecucao = () => {
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           ) : (
-            <Button className="flex-1" onClick={() => { completeWorkout(); navigate(-1); }}>
+            <Button className="flex-1" onClick={() => { completeWorkout(); navigate('/minha-area'); }}>
               Finalizar
               <Check className="h-4 w-4 ml-1" />
             </Button>
