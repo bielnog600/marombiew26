@@ -227,14 +227,24 @@ const MinhasDietas = () => {
         {/* Meals */}
         {currentMeals.length > 0 && (
           <div className="space-y-3">
-            {currentMeals.map((meal, i) => (
-              <MealCard
-                key={`${meal.name}-${meal.time || 'sem-hora'}-${i}`}
-                meal={meal}
-                index={i}
-                onCopy={() => null}
-              />
-            ))}
+            {currentMeals.map((meal, i) => {
+              const done = tracking.meals_completed.includes(i);
+              return (
+                <div key={`${meal.name}-${meal.time || 'sem-hora'}-${i}`} className="relative">
+                  <button
+                    onClick={() => toggleMeal(i)}
+                    className={`absolute -left-1 top-3 z-10 h-6 w-6 rounded-full flex items-center justify-center transition-all duration-300 ${
+                      done ? 'bg-green-500 scale-110' : 'border-2 border-muted-foreground/30 bg-background'
+                    }`}
+                  >
+                    {done && <Check className="h-3.5 w-3.5 text-white" />}
+                  </button>
+                  <div className={`ml-6 transition-opacity duration-300 ${done ? 'opacity-60' : ''}`}>
+                    <MealCard meal={meal} index={i} onCopy={() => null} />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
