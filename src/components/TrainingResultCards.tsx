@@ -6,10 +6,12 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import TrainingDayCard from '@/components/training/TrainingDayCard';
-import { parseTrainingSections } from '@/lib/trainingResultParser';
+import { parseTrainingSections, rebuildTrainingMarkdown, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 
 interface TrainingResultCardsProps {
   markdown: string;
+  editable?: boolean;
+  onMarkdownChange?: (newMarkdown: string) => void;
 }
 
 const markdownTableClasses = 'prose prose-sm dark:prose-invert max-w-none [&_table]:text-xs [&_table]:w-full [&_th]:bg-muted [&_th]:p-1.5 [&_td]:p-1.5 [&_td]:border [&_th]:border [&_table]:block [&_table]:overflow-x-auto';
@@ -38,10 +40,26 @@ const CopyButton: React.FC<{ text: string; label?: string }> = ({ text, label })
   );
 };
 
-const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown }) => {
+const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown, editable, onMarkdownChange }) => {
   const sections = parseTrainingSections(markdown);
   const rendered: React.ReactNode[] = [];
   let messageGroup: string[] = [];
+
+  // Collect all days for rebuild
+  const allDays: ParsedTrainingDay[] = [];
+  for (const s of sections) {
+    if (s.type === 'training' && s.days) allDays.push(...s.days);
+  }
+
+  const handleDayChange = (globalIndex: number, updatedDay: ParsedTrainingDay) => {
+    const newDays = [...allDays];
+    newDays[globalIndex] = updatedDay;
+    if (onMarkdownChange) {
+      onMarkdownChange(rebuildTrainingMarkdown(markdown, newDays));
+    }
+  };
+
+  let globalDayIndex = 0;
 
   const flushMessages = () => {
     if (messageGroup.length === 0) return;
@@ -92,14 +110,19 @@ const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown }) =
               {section.title}
             </h3>
           )}
-          {section.days.map((day, index) => (
-            <TrainingDayCard
-              key={`${day.day}-${index}`}
-              day={day}
-              index={index}
-              onCopy={(text, label) => <CopyButton text={text} label={label} />}
-            />
-          ))}
+          {section.days.map((day, index) => {
+            const gi = globalDayIndex++;
+            return (
+              <TrainingDayCard
+                key={`${day.day}-${index}`}
+                day={day}
+                index={index}
+                onCopy={(text, label) => <CopyButton text={text} label={label} />}
+                editable={editable}
+                onDayChange={(updated) => handleDayChange(gi, updated)}
+              />
+            );
+          })}
         </div>
       );
       continue;

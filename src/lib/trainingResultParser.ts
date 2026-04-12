@@ -179,3 +179,34 @@ export const parseTrainingSections = (markdown: string): ParsedTrainingSection[]
 
   return sections;
 };
+
+/** Rebuild the full markdown content after exercise edits */
+export const rebuildTrainingMarkdown = (
+  originalMarkdown: string,
+  updatedDays: ParsedTrainingDay[],
+): string => {
+  const sections = parseTrainingSections(originalMarkdown);
+  const lines: string[] = [];
+  let dayOffset = 0;
+
+  for (const section of sections) {
+    if (section.type === 'training' && section.days) {
+      if (section.title) lines.push(`## ${section.title}`);
+      lines.push('| TREINO DO DIA | EXERCÍCIO | SÉRIE | SÉRIE 2 | REPETIÇÕES | RIR | PAUSA | DESCRIÇÃO | VARIAÇÃO |');
+      lines.push('|---|---|---|---|---|---|---|---|---|');
+      for (let i = 0; i < section.days.length; i++) {
+        const day = updatedDays[dayOffset + i] || section.days[i];
+        for (const ex of day.exercises) {
+          lines.push(`| ${day.day} | ${ex.exercise} | ${ex.series || '-'} | ${ex.series2 || '-'} | ${ex.reps || '-'} | ${ex.rir || '-'} | ${ex.pause || '-'} | ${ex.description || '-'} | ${ex.variation || '-'} |`);
+        }
+      }
+      dayOffset += section.days.length;
+      lines.push('');
+    } else {
+      lines.push(section.content);
+      lines.push('');
+    }
+  }
+
+  return lines.join('\n');
+};
