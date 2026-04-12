@@ -24,6 +24,7 @@ import DietQuestionnaire from "./pages/DietQuestionnaire";
 import Notificacoes from "./pages/Notificacoes";
 import Consultoria from "./pages/Consultoria";
 import Perfil from "./pages/Perfil";
+import MinhasDietas from "./pages/MinhasDietas";
 
 import NotFound from "./pages/NotFound";
 
@@ -69,6 +70,7 @@ const App = () => {
               <Route path="/minhas-avaliacoes" element={<ProtectedRoute requiredRole="aluno"><MinhasAvaliacoes /></ProtectedRoute>} />
               <Route path="/treino-execucao" element={<ProtectedRoute requiredRole="aluno"><TreinoExecucao /></ProtectedRoute>} />
               <Route path="/perfil" element={<ProtectedRoute requiredRole="aluno"><Perfil /></ProtectedRoute>} />
+              <Route path="/minhas-dietas" element={<ProtectedRoute requiredRole="aluno"><MinhasDietas /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AuthProvider>
