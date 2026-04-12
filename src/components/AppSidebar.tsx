@@ -6,7 +6,7 @@ import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, useSidebar,
 } from '@/components/ui/sidebar';
-import { LayoutDashboard, Users, ClipboardList, User, LogOut, Dumbbell, Target, Clock, ScanLine, Bot, Apple, Bell, Briefcase } from 'lucide-react';
+import { LayoutDashboard, Users, ClipboardList, User, LogOut, Dumbbell, Target, Clock, ScanLine, Bot, Apple, Bell, Briefcase, Home, UtensilsCrossed } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const adminItems = [
@@ -18,7 +18,9 @@ const adminItems = [
 ];
 
 const alunoItems = [
-  { title: 'Minha Área', url: '/minha-area', icon: LayoutDashboard },
+  { title: 'Home', url: '/minha-area', icon: Home },
+  { title: 'Treinos', url: '/treino-execucao', icon: Dumbbell },
+  { title: 'Dieta', url: '/minhas-dietas', icon: UtensilsCrossed },
   { title: 'Minhas Avaliações', url: '/minhas-avaliacoes', icon: ClipboardList },
   { title: 'Perfil', url: '/perfil', icon: User },
 ];

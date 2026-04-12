@@ -5,7 +5,8 @@ import { ArrowLeft, Play, Pause, Check, ChevronLeft, ChevronRight, Timer, X } fr
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
-import { type ParsedExercise } from '@/lib/trainingResultParser';
+import { useAuth } from '@/contexts/AuthContext';
+import { type ParsedExercise, parseTrainingSections } from '@/lib/trainingResultParser';
 
 interface ExerciseSet {
   reps: string;
@@ -102,15 +103,20 @@ const RestTimerOverlay = ({ totalSeconds, onClose }: { totalSeconds: number; onC
 const TreinoExecucao = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const {
-    exercises = [],
-    dayName = 'Treino',
-    exerciseMedia = {},
-  } = (location.state as {
-    exercises: ParsedExercise[];
-    dayName: string;
+  const { user } = useAuth();
+  const stateData = location.state as {
+    exercises?: ParsedExercise[];
+    dayName?: string;
     exerciseMedia?: ExerciseMediaMap;
-  }) || {};
+  } | null;
+
+  const [loadedExercises, setLoadedExercises] = useState<ParsedExercise[]>(stateData?.exercises || []);
+  const [loadedDayName, setLoadedDayName] = useState(stateData?.dayName || 'Treino');
+  const [loadedMedia, setLoadedMedia] = useState<ExerciseMediaMap>(stateData?.exerciseMedia || {});
+
+  const exercises = loadedExercises;
+  const dayName = loadedDayName;
+  const exerciseMedia = loadedMedia;
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [sets, setSets] = useState<Record<number, ExerciseSet[]>>({});
@@ -120,6 +126,55 @@ const TreinoExecucao = () => {
   const [showPlayFallback, setShowPlayFallback] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+
+  // Auto-load training plan from DB when accessed directly (no state)
+  useEffect(() => {
+    if (loadedExercises.length > 0 || !user) return;
+    const loadPlan = async () => {
+      const { data: treino } = await supabase
+        .from('ai_plans')
+        .select('conteudo')
+        .eq('student_id', user.id)
+        .eq('tipo', 'treino')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (treino) {
+        const sections = parseTrainingSections(treino.conteudo);
+        const allDays = sections.flatMap(s => s.days ?? []);
+        if (allDays.length > 0) {
+          const todayIndex = new Date().getDay() % allDays.length;
+          const today = allDays[todayIndex];
+          setLoadedExercises(today.exercises);
+          setLoadedDayName(today.day);
+
+          // Load exercise media
+          const names = today.exercises.map(e => e.exercise.toUpperCase().trim());
+          const uniqueNames = [...new Set(names)];
+          const { data: dbEx } = await supabase.from('exercises').select('nome, imagem_url, video_embed, grupo_muscular');
+          if (dbEx) {
+            const mediaMap: ExerciseMediaMap = {};
+            for (const name of uniqueNames) {
+              const match = dbEx.find(e =>
+                e.nome.toUpperCase().trim() === name ||
+                name.includes(e.nome.toUpperCase().trim()) ||
+                e.nome.toUpperCase().trim().includes(name)
+              );
+              if (match) {
+                mediaMap[name] = {
+                  imageUrl: match.imagem_url || undefined,
+                  videoEmbed: match.video_embed || undefined,
+                  muscleGroup: match.grupo_muscular || undefined,
+                };
+              }
+            }
+            setLoadedMedia(mediaMap);
+          }
+        }
+      }
+    };
+    loadPlan();
+  }, [user, loadedExercises.length]);
 
   const exercise = exercises[currentIndex];
   const totalSeries = parseInt(exercise?.series || '3') || 3;
