@@ -434,22 +434,6 @@ const TreinoExecucao = () => {
           ))}
         </div>
 
-        {exercise.variation && (
-          <div className="bg-secondary/30 p-3 rounded-lg space-y-2">
-            <p className="text-xs text-muted-foreground">
-              <span className="font-semibold text-foreground">Variação:</span> {exercise.variation}
-            </p>
-            <Button
-              variant={showingVariation ? 'default' : 'outline'}
-              size="sm"
-              className="w-full gap-2 text-xs"
-              onClick={() => setShowingVariation(!showingVariation)}
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${showingVariation ? 'animate-spin' : ''}`} style={showingVariation ? { animationDuration: '1s', animationIterationCount: '1' } : {}} />
-              {showingVariation ? 'Voltar ao original' : 'Ver vídeo da variação'}
-            </Button>
-          </div>
-        )}
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-t border-border p-3" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}>
