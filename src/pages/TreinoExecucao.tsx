@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Hls from 'hls.js';
-import { ArrowLeft, Play, Pause, Check, ChevronLeft, ChevronRight, Timer, X } from 'lucide-react';
+import { ArrowLeft, Play, Pause, Check, ChevronLeft, ChevronRight, Timer, X, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
@@ -126,6 +126,7 @@ const TreinoExecucao = () => {
   const [showRestTimer, setShowRestTimer] = useState(false);
   const [restDuration, setRestDuration] = useState(60);
   const [showPlayFallback, setShowPlayFallback] = useState(false);
+  const [showingVariation, setShowingVariation] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
 
@@ -209,6 +210,32 @@ const TreinoExecucao = () => {
     return match || null;
   }, [exercise, exerciseDB, exerciseMedia]);
 
+  const matchedVariation = useMemo(() => {
+    if (!exercise?.variation || !showingVariation) return null;
+    const name = exercise.variation.toUpperCase().trim();
+
+    if (exerciseMedia[name]) {
+      return {
+        nome: name,
+        imagem_url: exerciseMedia[name].imageUrl ?? null,
+        video_embed: exerciseMedia[name].videoEmbed ?? null,
+        grupo_muscular: exerciseMedia[name].muscleGroup ?? '',
+      } as ExerciseDBData;
+    }
+
+    if (!exerciseDB.length) return null;
+    let match = exerciseDB.find((e) => e.nome.toUpperCase().trim() === name);
+    if (match) return match;
+    match = exerciseDB.find((e) => name.includes(e.nome.toUpperCase().trim()) || e.nome.toUpperCase().trim().includes(name));
+    return match || null;
+  }, [exercise, exerciseDB, exerciseMedia, showingVariation]);
+
+  const activeExercise = showingVariation && matchedVariation ? matchedVariation : matchedExercise;
+
+  useEffect(() => {
+    setShowingVariation(false);
+  }, [currentIndex]);
+
   useEffect(() => {
     if (!sets[currentIndex]) {
       setSets((prev) => ({
@@ -244,8 +271,8 @@ const TreinoExecucao = () => {
 
   const currentSets = sets[currentIndex] || [];
 
-  const streamVideoId = extractStreamVideoId(matchedExercise?.video_embed);
-  const imageUrl = matchedExercise?.imagem_url;
+  const streamVideoId = extractStreamVideoId(activeExercise?.video_embed);
+  const imageUrl = activeExercise?.imagem_url;
   const hlsUrl = streamVideoId ? `https://customer-vqfal80lir76xyf0.cloudflarestream.com/${streamVideoId}/manifest/video.m3u8` : null;
   const posterUrl = streamVideoId ? `https://customer-vqfal80lir76xyf0.cloudflarestream.com/${streamVideoId}/thumbnails/thumbnail.jpg?height=600` : imageUrl || undefined;
 
@@ -361,7 +388,7 @@ const TreinoExecucao = () => {
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 p-4 z-30">
-          <p className="text-[10px] uppercase tracking-widest text-primary font-semibold mb-1">{matchedExercise?.grupo_muscular || dayName}</p>
+          <p className="text-[10px] uppercase tracking-widest text-primary font-semibold mb-1">{activeExercise?.grupo_muscular || dayName}</p>
           <h1 className="text-xl font-bold text-foreground leading-tight">{exercise.exercise}</h1>
           {exercise.description && <p className="text-xs text-muted-foreground mt-1">{exercise.description}</p>}
           <div className="flex items-center gap-3 mt-2 flex-wrap">
@@ -399,9 +426,20 @@ const TreinoExecucao = () => {
         </div>
 
         {exercise.variation && (
-          <p className="text-xs text-muted-foreground bg-secondary/30 p-3 rounded-lg">
-            <span className="font-semibold text-foreground">Variação:</span> {exercise.variation}
-          </p>
+          <div className="bg-secondary/30 p-3 rounded-lg space-y-2">
+            <p className="text-xs text-muted-foreground">
+              <span className="font-semibold text-foreground">Variação:</span> {exercise.variation}
+            </p>
+            <Button
+              variant={showingVariation ? 'default' : 'outline'}
+              size="sm"
+              className="w-full gap-2 text-xs"
+              onClick={() => setShowingVariation(!showingVariation)}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${showingVariation ? 'animate-spin' : ''}`} style={showingVariation ? { animationDuration: '1s', animationIterationCount: '1' } : {}} />
+              {showingVariation ? 'Voltar ao original' : 'Ver vídeo da variação'}
+            </Button>
+          </div>
         )}
       </div>
 
