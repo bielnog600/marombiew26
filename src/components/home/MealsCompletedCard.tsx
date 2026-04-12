@@ -1,16 +1,13 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { UtensilsCrossed, Check } from 'lucide-react';
+import { UtensilsCrossed } from 'lucide-react';
 
 interface MealsCompletedCardProps {
   completed: number;
   total: number;
-  mealsCompleted: number[];
-  onToggleMeal: (index: number) => void;
-  mealNames?: string[];
 }
 
-const MealsCompletedCard: React.FC<MealsCompletedCardProps> = ({ completed, total, mealsCompleted, onToggleMeal, mealNames }) => {
+const MealsCompletedCard: React.FC<MealsCompletedCardProps> = ({ completed, total }) => {
   const pct = total > 0 ? (completed / total) * 100 : 0;
 
   return (

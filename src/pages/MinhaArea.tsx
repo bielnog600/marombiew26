@@ -231,8 +231,6 @@ const MinhaArea = () => {
           <MealsCompletedCard
             completed={tracking.meals_completed.length}
             total={meals.length}
-            mealsCompleted={tracking.meals_completed}
-            onToggleMeal={toggleMeal}
           />
         </div>
         {/* No plans message */}
