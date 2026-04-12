@@ -85,9 +85,9 @@ const MinhasDietas = () => {
   const totalG = currentMeals.reduce((s, m) => s + parseNum(m.totalG), 0);
   const targets = useMemo(() => extractTargetsFromSections(sections), [sections]);
 
-  const waterMl = waterCount * 250;
+  const waterMl = tracking.water_glasses * 250;
   const waterGoalMl = waterGoal * 250;
-  const waterProgress = (waterCount / waterGoal) * 100;
+  const waterProgress = (tracking.water_glasses / waterGoal) * 100;
 
   return (
     <AppLayout title="Plano Alimentar">
