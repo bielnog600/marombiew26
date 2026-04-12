@@ -26,7 +26,7 @@ const alunoItems = [
 const futureItems: any[] = [];
 
 export function AppSidebar() {
-  const { role, signOut, user } = useAuth();
+  const { role, signOut, user, isAdmin } = useAuth();
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const location = useLocation();
@@ -90,22 +90,24 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-3">
-        {!collapsed && (
-          <div className="mb-2 text-xs text-muted-foreground truncate px-2">
-            {user?.email}
-          </div>
-        )}
-        <Button
-          variant="ghost"
-          size={collapsed ? 'icon' : 'default'}
-          onClick={handleSignOut}
-          className="w-full justify-start text-muted-foreground hover:text-destructive"
-        >
-          <LogOut className="h-4 w-4" />
-          {!collapsed && <span className="ml-2">Sair</span>}
-        </Button>
-      </SidebarFooter>
+      {isAdmin && (
+        <SidebarFooter className="p-3">
+          {!collapsed && (
+            <div className="mb-2 text-xs text-muted-foreground truncate px-2">
+              {user?.email}
+            </div>
+          )}
+          <Button
+            variant="ghost"
+            size={collapsed ? 'icon' : 'default'}
+            onClick={handleSignOut}
+            className="w-full justify-start text-muted-foreground hover:text-destructive"
+          >
+            <LogOut className="h-4 w-4" />
+            {!collapsed && <span className="ml-2">Sair</span>}
+          </Button>
+        </SidebarFooter>
+      )}
     </Sidebar>
   );
 }
