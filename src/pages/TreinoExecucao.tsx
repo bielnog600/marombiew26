@@ -394,9 +394,9 @@ const TreinoExecucao = () => {
         <div className="absolute bottom-0 left-0 right-0 p-4 z-30">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] uppercase tracking-widest text-primary font-semibold mb-1">{activeExercise?.grupo_muscular || dayName}</p>
-              <h1 className="text-xl font-bold text-foreground leading-tight">{showingVariation && exercise.variation ? exercise.variation : exercise.exercise}</h1>
-              {exercise.description && <p className="text-xs text-muted-foreground mt-1">{exercise.description}</p>}
+              <p className="text-[10px] uppercase tracking-widest text-primary font-semibold mb-1" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{activeExercise?.grupo_muscular || dayName}</p>
+              <h1 className="text-xl font-bold text-foreground leading-tight" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}>{showingVariation && exercise.variation ? exercise.variation : exercise.exercise}</h1>
+              {exercise.description && <p className="text-xs text-foreground/90 mt-1" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>{exercise.description}</p>}
             </div>
             {exercise.variation && (
               <button
