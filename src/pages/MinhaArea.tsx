@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,7 +20,7 @@ const MinhaArea = () => {
   const [meals, setMeals] = useState<ParsedMeal[]>([]);
   const [_trainingTitle, setTrainingTitle] = useState('');
   const [_dietTitle, setDietTitle] = useState('');
-
+  const [exerciseImages, setExerciseImages] = useState<Record<string, string>>({});
   useEffect(() => {
     if (user) loadData();
   }, [user]);
@@ -66,6 +66,28 @@ const MinhaArea = () => {
       const sections = parseTrainingSections(treino.conteudo);
       const allDays = sections.flatMap(s => s.days ?? []);
       setTrainingDays(allDays);
+
+      // Fetch exercise images from DB for matching
+      const exerciseNames = allDays.flatMap(d => d.exercises.map(e => e.exercise.toUpperCase().trim()));
+      const uniqueNames = [...new Set(exerciseNames)];
+      if (uniqueNames.length > 0) {
+        const { data: dbExercises } = await supabase
+          .from('exercises')
+          .select('nome, imagem_url')
+          .not('imagem_url', 'is', null);
+        if (dbExercises) {
+          const imgMap: Record<string, string> = {};
+          for (const name of uniqueNames) {
+            const match = dbExercises.find(e =>
+              e.nome.toUpperCase().trim() === name ||
+              name.includes(e.nome.toUpperCase().trim()) ||
+              e.nome.toUpperCase().trim().includes(name)
+            );
+            if (match?.imagem_url) imgMap[name] = match.imagem_url;
+          }
+          setExerciseImages(imgMap);
+        }
+      }
     }
 
     // Latest diet plan
@@ -96,6 +118,16 @@ const MinhaArea = () => {
   // Today's training (cycle through days based on weekday)
   const todayIndex = trainingDays.length > 0 ? new Date().getDay() % trainingDays.length : 0;
   const todayTraining = trainingDays[todayIndex];
+
+  // Pick an exercise image from today's training
+  const todayHeroImage = useMemo(() => {
+    if (!todayTraining) return workoutHero;
+    for (const ex of todayTraining.exercises) {
+      const key = ex.exercise.toUpperCase().trim();
+      if (exerciseImages[key]) return exerciseImages[key];
+    }
+    return workoutHero;
+  }, [todayTraining, exerciseImages]);
 
   return (
     <AppLayout>
@@ -144,11 +176,9 @@ const MinhaArea = () => {
           >
             <div className="relative h-40 overflow-hidden">
               <img
-                src={workoutHero}
+                src={todayHeroImage}
                 alt="Treino do dia"
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                width={800}
-                height={512}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-card via-card/60 to-transparent" />
               <div className="absolute bottom-0 left-0 right-0 p-4">
