@@ -104,15 +104,15 @@ const TreinoExecucao = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const stateData = (location.state as {
-    exercises: ParsedExercise[];
-    dayName: string;
+  const stateData = location.state as {
+    exercises?: ParsedExercise[];
+    dayName?: string;
     exerciseMedia?: ExerciseMediaMap;
-  }) || {};
+  } | null;
 
-  const [loadedExercises, setLoadedExercises] = useState<ParsedExercise[]>(stateData.exercises || []);
-  const [loadedDayName, setLoadedDayName] = useState(stateData.dayName || 'Treino');
-  const [loadedMedia, setLoadedMedia] = useState<ExerciseMediaMap>(stateData.exerciseMedia || {});
+  const [loadedExercises, setLoadedExercises] = useState<ParsedExercise[]>(stateData?.exercises || []);
+  const [loadedDayName, setLoadedDayName] = useState(stateData?.dayName || 'Treino');
+  const [loadedMedia, setLoadedMedia] = useState<ExerciseMediaMap>(stateData?.exerciseMedia || {});
 
   const exercises = loadedExercises;
   const dayName = loadedDayName;
