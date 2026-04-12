@@ -199,14 +199,14 @@ const MinhasDietas = () => {
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => setWaterCount(Math.max(0, waterCount - 1))}
+                onClick={removeWater}
                 className="h-7 w-7 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
               >
                 <Minus className="h-3.5 w-3.5" />
               </button>
               <button
                 type="button"
-                onClick={() => setWaterCount(Math.min(waterGoal, waterCount + 1))}
+                onClick={addWater}
                 className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-primary-foreground hover:opacity-90 transition-opacity"
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -218,7 +218,7 @@ const MinhasDietas = () => {
             {Array.from({ length: waterGoal }).map((_, i) => (
               <div
                 key={i}
-                className={`h-2 flex-1 rounded-full transition-colors ${i < waterCount ? 'bg-chart-2' : 'bg-border'}`}
+                className={`h-2 flex-1 rounded-full transition-colors ${i < tracking.water_glasses ? 'bg-chart-2' : 'bg-border'}`}
               />
             ))}
           </div>
