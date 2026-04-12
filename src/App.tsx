@@ -15,6 +15,7 @@ import NovaAvaliacao from "./pages/NovaAvaliacao";
 import Relatorio from "./pages/Relatorio";
 import MinhaArea from "./pages/MinhaArea";
 import MinhasAvaliacoes from "./pages/MinhasAvaliacoes";
+import TreinoExecucao from "./pages/TreinoExecucao";
 import PostureAnalysis from "./pages/PostureAnalysis";
 import TreinoIA from "./pages/TreinoIA";
 import DietaIA from "./pages/DietaIA";
@@ -65,6 +66,7 @@ const App = () => {
               
               <Route path="/minha-area" element={<ProtectedRoute requiredRole="aluno"><MinhaArea /></ProtectedRoute>} />
               <Route path="/minhas-avaliacoes" element={<ProtectedRoute requiredRole="aluno"><MinhasAvaliacoes /></ProtectedRoute>} />
+              <Route path="/treino-execucao" element={<ProtectedRoute requiredRole="aluno"><TreinoExecucao /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AuthProvider>

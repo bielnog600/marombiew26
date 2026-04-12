@@ -3,8 +3,9 @@ import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Dumbbell, UtensilsCrossed, Weight, ClipboardList, ChevronRight, Flame, Activity } from 'lucide-react';
+import { Dumbbell, UtensilsCrossed, Weight, ClipboardList, ChevronRight, Flame, Activity, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import workoutHero from '@/assets/workout-hero.jpg';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { parseSections, type ParsedMeal } from '@/lib/dietResultParser';
 
@@ -137,33 +138,32 @@ const MinhaArea = () => {
 
         {/* Today's Training */}
         {todayTraining && (
-          <Card className="glass-card overflow-hidden">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <Dumbbell className="h-4 w-4 text-primary" />
-                  Treino de Hoje
-                </CardTitle>
-                <span className="text-[10px] text-muted-foreground uppercase">{todayTraining.day}</span>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="space-y-1.5">
-                {todayTraining.exercises.slice(0, 6).map((ex, i) => (
-                  <div key={i} className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
-                    <span className="text-sm text-foreground truncate flex-1">{ex.exercise}</span>
-                    <span className="text-xs text-muted-foreground ml-2 whitespace-nowrap">
-                      {ex.series && `${ex.series}x`}{ex.reps || ''}
-                    </span>
+          <Card
+            className="glass-card overflow-hidden cursor-pointer group"
+            onClick={() => navigate('/treino-execucao', { state: { exercises: todayTraining.exercises, dayName: todayTraining.day } })}
+          >
+            <div className="relative h-40 overflow-hidden">
+              <img
+                src={workoutHero}
+                alt="Treino do dia"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                width={800}
+                height={512}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-card via-card/60 to-transparent" />
+              <div className="absolute bottom-0 left-0 right-0 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-primary font-semibold">{todayTraining.day}</p>
+                    <h3 className="text-base font-bold text-foreground mt-0.5">Treino de Hoje</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">{todayTraining.exercises.length} exercícios</p>
                   </div>
-                ))}
-                {todayTraining.exercises.length > 6 && (
-                  <p className="text-xs text-muted-foreground text-center pt-1">
-                    +{todayTraining.exercises.length - 6} exercícios
-                  </p>
-                )}
+                  <div className="h-12 w-12 rounded-full bg-primary flex items-center justify-center shadow-lg">
+                    <Play className="h-5 w-5 text-primary-foreground ml-0.5" />
+                  </div>
+                </div>
               </div>
-            </CardContent>
+            </div>
           </Card>
         )}
 
