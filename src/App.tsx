@@ -15,6 +15,7 @@ import NovaAvaliacao from "./pages/NovaAvaliacao";
 import Relatorio from "./pages/Relatorio";
 import MinhaArea from "./pages/MinhaArea";
 import MinhasAvaliacoes from "./pages/MinhasAvaliacoes";
+import TreinoExecucao from "./pages/TreinoExecucao";
 import PostureAnalysis from "./pages/PostureAnalysis";
 import TreinoIA from "./pages/TreinoIA";
 import DietaIA from "./pages/DietaIA";
