@@ -319,7 +319,7 @@ const TreinoExecucao = () => {
     <div className="min-h-screen bg-background flex flex-col">
       {showRestTimer && <RestTimerOverlay totalSeconds={restDuration} onClose={() => setShowRestTimer(false)} />}
 
-      <div className="relative w-full aspect-video bg-secondary/30 overflow-hidden">
+      <div className="relative w-full bg-secondary/30 overflow-hidden" style={{ aspectRatio: '16/11' }}>
         {hlsUrl ? (
           <>
             <video
