@@ -389,7 +389,7 @@ const TreinoExecucao = () => {
 
         <div className="absolute bottom-0 left-0 right-0 p-4 z-30">
           <p className="text-[10px] uppercase tracking-widest text-primary font-semibold mb-1">{activeExercise?.grupo_muscular || dayName}</p>
-          <h1 className="text-xl font-bold text-foreground leading-tight">{exercise.exercise}</h1>
+          <h1 className="text-xl font-bold text-foreground leading-tight">{showingVariation && exercise.variation ? exercise.variation : exercise.exercise}</h1>
           {exercise.description && <p className="text-xs text-muted-foreground mt-1">{exercise.description}</p>}
           <div className="flex items-center gap-3 mt-2 flex-wrap">
             {exercise.series && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.series} séries</span>}
