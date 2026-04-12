@@ -54,33 +54,6 @@ const DietPlanCard: React.FC<DietPlanCardProps> = ({ sections, mealsCompleted = 
           </div>
         </div>
 
-        {/* Meal checklist */}
-        {onToggleMeal && (
-          <div className="mt-3 space-y-1.5">
-            {allMeals.map((meal, i) => {
-              const done = mealsCompleted.includes(i);
-              return (
-                <button
-                  key={i}
-                  onClick={(e) => { e.stopPropagation(); onToggleMeal(i); }}
-                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all duration-200 ${
-                    done ? 'bg-green-500/10' : 'bg-secondary/30 hover:bg-secondary/50'
-                  }`}
-                >
-                  <div className={`h-5 w-5 rounded-full flex items-center justify-center shrink-0 transition-all duration-300 ${
-                    done ? 'bg-green-500 scale-110' : 'border-2 border-muted-foreground/30'
-                  }`}>
-                    {done && <Check className="h-3 w-3 text-white" />}
-                  </div>
-                  <span className={`text-xs font-medium truncate ${done ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
-                    {meal.name}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
         {/* Macro pills */}
         <div className="grid grid-cols-4 gap-2 mt-4">
           <div className="text-center p-1.5 rounded-lg bg-secondary/50">

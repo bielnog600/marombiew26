@@ -24,7 +24,7 @@ const MinhaArea = () => {
   const [dietSections, setDietSections] = useState<ParsedSection[]>([]);
   const [_trainingTitle, setTrainingTitle] = useState('');
   const [_dietTitle, setDietTitle] = useState('');
-  const { tracking, addWater, removeWater, toggleMeal } = useDailyTracking();
+  const { tracking, addWater, removeWater } = useDailyTracking();
   const [exerciseImages, setExerciseImages] = useState<Record<string, string>>({});
   const [exerciseMuscles, setExerciseMuscles] = useState<Record<string, string>>({});
   const [exerciseMedia, setExerciseMedia] = useState<Record<string, { imageUrl?: string; videoEmbed?: string; muscleGroup?: string }>>({});
@@ -214,7 +214,7 @@ const MinhaArea = () => {
         )}
 
         {/* Diet Summary */}
-        {meals.length > 0 && <DietPlanCard sections={dietSections} mealsCompleted={tracking.meals_completed} onToggleMeal={toggleMeal} />}
+        {meals.length > 0 && <DietPlanCard sections={dietSections} />}
 
         {/* Dashboard Cards */}
         <div className="grid grid-cols-3 gap-3">
@@ -231,8 +231,6 @@ const MinhaArea = () => {
           <MealsCompletedCard
             completed={tracking.meals_completed.length}
             total={meals.length}
-            mealsCompleted={tracking.meals_completed}
-            onToggleMeal={toggleMeal}
           />
         </div>
         {/* No plans message */}

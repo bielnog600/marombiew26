@@ -3,12 +3,13 @@ import AppLayout from '@/components/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { UtensilsCrossed, Droplets, Plus, Minus, Target, ArrowLeft } from 'lucide-react';
+import { UtensilsCrossed, Droplets, Plus, Minus, Target, ArrowLeft, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { parseSections, type ParsedMeal, type ParsedSection } from '@/lib/dietResultParser';
+import { parseSections, type ParsedSection } from '@/lib/dietResultParser';
 import MealCard from '@/components/diet/MealCard';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
+import { useDailyTracking } from '@/hooks/useDailyTracking';
 
 const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -40,7 +41,7 @@ const MinhasDietas = () => {
   const navigate = useNavigate();
   const [sections, setSections] = useState<ParsedSection[]>([]);
   const [selectedDay, setSelectedDay] = useState(new Date().getDay());
-  const [waterCount, setWaterCount] = useState(0);
+  const { tracking, addWater, removeWater, toggleMeal } = useDailyTracking();
   const waterGoal = 8;
 
   useEffect(() => {
@@ -84,9 +85,9 @@ const MinhasDietas = () => {
   const totalG = currentMeals.reduce((s, m) => s + parseNum(m.totalG), 0);
   const targets = useMemo(() => extractTargetsFromSections(sections), [sections]);
 
-  const waterMl = waterCount * 250;
+  const waterMl = tracking.water_glasses * 250;
   const waterGoalMl = waterGoal * 250;
-  const waterProgress = (waterCount / waterGoal) * 100;
+  const waterProgress = (tracking.water_glasses / waterGoal) * 100;
 
   return (
     <AppLayout title="Plano Alimentar">
@@ -198,14 +199,14 @@ const MinhasDietas = () => {
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => setWaterCount(Math.max(0, waterCount - 1))}
+                onClick={removeWater}
                 className="h-7 w-7 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
               >
                 <Minus className="h-3.5 w-3.5" />
               </button>
               <button
                 type="button"
-                onClick={() => setWaterCount(Math.min(waterGoal, waterCount + 1))}
+                onClick={addWater}
                 className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-primary-foreground hover:opacity-90 transition-opacity"
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -217,7 +218,7 @@ const MinhasDietas = () => {
             {Array.from({ length: waterGoal }).map((_, i) => (
               <div
                 key={i}
-                className={`h-2 flex-1 rounded-full transition-colors ${i < waterCount ? 'bg-chart-2' : 'bg-border'}`}
+                className={`h-2 flex-1 rounded-full transition-colors ${i < tracking.water_glasses ? 'bg-chart-2' : 'bg-border'}`}
               />
             ))}
           </div>
@@ -226,14 +227,24 @@ const MinhasDietas = () => {
         {/* Meals */}
         {currentMeals.length > 0 && (
           <div className="space-y-3">
-            {currentMeals.map((meal, i) => (
-              <MealCard
-                key={`${meal.name}-${meal.time || 'sem-hora'}-${i}`}
-                meal={meal}
-                index={i}
-                onCopy={() => null}
-              />
-            ))}
+            {currentMeals.map((meal, i) => {
+              const done = tracking.meals_completed.includes(i);
+              return (
+                <div key={`${meal.name}-${meal.time || 'sem-hora'}-${i}`} className="relative">
+                  <button
+                    onClick={() => toggleMeal(i)}
+                    className={`absolute -left-1 top-3 z-10 h-6 w-6 rounded-full flex items-center justify-center transition-all duration-300 ${
+                      done ? 'bg-green-500 scale-110' : 'border-2 border-muted-foreground/30 bg-background'
+                    }`}
+                  >
+                    {done && <Check className="h-3.5 w-3.5 text-white" />}
+                  </button>
+                  <div className={`ml-6 transition-opacity duration-300 ${done ? 'opacity-60' : ''}`}>
+                    <MealCard meal={meal} index={i} onCopy={() => null} />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
