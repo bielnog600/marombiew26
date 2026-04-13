@@ -43,7 +43,7 @@ interface MealCardProps {
   hideSubstitutions?: boolean;
 }
 
-const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, isCompleted, onToggleComplete }) => {
+const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, isCompleted, onToggleComplete, hideSubstitutions }) => {
   const [foods, setFoods] = useState<ParsedFood[]>(initialMeal.foods);
   const [selectedFoodIndex, setSelectedFoodIndex] = useState<number | null>(null);
 
