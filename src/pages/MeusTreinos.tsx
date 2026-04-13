@@ -84,7 +84,7 @@ const MeusTreinos = () => {
     setLoading(false);
   };
 
-  const todayIndex = trainingDays.length > 0 ? new Date().getDay() % trainingDays.length : -1;
+  const todayIndex = trainingDays.length > 0 ? (new Date().getDay() + 6) % 7 % trainingDays.length : -1;
 
   const getMuscleGroups = (day: ParsedTrainingDay) => {
     const groups: string[] = [];

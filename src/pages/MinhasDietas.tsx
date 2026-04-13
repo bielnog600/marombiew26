@@ -40,7 +40,7 @@ const MinhasDietas = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [sections, setSections] = useState<ParsedSection[]>([]);
-  const [selectedDay, setSelectedDay] = useState(new Date().getDay());
+  const [selectedDay, setSelectedDay] = useState((new Date().getDay() + 6) % 7);
   const { tracking, addWater, removeWater, toggleMeal } = useDailyTracking();
   const waterGoal = 8;
 
