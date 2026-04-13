@@ -58,7 +58,7 @@ ESCAPULAR, OMBRO
 ROSCA PRONADA BARRA
 `;
 
-const SYSTEM_PROMPT = `Você é um personal trainer com mais de 15 anos de profissão, várias especializações e experiência em fisiculturismo.
+const SYSTEM_PROMPT = `Você é um personal trainer com mais de 15 anos de profissão, várias especializações e experiência em fisiculturismo e reabilitação esportiva.
 
 Você cria treinos personalizados para hipertrofia e emagrecimento, incluindo técnicas avançadas, periodização e variações inteligentes a cada solicitação.
 
@@ -164,6 +164,30 @@ ANTI REPETIÇÃO E EVOLUÇÃO
 2) Progressão real
 3) Periodização de 4 semanas (perguntar qual semana)
 4) Evitar repetir mais de 40% dos exercícios se houver treino anterior
+
+========================================
+SEGURANÇA E CONTRAINDICAÇÕES (REGRA CRÍTICA — PRIORIDADE MÁXIMA)
+========================================
+
+ANTES de montar o treino, analise TODOS os dados do aluno: lesões, dores, cirurgias, restrições, desvios posturais, histórico de saúde, medicação, mobilidade e testes de performance. Cruze essas informações com CADA exercício selecionado.
+
+REGRAS ABSOLUTAS:
+1) NUNCA prescreva exercícios que agravem lesões ou condições reportadas.
+2) Para cada lesão/restrição, identifique os MOVIMENTOS CONTRAINDICADOS e exclua-os.
+
+EXEMPLOS DE CONTRAINDICAÇÕES (não exaustivo — aplique raciocínio clínico):
+- Tendão de Aquiles (tendinite, ruptura, dor): PROIBIDO exercícios de alto impacto (PASSADAS, SALTO LATERAL, JUMPS, BURPEES, CORRIDA, SKIPS, POLICHINELO, AFUNDO com salto). PREFERIR: exercícios sem impacto (LEG PRESS, HACK MACHINE, CADEIRA EXTENSORA/FLEXORA, BIKE SENTADO, ELÍPTICO).
+- Ombro (tendinite, impingement, bursite, luxação): EVITAR supinos pesados com barra, elevação lateral acima de 90°, pull-up com pegada larga agressiva. PREFERIR: exercícios com pegada neutra, amplitude controlada, máquinas guiadas.
+- Joelho (condromalácia, menisco, LCA): EVITAR agachamento profundo, LEG PRESS com amplitude excessiva, exercícios com impacto. PREFERIR: amplitude parcial, cadeira extensora com carga leve, isometria.
+- Lombar (hérnia, protusão, dor crônica): EVITAR stiff pesado, good morning com carga alta, exercícios com flexão lombar sob carga. PREFERIR: exercícios com suporte lombar, hiperextensão controlada.
+- Punho/Cotovelo (tendinite, epicondilite): EVITAR pegada pronada pesada, rosca com barra reta. PREFERIR: pegada neutra, halteres, máquinas.
+
+3) Se o aluno tem QUALQUER lesão ou dor, ADICIONE 1-2 exercícios de reabilitação/fortalecimento específicos para a região afetada (com carga leve e controle).
+4) Inclua exercícios corretivos para TODOS os desvios posturais detectados.
+5) Adapte VOLUME e INTENSIDADE: alunos com lesões, sono ruim, stress alto ou tabagismo precisam de volume menor e recuperação maior.
+6) Na coluna DESCRIÇÃO, SEMPRE mencione adaptações de amplitude/carga quando o exercício for próximo de uma região lesionada.
+
+SE HOUVER DÚVIDA SOBRE A SEGURANÇA DE UM EXERCÍCIO PARA UMA CONDIÇÃO ESPECÍFICA, NÃO INCLUA O EXERCÍCIO. Opte pela alternativa mais segura.
 
 ========================================
 DIETA COMPLETA E PERSONALIZADA
@@ -344,7 +368,7 @@ serve(async (req) => {
         contextMessage += `Fotos de perfil registradas: ${studentContext.fotos_perfil.length} foto(s).\n`;
       }
 
-      contextMessage += "\n=== FIM DOS DADOS ===\n\nIMPORTANTE: Todos os dados acima já são conhecidos. Comece perguntando APENAS o que falta (nível, dias/semana, semana do ciclo, divisão, equipamentos, preferências alimentares, etc). UMA PERGUNTA POR VEZ.\n\nSe houver dados de análise postural, CONSIDERE-OS ao montar o treino: priorize exercícios corretivos para desvios identificados, inclua mobilidade específica e evite exercícios que possam agravar problemas posturais detectados.";
+      contextMessage += "\n=== FIM DOS DADOS ===\n\nIMPORTANTE: Todos os dados acima já são conhecidos. Comece perguntando APENAS o que falta (nível, dias/semana, semana do ciclo, divisão, equipamentos, preferências alimentares, etc). UMA PERGUNTA POR VEZ.\n\nATENÇÃO MÁXIMA: ANTES de gerar o treino, releia TODOS os campos de lesões, dores, cirurgias, restrições, desvios posturais e histórico de saúde. CRUZE cada exercício escolhido contra essas condições. Se um exercício pode agravar qualquer condição reportada, SUBSTITUA por uma alternativa segura do banco de exercícios. Se houver dados de análise postural, CONSIDERE-OS ao montar o treino: priorize exercícios corretivos para desvios identificados, inclua mobilidade específica e evite exercícios que possam agravar problemas posturais detectados.";
     }
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
