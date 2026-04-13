@@ -133,7 +133,7 @@ const Dashboard = () => {
                   <Bell className="h-5 w-5 text-primary" />
                   Alertas ({notifCount})
                 </div>
-                <Button variant="ghost" size="sm" className="text-xs" onClick={() => navigate('/notificacoes')}>
+                <Button variant="ghost" size="sm" className="text-xs" onClick={() => navigate('/consultoria')}>
                   Ver todos <ChevronRight className="h-3 w-3 ml-1" />
                 </Button>
               </CardTitle>
