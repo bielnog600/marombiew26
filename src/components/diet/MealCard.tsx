@@ -40,14 +40,15 @@ interface MealCardProps {
   onCopy: (text: string, label?: string) => React.ReactNode;
   isCompleted?: boolean;
   onToggleComplete?: () => void;
+  hideSubstitutions?: boolean;
 }
 
-const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, isCompleted, onToggleComplete }) => {
+const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, isCompleted, onToggleComplete, hideSubstitutions }) => {
   const [foods, setFoods] = useState<ParsedFood[]>(initialMeal.foods);
   const [selectedFoodIndex, setSelectedFoodIndex] = useState<number | null>(null);
 
   const surface = MEAL_SURFACES[index % MEAL_SURFACES.length];
-  const hasSubs = foods.some((f) => f.sub);
+  const hasSubs = !hideSubstitutions && foods.some((f) => f.sub);
 
   // Recalculate totals from current foods
   const totalKcal = foods.reduce((s, f) => s + parseNum(f.kcal), 0);
