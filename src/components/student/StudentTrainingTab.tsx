@@ -112,6 +112,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                   <TrainingResultCards
                     markdown={currentMarkdown}
                     editable={true}
+                    trainingOnly={true}
                     onMarkdownChange={(newMd) => handleMarkdownChange(plan.id, newMd)}
                   />
                 </div>

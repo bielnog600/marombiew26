@@ -12,6 +12,8 @@ interface TrainingResultCardsProps {
   markdown: string;
   editable?: boolean;
   onMarkdownChange?: (newMarkdown: string) => void;
+  /** Show only training tables (no summaries, tips, messages, text) */
+  trainingOnly?: boolean;
 }
 
 const markdownTableClasses = 'prose prose-sm dark:prose-invert max-w-none [&_table]:text-xs [&_table]:w-full [&_th]:bg-muted [&_th]:p-1.5 [&_td]:p-1.5 [&_td]:border [&_th]:border [&_table]:block [&_table]:overflow-x-auto';
@@ -40,8 +42,9 @@ const CopyButton: React.FC<{ text: string; label?: string }> = ({ text, label })
   );
 };
 
-const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown, editable, onMarkdownChange }) => {
-  const sections = parseTrainingSections(markdown);
+const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown, editable, onMarkdownChange, trainingOnly }) => {
+  const allSections = parseTrainingSections(markdown);
+  const sections = trainingOnly ? allSections.filter(s => s.type === 'training') : allSections;
   const rendered: React.ReactNode[] = [];
   let messageGroup: string[] = [];
 
