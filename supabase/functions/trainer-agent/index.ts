@@ -368,7 +368,7 @@ serve(async (req) => {
         contextMessage += `Fotos de perfil registradas: ${studentContext.fotos_perfil.length} foto(s).\n`;
       }
 
-      contextMessage += "\n=== FIM DOS DADOS ===\n\nIMPORTANTE: Todos os dados acima já são conhecidos. Comece perguntando APENAS o que falta (nível, dias/semana, semana do ciclo, divisão, equipamentos, preferências alimentares, etc). UMA PERGUNTA POR VEZ.\n\nSe houver dados de análise postural, CONSIDERE-OS ao montar o treino: priorize exercícios corretivos para desvios identificados, inclua mobilidade específica e evite exercícios que possam agravar problemas posturais detectados.";
+      contextMessage += "\n=== FIM DOS DADOS ===\n\nIMPORTANTE: Todos os dados acima já são conhecidos. Comece perguntando APENAS o que falta (nível, dias/semana, semana do ciclo, divisão, equipamentos, preferências alimentares, etc). UMA PERGUNTA POR VEZ.\n\nATENÇÃO MÁXIMA: ANTES de gerar o treino, releia TODOS os campos de lesões, dores, cirurgias, restrições, desvios posturais e histórico de saúde. CRUZE cada exercício escolhido contra essas condições. Se um exercício pode agravar qualquer condição reportada, SUBSTITUA por uma alternativa segura do banco de exercícios. Se houver dados de análise postural, CONSIDERE-OS ao montar o treino: priorize exercícios corretivos para desvios identificados, inclua mobilidade específica e evite exercícios que possam agravar problemas posturais detectados.";
     }
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
