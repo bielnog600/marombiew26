@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import SplashScreen from "@/components/SplashScreen";
+import InstallBanner from "@/components/InstallBanner";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Alunos from "./pages/Alunos";
@@ -48,6 +49,7 @@ const App = () => {
         <Toaster />
         <Sonner />
         {showSplash && <SplashScreen onFinish={handleSplashFinish} />}
+        <InstallBanner />
         <BrowserRouter>
           <AuthProvider>
             <Routes>
