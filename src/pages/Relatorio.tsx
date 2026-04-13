@@ -339,16 +339,28 @@ const Relatorio = () => {
           <Button variant="ghost" onClick={() => navigate(-1)}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
           </Button>
-          <Button variant="outline" disabled={exporting} onClick={async () => {
-            setExporting(true);
-            try {
-              await generatePDF({ profile, assessment, anthro, comp, skinfolds, vitals, perf, anamnese, postureScan, studentProfile, hrZones });
-            } catch (err) { console.error(err); }
-            finally { setExporting(false); }
-          }}>
-            {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-            {exporting ? 'Gerando...' : 'Exportar PDF'}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" disabled={exporting} onClick={async () => {
+              setExporting(true);
+              try {
+                await generatePDF({ profile, assessment, anthro, comp, skinfolds, vitals, perf, anamnese, postureScan, studentProfile, hrZones }, 'pt');
+              } catch (err) { console.error(err); }
+              finally { setExporting(false); }
+            }}>
+              {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+              PDF (PT)
+            </Button>
+            <Button variant="outline" disabled={exporting} onClick={async () => {
+              setExporting(true);
+              try {
+                await generatePDF({ profile, assessment, anthro, comp, skinfolds, vitals, perf, anamnese, postureScan, studentProfile, hrZones }, 'en');
+              } catch (err) { console.error(err); }
+              finally { setExporting(false); }
+            }}>
+              {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+              PDF (EN)
+            </Button>
+          </div>
         </div>
 
         {/* Header */}
