@@ -146,7 +146,7 @@ const TreinoExecucao = () => {
         const sections = parseTrainingSections(treino.conteudo);
         const allDays = sections.flatMap(s => s.days ?? []);
         if (allDays.length > 0) {
-          const todayIndex = new Date().getDay() % allDays.length;
+          const todayIndex = (new Date().getDay() + 6) % 7 % allDays.length;
           const today = allDays[todayIndex];
           setLoadedExercises(today.exercises);
           setLoadedDayName(today.day);

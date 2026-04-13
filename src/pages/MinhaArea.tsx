@@ -132,7 +132,7 @@ const MinhaArea = () => {
     if (mealSections.length <= 1) {
       return dietSections.filter(s => s.type === 'meal' && s.meals).flatMap(s => s.meals!).length;
     }
-    const dayIndex = new Date().getDay() % mealSections.length;
+    const dayIndex = (new Date().getDay() + 6) % 7 % mealSections.length;
     return mealSections[dayIndex]?.meals?.length ?? 0;
   }, [dietSections]);
 
@@ -144,7 +144,7 @@ const MinhaArea = () => {
   }, [tracking.meals_completed, todayMealCount]);
 
   // Today's training (cycle through days based on weekday)
-  const todayIndex = trainingDays.length > 0 ? new Date().getDay() % trainingDays.length : 0;
+  const todayIndex = trainingDays.length > 0 ? (new Date().getDay() + 6) % 7 % trainingDays.length : 0;
   const todayTraining = trainingDays[todayIndex];
 
   // Pick an exercise image from today's training
