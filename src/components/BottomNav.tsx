@@ -10,7 +10,6 @@ import {
 const adminItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
   { title: 'Alunos', url: '/alunos', icon: Users },
-  { title: 'Consultoria', url: '/consultoria', icon: Briefcase },
   { title: 'Alertas', url: '/notificacoes', icon: Bell },
 ];
 
