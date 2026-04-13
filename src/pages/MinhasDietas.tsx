@@ -258,6 +258,7 @@ const MinhasDietas = () => {
                     onCopy={() => null}
                     isCompleted={done}
                     onToggleComplete={() => toggleMeal(i)}
+                    hideSubstitutions
                   />
                 </div>
               );
