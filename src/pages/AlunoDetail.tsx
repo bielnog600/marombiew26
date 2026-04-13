@@ -322,6 +322,14 @@ const AlunoDetail = () => {
             <AssessmentComparison studentId={id!} studentName={profile?.nome} assessments={assessments} />
           </TabsContent>
 
+          <TabsContent value="treinos">
+            <StudentTrainingTab studentId={id!} />
+          </TabsContent>
+
+          <TabsContent value="dietas">
+            <StudentDietTab studentId={id!} />
+          </TabsContent>
+
           <TabsContent value="fichas">
             <DietQuestionnairesList studentId={id!} studentPhone={profile?.telefone} studentName={profile?.nome} />
           </TabsContent>
