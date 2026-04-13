@@ -424,10 +424,10 @@ const TreinoExecucao = () => {
         </Button>
 
         <div className="space-y-2">
-          <div className="grid grid-cols-[40px_1fr_1fr_48px] gap-2 px-1">
-            <span className="text-[10px] uppercase text-muted-foreground font-semibold">Série</span>
-            <span className="text-[10px] uppercase text-muted-foreground font-semibold">Reps</span>
-            <span className="text-[10px] uppercase text-muted-foreground font-semibold">Carga (kg)</span>
+          <div className="grid grid-cols-[40px_1fr_1fr_48px] gap-2 px-2">
+            <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Série</span>
+            <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Reps</span>
+            <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Carga (kg)</span>
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">✓</span>
           </div>
           {currentSets.map((set, i) => (
