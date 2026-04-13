@@ -509,7 +509,7 @@ export const generatePDF = async (data: ReportData, lang: PdfLang = 'pt') => {
   // SINAIS VITAIS
   // ══════════════════════════════════════════════
   if (vitals) {
-    const vitalsRows = filterRows([
+    const vitaisRows = filterRows([
       [t.bloodPressure, fmt(vitals.pressao)],
       [t.restingHR, fmt(vitals.fc_repouso, ' bpm')],
       [t.spo2, fmt(vitals.spo2, '%')],
