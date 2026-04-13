@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, ClipboardList, TrendingUp, UserPlus, Bell, CalendarClock, Cake, Phone, MessageSquare, ChevronRight } from 'lucide-react';
+import { Users, ClipboardList, TrendingUp, UserPlus, Bell, CalendarClock, Cake, Phone, MessageSquare, ChevronRight, Briefcase } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useNotifications, NotificationType } from '@/hooks/useNotifications';
@@ -122,6 +122,17 @@ const Dashboard = () => {
               </CardContent>
             </Card>
           ))}
+          <Card className="glass-card cursor-pointer hover:border-primary/40 transition-colors" onClick={() => navigate('/consultoria')}>
+            <CardContent className="flex items-center gap-4 p-6">
+              <div className="rounded-xl p-3 bg-secondary text-chart-4">
+                <Briefcase className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Consultoria</p>
+                <p className="text-sm font-medium text-primary flex items-center gap-1">Acessar <ChevronRight className="h-3 w-3" /></p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Alerts Card */}
