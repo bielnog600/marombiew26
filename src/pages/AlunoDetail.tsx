@@ -251,61 +251,65 @@ const AlunoDetail = () => {
                   </Card>
                 ))
               )}
-            </div>
-          </TabsContent>
 
-          <TabsContent value="postura">
-            <div className="space-y-4">
-              <Button onClick={() => navigate(`/postura/${id}`)} className="font-semibold">
-                <Plus className="mr-2 h-4 w-4" /> Nova Análise Postural
-              </Button>
-              {postureScans.length === 0 ? (
-                <Card className="glass-card">
-                  <CardContent className="p-6 text-center text-muted-foreground">Nenhuma análise postural registrada.</CardContent>
-                </Card>
-              ) : (
-                postureScans.map((s) => (
-                  <Card key={s.id} className="glass-card hover:border-primary/30 transition-colors">
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div className="cursor-pointer flex-1" onClick={() => navigate(`/postura/${id}`)}>
-                        <p className="font-medium">Análise Postural</p>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(s.created_at).toLocaleDateString('pt-BR')}
-                        </p>
-                        {s.notes && <p className="text-xs text-muted-foreground mt-1">{s.notes}</p>}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive">
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Deletar análise postural?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Esta ação não pode ser desfeita. Todos os dados desta análise serão removidos permanentemente.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={async () => {
-                                const { error } = await supabase.from('posture_scans').delete().eq('id', s.id);
-                                if (error) { toast.error('Erro ao deletar: ' + error.message); return; }
-                                toast.success('Análise deletada.');
-                                setPostureScans(prev => prev.filter(p => p.id !== s.id));
-                              }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                Deletar
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </CardContent>
+              {/* Posture scans section inside avaliacoes */}
+              <div className="mt-6 pt-4 border-t border-border">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <ScanLine className="h-4 w-4 text-primary" /> Análise Postural
+                  </h3>
+                  <Button size="sm" onClick={() => navigate(`/postura/${id}`)} className="font-semibold">
+                    <Plus className="mr-1 h-3 w-3" /> Nova Análise
+                  </Button>
+                </div>
+                {postureScans.length === 0 ? (
+                  <Card className="glass-card">
+                    <CardContent className="p-4 text-center text-muted-foreground text-sm">Nenhuma análise postural registrada.</CardContent>
                   </Card>
-                ))
-              )}
+                ) : (
+                  postureScans.map((s) => (
+                    <Card key={s.id} className="glass-card hover:border-primary/30 transition-colors mb-2">
+                      <CardContent className="p-4 flex items-center justify-between">
+                        <div className="cursor-pointer flex-1" onClick={() => navigate(`/postura/${id}`)}>
+                          <p className="font-medium">Análise Postural</p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(s.created_at).toLocaleDateString('pt-BR')}
+                          </p>
+                          {s.notes && <p className="text-xs text-muted-foreground mt-1">{s.notes}</p>}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive">
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Deletar análise postural?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Esta ação não pode ser desfeita. Todos os dados desta análise serão removidos permanentemente.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={async () => {
+                                  const { error } = await supabase.from('posture_scans').delete().eq('id', s.id);
+                                  if (error) { toast.error('Erro ao deletar: ' + error.message); return; }
+                                  toast.success('Análise deletada.');
+                                  setPostureScans(prev => prev.filter(p => p.id !== s.id));
+                                }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                  Deletar
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
             </div>
           </TabsContent>
 
