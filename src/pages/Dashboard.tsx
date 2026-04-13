@@ -122,17 +122,6 @@ const Dashboard = () => {
               </CardContent>
             </Card>
           ))}
-          <Card className="glass-card cursor-pointer hover:border-primary/40 transition-colors" onClick={() => navigate('/notificacoes')}>
-            <CardContent className="flex items-center gap-4 p-6">
-              <div className="rounded-xl p-3 bg-secondary text-chart-4">
-                <Bell className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Notificações</p>
-                <p className="text-2xl font-bold">{notifCount}</p>
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Alerts Card */}
@@ -144,7 +133,7 @@ const Dashboard = () => {
                   <Bell className="h-5 w-5 text-primary" />
                   Alertas ({notifCount})
                 </div>
-                <Button variant="ghost" size="sm" className="text-xs" onClick={() => navigate('/notificacoes')}>
+                <Button variant="ghost" size="sm" className="text-xs" onClick={() => navigate('/consultoria')}>
                   Ver todos <ChevronRight className="h-3 w-3 ml-1" />
                 </Button>
               </CardTitle>
