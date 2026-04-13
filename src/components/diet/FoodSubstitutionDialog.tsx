@@ -46,20 +46,20 @@ const FoodSubstitutionDialog: React.FC<FoodSubstitutionDialogProps> = ({
   const origC = parseNum(originalFood.c);
   const origG = parseNum(originalFood.g);
 
-  // Score: lower = closer macros. Compares macro ratios per calorie.
+  // Score: lower = closer macros. Compares absolute macro values scaled to equivalent portion.
   const macroScore = useCallback((food: typeof foods[number]) => {
-    const totalCal = food.calories || 1;
-    // Ratio per calorie for the DB food
-    const pRatio = food.protein / totalCal;
-    const cRatio = food.carbs / totalCal;
-    const gRatio = food.fats / totalCal;
-    // Ratio per calorie for original
-    const oTotal = origKcal || 1;
-    const oPRatio = origP / oTotal;
-    const oCRatio = origC / oTotal;
-    const oGRatio = origG / oTotal;
+    const kcalPer100 = food.calories > 0 ? food.calories / (food.portion_size || 100) : 0;
+    let scale = 1;
+    if (kcalPer100 > 0 && origKcal > 0) {
+      const newPortion = origKcal / kcalPer100;
+      scale = newPortion / (food.portion_size || 100);
+    }
+    const scaledP = food.protein * scale;
+    const scaledC = food.carbs * scale;
+    const scaledG = food.fats * scale;
 
-    return Math.abs(pRatio - oPRatio) + Math.abs(cRatio - oCRatio) + Math.abs(gRatio - oGRatio);
+    // Weighted absolute difference — protein and carbs matter more
+    return Math.abs(scaledP - origP) * 2 + Math.abs(scaledC - origC) * 2 + Math.abs(scaledG - origG);
   }, [origKcal, origP, origC, origG]);
 
   const filtered = useMemo(() => {
