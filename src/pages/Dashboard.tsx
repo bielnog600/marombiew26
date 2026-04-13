@@ -122,14 +122,14 @@ const Dashboard = () => {
               </CardContent>
             </Card>
           ))}
-          <Card className="glass-card cursor-pointer hover:border-primary/40 transition-colors" onClick={() => navigate('/consultoria')}>
+          <Card className="glass-card cursor-pointer hover:border-primary/40 transition-colors" onClick={() => navigate('/notificacoes')}>
             <CardContent className="flex items-center gap-4 p-6">
               <div className="rounded-xl p-3 bg-secondary text-chart-4">
-                <Briefcase className="h-6 w-6" />
+                <Bell className="h-6 w-6" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Consultoria</p>
-                <p className="text-sm font-medium text-primary flex items-center gap-1">Acessar <ChevronRight className="h-3 w-3" /></p>
+                <p className="text-sm text-muted-foreground">Notificações</p>
+                <p className="text-2xl font-bold">{notifCount}</p>
               </div>
             </CardContent>
           </Card>
