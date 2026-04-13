@@ -356,7 +356,7 @@ const TreinoExecucao = () => {
             <video
               key={streamVideoId ?? currentIndex}
               ref={videoRef}
-              className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+              className="absolute inset-0 w-full h-full object-cover object-top pointer-events-none"
               muted
               autoPlay
               loop
