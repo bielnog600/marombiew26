@@ -116,7 +116,7 @@ const FoodSubstitutionDialog: React.FC<FoodSubstitutionDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[85vh] flex flex-col fixed top-[5vh] translate-y-0 sm:top-[50%] sm:-translate-y-1/2">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-sm">
             <ArrowRightLeft className="h-4 w-4 text-primary" />
@@ -124,9 +124,9 @@ const FoodSubstitutionDialog: React.FC<FoodSubstitutionDialogProps> = ({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="space-y-3 flex-1 min-h-0 flex flex-col">
           {/* Original food info */}
-          <div className="rounded-lg bg-secondary/60 p-3">
+          <div className="rounded-lg bg-secondary/60 p-3 shrink-0">
             <p className="text-xs text-muted-foreground mb-1">Alimento atual</p>
             <p className="text-sm font-semibold">{originalFood.food}</p>
             <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
@@ -139,19 +139,18 @@ const FoodSubstitutionDialog: React.FC<FoodSubstitutionDialogProps> = ({
           </div>
 
           {/* Search */}
-          <div className="relative">
+          <div className="relative shrink-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar alimento substituto..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9"
-              autoFocus
             />
           </div>
 
           {/* Food list */}
-          <ScrollArea className="h-[280px]">
+          <ScrollArea className="flex-1 min-h-0 max-h-[40vh]">
             <div className="space-y-1 pr-3">
               {filtered.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-6">
