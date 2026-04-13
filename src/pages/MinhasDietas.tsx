@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { UtensilsCrossed, Droplets, Plus, Minus, Target, ArrowLeft } from 'lucide-react';
@@ -40,6 +41,7 @@ const MinhasDietas = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [sections, setSections] = useState<ParsedSection[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState((new Date().getDay() + 6) % 7);
   const { tracking, addWater, removeWater, toggleMeal } = useDailyTracking();
   const waterGoal = 8;
@@ -81,6 +83,7 @@ const MinhasDietas = () => {
     if (dieta) {
       setSections(parseSections(dieta.conteudo));
     }
+    setLoading(false);
   };
 
   const mealsByDay = useMemo(() => {
@@ -109,6 +112,38 @@ const MinhasDietas = () => {
   const waterMl = tracking.water_glasses * 250;
   const waterGoalMl = waterGoal * 250;
   const waterProgress = (tracking.water_glasses / waterGoal) * 100;
+
+  if (loading) {
+    return (
+      <AppLayout title="Plano Alimentar">
+        <div className="space-y-4">
+          <Skeleton className="h-8 w-16 rounded-md" />
+          <div className="rounded-xl border border-border/50 p-3 space-y-3">
+            <Skeleton className="h-4 w-28" />
+            <div className="grid grid-cols-4 gap-2">
+              {[1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-14 rounded-lg" />
+              ))}
+            </div>
+          </div>
+          <Skeleton className="h-20 rounded-xl" />
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="glass-card">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex justify-between">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-16" />
+                </div>
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-3/4" />
+                <Skeleton className="h-3 w-1/2" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout title="Plano Alimentar">

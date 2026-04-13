@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dumbbell, ClipboardList, ChevronRight, Play } from 'lucide-react';
@@ -18,6 +19,7 @@ const MinhaArea = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [assessmentCount, setAssessmentCount] = useState(0);
   const [trainingDays, setTrainingDays] = useState<ParsedTrainingDay[]>([]);
   const [meals, setMeals] = useState<ParsedMeal[]>([]);
@@ -116,6 +118,7 @@ const MinhaArea = () => {
       const allMeals = sections.flatMap(s => s.meals ?? []);
       setMeals(allMeals);
     }
+    setLoading(false);
   };
 
   const firstName = profile?.nome?.split(' ')[0] || '';
@@ -176,6 +179,37 @@ const MinhaArea = () => {
     }
     return groups.slice(0, 3).join(' • ');
   }, [todayTraining, exerciseMuscles]);
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="space-y-5">
+          {/* Welcome skeleton */}
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-12 w-12 rounded-full" />
+            <div className="space-y-1.5">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-5 w-32" />
+            </div>
+          </div>
+          {/* Training card skeleton */}
+          <Card className="glass-card overflow-hidden">
+            <Skeleton className="h-40 w-full rounded-none" />
+          </Card>
+          {/* Diet card skeleton */}
+          <Skeleton className="h-24 rounded-xl" />
+          {/* Dashboard cards skeleton */}
+          <div className="grid grid-cols-3 gap-3">
+            <Skeleton className="h-24 rounded-xl" />
+            <Skeleton className="h-24 rounded-xl" />
+            <Skeleton className="h-24 rounded-xl" />
+          </div>
+          {/* Assessments skeleton */}
+          <Skeleton className="h-16 rounded-xl" />
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
