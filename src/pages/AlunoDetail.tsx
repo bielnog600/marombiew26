@@ -142,7 +142,6 @@ const AlunoDetail = () => {
             <TabsList className="bg-secondary w-max min-w-full">
               <TabsTrigger value="perfil" className="text-xs sm:text-sm"><User className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Perfil</span><span className="sm:hidden">Perfil</span></TabsTrigger>
               <TabsTrigger value="avaliacoes" className="text-xs sm:text-sm"><ClipboardList className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Avaliações</span><span className="sm:hidden">Aval.</span></TabsTrigger>
-              <TabsTrigger value="postura" className="text-xs sm:text-sm"><ScanLine className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Análise Postural</span><span className="sm:hidden">Postura</span></TabsTrigger>
               <TabsTrigger value="comparar" className="text-xs sm:text-sm"><BarChart3 className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Comparar</span><span className="sm:hidden">Comp.</span></TabsTrigger>
               <TabsTrigger value="fichas" className="text-xs sm:text-sm"><FileQuestion className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Fichas</span><span className="sm:hidden">Fichas</span></TabsTrigger>
               <TabsTrigger value="ia" className="text-xs sm:text-sm"><Bot className="mr-1 h-4 w-4 shrink-0" /> IA</TabsTrigger>
