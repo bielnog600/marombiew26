@@ -258,9 +258,19 @@ serve(async (req) => {
       }
       if (studentContext.altura) contextMessage += `Altura: ${studentContext.altura} cm\n`;
       if (studentContext.objetivo) contextMessage += `Objetivo: ${studentContext.objetivo}\n`;
-      if (studentContext.restricoes) contextMessage += `Restrições alimentares/treino: ${studentContext.restricoes}\n`;
-      if (studentContext.lesoes) contextMessage += `Lesões: ${studentContext.lesoes}\n`;
-      if (studentContext.observacoes) contextMessage += `Observações gerais: ${studentContext.observacoes}\n`;
+
+      // CRITICAL SAFETY DATA - highlighted for AI attention
+      const safetyFields: string[] = [];
+      if (studentContext.restricoes) safetyFields.push(`⚠️ RESTRIÇÕES: ${studentContext.restricoes}`);
+      if (studentContext.lesoes) safetyFields.push(`🚨 LESÕES: ${studentContext.lesoes}`);
+      if (studentContext.observacoes) safetyFields.push(`📋 OBSERVAÇÕES DO PROFESSOR: ${studentContext.observacoes}`);
+      
+      if (safetyFields.length > 0) {
+        contextMessage += `\n========== ⚠️ DADOS CRÍTICOS DE SEGURANÇA — LEIA COM ATENÇÃO MÁXIMA ⚠️ ==========\n`;
+        contextMessage += safetyFields.join('\n') + '\n';
+        contextMessage += `==========================================================================\n`;
+        contextMessage += `INSTRUÇÃO: Os dados acima DEVEM ser cruzados com CADA exercício do treino. Se QUALQUER exercício puder agravar uma lesão, restrição ou condição mencionada, NÃO inclua esse exercício. Substitua por uma alternativa segura do banco.\n\n`;
+      }
       if (studentContext.raca) contextMessage += `Raça/etnia: ${studentContext.raca}\n`;
 
       // Anthropometrics
