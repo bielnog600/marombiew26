@@ -40,6 +40,7 @@ interface MealCardProps {
   onCopy: (text: string, label?: string) => React.ReactNode;
   isCompleted?: boolean;
   onToggleComplete?: () => void;
+  hideSubstitutions?: boolean;
 }
 
 const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, isCompleted, onToggleComplete }) => {
