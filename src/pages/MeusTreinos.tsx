@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -110,8 +111,18 @@ const MeusTreinos = () => {
   if (loading) {
     return (
       <AppLayout title="Treinos">
-        <div className="flex items-center justify-center h-40">
-          <Dumbbell className="h-8 w-8 text-muted-foreground animate-pulse" />
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="glass-card overflow-hidden">
+              <Skeleton className="h-32 w-full rounded-none" />
+              <CardContent className="p-4 space-y-3">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-10 w-full rounded-md" />
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </AppLayout>
     );

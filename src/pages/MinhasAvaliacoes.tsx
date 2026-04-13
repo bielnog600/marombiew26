@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -171,8 +172,19 @@ const MinhasAvaliacoes = () => {
         {tab === 'avaliacoes' && (
           <>
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <Card key={i} className="glass-card">
+                    <CardContent className="p-4 space-y-2">
+                      <Skeleton className="h-4 w-40" />
+                      <div className="flex gap-4">
+                        <Skeleton className="h-3 w-16" />
+                        <Skeleton className="h-3 w-20" />
+                      </div>
+                      <Skeleton className="h-5 w-24 rounded-full" />
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
             ) : assessments.length === 0 ? (
               <Card className="glass-card">
@@ -225,8 +237,19 @@ const MinhasAvaliacoes = () => {
         {tab === 'postura' && (
           <>
             {loadingScans ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <div className="space-y-4">
+                {[1, 2].map((i) => (
+                  <Card key={i} className="glass-card">
+                    <CardContent className="p-4 space-y-4">
+                      <Skeleton className="h-4 w-40" />
+                      <div className="grid grid-cols-3 gap-2">
+                        {[1, 2, 3].map((j) => (
+                          <Skeleton key={j} className="aspect-[3/4] rounded-lg" />
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
             ) : scans.length === 0 ? (
               <Card className="glass-card">
