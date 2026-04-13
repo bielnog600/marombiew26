@@ -149,7 +149,7 @@ const FoodSubstitutionDialog: React.FC<FoodSubstitutionDialogProps> = ({
           </div>
 
           {/* Food list */}
-          <ScrollArea className="flex-1 min-h-0 max-h-[40vh]">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain -webkit-overflow-scrolling-touch" style={{ maxHeight: '50vh', WebkitOverflowScrolling: 'touch' }}>
             <div className="space-y-1 pr-3">
               {filtered.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-6">
@@ -184,7 +184,7 @@ const FoodSubstitutionDialog: React.FC<FoodSubstitutionDialogProps> = ({
                 })
               )}
             </div>
-          </ScrollArea>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
