@@ -42,7 +42,7 @@ const CopyButton: React.FC<{ text: string; label?: string }> = ({ text, label })
   );
 };
 
-const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown, editable, onMarkdownChange }) => {
+const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown, editable, onMarkdownChange, trainingOnly }) => {
   const sections = parseTrainingSections(markdown);
   const rendered: React.ReactNode[] = [];
   let messageGroup: string[] = [];
