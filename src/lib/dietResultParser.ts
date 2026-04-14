@@ -196,12 +196,9 @@ export const parseMealTable = (tableLines: string[]): ParsedMeal[] => {
     const isTotal = mealCell.toLowerCase().includes('total') || foodCell.toLowerCase().includes('total');
 
     if (isTotal) {
-      if (currentMeal) {
-        currentMeal.totalKcal = formatNumber(parseNumericValue(cells[idx.kcal]), ' kcal') || currentMeal.totalKcal;
-        currentMeal.totalP = formatNumber(parseNumericValue(cells[idx.p])) || currentMeal.totalP;
-        currentMeal.totalC = formatNumber(parseNumericValue(cells[idx.c])) || currentMeal.totalC;
-        currentMeal.totalG = formatNumber(parseNumericValue(cells[idx.g])) || currentMeal.totalG;
-      }
+      // Skip total rows entirely — let finalizeMeal calculate per-meal totals
+      // from individual foods. This prevents the grand "Total" row from
+      // overwriting the last meal's totals with the whole-day sum.
       continue;
     }
 
