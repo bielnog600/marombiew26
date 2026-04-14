@@ -19,17 +19,23 @@ interface DietPlanCardProps {
 const DietPlanCard: React.FC<DietPlanCardProps> = ({ sections, mealsCompleted = [], onToggleMeal }) => {
   const navigate = useNavigate();
 
-  const allMeals = useMemo(() =>
-    sections.filter(s => s.type === 'meal' && s.meals).flatMap(s => s.meals!),
+  // Group meals by day/cardápio section
+  const mealsByDay = useMemo(() =>
+    sections.filter(s => s.type === 'meal' && s.meals && s.meals.length > 0).map(s => s.meals!),
     [sections]
   );
 
-  const totalKcal = allMeals.reduce((s, m) => s + parseNum(m.totalKcal), 0);
-  const totalP = allMeals.reduce((s, m) => s + parseNum(m.totalP), 0);
-  const totalC = allMeals.reduce((s, m) => s + parseNum(m.totalC), 0);
-  const totalG = allMeals.reduce((s, m) => s + parseNum(m.totalG), 0);
+  // Show current day's meals (rotate through available days)
+  const hasDays = mealsByDay.length > 1;
+  const dayIndex = hasDays ? (new Date().getDay() + 6) % 7 % mealsByDay.length : 0;
+  const currentMeals = mealsByDay[dayIndex] ?? [];
 
-  if (allMeals.length === 0) return null;
+  const totalKcal = currentMeals.reduce((s, m) => s + parseNum(m.totalKcal), 0);
+  const totalP = currentMeals.reduce((s, m) => s + parseNum(m.totalP), 0);
+  const totalC = currentMeals.reduce((s, m) => s + parseNum(m.totalC), 0);
+  const totalG = currentMeals.reduce((s, m) => s + parseNum(m.totalG), 0);
+
+  if (currentMeals.length === 0) return null;
 
   return (
     <Card className="glass-card overflow-hidden">
