@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
 import { Card } from '@/components/ui/card';
-import { UtensilsCrossed, ChevronRight, Check } from 'lucide-react';
+import { UtensilsCrossed, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { ParsedSection } from '@/lib/dietResultParser';
+import { extractTargetsFromSections } from '@/lib/dietTargets';
 
 const parseNum = (v?: string) => {
   if (!v) return 0;
@@ -19,21 +20,27 @@ interface DietPlanCardProps {
 const DietPlanCard: React.FC<DietPlanCardProps> = ({ sections, mealsCompleted = [], onToggleMeal }) => {
   const navigate = useNavigate();
 
-  // Group meals by day/cardápio section
   const mealsByDay = useMemo(() =>
     sections.filter(s => s.type === 'meal' && s.meals && s.meals.length > 0).map(s => s.meals!),
     [sections]
   );
 
-  // Show current day's meals (rotate through available days)
   const hasDays = mealsByDay.length > 1;
   const dayIndex = hasDays ? (new Date().getDay() + 6) % 7 % mealsByDay.length : 0;
   const currentMeals = mealsByDay[dayIndex] ?? [];
 
-  const totalKcal = currentMeals.reduce((s, m) => s + parseNum(m.totalKcal), 0);
-  const totalP = currentMeals.reduce((s, m) => s + parseNum(m.totalP), 0);
-  const totalC = currentMeals.reduce((s, m) => s + parseNum(m.totalC), 0);
-  const totalG = currentMeals.reduce((s, m) => s + parseNum(m.totalG), 0);
+  const parsedTotals = useMemo(() => ({
+    kcal: currentMeals.reduce((sum, meal) => sum + parseNum(meal.totalKcal), 0),
+    protein: currentMeals.reduce((sum, meal) => sum + parseNum(meal.totalP), 0),
+    carbs: currentMeals.reduce((sum, meal) => sum + parseNum(meal.totalC), 0),
+    fats: currentMeals.reduce((sum, meal) => sum + parseNum(meal.totalG), 0),
+  }), [currentMeals]);
+
+  const targets = useMemo(() => extractTargetsFromSections(sections), [sections]);
+  const totalKcal = targets?.calories || parsedTotals.kcal;
+  const totalP = targets?.protein || parsedTotals.protein;
+  const totalC = targets?.carbs || parsedTotals.carbs;
+  const totalG = targets?.fats || parsedTotals.fats;
 
   if (currentMeals.length === 0) return null;
 
