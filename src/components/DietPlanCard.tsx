@@ -52,7 +52,7 @@ const DietPlanCard: React.FC<DietPlanCardProps> = ({ sections, mealsCompleted = 
             </div>
             <div>
               <p className="text-[10px] uppercase tracking-widest text-chart-3 font-semibold">Plano Alimentar</p>
-              <h3 className="text-base font-bold text-foreground mt-0.5">{allMeals.length} refeições</h3>
+              <h3 className="text-base font-bold text-foreground mt-0.5">{currentMeals.length} refeições</h3>
             </div>
           </div>
           <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
