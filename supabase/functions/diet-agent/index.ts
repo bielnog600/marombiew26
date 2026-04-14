@@ -152,15 +152,23 @@ NUNCA deixe colunas Kcal, P, C ou G vazias. Sempre preencha com valores numéric
 Inclua TOTAL de cada refeição e TOTAL DIÁRIO.
 
 ========================================
-VERIFICAÇÃO FINAL OBRIGATÓRIA
+VERIFICAÇÃO FINAL OBRIGATÓRIA (MAIS IMPORTANTE)
 ========================================
 
-Antes de entregar o plano, VERIFIQUE:
-1) Some todos os macros e calorias de cada refeição
-2) Some os totais de todas as refeições
-3) Compare com as calorias alvo — se a diferença for > 50 kcal, AJUSTE as porções
-4) Confirme que P + C + G em calorias ≈ total de calorias (P×4 + C×4 + G×9)
-5) Se encontrar inconsistência, corrija ANTES de apresentar
+ANTES de escrever a resposta final, execute MENTALMENTE estes passos:
+
+1) Para CADA alimento, calcule: Kcal = (kcal_por_porção / porção_base) × quantidade_usada. Faça o mesmo para P, C e G.
+2) Some TODOS os alimentos de TODAS as refeições de cada cardápio.
+3) Compare os totais com as METAS definidas (calorias alvo, P, C, G).
+4) Se a diferença em QUALQUER macro for > 3g ou em calorias > 30 kcal:
+   → AJUSTE as quantidades em gramas dos alimentos até que os totais batam.
+   → Aumente ou diminua porções de carboidratos/proteínas/gorduras conforme necessário.
+5) Confirme que P×4 + C×4 + G×9 ≈ Kcal total (tolerância ±30 kcal).
+6) A linha "Total" da tabela DEVE refletir EXATAMENTE a soma dos alimentos acima dela.
+7) Os valores do "Resumo Nutricional" DEVEM ser IDÊNTICOS aos totais da tabela.
+8) Se encontrar QUALQUER inconsistência, CORRIJA as porções ANTES de apresentar.
+
+ERRO COMUM A EVITAR: Definir meta de 2200kcal/165P/250C/65G no resumo mas gerar alimentos que somam 2158kcal/186P/223C/59G. Isso é INACEITÁVEL. Os alimentos DEVEM somar os valores da meta.
 
 ========================================
 REGRAS
