@@ -7,12 +7,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { UtensilsCrossed, Droplets, Plus, Minus, Target, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { parseSections, type ParsedSection } from '@/lib/dietResultParser';
+import { extractTargetsFromSections } from '@/lib/dietTargets';
 import MealCard from '@/components/diet/MealCard';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
 
-const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const WEEKDAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+const OPTION_TITLE_REGEX = /(op[cç][aã]o|card[aá]pio)/i;
 
 const parseNum = (v?: string) => {
   if (!v) return 0;
@@ -22,27 +24,12 @@ const parseNum = (v?: string) => {
 
 const formatValue = (value: number, suffix = '') => `${Math.round(value || 0)}${suffix}`;
 
-const extractTargetsFromSections = (sections: ParsedSection[]) => {
-  const fullText = sections.map((s) => `${s.title || ''}\n${s.content || ''}`).join('\n');
-  const calories = fullText.match(/(?:calorias(?:\s+alvo)?|total\s+di[aá]rio)[^\d]{0,20}(\d{3,5})\s*k?cal/i);
-  const protein = fullText.match(/prote[ií]na[^\d]{0,20}(\d{2,4}(?:[.,]\d+)?)\s*g/i);
-  const carbs = fullText.match(/carbo(?:idrato|s)?[^\d]{0,20}(\d{2,4}(?:[.,]\d+)?)\s*g/i);
-  const fats = fullText.match(/gordura[s]?[^\d]{0,20}(\d{2,4}(?:[.,]\d+)?)\s*g/i);
-  const parsed = {
-    calories: calories ? parseNum(calories[1]) : 0,
-    protein: protein ? parseNum(protein[1]) : 0,
-    carbs: carbs ? parseNum(carbs[1]) : 0,
-    fats: fats ? parseNum(fats[1]) : 0,
-  };
-  return Object.values(parsed).some((v) => v > 0) ? parsed : null;
-};
-
 const MinhasDietas = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [sections, setSections] = useState<ParsedSection[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDay, setSelectedDay] = useState((new Date().getDay() + 6) % 7);
+  const [selectedGroupIndex, setSelectedGroupIndex] = useState(0);
   const { tracking, addWater, removeWater, toggleMeal } = useDailyTracking();
   const waterGoal = 8;
 
@@ -86,28 +73,51 @@ const MinhasDietas = () => {
     setLoading(false);
   };
 
-  const mealsByDay = useMemo(() => {
+  const mealGroups = useMemo(() => {
     const mealSections = sections.filter(s => s.type === 'meal' && s.meals && s.meals.length > 0);
     return mealSections.map((s, i) => ({
-      label: s.title || `Cardápio ${i + 1}`,
+      label: s.title?.trim() || '',
       meals: s.meals!,
     }));
   }, [sections]);
+
+  const usesMealOptions = useMemo(
+    () => mealGroups.length > 1 && mealGroups.some((group) => OPTION_TITLE_REGEX.test(group.label)),
+    [mealGroups],
+  );
+
+  const defaultGroupIndex = useMemo(() => {
+    if (mealGroups.length === 0) return 0;
+    if (usesMealOptions) return 0;
+    return ((new Date().getDay() + 6) % 7) % mealGroups.length;
+  }, [mealGroups.length, usesMealOptions]);
+
+  useEffect(() => {
+    setSelectedGroupIndex(defaultGroupIndex);
+  }, [defaultGroupIndex]);
 
   const allMeals = useMemo(() =>
     sections.filter(s => s.type === 'meal' && s.meals).flatMap(s => s.meals!),
     [sections]
   );
 
-  const hasDays = mealsByDay.length > 1;
-  const dayIndex = hasDays ? selectedDay % mealsByDay.length : 0;
-  const currentMeals = hasDays ? (mealsByDay[dayIndex]?.meals ?? []) : allMeals;
+  const hasMultipleGroups = mealGroups.length > 1;
+  const activeGroupIndex = mealGroups[selectedGroupIndex] ? selectedGroupIndex : defaultGroupIndex;
+  const currentMeals = mealGroups.length > 0 ? (mealGroups[activeGroupIndex]?.meals ?? []) : allMeals;
 
   const totalKcal = currentMeals.reduce((s, m) => s + parseNum(m.totalKcal), 0);
   const totalP = currentMeals.reduce((s, m) => s + parseNum(m.totalP), 0);
   const totalC = currentMeals.reduce((s, m) => s + parseNum(m.totalC), 0);
   const totalG = currentMeals.reduce((s, m) => s + parseNum(m.totalG), 0);
   const targets = useMemo(() => extractTargetsFromSections(sections), [sections]);
+  const displaySummary = usesMealOptions || !targets
+    ? { calories: totalKcal, protein: totalP, carbs: totalC, fats: totalG }
+    : targets;
+  const summaryTitle = usesMealOptions
+    ? 'Totais da opção selecionada'
+    : targets
+      ? 'Metas do dia'
+      : 'Totais do dia';
 
   const waterMl = tracking.water_glasses * 250;
   const waterGoalMl = waterGoal * 250;
@@ -159,24 +169,23 @@ const MinhasDietas = () => {
           Voltar
         </Button>
 
-        {/* Day selector */}
-        {hasDays && (
+        {/* Option/day selector */}
+        {hasMultipleGroups && (
           <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-            {DAY_LABELS.map((label, i) => {
-              const isActive = dayIndex === i;
-              const hasMealsForDay = Boolean(mealsByDay[i]?.meals?.length);
+            {mealGroups.map((group, i) => {
+              const label = usesMealOptions
+                ? (group.label || `Opção ${i + 1}`)
+                : (group.label || WEEKDAY_LABELS[i] || `Dia ${i + 1}`);
+              const isActive = activeGroupIndex === i;
               return (
                 <button
                   key={label}
                   type="button"
-                  onClick={() => hasMealsForDay && setSelectedDay(i)}
-                  disabled={!hasMealsForDay}
+                  onClick={() => setSelectedGroupIndex(i)}
                   className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                     isActive
                       ? 'bg-primary text-primary-foreground'
-                      : hasMealsForDay
-                        ? 'bg-secondary/50 text-muted-foreground hover:bg-secondary'
-                        : 'bg-secondary/30 text-muted-foreground/50 opacity-50'
+                      : 'bg-secondary/50 text-muted-foreground hover:bg-secondary'
                   }`}
                 >
                   {label}
@@ -186,56 +195,28 @@ const MinhasDietas = () => {
           </div>
         )}
 
-        {/* Daily targets - TOP */}
-        {targets && (
+        {/* Daily summary - TOP */}
+        {displaySummary && (
           <div className="rounded-xl border border-border/50 bg-secondary/20 p-3 space-y-3">
             <div className="flex items-center gap-2">
               <Target className="h-4 w-4 text-primary" />
-              <p className="text-xs font-semibold text-foreground">Metas do dia</p>
+              <p className="text-xs font-semibold text-foreground">{summaryTitle}</p>
             </div>
             <div className="grid grid-cols-4 gap-2">
               <div className="rounded-lg bg-background/70 p-2 text-center">
-                <p className="text-sm font-bold text-primary">{formatValue(targets.calories, ' kcal')}</p>
+                <p className="text-sm font-bold text-primary">{formatValue(displaySummary.calories, ' kcal')}</p>
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Calorias</p>
               </div>
               <div className="rounded-lg bg-background/70 p-2 text-center">
-                <p className="text-sm font-bold text-chart-2">{formatValue(targets.protein, 'g')}</p>
+                <p className="text-sm font-bold text-chart-2">{formatValue(displaySummary.protein, 'g')}</p>
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Proteína</p>
               </div>
               <div className="rounded-lg bg-background/70 p-2 text-center">
-                <p className="text-sm font-bold text-chart-3">{formatValue(targets.carbs, 'g')}</p>
+                <p className="text-sm font-bold text-chart-3">{formatValue(displaySummary.carbs, 'g')}</p>
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Carbo</p>
               </div>
               <div className="rounded-lg bg-background/70 p-2 text-center">
-                <p className="text-sm font-bold text-chart-5">{formatValue(targets.fats, 'g')}</p>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Gordura</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Macro summary (fallback when no targets parsed) */}
-        {!targets && currentMeals.length > 0 && (
-          <div className="rounded-xl border border-border/50 bg-secondary/20 p-3 space-y-3">
-            <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-primary" />
-              <p className="text-xs font-semibold text-foreground">Totais do dia</p>
-            </div>
-            <div className="grid grid-cols-4 gap-2">
-              <div className="rounded-lg bg-background/70 p-2 text-center">
-                <p className="text-sm font-bold text-primary">{Math.round(totalKcal)}</p>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">kcal</p>
-              </div>
-              <div className="rounded-lg bg-background/70 p-2 text-center">
-                <p className="text-sm font-bold text-chart-2">{Math.round(totalP)}g</p>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Proteína</p>
-              </div>
-              <div className="rounded-lg bg-background/70 p-2 text-center">
-                <p className="text-sm font-bold text-chart-3">{Math.round(totalC)}g</p>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Carbs</p>
-              </div>
-              <div className="rounded-lg bg-background/70 p-2 text-center">
-                <p className="text-sm font-bold text-chart-5">{Math.round(totalG)}g</p>
+                <p className="text-sm font-bold text-chart-5">{formatValue(displaySummary.fats, 'g')}</p>
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Gordura</p>
               </div>
             </div>
