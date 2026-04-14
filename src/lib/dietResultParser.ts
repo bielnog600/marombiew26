@@ -84,10 +84,10 @@ const finalizeMeal = (meal: ParsedMeal | null) => {
   return {
     ...meal,
     foods: meal.foods.map((food) => ({ ...food, qty: ensureGrams(food.qty) })),
-    totalKcal: meal.totalKcal || formatNumber(totalKcal, ' kcal'),
-    totalP: meal.totalP || formatNumber(totalP),
-    totalC: meal.totalC || formatNumber(totalC),
-    totalG: meal.totalG || formatNumber(totalG),
+    totalKcal: formatNumber(totalKcal, ' kcal'),
+    totalP: formatNumber(totalP),
+    totalC: formatNumber(totalC),
+    totalG: formatNumber(totalG),
   };
 };
 
