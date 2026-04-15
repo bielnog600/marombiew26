@@ -85,7 +85,14 @@ const MeusTreinos = () => {
     setLoading(false);
   };
 
-  const todayIndex = trainingDays.length > 0 ? (new Date().getDay() + 6) % 7 % trainingDays.length : -1;
+  const todayIndex = useMemo(() => {
+    if (trainingDays.length === 0) return -1;
+    const jsDay = new Date().getDay();
+    const todayNames = jsDay === 0 ? ['domingo'] : jsDay === 1 ? ['segunda'] : jsDay === 2 ? ['terca', 'terça'] : jsDay === 3 ? ['quarta'] : jsDay === 4 ? ['quinta'] : jsDay === 5 ? ['sexta'] : ['sabado', 'sábado'];
+    const matchIdx = trainingDays.findIndex(d => todayNames.some(n => d.day.toLowerCase().includes(n)));
+    if (matchIdx >= 0) return matchIdx;
+    return (jsDay + 6) % 7 % trainingDays.length;
+  }, [trainingDays]);
 
   const getMuscleGroups = (day: ParsedTrainingDay) => {
     const groups: string[] = [];
