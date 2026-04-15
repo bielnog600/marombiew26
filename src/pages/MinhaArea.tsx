@@ -146,9 +146,18 @@ const MinhaArea = () => {
       .filter((mealIndex) => Number.isInteger(mealIndex) && mealIndex >= 0 && mealIndex < todayMealCount).length;
   }, [tracking.meals_completed, todayMealCount]);
 
-  // Today's training (cycle through days based on weekday)
-  const todayIndex = trainingDays.length > 0 ? (new Date().getDay() + 6) % 7 % trainingDays.length : 0;
-  const todayTraining = trainingDays[todayIndex];
+  // Today's training - match by weekday name first, fallback to index cycling
+  const todayTraining = useMemo(() => {
+    if (trainingDays.length === 0) return undefined;
+    const weekdayNames = ['domingo', 'segunda', 'terca', 'terça', 'quarta', 'quinta', 'sexta', 'sabado', 'sábado'];
+    const jsDay = new Date().getDay(); // 0=Sun
+    const todayNames = jsDay === 0 ? ['domingo'] : jsDay === 1 ? ['segunda'] : jsDay === 2 ? ['terca', 'terça'] : jsDay === 3 ? ['quarta'] : jsDay === 4 ? ['quinta'] : jsDay === 5 ? ['sexta'] : ['sabado', 'sábado'];
+    const match = trainingDays.find(d => todayNames.some(n => d.day.toLowerCase().includes(n)));
+    if (match) return match;
+    // Fallback: cycle by index (Mon=0)
+    const idx = (jsDay + 6) % 7 % trainingDays.length;
+    return trainingDays[idx];
+  }, [trainingDays]);
 
   // Pick an exercise image from today's training
   const todayHeroImage = useMemo(() => {
