@@ -31,10 +31,13 @@ const MinhasDietas = () => {
   const [loading, setLoading] = useState(true);
   const [selectedGroupIndex, setSelectedGroupIndex] = useState(0);
   const { tracking, addWater, removeWater, toggleMeal } = useDailyTracking();
-  const waterGoal = 8;
+  const [waterGoal, setWaterGoal] = useState(8);
 
   useEffect(() => {
-    if (user) loadDiet();
+    if (user) {
+      loadDiet();
+      loadWaterGoal();
+    }
   }, [user]);
 
   // Realtime: re-fetch when admin edits diet plans
@@ -71,6 +74,28 @@ const MinhasDietas = () => {
       setSections(parseSections(dieta.conteudo));
     }
     setLoading(false);
+  };
+
+  const loadWaterGoal = async () => {
+    const { data: assessment } = await supabase
+      .from('assessments')
+      .select('id')
+      .eq('student_id', user!.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (assessment) {
+      const { data: anthro } = await supabase
+        .from('anthropometrics')
+        .select('peso')
+        .eq('assessment_id', assessment.id)
+        .maybeSingle();
+      if (anthro?.peso) {
+        const mlPerDay = Number(anthro.peso) * 35;
+        const glasses = Math.round(mlPerDay / 250);
+        setWaterGoal(Math.max(glasses, 6));
+      }
+    }
   };
 
   const mealGroups = useMemo(() => {
