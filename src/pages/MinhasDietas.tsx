@@ -31,7 +31,7 @@ const MinhasDietas = () => {
   const [loading, setLoading] = useState(true);
   const [selectedGroupIndex, setSelectedGroupIndex] = useState(0);
   const { tracking, addWater, removeWater, toggleMeal } = useDailyTracking();
-  const waterGoal = 8;
+  const [waterGoal, setWaterGoal] = useState(8);
 
   useEffect(() => {
     if (user) loadDiet();
