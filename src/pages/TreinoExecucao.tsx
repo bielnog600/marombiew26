@@ -438,7 +438,7 @@ const TreinoExecucao = () => {
                 <p className="text-[10px] uppercase tracking-widest text-primary font-semibold" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{activeExercise?.grupo_muscular || dayName}</p>
                 {phase && (
                   <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${PHASE_BADGE_CLASS[phase]}`} style={{ textShadow: 'none' }}>
-                    {PHASE_LABELS[phase]}
+                    {PHASE_SHORT_LABELS[phase]}
                   </span>
                 )}
               </div>
