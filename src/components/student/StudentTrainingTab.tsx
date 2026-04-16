@@ -13,6 +13,7 @@ import {
   PHASE_LABELS,
   PHASE_BADGE_CLASS,
   PHASE_DESCRIPTIONS,
+  getPhasePreview,
   type TrainingPhase,
 } from '@/lib/trainingPhase';
 
