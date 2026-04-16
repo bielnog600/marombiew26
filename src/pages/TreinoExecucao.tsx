@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Hls from 'hls.js';
-import { ArrowLeft, Play, Pause, Check, ChevronLeft, ChevronRight, Timer, X } from 'lucide-react';
+import { ArrowLeft, Play, Pause, Check, ChevronLeft, ChevronRight, Timer, X, Clock } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
