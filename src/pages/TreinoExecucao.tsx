@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { useAuth } from '@/contexts/AuthContext';
 import { type ParsedExercise, parseTrainingSections } from '@/lib/trainingResultParser';
-import { PHASE_LABELS, PHASE_BADGE_CLASS, type TrainingPhase } from '@/lib/trainingPhase';
+import { PHASE_BADGE_CLASS, PHASE_SHORT_LABELS, PHASE_FOCUS, type TrainingPhase } from '@/lib/trainingPhase';
 import { WorkoutSummaryShare } from '@/components/training/WorkoutSummaryShare';
 
 interface ExerciseSet {
