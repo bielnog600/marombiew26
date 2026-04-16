@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { useAuth } from '@/contexts/AuthContext';
 import { type ParsedExercise, parseTrainingSections } from '@/lib/trainingResultParser';
-import { PHASE_LABELS, PHASE_BADGE_CLASS, type TrainingPhase } from '@/lib/trainingPhase';
+import { PHASE_BADGE_CLASS, PHASE_SHORT_LABELS, PHASE_FOCUS, type TrainingPhase } from '@/lib/trainingPhase';
 import { WorkoutSummaryShare } from '@/components/training/WorkoutSummaryShare';
 
 interface ExerciseSet {
@@ -438,7 +438,7 @@ const TreinoExecucao = () => {
                 <p className="text-[10px] uppercase tracking-widest text-primary font-semibold" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{activeExercise?.grupo_muscular || dayName}</p>
                 {phase && (
                   <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${PHASE_BADGE_CLASS[phase]}`} style={{ textShadow: 'none' }}>
-                    {PHASE_LABELS[phase]}
+                    {PHASE_SHORT_LABELS[phase]}
                   </span>
                 )}
               </div>
@@ -469,6 +469,11 @@ const TreinoExecucao = () => {
           <Timer className="h-5 w-5" />
           Descanso — {restDuration}s
         </Button>
+        {phase && (
+          <p className="text-center text-xs text-muted-foreground -mt-1 px-2">
+            <span className="font-semibold text-primary">{PHASE_SHORT_LABELS[phase]}:</span> {PHASE_FOCUS[phase].replace(/^Foco em /, '')}
+          </p>
+        )}
 
         <div className="space-y-2">
           <div className="grid grid-cols-[40px_1fr_1fr_48px] gap-2 px-2">
