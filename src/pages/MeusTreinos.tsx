@@ -3,62 +3,83 @@ import AppLayout from '@/components/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Dumbbell, Play, Clock, Target } from 'lucide-react';
+import { Dumbbell, Play, Target } from 'lucide-react';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
+import {
+  TRAINING_PHASES,
+  PHASE_LABELS,
+  PHASE_BADGE_CLASS,
+  PHASE_DESCRIPTIONS,
+  calculateCurrentPhase,
+  type TrainingPhase,
+} from '@/lib/trainingPhase';
+
+interface PlanRow {
+  id: string;
+  conteudo: string;
+  fase: TrainingPhase;
+  fase_inicio_data: string | null;
+}
 
 const MeusTreinos = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [trainingDays, setTrainingDays] = useState<ParsedTrainingDay[]>([]);
+  const [plans, setPlans] = useState<PlanRow[]>([]);
   const [exerciseMedia, setExerciseMedia] = useState<Record<string, { imageUrl?: string; videoEmbed?: string; muscleGroup?: string }>>({});
   const [loading, setLoading] = useState(true);
+  const [activePhase, setActivePhase] = useState<TrainingPhase>('semana_1');
+  const [autoPhaseSet, setAutoPhaseSet] = useState(false);
 
   useEffect(() => {
     if (user) loadTraining();
   }, [user]);
 
-  // Realtime: re-fetch when admin edits training plans
   useEffect(() => {
     if (!user) return;
     const channel = supabase
       .channel('meus-treinos-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'ai_plans',
-          filter: `student_id=eq.${user.id}`,
-        },
-        () => {
-          loadTraining();
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ai_plans', filter: `student_id=eq.${user.id}` }, () => {
+        loadTraining();
+      })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   const loadTraining = async () => {
-    const { data: treino } = await supabase
+    const { data } = await supabase
       .from('ai_plans')
-      .select('conteudo')
+      .select('id, conteudo, fase, fase_inicio_data')
       .eq('student_id', user!.id)
       .eq('tipo', 'treino')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .order('created_at', { ascending: false });
 
-    if (treino) {
-      const sections = parseTrainingSections(treino.conteudo);
-      const allDays = sections.flatMap(s => s.days ?? []);
-      setTrainingDays(allDays);
+    const allPlans = (data ?? []) as PlanRow[];
+    setPlans(allPlans);
 
-      const exerciseNames = allDays.flatMap(d => d.exercises.map(e => e.exercise.toUpperCase().trim()));
-      const uniqueNames = [...new Set(exerciseNames)];
+    // Cálculo automático da fase (somente na primeira carga)
+    if (!autoPhaseSet && allPlans.length > 0) {
+      const planWithDate = allPlans.find(p => p.fase_inicio_data);
+      const auto = planWithDate
+        ? calculateCurrentPhase(planWithDate.fase_inicio_data)
+        : (allPlans[0].fase || 'semana_1');
+      // Garante que existe plano dessa fase, senão pega a primeira disponível
+      const available = allPlans.find(p => p.fase === auto);
+      setActivePhase(available ? auto : (allPlans[0].fase || 'semana_1'));
+      setAutoPhaseSet(true);
+    }
 
+    // Carrega media de TODOS os planos (para todas as fases)
+    const allMd = allPlans.map(p => p.conteudo).join('\n');
+    const sections = parseTrainingSections(allMd);
+    const allDays = sections.flatMap(s => s.days ?? []);
+    const exerciseNames = allDays.flatMap(d => d.exercises.map(e => e.exercise.toUpperCase().trim()));
+    const uniqueNames = [...new Set(exerciseNames)];
+
+    if (uniqueNames.length > 0) {
       const { data: dbExercises } = await supabase
         .from('exercises')
         .select('nome, imagem_url, video_embed, grupo_muscular');
@@ -84,6 +105,20 @@ const MeusTreinos = () => {
     }
     setLoading(false);
   };
+
+  // Fases que possuem ao menos um plano
+  const availablePhases = useMemo(
+    () => TRAINING_PHASES.filter(p => plans.some(pl => pl.fase === p)),
+    [plans],
+  );
+
+  // Dias da fase ativa
+  const trainingDays = useMemo(() => {
+    const phasePlans = plans.filter(p => p.fase === activePhase);
+    const md = phasePlans.map(p => p.conteudo).join('\n');
+    const sections = parseTrainingSections(md);
+    return sections.flatMap(s => s.days ?? []);
+  }, [plans, activePhase]);
 
   const todayIndex = useMemo(() => {
     if (trainingDays.length === 0) return -1;
@@ -111,6 +146,7 @@ const MeusTreinos = () => {
         exercises: day.exercises,
         dayName: day.day,
         exerciseMedia,
+        phase: activePhase,
       },
     });
   };
@@ -138,12 +174,38 @@ const MeusTreinos = () => {
   return (
     <AppLayout title="Treinos">
       <div className="space-y-4 animate-fade-in">
+        {/* Seletor de fase semanal (híbrido: auto + manual) */}
+        {availablePhases.length > 1 && (
+          <div className="space-y-2">
+            <Tabs value={activePhase} onValueChange={(v) => setActivePhase(v as TrainingPhase)}>
+              <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${availablePhases.length}, 1fr)` }}>
+                {availablePhases.map(p => (
+                  <TabsTrigger key={p} value={p} className="text-xs">
+                    {PHASE_LABELS[p]}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+            <p className="text-[11px] text-muted-foreground text-center px-2">
+              {PHASE_DESCRIPTIONS[activePhase]}
+            </p>
+          </div>
+        )}
+
         {trainingDays.length === 0 ? (
           <Card className="glass-card">
             <CardContent className="p-6 text-center">
               <Dumbbell className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">Nenhum treino disponível ainda.</p>
-              <p className="text-xs text-muted-foreground mt-1">Seu consultor preparará seu plano em breve!</p>
+              <p className="text-sm text-muted-foreground">
+                {plans.length === 0
+                  ? 'Nenhum treino disponível ainda.'
+                  : `Nenhum treino na fase ${PHASE_LABELS[activePhase]}.`}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {plans.length === 0
+                  ? 'Seu consultor preparará seu plano em breve!'
+                  : 'Selecione outra fase no topo.'}
+              </p>
             </CardContent>
           </Card>
         ) : (
@@ -166,12 +228,13 @@ const MeusTreinos = () => {
               >
                 {heroImage && (
                   <div className="relative h-32 overflow-hidden">
-                    <img
-                      src={heroImage}
-                      alt={day.day}
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={heroImage} alt={day.day} className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-gradient-to-t from-card via-card/60 to-transparent" />
+                    <div className="absolute top-2 left-2 flex gap-1.5">
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${PHASE_BADGE_CLASS[activePhase]}`}>
+                        {PHASE_LABELS[activePhase]}
+                      </span>
+                    </div>
                     {isToday && (
                       <div className="absolute top-2 right-2 bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
                         Hoje
@@ -181,17 +244,22 @@ const MeusTreinos = () => {
                 )}
 
                 <CardContent className={`${heroImage ? 'pt-0 -mt-8 relative z-10' : 'pt-4'} p-4 space-y-3`}>
-                  {!heroImage && isToday && (
-                    <span className="inline-block bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full mb-1">
-                      Hoje
-                    </span>
+                  {!heroImage && (
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${PHASE_BADGE_CLASS[activePhase]}`}>
+                        {PHASE_LABELS[activePhase]}
+                      </span>
+                      {isToday && (
+                        <span className="bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
+                          Hoje
+                        </span>
+                      )}
+                    </div>
                   )}
 
                   <div>
                     <p className="text-[10px] uppercase tracking-widest text-primary font-semibold">{day.day}</p>
-                    {muscles && (
-                      <p className="text-xs text-muted-foreground mt-0.5">{muscles}</p>
-                    )}
+                    {muscles && <p className="text-xs text-muted-foreground mt-0.5">{muscles}</p>}
                   </div>
 
                   <div className="flex items-center gap-4 text-xs text-muted-foreground">
@@ -201,10 +269,7 @@ const MeusTreinos = () => {
                     </span>
                   </div>
 
-                  <Button
-                    className="w-full gap-2"
-                    onClick={() => handleStart(day)}
-                  >
+                  <Button className="w-full gap-2" onClick={() => handleStart(day)}>
                     <Play className="h-4 w-4" />
                     Iniciar Treino
                   </Button>
