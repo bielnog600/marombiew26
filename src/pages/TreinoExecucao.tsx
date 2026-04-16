@@ -10,6 +10,7 @@ import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { useAuth } from '@/contexts/AuthContext';
 import { type ParsedExercise, parseTrainingSections } from '@/lib/trainingResultParser';
 import { PHASE_LABELS, PHASE_BADGE_CLASS, type TrainingPhase } from '@/lib/trainingPhase';
+import { WorkoutSummaryShare } from '@/components/training/WorkoutSummaryShare';
 
 interface ExerciseSet {
   reps: string;
@@ -134,6 +135,7 @@ const TreinoExecucao = () => {
   const [sessionStartAt] = useState<number>(() => Date.now());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isFinishing, setIsFinishing] = useState(false);
+  const [summary, setSummary] = useState<{ duration: number; completed: number } | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
 
@@ -373,6 +375,16 @@ const TreinoExecucao = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {showRestTimer && <RestTimerOverlay totalSeconds={restDuration} onClose={() => setShowRestTimer(false)} />}
+      {summary && (
+        <WorkoutSummaryShare
+          dayName={dayName}
+          durationSeconds={summary.duration}
+          exercisesCompleted={summary.completed}
+          totalExercises={exercises.length}
+          phase={phase}
+          onClose={() => { setSummary(null); navigate('/minha-area'); }}
+        />
+      )}
 
       <div className="relative w-full bg-secondary/30 overflow-hidden" style={{ aspectRatio: '16/11' }}>
         {hlsUrl ? (
@@ -513,8 +525,8 @@ const TreinoExecucao = () => {
                 toast.error('Erro ao salvar sessão.');
               }
               completeWorkout();
-              toast.success(`Treino concluído! ${formatElapsed(totalSec)} • ${exercisesCompleted}/${exercises.length} exercícios`, { duration: 5000 });
-              navigate('/minha-area');
+              setSummary({ duration: totalSec, completed: exercisesCompleted });
+              setIsFinishing(false);
             }}>
               Finalizar
               <Check className="h-4 w-4 ml-1" />
