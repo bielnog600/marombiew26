@@ -34,7 +34,10 @@ const MinhasDietas = () => {
   const [waterGoal, setWaterGoal] = useState(8);
 
   useEffect(() => {
-    if (user) loadDiet();
+    if (user) {
+      loadDiet();
+      loadWaterGoal();
+    }
   }, [user]);
 
   // Realtime: re-fetch when admin edits diet plans
