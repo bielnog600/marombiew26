@@ -171,6 +171,16 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                         onChange={(e) => handleStartDateChange(plan.id, e.target.value)}
                         className="h-9 text-sm"
                       />
+                      {(() => {
+                        const preview = getPhasePreview(currentStartDate);
+                        if (!preview) return null;
+                        return (
+                          <p className="text-[10px] text-muted-foreground">
+                            Hoje: dia {preview.daysIn + 1} do ciclo →{' '}
+                            <span className="text-primary font-semibold">{PHASE_LABELS[preview.phase]}</span>
+                          </p>
+                        );
+                      })()}
                     </div>
                   </div>
 
