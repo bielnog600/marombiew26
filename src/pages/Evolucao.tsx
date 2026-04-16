@@ -86,7 +86,7 @@ const Evolucao = () => {
       <div
         className="relative"
         style={{
-          background: 'linear-gradient(135deg, hsl(45 100% 50%), hsl(35 100% 42%))',
+          background: 'var(--gradient-chrome)',
           paddingTop: 'env(safe-area-inset-top, 0px)',
         }}
       >
