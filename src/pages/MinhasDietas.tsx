@@ -76,6 +76,28 @@ const MinhasDietas = () => {
     setLoading(false);
   };
 
+  const loadWaterGoal = async () => {
+    const { data: assessment } = await supabase
+      .from('assessments')
+      .select('id')
+      .eq('student_id', user!.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (assessment) {
+      const { data: anthro } = await supabase
+        .from('anthropometrics')
+        .select('peso')
+        .eq('assessment_id', assessment.id)
+        .maybeSingle();
+      if (anthro?.peso) {
+        const mlPerDay = Number(anthro.peso) * 35;
+        const glasses = Math.round(mlPerDay / 250);
+        setWaterGoal(Math.max(glasses, 6));
+      }
+    }
+  };
+
   const mealGroups = useMemo(() => {
     const mealSections = sections.filter(s => s.type === 'meal' && s.meals && s.meals.length > 0);
     return mealSections.map((s, i) => ({
