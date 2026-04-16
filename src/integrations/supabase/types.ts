@@ -485,6 +485,7 @@ export type Database = {
       }
       exercises: {
         Row: {
+          ajustes: string[] | null
           created_at: string
           grupo_muscular: string
           id: string
@@ -493,6 +494,7 @@ export type Database = {
           video_embed: string | null
         }
         Insert: {
+          ajustes?: string[] | null
           created_at?: string
           grupo_muscular: string
           id?: string
@@ -501,6 +503,7 @@ export type Database = {
           video_embed?: string | null
         }
         Update: {
+          ajustes?: string[] | null
           created_at?: string
           grupo_muscular?: string
           id?: string
@@ -880,6 +883,41 @@ export type Database = {
             columns: ["assessment_id"]
             isOneToOne: true
             referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_exercise_adjustments: {
+        Row: {
+          created_at: string
+          exercise_id: string
+          id: string
+          student_id: string
+          updated_at: string
+          valores: Json
+        }
+        Insert: {
+          created_at?: string
+          exercise_id: string
+          id?: string
+          student_id: string
+          updated_at?: string
+          valores?: Json
+        }
+        Update: {
+          created_at?: string
+          exercise_id?: string
+          id?: string
+          student_id?: string
+          updated_at?: string
+          valores?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_exercise_adjustments_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercises"
             referencedColumns: ["id"]
           },
         ]
