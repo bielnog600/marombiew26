@@ -491,7 +491,31 @@ const TreinoExecucao = () => {
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           ) : (
-            <Button className="flex-1" onClick={() => { completeWorkout(); navigate('/minha-area'); }}>
+            <Button className="flex-1" disabled={isFinishing} onClick={async () => {
+              if (isFinishing) return;
+              setIsFinishing(true);
+              const totalSec = Math.floor((Date.now() - sessionStartAt) / 1000);
+              const durationMinutes = Math.max(1, Math.round(totalSec / 60));
+              const exercisesCompleted = Object.values(sets).filter(arr => arr?.some(s => s.completed)).length;
+              try {
+                if (user) {
+                  await supabase.from('workout_sessions').insert({
+                    student_id: user.id,
+                    day_name: dayName,
+                    phase: phase ?? null,
+                    duration_minutes: durationMinutes,
+                    exercises_completed: exercisesCompleted,
+                    total_exercises: exercises.length,
+                  });
+                }
+              } catch (e) {
+                console.error('Erro salvando sessão:', e);
+                toast.error('Erro ao salvar sessão.');
+              }
+              completeWorkout();
+              toast.success(`Treino concluído! ${formatElapsed(totalSec)} • ${exercisesCompleted}/${exercises.length} exercícios`, { duration: 5000 });
+              navigate('/minha-area');
+            }}>
               Finalizar
               <Check className="h-4 w-4 ml-1" />
             </Button>
