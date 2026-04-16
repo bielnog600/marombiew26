@@ -42,10 +42,10 @@ export const getPhaseFocus = (phase?: string | null): string =>
 
 /** Mensagem explicativa longa exibida ao aluno na execução do treino. */
 export const PHASE_OBJECTIVE: Record<TrainingPhase, string> = {
-  semana_1: 'Objetivo da semana: ajustar cargas, priorizar técnica e controlar a execução. Não precisa buscar falha extrema.',
-  semana_2: 'Objetivo da semana: aumentar a intensidade do treino. Use as técnicas propostas com mais esforço e aproxime-se mais da falha técnica, mantendo boa execução.',
-  semana_3: 'Objetivo da semana: buscar progressão real. Tente subir um pouco a carga ou fazer mais repetições com a mesma carga, sem perder qualidade de movimento.',
-  deload: 'Objetivo da semana: reduzir fadiga e recuperar articulações e sistema nervoso. Treine com mais folga, menos agressividade e máxima qualidade técnica.',
+  semana_1: 'Semana 1 — Base Técnica. Objetivo: ajustar cargas, priorizar técnica e controlar a execução. Não precisa buscar falha extrema.',
+  semana_2: 'Semana 2 — Intensificação. Objetivo: aumentar a intensidade do treino. Use as técnicas propostas com mais esforço e aproxime-se mais da falha técnica, mantendo boa execução.',
+  semana_3: 'Semana 3 — Overload. Objetivo: buscar progressão real. Tente subir um pouco a carga ou fazer mais repetições com a mesma carga, sem perder qualidade de movimento.',
+  deload: 'Semana 4 — Deload. Objetivo: reduzir fadiga e recuperar articulações e sistema nervoso. Treine com mais folga, menos agressividade e máxima qualidade técnica.',
 };
 
 /** Calcula a fase com base no dia do mês atual (1-7=S1, 8-14=S2, 15-21=S3, 22+=Deload). */
