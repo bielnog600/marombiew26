@@ -460,14 +460,10 @@ const TreinoExecucao = () => {
       </div>
 
       <div className="flex-1 p-4 space-y-4 pb-28">
-        <Button className="w-full h-12 rounded-xl bg-primary text-primary-foreground hover:opacity-90 font-bold text-sm gap-2" onClick={() => setShowRestTimer(true)}>
-          <Timer className="h-5 w-5" />
-          Descanso — {restDuration}s
-        </Button>
         {(() => {
           const autoPhase = getPhaseByMonthDay();
           return (
-            <p className="text-center text-xs text-muted-foreground -mt-1 px-3 leading-relaxed">
+            <p className="text-center text-xs text-muted-foreground px-3 leading-relaxed">
               {PHASE_OBJECTIVE[autoPhase]}
             </p>
           );
