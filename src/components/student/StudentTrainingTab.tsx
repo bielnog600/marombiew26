@@ -11,6 +11,7 @@ import TrainingResultCards from '@/components/TrainingResultCards';
 import {
   TRAINING_PHASES,
   PHASE_LABELS,
+  PHASE_SHORT_LABELS,
   PHASE_BADGE_CLASS,
   PHASE_DESCRIPTIONS,
   getPhasePreview,
