@@ -40,6 +40,26 @@ export const PHASE_FOCUS: Record<TrainingPhase, string> = {
 export const getPhaseFocus = (phase?: string | null): string =>
   PHASE_FOCUS[(phase as TrainingPhase) || 'semana_1'] ?? '';
 
+/** Mensagem explicativa longa exibida ao aluno na execução do treino. */
+export const PHASE_OBJECTIVE: Record<TrainingPhase, string> = {
+  semana_1: 'Objetivo da semana: ajustar cargas, priorizar técnica e controlar a execução. Não precisa buscar falha extrema.',
+  semana_2: 'Objetivo da semana: aumentar a intensidade do treino. Use as técnicas propostas com mais esforço e aproxime-se mais da falha técnica, mantendo boa execução.',
+  semana_3: 'Objetivo da semana: buscar progressão real. Tente subir um pouco a carga ou fazer mais repetições com a mesma carga, sem perder qualidade de movimento.',
+  deload: 'Objetivo da semana: reduzir fadiga e recuperar articulações e sistema nervoso. Treine com mais folga, menos agressividade e máxima qualidade técnica.',
+};
+
+/** Calcula a fase com base no dia do mês atual (1-7=S1, 8-14=S2, 15-21=S3, 22+=Deload). */
+export const getPhaseByMonthDay = (date: Date = new Date()): TrainingPhase => {
+  const day = date.getDate();
+  if (day <= 7) return 'semana_1';
+  if (day <= 14) return 'semana_2';
+  if (day <= 21) return 'semana_3';
+  return 'deload';
+};
+
+export const getPhaseObjective = (phase?: string | null): string =>
+  PHASE_OBJECTIVE[(phase as TrainingPhase) || getPhaseByMonthDay()] ?? '';
+
 /** Diretriz operacional resumida — exibida ao aluno na execução. */
 export const PHASE_GUIDELINES: Record<TrainingPhase, string> = {
   semana_1: 'Foque em execução perfeita e conexão mente-músculo. Deixe 2–3 reps na reserva. Evite falha.',
