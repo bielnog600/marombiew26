@@ -182,12 +182,14 @@ const MeusTreinos = () => {
               <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${availablePhases.length}, 1fr)` }}>
                 {availablePhases.map(p => (
                   <TabsTrigger key={p} value={p} className="text-xs">
-                    {PHASE_LABELS[p]}
+                    {PHASE_SHORT_LABELS[p]}
                   </TabsTrigger>
                 ))}
               </TabsList>
             </Tabs>
-            <p className="text-[11px] text-muted-foreground text-center px-2">
+            <p className="text-[11px] text-muted-foreground text-center px-2 leading-relaxed">
+              <span className="font-semibold text-foreground">{PHASE_LABELS[activePhase]}</span>
+              <br />
               {PHASE_DESCRIPTIONS[activePhase]}
             </p>
           </div>
