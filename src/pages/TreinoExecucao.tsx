@@ -412,6 +412,10 @@ const TreinoExecucao = () => {
         </button>
 
         <div className="absolute top-4 right-4 z-30 flex items-center gap-2">
+          <span className="bg-background/80 backdrop-blur rounded-full px-2.5 py-1 text-xs font-mono font-semibold text-primary tabular-nums flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {formatElapsed(elapsedSeconds)}
+          </span>
           <span className="bg-background/80 backdrop-blur rounded-full px-3 py-1 text-xs font-medium text-foreground">{currentIndex + 1}/{exercises.length}</span>
         </div>
 
