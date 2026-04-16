@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Hls from 'hls.js';
-import { ArrowLeft, Play, Pause, Check, ChevronLeft, ChevronRight, Timer, X, Clock } from 'lucide-react';
+import { ArrowLeft, Play, Pause, Check, ChevronLeft, ChevronRight, X, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -61,7 +61,7 @@ const RestTimerOverlay = ({ totalSeconds, onClose }: { totalSeconds: number; onC
   const secs = Math.abs(timeLeft) % 60;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-background flex flex-col items-center justify-center animate-fade-in">
+    <div className="fixed inset-0 z-[100] bg-background/70 backdrop-blur-xl flex flex-col items-center justify-center animate-fade-in">
       <button onClick={onClose} className="absolute z-[110] h-12 w-12 rounded-full bg-destructive flex items-center justify-center shadow-lg"
         style={{ top: 'calc(env(safe-area-inset-top, 16px) + 8px)', right: '16px' }}>
         <X className="h-6 w-6 text-destructive-foreground" />
@@ -460,14 +460,10 @@ const TreinoExecucao = () => {
       </div>
 
       <div className="flex-1 p-4 space-y-4 pb-28">
-        <Button className="w-full h-12 rounded-xl bg-primary text-primary-foreground hover:opacity-90 font-bold text-sm gap-2" onClick={() => setShowRestTimer(true)}>
-          <Timer className="h-5 w-5" />
-          Descanso — {restDuration}s
-        </Button>
         {(() => {
           const autoPhase = getPhaseByMonthDay();
           return (
-            <p className="text-center text-xs text-muted-foreground -mt-1 px-3 leading-relaxed">
+            <p className="text-center text-xs text-muted-foreground px-3 leading-relaxed">
               {PHASE_OBJECTIVE[autoPhase]}
             </p>
           );
