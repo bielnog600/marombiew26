@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { useAuth } from '@/contexts/AuthContext';
 import { type ParsedExercise, parseTrainingSections } from '@/lib/trainingResultParser';
+import { PHASE_LABELS, PHASE_BADGE_CLASS, type TrainingPhase } from '@/lib/trainingPhase';
 
 interface ExerciseSet {
   reps: string;
@@ -110,11 +111,13 @@ const TreinoExecucao = () => {
     exercises?: ParsedExercise[];
     dayName?: string;
     exerciseMedia?: ExerciseMediaMap;
+    phase?: TrainingPhase;
   } | null;
 
   const [loadedExercises, setLoadedExercises] = useState<ParsedExercise[]>(stateData?.exercises || []);
   const [loadedDayName, setLoadedDayName] = useState(stateData?.dayName || 'Treino');
   const [loadedMedia, setLoadedMedia] = useState<ExerciseMediaMap>(stateData?.exerciseMedia || {});
+  const [phase, setPhase] = useState<TrainingPhase | null>(stateData?.phase || null);
 
   const exercises = loadedExercises;
   const dayName = loadedDayName;
@@ -136,13 +139,14 @@ const TreinoExecucao = () => {
     const loadPlan = async () => {
       const { data: treino } = await supabase
         .from('ai_plans')
-        .select('conteudo')
+        .select('conteudo, fase')
         .eq('student_id', user.id)
         .eq('tipo', 'treino')
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
       if (treino) {
+        if (treino.fase) setPhase(treino.fase as TrainingPhase);
         const sections = parseTrainingSections(treino.conteudo);
         const allDays = sections.flatMap(s => s.days ?? []);
         if (allDays.length > 0) {
@@ -394,7 +398,14 @@ const TreinoExecucao = () => {
         <div className="absolute bottom-0 left-0 right-0 p-4 z-30">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] uppercase tracking-widest text-primary font-semibold mb-1" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{activeExercise?.grupo_muscular || dayName}</p>
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <p className="text-[10px] uppercase tracking-widest text-primary font-semibold" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{activeExercise?.grupo_muscular || dayName}</p>
+                {phase && (
+                  <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${PHASE_BADGE_CLASS[phase]}`} style={{ textShadow: 'none' }}>
+                    {PHASE_LABELS[phase]}
+                  </span>
+                )}
+              </div>
               <h1 className="text-xl font-bold text-foreground leading-tight" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}>{showingVariation && exercise.variation ? exercise.variation : exercise.exercise}</h1>
               {exercise.description && <p className="text-xs text-foreground/90 mt-1" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>{exercise.description}</p>}
             </div>

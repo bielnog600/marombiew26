@@ -18,6 +18,8 @@ export type Database = {
         Row: {
           conteudo: string
           created_at: string
+          fase: string
+          fase_inicio_data: string | null
           id: string
           student_id: string
           tipo: string
@@ -26,6 +28,8 @@ export type Database = {
         Insert: {
           conteudo?: string
           created_at?: string
+          fase?: string
+          fase_inicio_data?: string | null
           id?: string
           student_id: string
           tipo?: string
@@ -34,6 +38,8 @@ export type Database = {
         Update: {
           conteudo?: string
           created_at?: string
+          fase?: string
+          fase_inicio_data?: string | null
           id?: string
           student_id?: string
           tipo?: string
