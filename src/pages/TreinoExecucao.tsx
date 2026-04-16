@@ -515,8 +515,8 @@ const TreinoExecucao = () => {
                 toast.error('Erro ao salvar sessão.');
               }
               completeWorkout();
-              toast.success(`Treino concluído! ${formatElapsed(totalSec)} • ${exercisesCompleted}/${exercises.length} exercícios`, { duration: 5000 });
-              navigate('/minha-area');
+              setSummary({ duration: totalSec, completed: exercisesCompleted });
+              setIsFinishing(false);
             }}>
               Finalizar
               <Check className="h-4 w-4 ml-1" />
