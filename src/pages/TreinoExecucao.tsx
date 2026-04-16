@@ -475,21 +475,30 @@ const TreinoExecucao = () => {
               </button>
             )}
           </div>
-          <div className="flex items-center gap-3 mt-2 flex-wrap">
-            {exercise.series && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.series} séries</span>}
-            {exercise.reps && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.reps} reps</span>}
-            {exercise.pause && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.pause} descanso</span>}
-            {exercise.rir && <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">RIR {exercise.rir}</span>}
-          </div>
+          {(() => {
+            const isReal = (v?: string | null) => {
+              if (!v) return false;
+              const t = v.trim();
+              return t.length > 0 && !['-', '—', '–', 'n/a', 'na'].includes(t.toLowerCase());
+            };
+            return (
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                {isReal(exercise.series) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.series} séries</span>}
+                {isReal(exercise.reps) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.reps} reps</span>}
+                {isReal(exercise.pause) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.pause} descanso</span>}
+                {isReal(exercise.rir) && <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">RIR {exercise.rir}</span>}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
       <div className="flex-1 p-4 space-y-4 pb-28">
-        <div className="flex items-center justify-center gap-2">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setShowPhaseInfo(true)}
-            className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 border border-primary/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary/20 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/25 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary/15 transition-colors"
           >
             <Info className="h-3 w-3" />
             {PHASE_SHORT_LABELS[currentPhase]}
@@ -498,6 +507,8 @@ const TreinoExecucao = () => {
             <button
               type="button"
               onClick={() => setShowAdjust(true)}
+              className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 border border-border/60 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-secondary transition-colors"
+            >
               className="inline-flex items-center gap-1.5 rounded-full bg-secondary border border-border px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-secondary/80 transition-colors"
             >
               <Settings2 className="h-3 w-3" />
