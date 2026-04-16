@@ -250,7 +250,7 @@ const MeusTreinos = () => {
                   {!heroImage && (
                     <div className="flex items-center gap-1.5 mb-1">
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${PHASE_BADGE_CLASS[activePhase]}`}>
-                        {PHASE_LABELS[activePhase]}
+                        {PHASE_SHORT_LABELS[activePhase]}
                       </span>
                       {isToday && (
                         <span className="bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
