@@ -9,8 +9,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { useAuth } from '@/contexts/AuthContext';
 import { type ParsedExercise, parseTrainingSections } from '@/lib/trainingResultParser';
-import { PHASE_OBJECTIVE, getPhaseByMonthDay, type TrainingPhase } from '@/lib/trainingPhase';
+import { PHASE_OBJECTIVE, PHASE_SHORT_LABELS, getPhaseByMonthDay, type TrainingPhase } from '@/lib/trainingPhase';
 import { WorkoutSummaryShare } from '@/components/training/WorkoutSummaryShare';
+import { PhaseInfoSheet } from '@/components/training/PhaseInfoSheet';
+import { MachineAdjustSheet } from '@/components/training/MachineAdjustSheet';
+import { Settings2, Info } from 'lucide-react';
 
 interface ExerciseSet {
   reps: string;
@@ -19,17 +22,21 @@ interface ExerciseSet {
 }
 
 interface ExerciseDBData {
+  id?: string;
   nome: string;
   imagem_url: string | null;
   video_embed: string | null;
   grupo_muscular: string;
+  ajustes?: string[] | null;
 }
 
 interface ExerciseMediaMap {
   [key: string]: {
+    id?: string;
     imageUrl?: string;
     videoEmbed?: string;
     muscleGroup?: string;
+    ajustes?: string[] | null;
   };
 }
 
