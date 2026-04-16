@@ -45,9 +45,11 @@ const App = () => {
   const handleSplashFinish = useCallback(() => setShowSplash(false), []);
 
   useEffect(() => {
+    const backgroundToken = getComputedStyle(document.documentElement).getPropertyValue('--background').trim();
+
     document
       .querySelector('meta[name="theme-color"]')
-      ?.setAttribute("content", "hsl(45 100% 50%)");
+      ?.setAttribute("content", backgroundToken ? `hsl(${backgroundToken})` : 'hsl(220 20% 7%)');
   }, []);
 
   return (

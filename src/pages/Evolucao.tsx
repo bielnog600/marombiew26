@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePageChrome } from '@/hooks/usePageChrome';
 import { ArrowLeft, TrendingDown, TrendingUp, Minus, Scale } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from 'recharts';
 
@@ -32,6 +33,11 @@ const Evolucao = () => {
   const [records, setRecords] = useState<WeightRecord[]>([]);
   const [period, setPeriod] = useState<Period>('Todo');
   const [loading, setLoading] = useState(true);
+
+  usePageChrome({
+    safeAreaBackground: 'var(--gradient-chrome)',
+    themeColor: 'hsl(45 100% 50%)',
+  });
 
   useEffect(() => {
     if (!user) return;

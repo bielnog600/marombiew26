@@ -12,6 +12,7 @@
   :root {
     --background: 220 20% 7%;
     --foreground: 0 0% 95%;
+    --safe-area-top-background: hsl(var(--background));
     --app-chrome: 45 100% 50%;
     --app-chrome-strong: 35 100% 42%;
     --gradient-chrome: linear-gradient(135deg, hsl(var(--app-chrome)), hsl(var(--app-chrome-strong)));
@@ -102,7 +103,8 @@
     left: 0;
     right: 0;
     height: env(safe-area-inset-top, 0px);
-    background: var(--gradient-chrome);
+    background-color: hsl(var(--background));
+    background: var(--safe-area-top-background);
     pointer-events: none;
   }
 
