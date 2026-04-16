@@ -87,7 +87,6 @@ const Evolucao = () => {
         className="relative"
         style={{
           background: 'var(--gradient-chrome)',
-          paddingTop: 'env(safe-area-inset-top, 0px)',
         }}
       >
         <div className="flex items-center gap-3 px-4 py-4">
