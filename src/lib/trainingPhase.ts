@@ -48,6 +48,12 @@ export const PHASE_BADGE_CLASS: Record<TrainingPhase, string> = {
 export const getPhaseLabel = (phase?: string | null): string =>
   PHASE_LABELS[(phase as TrainingPhase) || 'semana_1'] ?? 'Semana 1';
 
+export const getPhaseShortLabel = (phase?: string | null): string =>
+  PHASE_SHORT_LABELS[(phase as TrainingPhase) || 'semana_1'] ?? 'Semana 1';
+
+export const getPhaseGuideline = (phase?: string | null): string =>
+  PHASE_GUIDELINES[(phase as TrainingPhase) || 'semana_1'] ?? '';
+
 /** Parse seguro de data ISO (YYYY-MM-DD) ou DD/MM/YYYY usando UTC para evitar bugs de fuso. */
 const parseDateUTC = (dateStr: string): Date | null => {
   if (!dateStr) return null;
