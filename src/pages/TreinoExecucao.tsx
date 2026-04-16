@@ -10,6 +10,7 @@ import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { useAuth } from '@/contexts/AuthContext';
 import { type ParsedExercise, parseTrainingSections } from '@/lib/trainingResultParser';
 import { PHASE_LABELS, PHASE_BADGE_CLASS, type TrainingPhase } from '@/lib/trainingPhase';
+import { WorkoutSummaryShare } from '@/components/training/WorkoutSummaryShare';
 
 interface ExerciseSet {
   reps: string;
