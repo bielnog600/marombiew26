@@ -474,14 +474,26 @@ const TreinoExecucao = () => {
       </div>
 
       <div className="flex-1 p-4 space-y-4 pb-28">
-        {(() => {
-          const autoPhase = getPhaseByMonthDay();
-          return (
-            <p className="text-center text-xs text-muted-foreground px-3 leading-relaxed">
-              {PHASE_OBJECTIVE[autoPhase]}
-            </p>
-          );
-        })()}
+        <div className="flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowPhaseInfo(true)}
+            className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 border border-primary/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary/20 transition-colors"
+          >
+            <Info className="h-3 w-3" />
+            {PHASE_SHORT_LABELS[currentPhase]}
+          </button>
+          {matchedExercise?.id && (matchedExercise.ajustes?.length ?? 0) > 0 && user && (
+            <button
+              type="button"
+              onClick={() => setShowAdjust(true)}
+              className="inline-flex items-center gap-1.5 rounded-full bg-secondary border border-border px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-secondary/80 transition-colors"
+            >
+              <Settings2 className="h-3 w-3" />
+              Ajuste
+            </button>
+          )}
+        </div>
 
         <div className="space-y-2">
           <div className="grid grid-cols-[40px_1fr_1fr_48px] gap-2 px-2">
