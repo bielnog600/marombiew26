@@ -131,8 +131,27 @@ const TreinoExecucao = () => {
   const [restDuration, setRestDuration] = useState(60);
   const [showPlayFallback, setShowPlayFallback] = useState(false);
   const [showingVariation, setShowingVariation] = useState(false);
+  const [sessionStartAt] = useState<number>(() => Date.now());
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [isFinishing, setIsFinishing] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+
+  // Session timer tick
+  useEffect(() => {
+    const id = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - sessionStartAt) / 1000));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [sessionStartAt]);
+
+  const formatElapsed = (totalSec: number) => {
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+  };
 
   // Auto-load training plan from DB when accessed directly (no state)
   useEffect(() => {
