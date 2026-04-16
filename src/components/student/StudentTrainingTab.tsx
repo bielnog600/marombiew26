@@ -11,6 +11,7 @@ import TrainingResultCards from '@/components/TrainingResultCards';
 import {
   TRAINING_PHASES,
   PHASE_LABELS,
+  PHASE_SHORT_LABELS,
   PHASE_BADGE_CLASS,
   PHASE_DESCRIPTIONS,
   getPhasePreview,
@@ -114,7 +115,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                     <p className="font-medium text-sm truncate">{plan.titulo}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${PHASE_BADGE_CLASS[currentPhase]}`}>
-                        {PHASE_LABELS[currentPhase]}
+                        {PHASE_SHORT_LABELS[currentPhase]}
                       </span>
                       <p className="text-xs text-muted-foreground">
                         {new Date(plan.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
@@ -177,7 +178,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                         return (
                           <p className="text-[10px] text-muted-foreground">
                             Hoje: dia {preview.daysIn + 1} do ciclo →{' '}
-                            <span className="text-primary font-semibold">{PHASE_LABELS[preview.phase]}</span>
+                            <span className="text-primary font-semibold">{PHASE_SHORT_LABELS[preview.phase]}</span>
                           </p>
                         );
                       })()}

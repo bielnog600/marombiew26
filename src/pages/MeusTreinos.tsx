@@ -12,6 +12,7 @@ import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingRes
 import {
   TRAINING_PHASES,
   PHASE_LABELS,
+  PHASE_SHORT_LABELS,
   PHASE_BADGE_CLASS,
   PHASE_DESCRIPTIONS,
   calculateCurrentPhase,
@@ -181,12 +182,14 @@ const MeusTreinos = () => {
               <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${availablePhases.length}, 1fr)` }}>
                 {availablePhases.map(p => (
                   <TabsTrigger key={p} value={p} className="text-xs">
-                    {PHASE_LABELS[p]}
+                    {PHASE_SHORT_LABELS[p]}
                   </TabsTrigger>
                 ))}
               </TabsList>
             </Tabs>
-            <p className="text-[11px] text-muted-foreground text-center px-2">
+            <p className="text-[11px] text-muted-foreground text-center px-2 leading-relaxed">
+              <span className="font-semibold text-foreground">{PHASE_LABELS[activePhase]}</span>
+              <br />
               {PHASE_DESCRIPTIONS[activePhase]}
             </p>
           </div>
@@ -232,7 +235,7 @@ const MeusTreinos = () => {
                     <div className="absolute inset-0 bg-gradient-to-t from-card via-card/60 to-transparent" />
                     <div className="absolute top-2 left-2 flex gap-1.5">
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${PHASE_BADGE_CLASS[activePhase]}`}>
-                        {PHASE_LABELS[activePhase]}
+                        {PHASE_SHORT_LABELS[activePhase]}
                       </span>
                     </div>
                     {isToday && (
@@ -247,7 +250,7 @@ const MeusTreinos = () => {
                   {!heroImage && (
                     <div className="flex items-center gap-1.5 mb-1">
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${PHASE_BADGE_CLASS[activePhase]}`}>
-                        {PHASE_LABELS[activePhase]}
+                        {PHASE_SHORT_LABELS[activePhase]}
                       </span>
                       {isToday && (
                         <span className="bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
