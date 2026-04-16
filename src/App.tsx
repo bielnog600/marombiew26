@@ -27,6 +27,7 @@ import Consultoria from "./pages/Consultoria";
 import Perfil from "./pages/Perfil";
 import MinhasDietas from "./pages/MinhasDietas";
 import MeusTreinos from "./pages/MeusTreinos";
+import Evolucao from "./pages/Evolucao";
 
 import NotFound from "./pages/NotFound";
 
@@ -75,6 +76,7 @@ const App = () => {
               <Route path="/treino-execucao" element={<ProtectedRoute requiredRole="aluno"><TreinoExecucao /></ProtectedRoute>} />
               <Route path="/perfil" element={<ProtectedRoute requiredRole="aluno"><Perfil /></ProtectedRoute>} />
               <Route path="/minhas-dietas" element={<ProtectedRoute requiredRole="aluno"><MinhasDietas /></ProtectedRoute>} />
+              <Route path="/evolucao" element={<ProtectedRoute requiredRole="aluno"><Evolucao /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AuthProvider>
