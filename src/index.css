@@ -12,6 +12,9 @@
   :root {
     --background: 220 20% 7%;
     --foreground: 0 0% 95%;
+    --app-chrome: 45 100% 50%;
+    --app-chrome-strong: 35 100% 42%;
+    --gradient-chrome: linear-gradient(135deg, hsl(var(--app-chrome)), hsl(var(--app-chrome-strong)));
 
     --card: 220 18% 10%;
     --card-foreground: 0 0% 95%;
@@ -92,6 +95,17 @@
     padding-right: env(safe-area-inset-right);
   }
 
+  body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: env(safe-area-inset-top, 0px);
+    background: var(--gradient-chrome);
+    pointer-events: none;
+  }
+
   #root {
     width: 100%;
     min-height: 100%;
@@ -125,10 +139,10 @@
     @apply bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl shadow-lg;
   }
   .gradient-primary {
-    background: linear-gradient(135deg, hsl(45 100% 50%), hsl(35 100% 45%));
+    background: var(--gradient-chrome);
   }
   .text-gradient {
-    background: linear-gradient(135deg, hsl(45 100% 50%), hsl(35 100% 45%));
+    background: var(--gradient-chrome);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
