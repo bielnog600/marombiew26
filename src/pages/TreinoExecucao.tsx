@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Hls from 'hls.js';
-import { ArrowLeft, Play, Pause, Check, ChevronLeft, ChevronRight, Timer, X } from 'lucide-react';
+import { ArrowLeft, Play, Pause, Check, ChevronLeft, ChevronRight, Timer, X, Clock } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
@@ -130,8 +131,27 @@ const TreinoExecucao = () => {
   const [restDuration, setRestDuration] = useState(60);
   const [showPlayFallback, setShowPlayFallback] = useState(false);
   const [showingVariation, setShowingVariation] = useState(false);
+  const [sessionStartAt] = useState<number>(() => Date.now());
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [isFinishing, setIsFinishing] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+
+  // Session timer tick
+  useEffect(() => {
+    const id = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - sessionStartAt) / 1000));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [sessionStartAt]);
+
+  const formatElapsed = (totalSec: number) => {
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+  };
 
   // Auto-load training plan from DB when accessed directly (no state)
   useEffect(() => {
@@ -392,6 +412,10 @@ const TreinoExecucao = () => {
         </button>
 
         <div className="absolute top-4 right-4 z-30 flex items-center gap-2">
+          <span className="bg-background/80 backdrop-blur rounded-full px-2.5 py-1 text-xs font-mono font-semibold text-primary tabular-nums flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {formatElapsed(elapsedSeconds)}
+          </span>
           <span className="bg-background/80 backdrop-blur rounded-full px-3 py-1 text-xs font-medium text-foreground">{currentIndex + 1}/{exercises.length}</span>
         </div>
 
@@ -467,7 +491,31 @@ const TreinoExecucao = () => {
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           ) : (
-            <Button className="flex-1" onClick={() => { completeWorkout(); navigate('/minha-area'); }}>
+            <Button className="flex-1" disabled={isFinishing} onClick={async () => {
+              if (isFinishing) return;
+              setIsFinishing(true);
+              const totalSec = Math.floor((Date.now() - sessionStartAt) / 1000);
+              const durationMinutes = Math.max(1, Math.round(totalSec / 60));
+              const exercisesCompleted = Object.values(sets).filter(arr => arr?.some(s => s.completed)).length;
+              try {
+                if (user) {
+                  await supabase.from('workout_sessions').insert({
+                    student_id: user.id,
+                    day_name: dayName,
+                    phase: phase ?? null,
+                    duration_minutes: durationMinutes,
+                    exercises_completed: exercisesCompleted,
+                    total_exercises: exercises.length,
+                  });
+                }
+              } catch (e) {
+                console.error('Erro salvando sessão:', e);
+                toast.error('Erro ao salvar sessão.');
+              }
+              completeWorkout();
+              toast.success(`Treino concluído! ${formatElapsed(totalSec)} • ${exercisesCompleted}/${exercises.length} exercícios`, { duration: 5000 });
+              navigate('/minha-area');
+            }}>
               Finalizar
               <Check className="h-4 w-4 ml-1" />
             </Button>

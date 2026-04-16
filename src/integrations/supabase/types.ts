@@ -991,6 +991,45 @@ export type Database = {
           },
         ]
       }
+      workout_sessions: {
+        Row: {
+          completed_at: string
+          created_at: string
+          day_name: string | null
+          duration_minutes: number
+          exercises_completed: number
+          id: string
+          phase: string | null
+          plan_id: string | null
+          student_id: string
+          total_exercises: number
+        }
+        Insert: {
+          completed_at?: string
+          created_at?: string
+          day_name?: string | null
+          duration_minutes?: number
+          exercises_completed?: number
+          id?: string
+          phase?: string | null
+          plan_id?: string | null
+          student_id: string
+          total_exercises?: number
+        }
+        Update: {
+          completed_at?: string
+          created_at?: string
+          day_name?: string | null
+          duration_minutes?: number
+          exercises_completed?: number
+          id?: string
+          phase?: string | null
+          plan_id?: string | null
+          student_id?: string
+          total_exercises?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
