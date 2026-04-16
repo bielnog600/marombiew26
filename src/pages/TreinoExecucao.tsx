@@ -9,8 +9,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { useAuth } from '@/contexts/AuthContext';
 import { type ParsedExercise, parseTrainingSections } from '@/lib/trainingResultParser';
-import { PHASE_OBJECTIVE, getPhaseByMonthDay, type TrainingPhase } from '@/lib/trainingPhase';
+import { PHASE_OBJECTIVE, PHASE_SHORT_LABELS, getPhaseByMonthDay, type TrainingPhase } from '@/lib/trainingPhase';
 import { WorkoutSummaryShare } from '@/components/training/WorkoutSummaryShare';
+import { PhaseInfoSheet } from '@/components/training/PhaseInfoSheet';
+import { MachineAdjustSheet } from '@/components/training/MachineAdjustSheet';
+import { Settings2, Info } from 'lucide-react';
 
 interface ExerciseSet {
   reps: string;
@@ -19,17 +22,21 @@ interface ExerciseSet {
 }
 
 interface ExerciseDBData {
+  id?: string;
   nome: string;
   imagem_url: string | null;
   video_embed: string | null;
   grupo_muscular: string;
+  ajustes?: string[] | null;
 }
 
 interface ExerciseMediaMap {
   [key: string]: {
+    id?: string;
     imageUrl?: string;
     videoEmbed?: string;
     muscleGroup?: string;
+    ajustes?: string[] | null;
   };
 }
 
@@ -136,6 +143,9 @@ const TreinoExecucao = () => {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isFinishing, setIsFinishing] = useState(false);
   const [summary, setSummary] = useState<{ duration: number; completed: number } | null>(null);
+  const [showPhaseInfo, setShowPhaseInfo] = useState(false);
+  const [showAdjust, setShowAdjust] = useState(false);
+  const currentPhase = phase ?? getPhaseByMonthDay();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
 
@@ -183,7 +193,7 @@ const TreinoExecucao = () => {
             .map((name) => name?.toUpperCase().trim())
             .filter(Boolean) as string[];
           const uniqueNames = [...new Set(names)];
-          const { data: dbEx } = await supabase.from('exercises').select('nome, imagem_url, video_embed, grupo_muscular');
+          const { data: dbEx } = await supabase.from('exercises').select('id, nome, imagem_url, video_embed, grupo_muscular, ajustes');
           if (dbEx) {
             const mediaMap: ExerciseMediaMap = {};
             for (const name of uniqueNames) {
@@ -194,9 +204,11 @@ const TreinoExecucao = () => {
               );
               if (match) {
                 mediaMap[name] = {
+                  id: match.id,
                   imageUrl: match.imagem_url || undefined,
                   videoEmbed: match.video_embed || undefined,
                   muscleGroup: match.grupo_muscular || undefined,
+                  ajustes: match.ajustes ?? null,
                 };
               }
             }
@@ -213,8 +225,8 @@ const TreinoExecucao = () => {
 
   useEffect(() => {
     const loadExercises = async () => {
-      const { data } = await supabase.from('exercises').select('nome, imagem_url, video_embed, grupo_muscular');
-      if (data) setExerciseDB(data);
+      const { data } = await supabase.from('exercises').select('id, nome, imagem_url, video_embed, grupo_muscular, ajustes');
+      if (data) setExerciseDB(data as ExerciseDBData[]);
     };
 
     loadExercises();
@@ -226,10 +238,12 @@ const TreinoExecucao = () => {
 
     if (exerciseMedia[name]) {
       return {
+        id: exerciseMedia[name].id,
         nome: name,
         imagem_url: exerciseMedia[name].imageUrl ?? null,
         video_embed: exerciseMedia[name].videoEmbed ?? null,
         grupo_muscular: exerciseMedia[name].muscleGroup ?? '',
+        ajustes: exerciseMedia[name].ajustes ?? null,
       } as ExerciseDBData;
     }
 
@@ -375,6 +389,17 @@ const TreinoExecucao = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {showRestTimer && <RestTimerOverlay totalSeconds={restDuration} onClose={() => setShowRestTimer(false)} />}
+      <PhaseInfoSheet open={showPhaseInfo} onOpenChange={setShowPhaseInfo} phase={currentPhase} />
+      {matchedExercise?.id && user && (
+        <MachineAdjustSheet
+          open={showAdjust}
+          onOpenChange={setShowAdjust}
+          exerciseId={matchedExercise.id}
+          exerciseName={exercise?.exercise || ''}
+          studentId={user.id}
+          fields={matchedExercise.ajustes ?? []}
+        />
+      )}
       {summary && (
         <WorkoutSummaryShare
           dayName={dayName}
@@ -460,14 +485,26 @@ const TreinoExecucao = () => {
       </div>
 
       <div className="flex-1 p-4 space-y-4 pb-28">
-        {(() => {
-          const autoPhase = getPhaseByMonthDay();
-          return (
-            <p className="text-center text-xs text-muted-foreground px-3 leading-relaxed">
-              {PHASE_OBJECTIVE[autoPhase]}
-            </p>
-          );
-        })()}
+        <div className="flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowPhaseInfo(true)}
+            className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 border border-primary/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary/20 transition-colors"
+          >
+            <Info className="h-3 w-3" />
+            {PHASE_SHORT_LABELS[currentPhase]}
+          </button>
+          {matchedExercise?.id && (matchedExercise.ajustes?.length ?? 0) > 0 && user && (
+            <button
+              type="button"
+              onClick={() => setShowAdjust(true)}
+              className="inline-flex items-center gap-1.5 rounded-full bg-secondary border border-border px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-secondary/80 transition-colors"
+            >
+              <Settings2 className="h-3 w-3" />
+              Ajuste
+            </button>
+          )}
+        </div>
 
         <div className="space-y-2">
           <div className="grid grid-cols-[40px_1fr_1fr_48px] gap-2 px-2">
