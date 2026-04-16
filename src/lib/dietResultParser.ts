@@ -265,10 +265,62 @@ export const parseMealTable = (tableLines: string[]): ParsedMeal[] => {
   return mergeParsedMeals(meals);
 };
 
+/** Parse a per-meal table (no "Refeição" column). Each table = 1 meal. */
+const parseSingleMealTable = (tableLines: string[], mealName: string, mealTime?: string): ParsedMeal | null => {
+  const rows: string[][] = [];
+  let headerCells: string[] = [];
+  let hasSubCol = false;
+
+  for (const line of tableLines) {
+    if (!line.trim().startsWith('|')) continue;
+    if (line.includes('---')) continue;
+    const cells = splitMarkdownRow(line);
+    if (cells.length < 4) continue;
+
+    if (!headerCells.length && (cells[0]?.toLowerCase().includes('alimento') || cells[0]?.toLowerCase().includes('food'))) {
+      headerCells = cells.map(c => c.toLowerCase());
+      hasSubCol = headerCells.some(h => h.includes('substitu'));
+      continue;
+    }
+    rows.push(cells);
+  }
+
+  if (rows.length === 0) return null;
+
+  const foods: ParsedFood[] = [];
+  for (const cells of rows) {
+    const foodCell = cleanCell(cells[0] || '');
+    const qtyCell = cleanCell(cells[1] || '');
+    const kcalCell = cleanCell(cells[2] || '');
+    const pCell = cleanCell(cells[3] || '');
+    const cCell = cleanCell(cells[4] || '');
+    const gCell = cleanCell(cells[5] || '');
+    const subCell = hasSubCol ? cleanCell(cells[6] || '') : undefined;
+
+    if (!foodCell || foodCell.toLowerCase().includes('alimento')) continue;
+    if (foodCell.toLowerCase().includes('total')) continue;
+
+    if (foodCell && qtyCell) {
+      foods.push({ food: foodCell, qty: ensureGrams(qtyCell), kcal: kcalCell, p: pCell, c: cCell, g: gCell, sub: subCell || undefined });
+    }
+  }
+
+  if (foods.length === 0) return null;
+  return finalizeMeal({ name: mealName, time: mealTime, foods });
+};
+
+/** Detect if a table header looks like a per-meal food table (Alimento | Qtd | Kcal...) */
+const isSingleMealTable = (firstLine: string): boolean => {
+  const lower = firstLine.toLowerCase();
+  return !lower.includes('refei') && lower.includes('alimento') && (lower.includes('kcal') || lower.includes('cal') || lower.includes('prote'));
+};
+
 export const parseSections = (markdown: string): ParsedSection[] => {
   const sections: ParsedSection[] = [];
   const lines = markdown.split('\n');
   let i = 0;
+  // Track current group heading (e.g. "## CARDÁPIO 1") to group per-meal tables
+  let currentGroupTitle = '';
 
   while (i < lines.length) {
     const line = lines[i].trim();
@@ -303,14 +355,31 @@ export const parseSections = (markdown: string): ParsedSection[] => {
       continue;
     }
 
+    // Detect group headings like "## CARDÁPIO 1" or "## Opção 1"
+    if (line.match(/^#{1,3}\s/) && (line.toLowerCase().includes('card') || line.toLowerCase().includes('opç') || line.toLowerCase().includes('opc'))) {
+      currentGroupTitle = line.replace(/^#+\s*/, '').replace(/\*\*/g, '').trim();
+      i++;
+      continue;
+    }
+
     if (line.startsWith('|')) {
       const tableLines: string[] = [];
       let title = '';
+      // Check if the preceding text is a meal heading (e.g. "### Refeição 1 – Café da Manhã (07:00)")
+      let precedingMealName = '';
+      let precedingMealTime: string | undefined;
       if (sections.length > 0 && sections[sections.length - 1].type === 'text') {
         const lastText = sections[sections.length - 1].content.trim();
         if (lastText.startsWith('#') || lastText.startsWith('**') || lastText.toLowerCase().includes('opção') || lastText.toLowerCase().includes('cardápio')) {
           title = lastText.replace(/^#+\s*/, '').replace(/\*\*/g, '');
           sections.pop();
+        }
+        // Extract meal name and time from heading like "Refeição 1 – Café da Manhã (07:00)"
+        const mealHeadingMatch = lastText.match(/refeição\s*\d*\s*[–-]\s*(.+?)(?:\((\d{1,2}:\d{2})\))?$/i) ||
+          lastText.replace(/^#+\s*/, '').replace(/\*\*/g, '').match(/refeição\s*\d*\s*[–-]\s*(.+?)(?:\((\d{1,2}:\d{2})\))?$/i);
+        if (mealHeadingMatch) {
+          precedingMealName = mealHeadingMatch[1].trim();
+          precedingMealTime = mealHeadingMatch[2];
         }
       }
 
@@ -320,12 +389,28 @@ export const parseSections = (markdown: string): ParsedSection[] => {
       }
 
       const firstLine = tableLines[0]?.toLowerCase() || '';
-      const isMealTable = firstLine.includes('refei') && (firstLine.includes('alimento') || firstLine.includes('kcal') || firstLine.includes('proteí') || firstLine.includes('quantidade'));
+      const isBigMealTable = firstLine.includes('refei') && (firstLine.includes('alimento') || firstLine.includes('kcal') || firstLine.includes('proteí') || firstLine.includes('quantidade'));
 
-      if (isMealTable) {
+      if (isBigMealTable) {
         const meals = parseMealTable(tableLines);
         if (meals.length > 0) sections.push({ type: 'meal', title, content: tableLines.join('\n'), meals });
         else sections.push({ type: 'table', title, content: tableLines.join('\n') });
+      } else if (isSingleMealTable(firstLine) && precedingMealName) {
+        // Per-meal table format: merge into existing meal section for current group
+        const meal = parseSingleMealTable(tableLines, precedingMealName, precedingMealTime);
+        if (meal) {
+          const groupLabel = currentGroupTitle || title || '';
+          // Find existing meal section for this group
+          const existingSection = sections.find(
+            s => s.type === 'meal' && (s.title || '') === groupLabel
+          );
+          if (existingSection && existingSection.meals) {
+            existingSection.meals.push(meal);
+            existingSection.content += '\n' + tableLines.join('\n');
+          } else {
+            sections.push({ type: 'meal', title: groupLabel, content: tableLines.join('\n'), meals: [meal] });
+          }
+        }
       } else {
         sections.push({ type: 'summary', title, content: tableLines.join('\n') });
       }
