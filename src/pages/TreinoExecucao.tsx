@@ -464,11 +464,14 @@ const TreinoExecucao = () => {
           <Timer className="h-5 w-5" />
           Descanso — {restDuration}s
         </Button>
-        {phase && (
-          <p className="text-center text-xs text-muted-foreground -mt-1 px-2">
-            <span className="font-semibold text-primary">{PHASE_SHORT_LABELS[phase]}:</span> {PHASE_FOCUS[phase].replace(/^Foco em /, '')}
-          </p>
-        )}
+        {(() => {
+          const autoPhase = getPhaseByMonthDay();
+          return (
+            <p className="text-center text-xs text-muted-foreground -mt-1 px-3 leading-relaxed">
+              {PHASE_OBJECTIVE[autoPhase]}
+            </p>
+          );
+        })()}
 
         <div className="space-y-2">
           <div className="grid grid-cols-[40px_1fr_1fr_48px] gap-2 px-2">
