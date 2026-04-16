@@ -29,6 +29,17 @@ export const PHASE_DESCRIPTIONS: Record<TrainingPhase, string> = {
   deload: 'Deload — recuperação ativa: menos volume, menos intensidade, sem técnicas avançadas.',
 };
 
+/** Frase curta de foco semanal — exibida na execução do treino. */
+export const PHASE_FOCUS: Record<TrainingPhase, string> = {
+  semana_1: 'Foco em técnica e ajuste de carga',
+  semana_2: 'Foco em intensificação e esforço',
+  semana_3: 'Foco em progressão e overload',
+  deload: 'Foco em recuperação e deload',
+};
+
+export const getPhaseFocus = (phase?: string | null): string =>
+  PHASE_FOCUS[(phase as TrainingPhase) || 'semana_1'] ?? '';
+
 /** Diretriz operacional resumida — exibida ao aluno na execução. */
 export const PHASE_GUIDELINES: Record<TrainingPhase, string> = {
   semana_1: 'Foque em execução perfeita e conexão mente-músculo. Deixe 2–3 reps na reserva. Evite falha.',
