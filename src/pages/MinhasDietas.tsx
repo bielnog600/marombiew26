@@ -111,13 +111,16 @@ const MinhasDietas = () => {
     [mealGroups],
   );
 
-  // When day-based (not options), always show 7 weekday buttons
+  // When day-based (not options), always show 7 weekday buttons with independent meal copies
   const displayGroups = useMemo(() => {
     if (usesMealOptions || mealGroups.length === 0) return mealGroups;
-    // Always 7 days, cycling through available groups
+    // Deep-clone meals for each day so substitutions are independent per day
     return WEEKDAY_LABELS.map((label, i) => ({
       label,
-      meals: mealGroups[i % mealGroups.length].meals,
+      meals: mealGroups[i % mealGroups.length].meals.map(m => ({
+        ...m,
+        foods: m.foods.map(f => ({ ...f })),
+      })),
     }));
   }, [mealGroups, usesMealOptions]);
 
@@ -302,7 +305,7 @@ const MinhasDietas = () => {
             {currentMeals.map((meal, i) => {
               const done = tracking.meals_completed.includes(i);
               return (
-                <div key={`${meal.name}-${meal.time || 'sem-hora'}-${i}`}>
+                <div key={`day-${activeGroupIndex}-${meal.name}-${meal.time || 'sem-hora'}-${i}`}>
                   <MealCard
                     meal={meal}
                     index={i}
