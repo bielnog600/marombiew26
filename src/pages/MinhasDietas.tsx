@@ -206,7 +206,7 @@ const MinhasDietas = () => {
 
         {/* Option/day selector */}
         {hasMultipleGroups && (
-          <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide justify-center" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             {displayGroups.map((group, i) => {
               const label = usesMealOptions
                 ? (group.label || `Opção ${i + 1}`)
