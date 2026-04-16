@@ -389,6 +389,17 @@ const TreinoExecucao = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {showRestTimer && <RestTimerOverlay totalSeconds={restDuration} onClose={() => setShowRestTimer(false)} />}
+      <PhaseInfoSheet open={showPhaseInfo} onOpenChange={setShowPhaseInfo} phase={currentPhase} />
+      {matchedExercise?.id && user && (
+        <MachineAdjustSheet
+          open={showAdjust}
+          onOpenChange={setShowAdjust}
+          exerciseId={matchedExercise.id}
+          exerciseName={exercise?.exercise || ''}
+          studentId={user.id}
+          fields={matchedExercise.ajustes ?? []}
+        />
+      )}
       {summary && (
         <WorkoutSummaryShare
           dayName={dayName}
