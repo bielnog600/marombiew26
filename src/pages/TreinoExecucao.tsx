@@ -190,7 +190,7 @@ const TreinoExecucao = () => {
             .map((name) => name?.toUpperCase().trim())
             .filter(Boolean) as string[];
           const uniqueNames = [...new Set(names)];
-          const { data: dbEx } = await supabase.from('exercises').select('nome, imagem_url, video_embed, grupo_muscular');
+          const { data: dbEx } = await supabase.from('exercises').select('id, nome, imagem_url, video_embed, grupo_muscular, ajustes');
           if (dbEx) {
             const mediaMap: ExerciseMediaMap = {};
             for (const name of uniqueNames) {
@@ -201,9 +201,11 @@ const TreinoExecucao = () => {
               );
               if (match) {
                 mediaMap[name] = {
+                  id: match.id,
                   imageUrl: match.imagem_url || undefined,
                   videoEmbed: match.video_embed || undefined,
                   muscleGroup: match.grupo_muscular || undefined,
+                  ajustes: match.ajustes ?? null,
                 };
               }
             }
@@ -220,8 +222,8 @@ const TreinoExecucao = () => {
 
   useEffect(() => {
     const loadExercises = async () => {
-      const { data } = await supabase.from('exercises').select('nome, imagem_url, video_embed, grupo_muscular');
-      if (data) setExerciseDB(data);
+      const { data } = await supabase.from('exercises').select('id, nome, imagem_url, video_embed, grupo_muscular, ajustes');
+      if (data) setExerciseDB(data as ExerciseDBData[]);
     };
 
     loadExercises();
@@ -233,10 +235,12 @@ const TreinoExecucao = () => {
 
     if (exerciseMedia[name]) {
       return {
+        id: exerciseMedia[name].id,
         nome: name,
         imagem_url: exerciseMedia[name].imageUrl ?? null,
         video_embed: exerciseMedia[name].videoEmbed ?? null,
         grupo_muscular: exerciseMedia[name].muscleGroup ?? '',
+        ajustes: exerciseMedia[name].ajustes ?? null,
       } as ExerciseDBData;
     }
 
