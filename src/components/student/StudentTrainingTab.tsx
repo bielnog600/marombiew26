@@ -178,7 +178,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                         return (
                           <p className="text-[10px] text-muted-foreground">
                             Hoje: dia {preview.daysIn + 1} do ciclo →{' '}
-                            <span className="text-primary font-semibold">{PHASE_LABELS[preview.phase]}</span>
+                            <span className="text-primary font-semibold">{PHASE_SHORT_LABELS[preview.phase]}</span>
                           </p>
                         );
                       })()}
