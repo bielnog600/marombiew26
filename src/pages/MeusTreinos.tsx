@@ -235,7 +235,7 @@ const MeusTreinos = () => {
                     <div className="absolute inset-0 bg-gradient-to-t from-card via-card/60 to-transparent" />
                     <div className="absolute top-2 left-2 flex gap-1.5">
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${PHASE_BADGE_CLASS[activePhase]}`}>
-                        {PHASE_LABELS[activePhase]}
+                        {PHASE_SHORT_LABELS[activePhase]}
                       </span>
                     </div>
                     {isToday && (
