@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { useAuth } from '@/contexts/AuthContext';
 import { type ParsedExercise, parseTrainingSections } from '@/lib/trainingResultParser';
+import { PHASE_LABELS, PHASE_BADGE_CLASS, type TrainingPhase } from '@/lib/trainingPhase';
 
 interface ExerciseSet {
   reps: string;
@@ -110,11 +111,13 @@ const TreinoExecucao = () => {
     exercises?: ParsedExercise[];
     dayName?: string;
     exerciseMedia?: ExerciseMediaMap;
+    phase?: TrainingPhase;
   } | null;
 
   const [loadedExercises, setLoadedExercises] = useState<ParsedExercise[]>(stateData?.exercises || []);
   const [loadedDayName, setLoadedDayName] = useState(stateData?.dayName || 'Treino');
   const [loadedMedia, setLoadedMedia] = useState<ExerciseMediaMap>(stateData?.exerciseMedia || {});
+  const [phase, setPhase] = useState<TrainingPhase | null>(stateData?.phase || null);
 
   const exercises = loadedExercises;
   const dayName = loadedDayName;
