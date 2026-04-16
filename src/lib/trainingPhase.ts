@@ -8,6 +8,14 @@ export type TrainingPhase = 'semana_1' | 'semana_2' | 'semana_3' | 'deload';
 export const TRAINING_PHASES: TrainingPhase[] = ['semana_1', 'semana_2', 'semana_3', 'deload'];
 
 export const PHASE_LABELS: Record<TrainingPhase, string> = {
+  semana_1: 'Semana 1 — Base Técnica',
+  semana_2: 'Semana 2 — Intensificação',
+  semana_3: 'Semana 3 — Overload',
+  deload: 'Semana 4 — Deload',
+};
+
+/** Subtítulo curto (usado em badges e cards). */
+export const PHASE_SHORT_LABELS: Record<TrainingPhase, string> = {
   semana_1: 'Semana 1',
   semana_2: 'Semana 2',
   semana_3: 'Semana 3',
@@ -15,10 +23,18 @@ export const PHASE_LABELS: Record<TrainingPhase, string> = {
 };
 
 export const PHASE_DESCRIPTIONS: Record<TrainingPhase, string> = {
-  semana_1: 'Acúmulo — base de volume',
-  semana_2: 'Intensificação — progressão',
-  semana_3: 'Pico — sobrecarga máxima',
-  deload: 'Recuperação ativa — volume reduzido',
+  semana_1: 'Base Técnica e Adaptação — cargas conservadoras, técnica perfeita, longe da falha.',
+  semana_2: 'Intensificação — proximidade da falha + técnicas avançadas (drop-set, rest-pause, myo-reps).',
+  semana_3: 'Overload — progressão real: mais carga, mais reps ou mais densidade.',
+  deload: 'Deload — recuperação ativa: menos volume, menos intensidade, sem técnicas avançadas.',
+};
+
+/** Diretriz operacional resumida — exibida ao aluno na execução. */
+export const PHASE_GUIDELINES: Record<TrainingPhase, string> = {
+  semana_1: 'Foque em execução perfeita e conexão mente-músculo. Deixe 2–3 reps na reserva. Evite falha.',
+  semana_2: 'Aproxime-se da falha técnica. Aplique drop-set, rest-pause ou myo-reps nos exercícios marcados.',
+  semana_3: 'Supere a semana anterior: +carga, +reps ou menos descanso. Mantenha execução segura.',
+  deload: 'Reduza volume (~40–50%) e intensidade. Sem técnicas avançadas. Saia das séries com folga.',
 };
 
 /** Cor do badge de fase (usa tokens semânticos). */
