@@ -207,14 +207,14 @@ const MinhasDietas = () => {
         {/* Option/day selector */}
         {hasMultipleGroups && (
           <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-            {mealGroups.map((group, i) => {
+            {displayGroups.map((group, i) => {
               const label = usesMealOptions
                 ? (group.label || `Opção ${i + 1}`)
-                : (group.label || WEEKDAY_LABELS[i] || `Dia ${i + 1}`);
+                : group.label;
               const isActive = activeGroupIndex === i;
               return (
                 <button
-                  key={label}
+                  key={`${label}-${i}`}
                   type="button"
                   onClick={() => setSelectedGroupIndex(i)}
                   className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
