@@ -111,11 +111,21 @@ const MinhasDietas = () => {
     [mealGroups],
   );
 
+  // When day-based (not options), always show 7 weekday buttons
+  const displayGroups = useMemo(() => {
+    if (usesMealOptions || mealGroups.length === 0) return mealGroups;
+    // Always 7 days, cycling through available groups
+    return WEEKDAY_LABELS.map((label, i) => ({
+      label,
+      meals: mealGroups[i % mealGroups.length].meals,
+    }));
+  }, [mealGroups, usesMealOptions]);
+
   const defaultGroupIndex = useMemo(() => {
-    if (mealGroups.length === 0) return 0;
+    if (displayGroups.length === 0) return 0;
     if (usesMealOptions) return 0;
-    return ((new Date().getDay() + 6) % 7) % mealGroups.length;
-  }, [mealGroups.length, usesMealOptions]);
+    return (new Date().getDay() + 6) % 7; // Mon=0 .. Sun=6
+  }, [displayGroups.length, usesMealOptions]);
 
   useEffect(() => {
     setSelectedGroupIndex(defaultGroupIndex);
@@ -126,9 +136,9 @@ const MinhasDietas = () => {
     [sections]
   );
 
-  const hasMultipleGroups = mealGroups.length > 1;
-  const activeGroupIndex = mealGroups[selectedGroupIndex] ? selectedGroupIndex : defaultGroupIndex;
-  const currentMeals = mealGroups.length > 0 ? (mealGroups[activeGroupIndex]?.meals ?? []) : allMeals;
+  const hasMultipleGroups = displayGroups.length > 1;
+  const activeGroupIndex = displayGroups[selectedGroupIndex] ? selectedGroupIndex : defaultGroupIndex;
+  const currentMeals = displayGroups.length > 0 ? (displayGroups[activeGroupIndex]?.meals ?? []) : allMeals;
 
   const totalKcal = currentMeals.reduce((s, m) => s + parseNum(m.totalKcal), 0);
   const totalP = currentMeals.reduce((s, m) => s + parseNum(m.totalP), 0);
@@ -197,14 +207,14 @@ const MinhasDietas = () => {
         {/* Option/day selector */}
         {hasMultipleGroups && (
           <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-            {mealGroups.map((group, i) => {
+            {displayGroups.map((group, i) => {
               const label = usesMealOptions
                 ? (group.label || `Opção ${i + 1}`)
-                : (group.label || WEEKDAY_LABELS[i] || `Dia ${i + 1}`);
+                : group.label;
               const isActive = activeGroupIndex === i;
               return (
                 <button
-                  key={label}
+                  key={`${label}-${i}`}
                   type="button"
                   onClick={() => setSelectedGroupIndex(i)}
                   className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
