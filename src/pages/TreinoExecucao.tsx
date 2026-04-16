@@ -375,6 +375,16 @@ const TreinoExecucao = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {showRestTimer && <RestTimerOverlay totalSeconds={restDuration} onClose={() => setShowRestTimer(false)} />}
+      {summary && (
+        <WorkoutSummaryShare
+          dayName={dayName}
+          durationSeconds={summary.duration}
+          exercisesCompleted={summary.completed}
+          totalExercises={exercises.length}
+          phase={phase}
+          onClose={() => { setSummary(null); navigate('/minha-area'); }}
+        />
+      )}
 
       <div className="relative w-full bg-secondary/30 overflow-hidden" style={{ aspectRatio: '16/11' }}>
         {hlsUrl ? (
