@@ -30,13 +30,11 @@ const MinhasDietas = () => {
   const [sections, setSections] = useState<ParsedSection[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGroupIndex, setSelectedGroupIndex] = useState(0);
-  const { tracking, addWater, removeWater, toggleMeal } = useDailyTracking();
-  const [waterGoal, setWaterGoal] = useState(8);
+  const { tracking, addWater, removeWater, toggleMeal, waterCurrentMl, waterTargetMl, waterGoalGlasses } = useDailyTracking();
 
   useEffect(() => {
     if (user) {
       loadDiet();
-      loadWaterGoal();
     }
   }, [user]);
 
