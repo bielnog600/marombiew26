@@ -66,7 +66,10 @@ const WaterIntakeCard: React.FC<WaterIntakeCardProps> = ({ glasses, goal, curren
           >
             <Minus className="h-3 w-3 text-muted-foreground" />
           </button>
-          <p className="text-lg font-bold tabular-nums">{glasses}<span className="text-xs text-muted-foreground">/{goal}</span></p>
+          <p className="text-sm font-bold tabular-nums leading-none">
+            {currentMl !== undefined ? formatLiters(currentMl) : (glasses * 0.25).toFixed(2)}
+            <span className="text-[10px] text-muted-foreground">/{targetMl !== undefined ? formatLiters(targetMl) : (goal * 0.25).toFixed(2)}L</span>
+          </p>
           <button
             onClick={(e) => { e.stopPropagation(); onAdd(); }}
             className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center active:scale-90 transition-transform"
