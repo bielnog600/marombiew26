@@ -274,8 +274,8 @@ const TabataExecucao: React.FC = () => {
   return (
     <div
       className={cn(
-        "fixed inset-0 z-50 flex flex-col bg-gradient-to-br transition-colors duration-500",
-        phaseColor
+        "fixed inset-0 z-50 flex flex-col transition-colors duration-500",
+        showVideoBg ? "bg-black" : cn("bg-gradient-to-br", phaseColor)
       )}
       style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
