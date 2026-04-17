@@ -266,7 +266,7 @@ const MinhasDietas = () => {
           </div>
           <Progress value={waterProgress} className="h-2 bg-background/70" />
           <div className="flex gap-1">
-            {Array.from({ length: waterGoal }).map((_, i) => (
+            {Array.from({ length: waterGoalGlasses }).map((_, i) => (
               <div
                 key={i}
                 className={`h-2 flex-1 rounded-full transition-colors ${i < tracking.water_glasses ? 'bg-chart-2' : 'bg-border'}`}
