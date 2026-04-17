@@ -119,16 +119,18 @@ const TabataExecucao: React.FC = () => {
     }
 
     if (import.meta.env.DEV) {
-      console.log('[TABATA media match]', exName, '→', best?.key, 'score:', best?.score);
+      console.log('[TABATA media match]', exName, '→', best?.key, 'score:', best?.score?.toFixed(2), 'has video:', !!mediaMap[best?.key ?? '']?.videoEmbed);
     }
 
-    // Require some similarity (>=40%) to avoid wrong videos
-    return best && best.matches >= 1 && best.score >= 0.4 ? mediaMap[best.key] : null;
+    // Accept any reasonable match (>=30%) — banco é limitado, melhor mostrar algo próximo
+    return best && best.matches >= 1 && best.score >= 0.3 ? mediaMap[best.key] : null;
   }, [currentStep, mediaMap]);
 
   const streamVideoId = extractStreamVideoId(currentMedia?.videoEmbed);
   const hlsUrl = streamVideoId ? `https://customer-vqfal80lir76xyf0.cloudflarestream.com/${streamVideoId}/manifest/video.m3u8` : null;
-  const showVideoBg = (phase === 'prep' || phase === 'work' || phase === 'rest' || phase === 'block_rest') && !!hlsUrl;
+  const fallbackImage = !streamVideoId && currentMedia?.imageUrl ? currentMedia.imageUrl : null;
+  const hasMediaBg = !!hlsUrl || !!fallbackImage;
+  const showVideoBg = (phase === 'prep' || phase === 'work' || phase === 'rest' || phase === 'block_rest') && hasMediaBg;
 
   // Mount HLS video when applicable
   useEffect(() => {
@@ -306,17 +308,25 @@ const TabataExecucao: React.FC = () => {
       )}
       style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      {/* Background video (fills screen, horizontal videos cover the area) */}
+      {/* Background video or image fallback */}
       {showVideoBg && (
         <div className="absolute inset-0 -z-10 overflow-hidden bg-black">
-          <video
-            ref={videoRef}
-            className="absolute inset-0 w-full h-full object-cover"
-            muted
-            playsInline
-            loop
-            autoPlay
-          />
+          {hlsUrl ? (
+            <video
+              ref={videoRef}
+              className="absolute inset-0 w-full h-full object-cover"
+              muted
+              playsInline
+              loop
+              autoPlay
+            />
+          ) : fallbackImage ? (
+            <img
+              src={fallbackImage}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          ) : null}
           {/* Subtle gradients only at top/bottom for header/controls legibility — no blur */}
           <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-background/80 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-background/85 to-transparent" />
