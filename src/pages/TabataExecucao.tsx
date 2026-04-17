@@ -81,9 +81,22 @@ const TabataExecucao: React.FC = () => {
     if (!currentStep) return null;
     const key = normalizeName(currentStep.exercise.name);
     if (mediaMap[key]) return mediaMap[key];
-    // partial match
-    const found = Object.keys(mediaMap).find(k => k.includes(key) || key.includes(k));
-    return found ? mediaMap[found] : null;
+
+    const queryTokens = tokenize(currentStep.exercise.name);
+    if (!queryTokens.length) return null;
+
+    // Score each candidate by token overlap (Jaccard-like)
+    let best: { score: number; key: string } | null = null;
+    for (const candidateKey of Object.keys(mediaMap)) {
+      const candTokens = candidateKey.split(' ').filter(t => t.length > 1 && !STOP_WORDS.has(t));
+      if (!candTokens.length) continue;
+      const matches = queryTokens.filter(t => candTokens.includes(t)).length;
+      if (!matches) continue;
+      const score = matches / Math.max(queryTokens.length, candTokens.length);
+      if (!best || score > best.score) best = { score, key: candidateKey };
+    }
+    // Require at least 60% token similarity to avoid false matches
+    return best && best.score >= 0.6 ? mediaMap[best.key] : null;
   }, [currentStep, mediaMap]);
 
   const streamVideoId = extractStreamVideoId(currentMedia?.videoEmbed);
