@@ -101,9 +101,24 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { studentContext, intensity = 'auto', notes = '' } = await req.json();
+    const { studentContext, intensity = 'auto', notes = '', availableExercises = [] } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+
+    // Build official exercise list block (grouped) to inject into the system prompt
+    let exerciseListBlock = "";
+    if (Array.isArray(availableExercises) && availableExercises.length > 0) {
+      const grouped: Record<string, string[]> = {};
+      for (const ex of availableExercises) {
+        const g = ex.grupo_muscular || 'OUTROS';
+        if (!grouped[g]) grouped[g] = [];
+        grouped[g].push(ex.nome);
+      }
+      const lines = Object.entries(grouped)
+        .map(([g, names]) => `${g}:\n  - ${names.join('\n  - ')}`)
+        .join('\n\n');
+      exerciseListBlock = `\n\n═══════════════════════════════════════════════\nLISTA OFICIAL DE EXERCÍCIOS DISPONÍVEIS (use APENAS estes nomes, EXATAMENTE como escritos):\n═══════════════════════════════════════════════\n${lines}\n`;
+    }
 
     let contextMessage = "\n\n=== DADOS COMPLETOS DO ALUNO ===\n";
     if (studentContext) {
