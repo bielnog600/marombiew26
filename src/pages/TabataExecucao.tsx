@@ -87,44 +87,47 @@ const TabataExecucao: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
-  const currentMedia = useMemo(() => {
-    if (!currentStep || !Object.keys(mediaMap).length) return null;
-    const exName = currentStep.exercise.name;
-    const key = normalizeName(exName);
-    if (mediaMap[key]) return mediaMap[key];
+  const findMedia = useMemo(() => {
+    return (exName: string) => {
+      if (!exName || !Object.keys(mediaMap).length) return null;
+      const key = normalizeName(exName);
+      if (mediaMap[key]) return mediaMap[key];
 
-    const queryTokens = tokenize(exName);
-    if (!queryTokens.length) return null;
-    const queryEquip = equipmentOf(exName);
+      const queryTokens = tokenize(exName);
+      if (!queryTokens.length) return null;
+      const queryEquip = equipmentOf(exName);
 
-    let best: { score: number; key: string; matches: number } | null = null;
-    for (const candidateKey of Object.keys(mediaMap)) {
-      const candTokens = candidateKey.split(' ').filter(t => t.length > 1 && !STOP_WORDS.has(t));
-      if (!candTokens.length) continue;
+      let best: { score: number; key: string; matches: number } | null = null;
+      for (const candidateKey of Object.keys(mediaMap)) {
+        const candTokens = candidateKey.split(' ').filter(t => t.length > 1 && !STOP_WORDS.has(t));
+        if (!candTokens.length) continue;
 
-      // Equipment compatibility — reject if equipment markers differ
-      const candEquip = equipmentOf(candidateKey);
-      if (queryEquip.size > 0 || candEquip.size > 0) {
-        const equipMatches = [...queryEquip].some(e => candEquip.has(e));
-        const equipDiffers = (queryEquip.size > 0 && candEquip.size > 0 && !equipMatches) ||
-          (queryEquip.size === 0 && candEquip.size > 0) ||
-          (queryEquip.size > 0 && candEquip.size === 0);
-        if (equipDiffers) continue;
+        const candEquip = equipmentOf(candidateKey);
+        if (queryEquip.size > 0 || candEquip.size > 0) {
+          const equipMatches = [...queryEquip].some(e => candEquip.has(e));
+          const equipDiffers = (queryEquip.size > 0 && candEquip.size > 0 && !equipMatches) ||
+            (queryEquip.size === 0 && candEquip.size > 0) ||
+            (queryEquip.size > 0 && candEquip.size === 0);
+          if (equipDiffers) continue;
+        }
+
+        const matches = queryTokens.filter(t => candTokens.some(c => c === t)).length;
+        if (!matches) continue;
+        const score = matches / Math.max(queryTokens.length, candTokens.length);
+        if (!best || score > best.score) best = { score, key: candidateKey, matches };
       }
 
-      const matches = queryTokens.filter(t => candTokens.some(c => c === t)).length;
-      if (!matches) continue;
-      const score = matches / Math.max(queryTokens.length, candTokens.length);
-      if (!best || score > best.score) best = { score, key: candidateKey, matches };
-    }
+      return best && best.matches >= 1 && best.score >= 0.3 ? mediaMap[best.key] : null;
+    };
+  }, [mediaMap]);
 
-    if (import.meta.env.DEV) {
-      console.log('[TABATA media match]', exName, '→', best?.key, 'score:', best?.score?.toFixed(2), 'has video:', !!mediaMap[best?.key ?? '']?.videoEmbed);
-    }
+  const currentMedia = useMemo(
+    () => currentStep ? findMedia(currentStep.exercise.name) : null,
+    [currentStep, findMedia]
+  );
 
-    // Accept any reasonable match (>=30%) — banco é limitado, melhor mostrar algo próximo
-    return best && best.matches >= 1 && best.score >= 0.3 ? mediaMap[best.key] : null;
-  }, [currentStep, mediaMap]);
+  const nextStep = phase === 'rest' || phase === 'block_rest' ? steps[stepIndex + 1] : null;
+  const nextMedia = nextStep ? findMedia(nextStep.exercise.name) : null;
 
   const streamVideoId = extractStreamVideoId(currentMedia?.videoEmbed);
   const hlsUrl = streamVideoId ? `https://customer-vqfal80lir76xyf0.cloudflarestream.com/${streamVideoId}/manifest/video.m3u8` : null;
