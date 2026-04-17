@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { Trash2, Dumbbell, UtensilsCrossed, ChevronDown, ChevronUp, Pencil, ClipboardCheck } from 'lucide-react';
+import { Trash2, Dumbbell, UtensilsCrossed, ChevronDown, ChevronUp, Pencil, ClipboardCheck, Flame } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useNavigate } from 'react-router-dom';
@@ -68,8 +68,10 @@ const AiPlansList = ({ studentId }: AiPlansListProps) => {
               >
                 {plan.tipo === 'treino' ? (
                   <Dumbbell className="h-5 w-5 text-primary shrink-0" />
+                ) : plan.tipo === 'tabata' ? (
+                  <Flame className="h-5 w-5 text-primary shrink-0" />
                 ) : (
-                  <UtensilsCrossed className="h-5 w-5 text-green-500 shrink-0" />
+                  <UtensilsCrossed className="h-5 w-5 text-primary shrink-0" />
                 )}
                 <div>
                   <p className="font-medium text-sm">{plan.titulo}</p>
@@ -97,6 +99,8 @@ const AiPlansList = ({ studentId }: AiPlansListProps) => {
                 onClick={() => {
                   const route = plan.tipo === 'treino'
                     ? `/treino-ia/${studentId}?edit=${plan.id}`
+                    : plan.tipo === 'tabata'
+                    ? `/tabata-ia/${studentId}?edit=${plan.id}`
                     : `/dieta-ia/${studentId}?edit=${plan.id}`;
                   navigate(route);
                 }}
@@ -127,6 +131,10 @@ const AiPlansList = ({ studentId }: AiPlansListProps) => {
               <div className="mt-4 pt-4 border-t border-border">
                 {plan.tipo === 'dieta' ? (
                   <DietResultCards markdown={plan.conteudo} />
+                ) : plan.tipo === 'tabata' ? (
+                  <div className="prose prose-sm prose-invert max-w-none whitespace-pre-wrap text-sm">
+                    {plan.conteudo}
+                  </div>
                 ) : (
                   <TrainingResultCards markdown={plan.conteudo} />
                 )}
