@@ -9,6 +9,10 @@ interface DailyTracking {
   workout_completed: boolean;
 }
 
+// Single source of truth for water units
+export const WATER_STEP_ML = 250;
+export const DEFAULT_WATER_GOAL_GLASSES = 8;
+
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 function getWeekRange() {
