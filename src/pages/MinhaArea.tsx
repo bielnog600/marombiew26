@@ -301,8 +301,10 @@ const MinhaArea = () => {
             completedToday={tracking.workout_completed}
           />
           <WaterIntakeCard
+            currentMl={waterCurrentMl}
+            targetMl={waterTargetMl}
             glasses={tracking.water_glasses}
-            goal={8}
+            goal={waterGoalGlasses}
             onAdd={addWater}
             onRemove={removeWater}
           />
