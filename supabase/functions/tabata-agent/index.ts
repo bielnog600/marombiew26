@@ -25,19 +25,14 @@ SE NÃO houver restrições e o nível permitir:
 - Maior densidade e exercícios complexos
 
 ═══════════════════════════════════════════════
-EQUIPAMENTO PERMITIDO — REGRA RÍGIDA
+REGRA ABSOLUTA — USAR APENAS EXERCÍCIOS DA LISTA OFICIAL
 ═══════════════════════════════════════════════
-APENAS exercícios LIVRES e FUNCIONAIS, com no máximo:
-- Peso corporal (calistenia)
-- Halteres (dumbbells)
-- Barra simples (sem racks/smith/máquinas)
-- Kettlebell, elástico, corda, step/caixa baixa, bola
-
-PROIBIDO: máquinas (smith, hack, leg press, cadeira extensora/flexora, peck deck, polia, graviton, crossover, mesa flexora, cabos), equipamentos pesados de academia tradicional.
-
-Os nomes dos exercícios devem ser SIMPLES, GENÉRICOS e DESCREVER A VARIAÇÃO USADA (ex: "Elevação pélvica no solo", NÃO "Elevação pélvica" sozinho — para evitar confusão com a versão com barra). Sempre que houver ambiguidade, especifique: "no solo", "com halteres", "peso corporal", "salto", etc.
-
-Exemplos válidos: "Agachamento livre", "Burpee", "Mountain Climber", "Polichinelo", "Flexão de braço no solo", "Prancha", "Skipping", "Afundo alternado", "Abdominal supra", "Remada curvada com halteres", "Desenvolvimento com halteres", "Swing com kettlebell", "Elevação pélvica no solo", "Jumping Jack", "Salto no caixote", "Corrida estacionária".
+Você DEVE usar EXCLUSIVAMENTE os exercícios da "LISTA OFICIAL DE EXERCÍCIOS DISPONÍVEIS" fornecida pelo sistema.
+- Use o NOME EXATAMENTE como aparece na lista (mesma grafia, acentuação e maiúsculas).
+- NÃO invente exercícios que não estão na lista.
+- NÃO use exercícios com BARRA, máquinas (smith, hack, leg press, peck deck, polia, graviton, mesa flexora, cadeira extensora/flexora, crossover, cabos).
+- Priorize exercícios com PESO CORPORAL, HALTERES, KETTLEBELL, CORDA, e funcionais livres (CARDIO, ABDOMEN).
+- Se a lista não tiver opção ideal para uma posição, escolha a alternativa mais próxima da lista — NUNCA invente.
 
 ═══════════════════════════════════════════════
 ESTRUTURA TABATA PADRÃO
@@ -72,8 +67,8 @@ FORMATO OBRIGATÓRIO DA RESPOSTA (MARKDOWN)
 
 | Round | Exercício | Trabalho | Descanso | Observação |
 |-------|-----------|----------|----------|------------|
-| 1 | Agachamento | 20s | 10s | Pés afastados largura do quadril |
-| 2 | Mountain Climbers | 20s | 10s | Core firme |
+| 1 | BURPEES | 20s | 10s | Mantenha o ritmo |
+| 2 | MOUTAIN CLIMBERS | 20s | 10s | Core firme |
 | ... | ... | ... | ... | ... |
 
 **Descanso após bloco:** 1 a 2 min
@@ -97,17 +92,33 @@ REGRAS FINAIS
 1) NUNCA prescreva exercícios contraindicados às lesões/patologias do aluno
 2) Sempre cruze CADA exercício escolhido com as restrições reportadas
 3) Em caso de dúvida sobre segurança, opte sempre pela alternativa mais conservadora
-4) Inclua sempre aquecimento e desaquecimento
-5) Mantenha o markdown limpo e bem estruturado para boa visualização
-6) Gere TUDO de uma vez (sem perguntas) — você já tem o contexto completo do aluno`;
+4) Use SEMPRE os nomes EXATOS da Lista Oficial (case-sensitive, com acentos)
+5) Inclua sempre aquecimento e desaquecimento
+6) Mantenha o markdown limpo e bem estruturado para boa visualização
+7) Gere TUDO de uma vez (sem perguntas) — você já tem o contexto completo do aluno`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { studentContext, intensity = 'auto', notes = '' } = await req.json();
+    const { studentContext, intensity = 'auto', notes = '', availableExercises = [] } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+
+    // Build official exercise list block (grouped) to inject into the system prompt
+    let exerciseListBlock = "";
+    if (Array.isArray(availableExercises) && availableExercises.length > 0) {
+      const grouped: Record<string, string[]> = {};
+      for (const ex of availableExercises) {
+        const g = ex.grupo_muscular || 'OUTROS';
+        if (!grouped[g]) grouped[g] = [];
+        grouped[g].push(ex.nome);
+      }
+      const lines = Object.entries(grouped)
+        .map(([g, names]) => `${g}:\n  - ${names.join('\n  - ')}`)
+        .join('\n\n');
+      exerciseListBlock = `\n\n═══════════════════════════════════════════════\nLISTA OFICIAL DE EXERCÍCIOS DISPONÍVEIS (use APENAS estes nomes, EXATAMENTE como escritos):\n═══════════════════════════════════════════════\n${lines}\n`;
+    }
 
     let contextMessage = "\n\n=== DADOS COMPLETOS DO ALUNO ===\n";
     if (studentContext) {
@@ -186,7 +197,7 @@ Lembre-se:
       body: JSON.stringify({
         model: "google/gemini-2.5-pro",
         messages: [
-          { role: "system", content: SYSTEM_PROMPT + contextMessage },
+          { role: "system", content: SYSTEM_PROMPT + exerciseListBlock + contextMessage },
           { role: "user", content: userPrompt },
         ],
         stream: true,
