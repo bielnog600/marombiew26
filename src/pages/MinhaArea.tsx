@@ -287,11 +287,11 @@ const MinhaArea = () => {
           </Card>
         )}
 
-        {/* Diet Summary */}
-        {meals.length > 0 && <DietPlanCard sections={dietSections} />}
-
         {/* TABATA do Dia */}
         {tabataConteudo && <TabataDoDiaCard conteudo={tabataConteudo} />}
+
+        {/* Diet Summary */}
+        {meals.length > 0 && <DietPlanCard sections={dietSections} />}
 
         {/* Dashboard Cards */}
         <div className="grid grid-cols-3 gap-3">
