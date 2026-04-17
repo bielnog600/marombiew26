@@ -197,7 +197,7 @@ Lembre-se:
       body: JSON.stringify({
         model: "google/gemini-2.5-pro",
         messages: [
-          { role: "system", content: SYSTEM_PROMPT + contextMessage },
+          { role: "system", content: SYSTEM_PROMPT + exerciseListBlock + contextMessage },
           { role: "user", content: userPrompt },
         ],
         stream: true,
