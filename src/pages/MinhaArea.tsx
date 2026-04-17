@@ -14,6 +14,7 @@ import workoutHero from '@/assets/workout-hero.jpg';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { parseSections, type ParsedMeal, type ParsedSection } from '@/lib/dietResultParser';
 import DietPlanCard from '@/components/DietPlanCard';
+import TabataDoDiaCard from '@/components/home/TabataDoDiaCard';
 
 const MinhaArea = () => {
   const { user } = useAuth();
@@ -23,6 +24,7 @@ const MinhaArea = () => {
   const [assessmentCount, setAssessmentCount] = useState(0);
   const [trainingDays, setTrainingDays] = useState<ParsedTrainingDay[]>([]);
   const [meals, setMeals] = useState<ParsedMeal[]>([]);
+  const [tabataConteudo, setTabataConteudo] = useState<string | null>(null);
   const [dietSections, setDietSections] = useState<ParsedSection[]>([]);
   const [_trainingTitle, setTrainingTitle] = useState('');
   const [_dietTitle, setDietTitle] = useState('');
@@ -118,6 +120,18 @@ const MinhaArea = () => {
       const allMeals = sections.flatMap(s => s.meals ?? []);
       setMeals(allMeals);
     }
+
+    // Latest TABATA plan
+    const { data: tabata } = await supabase
+      .from('ai_plans')
+      .select('conteudo')
+      .eq('student_id', user!.id)
+      .eq('tipo', 'tabata')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (tabata) setTabataConteudo(tabata.conteudo);
+
     setLoading(false);
   };
 
@@ -275,6 +289,9 @@ const MinhaArea = () => {
 
         {/* Diet Summary */}
         {meals.length > 0 && <DietPlanCard sections={dietSections} />}
+
+        {/* TABATA do Dia */}
+        {tabataConteudo && <TabataDoDiaCard conteudo={tabataConteudo} />}
 
         {/* Dashboard Cards */}
         <div className="grid grid-cols-3 gap-3">

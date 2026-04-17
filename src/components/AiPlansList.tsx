@@ -131,6 +131,10 @@ const AiPlansList = ({ studentId }: AiPlansListProps) => {
               <div className="mt-4 pt-4 border-t border-border">
                 {plan.tipo === 'dieta' ? (
                   <DietResultCards markdown={plan.conteudo} />
+                ) : plan.tipo === 'tabata' ? (
+                  <div className="prose prose-sm prose-invert max-w-none whitespace-pre-wrap text-sm">
+                    {plan.conteudo}
+                  </div>
                 ) : (
                   <TrainingResultCards markdown={plan.conteudo} />
                 )}
