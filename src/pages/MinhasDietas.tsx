@@ -30,13 +30,11 @@ const MinhasDietas = () => {
   const [sections, setSections] = useState<ParsedSection[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGroupIndex, setSelectedGroupIndex] = useState(0);
-  const { tracking, addWater, removeWater, toggleMeal } = useDailyTracking();
-  const [waterGoal, setWaterGoal] = useState(8);
+  const { tracking, addWater, removeWater, toggleMeal, waterCurrentMl, waterTargetMl, waterGoalGlasses } = useDailyTracking();
 
   useEffect(() => {
     if (user) {
       loadDiet();
-      loadWaterGoal();
     }
   }, [user]);
 
@@ -74,28 +72,6 @@ const MinhasDietas = () => {
       setSections(parseSections(dieta.conteudo));
     }
     setLoading(false);
-  };
-
-  const loadWaterGoal = async () => {
-    const { data: assessment } = await supabase
-      .from('assessments')
-      .select('id')
-      .eq('student_id', user!.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (assessment) {
-      const { data: anthro } = await supabase
-        .from('anthropometrics')
-        .select('peso')
-        .eq('assessment_id', assessment.id)
-        .maybeSingle();
-      if (anthro?.peso) {
-        const mlPerDay = Number(anthro.peso) * 35;
-        const glasses = Math.round(mlPerDay / 250);
-        setWaterGoal(Math.max(glasses, 6));
-      }
-    }
   };
 
   const mealGroups = useMemo(() => {
@@ -157,9 +133,9 @@ const MinhasDietas = () => {
       ? 'Metas do dia'
       : 'Totais do dia';
 
-  const waterMl = tracking.water_glasses * 250;
-  const waterGoalMl = waterGoal * 250;
-  const waterProgress = (tracking.water_glasses / waterGoal) * 100;
+  const waterMl = waterCurrentMl;
+  const waterGoalMl = waterTargetMl;
+  const waterProgress = waterTargetMl > 0 ? (waterCurrentMl / waterTargetMl) * 100 : 0;
 
   if (loading) {
     return (
@@ -290,7 +266,7 @@ const MinhasDietas = () => {
           </div>
           <Progress value={waterProgress} className="h-2 bg-background/70" />
           <div className="flex gap-1">
-            {Array.from({ length: waterGoal }).map((_, i) => (
+            {Array.from({ length: waterGoalGlasses }).map((_, i) => (
               <div
                 key={i}
                 className={`h-2 flex-1 rounded-full transition-colors ${i < tracking.water_glasses ? 'bg-chart-2' : 'bg-border'}`}

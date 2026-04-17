@@ -9,6 +9,10 @@ interface DailyTracking {
   workout_completed: boolean;
 }
 
+// Single source of truth for water units
+export const WATER_STEP_ML = 250;
+export const DEFAULT_WATER_GOAL_GLASSES = 8;
+
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 function getWeekRange() {
@@ -29,6 +33,7 @@ export function useDailyTracking() {
     workout_completed: false,
   });
   const [weeklyWorkouts, setWeeklyWorkouts] = useState(0);
+  const [waterGoalGlasses, setWaterGoalGlasses] = useState(DEFAULT_WATER_GOAL_GLASSES);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -66,6 +71,27 @@ export function useDailyTracking() {
       .gte('date', start)
       .lte('date', end);
     setWeeklyWorkouts(weekData?.length ?? 0);
+
+    // Compute water goal from latest assessment weight (35ml/kg)
+    const { data: assessment } = await supabase
+      .from('assessments')
+      .select('id')
+      .eq('student_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (assessment) {
+      const { data: anthro } = await supabase
+        .from('anthropometrics')
+        .select('peso')
+        .eq('assessment_id', assessment.id)
+        .maybeSingle();
+      if (anthro?.peso) {
+        const mlPerDay = Number(anthro.peso) * 35;
+        const glasses = Math.round(mlPerDay / WATER_STEP_ML);
+        setWaterGoalGlasses(Math.max(glasses, 6));
+      }
+    }
 
     setLoading(false);
   }, [user]);
@@ -112,6 +138,10 @@ export function useDailyTracking() {
     tracking,
     loading,
     weeklyWorkouts,
+    waterGoalGlasses,
+    waterCurrentMl: tracking.water_glasses * WATER_STEP_ML,
+    waterTargetMl: waterGoalGlasses * WATER_STEP_ML,
+    waterStepMl: WATER_STEP_ML,
     addWater,
     removeWater,
     toggleMeal,
