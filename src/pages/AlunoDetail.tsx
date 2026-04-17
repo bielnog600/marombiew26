@@ -6,7 +6,7 @@ import AiPlansList from '@/components/AiPlansList';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Plus, ClipboardList, User, Target, FileText, ScanLine, Pencil, Trash2, Heart, Bot, Download, Loader2, BarChart3, UtensilsCrossed, FileQuestion, Dumbbell } from 'lucide-react';
+import { ArrowLeft, Plus, ClipboardList, User, Target, FileText, ScanLine, Pencil, Trash2, Heart, Bot, Download, Loader2, BarChart3, UtensilsCrossed, FileQuestion, Dumbbell, Flame } from 'lucide-react';
 import StudentTrainingTab from '@/components/student/StudentTrainingTab';
 import StudentDietTab from '@/components/student/StudentDietTab';
 import AssessmentComparison from '@/components/AssessmentComparison';
@@ -336,13 +336,13 @@ const AlunoDetail = () => {
 
           <TabsContent value="ia">
             <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Card className="glass-card">
                   <CardContent className="p-6 text-center space-y-4">
                     <Bot className="h-12 w-12 mx-auto text-primary" />
                     <h3 className="text-lg font-bold">Agente de Treino</h3>
                     <p className="text-muted-foreground text-sm">Gere treinos personalizados com IA baseados nos dados do aluno.</p>
-                    <Button onClick={() => navigate(`/treino-ia/${id}`)} className="font-semibold">
+                    <Button onClick={() => navigate(`/treino-ia/${id}`)} className="font-semibold w-full">
                       <Bot className="mr-2 h-4 w-4" /> Gerar Treino
                     </Button>
                   </CardContent>
@@ -353,8 +353,19 @@ const AlunoDetail = () => {
                     <UtensilsCrossed className="h-12 w-12 mx-auto text-primary" />
                     <h3 className="text-lg font-bold">Agente de Dieta</h3>
                     <p className="text-muted-foreground text-sm">Calcule TMB, GET e gere dietas personalizadas com múltiplas estratégias.</p>
-                    <Button onClick={() => navigate(`/dieta-ia/${id}`)} className="font-semibold">
+                    <Button onClick={() => navigate(`/dieta-ia/${id}`)} className="font-semibold w-full">
                       <UtensilsCrossed className="mr-2 h-4 w-4" /> Gerar Dieta
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="glass-card border-primary/30">
+                  <CardContent className="p-6 text-center space-y-4">
+                    <Flame className="h-12 w-12 mx-auto text-primary" />
+                    <h3 className="text-lg font-bold">TABATA IA</h3>
+                    <p className="text-muted-foreground text-sm">Gere treinos HIIT/TABATA seguros e personalizados ao perfil do aluno.</p>
+                    <Button onClick={() => navigate(`/tabata-ia/${id}`)} className="font-semibold w-full">
+                      <Flame className="mr-2 h-4 w-4" /> Gerar TABATA
                     </Button>
                   </CardContent>
                 </Card>

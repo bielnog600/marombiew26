@@ -57,7 +57,11 @@ export function parseTabata(markdown: string): ParsedTabata {
 
     // Title
     if (!result.title && /^#\s+/.test(trimmed)) {
-      result.title = trimmed.replace(/^#\s+/, '').replace(/[🔥💪🧘⚠️📋⚡]/g, '').trim();
+      // Strip leading #, then remove emojis (any non-letter/number/space/punct symbols)
+      result.title = trimmed
+        .replace(/^#\s+/, '')
+        .replace(/[\p{Extended_Pictographic}]/gu, '')
+        .trim();
       continue;
     }
 

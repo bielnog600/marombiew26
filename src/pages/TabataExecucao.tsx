@@ -60,7 +60,7 @@ const TabataExecucao: React.FC = () => {
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
       oscillator.start();
       oscillator.stop(ctx.currentTime + duration);
-    } catch (e) { /* silent */ }
+    } catch { /* silent - audio not critical */ }
   };
 
   // Tick

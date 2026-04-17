@@ -20,6 +20,8 @@ import TreinoExecucao from "./pages/TreinoExecucao";
 import PostureAnalysis from "./pages/PostureAnalysis";
 import TreinoIA from "./pages/TreinoIA";
 import DietaIA from "./pages/DietaIA";
+import TabataIA from "./pages/TabataIA";
+import TabataExecucao from "./pages/TabataExecucao";
 import Alimentos from "./pages/Alimentos";
 import Exercicios from "./pages/Exercicios";
 import DietQuestionnaire from "./pages/DietQuestionnaire";
@@ -74,6 +76,8 @@ const App = () => {
               <Route path="/postura/:studentId" element={<ProtectedRoute requiredRole="admin"><PostureAnalysis /></ProtectedRoute>} />
               <Route path="/treino-ia/:studentId" element={<ProtectedRoute requiredRole="admin"><TreinoIA /></ProtectedRoute>} />
               <Route path="/dieta-ia/:studentId" element={<ProtectedRoute requiredRole="admin"><DietaIA /></ProtectedRoute>} />
+              <Route path="/tabata-ia/:studentId" element={<ProtectedRoute requiredRole="admin"><TabataIA /></ProtectedRoute>} />
+              <Route path="/tabata-execucao" element={<ProtectedRoute><TabataExecucao /></ProtectedRoute>} />
               <Route path="/alimentos" element={<ProtectedRoute requiredRole="admin"><Alimentos /></ProtectedRoute>} />
               <Route path="/exercicios" element={<ProtectedRoute requiredRole="admin"><Exercicios /></ProtectedRoute>} />
               <Route path="/questionario-dieta" element={<DietQuestionnaire />} />
