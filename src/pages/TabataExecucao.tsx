@@ -78,25 +78,30 @@ const TabataExecucao: React.FC = () => {
   }, []);
 
   const currentMedia = useMemo(() => {
-    if (!currentStep) return null;
+    if (!currentStep || !Object.keys(mediaMap).length) return null;
     const key = normalizeName(currentStep.exercise.name);
     if (mediaMap[key]) return mediaMap[key];
 
     const queryTokens = tokenize(currentStep.exercise.name);
     if (!queryTokens.length) return null;
 
-    // Score each candidate by token overlap (Jaccard-like)
-    let best: { score: number; key: string } | null = null;
+    // Score by token overlap, requiring at least 1 strong shared token
+    let best: { score: number; key: string; matches: number } | null = null;
     for (const candidateKey of Object.keys(mediaMap)) {
       const candTokens = candidateKey.split(' ').filter(t => t.length > 1 && !STOP_WORDS.has(t));
       if (!candTokens.length) continue;
-      const matches = queryTokens.filter(t => candTokens.includes(t)).length;
+      const matches = queryTokens.filter(t => candTokens.some(c => c === t || c.includes(t) || t.includes(c))).length;
       if (!matches) continue;
       const score = matches / Math.max(queryTokens.length, candTokens.length);
-      if (!best || score > best.score) best = { score, key: candidateKey };
+      if (!best || score > best.score) best = { score, key: candidateKey, matches };
     }
-    // Require at least 60% token similarity to avoid false matches
-    return best && best.score >= 0.6 ? mediaMap[best.key] : null;
+
+    if (import.meta.env.DEV) {
+      console.log('[TABATA media match]', currentStep.exercise.name, '→', best?.key, 'score:', best?.score);
+    }
+
+    // Lowered threshold: at least 1 meaningful token overlap and 30% similarity
+    return best && best.matches >= 1 && best.score >= 0.3 ? mediaMap[best.key] : null;
   }, [currentStep, mediaMap]);
 
   const streamVideoId = extractStreamVideoId(currentMedia?.videoEmbed);
