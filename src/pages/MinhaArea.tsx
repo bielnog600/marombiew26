@@ -28,7 +28,7 @@ const MinhaArea = () => {
   const [dietSections, setDietSections] = useState<ParsedSection[]>([]);
   const [_trainingTitle, setTrainingTitle] = useState('');
   const [_dietTitle, setDietTitle] = useState('');
-  const { tracking, addWater, removeWater, weeklyWorkouts } = useDailyTracking();
+  const { tracking, addWater, removeWater, weeklyWorkouts, waterCurrentMl, waterTargetMl, waterGoalGlasses } = useDailyTracking();
   const [exerciseImages, setExerciseImages] = useState<Record<string, string>>({});
   const [exerciseMuscles, setExerciseMuscles] = useState<Record<string, string>>({});
   const [exerciseMedia, setExerciseMedia] = useState<Record<string, { imageUrl?: string; videoEmbed?: string; muscleGroup?: string }>>({});
