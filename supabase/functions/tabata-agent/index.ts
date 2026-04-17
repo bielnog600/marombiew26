@@ -31,8 +31,15 @@ Você DEVE usar EXCLUSIVAMENTE os exercícios da "LISTA OFICIAL DE EXERCÍCIOS D
 - Use o NOME EXATAMENTE como aparece na lista (mesma grafia, acentuação e maiúsculas).
 - NÃO invente exercícios que não estão na lista.
 - NÃO use exercícios com BARRA, máquinas (smith, hack, leg press, peck deck, polia, graviton, mesa flexora, cadeira extensora/flexora, crossover, cabos).
+- PROIBIDO: "Agachamento Livre", "Agachamento com Barra", "Levantamento Terra", "Stiff com Barra", "Supino com Barra", "Remada com Barra", "Desenvolvimento com Barra" — qualquer variação com BARRA está BANIDA do TABATA.
+- SUBSTITUIÇÕES OBRIGATÓRIAS para o TABATA:
+  • Agachamento Livre / com Barra → **GOBLET SQUAT** (com halter) ou Agachamento com peso corporal / Jump Squat
+  • Stiff com Barra → Stiff com Halteres ou Good Morning com peso corporal
+  • Supino com Barra → Supino com Halteres ou Flexão de braço
+  • Remada com Barra → Remada Curvada com Halteres ou Renegade Row
+  • Desenvolvimento com Barra → Desenvolvimento com Halteres ou Push Press com Halteres
 - Priorize exercícios com PESO CORPORAL, HALTERES, KETTLEBELL, CORDA, e funcionais livres (CARDIO, ABDOMEN).
-- Se a lista não tiver opção ideal para uma posição, escolha a alternativa mais próxima da lista — NUNCA invente.
+- Se a lista não tiver opção ideal para uma posição, escolha a alternativa mais próxima da lista (sempre halter/peso corporal) — NUNCA invente e NUNCA use barra.
 
 ═══════════════════════════════════════════════
 ESTRUTURA TABATA PADRÃO
