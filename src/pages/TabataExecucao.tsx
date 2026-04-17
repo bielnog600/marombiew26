@@ -177,10 +177,15 @@ const TabataExecucao: React.FC = () => {
   const beep = (frequency: number, duration: number) => {
     if (muted) return;
     try {
-      if (!audioCtxRef.current) {
+      // Recreate context if it was closed/interrupted (e.g. iOS headphone disconnect)
+      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
         audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
       const ctx = audioCtxRef.current;
+      // iOS Safari suspends the context on audio route changes — resume it
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => { /* ignore */ });
+      }
       const oscillator = ctx.createOscillator();
       const gain = ctx.createGain();
       oscillator.connect(gain);
@@ -191,8 +196,30 @@ const TabataExecucao: React.FC = () => {
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
       oscillator.start();
       oscillator.stop(ctx.currentTime + duration);
-    } catch { /* silent - audio not critical */ }
+    } catch {
+      // Context might be in a bad state — drop it so next beep recreates it
+      try { audioCtxRef.current?.close(); } catch { /* ignore */ }
+      audioCtxRef.current = null;
+    }
   };
+
+  // iOS Safari: resume/recreate audio context when tab returns to foreground
+  // or when audio route changes (headphones plugged/unplugged)
+  useEffect(() => {
+    const recover = () => {
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => { /* ignore */ });
+      }
+    };
+    document.addEventListener('visibilitychange', recover);
+    window.addEventListener('focus', recover);
+    return () => {
+      document.removeEventListener('visibilitychange', recover);
+      window.removeEventListener('focus', recover);
+    };
+  }, []);
 
   // Tick
   useEffect(() => {
