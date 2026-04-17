@@ -24,8 +24,13 @@ const extractStreamVideoId = (embed: string | null | undefined): string | null =
   return match ? match[1] : null;
 };
 
+const STOP_WORDS = new Set(['de', 'da', 'do', 'das', 'dos', 'com', 'em', 'na', 'no', 'a', 'o', 'e', 'para', 'pra']);
+
 const normalizeName = (s: string) =>
   s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+
+const tokenize = (s: string) =>
+  normalizeName(s).split(' ').filter(t => t.length > 1 && !STOP_WORDS.has(t));
 
 const TabataExecucao: React.FC = () => {
   const location = useLocation();
@@ -76,9 +81,22 @@ const TabataExecucao: React.FC = () => {
     if (!currentStep) return null;
     const key = normalizeName(currentStep.exercise.name);
     if (mediaMap[key]) return mediaMap[key];
-    // partial match
-    const found = Object.keys(mediaMap).find(k => k.includes(key) || key.includes(k));
-    return found ? mediaMap[found] : null;
+
+    const queryTokens = tokenize(currentStep.exercise.name);
+    if (!queryTokens.length) return null;
+
+    // Score each candidate by token overlap (Jaccard-like)
+    let best: { score: number; key: string } | null = null;
+    for (const candidateKey of Object.keys(mediaMap)) {
+      const candTokens = candidateKey.split(' ').filter(t => t.length > 1 && !STOP_WORDS.has(t));
+      if (!candTokens.length) continue;
+      const matches = queryTokens.filter(t => candTokens.includes(t)).length;
+      if (!matches) continue;
+      const score = matches / Math.max(queryTokens.length, candTokens.length);
+      if (!best || score > best.score) best = { score, key: candidateKey };
+    }
+    // Require at least 60% token similarity to avoid false matches
+    return best && best.score >= 0.6 ? mediaMap[best.key] : null;
   }, [currentStep, mediaMap]);
 
   const streamVideoId = extractStreamVideoId(currentMedia?.videoEmbed);
@@ -256,8 +274,8 @@ const TabataExecucao: React.FC = () => {
   return (
     <div
       className={cn(
-        "fixed inset-0 z-50 flex flex-col bg-gradient-to-br transition-colors duration-500",
-        phaseColor
+        "fixed inset-0 z-50 flex flex-col transition-colors duration-500",
+        showVideoBg ? "bg-black" : cn("bg-gradient-to-br", phaseColor)
       )}
       style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
@@ -272,8 +290,9 @@ const TabataExecucao: React.FC = () => {
             loop
             autoPlay
           />
-          {/* Dark overlay to keep timer/text legible */}
-          <div className="absolute inset-0 bg-background/55 backdrop-blur-[2px]" />
+          {/* Subtle gradients only at top/bottom for header/controls legibility — no blur */}
+          <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-background/80 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-background/85 to-transparent" />
         </div>
       )}
 
