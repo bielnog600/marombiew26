@@ -304,10 +304,6 @@ const TreinoExecucao = () => {
       return { ...prev, [currentIndex]: current };
     });
   };
-      return { ...prev, [currentIndex]: current };
-    });
-  };
-
   const toggleSetComplete = (setIndex: number) => {
     setSets((prev) => {
       const current = [...(prev[currentIndex] || [])];
