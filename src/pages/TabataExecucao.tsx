@@ -122,13 +122,13 @@ const TabataExecucao: React.FC = () => {
       console.log('[TABATA media match]', exName, '→', best?.key, 'score:', best?.score);
     }
 
-    // Require strong similarity (>=50%) to avoid wrong videos
-    return best && best.matches >= 1 && best.score >= 0.5 ? mediaMap[best.key] : null;
+    // Require some similarity (>=40%) to avoid wrong videos
+    return best && best.matches >= 1 && best.score >= 0.4 ? mediaMap[best.key] : null;
   }, [currentStep, mediaMap]);
 
   const streamVideoId = extractStreamVideoId(currentMedia?.videoEmbed);
   const hlsUrl = streamVideoId ? `https://customer-vqfal80lir76xyf0.cloudflarestream.com/${streamVideoId}/manifest/video.m3u8` : null;
-  const showVideoBg = (phase === 'prep' || phase === 'work') && !!hlsUrl;
+  const showVideoBg = (phase === 'prep' || phase === 'work' || phase === 'rest' || phase === 'block_rest') && !!hlsUrl;
 
   // Mount HLS video when applicable
   useEffect(() => {
