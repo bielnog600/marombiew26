@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Mail, Phone, User, Calendar, Ruler, Target, TrendingUp } from 'lucide-react';
+import { LogOut, Mail, Phone, User, Calendar, Ruler, Target, TrendingUp, BarChart3 } from 'lucide-react';
 
 const Perfil = () => {
   const { user, signOut } = useAuth();
@@ -100,6 +100,16 @@ const Perfil = () => {
         >
           <TrendingUp className="h-4 w-4 mr-2" />
           Minha Evolução
+        </Button>
+
+        {/* Progress */}
+        <Button
+          variant="outline"
+          className="w-full border-primary/40 text-primary hover:bg-primary/10 font-semibold"
+          onClick={() => navigate('/meu-progresso')}
+        >
+          <BarChart3 className="h-4 w-4 mr-2" />
+          Meu Progresso
         </Button>
 
         {/* Sign Out */}
