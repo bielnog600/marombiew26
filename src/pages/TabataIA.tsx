@@ -109,6 +109,23 @@ const TabataIA = () => {
     setResult('');
 
     try {
+      // Fetch functional exercises with video — exclude machines/bars
+      const { data: allEx } = await supabase
+        .from('exercises')
+        .select('nome, grupo_muscular, video_embed')
+        .not('video_embed', 'is', null);
+
+      const FORBIDDEN = /\b(SMITH|HACK|MÁQ|MAQ|MACHINE|GRAVITON|PECK|CROSSOVER|MESA FLEXORA|CADEIRA|POLIA|CABO|LEG PRESS|PULL DOWN|PULLDOWN|BARRA(?!\s+W$)|FIXA)\b/i;
+      const ALLOWED_GROUPS = new Set(['CARDIO', 'ABDOMEN', 'ADUTORES', 'GLÚTEOS', 'GLUTEOS', 'POSTERIOR', 'QUADRÍCEPS', 'QUADRICEPS', 'PEITORAL', 'DORSAL', 'DELTÓIDES', 'DELTOIDES', 'BÍCEPS', 'BICEPS', 'TRÍCEPS', 'TRICEPS', 'PANTURRILHA']);
+
+      const availableExercises = (allEx || []).filter(ex => {
+        if (!ex?.nome || !ex?.video_embed) return false;
+        if (FORBIDDEN.test(ex.nome)) return false;
+        // Allow halteres/kettlebell/peso corporal/livre/cardio/abdomen
+        const isFunctional = /HALTER|KETTLEBELL|CORDA|SWING|BURPEE|MOUTAIN|MOUNTAIN|POLICHINELO|SKIP|JUMPING|PRANCHA|FLEX|AGACH|AFUNDO|ABDOMINAL|ABS|ALONGAMENTO|MOBILIDADE|BIKE|REMO|ESCADA|ESTEIRA|PASSADEIRA|ELÍPTICO|ELIPTICO|SKI|AIR BIKE/i.test(ex.nome);
+        return isFunctional || ALLOWED_GROUPS.has((ex.grupo_muscular || '').toUpperCase());
+      });
+
       const resp = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tabata-agent`,
         {
@@ -117,7 +134,7 @@ const TabataIA = () => {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
-          body: JSON.stringify({ studentContext: studentCtx, intensity, notes }),
+          body: JSON.stringify({ studentContext: studentCtx, intensity, notes, availableExercises }),
         }
       );
 
