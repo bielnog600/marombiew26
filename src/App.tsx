@@ -31,6 +31,7 @@ import Perfil from "./pages/Perfil";
 import MinhasDietas from "./pages/MinhasDietas";
 import MeusTreinos from "./pages/MeusTreinos";
 import Evolucao from "./pages/Evolucao";
+import MeuProgresso from "./pages/MeuProgresso";
 
 import NotFound from "./pages/NotFound";
 
@@ -92,6 +93,7 @@ const App = () => {
               <Route path="/perfil" element={<ProtectedRoute requiredRole="aluno"><Perfil /></ProtectedRoute>} />
               <Route path="/minhas-dietas" element={<ProtectedRoute requiredRole="aluno"><MinhasDietas /></ProtectedRoute>} />
               <Route path="/evolucao" element={<ProtectedRoute requiredRole="aluno"><Evolucao /></ProtectedRoute>} />
+              <Route path="/meu-progresso" element={<ProtectedRoute requiredRole="aluno"><MeuProgresso /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AuthProvider>

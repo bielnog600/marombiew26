@@ -483,6 +483,54 @@ export type Database = {
         }
         Relationships: []
       }
+      exercise_set_logs: {
+        Row: {
+          created_at: string
+          day_name: string | null
+          exercise_name: string
+          id: string
+          muscle_group: string | null
+          performed_at: string
+          phase: string | null
+          reps: number | null
+          rpe: number | null
+          session_id: string | null
+          set_number: number
+          student_id: string
+          weight_kg: number | null
+        }
+        Insert: {
+          created_at?: string
+          day_name?: string | null
+          exercise_name: string
+          id?: string
+          muscle_group?: string | null
+          performed_at?: string
+          phase?: string | null
+          reps?: number | null
+          rpe?: number | null
+          session_id?: string | null
+          set_number: number
+          student_id: string
+          weight_kg?: number | null
+        }
+        Update: {
+          created_at?: string
+          day_name?: string | null
+          exercise_name?: string
+          id?: string
+          muscle_group?: string | null
+          performed_at?: string
+          phase?: string | null
+          reps?: number | null
+          rpe?: number | null
+          session_id?: string | null
+          set_number?: number
+          student_id?: string
+          weight_kg?: number | null
+        }
+        Relationships: []
+      }
       exercises: {
         Row: {
           ajustes: string[] | null
@@ -1031,6 +1079,7 @@ export type Database = {
       }
       workout_sessions: {
         Row: {
+          avg_rpe: number | null
           completed_at: string
           created_at: string
           day_name: string | null
@@ -1041,8 +1090,11 @@ export type Database = {
           plan_id: string | null
           student_id: string
           total_exercises: number
+          total_sets: number | null
+          total_volume_kg: number | null
         }
         Insert: {
+          avg_rpe?: number | null
           completed_at?: string
           created_at?: string
           day_name?: string | null
@@ -1053,8 +1105,11 @@ export type Database = {
           plan_id?: string | null
           student_id: string
           total_exercises?: number
+          total_sets?: number | null
+          total_volume_kg?: number | null
         }
         Update: {
+          avg_rpe?: number | null
           completed_at?: string
           created_at?: string
           day_name?: string | null
@@ -1065,6 +1120,8 @@ export type Database = {
           plan_id?: string | null
           student_id?: string
           total_exercises?: number
+          total_sets?: number | null
+          total_volume_kg?: number | null
         }
         Relationships: []
       }

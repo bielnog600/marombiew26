@@ -18,6 +18,7 @@ import { Settings2, Info } from 'lucide-react';
 interface ExerciseSet {
   reps: string;
   weight: string;
+  rpe: string;
   completed: boolean;
 }
 
@@ -284,7 +285,7 @@ const TreinoExecucao = () => {
     if (!sets[currentIndex]) {
       setSets((prev) => ({
         ...prev,
-        [currentIndex]: Array.from({ length: totalSeries }, () => ({ reps: exercise?.reps || '', weight: '', completed: false })),
+        [currentIndex]: Array.from({ length: totalSeries }, () => ({ reps: exercise?.reps || '', weight: '', rpe: '', completed: false })),
       }));
     }
   }, [currentIndex, totalSeries, exercise, sets]);
@@ -296,14 +297,13 @@ const TreinoExecucao = () => {
     }
   }, [exercise]);
 
-  const updateSet = (setIndex: number, field: 'reps' | 'weight', value: string) => {
+  const updateSet = (setIndex: number, field: 'reps' | 'weight' | 'rpe', value: string) => {
     setSets((prev) => {
       const current = [...(prev[currentIndex] || [])];
       current[setIndex] = { ...current[setIndex], [field]: value };
       return { ...prev, [currentIndex]: current };
     });
   };
-
   const toggleSetComplete = (setIndex: number) => {
     setSets((prev) => {
       const current = [...(prev[currentIndex] || [])];
@@ -516,17 +516,19 @@ const TreinoExecucao = () => {
         </div>
 
         <div className="space-y-2">
-          <div className="grid grid-cols-[40px_1fr_1fr_48px] gap-2 px-2">
+          <div className="grid grid-cols-[36px_1fr_1fr_56px_44px] gap-1.5 px-2">
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Série</span>
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Reps</span>
-            <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Carga (kg)</span>
+            <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Carga</span>
+            <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">RPE</span>
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">✓</span>
           </div>
           {currentSets.map((set, i) => (
-            <div key={i} className={`grid grid-cols-[40px_1fr_1fr_48px] gap-2 items-center p-2 rounded-lg transition-colors ${set.completed ? 'bg-primary/10 border border-primary/30' : 'bg-secondary/50'}`}>
+            <div key={i} className={`grid grid-cols-[36px_1fr_1fr_56px_44px] gap-1.5 items-center p-2 rounded-lg transition-colors ${set.completed ? 'bg-primary/10 border border-primary/30' : 'bg-secondary/50'}`}>
               <span className="text-sm font-bold text-center text-foreground">{i + 1}</span>
-              <Input type="text" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} placeholder="10" className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
-              <Input type="text" value={set.weight} onChange={(e) => updateSet(i, 'weight', e.target.value)} placeholder="0" className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
+              <Input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} placeholder="10" className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
+              <Input type="text" inputMode="decimal" value={set.weight} onChange={(e) => updateSet(i, 'weight', e.target.value)} placeholder="0" className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
+              <Input type="text" inputMode="decimal" value={set.rpe} onChange={(e) => updateSet(i, 'rpe', e.target.value)} placeholder="7" className="h-9 text-center bg-background/50 border-border/50 px-1" disabled={set.completed} />
               <Button size="icon" variant={set.completed ? 'default' : 'outline'} className="h-9 w-9 mx-auto rounded-full" onClick={() => toggleSetComplete(i)}>
                 <Check className="h-4 w-4" />
               </Button>
@@ -554,16 +556,69 @@ const TreinoExecucao = () => {
               const totalSec = Math.floor((Date.now() - sessionStartAt) / 1000);
               const durationMinutes = Math.max(1, Math.round(totalSec / 60));
               const exercisesCompleted = Object.values(sets).filter(arr => arr?.some(s => s.completed)).length;
+
+              // Aggregate metrics from completed sets
+              let totalVolumeKg = 0;
+              let totalSets = 0;
+              const rpes: number[] = [];
+              const setLogRows: any[] = [];
+
+              if (user) {
+                Object.entries(sets).forEach(([exIdxStr, arr]) => {
+                  const exIdx = Number(exIdxStr);
+                  const ex = exercises[exIdx];
+                  if (!ex) return;
+                  const exName = ex.exercise || '';
+                  const muscle = exerciseDB.find((d) => d.nome.toLowerCase() === exName.toLowerCase())?.grupo_muscular || null;
+                  arr.forEach((s, i) => {
+                    if (!s.completed) return;
+                    const reps = parseInt(s.reps) || 0;
+                    const weight = parseFloat(s.weight.replace(',', '.')) || 0;
+                    const rpe = parseFloat(s.rpe.replace(',', '.'));
+                    totalSets += 1;
+                    totalVolumeKg += reps * weight;
+                    if (Number.isFinite(rpe) && rpe > 0) rpes.push(rpe);
+                    setLogRows.push({
+                      student_id: user.id,
+                      exercise_name: exName,
+                      muscle_group: muscle,
+                      set_number: i + 1,
+                      reps: reps || null,
+                      weight_kg: weight || null,
+                      rpe: Number.isFinite(rpe) && rpe > 0 ? rpe : null,
+                      phase: phase ?? null,
+                      day_name: dayName,
+                    });
+                  });
+                });
+              }
+
+              const avgRpe = rpes.length ? rpes.reduce((a, b) => a + b, 0) / rpes.length : null;
+
               try {
                 if (user) {
-                  await supabase.from('workout_sessions').insert({
-                    student_id: user.id,
-                    day_name: dayName,
-                    phase: phase ?? null,
-                    duration_minutes: durationMinutes,
-                    exercises_completed: exercisesCompleted,
-                    total_exercises: exercises.length,
-                  });
+                  const { data: sessionRow } = await supabase
+                    .from('workout_sessions')
+                    .insert({
+                      student_id: user.id,
+                      day_name: dayName,
+                      phase: phase ?? null,
+                      duration_minutes: durationMinutes,
+                      exercises_completed: exercisesCompleted,
+                      total_exercises: exercises.length,
+                      avg_rpe: avgRpe,
+                      total_volume_kg: totalVolumeKg || null,
+                      total_sets: totalSets,
+                    })
+                    .select('id')
+                    .single();
+
+                  if (setLogRows.length > 0) {
+                    const sessionId = sessionRow?.id;
+                    await supabase
+                      .from('exercise_set_logs')
+                      .insert(setLogRows.map((r) => ({ ...r, session_id: sessionId })));
+                  }
                 }
               } catch (e) {
                 console.error('Erro salvando sessão:', e);
