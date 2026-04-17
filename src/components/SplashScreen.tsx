@@ -15,16 +15,16 @@ const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
     return () => clearTimeout(timer);
   }, [onFinish]);
 
-  const size = 140;
-  const stroke = 4;
+  const size = 200;
+  const stroke = 5;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   // Visible arc (~25% of circle)
   const arc = circumference * 0.25;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background">
-      <div className="relative animate-fade-in" style={{ width: size, height: size }}>
+    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background animate-splash-out">
+      <div className="relative" style={{ width: size, height: size, animation: 'splash-logo-in 0.7s ease-out' }}>
         <svg
           width={size}
           height={size}

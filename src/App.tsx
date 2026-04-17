@@ -63,6 +63,7 @@ const App = () => {
         {showSplash && <SplashScreen onFinish={handleSplashFinish} />}
         <InstallBanner />
         <BrowserRouter>
+          <div className={showSplash ? '' : 'animate-app-in'}>
           <AuthProvider>
             <Routes>
               <Route path="/" element={<RootRedirect />} />
@@ -94,6 +95,7 @@ const App = () => {
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AuthProvider>
+          </div>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
