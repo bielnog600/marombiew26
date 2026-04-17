@@ -33,6 +33,7 @@ export function useDailyTracking() {
     workout_completed: false,
   });
   const [weeklyWorkouts, setWeeklyWorkouts] = useState(0);
+  const [waterGoalGlasses, setWaterGoalGlasses] = useState(DEFAULT_WATER_GOAL_GLASSES);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
