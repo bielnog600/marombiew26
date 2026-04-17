@@ -285,7 +285,7 @@ const TreinoExecucao = () => {
     if (!sets[currentIndex]) {
       setSets((prev) => ({
         ...prev,
-        [currentIndex]: Array.from({ length: totalSeries }, () => ({ reps: exercise?.reps || '', weight: '', completed: false })),
+        [currentIndex]: Array.from({ length: totalSeries }, () => ({ reps: exercise?.reps || '', weight: '', rpe: '', completed: false })),
       }));
     }
   }, [currentIndex, totalSeries, exercise, sets]);
