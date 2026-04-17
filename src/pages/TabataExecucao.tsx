@@ -375,11 +375,42 @@ const TabataExecucao: React.FC = () => {
 
         {phase === 'idle' && (
           <>
-            <h1 className="text-4xl font-black mb-3">{tabata.title}</h1>
-            <p className="text-sm text-muted-foreground mb-2">{tabata.duration} • {tabata.type}</p>
-            <p className="text-xs text-muted-foreground mb-8 max-w-sm">{tabata.objective}</p>
-            <div className="flex flex-col gap-2 w-full max-w-xs">
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">{tabata.blocks.length} blocos • {totalSteps} exercícios</p>
+            <h1 className="text-3xl sm:text-4xl font-black mb-2">{tabata.title}</h1>
+            <p className="text-sm text-muted-foreground mb-1">{tabata.duration} • {tabata.type}</p>
+            <p className="text-xs text-muted-foreground mb-4 max-w-sm">{tabata.objective}</p>
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-4">
+              {tabata.blocks.length} blocos • {totalSteps} exercícios
+            </p>
+
+            {/* Exercise preview grid */}
+            <div className="w-full max-w-md max-h-[42vh] overflow-y-auto pr-1 space-y-3">
+              {tabata.blocks.map((block, bi) => (
+                <div key={bi} className="text-left">
+                  <p className="text-[10px] uppercase tracking-widest text-primary font-bold mb-1.5">
+                    Bloco {bi + 1}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {block.exercises.map((ex, ei) => {
+                      const media = findMedia(ex.name);
+                      const img = media?.imageUrl;
+                      return (
+                        <div key={ei} className="flex items-center gap-2 bg-card/60 backdrop-blur-sm border border-border/40 rounded-lg p-1.5">
+                          <div className="h-10 w-10 rounded-md bg-muted overflow-hidden shrink-0 flex items-center justify-center">
+                            {img ? (
+                              <img src={img} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground font-bold">{ei + 1}</span>
+                            )}
+                          </div>
+                          <p className="text-[11px] font-medium leading-tight line-clamp-2">
+                            {ex.name.replace(/\*+/g, '').trim()}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           </>
         )}
@@ -406,11 +437,33 @@ const TabataExecucao: React.FC = () => {
             <h2 className="text-2xl sm:text-3xl font-bold mb-2 uppercase drop-shadow-[0_2px_12px_rgba(0,0,0,0.7)]">
               {(phase === 'work' || phase === 'prep'
                 ? currentStep.exercise.name
-                : (phase === 'block_rest' ? 'Descanso entre blocos' : 'Próximo: ' + (steps[stepIndex + 1]?.exercise.name || 'Fim'))
+                : (phase === 'block_rest' ? 'Descanso entre blocos' : 'Próximo exercício')
               ).replace(/\*+/g, '').trim()}
             </h2>
             {currentStep.exercise.observation && phase === 'work' && (
               <p className="text-xs text-muted-foreground max-w-sm mt-2">{currentStep.exercise.observation}</p>
+            )}
+
+            {/* Next exercise preview during rest */}
+            {(phase === 'rest' || phase === 'block_rest') && nextStep && (
+              <div className="mt-4 flex items-center gap-3 bg-card/70 backdrop-blur-md border border-primary/30 rounded-2xl p-3 pr-5 shadow-lg max-w-sm animate-fade-in">
+                <div className="h-16 w-16 rounded-xl bg-muted overflow-hidden shrink-0 ring-2 ring-primary/40">
+                  {nextMedia?.imageUrl ? (
+                    <img src={nextMedia.imageUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center text-primary font-black text-xl">→</div>
+                  )}
+                </div>
+                <div className="text-left flex-1 min-w-0">
+                  <p className="text-[10px] uppercase tracking-widest text-primary font-bold">A seguir</p>
+                  <p className="text-sm font-bold leading-tight line-clamp-2">
+                    {nextStep.exercise.name.replace(/\*+/g, '').trim()}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {nextStep.exercise.workSeconds}s trabalho
+                  </p>
+                </div>
+              </div>
             )}
           </>
         )}
