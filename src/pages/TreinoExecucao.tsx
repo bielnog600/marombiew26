@@ -556,16 +556,69 @@ const TreinoExecucao = () => {
               const totalSec = Math.floor((Date.now() - sessionStartAt) / 1000);
               const durationMinutes = Math.max(1, Math.round(totalSec / 60));
               const exercisesCompleted = Object.values(sets).filter(arr => arr?.some(s => s.completed)).length;
+
+              // Aggregate metrics from completed sets
+              let totalVolumeKg = 0;
+              let totalSets = 0;
+              const rpes: number[] = [];
+              const setLogRows: any[] = [];
+
+              if (user) {
+                Object.entries(sets).forEach(([exIdxStr, arr]) => {
+                  const exIdx = Number(exIdxStr);
+                  const ex = exercises[exIdx];
+                  if (!ex) return;
+                  const exName = ex.exercise || '';
+                  const muscle = exerciseDB.find((d) => d.nome.toLowerCase() === exName.toLowerCase())?.grupo_muscular || null;
+                  arr.forEach((s, i) => {
+                    if (!s.completed) return;
+                    const reps = parseInt(s.reps) || 0;
+                    const weight = parseFloat(s.weight.replace(',', '.')) || 0;
+                    const rpe = parseFloat(s.rpe.replace(',', '.'));
+                    totalSets += 1;
+                    totalVolumeKg += reps * weight;
+                    if (Number.isFinite(rpe) && rpe > 0) rpes.push(rpe);
+                    setLogRows.push({
+                      student_id: user.id,
+                      exercise_name: exName,
+                      muscle_group: muscle,
+                      set_number: i + 1,
+                      reps: reps || null,
+                      weight_kg: weight || null,
+                      rpe: Number.isFinite(rpe) && rpe > 0 ? rpe : null,
+                      phase: phase ?? null,
+                      day_name: dayName,
+                    });
+                  });
+                });
+              }
+
+              const avgRpe = rpes.length ? rpes.reduce((a, b) => a + b, 0) / rpes.length : null;
+
               try {
                 if (user) {
-                  await supabase.from('workout_sessions').insert({
-                    student_id: user.id,
-                    day_name: dayName,
-                    phase: phase ?? null,
-                    duration_minutes: durationMinutes,
-                    exercises_completed: exercisesCompleted,
-                    total_exercises: exercises.length,
-                  });
+                  const { data: sessionRow } = await supabase
+                    .from('workout_sessions')
+                    .insert({
+                      student_id: user.id,
+                      day_name: dayName,
+                      phase: phase ?? null,
+                      duration_minutes: durationMinutes,
+                      exercises_completed: exercisesCompleted,
+                      total_exercises: exercises.length,
+                      avg_rpe: avgRpe,
+                      total_volume_kg: totalVolumeKg || null,
+                      total_sets: totalSets,
+                    })
+                    .select('id')
+                    .single();
+
+                  if (setLogRows.length > 0) {
+                    const sessionId = sessionRow?.id;
+                    await supabase
+                      .from('exercise_set_logs')
+                      .insert(setLogRows.map((r) => ({ ...r, session_id: sessionId })));
+                  }
                 }
               } catch (e) {
                 console.error('Erro salvando sessão:', e);
