@@ -133,9 +133,9 @@ const MinhasDietas = () => {
       ? 'Metas do dia'
       : 'Totais do dia';
 
-  const waterMl = tracking.water_glasses * 250;
-  const waterGoalMl = waterGoal * 250;
-  const waterProgress = (tracking.water_glasses / waterGoal) * 100;
+  const waterMl = waterCurrentMl;
+  const waterGoalMl = waterTargetMl;
+  const waterProgress = waterTargetMl > 0 ? (waterCurrentMl / waterTargetMl) * 100 : 0;
 
   if (loading) {
     return (
