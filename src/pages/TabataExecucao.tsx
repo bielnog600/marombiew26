@@ -119,16 +119,18 @@ const TabataExecucao: React.FC = () => {
     }
 
     if (import.meta.env.DEV) {
-      console.log('[TABATA media match]', exName, '→', best?.key, 'score:', best?.score);
+      console.log('[TABATA media match]', exName, '→', best?.key, 'score:', best?.score?.toFixed(2), 'has video:', !!mediaMap[best?.key ?? '']?.videoEmbed);
     }
 
-    // Require some similarity (>=40%) to avoid wrong videos
-    return best && best.matches >= 1 && best.score >= 0.4 ? mediaMap[best.key] : null;
+    // Accept any reasonable match (>=30%) — banco é limitado, melhor mostrar algo próximo
+    return best && best.matches >= 1 && best.score >= 0.3 ? mediaMap[best.key] : null;
   }, [currentStep, mediaMap]);
 
   const streamVideoId = extractStreamVideoId(currentMedia?.videoEmbed);
   const hlsUrl = streamVideoId ? `https://customer-vqfal80lir76xyf0.cloudflarestream.com/${streamVideoId}/manifest/video.m3u8` : null;
-  const showVideoBg = (phase === 'prep' || phase === 'work' || phase === 'rest' || phase === 'block_rest') && !!hlsUrl;
+  const fallbackImage = !streamVideoId && currentMedia?.imageUrl ? currentMedia.imageUrl : null;
+  const hasMediaBg = !!hlsUrl || !!fallbackImage;
+  const showVideoBg = (phase === 'prep' || phase === 'work' || phase === 'rest' || phase === 'block_rest') && hasMediaBg;
 
   // Mount HLS video when applicable
   useEffect(() => {
