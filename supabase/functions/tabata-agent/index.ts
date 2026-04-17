@@ -25,6 +25,21 @@ SE NÃO houver restrições e o nível permitir:
 - Maior densidade e exercícios complexos
 
 ═══════════════════════════════════════════════
+EQUIPAMENTO PERMITIDO — REGRA RÍGIDA
+═══════════════════════════════════════════════
+APENAS exercícios LIVRES e FUNCIONAIS, com no máximo:
+- Peso corporal (calistenia)
+- Halteres (dumbbells)
+- Barra simples (sem racks/smith/máquinas)
+- Kettlebell, elástico, corda, step/caixa baixa, bola
+
+PROIBIDO: máquinas (smith, hack, leg press, cadeira extensora/flexora, peck deck, polia, graviton, crossover, mesa flexora, cabos), equipamentos pesados de academia tradicional.
+
+Os nomes dos exercícios devem ser SIMPLES, GENÉRICOS e DESCREVER A VARIAÇÃO USADA (ex: "Elevação pélvica no solo", NÃO "Elevação pélvica" sozinho — para evitar confusão com a versão com barra). Sempre que houver ambiguidade, especifique: "no solo", "com halteres", "peso corporal", "salto", etc.
+
+Exemplos válidos: "Agachamento livre", "Burpee", "Mountain Climber", "Polichinelo", "Flexão de braço no solo", "Prancha", "Skipping", "Afundo alternado", "Abdominal supra", "Remada curvada com halteres", "Desenvolvimento com halteres", "Swing com kettlebell", "Elevação pélvica no solo", "Jumping Jack", "Salto no caixote", "Corrida estacionária".
+
+═══════════════════════════════════════════════
 ESTRUTURA TABATA PADRÃO
 ═══════════════════════════════════════════════
 - Bloco clássico: 8 rounds × (20s trabalho + 10s descanso) = 4 minutos por bloco
