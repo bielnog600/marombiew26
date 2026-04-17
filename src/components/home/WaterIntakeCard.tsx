@@ -5,11 +5,15 @@ import { Droplets, Plus, Minus } from 'lucide-react';
 interface WaterIntakeCardProps {
   glasses: number;
   goal: number;
+  currentMl?: number;
+  targetMl?: number;
   onAdd: () => void;
   onRemove: () => void;
 }
 
-const WaterIntakeCard: React.FC<WaterIntakeCardProps> = ({ glasses, goal, onAdd, onRemove }) => {
+const formatLiters = (ml: number) => (ml / 1000).toFixed(2).replace(/\.?0+$/, '');
+
+const WaterIntakeCard: React.FC<WaterIntakeCardProps> = ({ glasses, goal, currentMl, targetMl, onAdd, onRemove }) => {
   const percentage = Math.min((glasses / goal) * 100, 100);
   const [animatedPct, setAnimatedPct] = useState(0);
 
