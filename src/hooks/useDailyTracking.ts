@@ -72,6 +72,27 @@ export function useDailyTracking() {
       .lte('date', end);
     setWeeklyWorkouts(weekData?.length ?? 0);
 
+    // Compute water goal from latest assessment weight (35ml/kg)
+    const { data: assessment } = await supabase
+      .from('assessments')
+      .select('id')
+      .eq('student_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (assessment) {
+      const { data: anthro } = await supabase
+        .from('anthropometrics')
+        .select('peso')
+        .eq('assessment_id', assessment.id)
+        .maybeSingle();
+      if (anthro?.peso) {
+        const mlPerDay = Number(anthro.peso) * 35;
+        const glasses = Math.round(mlPerDay / WATER_STEP_ML);
+        setWaterGoalGlasses(Math.max(glasses, 6));
+      }
+    }
+
     setLoading(false);
   }, [user]);
 
