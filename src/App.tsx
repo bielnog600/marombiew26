@@ -63,6 +63,7 @@ const App = () => {
         {showSplash && <SplashScreen onFinish={handleSplashFinish} />}
         <InstallBanner />
         <BrowserRouter>
+          <div className={showSplash ? '' : 'animate-app-in'}>
           <AuthProvider>
             <Routes>
               <Route path="/" element={<RootRedirect />} />
