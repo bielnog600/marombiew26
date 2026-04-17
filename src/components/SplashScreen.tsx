@@ -55,7 +55,7 @@ const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
           src={logo}
           alt="MarombiewPro"
           className="absolute inset-0 m-auto rounded-2xl"
-          style={{ width: size - 16, height: size - 16 }}
+          style={{ width: size - 6, height: size - 6 }}
         />
       </div>
     </div>
