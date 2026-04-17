@@ -18,6 +18,7 @@ import { Settings2, Info } from 'lucide-react';
 interface ExerciseSet {
   reps: string;
   weight: string;
+  rpe: string;
   completed: boolean;
 }
 
