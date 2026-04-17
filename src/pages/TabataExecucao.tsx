@@ -382,35 +382,58 @@ const TabataExecucao: React.FC = () => {
               {tabata.blocks.length} blocos • {totalSteps} exercícios
             </p>
 
-            {/* Exercise preview grid */}
-            <div className="w-full max-w-md max-h-[42vh] overflow-y-auto pr-1 space-y-3">
-              {tabata.blocks.map((block, bi) => (
-                <div key={bi} className="text-left">
-                  <p className="text-[10px] uppercase tracking-widest text-primary font-bold mb-1.5">
-                    Bloco {bi + 1}
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {block.exercises.map((ex, ei) => {
-                      const media = findMedia(ex.name);
-                      const img = media?.imageUrl;
-                      return (
-                        <div key={ei} className="flex items-center gap-2 bg-card/60 backdrop-blur-sm border border-border/40 rounded-lg p-1.5">
-                          <div className="h-10 w-10 rounded-md bg-muted overflow-hidden shrink-0 flex items-center justify-center">
-                            {img ? (
-                              <img src={img} alt="" className="h-full w-full object-cover" />
-                            ) : (
-                              <span className="text-[10px] text-muted-foreground font-bold">{ei + 1}</span>
-                            )}
+            {/* Exercise preview — agrupado por bloco, sem repetir exercícios */}
+            <div className="w-full max-w-md max-h-[48vh] overflow-y-auto pr-1 space-y-3">
+              {tabata.blocks.map((block, bi) => {
+                const seen = new Set<string>();
+                const uniqueExercises = block.exercises.filter(ex => {
+                  const k = normalizeName(ex.name);
+                  if (seen.has(k)) return false;
+                  seen.add(k);
+                  return true;
+                });
+                const estimatedRounds = uniqueExercises.length > 0
+                  ? Math.max(block.rounds || 1, Math.round(block.exercises.length / uniqueExercises.length))
+                  : block.rounds;
+                const work = uniqueExercises[0]?.workSeconds ?? block.workSeconds;
+                const rest = uniqueExercises[0]?.restSeconds ?? block.restSeconds;
+
+                return (
+                  <div key={bi} className="text-left bg-card/60 backdrop-blur-sm border border-border/40 rounded-xl p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-[10px] uppercase tracking-widest text-primary font-bold">
+                        Bloco {bi + 1}
+                      </p>
+                      <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                        {estimatedRounds}x rodadas
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mb-2">
+                      {uniqueExercises.length} exercício{uniqueExercises.length > 1 ? 's' : ''} • {work}s trabalho • {rest}s descanso
+                    </p>
+                    <div className="space-y-1.5">
+                      {uniqueExercises.map((ex, ei) => {
+                        const media = findMedia(ex.name);
+                        const img = media?.imageUrl;
+                        return (
+                          <div key={ei} className="flex items-center gap-2">
+                            <div className="h-9 w-9 rounded-md bg-muted overflow-hidden shrink-0 flex items-center justify-center">
+                              {img ? (
+                                <img src={img} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground font-bold">{ei + 1}</span>
+                              )}
+                            </div>
+                            <p className="text-[12px] font-medium leading-tight flex-1">
+                              {ex.name.replace(/\*+/g, '').trim()}
+                            </p>
                           </div>
-                          <p className="text-[11px] font-medium leading-tight line-clamp-2">
-                            {ex.name.replace(/\*+/g, '').trim()}
-                          </p>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}
