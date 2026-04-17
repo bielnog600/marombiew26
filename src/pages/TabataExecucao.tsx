@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import Hls from 'hls.js';
 import { Button } from '@/components/ui/button';
 import { X, Play, Pause, SkipForward, RotateCcw, Volume2, VolumeX } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 import type { ParsedTabata, TabataBlock, TabataExercise } from '@/lib/tabataParser';
 
 type Phase = 'idle' | 'prep' | 'work' | 'rest' | 'block_rest' | 'done';
@@ -16,6 +18,15 @@ interface Step {
 
 const PREP_SECONDS = 10;
 
+const extractStreamVideoId = (embed: string | null | undefined): string | null => {
+  if (!embed) return null;
+  const match = embed.match(/cloudflarestream\.com\/([a-f0-9]{32})\//);
+  return match ? match[1] : null;
+};
+
+const normalizeName = (s: string) =>
+  s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+
 const TabataExecucao: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -26,8 +37,11 @@ const TabataExecucao: React.FC = () => {
   const [secondsLeft, setSecondsLeft] = useState(PREP_SECONDS);
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
+  const [mediaMap, setMediaMap] = useState<Record<string, { videoEmbed?: string | null; imageUrl?: string | null }>>({});
 
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const hlsRef = useRef<Hls | null>(null);
 
   const steps: Step[] = useMemo(() => {
     if (!tabata) return [];
@@ -42,6 +56,73 @@ const TabataExecucao: React.FC = () => {
 
   const currentStep = steps[stepIndex];
   const totalSteps = steps.length;
+
+  // Load exercise media from DB and fuzzy-match by name
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.from('exercises').select('nome, imagem_url, video_embed');
+      if (cancelled || !data) return;
+      const map: Record<string, { videoEmbed?: string | null; imageUrl?: string | null }> = {};
+      data.forEach((row: any) => {
+        map[normalizeName(row.nome)] = { videoEmbed: row.video_embed, imageUrl: row.imagem_url };
+      });
+      setMediaMap(map);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const currentMedia = useMemo(() => {
+    if (!currentStep) return null;
+    const key = normalizeName(currentStep.exercise.name);
+    if (mediaMap[key]) return mediaMap[key];
+    // partial match
+    const found = Object.keys(mediaMap).find(k => k.includes(key) || key.includes(k));
+    return found ? mediaMap[found] : null;
+  }, [currentStep, mediaMap]);
+
+  const streamVideoId = extractStreamVideoId(currentMedia?.videoEmbed);
+  const hlsUrl = streamVideoId ? `https://customer-vqfal80lir76xyf0.cloudflarestream.com/${streamVideoId}/manifest/video.m3u8` : null;
+  const showVideoBg = (phase === 'prep' || phase === 'work') && !!hlsUrl;
+
+  // Mount HLS video when applicable
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !showVideoBg || !hlsUrl) return;
+
+    video.muted = true;
+    video.loop = true;
+    video.playsInline = true;
+    video.setAttribute('muted', '');
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = hlsUrl;
+      const tryPlay = () => video.play().catch(() => {});
+      video.addEventListener('loadedmetadata', tryPlay, { once: true });
+      return () => video.removeEventListener('loadedmetadata', tryPlay);
+    }
+
+    if (Hls.isSupported()) {
+      const hls = new Hls({ autoStartLoad: true, startLevel: -1, enableWorker: true });
+      hlsRef.current = hls;
+      hls.loadSource(hlsUrl);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        video.play().catch(() => {});
+      });
+      return () => {
+        hls.destroy();
+        hlsRef.current = null;
+      };
+    }
+  }, [hlsUrl, showVideoBg]);
 
   const beep = (frequency: number, duration: number) => {
     if (muted) return;
@@ -180,7 +261,26 @@ const TabataExecucao: React.FC = () => {
       )}
       style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm -z-10" />
+      {/* Background video (fills screen, horizontal videos cover the area) */}
+      {showVideoBg && (
+        <div className="absolute inset-0 -z-10 overflow-hidden bg-black">
+          <video
+            ref={videoRef}
+            className="absolute inset-0 w-full h-full object-cover"
+            muted
+            playsInline
+            loop
+            autoPlay
+          />
+          {/* Dark overlay to keep timer/text legible */}
+          <div className="absolute inset-0 bg-background/55 backdrop-blur-[2px]" />
+        </div>
+      )}
+
+      {/* Fallback background blur when no video */}
+      {!showVideoBg && (
+        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm -z-10" />
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between p-4">
@@ -236,7 +336,7 @@ const TabataExecucao: React.FC = () => {
         {(phase === 'prep' || phase === 'work' || phase === 'rest' || phase === 'block_rest') && currentStep && (
           <>
             <div className={cn(
-              "text-[8rem] sm:text-[10rem] font-black leading-none tabular-nums mb-4 transition-colors",
+              "text-[8rem] sm:text-[10rem] font-black leading-none tabular-nums mb-4 transition-colors drop-shadow-[0_4px_24px_rgba(0,0,0,0.6)]",
               phase === 'work' && 'text-red-500',
               phase === 'rest' && 'text-green-500',
               phase === 'block_rest' && 'text-blue-500',
@@ -244,7 +344,7 @@ const TabataExecucao: React.FC = () => {
             )}>
               {secondsLeft}
             </div>
-            <h2 className="text-2xl sm:text-3xl font-bold mb-2 uppercase">
+            <h2 className="text-2xl sm:text-3xl font-bold mb-2 uppercase drop-shadow-[0_2px_12px_rgba(0,0,0,0.7)]">
               {phase === 'work' || phase === 'prep' ? currentStep.exercise.name : (phase === 'block_rest' ? 'Descanso entre blocos' : 'Próximo: ' + (steps[stepIndex + 1]?.exercise.name || 'Fim'))}
             </h2>
             {currentStep.exercise.observation && phase === 'work' && (
