@@ -24,8 +24,13 @@ const extractStreamVideoId = (embed: string | null | undefined): string | null =
   return match ? match[1] : null;
 };
 
+const STOP_WORDS = new Set(['de', 'da', 'do', 'das', 'dos', 'com', 'em', 'na', 'no', 'a', 'o', 'e', 'para', 'pra']);
+
 const normalizeName = (s: string) =>
   s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+
+const tokenize = (s: string) =>
+  normalizeName(s).split(' ').filter(t => t.length > 1 && !STOP_WORDS.has(t));
 
 const TabataExecucao: React.FC = () => {
   const location = useLocation();
