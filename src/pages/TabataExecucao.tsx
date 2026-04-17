@@ -290,8 +290,9 @@ const TabataExecucao: React.FC = () => {
             loop
             autoPlay
           />
-          {/* Dark overlay to keep timer/text legible */}
-          <div className="absolute inset-0 bg-background/55 backdrop-blur-[2px]" />
+          {/* Subtle gradients only at top/bottom for header/controls legibility — no blur */}
+          <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-background/80 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-background/85 to-transparent" />
         </div>
       )}
 
