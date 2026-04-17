@@ -15,8 +15,8 @@ const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
     return () => clearTimeout(timer);
   }, [onFinish]);
 
-  const size = 140;
-  const stroke = 4;
+  const size = 200;
+  const stroke = 5;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   // Visible arc (~25% of circle)
