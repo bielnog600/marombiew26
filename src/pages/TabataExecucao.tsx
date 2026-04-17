@@ -87,44 +87,47 @@ const TabataExecucao: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
-  const currentMedia = useMemo(() => {
-    if (!currentStep || !Object.keys(mediaMap).length) return null;
-    const exName = currentStep.exercise.name;
-    const key = normalizeName(exName);
-    if (mediaMap[key]) return mediaMap[key];
+  const findMedia = useMemo(() => {
+    return (exName: string) => {
+      if (!exName || !Object.keys(mediaMap).length) return null;
+      const key = normalizeName(exName);
+      if (mediaMap[key]) return mediaMap[key];
 
-    const queryTokens = tokenize(exName);
-    if (!queryTokens.length) return null;
-    const queryEquip = equipmentOf(exName);
+      const queryTokens = tokenize(exName);
+      if (!queryTokens.length) return null;
+      const queryEquip = equipmentOf(exName);
 
-    let best: { score: number; key: string; matches: number } | null = null;
-    for (const candidateKey of Object.keys(mediaMap)) {
-      const candTokens = candidateKey.split(' ').filter(t => t.length > 1 && !STOP_WORDS.has(t));
-      if (!candTokens.length) continue;
+      let best: { score: number; key: string; matches: number } | null = null;
+      for (const candidateKey of Object.keys(mediaMap)) {
+        const candTokens = candidateKey.split(' ').filter(t => t.length > 1 && !STOP_WORDS.has(t));
+        if (!candTokens.length) continue;
 
-      // Equipment compatibility — reject if equipment markers differ
-      const candEquip = equipmentOf(candidateKey);
-      if (queryEquip.size > 0 || candEquip.size > 0) {
-        const equipMatches = [...queryEquip].some(e => candEquip.has(e));
-        const equipDiffers = (queryEquip.size > 0 && candEquip.size > 0 && !equipMatches) ||
-          (queryEquip.size === 0 && candEquip.size > 0) ||
-          (queryEquip.size > 0 && candEquip.size === 0);
-        if (equipDiffers) continue;
+        const candEquip = equipmentOf(candidateKey);
+        if (queryEquip.size > 0 || candEquip.size > 0) {
+          const equipMatches = [...queryEquip].some(e => candEquip.has(e));
+          const equipDiffers = (queryEquip.size > 0 && candEquip.size > 0 && !equipMatches) ||
+            (queryEquip.size === 0 && candEquip.size > 0) ||
+            (queryEquip.size > 0 && candEquip.size === 0);
+          if (equipDiffers) continue;
+        }
+
+        const matches = queryTokens.filter(t => candTokens.some(c => c === t)).length;
+        if (!matches) continue;
+        const score = matches / Math.max(queryTokens.length, candTokens.length);
+        if (!best || score > best.score) best = { score, key: candidateKey, matches };
       }
 
-      const matches = queryTokens.filter(t => candTokens.some(c => c === t)).length;
-      if (!matches) continue;
-      const score = matches / Math.max(queryTokens.length, candTokens.length);
-      if (!best || score > best.score) best = { score, key: candidateKey, matches };
-    }
+      return best && best.matches >= 1 && best.score >= 0.3 ? mediaMap[best.key] : null;
+    };
+  }, [mediaMap]);
 
-    if (import.meta.env.DEV) {
-      console.log('[TABATA media match]', exName, '→', best?.key, 'score:', best?.score?.toFixed(2), 'has video:', !!mediaMap[best?.key ?? '']?.videoEmbed);
-    }
+  const currentMedia = useMemo(
+    () => currentStep ? findMedia(currentStep.exercise.name) : null,
+    [currentStep, findMedia]
+  );
 
-    // Accept any reasonable match (>=30%) — banco é limitado, melhor mostrar algo próximo
-    return best && best.matches >= 1 && best.score >= 0.3 ? mediaMap[best.key] : null;
-  }, [currentStep, mediaMap]);
+  const nextStep = phase === 'rest' || phase === 'block_rest' ? steps[stepIndex + 1] : null;
+  const nextMedia = nextStep ? findMedia(nextStep.exercise.name) : null;
 
   const streamVideoId = extractStreamVideoId(currentMedia?.videoEmbed);
   const hlsUrl = streamVideoId ? `https://customer-vqfal80lir76xyf0.cloudflarestream.com/${streamVideoId}/manifest/video.m3u8` : null;
@@ -372,11 +375,42 @@ const TabataExecucao: React.FC = () => {
 
         {phase === 'idle' && (
           <>
-            <h1 className="text-4xl font-black mb-3">{tabata.title}</h1>
-            <p className="text-sm text-muted-foreground mb-2">{tabata.duration} • {tabata.type}</p>
-            <p className="text-xs text-muted-foreground mb-8 max-w-sm">{tabata.objective}</p>
-            <div className="flex flex-col gap-2 w-full max-w-xs">
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">{tabata.blocks.length} blocos • {totalSteps} exercícios</p>
+            <h1 className="text-3xl sm:text-4xl font-black mb-2">{tabata.title}</h1>
+            <p className="text-sm text-muted-foreground mb-1">{tabata.duration} • {tabata.type}</p>
+            <p className="text-xs text-muted-foreground mb-4 max-w-sm">{tabata.objective}</p>
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-4">
+              {tabata.blocks.length} blocos • {totalSteps} exercícios
+            </p>
+
+            {/* Exercise preview grid */}
+            <div className="w-full max-w-md max-h-[42vh] overflow-y-auto pr-1 space-y-3">
+              {tabata.blocks.map((block, bi) => (
+                <div key={bi} className="text-left">
+                  <p className="text-[10px] uppercase tracking-widest text-primary font-bold mb-1.5">
+                    Bloco {bi + 1}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {block.exercises.map((ex, ei) => {
+                      const media = findMedia(ex.name);
+                      const img = media?.imageUrl;
+                      return (
+                        <div key={ei} className="flex items-center gap-2 bg-card/60 backdrop-blur-sm border border-border/40 rounded-lg p-1.5">
+                          <div className="h-10 w-10 rounded-md bg-muted overflow-hidden shrink-0 flex items-center justify-center">
+                            {img ? (
+                              <img src={img} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground font-bold">{ei + 1}</span>
+                            )}
+                          </div>
+                          <p className="text-[11px] font-medium leading-tight line-clamp-2">
+                            {ex.name.replace(/\*+/g, '').trim()}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           </>
         )}
@@ -403,11 +437,33 @@ const TabataExecucao: React.FC = () => {
             <h2 className="text-2xl sm:text-3xl font-bold mb-2 uppercase drop-shadow-[0_2px_12px_rgba(0,0,0,0.7)]">
               {(phase === 'work' || phase === 'prep'
                 ? currentStep.exercise.name
-                : (phase === 'block_rest' ? 'Descanso entre blocos' : 'Próximo: ' + (steps[stepIndex + 1]?.exercise.name || 'Fim'))
+                : (phase === 'block_rest' ? 'Descanso entre blocos' : 'Próximo exercício')
               ).replace(/\*+/g, '').trim()}
             </h2>
             {currentStep.exercise.observation && phase === 'work' && (
               <p className="text-xs text-muted-foreground max-w-sm mt-2">{currentStep.exercise.observation}</p>
+            )}
+
+            {/* Next exercise preview during rest */}
+            {(phase === 'rest' || phase === 'block_rest') && nextStep && (
+              <div className="mt-4 flex items-center gap-3 bg-card/70 backdrop-blur-md border border-primary/30 rounded-2xl p-3 pr-5 shadow-lg max-w-sm animate-fade-in">
+                <div className="h-16 w-16 rounded-xl bg-muted overflow-hidden shrink-0 ring-2 ring-primary/40">
+                  {nextMedia?.imageUrl ? (
+                    <img src={nextMedia.imageUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center text-primary font-black text-xl">→</div>
+                  )}
+                </div>
+                <div className="text-left flex-1 min-w-0">
+                  <p className="text-[10px] uppercase tracking-widest text-primary font-bold">A seguir</p>
+                  <p className="text-sm font-bold leading-tight line-clamp-2">
+                    {nextStep.exercise.name.replace(/\*+/g, '').trim()}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {nextStep.exercise.workSeconds}s trabalho
+                  </p>
+                </div>
+              </div>
             )}
           </>
         )}
