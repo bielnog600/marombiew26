@@ -1,35 +1,26 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import logo from '@/assets/logo_marombiew.png';
 
 const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
-  const [progress, setProgress] = useState(0);
-
   useEffect(() => {
-    const steps = [20, 50, 80, 100];
-    let i = 0;
-    const interval = setInterval(() => {
-      if (i < steps.length) {
-        setProgress(steps[i]);
-        i++;
-      } else {
-        clearInterval(interval);
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistration().then((reg) => {
-            if (reg) reg.update().catch(() => {});
-          });
-        }
-        setTimeout(onFinish, 400);
+    const timer = setTimeout(() => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistration().then((reg) => {
+          if (reg) reg.update().catch(() => {});
+        });
       }
-    }, 500);
+      onFinish();
+    }, 2200);
 
-    return () => clearInterval(interval);
+    return () => clearTimeout(timer);
   }, [onFinish]);
 
   const size = 140;
   const stroke = 4;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (progress / 100) * circumference;
+  // Visible arc (~25% of circle)
+  const arc = circumference * 0.25;
 
   return (
     <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background">
@@ -37,7 +28,8 @@ const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
         <svg
           width={size}
           height={size}
-          className="absolute inset-0 -rotate-90"
+          className="absolute inset-0 animate-spin"
+          style={{ animationDuration: '1.2s' }}
         >
           <circle
             cx={size / 2}
@@ -46,7 +38,7 @@ const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
             stroke="hsl(var(--muted))"
             strokeWidth={stroke}
             fill="none"
-            opacity={0.3}
+            opacity={0.25}
           />
           <circle
             cx={size / 2}
@@ -56,9 +48,7 @@ const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
             strokeWidth={stroke}
             fill="none"
             strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-            style={{ transition: 'stroke-dashoffset 0.5s ease' }}
+            strokeDasharray={`${arc} ${circumference - arc}`}
           />
         </svg>
         <img
