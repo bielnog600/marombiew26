@@ -15,8 +15,8 @@ const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
     return () => clearTimeout(timer);
   }, [onFinish]);
 
-  const size = 200;
-  const stroke = 5;
+  const size = 170;
+  const stroke = 4;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   // Visible arc (~25% of circle)
@@ -55,7 +55,7 @@ const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
           src={logo}
           alt="MarombiewPro"
           className="absolute inset-0 m-auto rounded-2xl"
-          style={{ width: size - 28, height: size - 28 }}
+          style={{ width: size - 16, height: size - 16 }}
         />
       </div>
     </div>
