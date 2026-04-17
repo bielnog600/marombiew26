@@ -155,7 +155,8 @@ export function parseTabata(markdown: string): ParsedTabata {
 
       const cells = trimmed.split('|').map(c => c.trim()).filter((_, i, arr) => i > 0 && i < arr.length - 1);
       if (cells.length >= 2) {
-        const exerciseName = cells[1];
+        // Strip markdown bold/italic and stray asterisks from exercise name
+        const exerciseName = cells[1].replace(/\*+/g, '').replace(/_{2,}/g, '').trim();
         const workCell = cells[2] || `${currentBlock.workSeconds}s`;
         const restCell = cells[3] || `${currentBlock.restSeconds}s`;
         const obs = cells[4] || '';

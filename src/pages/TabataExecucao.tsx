@@ -122,13 +122,13 @@ const TabataExecucao: React.FC = () => {
       console.log('[TABATA media match]', exName, '→', best?.key, 'score:', best?.score);
     }
 
-    // Require strong similarity (>=50%) to avoid wrong videos
-    return best && best.matches >= 1 && best.score >= 0.5 ? mediaMap[best.key] : null;
+    // Require some similarity (>=40%) to avoid wrong videos
+    return best && best.matches >= 1 && best.score >= 0.4 ? mediaMap[best.key] : null;
   }, [currentStep, mediaMap]);
 
   const streamVideoId = extractStreamVideoId(currentMedia?.videoEmbed);
   const hlsUrl = streamVideoId ? `https://customer-vqfal80lir76xyf0.cloudflarestream.com/${streamVideoId}/manifest/video.m3u8` : null;
-  const showVideoBg = (phase === 'prep' || phase === 'work') && !!hlsUrl;
+  const showVideoBg = (phase === 'prep' || phase === 'work' || phase === 'rest' || phase === 'block_rest') && !!hlsUrl;
 
   // Mount HLS video when applicable
   useEffect(() => {
@@ -391,7 +391,10 @@ const TabataExecucao: React.FC = () => {
               {secondsLeft}
             </div>
             <h2 className="text-2xl sm:text-3xl font-bold mb-2 uppercase drop-shadow-[0_2px_12px_rgba(0,0,0,0.7)]">
-              {phase === 'work' || phase === 'prep' ? currentStep.exercise.name : (phase === 'block_rest' ? 'Descanso entre blocos' : 'Próximo: ' + (steps[stepIndex + 1]?.exercise.name || 'Fim'))}
+              {(phase === 'work' || phase === 'prep'
+                ? currentStep.exercise.name
+                : (phase === 'block_rest' ? 'Descanso entre blocos' : 'Próximo: ' + (steps[stepIndex + 1]?.exercise.name || 'Fim'))
+              ).replace(/\*+/g, '').trim()}
             </h2>
             {currentStep.exercise.observation && phase === 'work' && (
               <p className="text-xs text-muted-foreground max-w-sm mt-2">{currentStep.exercise.observation}</p>
@@ -401,19 +404,32 @@ const TabataExecucao: React.FC = () => {
       </div>
 
       {/* Controls */}
-      <div className="p-6 flex items-center justify-center gap-4">
+      <div className="p-6 pb-8 flex items-center justify-center gap-4">
         {phase === 'idle' && (
-          <Button size="lg" onClick={start} className="gap-2 px-8 h-14 text-base font-bold">
-            <Play className="h-5 w-5" /> Iniciar
+          <Button
+            size="lg"
+            onClick={start}
+            className="gap-3 px-12 h-16 text-lg font-black uppercase tracking-wider rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_8px_32px_-4px_hsl(var(--primary)/0.6)] hover:shadow-[0_12px_40px_-4px_hsl(var(--primary)/0.8)] hover:scale-[1.03] active:scale-95 transition-all"
+          >
+            <Play className="!h-6 !w-6 fill-current" /> Iniciar
           </Button>
         )}
 
         {phase === 'done' && (
           <>
-            <Button variant="outline" size="lg" onClick={restart} className="gap-2">
-              <RotateCcw className="h-4 w-4" /> Repetir
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={restart}
+              className="gap-2 h-14 px-6 rounded-2xl font-bold border-2 backdrop-blur-md bg-background/60"
+            >
+              <RotateCcw className="!h-5 !w-5" /> Repetir
             </Button>
-            <Button size="lg" onClick={() => navigate(-1)} className="gap-2 font-bold">
+            <Button
+              size="lg"
+              onClick={() => navigate(-1)}
+              className="gap-2 h-14 px-8 font-black uppercase tracking-wider rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_8px_32px_-4px_hsl(var(--primary)/0.6)]"
+            >
               Voltar
             </Button>
           </>
@@ -421,14 +437,31 @@ const TabataExecucao: React.FC = () => {
 
         {phase !== 'idle' && phase !== 'done' && (
           <>
-            <Button variant="outline" size="icon" onClick={() => setPaused(p => !p)} className="h-14 w-14">
-              {paused ? <Play className="h-6 w-6" /> : <Pause className="h-6 w-6" />}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={restart}
+              aria-label="Reiniciar"
+              className="h-14 w-14 rounded-full backdrop-blur-md bg-background/40 border border-border/40 hover:bg-background/60 active:scale-90 transition-all"
+            >
+              <RotateCcw className="!h-5 !w-5" />
             </Button>
-            <Button variant="outline" size="icon" onClick={skip} className="h-14 w-14">
-              <SkipForward className="h-6 w-6" />
+            <Button
+              size="icon"
+              onClick={() => setPaused(p => !p)}
+              aria-label={paused ? 'Retomar' : 'Pausar'}
+              className="h-20 w-20 rounded-full bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_10px_40px_-4px_hsl(var(--primary)/0.7)] hover:shadow-[0_14px_48px_-4px_hsl(var(--primary)/0.9)] hover:scale-105 active:scale-95 transition-all border-2 border-primary-foreground/10"
+            >
+              {paused ? <Play className="!h-8 !w-8 fill-current ml-1" /> : <Pause className="!h-8 !w-8 fill-current" />}
             </Button>
-            <Button variant="ghost" size="icon" onClick={restart} className="h-14 w-14">
-              <RotateCcw className="h-5 w-5" />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={skip}
+              aria-label="Avançar"
+              className="h-14 w-14 rounded-full backdrop-blur-md bg-background/40 border border-border/40 hover:bg-background/60 active:scale-90 transition-all"
+            >
+              <SkipForward className="!h-6 !w-6 fill-current" />
             </Button>
           </>
         )}
