@@ -89,29 +89,41 @@ const TabataExecucao: React.FC = () => {
 
   const currentMedia = useMemo(() => {
     if (!currentStep || !Object.keys(mediaMap).length) return null;
-    const key = normalizeName(currentStep.exercise.name);
+    const exName = currentStep.exercise.name;
+    const key = normalizeName(exName);
     if (mediaMap[key]) return mediaMap[key];
 
-    const queryTokens = tokenize(currentStep.exercise.name);
+    const queryTokens = tokenize(exName);
     if (!queryTokens.length) return null;
+    const queryEquip = equipmentOf(exName);
 
-    // Score by token overlap, requiring at least 1 strong shared token
     let best: { score: number; key: string; matches: number } | null = null;
     for (const candidateKey of Object.keys(mediaMap)) {
       const candTokens = candidateKey.split(' ').filter(t => t.length > 1 && !STOP_WORDS.has(t));
       if (!candTokens.length) continue;
-      const matches = queryTokens.filter(t => candTokens.some(c => c === t || c.includes(t) || t.includes(c))).length;
+
+      // Equipment compatibility — reject if equipment markers differ
+      const candEquip = equipmentOf(candidateKey);
+      if (queryEquip.size > 0 || candEquip.size > 0) {
+        const equipMatches = [...queryEquip].some(e => candEquip.has(e));
+        const equipDiffers = (queryEquip.size > 0 && candEquip.size > 0 && !equipMatches) ||
+          (queryEquip.size === 0 && candEquip.size > 0) ||
+          (queryEquip.size > 0 && candEquip.size === 0);
+        if (equipDiffers) continue;
+      }
+
+      const matches = queryTokens.filter(t => candTokens.some(c => c === t)).length;
       if (!matches) continue;
       const score = matches / Math.max(queryTokens.length, candTokens.length);
       if (!best || score > best.score) best = { score, key: candidateKey, matches };
     }
 
     if (import.meta.env.DEV) {
-      console.log('[TABATA media match]', currentStep.exercise.name, '→', best?.key, 'score:', best?.score);
+      console.log('[TABATA media match]', exName, '→', best?.key, 'score:', best?.score);
     }
 
-    // Lowered threshold: at least 1 meaningful token overlap and 30% similarity
-    return best && best.matches >= 1 && best.score >= 0.3 ? mediaMap[best.key] : null;
+    // Require strong similarity (>=50%) to avoid wrong videos
+    return best && best.matches >= 1 && best.score >= 0.5 ? mediaMap[best.key] : null;
   }, [currentStep, mediaMap]);
 
   const streamVideoId = extractStreamVideoId(currentMedia?.videoEmbed);
