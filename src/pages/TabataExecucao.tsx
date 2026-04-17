@@ -26,11 +26,21 @@ const extractStreamVideoId = (embed: string | null | undefined): string | null =
 
 const STOP_WORDS = new Set(['de', 'da', 'do', 'das', 'dos', 'com', 'em', 'na', 'no', 'a', 'o', 'e', 'para', 'pra']);
 
+// Equipment markers — if one side has a marker the other doesn't, names are NOT compatible
+const EQUIPMENT_MARKERS = ['barra', 'halter', 'halteres', 'maquina', 'smith', 'hack', 'polia', 'cabo',
+  'cadeira', 'mesa', 'graviton', 'peck', 'crossover', 'kettlebell', 'bola', 'elastico', 'corda',
+  'caixa', 'caixote', 'step', 'banco', 'solo'];
+
 const normalizeName = (s: string) =>
   s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 
 const tokenize = (s: string) =>
   normalizeName(s).split(' ').filter(t => t.length > 1 && !STOP_WORDS.has(t));
+
+const equipmentOf = (s: string) => {
+  const tokens = new Set(tokenize(s));
+  return new Set(EQUIPMENT_MARKERS.filter(m => tokens.has(m)));
+};
 
 const TabataExecucao: React.FC = () => {
   const location = useLocation();
