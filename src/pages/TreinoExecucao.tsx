@@ -297,10 +297,13 @@ const TreinoExecucao = () => {
     }
   }, [exercise]);
 
-  const updateSet = (setIndex: number, field: 'reps' | 'weight', value: string) => {
+  const updateSet = (setIndex: number, field: 'reps' | 'weight' | 'rpe', value: string) => {
     setSets((prev) => {
       const current = [...(prev[currentIndex] || [])];
       current[setIndex] = { ...current[setIndex], [field]: value };
+      return { ...prev, [currentIndex]: current };
+    });
+  };
       return { ...prev, [currentIndex]: current };
     });
   };
