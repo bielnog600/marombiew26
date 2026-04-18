@@ -121,17 +121,21 @@ const TabataExecucao: React.FC = () => {
     };
   }, [mediaMap]);
 
-  const currentMedia = useMemo(
-    () => currentStep ? findMedia(currentStep.exercise.name) : null,
-    [currentStep, findMedia]
-  );
+  const isResting = phase === 'rest' || phase === 'block_rest';
 
-  const nextStep = phase === 'rest' || phase === 'block_rest' ? steps[stepIndex + 1] : null;
+  const nextStep = isResting ? steps[stepIndex + 1] : null;
   const nextMedia = nextStep ? findMedia(nextStep.exercise.name) : null;
 
-  const streamVideoId = extractStreamVideoId(currentMedia?.videoEmbed);
+  // Durante descanso, antecipa a mídia do próximo exercício
+  const displayStep = isResting && nextStep ? nextStep : currentStep;
+  const displayMedia = useMemo(
+    () => displayStep ? findMedia(displayStep.exercise.name) : null,
+    [displayStep, findMedia]
+  );
+
+  const streamVideoId = extractStreamVideoId(displayMedia?.videoEmbed);
   const hlsUrl = streamVideoId ? `https://customer-vqfal80lir76xyf0.cloudflarestream.com/${streamVideoId}/manifest/video.m3u8` : null;
-  const fallbackImage = !streamVideoId && currentMedia?.imageUrl ? currentMedia.imageUrl : null;
+  const fallbackImage = !streamVideoId && displayMedia?.imageUrl ? displayMedia.imageUrl : null;
   const hasMediaBg = !!hlsUrl || !!fallbackImage;
   const showVideoBg = (phase === 'prep' || phase === 'work' || phase === 'rest' || phase === 'block_rest') && hasMediaBg;
 
