@@ -499,10 +499,6 @@ const TabataExecucao: React.FC = () => {
                   ? { WebkitTextStroke: '2px currentColor' }
                   : {}),
               }}
-                ...(secondsLeft > 0 && secondsLeft <= 3
-                  ? { WebkitTextStroke: '3px currentColor' }
-                  : {}),
-              }}
             >
               {secondsLeft}
             </div>
