@@ -10,7 +10,9 @@ import { ArrowLeft, Loader2, Save, Flame, Shield, Zap, Sparkles, Play, Pencil, C
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { parseTabata } from '@/lib/tabataParser';
+import { parseTabata, type ParsedTabata } from '@/lib/tabataParser';
+import { serializeTabata } from '@/lib/tabataSerializer';
+import { TabataStructuredEditor } from '@/components/tabata/TabataStructuredEditor';
 import { cn } from '@/lib/utils';
 
 type StudentCtx = Record<string, any>;
@@ -37,7 +39,7 @@ const TabataIA = () => {
   const [result, setResult] = useState('');
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [editDraft, setEditDraft] = useState('');
+  const [editDraft, setEditDraft] = useState<ParsedTabata | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -312,14 +314,20 @@ const TabataIA = () => {
                 {editing ? (
                   <>
                     <Button
-                      onClick={() => { setResult(editDraft); setEditing(false); toast.success('Edições aplicadas'); }}
+                      onClick={() => {
+                        if (editDraft) {
+                          setResult(serializeTabata(editDraft));
+                          toast.success('Edições aplicadas');
+                        }
+                        setEditing(false);
+                      }}
                       size="sm"
                       className="gap-1"
                     >
                       <Check className="h-4 w-4" /> Aplicar
                     </Button>
                     <Button
-                      onClick={() => setEditing(false)}
+                      onClick={() => { setEditing(false); setEditDraft(null); }}
                       size="sm"
                       variant="outline"
                       className="gap-1"
@@ -330,7 +338,7 @@ const TabataIA = () => {
                 ) : (
                   <>
                     <Button
-                      onClick={() => { setEditDraft(result); setEditing(true); }}
+                      onClick={() => { setEditDraft(parseTabata(result)); setEditing(true); }}
                       size="sm"
                       variant="outline"
                       className="gap-1"
@@ -357,20 +365,8 @@ const TabataIA = () => {
               </div>
             </div>
 
-            {editing ? (
-              <Card className="glass-card">
-                <CardContent className="p-3">
-                  <Textarea
-                    value={editDraft}
-                    onChange={(e) => setEditDraft(e.target.value)}
-                    className="min-h-[400px] font-mono text-xs leading-relaxed"
-                    placeholder="Edite o markdown do TABATA..."
-                  />
-                  <p className="text-[11px] text-muted-foreground mt-2">
-                    Dica: mantenha o formato (## seções, ### Bloco N, **Formato:** N rounds × Xs / Ys, tabelas |) para que a visualização funcione.
-                  </p>
-                </CardContent>
-              </Card>
+            {editing && editDraft ? (
+              <TabataStructuredEditor value={editDraft} onChange={setEditDraft} />
             ) : (
               <Card className="glass-card">
                 <CardContent className="p-4 prose prose-sm prose-invert max-w-none">
