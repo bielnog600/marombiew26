@@ -493,8 +493,12 @@ const TabataExecucao: React.FC = () => {
               style={{
                 textShadow:
                   secondsLeft > 0 && secondsLeft <= 3
-                    ? '0 4px 20px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.9), 0 0 30px currentColor, 0 0 60px currentColor'
-                    : '0 4px 20px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.9), 0 0 40px rgba(0,0,0,0.7)',
+                    ? '0 2px 8px rgba(0,0,0,0.7), 0 0 20px currentColor'
+                    : '0 2px 10px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.5)',
+                ...(secondsLeft > 0 && secondsLeft <= 3
+                  ? { WebkitTextStroke: '2px currentColor' }
+                  : {}),
+              }}
                 ...(secondsLeft > 0 && secondsLeft <= 3
                   ? { WebkitTextStroke: '3px currentColor' }
                   : {}),
