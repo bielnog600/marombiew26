@@ -497,9 +497,11 @@ const TabataExecucao: React.FC = () => {
               {secondsLeft}
             </div>
             <h2 className="text-2xl sm:text-3xl font-bold mb-2 uppercase drop-shadow-[0_2px_12px_rgba(0,0,0,0.7)]">
-              {(phase === 'work' || phase === 'prep'
-                ? currentStep.exercise.name
-                : (phase === 'block_rest' ? 'Descanso entre blocos' : 'Próximo exercício')
+              {(phase === 'block_rest'
+                ? (nextStep ? `Prepare-se: ${nextStep.exercise.name}` : 'Descanso entre blocos')
+                : phase === 'rest'
+                  ? (nextStep ? nextStep.exercise.name : 'Próximo exercício')
+                  : currentStep.exercise.name
               ).replace(/\*+/g, '').trim()}
             </h2>
             {currentStep.exercise.observation && phase === 'work' && (
