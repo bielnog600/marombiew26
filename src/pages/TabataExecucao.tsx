@@ -493,8 +493,8 @@ const TabataExecucao: React.FC = () => {
               style={{
                 textShadow:
                   secondsLeft > 0 && secondsLeft <= 3
-                    ? '0 2px 8px rgba(0,0,0,0.7), 0 0 20px currentColor'
-                    : '0 2px 10px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.5)',
+                    ? '0 3px 14px rgba(0,0,0,0.85), 0 1px 4px rgba(0,0,0,0.7), 0 0 25px currentColor'
+                    : '0 3px 16px rgba(0,0,0,0.8), 0 2px 6px rgba(0,0,0,0.65), 0 0 24px rgba(0,0,0,0.5)',
                 ...(secondsLeft > 0 && secondsLeft <= 3
                   ? { WebkitTextStroke: '2px currentColor' }
                   : {}),
