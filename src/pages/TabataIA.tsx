@@ -13,6 +13,7 @@ import remarkGfm from 'remark-gfm';
 import { parseTabata, type ParsedTabata } from '@/lib/tabataParser';
 import { serializeTabata } from '@/lib/tabataSerializer';
 import { TabataStructuredEditor } from '@/components/tabata/TabataStructuredEditor';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
 type StudentCtx = Record<string, any>;
@@ -24,6 +25,23 @@ const INTENSITIES = [
   { value: 'intenso', label: 'Intenso', desc: 'Alta intensidade', icon: Zap, color: 'text-red-500' },
 ];
 
+const STYLES = [
+  { value: 'auto', label: 'Automático (IA decide)' },
+  { value: 'complementar_musculacao', label: 'Complementar à Musculação (full body)' },
+  { value: 'em_casa', label: 'Em Casa (peso corporal, sem equipamento)' },
+  { value: 'queima_gordura', label: 'Queima de Gordura (alto gasto calórico)' },
+  { value: 'condicionamento', label: 'Condicionamento Cardiovascular' },
+  { value: 'forca_resistencia', label: 'Força-Resistência (com halteres/kettlebell)' },
+  { value: 'core_abs', label: 'Core / Abdômen' },
+  { value: 'membros_inferiores', label: 'Foco em Membros Inferiores' },
+  { value: 'membros_superiores', label: 'Foco em Membros Superiores' },
+];
+
+const WORK_OPTIONS = ['auto', '20', '30', '40', '45'];
+const REST_OPTIONS = ['auto', '10', '15', '20', '30'];
+const DURATION_OPTIONS = ['auto', '10', '15', '20', '25', '30', '40'];
+const ROUNDS_OPTIONS = ['auto', '4', '6', '8', '10'];
+
 const TabataIA = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
@@ -34,6 +52,11 @@ const TabataIA = () => {
   const [studentName, setStudentName] = useState('Aluno');
   const [loading, setLoading] = useState(true);
   const [intensity, setIntensity] = useState('auto');
+  const [style, setStyle] = useState('auto');
+  const [workSec, setWorkSec] = useState('auto');
+  const [restSec, setRestSec] = useState('auto');
+  const [totalDuration, setTotalDuration] = useState('auto');
+  const [rounds, setRounds] = useState('auto');
   const [notes, setNotes] = useState('');
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState('');
@@ -138,7 +161,17 @@ const TabataIA = () => {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
-          body: JSON.stringify({ studentContext: studentCtx, intensity, notes, availableExercises }),
+          body: JSON.stringify({
+            studentContext: studentCtx,
+            intensity,
+            notes,
+            availableExercises,
+            style,
+            workSec,
+            restSec,
+            totalDuration,
+            rounds,
+          }),
         }
       );
 
@@ -274,6 +307,67 @@ const TabataIA = () => {
                 </button>
               );
             })}
+          </div>
+        </div>
+
+        {/* Style */}
+        <div className="space-y-2">
+          <Label className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Estilo do TABATA (opcional)
+          </Label>
+          <Select value={style} onValueChange={setStyle}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent className="bg-popover z-50">
+              {STYLES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <p className="text-[11px] text-muted-foreground">
+            Ex.: "Em Casa" para alunos sem acesso ao ginásio; "Complementar à Musculação" para finalizar treinos de academia.
+          </p>
+        </div>
+
+        {/* Tempo / Estrutura */}
+        <div className="space-y-2">
+          <Label className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Tempo &amp; Estrutura (opcional)
+          </Label>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-[11px] text-muted-foreground">Trabalho (s)</Label>
+              <Select value={workSec} onValueChange={setWorkSec}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  {WORK_OPTIONS.map(v => <SelectItem key={v} value={v}>{v === 'auto' ? 'Auto' : `${v}s`}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[11px] text-muted-foreground">Descanso (s)</Label>
+              <Select value={restSec} onValueChange={setRestSec}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  {REST_OPTIONS.map(v => <SelectItem key={v} value={v}>{v === 'auto' ? 'Auto' : `${v}s`}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[11px] text-muted-foreground">Rounds por bloco</Label>
+              <Select value={rounds} onValueChange={setRounds}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  {ROUNDS_OPTIONS.map(v => <SelectItem key={v} value={v}>{v === 'auto' ? 'Auto' : v}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[11px] text-muted-foreground">Duração total (min)</Label>
+              <Select value={totalDuration} onValueChange={setTotalDuration}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  {DURATION_OPTIONS.map(v => <SelectItem key={v} value={v}>{v === 'auto' ? 'Auto' : `${v} min`}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 
