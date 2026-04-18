@@ -310,6 +310,67 @@ const TabataIA = () => {
           </div>
         </div>
 
+        {/* Style */}
+        <div className="space-y-2">
+          <Label className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Estilo do TABATA (opcional)
+          </Label>
+          <Select value={style} onValueChange={setStyle}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent className="bg-popover z-50">
+              {STYLES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <p className="text-[11px] text-muted-foreground">
+            Ex.: "Em Casa" para alunos sem acesso ao ginásio; "Complementar à Musculação" para finalizar treinos de academia.
+          </p>
+        </div>
+
+        {/* Tempo / Estrutura */}
+        <div className="space-y-2">
+          <Label className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Tempo &amp; Estrutura (opcional)
+          </Label>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-[11px] text-muted-foreground">Trabalho (s)</Label>
+              <Select value={workSec} onValueChange={setWorkSec}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  {WORK_OPTIONS.map(v => <SelectItem key={v} value={v}>{v === 'auto' ? 'Auto' : `${v}s`}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[11px] text-muted-foreground">Descanso (s)</Label>
+              <Select value={restSec} onValueChange={setRestSec}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  {REST_OPTIONS.map(v => <SelectItem key={v} value={v}>{v === 'auto' ? 'Auto' : `${v}s`}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[11px] text-muted-foreground">Rounds por bloco</Label>
+              <Select value={rounds} onValueChange={setRounds}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  {ROUNDS_OPTIONS.map(v => <SelectItem key={v} value={v}>{v === 'auto' ? 'Auto' : v}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[11px] text-muted-foreground">Duração total (min)</Label>
+              <Select value={totalDuration} onValueChange={setTotalDuration}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  {DURATION_OPTIONS.map(v => <SelectItem key={v} value={v}>{v === 'auto' ? 'Auto' : `${v} min`}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
         {/* Notes */}
         <div className="space-y-2">
           <Label htmlFor="notes" className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
