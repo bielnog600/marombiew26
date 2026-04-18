@@ -193,10 +193,34 @@ serve(async (req) => {
       auto: 'AUTO: analise o perfil completo e decida a intensidade ideal (adaptado/moderado/intenso). Priorize segurança.',
     }[intensity] || 'AUTO';
 
+    const STYLE_INSTRUCTIONS: Record<string, string> = {
+      auto: 'Estilo livre — escolha o melhor para o perfil do aluno.',
+      complementar_musculacao: 'ESTILO: COMPLEMENTAR À MUSCULAÇÃO. Treino full body funcional/cardio para finalizar/complementar a sessão de musculação. Foco em gasto calórico, condicionamento e ativação metabólica. Evitar sobrecarregar grupos já estressados.',
+      em_casa: 'ESTILO: EM CASA. SOMENTE peso corporal e exercícios sem qualquer equipamento. PROIBIDO halteres, kettlebell, corda, barras, máquinas. Use burpees, agachamento, flexão, prancha, mountain climber, polichinelo, skip, jumping jack, afundo, abdominal, etc. Ideal para alunos sem acesso ao ginásio.',
+      queima_gordura: 'ESTILO: QUEIMA DE GORDURA. Maximize o gasto calórico com exercícios compostos de corpo inteiro e alta demanda cardiovascular.',
+      condicionamento: 'ESTILO: CONDICIONAMENTO CARDIOVASCULAR. Foco em capacidade aeróbica/anaeróbica, com cardio puro e funcionais dinâmicos.',
+      forca_resistencia: 'ESTILO: FORÇA-RESISTÊNCIA. Use halteres e kettlebell em movimentos compostos (thrusters, swings, goblet squats, push press, snatch, clean).',
+      core_abs: 'ESTILO: CORE / ABDÔMEN. Priorize exercícios de core, isometria, anti-rotação e estabilização.',
+      membros_inferiores: 'ESTILO: MEMBROS INFERIORES. Foco em pernas e glúteos (squats, lunges, jumps, pistol squat, hip thrust com peso corporal).',
+      membros_superiores: 'ESTILO: MEMBROS SUPERIORES. Foco em peitoral, costas, ombros e braços (flexões, push press, renegade row, pike push-up).',
+    };
+    const styleInstruction = STYLE_INSTRUCTIONS[style] || STYLE_INSTRUCTIONS.auto;
+
+    const structureLines: string[] = [];
+    if (workSec !== 'auto') structureLines.push(`- Tempo de trabalho FIXO: ${workSec} segundos por exercício`);
+    if (restSec !== 'auto') structureLines.push(`- Tempo de descanso FIXO: ${restSec} segundos entre rounds`);
+    if (rounds !== 'auto') structureLines.push(`- Quantidade de rounds por bloco FIXA: ${rounds}`);
+    if (totalDuration !== 'auto') structureLines.push(`- Duração TOTAL do treino: aproximadamente ${totalDuration} minutos (ajuste a quantidade de blocos para caber)`);
+    const structureBlock = structureLines.length
+      ? `\n\nESTRUTURA OBRIGATÓRIA SOLICITADA PELO COACH:\n${structureLines.join('\n')}\n`
+      : '';
+
     const userPrompt = `Gere o TABATA agora baseado no perfil completo do aluno.
 
 INTENSIDADE SOLICITADA: ${intensity.toUpperCase()} — ${intensityInstruction}
 
+${styleInstruction}
+${structureBlock}
 ${notes ? `OBSERVAÇÕES ADICIONAIS DO COACH: ${notes}\n` : ''}
 
 Lembre-se:
