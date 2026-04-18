@@ -402,7 +402,9 @@ const TabataExecucao: React.FC = () => {
 
       {/* Main timer */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
-        <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground mb-4">{phaseLabel}</p>
+        {phase !== 'work' && (
+          <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground mb-4">{phaseLabel}</p>
+        )}
 
         {phase === 'idle' && (
           <>
@@ -524,7 +526,7 @@ const TabataExecucao: React.FC = () => {
                     {nextStep.exercise.name.replace(/\*+/g, '').trim()}
                   </p>
                   <p className="text-[10px] text-muted-foreground mt-0.5">
-                    {nextStep.exercise.workSeconds}s trabalho
+                    {nextStep.exercise.workSeconds}s de execução
                   </p>
                 </div>
               </div>
