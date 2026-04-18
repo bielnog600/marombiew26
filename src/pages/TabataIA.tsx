@@ -10,7 +10,9 @@ import { ArrowLeft, Loader2, Save, Flame, Shield, Zap, Sparkles, Play, Pencil, C
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { parseTabata } from '@/lib/tabataParser';
+import { parseTabata, type ParsedTabata } from '@/lib/tabataParser';
+import { serializeTabata } from '@/lib/tabataSerializer';
+import { TabataStructuredEditor } from '@/components/tabata/TabataStructuredEditor';
 import { cn } from '@/lib/utils';
 
 type StudentCtx = Record<string, any>;
