@@ -161,7 +161,17 @@ const TabataIA = () => {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
-          body: JSON.stringify({ studentContext: studentCtx, intensity, notes, availableExercises }),
+          body: JSON.stringify({
+            studentContext: studentCtx,
+            intensity,
+            notes,
+            availableExercises,
+            style,
+            workSec,
+            restSec,
+            totalDuration,
+            rounds,
+          }),
         }
       );
 
