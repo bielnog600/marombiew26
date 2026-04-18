@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import type { ParsedTabata, TabataBlock, TabataExercise } from '@/lib/tabataParser';
+import { ExercisePicker } from './ExercisePicker';
 
 interface Props {
   value: ParsedTabata;
@@ -180,12 +181,12 @@ export const TabataStructuredEditor: React.FC<Props> = ({ value, onChange }) => 
                   <div key={eIdx} className="rounded-lg border border-border bg-card/50 p-2 space-y-2">
                     <div className="flex gap-2 items-start">
                       <span className="text-xs text-muted-foreground pt-2 w-5">{eIdx + 1}.</span>
-                      <Input
-                        value={ex.name}
-                        onChange={e => updateExercise(bIdx, eIdx, { name: e.target.value })}
-                        placeholder="Nome do exercício"
-                        className="flex-1"
-                      />
+                      <div className="flex-1">
+                        <ExercisePicker
+                          value={ex.name}
+                          onChange={name => updateExercise(bIdx, eIdx, { name })}
+                        />
+                      </div>
                       <Button size="icon" variant="ghost" onClick={() => removeExercise(bIdx, eIdx)} className="text-destructive">
                         <Trash2 className="h-4 w-4" />
                       </Button>
