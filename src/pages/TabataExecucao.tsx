@@ -483,18 +483,22 @@ const TabataExecucao: React.FC = () => {
           <>
             <div
               className={cn(
-                "text-[8rem] sm:text-[10rem] font-black leading-none tabular-nums mb-4 transition-all drop-shadow-[0_4px_24px_rgba(0,0,0,0.6)]",
+                "text-[8rem] sm:text-[10rem] font-black leading-none tabular-nums mb-4 transition-all",
                 phase === 'work' && 'text-red-500',
                 phase === 'rest' && 'text-green-500',
                 phase === 'block_rest' && 'text-blue-500',
                 phase === 'prep' && 'text-yellow-500',
                 secondsLeft > 0 && secondsLeft <= 3 && 'animate-pulse scale-110',
               )}
-              style={
-                secondsLeft > 0 && secondsLeft <= 3
-                  ? { WebkitTextStroke: '3px currentColor', textShadow: '0 0 30px currentColor, 0 0 60px currentColor' }
-                  : undefined
-              }
+              style={{
+                textShadow:
+                  secondsLeft > 0 && secondsLeft <= 3
+                    ? '0 4px 20px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.9), 0 0 30px currentColor, 0 0 60px currentColor'
+                    : '0 4px 20px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.9), 0 0 40px rgba(0,0,0,0.7)',
+                ...(secondsLeft > 0 && secondsLeft <= 3
+                  ? { WebkitTextStroke: '3px currentColor' }
+                  : {}),
+              }}
             >
               {secondsLeft}
             </div>
