@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Loader2, Save, Flame, Shield, Zap, Sparkles, Play } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Flame, Shield, Zap, Sparkles, Play, Pencil, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
