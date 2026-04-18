@@ -52,6 +52,11 @@ const TabataIA = () => {
   const [studentName, setStudentName] = useState('Aluno');
   const [loading, setLoading] = useState(true);
   const [intensity, setIntensity] = useState('auto');
+  const [style, setStyle] = useState('auto');
+  const [workSec, setWorkSec] = useState('auto');
+  const [restSec, setRestSec] = useState('auto');
+  const [totalDuration, setTotalDuration] = useState('auto');
+  const [rounds, setRounds] = useState('auto');
   const [notes, setNotes] = useState('');
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState('');
