@@ -308,29 +308,76 @@ const TabataIA = () => {
           <div ref={resultRef} className="space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Resultado</h3>
-              <div className="flex gap-2">
-                <Button onClick={savePlan} disabled={saving || generating} size="sm" className="gap-1">
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  Salvar
-                </Button>
-                {previewParsed && previewParsed.blocks.length > 0 && !generating && (
-                  <Button
-                    onClick={() => navigate('/tabata-execucao', { state: { tabata: previewParsed, preview: true } })}
-                    size="sm"
-                    variant="outline"
-                    className="gap-1"
-                  >
-                    <Play className="h-4 w-4" /> Visualizar
-                  </Button>
+              <div className="flex gap-2 flex-wrap">
+                {editing ? (
+                  <>
+                    <Button
+                      onClick={() => { setResult(editDraft); setEditing(false); toast.success('Edições aplicadas'); }}
+                      size="sm"
+                      className="gap-1"
+                    >
+                      <Check className="h-4 w-4" /> Aplicar
+                    </Button>
+                    <Button
+                      onClick={() => setEditing(false)}
+                      size="sm"
+                      variant="outline"
+                      className="gap-1"
+                    >
+                      <X className="h-4 w-4" /> Cancelar
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      onClick={() => { setEditDraft(result); setEditing(true); }}
+                      size="sm"
+                      variant="outline"
+                      className="gap-1"
+                      disabled={generating}
+                    >
+                      <Pencil className="h-4 w-4" /> Editar
+                    </Button>
+                    <Button onClick={savePlan} disabled={saving || generating} size="sm" className="gap-1">
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      Salvar
+                    </Button>
+                    {previewParsed && previewParsed.blocks.length > 0 && !generating && (
+                      <Button
+                        onClick={() => navigate('/tabata-execucao', { state: { tabata: previewParsed, preview: true } })}
+                        size="sm"
+                        variant="outline"
+                        className="gap-1"
+                      >
+                        <Play className="h-4 w-4" /> Visualizar
+                      </Button>
+                    )}
+                  </>
                 )}
               </div>
             </div>
 
-            <Card className="glass-card">
-              <CardContent className="p-4 prose prose-sm prose-invert max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{result}</ReactMarkdown>
-              </CardContent>
-            </Card>
+            {editing ? (
+              <Card className="glass-card">
+                <CardContent className="p-3">
+                  <Textarea
+                    value={editDraft}
+                    onChange={(e) => setEditDraft(e.target.value)}
+                    className="min-h-[400px] font-mono text-xs leading-relaxed"
+                    placeholder="Edite o markdown do TABATA..."
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-2">
+                    Dica: mantenha o formato (## seções, ### Bloco N, **Formato:** N rounds × Xs / Ys, tabelas |) para que a visualização funcione.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="glass-card">
+                <CardContent className="p-4 prose prose-sm prose-invert max-w-none">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{result}</ReactMarkdown>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
       </div>
