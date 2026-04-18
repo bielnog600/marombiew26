@@ -13,6 +13,7 @@ import remarkGfm from 'remark-gfm';
 import { parseTabata, type ParsedTabata } from '@/lib/tabataParser';
 import { serializeTabata } from '@/lib/tabataSerializer';
 import { TabataStructuredEditor } from '@/components/tabata/TabataStructuredEditor';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
 type StudentCtx = Record<string, any>;
@@ -23,6 +24,23 @@ const INTENSITIES = [
   { value: 'moderado', label: 'Moderado', desc: 'Intensidade média', icon: Flame, color: 'text-orange-500' },
   { value: 'intenso', label: 'Intenso', desc: 'Alta intensidade', icon: Zap, color: 'text-red-500' },
 ];
+
+const STYLES = [
+  { value: 'auto', label: 'Automático (IA decide)' },
+  { value: 'complementar_musculacao', label: 'Complementar à Musculação (full body)' },
+  { value: 'em_casa', label: 'Em Casa (peso corporal, sem equipamento)' },
+  { value: 'queima_gordura', label: 'Queima de Gordura (alto gasto calórico)' },
+  { value: 'condicionamento', label: 'Condicionamento Cardiovascular' },
+  { value: 'forca_resistencia', label: 'Força-Resistência (com halteres/kettlebell)' },
+  { value: 'core_abs', label: 'Core / Abdômen' },
+  { value: 'membros_inferiores', label: 'Foco em Membros Inferiores' },
+  { value: 'membros_superiores', label: 'Foco em Membros Superiores' },
+];
+
+const WORK_OPTIONS = ['auto', '20', '30', '40', '45'];
+const REST_OPTIONS = ['auto', '10', '15', '20', '30'];
+const DURATION_OPTIONS = ['auto', '10', '15', '20', '25', '30', '40'];
+const ROUNDS_OPTIONS = ['auto', '4', '6', '8', '10'];
 
 const TabataIA = () => {
   const { studentId } = useParams<{ studentId: string }>();
