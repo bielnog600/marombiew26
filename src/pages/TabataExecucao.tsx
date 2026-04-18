@@ -476,11 +476,12 @@ const TabataExecucao: React.FC = () => {
         {(phase === 'prep' || phase === 'work' || phase === 'rest' || phase === 'block_rest') && currentStep && (
           <>
             <div className={cn(
-              "text-[8rem] sm:text-[10rem] font-black leading-none tabular-nums mb-4 transition-colors drop-shadow-[0_4px_24px_rgba(0,0,0,0.6)]",
+              "text-[8rem] sm:text-[10rem] font-black leading-none tabular-nums mb-4 transition-colors drop-shadow-[0_4px_24px_rgba(0,0,0,0.6)] inline-flex items-center justify-center rounded-3xl px-8",
               phase === 'work' && 'text-red-500',
               phase === 'rest' && 'text-green-500',
               phase === 'block_rest' && 'text-blue-500',
               phase === 'prep' && 'text-yellow-500',
+              secondsLeft > 0 && secondsLeft <= 3 && 'animate-pulse ring-4 ring-current shadow-[0_0_60px_currentColor] scale-110',
             )}>
               {secondsLeft}
             </div>
