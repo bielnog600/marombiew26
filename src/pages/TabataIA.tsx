@@ -39,7 +39,7 @@ const TabataIA = () => {
   const [result, setResult] = useState('');
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [editDraft, setEditDraft] = useState('');
+  const [editDraft, setEditDraft] = useState<ParsedTabata | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
