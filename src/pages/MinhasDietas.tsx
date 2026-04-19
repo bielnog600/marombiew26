@@ -124,16 +124,32 @@ const MinhasDietas = () => {
 
   // When day-based (not options), always show 7 weekday buttons with independent meal copies
   const displayGroups = useMemo(() => {
-    if (usesMealOptions || mealGroups.length === 0) return mealGroups;
-    // Deep-clone meals for each day so substitutions are independent per day
-    return WEEKDAY_LABELS.map((label, i) => ({
-      label,
-      meals: mealGroups[i % mealGroups.length].meals.map(m => ({
-        ...m,
-        foods: m.foods.map(f => ({ ...f })),
-      })),
+    const base = (usesMealOptions || mealGroups.length === 0)
+      ? mealGroups
+      : WEEKDAY_LABELS.map((label, i) => ({
+          label,
+          meals: mealGroups[i % mealGroups.length].meals.map(m => ({
+            ...m,
+            foods: m.foods.map(f => ({ ...f })),
+          })),
+        }));
+    // Apply persisted substitutions
+    return base.map((group, gi) => ({
+      ...group,
+      meals: group.meals.map((m, mi) => {
+        const saved = substitutions[`${gi}-${mi}`];
+        return saved ? { ...m, foods: saved } : m;
+      }),
     }));
-  }, [mealGroups, usesMealOptions]);
+  }, [mealGroups, usesMealOptions, substitutions]);
+
+  const persistFoodsChange = useCallback((groupIdx: number, mealIdx: number, foods: any[]) => {
+    setSubstitutions((prev) => {
+      const next = { ...prev, [`${groupIdx}-${mealIdx}`]: foods };
+      try { localStorage.setItem(subsStorageKey, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, [subsStorageKey]);
 
   const defaultGroupIndex = useMemo(() => {
     if (displayGroups.length === 0) return 0;
