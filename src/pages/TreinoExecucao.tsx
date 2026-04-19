@@ -9,17 +9,17 @@ import { supabase } from '@/integrations/supabase/client';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { useAuth } from '@/contexts/AuthContext';
 import { type ParsedExercise, parseTrainingSections } from '@/lib/trainingResultParser';
-import { PHASE_OBJECTIVE, PHASE_SHORT_LABELS, getPhaseByMonthDay, type TrainingPhase } from '@/lib/trainingPhase';
+import { PHASE_SHORT_LABELS, getPhaseByMonthDay, type TrainingPhase } from '@/lib/trainingPhase';
 import { WorkoutSummaryShare } from '@/components/training/WorkoutSummaryShare';
 import { PhaseInfoSheet } from '@/components/training/PhaseInfoSheet';
 import { MachineAdjustSheet } from '@/components/training/MachineAdjustSheet';
 import { ExerciseLoadHistorySheet } from '@/components/training/ExerciseLoadHistorySheet';
+import { SessionRpeDialog } from '@/components/training/SessionRpeDialog';
 import { Settings2, Info, BarChart3 } from 'lucide-react';
 
 interface ExerciseSet {
   reps: string;
   weight: string;
-  rpe: string;
   completed: boolean;
 }
 
@@ -147,6 +147,7 @@ const TreinoExecucao = () => {
   const [sessionStartAt] = useState<number>(() => Date.now());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isFinishing, setIsFinishing] = useState(false);
+  const [showSessionRpe, setShowSessionRpe] = useState(false);
   const [summary, setSummary] = useState<{ duration: number; completed: number } | null>(null);
   const [showPhaseInfo, setShowPhaseInfo] = useState(false);
   const [showAdjust, setShowAdjust] = useState(false);
@@ -317,7 +318,7 @@ const TreinoExecucao = () => {
     const cached = lastLogsByExercise[exName.toUpperCase().trim()];
 
     const buildEmpty = (): ExerciseSet[] =>
-      Array.from({ length: totalSeries }, () => ({ reps: exercise?.reps || '', weight: '', rpe: '', completed: false }));
+      Array.from({ length: totalSeries }, () => ({ reps: exercise?.reps || '', weight: '', completed: false }));
 
     const applyPrefill = (prevSets: ExerciseSet[] | undefined) => {
       const base = buildEmpty();
@@ -328,7 +329,6 @@ const TreinoExecucao = () => {
         return {
           reps: prev.reps || s.reps,
           weight: prev.weight || '',
-          rpe: prev.rpe || '',
           completed: false,
         };
       });
@@ -394,7 +394,7 @@ const TreinoExecucao = () => {
     }
   }, [exercise]);
 
-  const updateSet = (setIndex: number, field: 'reps' | 'weight' | 'rpe', value: string) => {
+  const updateSet = (setIndex: number, field: 'reps' | 'weight', value: string) => {
     setSets((prev) => {
       const current = [...(prev[currentIndex] || [])];
       current[setIndex] = { ...current[setIndex], [field]: value };
@@ -631,19 +631,17 @@ const TreinoExecucao = () => {
         </div>
 
         <div className="space-y-2">
-          <div className="grid grid-cols-[36px_1fr_1fr_56px_44px] gap-1.5 px-2">
+          <div className="grid grid-cols-[36px_1fr_1fr_44px] gap-1.5 px-2">
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Série</span>
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Reps</span>
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Carga</span>
-            <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">RPE</span>
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">✓</span>
           </div>
           {currentSets.map((set, i) => (
-            <div key={i} className={`grid grid-cols-[36px_1fr_1fr_56px_44px] gap-1.5 items-center p-2 rounded-lg transition-colors ${set.completed ? 'bg-primary/10 border border-primary/30' : 'bg-secondary/50'}`}>
+            <div key={i} className={`grid grid-cols-[36px_1fr_1fr_44px] gap-1.5 items-center p-2 rounded-lg transition-colors ${set.completed ? 'bg-primary/10 border border-primary/30' : 'bg-secondary/50'}`}>
               <span className="text-sm font-bold text-center text-foreground">{i + 1}</span>
               <Input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} placeholder="10" className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
               <Input type="text" inputMode="decimal" value={set.weight} onChange={(e) => updateSet(i, 'weight', e.target.value)} placeholder="0" className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
-              <Input type="text" inputMode="decimal" value={set.rpe} onChange={(e) => updateSet(i, 'rpe', e.target.value)} placeholder="7" className="h-9 text-center bg-background/50 border-border/50 px-1" disabled={set.completed} />
               <Button size="icon" variant={set.completed ? 'default' : 'outline'} className="h-9 w-9 mx-auto rounded-full" onClick={() => toggleSetComplete(i)}>
                 <Check className="h-4 w-4" />
               </Button>
@@ -665,100 +663,111 @@ const TreinoExecucao = () => {
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           ) : (
-            <Button className="flex-1" disabled={isFinishing} onClick={async () => {
-              if (isFinishing) return;
-              setIsFinishing(true);
-              const totalSec = Math.floor((Date.now() - sessionStartAt) / 1000);
-              const durationMinutes = Math.max(1, Math.round(totalSec / 60));
-              const exercisesCompleted = Object.values(sets).filter(arr => arr?.some(s => s.completed)).length;
-
-              // Aggregate metrics from completed sets
-              let totalVolumeKg = 0;
-              let totalSets = 0;
-              const rpes: number[] = [];
-              const setLogRows: any[] = [];
-
-              if (user) {
-                Object.entries(sets).forEach(([exIdxStr, arr]) => {
-                  const exIdx = Number(exIdxStr);
-                  const ex = exercises[exIdx];
-                  if (!ex) return;
-                  const exName = ex.exercise || '';
-                  const muscle = exerciseDB.find((d) => d.nome.toLowerCase() === exName.toLowerCase())?.grupo_muscular || null;
-                  arr.forEach((s, i) => {
-                    if (!s.completed) return;
-                    const reps = parseInt(s.reps) || 0;
-                    const weight = parseFloat(s.weight.replace(',', '.')) || 0;
-                    const rpe = parseFloat(s.rpe.replace(',', '.'));
-                    totalSets += 1;
-                    totalVolumeKg += reps * weight;
-                    if (Number.isFinite(rpe) && rpe > 0) rpes.push(rpe);
-                    setLogRows.push({
-                      student_id: user.id,
-                      exercise_name: exName,
-                      muscle_group: muscle,
-                      set_number: i + 1,
-                      reps: reps || null,
-                      weight_kg: weight || null,
-                      rpe: Number.isFinite(rpe) && rpe > 0 ? rpe : null,
-                      phase: phase ?? null,
-                      day_name: dayName,
-                    });
-                  });
-                });
-              }
-
-              const avgRpe = rpes.length ? rpes.reduce((a, b) => a + b, 0) / rpes.length : null;
-
-              try {
-                if (user) {
-                  const { data: sessionRow } = await supabase
-                    .from('workout_sessions')
-                    .insert({
-                      student_id: user.id,
-                      day_name: dayName,
-                      phase: phase ?? null,
-                      duration_minutes: durationMinutes,
-                      exercises_completed: exercisesCompleted,
-                      total_exercises: exercises.length,
-                      avg_rpe: avgRpe,
-                      total_volume_kg: totalVolumeKg || null,
-                      total_sets: totalSets,
-                    })
-                    .select('id')
-                    .single();
-
-                  if (setLogRows.length > 0) {
-                    const sessionId = sessionRow?.id;
-                    await supabase
-                      .from('exercise_set_logs')
-                      .insert(setLogRows.map((r) => ({ ...r, session_id: sessionId })));
-                    await supabase.from('student_events').insert({
-                      student_id: user.id,
-                      event_type: 'workout_load_logged',
-                      metadata: { sets: setLogRows.length, session_id: sessionId },
-                    });
-                  }
-                  await supabase.from('student_events').insert({
-                    student_id: user.id,
-                    event_type: 'workout_completed',
-                    metadata: { day_name: dayName, duration_minutes: durationMinutes, exercises_completed: exercisesCompleted },
-                  });
-                }
-              } catch (e) {
-                console.error('Erro salvando sessão:', e);
-                toast.error('Erro ao salvar sessão.');
-              }
-              completeWorkout();
-              setSummary({ duration: totalSec, completed: exercisesCompleted });
-              setIsFinishing(false);
-            }}>
+            <Button className="flex-1" disabled={isFinishing} onClick={() => setShowSessionRpe(true)}>
               Finalizar
               <Check className="h-4 w-4 ml-1" />
             </Button>
           )}
         </div>
       </div>
+
+      <SessionRpeDialog
+        open={showSessionRpe}
+        onOpenChange={(open) => {
+          if (!isFinishing) setShowSessionRpe(open);
+        }}
+        isSaving={isFinishing}
+        onConfirm={async (sessionRpe) => {
+          if (isFinishing) return;
+          setIsFinishing(true);
+
+          const totalSec = Math.floor((Date.now() - sessionStartAt) / 1000);
+          const durationMinutes = Math.max(1, Math.round(totalSec / 60));
+          const exercisesCompleted = Object.values(sets).filter(arr => arr?.some(s => s.completed)).length;
+
+          let totalVolumeKg = 0;
+          let totalSets = 0;
+          const setLogRows: any[] = [];
+
+          if (user) {
+            Object.entries(sets).forEach(([exIdxStr, arr]) => {
+              const exIdx = Number(exIdxStr);
+              const ex = exercises[exIdx];
+              if (!ex) return;
+              const exName = ex.exercise || '';
+              const muscle = exerciseDB.find((d) => d.nome.toLowerCase() === exName.toLowerCase())?.grupo_muscular || null;
+              arr.forEach((s, i) => {
+                if (!s.completed) return;
+                const reps = parseInt(s.reps) || 0;
+                const weight = parseFloat(s.weight.replace(',', '.')) || 0;
+                totalSets += 1;
+                totalVolumeKg += reps * weight;
+                setLogRows.push({
+                  student_id: user.id,
+                  exercise_name: exName,
+                  muscle_group: muscle,
+                  set_number: i + 1,
+                  reps: reps || null,
+                  weight_kg: weight || null,
+                  rpe: null,
+                  phase: phase ?? null,
+                  day_name: dayName,
+                });
+              });
+            });
+          }
+
+          try {
+            if (user) {
+              const { data: sessionRow } = await supabase
+                .from('workout_sessions')
+                .insert({
+                  student_id: user.id,
+                  day_name: dayName,
+                  phase: phase ?? null,
+                  duration_minutes: durationMinutes,
+                  exercises_completed: exercisesCompleted,
+                  total_exercises: exercises.length,
+                  avg_rpe: sessionRpe,
+                  total_volume_kg: totalVolumeKg || null,
+                  total_sets: totalSets,
+                })
+                .select('id')
+                .single();
+
+              if (setLogRows.length > 0) {
+                const sessionId = sessionRow?.id;
+                await supabase
+                  .from('exercise_set_logs')
+                  .insert(setLogRows.map((r) => ({ ...r, session_id: sessionId })));
+                await supabase.from('student_events').insert({
+                  student_id: user.id,
+                  event_type: 'workout_load_logged',
+                  metadata: { sets: setLogRows.length, session_id: sessionId },
+                });
+              }
+              await supabase.from('student_events').insert({
+                student_id: user.id,
+                event_type: 'workout_completed',
+                metadata: {
+                  day_name: dayName,
+                  duration_minutes: durationMinutes,
+                  exercises_completed: exercisesCompleted,
+                  session_rpe: sessionRpe,
+                },
+              });
+            }
+          } catch (e) {
+            console.error('Erro salvando sessão:', e);
+            toast.error('Erro ao salvar sessão.');
+          }
+
+          completeWorkout();
+          setShowSessionRpe(false);
+          setSummary({ duration: totalSec, completed: exercisesCompleted });
+          setIsFinishing(false);
+        }}
+      />
     </div>
   );
 };
