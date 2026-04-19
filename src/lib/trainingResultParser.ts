@@ -29,6 +29,17 @@ const splitMarkdownRow = (line: string) => {
 
 const cleanCell = (value: string) => value.replace(/\*\*/g, '').trim();
 
+// Normalize pause values: convert 60", 60'', 60 seg, 60 segundos -> 60s
+const normalizePause = (value: string): string => {
+  if (!value) return '';
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === '-' || trimmed === '—') return trimmed;
+  // Match a leading number, optionally followed by quote/seg/segundos/s
+  const match = trimmed.match(/^(\d+)\s*(?:["''”″`]|seg(?:undos?)?|s)?\s*$/i);
+  if (match) return `${match[1]}s`;
+  return trimmed;
+};
+
 const isTrainingTable = (firstLine: string) => {
   const lower = firstLine.toLowerCase();
   return (
@@ -67,7 +78,7 @@ export const parseTrainingTable = (tableLines: string[]): ParsedTrainingDay[] =>
     const series2Cell = cleanCell(cells[3] || '');
     const repsCell = cleanCell(cells[4] || '');
     const rirCell = cleanCell(cells[5] || '');
-    const pauseCell = cleanCell(cells[6] || '');
+    const pauseCell = normalizePause(cleanCell(cells[6] || ''));
     const descCell = cleanCell(cells[7] || '');
     const variationCell = cleanCell(cells[8] || '');
 

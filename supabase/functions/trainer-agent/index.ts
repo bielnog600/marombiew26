@@ -83,7 +83,7 @@ TREINO DO DIA | EXERCÍCIO | SÉRIE | SÉRIE 2 | REPETIÇÕES | RIR | PAUSA | DE
 
 REGRAS DA TABELA
 1) A coluna "TREINO DO DIA" deve usar SEMPRE EM MAIÚSCULAS: SEGUNDA-FEIRA, TERÇA-FEIRA, QUARTA-FEIRA, QUINTA-FEIRA, SEXTA-FEIRA, SÁBADO ou DOMINGO.
-2) "PAUSA" deve ser assim: 45", 60", 90", 120".
+2) "PAUSA" deve SEMPRE usar o sufixo "s" (segundos). Exemplos VÁLIDOS: 30s, 45s, 60s, 90s, 120s, 180s. ❌ NUNCA use aspas (") nem a palavra "seg" ou "segundos". Apenas o número seguido de "s" minúsculo.
 
 ========================================
 REGRA CRÍTICA — REPETIÇÕES vs RIR (LEIA COM ATENÇÃO MÁXIMA)
