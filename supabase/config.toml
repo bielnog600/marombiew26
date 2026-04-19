@@ -2,3 +2,6 @@ project_id = "plqdoweunmpnlzvtisnn"
 
 [functions.create-student]
 verify_jwt = false
+
+[functions.cardio-agent]
+verify_jwt = false
