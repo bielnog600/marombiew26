@@ -1,9 +1,12 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { toPng } from 'html-to-image';
-import { Share2, Download, Check, Dumbbell, Clock, Flame, Calendar } from 'lucide-react';
+import { Share2, Download, Check, Clock, Flame, Calendar, CalendarCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { PHASE_LABELS, type TrainingPhase } from '@/lib/trainingPhase';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import logoMarombiew from '@/assets/logo_marombiew.png';
 
 interface WorkoutSummaryShareProps {
   dayName: string;
@@ -12,6 +15,16 @@ interface WorkoutSummaryShareProps {
   totalExercises: number;
   phase: TrainingPhase | null;
   onClose: () => void;
+}
+
+function getWeekRange() {
+  const now = new Date();
+  const day = now.getDay();
+  const start = new Date(now);
+  start.setDate(now.getDate() - day);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
 }
 
 const formatDuration = (totalSec: number) => {
