@@ -101,6 +101,14 @@ export function useDailyTracking(opts?: { isTrainingDay?: boolean }) {
 
   useEffect(() => { load(); }, [load]);
 
+  // Meta de água derivada: 35ml/kg sem treino, 50ml/kg em dia de treino
+  const waterGoalGlasses = (() => {
+    if (!weightKg) return DEFAULT_WATER_GOAL_GLASSES;
+    const mlPerKg = isTrainingDay ? ML_PER_KG_TRAINING : ML_PER_KG_REST;
+    const glasses = Math.round((weightKg * mlPerKg) / WATER_STEP_ML);
+    return Math.max(glasses, 6);
+  })();
+
   const upsert = useCallback(async (updates: Partial<DailyTracking>) => {
     if (!user) return;
     const next = { ...tracking, ...updates };
