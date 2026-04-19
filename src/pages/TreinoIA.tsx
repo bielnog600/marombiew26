@@ -629,6 +629,7 @@ GERE TUDO DE UMA VEZ:
             <><Dumbbell className="mr-2 h-5 w-5" /> Gerar Protocolo de Treino</>
           )}
         </Button>
+        </>}
 
         {/* Result - streaming raw markdown */}
         {result && generating && (
