@@ -241,7 +241,11 @@ const TreinoExecucao = () => {
   }, [user, loadedExercises.length]);
 
   const exercise = exercises[currentIndex];
-  const totalSeries = parseInt(exercise?.series || '3') || 3;
+  const setPlan: PlannedSet[] = useMemo(
+    () => (exercise ? buildSetPlan(exercise.series, exercise.series2, exercise.reps) : []),
+    [exercise],
+  );
+  const totalSeries = setPlan.length || 3;
 
   useEffect(() => {
     const loadExercises = async () => {
