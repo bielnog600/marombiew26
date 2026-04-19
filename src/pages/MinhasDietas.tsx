@@ -340,6 +340,7 @@ const MinhasDietas = () => {
                     isCompleted={done}
                     onToggleComplete={() => toggleMeal(i)}
                     hideSubstitutions
+                    onFoodsChange={(foods) => persistFoodsChange(activeGroupIndex, i, foods)}
                   />
                 </div>
               );
