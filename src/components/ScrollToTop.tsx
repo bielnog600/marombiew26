@@ -10,10 +10,21 @@ const ScrollToTop = () => {
   const { pathname } = useLocation();
 
   useEffect(() => {
-    window.scrollTo({ top: 0, left: 0 });
-    document.querySelectorAll("main").forEach((el) => {
-      el.scrollTo({ top: 0, left: 0 });
-    });
+    const reset = () => {
+      window.scrollTo(0, 0);
+      document.querySelectorAll("main, [data-scroll-container]").forEach((el) => {
+        (el as HTMLElement).scrollTop = 0;
+        (el as HTMLElement).scrollLeft = 0;
+      });
+    };
+    // Run immediately and after the next paint to catch late-mounted scroll containers
+    reset();
+    const raf = requestAnimationFrame(reset);
+    const t = setTimeout(reset, 50);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
   }, [pathname]);
 
   return null;
