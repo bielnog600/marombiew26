@@ -869,31 +869,53 @@ const TreinoExecucao = () => {
 
           try {
             if (user) {
-              const { data: sessionRow } = await supabase
-                .from('workout_sessions')
-                .insert({
-                  student_id: user.id,
-                  day_name: dayName,
-                  phase: phase ?? null,
-                  duration_minutes: durationMinutes,
-                  exercises_completed: exercisesCompleted,
-                  total_exercises: exercises.length,
-                  avg_rpe: sessionRpe,
-                  total_volume_kg: totalVolumeKg || null,
-                  total_sets: totalSets,
-                })
-                .select('id')
-                .single();
+              let finalSessionId = sessionId;
 
-              if (setLogRows.length > 0) {
-                const sessionId = sessionRow?.id;
+              if (finalSessionId) {
+                // Atualiza a sessão em andamento existente para completed
+                await supabase
+                  .from('workout_sessions')
+                  .update({
+                    status: 'completed',
+                    completed_at: new Date().toISOString(),
+                    duration_minutes: durationMinutes,
+                    exercises_completed: exercisesCompleted,
+                    total_exercises: exercises.length,
+                    avg_rpe: sessionRpe,
+                    total_volume_kg: totalVolumeKg || null,
+                    total_sets: totalSets,
+                    session_state: null,
+                  })
+                  .eq('id', finalSessionId);
+              } else {
+                // Fallback: cria nova já completada (não havia sessão em andamento)
+                const { data: sessionRow } = await supabase
+                  .from('workout_sessions')
+                  .insert({
+                    student_id: user.id,
+                    day_name: dayName,
+                    phase: phase ?? null,
+                    status: 'completed',
+                    duration_minutes: durationMinutes,
+                    exercises_completed: exercisesCompleted,
+                    total_exercises: exercises.length,
+                    avg_rpe: sessionRpe,
+                    total_volume_kg: totalVolumeKg || null,
+                    total_sets: totalSets,
+                  })
+                  .select('id')
+                  .single();
+                finalSessionId = sessionRow?.id ?? null;
+              }
+
+              if (setLogRows.length > 0 && finalSessionId) {
                 await supabase
                   .from('exercise_set_logs')
-                  .insert(setLogRows.map((r) => ({ ...r, session_id: sessionId })));
+                  .insert(setLogRows.map((r) => ({ ...r, session_id: finalSessionId })));
                 await supabase.from('student_events').insert({
                   student_id: user.id,
                   event_type: 'workout_load_logged',
-                  metadata: { sets: setLogRows.length, session_id: sessionId },
+                  metadata: { sets: setLogRows.length, session_id: finalSessionId },
                 });
               }
               await supabase.from('student_events').insert({
@@ -906,11 +928,14 @@ const TreinoExecucao = () => {
                   session_rpe: sessionRpe,
                 },
               });
+
+              clearActiveSession();
             }
           } catch (e) {
             console.error('Erro salvando sessão:', e);
             toast.error('Erro ao salvar sessão.');
           }
+
 
           completeWorkout();
           setShowSessionRpe(false);
