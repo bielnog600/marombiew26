@@ -55,8 +55,8 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       manifest: {
-        name: "MarombiewPro",
-        short_name: "Marombiew",
+        name: "MAROMBIEW",
+        short_name: "MAROMBIEW",
         description: "Sistema de avaliação física profissional",
         theme_color: "#0F1115",
         background_color: "#0F1115",
