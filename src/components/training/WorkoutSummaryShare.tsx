@@ -164,19 +164,14 @@ export const WorkoutSummaryShare: React.FC<WorkoutSummaryShareProps> = ({
             />
 
             <div className="relative h-full flex flex-col justify-between p-6">
-              {/* Header */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div
-                    className="h-9 w-9 rounded-xl flex items-center justify-center"
-                    style={{ background: '#FFC400' }}
-                  >
-                    <Dumbbell className="h-5 w-5" style={{ color: '#0F1115' }} strokeWidth={2.5} />
-                  </div>
-                  <span className="text-sm font-black tracking-widest" style={{ color: '#FFFFFF' }}>
-                    MAROMBIEW
-                  </span>
-                </div>
+              {/* Header — centered logo */}
+              <div className="flex flex-col items-center gap-2">
+                <img
+                  src={logoMarombiew}
+                  alt="MAROMBIEW"
+                  crossOrigin="anonymous"
+                  className="h-12 w-auto object-contain"
+                />
                 {phase && (
                   <span
                     className="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-md"
@@ -212,16 +207,16 @@ export const WorkoutSummaryShare: React.FC<WorkoutSummaryShareProps> = ({
 
               {/* Stats */}
               <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-2">
                   <div
                     className="rounded-2xl p-3 flex flex-col items-center"
                     style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
                   >
                     <Flame className="h-5 w-5 mb-1" style={{ color: '#FFC400' }} />
-                    <span className="text-xl font-black" style={{ color: '#FFFFFF' }}>
+                    <span className="text-base font-black" style={{ color: '#FFFFFF' }}>
                       {exercisesCompleted}/{totalExercises}
                     </span>
-                    <span className="text-[9px] uppercase tracking-widest mt-0.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                    <span className="text-[8px] uppercase tracking-widest mt-0.5 text-center" style={{ color: 'rgba(255,255,255,0.5)' }}>
                       Exercícios
                     </span>
                   </div>
@@ -230,11 +225,23 @@ export const WorkoutSummaryShare: React.FC<WorkoutSummaryShareProps> = ({
                     style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
                   >
                     <Clock className="h-5 w-5 mb-1" style={{ color: '#FFC400' }} />
-                    <span className="text-xl font-black" style={{ color: '#FFFFFF' }}>
-                      {Math.max(1, Math.round(durationSeconds / 60))} min
+                    <span className="text-base font-black" style={{ color: '#FFFFFF' }}>
+                      {Math.max(1, Math.round(durationSeconds / 60))}min
                     </span>
-                    <span className="text-[9px] uppercase tracking-widest mt-0.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                    <span className="text-[8px] uppercase tracking-widest mt-0.5 text-center" style={{ color: 'rgba(255,255,255,0.5)' }}>
                       Duração
+                    </span>
+                  </div>
+                  <div
+                    className="rounded-2xl p-3 flex flex-col items-center"
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
+                  >
+                    <CalendarCheck className="h-5 w-5 mb-1" style={{ color: '#FFC400' }} />
+                    <span className="text-base font-black" style={{ color: '#FFFFFF' }}>
+                      {weeklyWorkouts}/7
+                    </span>
+                    <span className="text-[8px] uppercase tracking-widest mt-0.5 text-center" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                      Na semana
                     </span>
                   </div>
                 </div>
