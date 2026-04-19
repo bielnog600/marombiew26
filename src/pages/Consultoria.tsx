@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { FileText, Utensils, Dumbbell, ClipboardList, Users, ChevronRight, Bell, MessageSquare, CalendarClock, Cake, Phone, AlertTriangle, RefreshCw, ExternalLink, X, UtensilsCrossed } from 'lucide-react';
+import { FileText, Utensils, Dumbbell, ClipboardList, Users, ChevronRight, Bell, MessageSquare, CalendarClock, Cake, Phone, AlertTriangle, RefreshCw, ExternalLink, X, UtensilsCrossed, Activity, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,9 @@ import { ptBR } from 'date-fns/locale';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useNotifications, NotificationType, buildWhatsAppUrl, Notification } from '@/hooks/useNotifications';
+import { useBehavioralAlerts } from '@/hooks/useBehavioralAlerts';
+import BehavioralAlertCard from '@/components/consultoria/BehavioralAlertCard';
+import EngagementOverviewCards from '@/components/consultoria/EngagementOverviewCards';
 
 const CYCLE_MIN_DAYS = 28;
 const CYCLE_MAX_DAYS = 42;
@@ -90,7 +93,9 @@ const Consultoria = () => {
   const navigate = useNavigate();
 
   const { notifications, loading: notifLoading, count: notifCount, refresh: refreshNotifs, dismissNotification } = useNotifications();
+  const { alerts: behavioralAlerts, loading: behavioralLoading, generating: behavioralGenerating, generate: generateBehavioral, updateStatus: updateBehavioralStatus } = useBehavioralAlerts();
   const [notifFilter, setNotifFilter] = useState('all');
+  const [alertCategory, setAlertCategory] = useState<'todos' | 'operacional' | 'comportamental'>('todos');
 
   useEffect(() => {
     loadData();
