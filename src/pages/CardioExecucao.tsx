@@ -286,8 +286,8 @@ const CardioExecucao: React.FC = () => {
                 <BlockParametersDisplay block={currentBlock} modality={protocol.modality} />
                 {currentBlock.targetZone && (
                   <div className="flex items-center justify-center gap-2 mt-2">
-                    <HeartPulse className="h-5 w-5 text-primary" />
-                    <span className="text-base font-bold text-primary">
+                    <HeartPulse className="h-7 w-7 text-primary" />
+                    <span className="text-2xl sm:text-3xl font-black text-primary tracking-tight">
                       {currentBlock.targetZone}
                       {currentBlock.targetHrRange ? ` • ${currentBlock.targetHrRange}` : ''}
                     </span>
