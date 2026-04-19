@@ -137,11 +137,27 @@ const ExerciseCombobox: React.FC<{
   );
 };
 
+const emptyExercise = (): ParsedExercise => ({
+  exercise: '',
+  series: '3',
+  series2: '',
+  reps: '8-12',
+  rir: '',
+  pause: '60s',
+  description: '',
+  variation: '',
+});
+
 const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, editable, onDayChange }) => {
   const surface = DAY_SURFACES[index % DAY_SURFACES.length];
   const [editing, setEditing] = useState(false);
   const [localExercises, setLocalExercises] = useState<ParsedExercise[]>(day.exercises);
   const [exerciseOptions, setExerciseOptions] = useState<ExerciseOption[]>([]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   useEffect(() => {
     if (editing && exerciseOptions.length === 0) {
@@ -160,6 +176,24 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
       const copy = [...prev];
       copy[exIndex] = { ...copy[exIndex], [field]: value };
       return copy;
+    });
+  };
+
+  const addExercise = () => {
+    setLocalExercises(prev => [...prev, emptyExercise()]);
+  };
+
+  const removeExercise = (exIndex: number) => {
+    setLocalExercises(prev => prev.filter((_, i) => i !== exIndex));
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setLocalExercises(prev => {
+      const oldIndex = parseInt(String(active.id), 10);
+      const newIndex = parseInt(String(over.id), 10);
+      return arrayMove(prev, oldIndex, newIndex);
     });
   };
 
