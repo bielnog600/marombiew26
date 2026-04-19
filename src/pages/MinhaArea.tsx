@@ -36,7 +36,19 @@ const MinhaArea = () => {
   const [exerciseMuscles, setExerciseMuscles] = useState<Record<string, string>>({});
   const [exerciseMedia, setExerciseMedia] = useState<Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }>>({});
   const { trackEvent } = useEventTracking();
-  const { session: activeSession } = useActiveWorkoutSession();
+  const { session: activeSession, clear: clearActiveSession } = useActiveWorkoutSession();
+
+  const handleCancelActiveSession = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!activeSession) return;
+    if (!window.confirm('Cancelar o treino em andamento? O progresso será descartado.')) return;
+    await supabase
+      .from('workout_sessions')
+      .update({ status: 'abandoned' })
+      .eq('id', activeSession.id);
+    clearActiveSession();
+    toast.success('Treino cancelado.');
+  };
   const [activeElapsed, setActiveElapsed] = useState(0);
 
   // Tick para o cronômetro do card "em andamento"
