@@ -13,6 +13,10 @@ interface DailyTracking {
 // Single source of truth for water units
 export const WATER_STEP_ML = 250;
 export const DEFAULT_WATER_GOAL_GLASSES = 8;
+// Fórmula padrão de avaliação física brasileira:
+// 35 ml/kg em dia sem treino, 50 ml/kg em dia de treino
+export const ML_PER_KG_REST = 35;
+export const ML_PER_KG_TRAINING = 50;
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
