@@ -266,25 +266,38 @@ const CardioIA = () => {
           </CardContent>
         </Card>
 
-        {/* Modalidade */}
+        {/* Modalidades (multi-seleção) */}
         <div className="space-y-3">
-          <Label className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Modalidade</Label>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          <div className="flex items-baseline justify-between">
+            <Label className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Modalidades
+            </Label>
+            <span className="text-[10px] text-muted-foreground">
+              {modalities.length === 0 ? 'Automático (todas)' : `${modalities.length} selecionada(s)`}
+            </span>
+          </div>
+          <p className="text-[11px] text-muted-foreground -mt-1">
+            Selecione uma ou mais. Se mais de uma for escolhida, a IA alternará entre elas ao longo da semana. Deixe vazio para a IA escolher livremente.
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {MODALITIES.map(opt => {
               const Icon = opt.icon;
-              const selected = modality === opt.value;
+              const selected = modalities.includes(opt.value);
               return (
                 <button
                   key={opt.value}
                   type="button"
-                  onClick={() => setModality(opt.value)}
+                  onClick={() => toggleModality(opt.value)}
                   className={cn(
-                    'p-3 rounded-xl border text-center transition-all',
+                    'p-3 rounded-xl border text-center transition-all relative',
                     selected ? 'border-primary bg-primary/10 shadow-md' : 'border-border bg-card hover:border-primary/50'
                   )}
                 >
                   <Icon className={cn('h-5 w-5 mx-auto mb-1', selected ? 'text-primary' : 'text-muted-foreground')} />
                   <p className="text-xs font-bold">{opt.label}</p>
+                  {selected && (
+                    <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary" />
+                  )}
                 </button>
               );
             })}
@@ -357,16 +370,29 @@ const CardioIA = () => {
         </Button>
 
         {/* Resultado */}
-        {protocol && (
+        {payload && (
           <div ref={resultRef} className="space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Protocolo gerado</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                {isWeeklyPlan(payload) ? `Plano semanal (${payload.protocols.length} sessões)` : 'Protocolo gerado'}
+              </h3>
               <Button onClick={savePlan} disabled={saving} size="sm" className="gap-2">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 {editPlanId ? 'Atualizar' : 'Salvar'}
               </Button>
             </div>
-            <CardioProtocolPreview protocol={protocol} />
+            {isWeeklyPlan(payload) ? (
+              <div className="space-y-4">
+                {payload.protocols.map((p, i) => (
+                  <div key={i} className="space-y-1">
+                    <p className="text-[11px] uppercase tracking-widest text-primary font-bold">Sessão {i + 1}</p>
+                    <CardioProtocolPreview protocol={p} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <CardioProtocolPreview protocol={payload} />
+            )}
           </div>
         )}
       </div>
