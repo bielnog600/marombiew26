@@ -16,6 +16,7 @@ import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingRes
 import { parseSections, type ParsedMeal, type ParsedSection } from '@/lib/dietResultParser';
 import DietPlanCard from '@/components/DietPlanCard';
 import TabataDoDiaCard from '@/components/home/TabataDoDiaCard';
+import CardioDoDiaCard from '@/components/home/CardioDoDiaCard';
 import { useEventTracking } from '@/hooks/useEventTracking';
 import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
 
