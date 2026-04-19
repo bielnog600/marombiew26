@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { useAuth } from '@/contexts/AuthContext';
+import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
 import { type ParsedExercise, parseTrainingSections } from '@/lib/trainingResultParser';
 import { buildSetPlan, buildPlanSummary, type PlannedSet } from '@/lib/setPlanBuilder';
 import { PHASE_SHORT_LABELS, getPhaseByMonthDay, type TrainingPhase } from '@/lib/trainingPhase';
