@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { toPng } from 'html-to-image';
-import { Share2, Download, Check, Clock, Flame, Calendar, CalendarCheck } from 'lucide-react';
+import { Share2, Download, Check, Clock, Flame, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { PHASE_LABELS, type TrainingPhase } from '@/lib/trainingPhase';
