@@ -13,6 +13,10 @@ interface DailyTracking {
 // Single source of truth for water units
 export const WATER_STEP_ML = 250;
 export const DEFAULT_WATER_GOAL_GLASSES = 8;
+// Fórmula padrão de avaliação física brasileira:
+// 35 ml/kg em dia sem treino, 50 ml/kg em dia de treino
+export const ML_PER_KG_REST = 35;
+export const ML_PER_KG_TRAINING = 50;
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -26,7 +30,8 @@ function getWeekRange() {
   return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
 }
 
-export function useDailyTracking() {
+export function useDailyTracking(opts?: { isTrainingDay?: boolean }) {
+  const isTrainingDay = opts?.isTrainingDay ?? false;
   const { user } = useAuth();
   const { trackEvent } = useEventTracking();
   const [tracking, setTracking] = useState<DailyTracking>({
@@ -35,7 +40,7 @@ export function useDailyTracking() {
     workout_completed: false,
   });
   const [weeklyWorkouts, setWeeklyWorkouts] = useState(0);
-  const [waterGoalGlasses, setWaterGoalGlasses] = useState(DEFAULT_WATER_GOAL_GLASSES);
+  const [weightKg, setWeightKg] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -74,7 +79,7 @@ export function useDailyTracking() {
       .lte('date', end);
     setWeeklyWorkouts(weekData?.length ?? 0);
 
-    // Compute water goal from latest assessment weight (35ml/kg)
+    // Carrega peso da última avaliação para calcular meta de água
     const { data: assessment } = await supabase
       .from('assessments')
       .select('id')
@@ -88,17 +93,21 @@ export function useDailyTracking() {
         .select('peso')
         .eq('assessment_id', assessment.id)
         .maybeSingle();
-      if (anthro?.peso) {
-        const mlPerDay = Number(anthro.peso) * 35;
-        const glasses = Math.round(mlPerDay / WATER_STEP_ML);
-        setWaterGoalGlasses(Math.max(glasses, 6));
-      }
+      if (anthro?.peso) setWeightKg(Number(anthro.peso));
     }
 
     setLoading(false);
   }, [user]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Meta de água derivada: 35ml/kg sem treino, 50ml/kg em dia de treino
+  const waterGoalGlasses = (() => {
+    if (!weightKg) return DEFAULT_WATER_GOAL_GLASSES;
+    const mlPerKg = isTrainingDay ? ML_PER_KG_TRAINING : ML_PER_KG_REST;
+    const glasses = Math.round((weightKg * mlPerKg) / WATER_STEP_ML);
+    return Math.max(glasses, 6);
+  })();
 
   const upsert = useCallback(async (updates: Partial<DailyTracking>) => {
     if (!user) return;

@@ -31,7 +31,8 @@ const MinhaArea = () => {
   const [dietSections, setDietSections] = useState<ParsedSection[]>([]);
   const [_trainingTitle, setTrainingTitle] = useState('');
   const [_dietTitle, setDietTitle] = useState('');
-  const { tracking, addWater, removeWater, weeklyWorkouts, waterCurrentMl, waterTargetMl, waterGoalGlasses } = useDailyTracking();
+  const [isTrainingDay, setIsTrainingDay] = useState(false);
+  const { tracking, addWater, removeWater, weeklyWorkouts, waterCurrentMl, waterTargetMl, waterGoalGlasses } = useDailyTracking({ isTrainingDay });
   const [exerciseImages, setExerciseImages] = useState<Record<string, string>>({});
   const [exerciseMuscles, setExerciseMuscles] = useState<Record<string, string>>({});
   const [exerciseMedia, setExerciseMedia] = useState<Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }>>({});
@@ -207,7 +208,6 @@ const MinhaArea = () => {
   // Today's training - match by weekday name first, fallback to index cycling
   const todayTraining = useMemo(() => {
     if (trainingDays.length === 0) return undefined;
-    const weekdayNames = ['domingo', 'segunda', 'terca', 'terça', 'quarta', 'quinta', 'sexta', 'sabado', 'sábado'];
     const jsDay = new Date().getDay(); // 0=Sun
     const todayNames = jsDay === 0 ? ['domingo'] : jsDay === 1 ? ['segunda'] : jsDay === 2 ? ['terca', 'terça'] : jsDay === 3 ? ['quarta'] : jsDay === 4 ? ['quinta'] : jsDay === 5 ? ['sexta'] : ['sabado', 'sábado'];
     const match = trainingDays.find(d => todayNames.some(n => d.day.toLowerCase().includes(n)));
@@ -216,6 +216,18 @@ const MinhaArea = () => {
     const idx = (jsDay + 6) % 7 % trainingDays.length;
     return trainingDays[idx];
   }, [trainingDays]);
+
+  // Detecta se hoje é dia de treino agendado (match real pelo nome do dia)
+  useEffect(() => {
+    if (trainingDays.length === 0) {
+      setIsTrainingDay(false);
+      return;
+    }
+    const jsDay = new Date().getDay();
+    const todayNames = jsDay === 0 ? ['domingo'] : jsDay === 1 ? ['segunda'] : jsDay === 2 ? ['terca', 'terça'] : jsDay === 3 ? ['quarta'] : jsDay === 4 ? ['quinta'] : jsDay === 5 ? ['sexta'] : ['sabado', 'sábado'];
+    setIsTrainingDay(trainingDays.some(d => todayNames.some(n => d.day.toLowerCase().includes(n))));
+  }, [trainingDays]);
+
 
   // Pick an exercise image from today's training
   const todayHeroImage = useMemo(() => {
