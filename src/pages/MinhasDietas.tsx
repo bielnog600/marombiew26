@@ -31,7 +31,29 @@ const MinhasDietas = () => {
   const [sections, setSections] = useState<ParsedSection[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGroupIndex, setSelectedGroupIndex] = useState(0);
-  const { tracking, addWater, removeWater, toggleMeal, waterCurrentMl, waterTargetMl, waterGoalGlasses } = useDailyTracking();
+  const [isTrainingDay, setIsTrainingDay] = useState(false);
+  const { tracking, addWater, removeWater, toggleMeal, waterCurrentMl, waterTargetMl, waterGoalGlasses } = useDailyTracking({ isTrainingDay });
+
+  // Detecta se hoje é dia de treino agendado
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data } = await supabase
+        .from('ai_plans')
+        .select('conteudo')
+        .eq('student_id', user.id)
+        .eq('tipo', 'treino')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!data) return;
+      const days = parseTrainingSections(data.conteudo).flatMap(s => s.days ?? []);
+      if (days.length === 0) return;
+      const jsDay = new Date().getDay();
+      const todayNames = jsDay === 0 ? ['domingo'] : jsDay === 1 ? ['segunda'] : jsDay === 2 ? ['terca', 'terça'] : jsDay === 3 ? ['quarta'] : jsDay === 4 ? ['quinta'] : jsDay === 5 ? ['sexta'] : ['sabado', 'sábado'];
+      setIsTrainingDay(days.some(d => todayNames.some(n => d.day.toLowerCase().includes(n))));
+    })();
+  }, [user]);
 
   useEffect(() => {
     if (user) {
