@@ -372,8 +372,9 @@ const TabataExecucao: React.FC = () => {
         <div className="absolute inset-0 -z-10 overflow-hidden bg-black">
           {hlsUrl ? (
             <video
+              key={hlsUrl}
               ref={videoRef}
-              className="absolute inset-0 w-full h-full object-cover"
+              className="absolute inset-0 w-full h-full object-cover animate-fade-in"
               muted
               playsInline
               loop
@@ -381,9 +382,10 @@ const TabataExecucao: React.FC = () => {
             />
           ) : fallbackImage ? (
             <img
+              key={fallbackImage}
               src={fallbackImage}
               alt=""
-              className="absolute inset-0 w-full h-full object-cover"
+              className="absolute inset-0 w-full h-full object-cover animate-fade-in"
             />
           ) : null}
           {/* Subtle gradients only at top/bottom for header/controls legibility — no blur */}
