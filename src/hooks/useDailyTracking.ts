@@ -79,7 +79,7 @@ export function useDailyTracking(opts?: { isTrainingDay?: boolean }) {
       .lte('date', end);
     setWeeklyWorkouts(weekData?.length ?? 0);
 
-    // Compute water goal from latest assessment weight (35ml/kg)
+    // Carrega peso da última avaliação para calcular meta de água
     const { data: assessment } = await supabase
       .from('assessments')
       .select('id')
@@ -93,11 +93,7 @@ export function useDailyTracking(opts?: { isTrainingDay?: boolean }) {
         .select('peso')
         .eq('assessment_id', assessment.id)
         .maybeSingle();
-      if (anthro?.peso) {
-        const mlPerDay = Number(anthro.peso) * 35;
-        const glasses = Math.round(mlPerDay / WATER_STEP_ML);
-        setWaterGoalGlasses(Math.max(glasses, 6));
-      }
+      if (anthro?.peso) setWeightKg(Number(anthro.peso));
     }
 
     setLoading(false);
