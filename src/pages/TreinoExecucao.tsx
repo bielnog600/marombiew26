@@ -613,10 +613,13 @@ const TreinoExecucao = () => {
             };
 
             // Reps: aceita "10", "8-10", "8 a 10" → "10 reps" / "8–10 reps".
+            // Se vier em segundos ("15s", "30 seg"), preserva o sufixo de tempo.
             const parseReps = (raw: string): string | null => {
               const r = extractRange(raw);
               if (!r) return null;
-              return r.a === r.b ? `${r.a} reps` : `${r.a}–${r.b} reps`;
+              const isTime = /\b\d+\s*(s|seg|segundos?)\b|\d+["']/i.test(raw);
+              const unit = isTime ? 's' : ' reps';
+              return r.a === r.b ? `${r.a}${unit}` : `${r.a}–${r.b}${unit}`;
             };
 
             const repsLabel = isReal(exercise.reps) ? parseReps(exercise.reps) : null;
