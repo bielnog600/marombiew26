@@ -56,7 +56,8 @@ const CardioDoDiaCard: React.FC<CardioDoDiaCardProps> = ({ conteudo }) => {
             </div>
             <h3 className="text-sm font-bold uppercase truncate">{protocol.title}</h3>
             <p className="text-[11px] text-muted-foreground mt-0.5">
-              {formatDurationFromSec(totalSec)} • {protocol.frequencyPerWeek}x/sem
+              {formatDurationFromSec(totalSec)}
+              {sessionsCount > 0 ? ` • ${sessionsCount} sessões/sem` : ` • ${protocol.frequencyPerWeek}x/sem`}
               {protocol.targetZoneSummary ? ` • ${protocol.targetZoneSummary}` : ''}
             </p>
           </div>
