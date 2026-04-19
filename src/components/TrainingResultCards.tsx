@@ -44,7 +44,7 @@ const CopyButton: React.FC<{ text: string; label?: string }> = ({ text, label })
 
 const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown, editable, onMarkdownChange, trainingOnly }) => {
   const allSections = parseTrainingSections(markdown);
-  const sections = trainingOnly ? allSections.filter(s => s.type === 'training') : allSections;
+  const sections = (trainingOnly || editable) ? allSections.filter(s => s.type === 'training') : allSections;
   const rendered: React.ReactNode[] = [];
   let messageGroup: string[] = [];
 
