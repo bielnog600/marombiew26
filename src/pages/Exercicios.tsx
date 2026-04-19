@@ -66,17 +66,7 @@ const Exercicios: React.FC = () => {
   const openEdit = (ex: Exercise) => {
     setEditing(ex);
     setAjustes(ex.ajustes ?? []);
-    setNovoAjuste('');
   };
-
-  const addAjuste = () => {
-    const v = novoAjuste.trim();
-    if (!v || ajustes.includes(v)) return;
-    setAjustes((prev) => [...prev, v]);
-    setNovoAjuste('');
-  };
-
-  const removeAjuste = (v: string) => setAjustes((prev) => prev.filter((a) => a !== v));
 
   const filtered = exercises.filter(
     (e) =>
