@@ -25,8 +25,7 @@ import {
 
 type StudentCtx = Record<string, any>;
 
-const MODALITIES: { value: 'auto' | CardioModality; label: string; icon: React.ComponentType<any> }[] = [
-  { value: 'auto', label: 'Automático', icon: Sparkles },
+const MODALITIES: { value: CardioModality; label: string; icon: React.ComponentType<any> }[] = [
   { value: 'passadeira', label: 'Passadeira', icon: Footprints },
   { value: 'bike', label: 'Bike', icon: Bike },
   { value: 'eliptica', label: 'Elíptica', icon: Activity },
@@ -61,16 +60,21 @@ const CardioIA = () => {
   const [studentName, setStudentName] = useState('Aluno');
   const [hrZones, setHrZones] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [modality, setModality] = useState<'auto' | CardioModality>('auto');
+  // Multi-seleção: vazio = automático (IA escolhe entre todas)
+  const [modalities, setModalities] = useState<CardioModality[]>([]);
   const [frequency, setFrequency] = useState('3');
   const [intensity, setIntensity] = useState('auto');
   const [style, setStyle] = useState('auto');
   const [duration, setDuration] = useState('auto');
   const [notes, setNotes] = useState('');
   const [generating, setGenerating] = useState(false);
-  const [protocol, setProtocol] = useState<CardioProtocol | null>(null);
+  const [payload, setPayload] = useState<CardioPayload | null>(null);
   const [saving, setSaving] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
+
+  const toggleModality = (m: CardioModality) => {
+    setModalities(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
+  };
 
   useEffect(() => {
     if (studentId) loadStudentData();
@@ -81,16 +85,16 @@ const CardioIA = () => {
   }, [editPlanId]);
 
   useEffect(() => {
-    if (protocol && resultRef.current) {
+    if (payload && resultRef.current) {
       resultRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [protocol]);
+  }, [payload]);
 
   const loadEditPlan = async () => {
     const { data } = await supabase.from('ai_plans').select('*').eq('id', editPlanId!).maybeSingle();
     if (data?.conteudo) {
-      const p = parseCardioProtocol(data.conteudo);
-      if (p) setProtocol(p);
+      const p = parseCardioPayload(data.conteudo);
+      if (p) setPayload(p);
     }
   };
 
@@ -151,7 +155,7 @@ const CardioIA = () => {
   const generateCardio = async () => {
     if (!studentCtx) return;
     setGenerating(true);
-    setProtocol(null);
+    setPayload(null);
 
     try {
       const resp = await fetch(
@@ -164,7 +168,7 @@ const CardioIA = () => {
           },
           body: JSON.stringify({
             studentContext: studentCtx,
-            modality,
+            modalities, // [] = automático (IA escolhe entre todas)
             frequencyPerWeek: parseInt(frequency, 10),
             intensity,
             style,
@@ -182,9 +186,15 @@ const CardioIA = () => {
         else throw new Error(data?.error || `Erro ${resp.status}`);
         return;
       }
-      if (!data?.protocol) throw new Error('Protocolo não retornado');
-      setProtocol(data.protocol as CardioProtocol);
-      toast.success('Cardio gerado!');
+      if (data?.weekly) {
+        setPayload(data.weekly as CardioWeeklyPlan);
+        toast.success(`Plano semanal gerado: ${data.weekly.protocols?.length} sessões!`);
+      } else if (data?.protocol) {
+        setPayload(data.protocol as CardioProtocol);
+        toast.success('Cardio gerado!');
+      } else {
+        throw new Error('Plano não retornado');
+      }
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || 'Erro ao gerar cardio');
@@ -194,10 +204,13 @@ const CardioIA = () => {
   };
 
   const savePlan = async () => {
-    if (!protocol) return;
+    if (!payload) return;
     setSaving(true);
-    const titulo = protocol.title || `Cardio ${MODALITY_LABEL[protocol.modality]} - ${new Date().toLocaleDateString('pt-BR')}`;
-    const conteudo = serializeCardioProtocol(protocol);
+    const isWeekly = isWeeklyPlan(payload);
+    const titulo = isWeekly
+      ? `Plano Semanal de Cardio (${payload.protocols.length} sessões)`
+      : payload.title || `Cardio ${MODALITY_LABEL[payload.modality]} - ${new Date().toLocaleDateString('pt-BR')}`;
+    const conteudo = JSON.stringify(payload, null, 2);
 
     if (editPlanId) {
       const { error } = await supabase.from('ai_plans').update({
