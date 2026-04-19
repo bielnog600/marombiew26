@@ -14,12 +14,27 @@ const PWAUpdater = () => {
     updateServiceWorker,
   } = useRegisterSW({
     onRegisteredSW(swUrl, registration) {
+      if (!registration) return;
+
       // Poll for updates every 60 seconds while the app is open
-      if (registration) {
-        setInterval(() => {
+      const interval = setInterval(() => {
+        registration.update().catch(() => {});
+      }, 60 * 1000);
+
+      // Check for updates when app regains focus (e.g. user reopens installed PWA)
+      const onVisible = () => {
+        if (document.visibilityState === 'visible') {
           registration.update().catch(() => {});
-        }, 60 * 1000);
-      }
+        }
+      };
+      document.addEventListener('visibilitychange', onVisible);
+      window.addEventListener('focus', onVisible);
+
+      return () => {
+        clearInterval(interval);
+        document.removeEventListener('visibilitychange', onVisible);
+        window.removeEventListener('focus', onVisible);
+      };
     },
   });
 
