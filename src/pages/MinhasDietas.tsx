@@ -32,7 +32,19 @@ const MinhasDietas = () => {
   const [loading, setLoading] = useState(true);
   const [selectedGroupIndex, setSelectedGroupIndex] = useState(0);
   const [isTrainingDay, setIsTrainingDay] = useState(false);
+  const [substitutions, setSubstitutions] = useState<Record<string, any[]>>({});
   const { tracking, addWater, removeWater, toggleMeal, waterCurrentMl, waterTargetMl, waterGoalGlasses } = useDailyTracking({ isTrainingDay });
+
+  const subsStorageKey = user ? `diet-subs-${user.id}` : '';
+
+  // Load persisted substitutions
+  useEffect(() => {
+    if (!subsStorageKey) return;
+    try {
+      const raw = localStorage.getItem(subsStorageKey);
+      if (raw) setSubstitutions(JSON.parse(raw));
+    } catch { /* ignore */ }
+  }, [subsStorageKey]);
 
   // Detecta se hoje é dia de treino agendado
   useEffect(() => {
