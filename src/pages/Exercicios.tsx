@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import AppLayout from '@/components/AppLayout';
@@ -20,7 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Pencil, Search, Check, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Search, Check, Plus, Trash2, Upload, Download, X, ImageIcon, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const STANDARD_FIELDS = [
@@ -33,6 +33,11 @@ const STANDARD_FIELDS = [
   'Pegada',
   'Observação',
 ] as const;
+
+const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+const STORAGE_BUCKET = 'exercise-images';
+const STORAGE_PUBLIC_PREFIX = `/storage/v1/object/public/${STORAGE_BUCKET}/`;
 
 interface Exercise {
   id: string;
@@ -52,6 +57,8 @@ type EditForm = {
 
 const emptyForm: EditForm = { nome: '', grupo_muscular: '', imagem_url: '', video_embed: '' };
 
+const isInternalUrl = (url: string | null) => !!url && url.includes(STORAGE_PUBLIC_PREFIX);
+
 const Exercicios: React.FC = () => {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
@@ -60,6 +67,9 @@ const Exercicios: React.FC = () => {
   const [deleting, setDeleting] = useState<Exercise | null>(null);
   const [form, setForm] = useState<EditForm>(emptyForm);
   const [ajustes, setAjustes] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [migrating, setMigrating] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const { data: exercises = [], isLoading } = useQuery({
     queryKey: ['exercises-admin'],
@@ -114,6 +124,66 @@ const Exercicios: React.FC = () => {
     onError: (e: any) => toast.error(e?.message ?? 'Erro ao apagar.'),
   });
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      toast.error('Formato não suportado. Use JPG, PNG ou WEBP.');
+      return;
+    }
+    if (file.size > MAX_SIZE) {
+      toast.error('Imagem muito grande. Máximo 5MB.');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
+      const path = `exercises/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .upload(path, file, { contentType: file.type, upsert: false });
+      if (error) throw error;
+      const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+      setForm((f) => ({ ...f, imagem_url: pub.publicUrl }));
+      toast.success('Imagem enviada.');
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Erro no upload.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleMigrateUrl = async () => {
+    const url = form.imagem_url.trim();
+    if (!url) return;
+    if (isInternalUrl(url)) {
+      toast.info('Esta imagem já está no storage do projeto.');
+      return;
+    }
+    setMigrating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('migrate-exercise-image', {
+        body: { url },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (!data?.url) throw new Error('Resposta inválida.');
+      setForm((f) => ({ ...f, imagem_url: data.url }));
+      toast.success('Imagem migrada para o storage.');
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Erro ao migrar imagem.');
+    } finally {
+      setMigrating(false);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setForm((f) => ({ ...f, imagem_url: '' }));
+  };
+
   const openEdit = (ex: Exercise) => {
     setEditing(ex);
     setCreating(false);
@@ -147,6 +217,8 @@ const Exercicios: React.FC = () => {
   );
 
   const dialogOpen = !!editing || creating;
+  const previewUrl = form.imagem_url.trim();
+  const previewIsExternal = previewUrl && !isInternalUrl(previewUrl);
 
   return (
     <AppLayout>
@@ -182,6 +254,7 @@ const Exercicios: React.FC = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-16">Img</TableHead>
                   <TableHead>Nome</TableHead>
                   <TableHead>Grupo</TableHead>
                   <TableHead>Ajustes</TableHead>
@@ -190,12 +263,36 @@ const Exercicios: React.FC = () => {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">Carregando...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Carregando...</TableCell></TableRow>
                 ) : filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">Nenhum exercício encontrado.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Nenhum exercício encontrado.</TableCell></TableRow>
                 ) : filtered.map((ex) => (
                   <TableRow key={ex.id}>
-                    <TableCell className="font-medium">{ex.nome}</TableCell>
+                    <TableCell>
+                      {ex.imagem_url ? (
+                        <img
+                          src={ex.imagem_url}
+                          alt={ex.nome}
+                          className="h-10 w-10 rounded object-cover bg-muted"
+                          loading="lazy"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      ) : (
+                        <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
+                          <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        {ex.nome}
+                        {ex.imagem_url && !isInternalUrl(ex.imagem_url) && (
+                          <Badge variant="outline" className="text-[10px] border-amber-500/50 text-amber-500">
+                            URL externa
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell><Badge variant="secondary">{ex.grupo_muscular}</Badge></TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
@@ -260,14 +357,85 @@ const Exercicios: React.FC = () => {
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="imagem">URL da imagem</Label>
-                <Input
-                  id="imagem"
-                  value={form.imagem_url}
-                  onChange={(e) => setForm((f) => ({ ...f, imagem_url: e.target.value }))}
-                  placeholder="https://..."
-                />
+              {/* Imagem */}
+              <div className="space-y-2">
+                <Label>Imagem</Label>
+                <div className="flex gap-3 items-start">
+                  <div className="h-24 w-24 rounded-lg border bg-muted flex items-center justify-center overflow-hidden shrink-0">
+                    {previewUrl ? (
+                      <img
+                        src={previewUrl}
+                        alt="Preview"
+                        className="h-full w-full object-cover"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    ) : (
+                      <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/webp"
+                      className="hidden"
+                      onChange={handleFileSelect}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => fileRef.current?.click()}
+                        disabled={uploading}
+                      >
+                        {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                        {previewUrl ? 'Substituir' : 'Enviar imagem'}
+                      </Button>
+                      {previewUrl && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={handleRemoveImage}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <X className="h-4 w-4" /> Remover
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">JPG, PNG ou WEBP — até 5MB.</p>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 pt-1">
+                  <Label htmlFor="imagem_url" className="text-xs text-muted-foreground">
+                    Ou cole uma URL (será migrada para o storage do projeto)
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="imagem_url"
+                      value={form.imagem_url}
+                      onChange={(e) => setForm((f) => ({ ...f, imagem_url: e.target.value }))}
+                      placeholder="https://..."
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleMigrateUrl}
+                      disabled={migrating || !previewIsExternal}
+                      title={previewIsExternal ? 'Baixar e salvar no storage' : 'URL já está no storage'}
+                    >
+                      {migrating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                      Migrar
+                    </Button>
+                  </div>
+                  {previewIsExternal && (
+                    <p className="text-xs text-amber-500">
+                      ⚠️ URL externa — clique em "Migrar" para hospedar no storage do projeto.
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-1.5">
@@ -319,7 +487,7 @@ const Exercicios: React.FC = () => {
               <Button variant="outline" onClick={closeDialog}>Cancelar</Button>
               <Button
                 onClick={() => saveMutation.mutate()}
-                disabled={saveMutation.isPending}
+                disabled={saveMutation.isPending || uploading || migrating}
               >
                 {saveMutation.isPending ? 'Salvando...' : 'Salvar'}
               </Button>
