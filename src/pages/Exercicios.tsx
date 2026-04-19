@@ -69,6 +69,8 @@ const Exercicios: React.FC = () => {
   const [ajustes, setAjustes] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [migrating, setMigrating] = useState(false);
+  const [bulkMigrating, setBulkMigrating] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0 });
   const fileRef = useRef<HTMLInputElement>(null);
 
   const { data: exercises = [], isLoading } = useQuery({
@@ -82,6 +84,40 @@ const Exercicios: React.FC = () => {
       return (data ?? []) as Exercise[];
     },
   });
+
+  const externalCount = exercises.filter((e) => e.imagem_url && !isInternalUrl(e.imagem_url)).length;
+
+  const handleBulkMigrate = async () => {
+    const targets = exercises.filter((e) => e.imagem_url && !isInternalUrl(e.imagem_url));
+    if (targets.length === 0) {
+      toast.info('Nenhuma URL externa para migrar.');
+      return;
+    }
+    setBulkMigrating(true);
+    setBulkProgress({ done: 0, total: targets.length });
+    let ok = 0;
+    let fail = 0;
+    for (let i = 0; i < targets.length; i++) {
+      const ex = targets[i];
+      try {
+        const { data, error } = await supabase.functions.invoke('migrate-exercise-image', {
+          body: { url: ex.imagem_url },
+        });
+        if (error || data?.error || !data?.url) throw new Error(data?.error || error?.message || 'Falha');
+        const { error: upErr } = await supabase.from('exercises').update({ imagem_url: data.url }).eq('id', ex.id);
+        if (upErr) throw upErr;
+        ok++;
+      } catch (e) {
+        fail++;
+        console.error('Falha migração', ex.nome, e);
+      }
+      setBulkProgress({ done: i + 1, total: targets.length });
+    }
+    setBulkMigrating(false);
+    qc.invalidateQueries({ queryKey: ['exercises-admin'] });
+    toast.success(`Migração concluída: ${ok} ok, ${fail} falhas.`);
+  };
+
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -230,9 +266,31 @@ const Exercicios: React.FC = () => {
               Gerencie a base de exercícios e os ajustes de máquina.
             </p>
           </div>
-          <Button onClick={openCreate} className="gap-2">
-            <Plus className="h-4 w-4" /> Novo exercício
-          </Button>
+          <div className="flex gap-2 flex-wrap">
+            {externalCount > 0 && (
+              <Button
+                variant="outline"
+                onClick={handleBulkMigrate}
+                disabled={bulkMigrating}
+                className="gap-2"
+              >
+                {bulkMigrating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Migrando {bulkProgress.done}/{bulkProgress.total}
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    Migrar todas ({externalCount})
+                  </>
+                )}
+              </Button>
+            )}
+            <Button onClick={openCreate} className="gap-2">
+              <Plus className="h-4 w-4" /> Novo exercício
+            </Button>
+          </div>
         </div>
 
         <Card>
