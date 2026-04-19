@@ -1,10 +1,15 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePageChrome } from '@/hooks/usePageChrome';
-import { ArrowLeft, TrendingDown, TrendingUp, Minus, Scale } from 'lucide-react';
+import { ArrowLeft, TrendingDown, TrendingUp, Minus, Scale, Plus } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from 'recharts';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 
 type Period = '7D' | '1M' | '3M' | '6M' | '1A' | 'Todo';
 
@@ -27,46 +32,91 @@ function subtractPeriod(period: Period): Date | null {
   }
 }
 
+const todayStr = () => new Date().toISOString().slice(0, 10);
+
 const Evolucao = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [records, setRecords] = useState<WeightRecord[]>([]);
   const [period, setPeriod] = useState<Period>('Todo');
   const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [pesoInput, setPesoInput] = useState('');
+  const [dataInput, setDataInput] = useState(todayStr());
+  const [saving, setSaving] = useState(false);
 
   usePageChrome({
     safeAreaBackground: 'var(--gradient-chrome)',
     themeColor: 'hsl(45 100% 50%)',
   });
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!user) return;
-    (async () => {
-      // Get all assessments for this student with their weight
-      const { data: assessments } = await supabase
-        .from('assessments')
-        .select('id, created_at')
-        .eq('student_id', user.id)
-        .order('created_at', { ascending: true });
+    // Assessments + their anthropometrics
+    const { data: assessments } = await supabase
+      .from('assessments')
+      .select('id, created_at')
+      .eq('student_id', user.id)
+      .order('created_at', { ascending: true });
 
-      if (!assessments?.length) { setLoading(false); return; }
-
+    const recs: WeightRecord[] = [];
+    if (assessments?.length) {
       const { data: anthros } = await supabase
         .from('anthropometrics')
         .select('assessment_id, peso')
         .in('assessment_id', assessments.map(a => a.id));
-
       const weightMap = new Map(anthros?.map(a => [a.assessment_id, a.peso]) ?? []);
-
-      const recs: WeightRecord[] = [];
       for (const a of assessments) {
         const peso = weightMap.get(a.id);
-        if (peso) recs.push({ date: a.created_at.slice(0, 10), peso });
+        if (peso) recs.push({ date: a.created_at.slice(0, 10), peso: Number(peso) });
       }
-      setRecords(recs);
-      setLoading(false);
-    })();
+    }
+
+    // Weight logs (manual entries)
+    const { data: logs } = await supabase
+      .from('weight_logs')
+      .select('data, peso')
+      .eq('student_id', user.id)
+      .order('data', { ascending: true });
+    if (logs) {
+      for (const l of logs) recs.push({ date: l.data, peso: Number(l.peso) });
+    }
+
+    recs.sort((a, b) => a.date.localeCompare(b.date));
+    setRecords(recs);
+    setLoading(false);
   }, [user]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleSave = async () => {
+    if (!user) return;
+    const peso = Number(pesoInput.replace(',', '.'));
+    if (!Number.isFinite(peso) || peso < 20 || peso > 400) {
+      toast.error('Informe um peso válido entre 20 e 400 kg.');
+      return;
+    }
+    if (!dataInput) {
+      toast.error('Informe a data.');
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase.from('weight_logs').insert({
+      student_id: user.id,
+      peso,
+      data: dataInput,
+    });
+    setSaving(false);
+    if (error) {
+      toast.error('Erro ao salvar: ' + error.message);
+      return;
+    }
+    toast.success('Peso registrado!');
+    setDialogOpen(false);
+    setPesoInput('');
+    setDataInput(todayStr());
+    load();
+  };
 
   const filtered = useMemo(() => {
     const cutoff = subtractPeriod(period);
@@ -88,13 +138,7 @@ const Evolucao = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Gradient Header */}
-      <div
-        className="relative"
-        style={{
-          background: 'var(--gradient-chrome)',
-        }}
-      >
+      <div className="relative" style={{ background: 'var(--gradient-chrome)' }}>
         <div className="flex items-center gap-3 px-4 py-4">
           <button onClick={() => navigate(-1)} className="text-primary-foreground">
             <ArrowLeft className="h-6 w-6" />
@@ -104,6 +148,15 @@ const Evolucao = () => {
       </div>
 
       <div className="flex-1 overflow-auto p-4 pb-28 space-y-5 animate-fade-in">
+        {/* Register weight button */}
+        <Button
+          onClick={() => setDialogOpen(true)}
+          className="w-full bg-primary text-primary-foreground hover:opacity-90 font-semibold"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Registrar peso em jejum
+        </Button>
+
         {/* Period Filter */}
         <div className="flex gap-2 justify-center flex-wrap">
           {PERIODS.map(p => (
@@ -111,9 +164,7 @@ const Evolucao = () => {
               key={p}
               onClick={() => setPeriod(p)}
               className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                period === p
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-secondary text-secondary-foreground'
+                period === p ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'
               }`}
             >
               {p}
@@ -124,10 +175,9 @@ const Evolucao = () => {
         {loading ? (
           <div className="text-center text-muted-foreground py-10">Carregando...</div>
         ) : !records.length ? (
-          <div className="text-center text-muted-foreground py-10">Nenhuma avaliação com peso registrado.</div>
+          <div className="text-center text-muted-foreground py-10">Nenhum peso registrado ainda. Toque em "Registrar peso em jejum" para começar.</div>
         ) : (
           <>
-            {/* Weight Highlight */}
             <div className="flex items-center gap-4">
               <div className="h-12 w-12 rounded-xl bg-primary/20 flex items-center justify-center">
                 <Scale className="h-6 w-6 text-primary" />
@@ -153,7 +203,6 @@ const Evolucao = () => {
               </div>
             </div>
 
-            {/* Stats Row */}
             <div className="grid grid-cols-3 gap-2">
               {[
                 { label: 'Inicial', value: initial ? `${initial}kg` : '-' },
@@ -167,14 +216,12 @@ const Evolucao = () => {
               ))}
             </div>
 
-            {/* Since Date */}
             {firstDate && (
               <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                 📅 Acompanhando desde: {new Date(firstDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
               </p>
             )}
 
-            {/* Chart */}
             <div className="glass-card p-4">
               <ResponsiveContainer width="100%" height={220}>
                 <LineChart data={chartData}>
@@ -200,6 +247,50 @@ const Evolucao = () => {
           </>
         )}
       </div>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Registrar peso em jejum</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="peso">Peso (kg)</Label>
+              <Input
+                id="peso"
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                min="20"
+                max="400"
+                placeholder="Ex: 78.5"
+                value={pesoInput}
+                onChange={(e) => setPesoInput(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="data">Data</Label>
+              <Input
+                id="data"
+                type="date"
+                value={dataInput}
+                max={todayStr()}
+                onChange={(e) => setDataInput(e.target.value)}
+              />
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Recomendado: pesar pela manhã, em jejum, após urinar e sem roupa pesada.
+            </p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
