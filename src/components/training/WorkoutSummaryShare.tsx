@@ -48,7 +48,7 @@ export const WorkoutSummaryShare: React.FC<WorkoutSummaryShareProps> = ({
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isSharing, setIsSharing] = useState(false);
-  const [weeklyWorkouts, setWeeklyWorkouts] = useState<number>(0);
+  const [weekDays, setWeekDays] = useState<boolean[]>([false, false, false, false, false, false, false]);
   const { user } = useAuth();
   const today = new Date();
 
@@ -57,12 +57,24 @@ export const WorkoutSummaryShare: React.FC<WorkoutSummaryShareProps> = ({
     const { start, end } = getWeekRange();
     supabase
       .from('daily_tracking')
-      .select('id')
+      .select('date')
       .eq('student_id', user.id)
       .eq('workout_completed', true)
       .gte('date', start)
       .lte('date', end)
-      .then(({ data }) => setWeeklyWorkouts(data?.length ?? 0));
+      .then(({ data }) => {
+        const days = [false, false, false, false, false, false, false];
+        // Mark today as completed (treino acabou de ser concluído)
+        days[today.getDay()] = true;
+        (data ?? []).forEach((row) => {
+          // date string YYYY-MM-DD — parse to local weekday
+          const [y, m, d] = row.date.split('-').map(Number);
+          const dt = new Date(y, m - 1, d);
+          days[dt.getDay()] = true;
+        });
+        setWeekDays(days);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const generateImage = async (): Promise<Blob | null> => {
