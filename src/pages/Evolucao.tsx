@@ -207,6 +207,14 @@ const Evolucao = () => {
               ))}
             </div>
 
+            <Button
+              onClick={() => setDialogOpen(true)}
+              className="w-full bg-primary text-primary-foreground hover:opacity-90 font-semibold"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Registrar peso
+            </Button>
+
             {firstDate && (
               <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                 📅 Acompanhando desde: {new Date(firstDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
