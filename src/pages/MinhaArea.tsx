@@ -313,10 +313,20 @@ const MinhaArea = () => {
               />
               <div className="absolute inset-0 bg-gradient-to-t from-card via-card/60 to-transparent" />
               {activeSession && (
-                <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-primary/90 backdrop-blur rounded-full px-2.5 py-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-primary-foreground animate-pulse" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-primary-foreground">Em andamento</span>
-                </div>
+                <>
+                  <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-primary/90 backdrop-blur rounded-full px-2.5 py-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary-foreground animate-pulse" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-primary-foreground">Em andamento</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCancelActiveSession}
+                    aria-label="Cancelar treino em andamento"
+                    className="absolute top-3 right-3 z-10 h-8 w-8 rounded-full bg-background/80 backdrop-blur flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </>
               )}
               <div className="absolute bottom-0 left-0 right-0 p-4">
                 <div className="flex items-center justify-between">
