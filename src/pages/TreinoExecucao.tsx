@@ -13,7 +13,8 @@ import { PHASE_OBJECTIVE, PHASE_SHORT_LABELS, getPhaseByMonthDay, type TrainingP
 import { WorkoutSummaryShare } from '@/components/training/WorkoutSummaryShare';
 import { PhaseInfoSheet } from '@/components/training/PhaseInfoSheet';
 import { MachineAdjustSheet } from '@/components/training/MachineAdjustSheet';
-import { Settings2, Info } from 'lucide-react';
+import { ExerciseLoadHistorySheet } from '@/components/training/ExerciseLoadHistorySheet';
+import { Settings2, Info, BarChart3 } from 'lucide-react';
 
 interface ExerciseSet {
   reps: string;
