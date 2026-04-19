@@ -30,7 +30,7 @@ const MeusTreinos = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [plans, setPlans] = useState<PlanRow[]>([]);
-  const [exerciseMedia, setExerciseMedia] = useState<Record<string, { imageUrl?: string; videoEmbed?: string; muscleGroup?: string }>>({});
+  const [exerciseMedia, setExerciseMedia] = useState<Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }>>({});
   const [loading, setLoading] = useState(true);
   const [activePhase, setActivePhase] = useState<TrainingPhase>('semana_1');
   const [autoPhaseSet, setAutoPhaseSet] = useState(false);
