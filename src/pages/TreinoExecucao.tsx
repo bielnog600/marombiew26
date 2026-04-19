@@ -595,16 +595,16 @@ const TreinoExecucao = () => {
               Cargas
             </button>
           )}
-          {user && exercise && (
+          {matchedExercise?.id && user && (
             <button
               type="button"
-              onClick={() => {
-                if (!matchedExercise?.id) {
-                  toast.error('Exercício não cadastrado na base. Peça ao admin para cadastrá-lo.');
-                  return;
-                }
-                setShowAdjust(true);
-              }}
+              onClick={() => setShowAdjust(true)}
+              className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 border border-border/60 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-secondary transition-colors"
+            >
+              <Settings2 className="h-3 w-3" />
+              Ajuste
+            </button>
+          )}
               className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 border border-border/60 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-secondary transition-colors"
             >
               <Settings2 className="h-3 w-3" />
