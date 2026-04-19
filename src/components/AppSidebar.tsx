@@ -48,7 +48,7 @@ export function AppSidebar() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg gradient-primary shrink-0">
               <Dumbbell className="h-4 w-4 text-primary-foreground" />
             </div>
-            {!collapsed && <span className="text-lg font-bold text-foreground">MarombiewPro</span>}
+            {!collapsed && <span className="text-lg font-bold text-foreground">MAROMBIEW</span>}
           </div>
         </SidebarGroup>
 
