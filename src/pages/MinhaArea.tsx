@@ -218,16 +218,12 @@ const MinhaArea = () => {
       .filter((mealIndex) => Number.isInteger(mealIndex) && mealIndex >= 0 && mealIndex < todayMealCount).length;
   }, [tracking.meals_completed, todayMealCount]);
 
-  // Today's training - match by weekday name first, fallback to index cycling
+  // Today's training - ONLY match by weekday name. If today isn't a training day, return undefined (rest day).
   const todayTraining = useMemo(() => {
     if (trainingDays.length === 0) return undefined;
     const jsDay = new Date().getDay(); // 0=Sun
     const todayNames = jsDay === 0 ? ['domingo'] : jsDay === 1 ? ['segunda'] : jsDay === 2 ? ['terca', 'terça'] : jsDay === 3 ? ['quarta'] : jsDay === 4 ? ['quinta'] : jsDay === 5 ? ['sexta'] : ['sabado', 'sábado'];
-    const match = trainingDays.find(d => todayNames.some(n => d.day.toLowerCase().includes(n)));
-    if (match) return match;
-    // Fallback: cycle by index (Mon=0)
-    const idx = (jsDay + 6) % 7 % trainingDays.length;
-    return trainingDays[idx];
+    return trainingDays.find(d => todayNames.some(n => d.day.toLowerCase().includes(n)));
   }, [trainingDays]);
 
   // Detecta se hoje é dia de treino agendado (match real pelo nome do dia)
@@ -379,6 +375,22 @@ const MinhaArea = () => {
                 </div>
               </div>
             </div>
+          </Card>
+        )}
+
+        {/* Rest day card - when student has a training plan but today is not a scheduled training day */}
+        {!todayTraining && trainingDays.length > 0 && (
+          <Card className="glass-card overflow-hidden">
+            <CardContent className="p-5 flex items-center gap-4">
+              <div className="h-14 w-14 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                <span className="text-2xl">🛌</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] uppercase tracking-widest text-primary font-semibold">Hoje</p>
+                <h3 className="text-base font-bold text-foreground mt-0.5 uppercase">Dia de Descanso</h3>
+                <p className="text-xs text-muted-foreground mt-1">Sem treino programado para hoje. Aproveite para recuperar! 💪</p>
+              </div>
+            </CardContent>
           </Card>
         )}
 
