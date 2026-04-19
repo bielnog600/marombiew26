@@ -29,6 +29,7 @@ const MinhaArea = () => {
   const [trainingDays, setTrainingDays] = useState<ParsedTrainingDay[]>([]);
   const [meals, setMeals] = useState<ParsedMeal[]>([]);
   const [tabataConteudo, setTabataConteudo] = useState<string | null>(null);
+  const [cardioConteudo, setCardioConteudo] = useState<string | null>(null);
   const [dietSections, setDietSections] = useState<ParsedSection[]>([]);
   const [_trainingTitle, setTrainingTitle] = useState('');
   const [_dietTitle, setDietTitle] = useState('');
