@@ -162,27 +162,33 @@ const Exercicios: React.FC = () => {
               <div>
                 <Label className="text-xs uppercase tracking-wide text-muted-foreground">Ajustes da máquina</Label>
                 <p className="text-xs text-muted-foreground mt-1 mb-3">
-                  Adicione os campos que o aluno poderá registrar (ex: Banco, Encosto, Apoio dos pés, Rolo).
+                  Selecione os tipos de ajuste disponíveis para este exercício.
                 </p>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {ajustes.map((a) => (
-                    <Badge key={a} variant="secondary" className="gap-1.5 pr-1 py-1">
-                      {a}
-                      <button onClick={() => removeAjuste(a)} className="rounded-full hover:bg-destructive/20 p-0.5">
-                        <X className="h-3 w-3" />
+                <div className="grid grid-cols-2 gap-2">
+                  {STANDARD_FIELDS.map((field) => {
+                    const checked = ajustes.includes(field);
+                    return (
+                      <button
+                        key={field}
+                        type="button"
+                        onClick={() =>
+                          setAjustes((prev) =>
+                            prev.includes(field) ? prev.filter((f) => f !== field) : [...prev, field]
+                          )
+                        }
+                        className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition ${
+                          checked
+                            ? 'border-primary bg-primary/10 text-foreground'
+                            : 'border-border bg-secondary/40 text-muted-foreground hover:bg-secondary/60'
+                        }`}
+                      >
+                        <span className={`flex h-4 w-4 items-center justify-center rounded border ${checked ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40'}`}>
+                          {checked && <Check className="h-3 w-3" />}
+                        </span>
+                        <span className="font-medium">{field}</span>
                       </button>
-                    </Badge>
-                  ))}
-                  {ajustes.length === 0 && <span className="text-xs text-muted-foreground">Nenhum ajuste configurado.</span>}
-                </div>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Ex: Banco"
-                    value={novoAjuste}
-                    onChange={(e) => setNovoAjuste(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addAjuste(); } }}
-                  />
-                  <Button type="button" onClick={addAjuste}><Plus className="h-4 w-4" /></Button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
