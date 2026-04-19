@@ -11,9 +11,11 @@ import { ArrowLeft, Loader2, Save, HeartPulse, Sparkles, Bike, Activity, Footpri
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import {
-  parseCardioProtocol,
-  serializeCardioProtocol,
+  parseCardioPayload,
+  isWeeklyPlan,
   type CardioProtocol,
+  type CardioPayload,
+  type CardioWeeklyPlan,
   type CardioModality,
   MODALITY_LABEL,
   STRUCTURE_LABEL,
@@ -23,8 +25,7 @@ import {
 
 type StudentCtx = Record<string, any>;
 
-const MODALITIES: { value: 'auto' | CardioModality; label: string; icon: React.ComponentType<any> }[] = [
-  { value: 'auto', label: 'Automático', icon: Sparkles },
+const MODALITIES: { value: CardioModality; label: string; icon: React.ComponentType<any> }[] = [
   { value: 'passadeira', label: 'Passadeira', icon: Footprints },
   { value: 'bike', label: 'Bike', icon: Bike },
   { value: 'eliptica', label: 'Elíptica', icon: Activity },
@@ -59,16 +60,21 @@ const CardioIA = () => {
   const [studentName, setStudentName] = useState('Aluno');
   const [hrZones, setHrZones] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [modality, setModality] = useState<'auto' | CardioModality>('auto');
+  // Multi-seleção: vazio = automático (IA escolhe entre todas)
+  const [modalities, setModalities] = useState<CardioModality[]>([]);
   const [frequency, setFrequency] = useState('3');
   const [intensity, setIntensity] = useState('auto');
   const [style, setStyle] = useState('auto');
   const [duration, setDuration] = useState('auto');
   const [notes, setNotes] = useState('');
   const [generating, setGenerating] = useState(false);
-  const [protocol, setProtocol] = useState<CardioProtocol | null>(null);
+  const [payload, setPayload] = useState<CardioPayload | null>(null);
   const [saving, setSaving] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
+
+  const toggleModality = (m: CardioModality) => {
+    setModalities(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
+  };
 
   useEffect(() => {
     if (studentId) loadStudentData();
@@ -79,16 +85,16 @@ const CardioIA = () => {
   }, [editPlanId]);
 
   useEffect(() => {
-    if (protocol && resultRef.current) {
+    if (payload && resultRef.current) {
       resultRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [protocol]);
+  }, [payload]);
 
   const loadEditPlan = async () => {
     const { data } = await supabase.from('ai_plans').select('*').eq('id', editPlanId!).maybeSingle();
     if (data?.conteudo) {
-      const p = parseCardioProtocol(data.conteudo);
-      if (p) setProtocol(p);
+      const p = parseCardioPayload(data.conteudo);
+      if (p) setPayload(p);
     }
   };
 
@@ -149,7 +155,7 @@ const CardioIA = () => {
   const generateCardio = async () => {
     if (!studentCtx) return;
     setGenerating(true);
-    setProtocol(null);
+    setPayload(null);
 
     try {
       const resp = await fetch(
@@ -162,7 +168,7 @@ const CardioIA = () => {
           },
           body: JSON.stringify({
             studentContext: studentCtx,
-            modality,
+            modalities, // [] = automático (IA escolhe entre todas)
             frequencyPerWeek: parseInt(frequency, 10),
             intensity,
             style,
@@ -180,9 +186,15 @@ const CardioIA = () => {
         else throw new Error(data?.error || `Erro ${resp.status}`);
         return;
       }
-      if (!data?.protocol) throw new Error('Protocolo não retornado');
-      setProtocol(data.protocol as CardioProtocol);
-      toast.success('Cardio gerado!');
+      if (data?.weekly) {
+        setPayload(data.weekly as CardioWeeklyPlan);
+        toast.success(`Plano semanal gerado: ${data.weekly.protocols?.length} sessões!`);
+      } else if (data?.protocol) {
+        setPayload(data.protocol as CardioProtocol);
+        toast.success('Cardio gerado!');
+      } else {
+        throw new Error('Plano não retornado');
+      }
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || 'Erro ao gerar cardio');
@@ -192,10 +204,13 @@ const CardioIA = () => {
   };
 
   const savePlan = async () => {
-    if (!protocol) return;
+    if (!payload) return;
     setSaving(true);
-    const titulo = protocol.title || `Cardio ${MODALITY_LABEL[protocol.modality]} - ${new Date().toLocaleDateString('pt-BR')}`;
-    const conteudo = serializeCardioProtocol(protocol);
+    const isWeekly = isWeeklyPlan(payload);
+    const titulo = isWeekly
+      ? `Plano Semanal de Cardio (${payload.protocols.length} sessões)`
+      : payload.title || `Cardio ${MODALITY_LABEL[payload.modality]} - ${new Date().toLocaleDateString('pt-BR')}`;
+    const conteudo = JSON.stringify(payload, null, 2);
 
     if (editPlanId) {
       const { error } = await supabase.from('ai_plans').update({
@@ -251,25 +266,38 @@ const CardioIA = () => {
           </CardContent>
         </Card>
 
-        {/* Modalidade */}
+        {/* Modalidades (multi-seleção) */}
         <div className="space-y-3">
-          <Label className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Modalidade</Label>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          <div className="flex items-baseline justify-between">
+            <Label className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Modalidades
+            </Label>
+            <span className="text-[10px] text-muted-foreground">
+              {modalities.length === 0 ? 'Automático (todas)' : `${modalities.length} selecionada(s)`}
+            </span>
+          </div>
+          <p className="text-[11px] text-muted-foreground -mt-1">
+            Selecione uma ou mais. Se mais de uma for escolhida, a IA alternará entre elas ao longo da semana. Deixe vazio para a IA escolher livremente.
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {MODALITIES.map(opt => {
               const Icon = opt.icon;
-              const selected = modality === opt.value;
+              const selected = modalities.includes(opt.value);
               return (
                 <button
                   key={opt.value}
                   type="button"
-                  onClick={() => setModality(opt.value)}
+                  onClick={() => toggleModality(opt.value)}
                   className={cn(
-                    'p-3 rounded-xl border text-center transition-all',
+                    'p-3 rounded-xl border text-center transition-all relative',
                     selected ? 'border-primary bg-primary/10 shadow-md' : 'border-border bg-card hover:border-primary/50'
                   )}
                 >
                   <Icon className={cn('h-5 w-5 mx-auto mb-1', selected ? 'text-primary' : 'text-muted-foreground')} />
                   <p className="text-xs font-bold">{opt.label}</p>
+                  {selected && (
+                    <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary" />
+                  )}
                 </button>
               );
             })}
@@ -342,16 +370,29 @@ const CardioIA = () => {
         </Button>
 
         {/* Resultado */}
-        {protocol && (
+        {payload && (
           <div ref={resultRef} className="space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Protocolo gerado</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                {isWeeklyPlan(payload) ? `Plano semanal (${payload.protocols.length} sessões)` : 'Protocolo gerado'}
+              </h3>
               <Button onClick={savePlan} disabled={saving} size="sm" className="gap-2">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 {editPlanId ? 'Atualizar' : 'Salvar'}
               </Button>
             </div>
-            <CardioProtocolPreview protocol={protocol} />
+            {isWeeklyPlan(payload) ? (
+              <div className="space-y-4">
+                {payload.protocols.map((p, i) => (
+                  <div key={i} className="space-y-1">
+                    <p className="text-[11px] uppercase tracking-widest text-primary font-bold">Sessão {i + 1}</p>
+                    <CardioProtocolPreview protocol={p} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <CardioProtocolPreview protocol={payload} />
+            )}
           </div>
         )}
       </div>

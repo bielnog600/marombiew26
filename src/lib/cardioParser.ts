@@ -46,6 +46,44 @@ export interface CardioProtocol {
   blocks: CardioBlock[];
 }
 
+// Plano semanal: vários protocolos diferentes, um por dia da frequência semanal
+export interface CardioWeeklyPlan {
+  weekly: true;
+  frequencyPerWeek: number;
+  protocols: CardioProtocol[];
+}
+
+export type CardioPayload = CardioProtocol | CardioWeeklyPlan;
+
+export function isWeeklyPlan(payload: any): payload is CardioWeeklyPlan {
+  return !!payload && payload.weekly === true && Array.isArray(payload.protocols);
+}
+
+export function parseCardioPayload(raw: string | null | undefined): CardioPayload | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (isWeeklyPlan(parsed)) return parsed;
+    if (parsed && Array.isArray(parsed.blocks)) return parsed as CardioProtocol;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Escolhe o protocolo do dia atual fazendo rotação pelo dia do ano,
+// para variar a modalidade ao longo da semana.
+export function pickProtocolForToday(payload: CardioPayload, date = new Date()): CardioProtocol | null {
+  if (!payload) return null;
+  if (!isWeeklyPlan(payload)) return payload;
+  if (!payload.protocols.length) return null;
+  const start = new Date(date.getFullYear(), 0, 0);
+  const diff = date.getTime() - start.getTime();
+  const dayOfYear = Math.floor(diff / 86_400_000);
+  const idx = dayOfYear % payload.protocols.length;
+  return payload.protocols[idx];
+}
+
 export const MODALITY_LABEL: Record<CardioModality, string> = {
   passadeira: 'Passadeira',
   bike: 'Bike',

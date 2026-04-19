@@ -8,7 +8,7 @@ const corsHeaders = {
 
 const SYSTEM_PROMPT = `Você é um personal trainer especialista em condicionamento aeróbico e prescrição de cardio em academia, com experiência em reabilitação cardiopulmonar, articular e periodização.
 
-Sua tarefa: gerar UM protocolo de cardio totalmente personalizado para o aluno em UMA modalidade de máquina (passadeira, bike, elíptica ou escada).
+Sua tarefa: gerar UM PLANO SEMANAL com VÁRIOS protocolos de cardio totalmente personalizados — UM PROTOCOLO POR SESSÃO da semana, cada um em UMA modalidade de máquina (passadeira, bike, elíptica ou escada).
 
 ═══════════════════════════════════════════════
 PRINCÍPIO DE SEGURANÇA — PRIORIDADE MÁXIMA
@@ -29,49 +29,40 @@ REGRAS DE ADAPTAÇÃO:
 - Cooper baixo (< 1500m) → começar contínuo leve, progredir devagar
 
 ═══════════════════════════════════════════════
-MODALIDADES DISPONÍVEIS (escolha UMA)
+VARIAÇÃO SEMANAL (REGRA CENTRAL)
 ═══════════════════════════════════════════════
-- "passadeira" — esteira, parâmetros: velocidade (km/h) e inclinação (%)
-- "bike" — bicicleta ergométrica (vertical/horizontal), parâmetros: cadência (rpm), carga/nível, posição (sentado/em pé)
-- "eliptica" — elíptico/transport, parâmetros: nível/resistência, cadência (spm)
-- "escada" — escada rolante/stairmaster, parâmetros: nível/velocidade (degraus/min)
+Para uma frequência N por semana, gere EXATAMENTE N protocolos DIFERENTES, variando:
+- MODALIDADE: alterne entre as modalidades permitidas (informadas no prompt do usuário). Não repita a mesma modalidade duas vezes seguidas, exceto se houver apenas uma permitida.
+- ESTRUTURA: combine contínuo, intervalado, HIIT (se apto) e zona2.
+- DURAÇÃO: alterne sessões mais curtas/intensas com mais longas/leves.
+- INTENSIDADE: nunca 2 sessões de altíssima intensidade seguidas. Para frequência ≥ 3, inclua ao menos uma sessão LEVE/recuperativa.
+
+Cada protocolo deve ter um título único e claro (ex: "Sessão 1 — Bike Z2 longa", "Sessão 2 — HIIT na Escada").
 
 ═══════════════════════════════════════════════
-ESTRUTURA DO PROTOCOLO
+MODALIDADES DISPONÍVEIS
 ═══════════════════════════════════════════════
-Sempre inclua:
-1. Aquecimento (3-8 min, leve, Z1)
-2. Bloco(s) principal(is) — contínuo OU intervalado (HIIT, Fartlek, escadas crescentes)
-3. Desaceleração / Cool down (3-5 min, leve, Z1)
+- "passadeira" — velocidade (km/h) e inclinação (%)
+- "bike" — cadência (rpm), carga/nível, posição (sentado/em pé)
+- "eliptica" — nível/resistência, cadência (spm)
+- "escada" — nível/velocidade (degraus/min)
 
-Cada bloco/etapa contém:
-- nome (ex: "Aquecimento", "Bloco principal", "Pico 1", "Recuperação")
-- duração em segundos
-- parâmetros específicos da modalidade
-- zona alvo (Z1 a Z5) quando aplicável
-- intensidade descritiva (leve / moderada / forte / máxima)
+═══════════════════════════════════════════════
+ESTRUTURA DE CADA PROTOCOLO
+═══════════════════════════════════════════════
+Sempre inclua: aquecimento (3-8 min, Z1), bloco principal (contínuo ou intervalado), desaceleração (3-5 min, Z1).
+Cada bloco: nome, duração em segundos, parâmetros específicos, zona alvo (Z1-Z5), intensidade descritiva.
 
 ═══════════════════════════════════════════════
 ZONAS DE FREQUÊNCIA CARDÍACA (Karvonen)
 ═══════════════════════════════════════════════
-Se o aluno tiver zonas calculadas, use-as como referência principal de intensidade. Caso contrário, use percepção de esforço (RPE 1-10).
-
-Z1 (Recuperação) — 50-60% HRR — RPE 2-3
-Z2 (Base / queima de gordura) — 60-70% HRR — RPE 4-5
-Z3 (Moderada / aeróbico) — 70-80% HRR — RPE 6-7
-Z4 (Forte / VO2max) — 80-90% HRR — RPE 8-9
-Z5 (Máxima) — 90-100% HRR — RPE 10
-
-Exemplos:
-- Objetivo "queima de gordura" → predominância Z2, opcional intervalo Z3
-- Objetivo "condicionamento" → Z3 com picos Z4
-- HIIT avançado → Z2 (recuperação) alternando com Z4-Z5 (picos)
+Use as zonas reais do aluno quando disponíveis. Caso contrário, use percepção de esforço (RPE).
+Z1 50-60% HRR | Z2 60-70% | Z3 70-80% | Z4 80-90% | Z5 90-100%.
 
 ═══════════════════════════════════════════════
 SAÍDA OBRIGATÓRIA
 ═══════════════════════════════════════════════
-Você DEVE chamar a função "generate_cardio_protocol" com TODOS os campos preenchidos.
-NÃO escreva texto fora da function call.
+Chame a função "generate_cardio_week" com EXATAMENTE N protocolos no array "protocols", onde N é a frequência semanal pedida.
 Use português do Brasil em todos os textos.`;
 
 serve(async (req) => {
@@ -80,17 +71,30 @@ serve(async (req) => {
   try {
     const {
       studentContext,
-      modality = "auto", // auto | passadeira | bike | eliptica | escada
+      modality = "auto", // legacy: single modality
+      modalities = null, // new: array of allowed modalities; if empty/null = all
       frequencyPerWeek = 3,
-      intensity = "auto", // auto | leve | moderada | intensa
-      style = "auto", // auto | continuo | intervalado | hiit | zona2
-      durationMinutes = "auto", // auto | number
+      intensity = "auto",
+      style = "auto",
+      durationMinutes = "auto",
       notes = "",
-      hrZones = null, // { fcMax, fcRepouso, hrr, zones: [{zona, label, min, max}] }
+      hrZones = null,
     } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+
+    // Normalize allowed modalities
+    const ALL_MODS = ["passadeira", "bike", "eliptica", "escada"] as const;
+    let allowedMods: string[];
+    if (Array.isArray(modalities) && modalities.length > 0) {
+      allowedMods = modalities.filter((m: string) => (ALL_MODS as readonly string[]).includes(m));
+      if (allowedMods.length === 0) allowedMods = [...ALL_MODS];
+    } else if (modality && modality !== "auto" && (ALL_MODS as readonly string[]).includes(modality)) {
+      allowedMods = [modality];
+    } else {
+      allowedMods = [...ALL_MODS];
+    }
 
     // Build student context message
     let contextMessage = "\n\n=== DADOS COMPLETOS DO ALUNO ===\n";
@@ -153,151 +157,125 @@ serve(async (req) => {
     }
 
     const STYLE_INSTR: Record<string, string> = {
-      auto: "Estilo livre — escolha o melhor para o objetivo do aluno.",
-      continuo:
-        "ESTILO: CONTÍNUO. Bloco principal único, intensidade constante (Z2 ou Z3). Ideal para queima de gordura ou base aeróbica.",
-      intervalado:
-        "ESTILO: INTERVALADO MODERADO. Alterne 2-4 blocos de esforço (Z3-Z4) com recuperações ativas (Z2).",
-      hiit:
-        "ESTILO: HIIT. Picos curtos e intensos em Z4-Z5 (20-60s) alternados com recuperação ativa em Z2 (40-90s). 6-12 ciclos. SOMENTE se aluno apto.",
-      zona2:
-        "ESTILO: ZONA 2 PURA. Toda a sessão em Z2 (60-70% HRR). Ritmo conversacional, foco em oxidação lipídica e base aeróbica.",
+      auto: "Estilo livre — varie entre os estilos ao longo da semana.",
+      continuo: "ESTILO BASE: contínuo (Z2-Z3). Pode variar para intervalado em 1-2 sessões.",
+      intervalado: "ESTILO BASE: intervalado (Z3-Z4 com recuperação Z2). Pode incluir 1 sessão contínua leve.",
+      hiit: "ESTILO BASE: HIIT (picos Z4-Z5 / recuperação Z2). Inclua sessões recuperativas em Z2 contínuo entre HIITs.",
+      zona2: "ESTILO BASE: Zona 2 pura. Toda sessão em Z2, foco em oxidação lipídica.",
     };
     const styleInstr = STYLE_INSTR[style] || STYLE_INSTR.auto;
 
     const intensityInstr =
       {
-        auto: "AUTO: analise o perfil completo e decida a intensidade ideal. Priorize segurança.",
-        leve: "LEVE: predominância Z1-Z2, sem picos, sessão tranquila.",
+        auto: "AUTO: analise o perfil completo e decida a intensidade ideal por sessão.",
+        leve: "LEVE: predominância Z1-Z2, sem picos.",
         moderada: "MODERADA: predominância Z2-Z3, opcional pequenos picos em Z4.",
         intensa:
           "INTENSA: predominância Z3-Z4 com picos Z5 quando seguro. SOMENTE se sem restrições e bom condicionamento.",
       }[intensity] || "AUTO";
 
-    const modalityInstr =
-      modality === "auto"
-        ? "Você decide a melhor modalidade considerando lesões e objetivo. Em caso de dúvida, prefira BIKE (mais segura)."
-        : `MODALIDADE FIXA: ${modality.toUpperCase()}. Use SOMENTE esta modalidade.`;
+    const modalityInstr = `MODALIDADES PERMITIDAS: ${allowedMods.join(", ")}. ${
+      allowedMods.length > 1
+        ? "Distribua e ALTERNE essas modalidades ao longo das sessões da semana, sem repetir a mesma duas vezes seguidas."
+        : "Use APENAS esta modalidade em todas as sessões — varie estilo/duração para criar diversidade."
+    }`;
 
     const durationInstr =
       durationMinutes === "auto" || !durationMinutes
-        ? "Duração total entre 20 e 45 min, conforme objetivo e nível."
-        : `Duração total alvo: aproximadamente ${durationMinutes} minutos.`;
+        ? "Duração total entre 20 e 45 min por sessão, conforme objetivo e nível. Varie entre as sessões."
+        : `Duração total alvo por sessão: aproximadamente ${durationMinutes} minutos.`;
 
-    const userPrompt = `Gere o protocolo de CARDIO agora.
+    const userPrompt = `Gere o PLANO SEMANAL DE CARDIO agora.
 
-MODALIDADE: ${modalityInstr}
-FREQUÊNCIA SEMANAL: ${frequencyPerWeek}x por semana
+${modalityInstr}
+FREQUÊNCIA SEMANAL: ${frequencyPerWeek} sessões — gere EXATAMENTE ${frequencyPerWeek} protocolos diferentes no array "protocols".
 INTENSIDADE: ${intensity.toUpperCase()} — ${intensityInstr}
 ESTILO: ${style.toUpperCase()} — ${styleInstr}
 DURAÇÃO: ${durationInstr}
 ${notes ? `\nOBSERVAÇÕES ADICIONAIS DO COACH: ${notes}\n` : ""}
 
 Lembre-se:
+- VARIE modalidade entre sessões (quando houver mais de uma permitida)
 - Cruze CADA bloco com lesões/restrições reportadas
 - Use as zonas Karvonen reais quando disponíveis (campo targetZone)
-- Sempre inclua aquecimento e desaceleração
-- Chame OBRIGATORIAMENTE a função "generate_cardio_protocol" com a saída completa.`;
+- Sempre inclua aquecimento e desaceleração em cada protocolo
+- Cada protocolo precisa de título descritivo e único
+- Chame OBRIGATORIAMENTE a função "generate_cardio_week" com a saída completa.`;
+
+    const protocolItem = {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Título curto e único da sessão (ex: 'Sessão 1 — Bike Z2 longa')." },
+        modality: {
+          type: "string",
+          enum: ["passadeira", "bike", "eliptica", "escada"],
+        },
+        objective: { type: "string" },
+        level: { type: "string", enum: ["iniciante", "intermediario", "avancado"] },
+        intensity: { type: "string", enum: ["leve", "moderada", "intensa"] },
+        structure: { type: "string", enum: ["continuo", "intervalado", "hiit", "zona2"] },
+        totalDurationMin: { type: "number" },
+        frequencyPerWeek: { type: "number" },
+        targetZoneSummary: { type: "string" },
+        safetyNotes: { type: "array", items: { type: "string" } },
+        executionTips: { type: "array", items: { type: "string" } },
+        blocks: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              type: {
+                type: "string",
+                enum: ["aquecimento", "principal", "pico", "recuperacao", "desaceleracao"],
+              },
+              durationSec: { type: "number" },
+              intensityLabel: { type: "string", enum: ["leve", "moderada", "forte", "maxima"] },
+              targetZone: { type: "string" },
+              targetHrRange: { type: "string" },
+              speedKmh: { type: "number" },
+              inclinePct: { type: "number" },
+              cadenceRpm: { type: "number" },
+              resistanceLevel: { type: "number" },
+              bikePosition: { type: "string", enum: ["sentado", "em_pe", "alternado"] },
+              stepsPerMin: { type: "number" },
+              notes: { type: "string" },
+            },
+            required: ["name", "type", "durationSec", "intensityLabel"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: [
+        "title",
+        "modality",
+        "objective",
+        "level",
+        "intensity",
+        "structure",
+        "totalDurationMin",
+        "frequencyPerWeek",
+        "blocks",
+      ],
+      additionalProperties: false,
+    };
 
     const tool = {
       type: "function",
       function: {
-        name: "generate_cardio_protocol",
-        description: "Retorna o protocolo de cardio personalizado em formato estruturado.",
+        name: "generate_cardio_week",
+        description: "Retorna o plano semanal de cardio (N protocolos diferentes, um por sessão).",
         parameters: {
           type: "object",
           properties: {
-            title: { type: "string", description: "Título curto e motivacional do cardio." },
-            modality: {
-              type: "string",
-              enum: ["passadeira", "bike", "eliptica", "escada"],
-              description: "Modalidade da máquina escolhida.",
-            },
-            objective: { type: "string", description: "Objetivo principal do cardio." },
-            level: {
-              type: "string",
-              enum: ["iniciante", "intermediario", "avancado"],
-            },
-            intensity: {
-              type: "string",
-              enum: ["leve", "moderada", "intensa"],
-            },
-            structure: {
-              type: "string",
-              enum: ["continuo", "intervalado", "hiit", "zona2"],
-            },
-            totalDurationMin: { type: "number", description: "Duração total em minutos." },
-            frequencyPerWeek: { type: "number" },
-            targetZoneSummary: {
-              type: "string",
-              description: "Resumo da zona alvo principal (ex: 'Z2 — 120-135 bpm').",
-            },
-            safetyNotes: {
+            frequencyPerWeek: { type: "number", description: "Número de sessões na semana." },
+            protocols: {
               type: "array",
-              items: { type: "string" },
-              description: "Adaptações de segurança aplicadas conforme perfil do aluno.",
-            },
-            executionTips: {
-              type: "array",
-              items: { type: "string" },
-              description: "Dicas práticas de execução, respiração e hidratação.",
-            },
-            blocks: {
-              type: "array",
-              description: "Etapas/blocos do protocolo em ordem cronológica.",
-              items: {
-                type: "object",
-                properties: {
-                  name: { type: "string", description: "Nome do bloco (ex: Aquecimento, Pico 1)." },
-                  type: {
-                    type: "string",
-                    enum: ["aquecimento", "principal", "pico", "recuperacao", "desaceleracao"],
-                  },
-                  durationSec: { type: "number" },
-                  intensityLabel: {
-                    type: "string",
-                    enum: ["leve", "moderada", "forte", "maxima"],
-                  },
-                  targetZone: {
-                    type: "string",
-                    description: "Zona alvo (ex: Z1, Z2, Z3, Z4, Z5) ou vazio.",
-                  },
-                  targetHrRange: {
-                    type: "string",
-                    description: "Faixa de FC alvo em bpm (ex: '120-135 bpm') ou vazio.",
-                  },
-                  // Modality-specific (only fill when relevant)
-                  speedKmh: { type: "number", description: "Velocidade km/h (passadeira)." },
-                  inclinePct: { type: "number", description: "Inclinação % (passadeira)." },
-                  cadenceRpm: { type: "number", description: "Cadência rpm (bike) ou spm (elíptica)." },
-                  resistanceLevel: {
-                    type: "number",
-                    description: "Nível de resistência (bike, elíptica, escada).",
-                  },
-                  bikePosition: {
-                    type: "string",
-                    enum: ["sentado", "em_pe", "alternado"],
-                    description: "Posição na bike.",
-                  },
-                  stepsPerMin: { type: "number", description: "Degraus por minuto (escada)." },
-                  notes: { type: "string", description: "Observação curta para o aluno." },
-                },
-                required: ["name", "type", "durationSec", "intensityLabel"],
-                additionalProperties: false,
-              },
+              description: "Lista de protocolos, um por sessão da semana. Tamanho = frequencyPerWeek.",
+              items: protocolItem,
             },
           },
-          required: [
-            "title",
-            "modality",
-            "objective",
-            "level",
-            "intensity",
-            "structure",
-            "totalDurationMin",
-            "frequencyPerWeek",
-            "blocks",
-          ],
+          required: ["frequencyPerWeek", "protocols"],
           additionalProperties: false,
         },
       },
@@ -316,7 +294,7 @@ Lembre-se:
           { role: "user", content: userPrompt },
         ],
         tools: [tool],
-        tool_choice: { type: "function", function: { name: "generate_cardio_protocol" } },
+        tool_choice: { type: "function", function: { name: "generate_cardio_week" } },
       }),
     });
 
@@ -345,15 +323,15 @@ Lembre-se:
     const toolCall = data?.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall?.function?.arguments) {
       console.error("No tool call returned:", JSON.stringify(data).slice(0, 500));
-      return new Response(JSON.stringify({ error: "IA não retornou protocolo estruturado" }), {
+      return new Response(JSON.stringify({ error: "IA não retornou plano estruturado" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    let protocol;
+    let parsed: any;
     try {
-      protocol = JSON.parse(toolCall.function.arguments);
+      parsed = JSON.parse(toolCall.function.arguments);
     } catch (e) {
       console.error("Invalid JSON from AI:", toolCall.function.arguments);
       return new Response(JSON.stringify({ error: "Resposta da IA inválida" }), {
@@ -362,7 +340,24 @@ Lembre-se:
       });
     }
 
-    return new Response(JSON.stringify({ protocol }), {
+    // Build weekly plan envelope
+    const protocols = Array.isArray(parsed?.protocols) ? parsed.protocols : [];
+    if (!protocols.length) {
+      return new Response(JSON.stringify({ error: "IA não retornou protocolos" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    // Ensure each protocol carries the weekly frequency
+    for (const p of protocols) p.frequencyPerWeek = frequencyPerWeek;
+
+    const weekly = {
+      weekly: true,
+      frequencyPerWeek,
+      protocols,
+    };
+
+    return new Response(JSON.stringify({ weekly }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
