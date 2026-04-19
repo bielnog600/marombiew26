@@ -72,7 +72,6 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, i
       updated[selectedFoodIndex] = newFood;
       return updated;
     });
-    toast.success(`Substituído por ${newFood.food}`);
   };
 
   // Parse sub text like "1) Batata-doce (150g); 2) Inhame (140g); 3) Mandioca (120g)"
