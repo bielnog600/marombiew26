@@ -631,8 +631,8 @@ const TreinoExecucao = () => {
                   ? <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded font-semibold">{summary}</span>
                   : isReal(exercise.series) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.series} séries</span>}
                 {!summary && repsLabel && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{repsLabel}</span>}
-                {isReal(exercise.pause) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.pause} descanso</span>}
                 {rirLabel && <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">{rirLabel}</span>}
+                {isReal(exercise.pause) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.pause} descanso</span>}
               </div>
             );
           })()}
