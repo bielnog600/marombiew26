@@ -6,7 +6,7 @@ import AiPlansList from '@/components/AiPlansList';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Plus, ClipboardList, User, Target, FileText, ScanLine, Pencil, Trash2, Heart, Bot, Download, Loader2, BarChart3, UtensilsCrossed, FileQuestion, Dumbbell, Flame } from 'lucide-react';
+import { ArrowLeft, Plus, ClipboardList, User, Target, FileText, ScanLine, Pencil, Trash2, Heart, Bot, Download, Loader2, BarChart3, UtensilsCrossed, FileQuestion, Dumbbell, Flame, HeartPulse } from 'lucide-react';
 import StudentTrainingTab from '@/components/student/StudentTrainingTab';
 import StudentDietTab from '@/components/student/StudentDietTab';
 import AssessmentComparison from '@/components/AssessmentComparison';
@@ -366,6 +366,17 @@ const AlunoDetail = () => {
                     <p className="text-muted-foreground text-sm">Gere treinos HIIT/TABATA seguros e personalizados ao perfil do aluno.</p>
                     <Button onClick={() => navigate(`/tabata-ia/${id}`)} className="font-semibold w-full">
                       <Flame className="mr-2 h-4 w-4" /> Gerar TABATA
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="glass-card border-primary/30">
+                  <CardContent className="p-6 text-center space-y-4">
+                    <HeartPulse className="h-12 w-12 mx-auto text-primary" />
+                    <h3 className="text-lg font-bold">Cardio IA</h3>
+                    <p className="text-muted-foreground text-sm">Gere protocolos de cardio personalizados (passadeira, bike, elíptica, escada) com zona Karvonen alvo.</p>
+                    <Button onClick={() => navigate(`/cardio-ia/${id}`)} className="font-semibold w-full">
+                      <HeartPulse className="mr-2 h-4 w-4" /> Gerar Cardio com IA
                     </Button>
                   </CardContent>
                 </Card>
