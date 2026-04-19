@@ -97,6 +97,24 @@ export const WorkoutSummaryShare: React.FC<WorkoutSummaryShareProps> = ({
 
   const generateImage = async (): Promise<Blob | null> => {
     if (!cardRef.current) return null;
+
+    // Ensure all images inside the card are fully decoded before capture.
+    const imgs = Array.from(cardRef.current.querySelectorAll('img'));
+    await Promise.all(
+      imgs.map((img) =>
+        img.complete && img.naturalWidth > 0
+          ? img.decode().catch(() => undefined)
+          : new Promise<void>((resolve) => {
+              img.onload = () => resolve();
+              img.onerror = () => resolve();
+            }),
+      ),
+    );
+    // Extra frame to let layout settle
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+
+    // Run twice — first run primes fonts/images cache, second produces clean output
+    await toPng(cardRef.current, { cacheBust: true, pixelRatio: 2, backgroundColor: '#0F1115' });
     const dataUrl = await toPng(cardRef.current, {
       cacheBust: true,
       pixelRatio: 2,
