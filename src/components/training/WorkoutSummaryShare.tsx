@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { toPng } from 'html-to-image';
-import { Share2, Download, Check, Clock, Flame, Calendar, CalendarCheck } from 'lucide-react';
+import { Share2, Download, Check, Clock, Flame, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { PHASE_LABELS, type TrainingPhase } from '@/lib/trainingPhase';
@@ -48,7 +48,7 @@ export const WorkoutSummaryShare: React.FC<WorkoutSummaryShareProps> = ({
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isSharing, setIsSharing] = useState(false);
-  const [weeklyWorkouts, setWeeklyWorkouts] = useState<number>(0);
+  const [weekDays, setWeekDays] = useState<boolean[]>([false, false, false, false, false, false, false]);
   const { user } = useAuth();
   const today = new Date();
 
@@ -57,12 +57,24 @@ export const WorkoutSummaryShare: React.FC<WorkoutSummaryShareProps> = ({
     const { start, end } = getWeekRange();
     supabase
       .from('daily_tracking')
-      .select('id')
+      .select('date')
       .eq('student_id', user.id)
       .eq('workout_completed', true)
       .gte('date', start)
       .lte('date', end)
-      .then(({ data }) => setWeeklyWorkouts(data?.length ?? 0));
+      .then(({ data }) => {
+        const days = [false, false, false, false, false, false, false];
+        // Mark today as completed (treino acabou de ser concluído)
+        days[today.getDay()] = true;
+        (data ?? []).forEach((row) => {
+          // date string YYYY-MM-DD — parse to local weekday
+          const [y, m, d] = row.date.split('-').map(Number);
+          const dt = new Date(y, m - 1, d);
+          days[dt.getDay()] = true;
+        });
+        setWeekDays(days);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const generateImage = async (): Promise<Blob | null> => {
@@ -170,7 +182,7 @@ export const WorkoutSummaryShare: React.FC<WorkoutSummaryShareProps> = ({
                   src={logoMarombiew}
                   alt="MAROMBIEW"
                   crossOrigin="anonymous"
-                  className="h-12 w-auto object-contain"
+                  className="h-24 w-auto object-contain"
                 />
                 {phase && (
                   <span
@@ -207,16 +219,16 @@ export const WorkoutSummaryShare: React.FC<WorkoutSummaryShareProps> = ({
 
               {/* Stats */}
               <div className="space-y-3">
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   <div
                     className="rounded-2xl p-3 flex flex-col items-center"
                     style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
                   >
                     <Flame className="h-5 w-5 mb-1" style={{ color: '#FFC400' }} />
-                    <span className="text-base font-black" style={{ color: '#FFFFFF' }}>
+                    <span className="text-xl font-black" style={{ color: '#FFFFFF' }}>
                       {exercisesCompleted}/{totalExercises}
                     </span>
-                    <span className="text-[8px] uppercase tracking-widest mt-0.5 text-center" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                    <span className="text-[9px] uppercase tracking-widest mt-0.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
                       Exercícios
                     </span>
                   </div>
@@ -225,24 +237,52 @@ export const WorkoutSummaryShare: React.FC<WorkoutSummaryShareProps> = ({
                     style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
                   >
                     <Clock className="h-5 w-5 mb-1" style={{ color: '#FFC400' }} />
-                    <span className="text-base font-black" style={{ color: '#FFFFFF' }}>
-                      {Math.max(1, Math.round(durationSeconds / 60))}min
+                    <span className="text-xl font-black" style={{ color: '#FFFFFF' }}>
+                      {Math.max(1, Math.round(durationSeconds / 60))} min
                     </span>
-                    <span className="text-[8px] uppercase tracking-widest mt-0.5 text-center" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                    <span className="text-[9px] uppercase tracking-widest mt-0.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
                       Duração
                     </span>
                   </div>
-                  <div
-                    className="rounded-2xl p-3 flex flex-col items-center"
-                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
-                  >
-                    <CalendarCheck className="h-5 w-5 mb-1" style={{ color: '#FFC400' }} />
-                    <span className="text-base font-black" style={{ color: '#FFFFFF' }}>
-                      {weeklyWorkouts}/7
-                    </span>
-                    <span className="text-[8px] uppercase tracking-widest mt-0.5 text-center" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                      Na semana
-                    </span>
+                </div>
+
+                {/* Weekday frequency row */}
+                <div
+                  className="rounded-2xl p-3"
+                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
+                >
+                  <p className="text-[9px] uppercase tracking-widest text-center mb-2" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                    Frequência da semana
+                  </p>
+                  <div className="grid grid-cols-7 gap-1">
+                    {/* Mon-first: indexes into weekDays which is Sun=0..Sat=6 */}
+                    {[
+                      { label: 'S', idx: 1 },
+                      { label: 'T', idx: 2 },
+                      { label: 'Q', idx: 3 },
+                      { label: 'Q', idx: 4 },
+                      { label: 'S', idx: 5 },
+                      { label: 'S', idx: 6 },
+                      { label: 'D', idx: 0 },
+                    ].map((d, i) => {
+                      const done = weekDays[d.idx];
+                      return (
+                        <div key={i} className="flex flex-col items-center gap-1">
+                          <div
+                            className="h-7 w-7 rounded-full flex items-center justify-center"
+                            style={{
+                              background: done ? '#FFC400' : 'transparent',
+                              border: done ? 'none' : '1.5px solid rgba(255,255,255,0.25)',
+                            }}
+                          >
+                            {done && <Check className="h-4 w-4" style={{ color: '#0F1115' }} strokeWidth={3} />}
+                          </div>
+                          <span className="text-[9px] font-bold" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                            {d.label}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
