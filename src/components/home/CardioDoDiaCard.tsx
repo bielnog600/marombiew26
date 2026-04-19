@@ -35,15 +35,15 @@ const CardioDoDiaCard: React.FC<CardioDoDiaCardProps> = ({ conteudo }) => {
       className="glass-card overflow-hidden cursor-pointer group border-primary/20"
       onClick={() => navigate('/cardio-execucao', { state: { protocol } })}
     >
-      <div className="relative p-4 bg-gradient-to-br from-pink-500/10 via-rose-500/5 to-transparent">
+      <div className="relative p-4 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent">
         <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-pink-500/30 to-rose-500/20 flex items-center justify-center shrink-0">
-            <Icon className="h-6 w-6 text-pink-400" />
+          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center shrink-0">
+            <Icon className="h-6 w-6 text-primary" />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <p className="text-[10px] uppercase tracking-widest text-primary font-bold">Cardio do Dia</p>
-              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-pink-500/40 bg-pink-500/10 text-pink-400">
+              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-primary/40 bg-primary/10 text-primary">
                 {MODALITY_LABEL[protocol.modality]}
               </span>
               <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-border bg-secondary text-muted-foreground">

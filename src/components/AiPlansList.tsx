@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { Trash2, Dumbbell, UtensilsCrossed, ChevronDown, ChevronUp, Pencil, ClipboardCheck, Flame } from 'lucide-react';
+import { Trash2, Dumbbell, UtensilsCrossed, ChevronDown, ChevronUp, Pencil, ClipboardCheck, Flame, HeartPulse } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useNavigate } from 'react-router-dom';
@@ -70,6 +70,8 @@ const AiPlansList = ({ studentId }: AiPlansListProps) => {
                   <Dumbbell className="h-5 w-5 text-primary shrink-0" />
                 ) : plan.tipo === 'tabata' ? (
                   <Flame className="h-5 w-5 text-primary shrink-0" />
+                ) : plan.tipo === 'cardio' ? (
+                  <HeartPulse className="h-5 w-5 text-primary shrink-0" />
                 ) : (
                   <UtensilsCrossed className="h-5 w-5 text-primary shrink-0" />
                 )}
@@ -101,6 +103,8 @@ const AiPlansList = ({ studentId }: AiPlansListProps) => {
                     ? `/treino-ia/${studentId}?edit=${plan.id}`
                     : plan.tipo === 'tabata'
                     ? `/tabata-ia/${studentId}?edit=${plan.id}`
+                    : plan.tipo === 'cardio'
+                    ? `/cardio-ia/${studentId}?edit=${plan.id}`
                     : `/dieta-ia/${studentId}?edit=${plan.id}`;
                   navigate(route);
                 }}
@@ -135,6 +139,10 @@ const AiPlansList = ({ studentId }: AiPlansListProps) => {
                   <div className="prose prose-sm prose-invert max-w-none whitespace-pre-wrap text-sm">
                     {plan.conteudo}
                   </div>
+                ) : plan.tipo === 'cardio' ? (
+                  <pre className="text-[10px] text-muted-foreground bg-secondary/40 rounded p-2 overflow-x-auto whitespace-pre-wrap">
+                    {plan.conteudo}
+                  </pre>
                 ) : (
                   <TrainingResultCards markdown={plan.conteudo} />
                 )}
