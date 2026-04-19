@@ -41,11 +41,26 @@ interface MealCardProps {
   isCompleted?: boolean;
   onToggleComplete?: () => void;
   hideSubstitutions?: boolean;
+  onFoodsChange?: (foods: ParsedFood[]) => void;
 }
 
-const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, isCompleted, onToggleComplete, hideSubstitutions }) => {
+const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, isCompleted, onToggleComplete, hideSubstitutions, onFoodsChange }) => {
   const [foods, setFoods] = useState<ParsedFood[]>(initialMeal.foods);
   const [selectedFoodIndex, setSelectedFoodIndex] = useState<number | null>(null);
+
+  // Sync when parent provides new initialMeal (e.g. day change with persisted subs)
+  React.useEffect(() => {
+    setFoods(initialMeal.foods);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialMeal]);
+
+  const updateFoods = useCallback((updater: (prev: ParsedFood[]) => ParsedFood[]) => {
+    setFoods((prev) => {
+      const next = updater(prev);
+      onFoodsChange?.(next);
+      return next;
+    });
+  }, [onFoodsChange]);
 
   const surface = MEAL_SURFACES[index % MEAL_SURFACES.length];
   const hasSubs = !hideSubstitutions && foods.some((f) => f.sub);
@@ -67,7 +82,7 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, i
 
   const handleSubstitute = (newFood: ParsedFood) => {
     if (selectedFoodIndex === null) return;
-    setFoods((prev) => {
+    updateFoods((prev) => {
       const updated = [...prev];
       updated[selectedFoodIndex] = newFood;
       return updated;
@@ -115,7 +130,7 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, i
         newG = dbFood.fats;
       }
 
-      setFoods((prev) => {
+      updateFoods((prev) => {
         const updated = [...prev];
         updated[foodIndex] = {
           food: dbFood.name,
@@ -130,7 +145,7 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, i
       });
     } else {
       // Not found in DB, just swap name/portion
-      setFoods((prev) => {
+      updateFoods((prev) => {
         const updated = [...prev];
         updated[foodIndex] = {
           ...original,
@@ -140,7 +155,7 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, i
         return updated;
       });
     }
-  }, [foods]);
+  }, [foods, updateFoods]);
 
   return (
     <>
