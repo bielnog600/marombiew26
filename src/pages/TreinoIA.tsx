@@ -86,7 +86,7 @@ const TreinoIA = () => {
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState('');
   const [saving, setSaving] = useState(false);
-  const [configCollapsed, setConfigCollapsed] = useState(false);
+  const [configCollapsed, setConfigCollapsed] = useState(!!editPlanId);
   const resultRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
