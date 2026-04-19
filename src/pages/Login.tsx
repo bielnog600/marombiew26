@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dumbbell, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import logoMarombiew from '@/assets/logo_marombiew.png';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -66,12 +67,8 @@ const Login = () => {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-md animate-fade-in">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl gradient-primary">
-            <Dumbbell className="h-8 w-8 text-primary-foreground" />
-          </div>
-          <h1 className="text-3xl font-bold text-foreground">MarombiewPro</h1>
-          <p className="mt-1 text-muted-foreground">Sistema de Avaliação Física</p>
+        <div className="mb-8 flex justify-center">
+          <img src={logoMarombiew} alt="Marombiew" className="h-24 w-auto object-contain" />
         </div>
 
         <Card className="glass-card">
