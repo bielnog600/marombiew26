@@ -586,12 +586,33 @@ const TreinoExecucao = () => {
               const t = v.trim();
               return t.length > 0 && !['-', '—', '–', 'n/a', 'na'].includes(t.toLowerCase());
             };
+            // Distingue RIR real de faixa de repetições mal-rotulada.
+            // Se o valor parece faixa de reps (ex: "8-10", "8 a 12") com números altos (>=4),
+            // tratamos como meta de reps; se for número baixo (0-4) tratamos como RIR.
+            const formatEffort = (raw: string): { label: string; isRepRange: boolean } | null => {
+              const t = raw.replace(/\s+/g, '').toLowerCase();
+              const m = t.match(/^(\d+)(?:[-–a]+(\d+))?$/);
+              if (!m) return { label: `RIR ${raw.trim()}`, isRepRange: false };
+              const a = parseInt(m[1], 10);
+              const b = m[2] ? parseInt(m[2], 10) : a;
+              const max = Math.max(a, b);
+              if (max >= 5) {
+                const range = a === b ? `${a}` : `${Math.min(a, b)}–${Math.max(a, b)}`;
+                return { label: `meta ${range} reps`, isRepRange: true };
+              }
+              const range = a === b ? `${a}` : `${Math.min(a, b)}–${Math.max(a, b)}`;
+              return { label: `RIR ${range}`, isRepRange: false };
+            };
+            const effort = isReal(exercise.rir) ? formatEffort(exercise.rir) : null;
+            // Evita duplicar chip de reps se RIR já virou "meta X reps" igual ao campo reps.
+            const hideRepsChip = effort?.isRepRange && isReal(exercise.reps) &&
+              exercise.reps.replace(/\s+/g, '') === exercise.rir.replace(/\s+/g, '');
             return (
               <div className="flex items-center gap-2 mt-2 flex-wrap">
                 {isReal(exercise.series) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.series} séries</span>}
-                {isReal(exercise.reps) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.reps} reps</span>}
+                {isReal(exercise.reps) && !hideRepsChip && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.reps} reps</span>}
                 {isReal(exercise.pause) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.pause} descanso</span>}
-                {isReal(exercise.rir) && <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">RIR {exercise.rir}</span>}
+                {effort && <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">{effort.label}</span>}
               </div>
             );
           })()}
