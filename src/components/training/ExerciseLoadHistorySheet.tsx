@@ -94,6 +94,32 @@ export const ExerciseLoadHistorySheet: React.FC<Props> = ({ open, onOpenChange, 
           <SheetDescription>Histórico de progresso deste exercício</SheetDescription>
         </SheetHeader>
 
+        {(() => {
+          if (loading || groups.length === 0) return null;
+          const lastTop = groups[0]?.topWeight ?? 0;
+          const bestTop = groups.reduce((m, g) => Math.max(m, g.topWeight), 0);
+          const recent = groups.slice(0, 5);
+          const avgTop = recent.length
+            ? recent.reduce((s, g) => s + g.topWeight, 0) / recent.length
+            : 0;
+          return (
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <div className="rounded-lg bg-secondary/40 border border-border/40 p-2.5 text-center">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Última</p>
+                <p className="text-base font-bold text-foreground tabular-nums">{lastTop ? `${lastTop}kg` : '—'}</p>
+              </div>
+              <div className="rounded-lg bg-primary/10 border border-primary/30 p-2.5 text-center">
+                <p className="text-[10px] uppercase tracking-wider text-primary font-semibold">Melhor</p>
+                <p className="text-base font-bold text-foreground tabular-nums">{bestTop ? `${bestTop}kg` : '—'}</p>
+              </div>
+              <div className="rounded-lg bg-secondary/40 border border-border/40 p-2.5 text-center">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Média 5</p>
+                <p className="text-base font-bold text-foreground tabular-nums">{avgTop ? `${avgTop.toFixed(1)}kg` : '—'}</p>
+              </div>
+            </div>
+          );
+        })()}
+
         <div className="mt-4 space-y-3">
           {loading && <p className="text-sm text-muted-foreground text-center py-8">Carregando...</p>}
           {!loading && groups.length === 0 && (
