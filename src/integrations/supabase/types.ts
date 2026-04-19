@@ -1154,6 +1154,9 @@ export type Database = {
           id: string
           phase: string | null
           plan_id: string | null
+          session_state: Json | null
+          started_at: string | null
+          status: string
           student_id: string
           total_exercises: number
           total_sets: number | null
@@ -1169,6 +1172,9 @@ export type Database = {
           id?: string
           phase?: string | null
           plan_id?: string | null
+          session_state?: Json | null
+          started_at?: string | null
+          status?: string
           student_id: string
           total_exercises?: number
           total_sets?: number | null
@@ -1184,6 +1190,9 @@ export type Database = {
           id?: string
           phase?: string | null
           plan_id?: string | null
+          session_state?: Json | null
+          started_at?: string | null
+          status?: string
           student_id?: string
           total_exercises?: number
           total_sets?: number | null

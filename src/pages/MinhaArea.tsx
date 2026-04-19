@@ -16,6 +16,7 @@ import { parseSections, type ParsedMeal, type ParsedSection } from '@/lib/dietRe
 import DietPlanCard from '@/components/DietPlanCard';
 import TabataDoDiaCard from '@/components/home/TabataDoDiaCard';
 import { useEventTracking } from '@/hooks/useEventTracking';
+import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
 
 const MinhaArea = () => {
   const { user } = useAuth();
@@ -34,6 +35,28 @@ const MinhaArea = () => {
   const [exerciseMuscles, setExerciseMuscles] = useState<Record<string, string>>({});
   const [exerciseMedia, setExerciseMedia] = useState<Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }>>({});
   const { trackEvent } = useEventTracking();
+  const { session: activeSession } = useActiveWorkoutSession();
+  const [activeElapsed, setActiveElapsed] = useState(0);
+
+  // Tick para o cronômetro do card "em andamento"
+  useEffect(() => {
+    if (!activeSession) return;
+    const update = () => {
+      const ms = Date.now() - new Date(activeSession.started_at).getTime();
+      setActiveElapsed(Math.max(0, Math.floor(ms / 1000)));
+    };
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [activeSession]);
+
+  const formatActiveElapsed = (totalSec: number) => {
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+  };
 
   useEffect(() => {
     if (user) {
@@ -260,7 +283,7 @@ const MinhaArea = () => {
         {/* Today's Training */}
         {todayTraining && (
           <Card
-            className="glass-card overflow-hidden cursor-pointer group"
+            className={`glass-card overflow-hidden cursor-pointer group ${activeSession ? 'ring-2 ring-primary/60 shadow-lg shadow-primary/10' : ''}`}
             onClick={() => navigate('/treino-execucao', {
               state: {
                 exercises: todayTraining.exercises,
@@ -276,15 +299,31 @@ const MinhaArea = () => {
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-card via-card/60 to-transparent" />
+              {activeSession && (
+                <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-primary/90 backdrop-blur rounded-full px-2.5 py-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary-foreground animate-pulse" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-primary-foreground">Em andamento</span>
+                </div>
+              )}
               <div className="absolute bottom-0 left-0 right-0 p-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[10px] uppercase tracking-widest text-primary font-semibold">{todayTraining.day}</p>
-                    <h3 className="text-base font-bold text-foreground mt-0.5 uppercase">Treino de Hoje</h3>
-                    {todayMuscleGroups && (
-                      <p className="text-[10px] text-primary/80 font-medium mt-0.5">{todayMuscleGroups}</p>
+                    <h3 className="text-base font-bold text-foreground mt-0.5 uppercase">
+                      {activeSession ? 'Continuar Treino' : 'Treino de Hoje'}
+                    </h3>
+                    {activeSession ? (
+                      <p className="text-xs text-primary font-mono font-bold mt-0.5 tabular-nums">
+                        ⏱ {formatActiveElapsed(activeElapsed)}
+                      </p>
+                    ) : (
+                      <>
+                        {todayMuscleGroups && (
+                          <p className="text-[10px] text-primary/80 font-medium mt-0.5">{todayMuscleGroups}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-0.5">{todayTraining.exercises.length} exercícios</p>
+                      </>
                     )}
-                    <p className="text-xs text-muted-foreground mt-0.5">{todayTraining.exercises.length} exercícios</p>
                   </div>
                   <div className="h-12 w-12 rounded-full bg-primary flex items-center justify-center shadow-lg">
                     <Play className="h-5 w-5 text-primary-foreground ml-0.5" />
@@ -294,6 +333,7 @@ const MinhaArea = () => {
             </div>
           </Card>
         )}
+
 
         {/* TABATA do Dia */}
         {tabataConteudo && <TabataDoDiaCard conteudo={tabataConteudo} />}
