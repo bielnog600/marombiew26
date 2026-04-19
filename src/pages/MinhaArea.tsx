@@ -35,6 +35,28 @@ const MinhaArea = () => {
   const [exerciseMuscles, setExerciseMuscles] = useState<Record<string, string>>({});
   const [exerciseMedia, setExerciseMedia] = useState<Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }>>({});
   const { trackEvent } = useEventTracking();
+  const { session: activeSession } = useActiveWorkoutSession();
+  const [activeElapsed, setActiveElapsed] = useState(0);
+
+  // Tick para o cronômetro do card "em andamento"
+  useEffect(() => {
+    if (!activeSession) return;
+    const update = () => {
+      const ms = Date.now() - new Date(activeSession.started_at).getTime();
+      setActiveElapsed(Math.max(0, Math.floor(ms / 1000)));
+    };
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [activeSession]);
+
+  const formatActiveElapsed = (totalSec: number) => {
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+  };
 
   useEffect(() => {
     if (user) {
