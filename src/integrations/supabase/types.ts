@@ -245,6 +245,48 @@ export type Database = {
         }
         Relationships: []
       }
+      behavioral_alerts: {
+        Row: {
+          alert_key: string
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          priority: string
+          resolved_at: string | null
+          status: string
+          student_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          alert_key: string
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          priority?: string
+          resolved_at?: string | null
+          status?: string
+          student_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          alert_key?: string
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          priority?: string
+          resolved_at?: string | null
+          status?: string
+          student_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       composition: {
         Row: {
           assessment_id: string
@@ -934,6 +976,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      student_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          metadata: Json
+          student_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          metadata?: Json
+          student_id: string
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          metadata?: Json
+          student_id?: string
+        }
+        Relationships: []
       }
       student_exercise_adjustments: {
         Row: {

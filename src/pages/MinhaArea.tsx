@@ -15,6 +15,7 @@ import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingRes
 import { parseSections, type ParsedMeal, type ParsedSection } from '@/lib/dietResultParser';
 import DietPlanCard from '@/components/DietPlanCard';
 import TabataDoDiaCard from '@/components/home/TabataDoDiaCard';
+import { useEventTracking } from '@/hooks/useEventTracking';
 
 const MinhaArea = () => {
   const { user } = useAuth();
@@ -32,9 +33,14 @@ const MinhaArea = () => {
   const [exerciseImages, setExerciseImages] = useState<Record<string, string>>({});
   const [exerciseMuscles, setExerciseMuscles] = useState<Record<string, string>>({});
   const [exerciseMedia, setExerciseMedia] = useState<Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }>>({});
+  const { trackEvent } = useEventTracking();
+
   useEffect(() => {
-    if (user) loadData();
-  }, [user]);
+    if (user) {
+      loadData();
+      trackEvent('app_opened');
+    }
+  }, [user, trackEvent]);
 
   const loadData = async () => {
     // Profile

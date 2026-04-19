@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { FileText, Utensils, Dumbbell, ClipboardList, Users, ChevronRight, Bell, MessageSquare, CalendarClock, Cake, Phone, AlertTriangle, RefreshCw, ExternalLink, X, UtensilsCrossed } from 'lucide-react';
+import { FileText, Utensils, Dumbbell, ClipboardList, Users, ChevronRight, Bell, MessageSquare, CalendarClock, Cake, Phone, AlertTriangle, RefreshCw, ExternalLink, X, UtensilsCrossed, Activity, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,9 @@ import { ptBR } from 'date-fns/locale';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useNotifications, NotificationType, buildWhatsAppUrl, Notification } from '@/hooks/useNotifications';
+import { useBehavioralAlerts } from '@/hooks/useBehavioralAlerts';
+import BehavioralAlertCard from '@/components/consultoria/BehavioralAlertCard';
+import EngagementOverviewCards from '@/components/consultoria/EngagementOverviewCards';
 
 const CYCLE_MIN_DAYS = 28;
 const CYCLE_MAX_DAYS = 42;
@@ -90,7 +93,9 @@ const Consultoria = () => {
   const navigate = useNavigate();
 
   const { notifications, loading: notifLoading, count: notifCount, refresh: refreshNotifs, dismissNotification } = useNotifications();
+  const { alerts: behavioralAlerts, loading: behavioralLoading, generating: behavioralGenerating, generate: generateBehavioral, updateStatus: updateBehavioralStatus } = useBehavioralAlerts();
   const [notifFilter, setNotifFilter] = useState('all');
+  const [alertCategory, setAlertCategory] = useState<'todos' | 'operacional' | 'comportamental'>('todos');
 
   useEffect(() => {
     loadData();
@@ -403,15 +408,80 @@ const Consultoria = () => {
         {/* Tab content */}
         {tab === 'alertas' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                {notifCount} alerta{notifCount !== 1 ? 's' : ''} pendente{notifCount !== 1 ? 's' : ''}
-              </p>
-              <Button variant="ghost" size="sm" onClick={refreshNotifs} disabled={notifLoading}>
-                <RefreshCw className={`h-4 w-4 mr-1 ${notifLoading ? 'animate-spin' : ''}`} />
+            {/* Engagement overview cards */}
+            <EngagementOverviewCards />
+
+            {/* Category filter */}
+            <div className="flex gap-2 flex-wrap items-center">
+              {([
+                { value: 'todos', label: 'Todos', count: notifCount + behavioralAlerts.length },
+                { value: 'operacional', label: 'Operacionais', count: notifCount },
+                { value: 'comportamental', label: 'Comportamentais', count: behavioralAlerts.length },
+              ] as const).map((c) => {
+                const isActive = alertCategory === c.value;
+                return (
+                  <button
+                    key={c.value}
+                    onClick={() => setAlertCategory(c.value)}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all border ${
+                      isActive
+                        ? 'bg-foreground text-background border-foreground'
+                        : 'bg-secondary/50 text-muted-foreground border-border hover:bg-secondary'
+                    }`}
+                  >
+                    {c.label}
+                    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${isActive ? 'bg-background/20' : 'bg-muted'}`}>
+                      {c.count}
+                    </span>
+                  </button>
+                );
+              })}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto"
+                onClick={() => { refreshNotifs(); generateBehavioral(); }}
+                disabled={notifLoading || behavioralGenerating}
+              >
+                <RefreshCw className={`h-4 w-4 mr-1 ${(notifLoading || behavioralGenerating) ? 'animate-spin' : ''}`} />
                 Atualizar
               </Button>
             </div>
+
+            {/* Behavioral alerts */}
+            {(alertCategory === 'todos' || alertCategory === 'comportamental') && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-semibold">Comportamentais & Engajamento</h3>
+                </div>
+                {behavioralLoading ? (
+                  <Skeleton className="h-20 w-full rounded-lg" />
+                ) : behavioralAlerts.length === 0 ? (
+                  <Card>
+                    <CardContent className="py-6 text-center text-muted-foreground text-sm">
+                      Nenhum alerta comportamental ativo. Clique em "Atualizar" para gerar.
+                    </CardContent>
+                  </Card>
+                ) : (
+                  behavioralAlerts.map((a) => (
+                    <BehavioralAlertCard key={a.id} alert={a} onUpdateStatus={updateBehavioralStatus} />
+                  ))
+                )}
+              </div>
+            )}
+
+            {(alertCategory === 'todos' || alertCategory === 'operacional') && (
+              <div className="flex items-center gap-2 pt-2">
+                <Activity className="h-4 w-4 text-orange-500" />
+                <h3 className="text-sm font-semibold">Operacionais</h3>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'alertas' && (alertCategory === 'todos' || alertCategory === 'operacional') && (
+          <div className="space-y-4 -mt-2">
 
             {/* Notification sub-filter tabs */}
             <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">

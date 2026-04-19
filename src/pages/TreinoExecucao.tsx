@@ -163,6 +163,18 @@ const TreinoExecucao = () => {
     return () => clearInterval(id);
   }, [sessionStartAt]);
 
+  // Track workout_started once when component mounts (only if user is aluno)
+  const startTrackedRef = useRef(false);
+  useEffect(() => {
+    if (!user || startTrackedRef.current) return;
+    startTrackedRef.current = true;
+    supabase.from('student_events').insert({
+      student_id: user.id,
+      event_type: 'workout_started',
+      metadata: { day_name: dayName ?? null },
+    }).then(() => {});
+  }, [user, dayName]);
+
   const formatElapsed = (totalSec: number) => {
     const h = Math.floor(totalSec / 3600);
     const m = Math.floor((totalSec % 3600) / 60);
@@ -710,7 +722,17 @@ const TreinoExecucao = () => {
                     await supabase
                       .from('exercise_set_logs')
                       .insert(setLogRows.map((r) => ({ ...r, session_id: sessionId })));
+                    await supabase.from('student_events').insert({
+                      student_id: user.id,
+                      event_type: 'workout_load_logged',
+                      metadata: { sets: setLogRows.length, session_id: sessionId },
+                    });
                   }
+                  await supabase.from('student_events').insert({
+                    student_id: user.id,
+                    event_type: 'workout_completed',
+                    metadata: { day_name: dayName, duration_minutes: durationMinutes, exercises_completed: exercisesCompleted },
+                  });
                 }
               } catch (e) {
                 console.error('Erro salvando sessão:', e);

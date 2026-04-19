@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEventTracking } from '@/hooks/useEventTracking';
 
 interface DailyTracking {
   id?: string;
@@ -27,6 +28,7 @@ function getWeekRange() {
 
 export function useDailyTracking() {
   const { user } = useAuth();
+  const { trackEvent } = useEventTracking();
   const [tracking, setTracking] = useState<DailyTracking>({
     water_glasses: 0,
     meals_completed: [],
@@ -115,8 +117,13 @@ export function useDailyTracking() {
   }, [user, tracking]);
 
   const addWater = useCallback(() => {
-    upsert({ water_glasses: Math.min(tracking.water_glasses + 1, 20) });
-  }, [upsert, tracking.water_glasses]);
+    const next = Math.min(tracking.water_glasses + 1, 20);
+    upsert({ water_glasses: next });
+    trackEvent('water_logged', { glasses: next });
+    if (next >= waterGoalGlasses && tracking.water_glasses < waterGoalGlasses) {
+      trackEvent('water_goal_hit', { glasses: next, goal: waterGoalGlasses });
+    }
+  }, [upsert, tracking.water_glasses, trackEvent, waterGoalGlasses]);
 
   const removeWater = useCallback(() => {
     upsert({ water_glasses: Math.max(tracking.water_glasses - 1, 0) });
@@ -124,11 +131,13 @@ export function useDailyTracking() {
 
   const toggleMeal = useCallback((mealIndex: number) => {
     const current = tracking.meals_completed;
-    const next = current.includes(mealIndex)
-      ? current.filter(i => i !== mealIndex)
-      : [...current, mealIndex];
+    const isAdding = !current.includes(mealIndex);
+    const next = isAdding
+      ? [...current, mealIndex]
+      : current.filter(i => i !== mealIndex);
     upsert({ meals_completed: next });
-  }, [upsert, tracking.meals_completed]);
+    if (isAdding) trackEvent('meal_logged', { meal_index: mealIndex });
+  }, [upsert, tracking.meals_completed, trackEvent]);
 
   const completeWorkout = useCallback(() => {
     upsert({ workout_completed: true });
