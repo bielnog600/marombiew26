@@ -9,6 +9,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import SplashScreen from "@/components/SplashScreen";
 import InstallBanner from "@/components/InstallBanner";
 import PWAUpdater from "@/components/PWAUpdater";
+import ScrollToTop from "@/components/ScrollToTop";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Alunos from "./pages/Alunos";
@@ -68,6 +69,7 @@ const App = () => {
         <PWAUpdater />
         <InstallBanner />
         <BrowserRouter>
+          <ScrollToTop />
           <div>
           <AuthProvider>
             <Routes>
