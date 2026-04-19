@@ -120,6 +120,7 @@ const TreinoExecucao = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { completeWorkout } = useDailyTracking();
+  const { session: activeSession, refresh: refreshActiveSession, clear: clearActiveSession, setLocal: setLocalActiveSession } = useActiveWorkoutSession();
   const stateData = location.state as {
     exercises?: ParsedExercise[];
     dayName?: string;
@@ -146,7 +147,9 @@ const TreinoExecucao = () => {
   const [restDuration, setRestDuration] = useState(60);
   const [showPlayFallback, setShowPlayFallback] = useState(false);
   const [showingVariation, setShowingVariation] = useState(false);
-  const [sessionStartAt] = useState<number>(() => Date.now());
+  // Sessão persistida: started_at vem do banco (ou agora se ainda não existe)
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionStartAt, setSessionStartAt] = useState<number>(() => Date.now());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isFinishing, setIsFinishing] = useState(false);
   const [showSessionRpe, setShowSessionRpe] = useState(false);
@@ -158,25 +161,106 @@ const TreinoExecucao = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
 
-  // Session timer tick
+  // Session timer tick — recalcula sempre a partir de started_at (real)
   useEffect(() => {
-    const id = setInterval(() => {
-      setElapsedSeconds(Math.floor((Date.now() - sessionStartAt) / 1000));
-    }, 1000);
+    const tick = () => setElapsedSeconds(Math.floor((Date.now() - sessionStartAt) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [sessionStartAt]);
 
-  // Track workout_started once when component mounts (only if user is aluno)
-  const startTrackedRef = useRef(false);
+  // Recalcula tempo quando a aba volta a ficar visível (cronômetro continua mesmo com app fechado)
   useEffect(() => {
-    if (!user || startTrackedRef.current) return;
-    startTrackedRef.current = true;
-    supabase.from('student_events').insert({
-      student_id: user.id,
-      event_type: 'workout_started',
-      metadata: { day_name: dayName ?? null },
-    }).then(() => {});
-  }, [user, dayName]);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        setElapsedSeconds(Math.floor((Date.now() - sessionStartAt) / 1000));
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [sessionStartAt]);
+
+  // Cria ou retoma sessão em andamento ao montar (uma vez)
+  const sessionInitRef = useRef(false);
+  useEffect(() => {
+    if (!user || sessionInitRef.current) return;
+    sessionInitRef.current = true;
+    (async () => {
+      // 1. Verifica se já existe sessão em andamento
+      const { data: existing } = await supabase
+        .from('workout_sessions')
+        .select('id, started_at, day_name, phase, session_state')
+        .eq('student_id', user.id)
+        .eq('status', 'in_progress')
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existing && existing.started_at) {
+        const age = Date.now() - new Date(existing.started_at).getTime();
+        if (age <= 12 * 60 * 60 * 1000) {
+          setSessionId(existing.id);
+          setSessionStartAt(new Date(existing.started_at).getTime());
+          // Restaura estado se houver
+          const state = existing.session_state as any;
+          if (state?.currentIndex != null) setCurrentIndex(state.currentIndex);
+          if (state?.sets) {
+            setSets(state.sets);
+            const idxs = new Set<number>(Object.keys(state.sets).map((k) => Number(k)));
+            setLoadedLogsForIndex(idxs);
+          }
+          setLocalActiveSession({
+            id: existing.id,
+            student_id: user.id,
+            day_name: existing.day_name,
+            phase: existing.phase,
+            started_at: existing.started_at,
+            session_state: existing.session_state,
+          });
+          return;
+        } else {
+          // Auto-abandona sessão muito antiga
+          await supabase.from('workout_sessions').update({ status: 'abandoned' }).eq('id', existing.id);
+        }
+      }
+
+      // 2. Cria nova sessão em andamento
+      const startedAtIso = new Date().toISOString();
+      const { data: newSession, error } = await supabase
+        .from('workout_sessions')
+        .insert({
+          student_id: user.id,
+          day_name: dayName,
+          phase: phase ?? null,
+          status: 'in_progress',
+          started_at: startedAtIso,
+          duration_minutes: 0,
+          exercises_completed: 0,
+          total_exercises: exercises.length,
+        })
+        .select('id, started_at')
+        .single();
+
+      if (!error && newSession) {
+        setSessionId(newSession.id);
+        setSessionStartAt(new Date(newSession.started_at).getTime());
+        setLocalActiveSession({
+          id: newSession.id,
+          student_id: user.id,
+          day_name: dayName,
+          phase: phase ?? null,
+          started_at: newSession.started_at,
+          session_state: null,
+        });
+
+        await supabase.from('student_events').insert({
+          student_id: user.id,
+          event_type: 'workout_started',
+          metadata: { day_name: dayName ?? null, session_id: newSession.id },
+        });
+      }
+    })();
+  }, [user, dayName, phase, exercises.length, setLocalActiveSession]);
 
   const formatElapsed = (totalSec: number) => {
     const h = Math.floor(totalSec / 3600);
@@ -185,6 +269,20 @@ const TreinoExecucao = () => {
     const pad = (n: number) => n.toString().padStart(2, '0');
     return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
   };
+
+  // Auto-save de progresso (sets + currentIndex) na sessão em andamento — debounced
+  useEffect(() => {
+    if (!sessionId) return;
+    const t = setTimeout(() => {
+      supabase
+        .from('workout_sessions')
+        .update({ session_state: { sets, currentIndex } as any })
+        .eq('id', sessionId)
+        .then(() => {});
+    }, 800);
+    return () => clearTimeout(t);
+  }, [sets, currentIndex, sessionId]);
+
 
   // Auto-load training plan from DB when accessed directly (no state)
   useEffect(() => {
