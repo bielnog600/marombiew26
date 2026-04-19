@@ -68,7 +68,7 @@ const Login = () => {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-md animate-fade-in">
         <div className="mb-8 flex justify-center">
-          <img src={logoMarombiew} alt="Marombiew" className="h-24 w-auto object-contain" />
+          <img src={logoMarombiew} alt="Marombiew" className="h-44 w-auto object-contain" />
         </div>
 
         <Card className="glass-card">
