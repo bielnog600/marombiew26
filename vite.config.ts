@@ -60,7 +60,7 @@ export default defineConfig(({ mode }) => ({
       manifest: {
         name: "MAROMBIEW",
         short_name: "MAROMBIEW",
-        description: "Sistema de avaliação física profissional",
+        description: "Treino e dieta personalizada",
         theme_color: "#0F1115",
         background_color: "#0F1115",
         display: "standalone",

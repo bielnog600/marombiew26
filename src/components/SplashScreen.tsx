@@ -53,7 +53,7 @@ const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
         </svg>
         <img
           src={logo}
-          alt="MarombiewPro"
+          alt="MAROMBIEW"
           className="absolute inset-0 m-auto rounded-2xl"
           style={{ width: size - 16, height: size - 16 }}
         />
