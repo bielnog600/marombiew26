@@ -4,7 +4,7 @@ import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Loader2, Save, Dumbbell, RotateCcw, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Dumbbell, RotateCcw, AlertTriangle, ChevronDown, ChevronUp, Settings2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
@@ -86,6 +86,7 @@ const TreinoIA = () => {
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState('');
   const [saving, setSaving] = useState(false);
+  const [configCollapsed, setConfigCollapsed] = useState(!!editPlanId);
   const resultRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -383,6 +384,22 @@ GERE TUDO DE UMA VEZ:
           </CardContent>
         </Card>
 
+        {editPlanId && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setConfigCollapsed(v => !v)}
+            className="w-full justify-between"
+          >
+            <span className="flex items-center gap-2">
+              <Settings2 className="h-4 w-4" />
+              Configurações do protocolo
+            </span>
+            {configCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+          </Button>
+        )}
+
+        {!configCollapsed && <>
         {/* Step 1: Level */}
         <Card className="glass-card">
           <CardContent className="p-4 space-y-3">
@@ -612,6 +629,7 @@ GERE TUDO DE UMA VEZ:
             <><Dumbbell className="mr-2 h-5 w-5" /> Gerar Protocolo de Treino</>
           )}
         </Button>
+        </>}
 
         {/* Result - streaming raw markdown */}
         {result && generating && (
