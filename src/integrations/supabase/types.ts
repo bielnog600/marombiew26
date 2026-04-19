@@ -1143,6 +1143,33 @@ export type Database = {
           },
         ]
       }
+      weight_logs: {
+        Row: {
+          created_at: string
+          data: string
+          id: string
+          observacao: string | null
+          peso: number
+          student_id: string
+        }
+        Insert: {
+          created_at?: string
+          data?: string
+          id?: string
+          observacao?: string | null
+          peso: number
+          student_id: string
+        }
+        Update: {
+          created_at?: string
+          data?: string
+          id?: string
+          observacao?: string | null
+          peso?: number
+          student_id?: string
+        }
+        Relationships: []
+      }
       workout_sessions: {
         Row: {
           avg_rpe: number | null
