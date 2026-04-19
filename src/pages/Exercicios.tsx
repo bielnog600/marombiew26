@@ -7,9 +7,21 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Pencil, Search, Check } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Pencil, Search, Check, Plus, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const STANDARD_FIELDS = [
   'Banco',
@@ -21,7 +33,6 @@ const STANDARD_FIELDS = [
   'Pegada',
   'Observação',
 ] as const;
-import { toast } from 'sonner';
 
 interface Exercise {
   id: string;
@@ -32,10 +43,22 @@ interface Exercise {
   ajustes: string[] | null;
 }
 
+type EditForm = {
+  nome: string;
+  grupo_muscular: string;
+  imagem_url: string;
+  video_embed: string;
+};
+
+const emptyForm: EditForm = { nome: '', grupo_muscular: '', imagem_url: '', video_embed: '' };
+
 const Exercicios: React.FC = () => {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Exercise | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<Exercise | null>(null);
+  const [form, setForm] = useState<EditForm>(emptyForm);
   const [ajustes, setAjustes] = useState<string[]>([]);
 
   const { data: exercises = [], isLoading } = useQuery({
@@ -51,21 +74,70 @@ const Exercicios: React.FC = () => {
   });
 
   const saveMutation = useMutation({
-    mutationFn: async ({ id, ajustes }: { id: string; ajustes: string[] }) => {
-      const { error } = await supabase.from('exercises').update({ ajustes }).eq('id', id);
+    mutationFn: async () => {
+      const payload = {
+        nome: form.nome.trim(),
+        grupo_muscular: form.grupo_muscular.trim(),
+        imagem_url: form.imagem_url.trim() || null,
+        video_embed: form.video_embed.trim() || null,
+        ajustes,
+      };
+      if (!payload.nome || !payload.grupo_muscular) {
+        throw new Error('Nome e grupo muscular são obrigatórios.');
+      }
+      if (editing) {
+        const { error } = await supabase.from('exercises').update(payload).eq('id', editing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('exercises').insert(payload);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['exercises-admin'] });
+      toast.success(editing ? 'Exercício atualizado.' : 'Exercício criado.');
+      closeDialog();
+    },
+    onError: (e: any) => toast.error(e?.message ?? 'Erro ao salvar.'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('exercises').delete().eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['exercises-admin'] });
-      toast.success('Ajustes atualizados.');
-      setEditing(null);
+      toast.success('Exercício apagado.');
+      setDeleting(null);
     },
-    onError: () => toast.error('Erro ao salvar.'),
+    onError: (e: any) => toast.error(e?.message ?? 'Erro ao apagar.'),
   });
 
   const openEdit = (ex: Exercise) => {
     setEditing(ex);
+    setCreating(false);
+    setForm({
+      nome: ex.nome,
+      grupo_muscular: ex.grupo_muscular,
+      imagem_url: ex.imagem_url ?? '',
+      video_embed: ex.video_embed ?? '',
+    });
     setAjustes(ex.ajustes ?? []);
+  };
+
+  const openCreate = () => {
+    setEditing(null);
+    setCreating(true);
+    setForm(emptyForm);
+    setAjustes([]);
+  };
+
+  const closeDialog = () => {
+    setEditing(null);
+    setCreating(false);
+    setForm(emptyForm);
+    setAjustes([]);
   };
 
   const filtered = exercises.filter(
@@ -74,14 +146,21 @@ const Exercicios: React.FC = () => {
       e.grupo_muscular.toLowerCase().includes(search.toLowerCase())
   );
 
+  const dialogOpen = !!editing || creating;
+
   return (
     <AppLayout>
       <div className="p-6 space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Exercícios</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Configure os ajustes de máquina disponíveis para cada exercício.
-          </p>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Exercícios</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Gerencie a base de exercícios e os ajustes de máquina.
+            </p>
+          </div>
+          <Button onClick={openCreate} className="gap-2">
+            <Plus className="h-4 w-4" /> Novo exercício
+          </Button>
         </div>
 
         <Card>
@@ -106,7 +185,7 @@ const Exercicios: React.FC = () => {
                   <TableHead>Nome</TableHead>
                   <TableHead>Grupo</TableHead>
                   <TableHead>Ajustes</TableHead>
-                  <TableHead className="w-20"></TableHead>
+                  <TableHead className="w-28 text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -129,10 +208,20 @@ const Exercicios: React.FC = () => {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <Button size="sm" variant="ghost" onClick={() => openEdit(ex)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => openEdit(ex)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setDeleting(ex)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -141,13 +230,57 @@ const Exercicios: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-          <DialogContent>
+        <Dialog open={dialogOpen} onOpenChange={(o) => !o && closeDialog()}>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="line-clamp-2">{editing?.nome}</DialogTitle>
+              <DialogTitle className="line-clamp-2">
+                {editing ? editing.nome : 'Novo exercício'}
+              </DialogTitle>
             </DialogHeader>
 
             <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="nome">Nome</Label>
+                  <Input
+                    id="nome"
+                    value={form.nome}
+                    onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
+                    placeholder="Ex: Supino reto"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="grupo">Grupo muscular</Label>
+                  <Input
+                    id="grupo"
+                    value={form.grupo_muscular}
+                    onChange={(e) => setForm((f) => ({ ...f, grupo_muscular: e.target.value }))}
+                    placeholder="Ex: Peito"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="imagem">URL da imagem</Label>
+                <Input
+                  id="imagem"
+                  value={form.imagem_url}
+                  onChange={(e) => setForm((f) => ({ ...f, imagem_url: e.target.value }))}
+                  placeholder="https://..."
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="video">Vídeo (embed/iframe ou URL)</Label>
+                <Textarea
+                  id="video"
+                  value={form.video_embed}
+                  onChange={(e) => setForm((f) => ({ ...f, video_embed: e.target.value }))}
+                  placeholder="<iframe ...></iframe> ou URL"
+                  rows={3}
+                />
+              </div>
+
               <div>
                 <Label className="text-xs uppercase tracking-wide text-muted-foreground">Ajustes da máquina</Label>
                 <p className="text-xs text-muted-foreground mt-1 mb-3">
@@ -183,9 +316,9 @@ const Exercicios: React.FC = () => {
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setEditing(null)}>Cancelar</Button>
+              <Button variant="outline" onClick={closeDialog}>Cancelar</Button>
               <Button
-                onClick={() => editing && saveMutation.mutate({ id: editing.id, ajustes })}
+                onClick={() => saveMutation.mutate()}
                 disabled={saveMutation.isPending}
               >
                 {saveMutation.isPending ? 'Salvando...' : 'Salvar'}
@@ -193,6 +326,27 @@ const Exercicios: React.FC = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Apagar exercício?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta ação não pode ser desfeita. O exercício <strong>{deleting?.nome}</strong> será removido permanentemente.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => deleting && deleteMutation.mutate(deleting.id)}
+                disabled={deleteMutation.isPending}
+              >
+                {deleteMutation.isPending ? 'Apagando...' : 'Apagar'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppLayout>
   );
