@@ -128,7 +128,6 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, i
         };
         return updated;
       });
-      toast.success(`Substituído por ${dbFood.name}`);
     } else {
       // Not found in DB, just swap name/portion
       setFoods((prev) => {
@@ -140,7 +139,6 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, i
         };
         return updated;
       });
-      toast.success(`Substituído por ${subName}`);
     }
   }, [foods]);
 
