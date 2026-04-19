@@ -83,43 +83,66 @@ TREINO DO DIA | EXERCÍCIO | SÉRIE | SÉRIE 2 | REPETIÇÕES | RIR | PAUSA | DE
 
 REGRAS DA TABELA
 1) A coluna "TREINO DO DIA" deve usar SEMPRE EM MAIÚSCULAS: SEGUNDA-FEIRA, TERÇA-FEIRA, QUARTA-FEIRA, QUINTA-FEIRA, SEXTA-FEIRA, SÁBADO ou DOMINGO.
-2) A coluna "RIR" deve ser preenchida exatamente nesse modelo: a 8 ou a 10 ou a 12 ou a 15 (sempre com "a" antes).
-3) "PAUSA" deve ser assim: 45", 60", 90", 120".
+2) "PAUSA" deve ser assim: 45", 60", 90", 120".
 
-REGRA MUITO IMPORTANTE (REPETIÇÕES e RIR — exercícios SEM reconhecimento)
-A coluna "REPETIÇÕES" deve conter APENAS UM NÚMERO inteiro (o valor MÍNIMO do range).
-A coluna "RIR" indica o valor MÁXIMO do range, usando "a" antes do número.
-REGRA: REPETIÇÕES e RIR NUNCA podem ter o MESMO número. O RIR deve ser MAIOR que REPETIÇÕES.
-Exemplos corretos:
-- Range 8-10: REPETIÇÕES = 8, RIR = a 10
-- Range 10-12: REPETIÇÕES = 10, RIR = a 12
-- Range 12-15: REPETIÇÕES = 12, RIR = a 15
-- Range 6-8: REPETIÇÕES = 6, RIR = a 8
-Exemplos ERRADOS (NUNCA faça isso):
-- REPETIÇÕES = 10, RIR = a 10 ❌ (mesmo número!)
-- REPETIÇÕES = 8, RIR = a 8 ❌ (mesmo número!)
+========================================
+REGRA CRÍTICA — REPETIÇÕES vs RIR (LEIA COM ATENÇÃO MÁXIMA)
+========================================
 
+REPETIÇÕES e RIR são CONCEITOS DIFERENTES e NUNCA devem ser misturados.
 
-REGRA DE SÉRIE DE RECONHECIMENTO (SÉRIE / SÉRIE 2)
+🔹 COLUNA "REPETIÇÕES" — SOMENTE reps ou faixa de reps
+- Reps fixas: "8", "10", "12", "15"
+- Faixa de reps: "8-10", "10-12", "12-15", "6-8"
+- NUNCA escreva "a 10", "até 10", "8 a 10" no campo REPETIÇÕES — use "8-10".
+
+🔹 COLUNA "RIR" — SOMENTE Reps In Reserve real (proximidade da falha)
+- Valores VÁLIDOS: número inteiro de 0 a 4, ou faixa pequena. Ex: "1", "2", "3", "1-2", "2-3", "0-1".
+- Use RIR com critério: principalmente em exercícios PRINCIPAIS, COMPOSTOS PESADOS e trabalho técnico onde a proximidade da falha importa.
+- Em exercícios acessórios/mobilidade/cardio/aquecimento: deixe RIR VAZIO ("—" ou "").
+- ❌ NUNCA escreva no campo RIR: "a 8", "a 10", "8 a 10", "até 10", "10", "12", "15" (esses são valores de REPETIÇÕES, não de RIR).
+- ❌ NUNCA use o RIR para indicar faixa de repetições. Faixa de reps SEMPRE vai no campo REPETIÇÕES.
+- ✅ Se você não tem certeza do RIR a prescrever, deixe VAZIO. Não invente.
+
+EXEMPLOS CORRETOS:
+| EXERCÍCIO | SÉRIE | REPETIÇÕES | RIR |
+| AGACHAMENTO LIVRE | 4 | 8-10 | 1-2 |
+| LEG PRESS | 3 | 12 | 2 |
+| CADEIRA EXTENSORA | 3 | 15 | — |
+| MOBILIDADE QUADRIL | 2 | 10 | — |
+
+EXEMPLOS ERRADOS (NUNCA FAÇA):
+| EXERCÍCIO | REPETIÇÕES | RIR | ❌ Por quê |
+| LEG PRESS | 8 | a 10 | RIR contém faixa de reps |
+| SUPINO | 10 | 10 | RIR não pode ser número de rep |
+| ROSCA | 8 | 8 a 10 | RIR contém faixa de reps |
+
+========================================
+REGRA DE SÉRIE DE RECONHECIMENTO/PREPARAÇÃO (SÉRIE / SÉRIE 2)
+========================================
 
 REGRA CRÍTICA: A coluna SÉRIE NUNCA pode ficar vazia! TODOS os exercícios devem ter um número na coluna SÉRIE.
 
-Em ALGUNS exercícios que você julgar interessante (compostos pesados, exercícios novos, etc), sugira uma SÉRIE DE RECONHECIMENTO.
-Quando houver reconhecimento:
+Em ALGUNS exercícios que você julgar interessante (compostos pesados, exercícios novos, exercícios técnicos), use SÉRIES DE RECONHECIMENTO/PREPARAÇÃO antes das séries de trabalho.
+
+Estruturas suportadas (exemplos):
+- 1x15 reconhecimento + 3x8 trabalho
+- 1x12 preparação + 2x10 trabalho
+- 1x12 + 4x6-8
+
+Quando houver reconhecimento/preparação:
 - SÉRIE = número de séries de reconhecimento (geralmente 1)
-- SÉRIE 2 = número de séries de trabalho (ex: 2 ou 3)
-- REPETIÇÕES = repetições mais altas para o reconhecimento (ex: 12, 15, ou 12 a 15)
-- RIR = formato com "+" antes das séries de trabalho (ex: + 2x6, + 2x8, + 2x6 a 8, + 3x8). O "+" indica que há uma série de reconhecimento antes.
-  IMPORTANTE: O número antes do "x" no RIR DEVE ser IGUAL ao valor da coluna SÉRIE 2.
-  Exemplo: Se SÉRIE 2 = 3, então RIR = + 3x8 ou + 3x10 ou + 3x6 a 8 ou + 3x8 a 10.
-  Se SÉRIE 2 = 2, então RIR = + 2x6 ou + 2x8 ou + 2x6 a 8.
-- DESCRIÇÃO = explicar resumidamente: "1ª série reconhecimento leve, 2ª, 3ª e 4ª séries de trabalho com carga para X repetições" (ajustar conforme o número de séries de trabalho)
+- SÉRIE 2 = número de séries de trabalho (ex: 2, 3 ou 4)
+- REPETIÇÕES = formato "Xrec + Y trab" onde Xrec são as reps do reconhecimento e Y as reps de trabalho.
+  Exemplos: "15 + 8", "12 + 8-10", "12 + 6-8", "15 + 10"
+- RIR = RIR APENAS das séries de trabalho (ou vazio). Ex: "1-2", "2", ou "—". NUNCA reps aqui.
+- DESCRIÇÃO = explicar: "1ª série reconhecimento leve com X reps, demais séries de trabalho com carga para Y reps".
 
 Quando NÃO houver reconhecimento (MAIORIA dos exercícios):
 - SÉRIE = número TOTAL de séries normais (ex: 3 ou 4). OBRIGATÓRIO, NUNCA VAZIO!
 - SÉRIE 2 = "—"
-- REPETIÇÕES = repetições normais
-- RIR = formato normal (a 8, a 10, etc)
+- REPETIÇÕES = reps fixas ("10") ou faixa ("8-10")
+- RIR = RIR real ("1-2", "2") ou vazio ("—")
 - DESCRIÇÃO = técnica, postura, respiração, posicionamento, dicas práticas
 
 DESCRIÇÃO (MUITO DIDÁTICA)
