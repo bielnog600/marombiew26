@@ -294,8 +294,13 @@ const TreinoExecucao = () => {
     if (!exerciseDB.length) return null;
     let match = exerciseDB.find((e) => e.nome.toUpperCase().trim() === name);
     if (match) return match;
-    match = exerciseDB.find((e) => name.includes(e.nome.toUpperCase().trim()) || e.nome.toUpperCase().trim().includes(name));
-    return match || null;
+    const partials = exerciseDB
+      .filter((e) => {
+        const n = e.nome.toUpperCase().trim();
+        return name.includes(n) || n.includes(name);
+      })
+      .sort((a, b) => b.nome.trim().length - a.nome.trim().length);
+    return partials[0] || null;
   }, [exercise, exerciseDB, exerciseMedia, showingVariation]);
 
   const activeExercise = showingVariation && matchedVariation ? matchedVariation : matchedExercise;
