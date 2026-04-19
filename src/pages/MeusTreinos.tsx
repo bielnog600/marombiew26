@@ -30,7 +30,7 @@ const MeusTreinos = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [plans, setPlans] = useState<PlanRow[]>([]);
-  const [exerciseMedia, setExerciseMedia] = useState<Record<string, { imageUrl?: string; videoEmbed?: string; muscleGroup?: string }>>({});
+  const [exerciseMedia, setExerciseMedia] = useState<Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }>>({});
   const [loading, setLoading] = useState(true);
   const [activePhase, setActivePhase] = useState<TrainingPhase>('semana_1');
   const [autoPhaseSet, setAutoPhaseSet] = useState(false);
@@ -83,10 +83,10 @@ const MeusTreinos = () => {
     if (uniqueNames.length > 0) {
       const { data: dbExercises } = await supabase
         .from('exercises')
-        .select('nome, imagem_url, video_embed, grupo_muscular');
+        .select('id, nome, imagem_url, video_embed, grupo_muscular, ajustes');
 
       if (dbExercises) {
-        const mediaMap: Record<string, { imageUrl?: string; videoEmbed?: string; muscleGroup?: string }> = {};
+        const mediaMap: Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }> = {};
         for (const name of uniqueNames) {
           const match = dbExercises.find(e =>
             e.nome.toUpperCase().trim() === name ||
@@ -95,9 +95,11 @@ const MeusTreinos = () => {
           );
           if (match) {
             mediaMap[name] = {
+              id: match.id,
               imageUrl: match.imagem_url || undefined,
               videoEmbed: match.video_embed || undefined,
               muscleGroup: match.grupo_muscular || undefined,
+              ajustes: match.ajustes ?? null,
             };
           }
         }
