@@ -16,6 +16,7 @@ import { parseSections, type ParsedMeal, type ParsedSection } from '@/lib/dietRe
 import DietPlanCard from '@/components/DietPlanCard';
 import TabataDoDiaCard from '@/components/home/TabataDoDiaCard';
 import { useEventTracking } from '@/hooks/useEventTracking';
+import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
 
 const MinhaArea = () => {
   const { user } = useAuth();
