@@ -722,7 +722,17 @@ const TreinoExecucao = () => {
                     await supabase
                       .from('exercise_set_logs')
                       .insert(setLogRows.map((r) => ({ ...r, session_id: sessionId })));
+                    await supabase.from('student_events').insert({
+                      student_id: user.id,
+                      event_type: 'workout_load_logged',
+                      metadata: { sets: setLogRows.length, session_id: sessionId },
+                    });
                   }
+                  await supabase.from('student_events').insert({
+                    student_id: user.id,
+                    event_type: 'workout_completed',
+                    metadata: { day_name: dayName, duration_minutes: durationMinutes, exercises_completed: exercisesCompleted },
+                  });
                 }
               } catch (e) {
                 console.error('Erro salvando sessão:', e);
