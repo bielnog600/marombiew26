@@ -34,7 +34,6 @@ const Login = () => {
         toast.error('Email ou senha inválidos');
         return;
       }
-      toast.success('Login realizado!');
     } catch (error) {
       console.error('Erro no login:', error);
       toast.error('Erro inesperado no login. Tente novamente.');
