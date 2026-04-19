@@ -46,6 +46,7 @@ const Alunos = () => {
           restricoes: sp?.restricoes || '',
           lesoes: sp?.lesoes || '',
           observacoes: sp?.observacoes || '',
+          newPassword: '',
         });
         setEditDialogOpen(true);
         setSearchParams({}, { replace: true });
@@ -117,6 +118,7 @@ const Alunos = () => {
       restricoes: sp?.restricoes || '',
       lesoes: sp?.lesoes || '',
       observacoes: sp?.observacoes || '',
+      newPassword: '',
     });
     setEditDialogOpen(true);
   };
@@ -155,6 +157,24 @@ const Alunos = () => {
       toast.error('Erro ao atualizar dados: ' + spError.message);
       setEditLoading(false);
       return;
+    }
+
+    // Reset password if provided
+    if (editStudent.newPassword && editStudent.newPassword.length > 0) {
+      if (editStudent.newPassword.length < 6) {
+        toast.error('A nova senha deve ter no mínimo 6 caracteres');
+        setEditLoading(false);
+        return;
+      }
+      const { data: pwData, error: pwError } = await supabase.functions.invoke('update-student-password', {
+        body: { user_id: editStudent.user_id, password: editStudent.newPassword },
+      });
+      if (pwError || pwData?.error) {
+        toast.error(pwData?.error || pwError?.message || 'Erro ao redefinir senha');
+        setEditLoading(false);
+        return;
+      }
+      toast.success('Senha redefinida com sucesso!');
     }
 
     toast.success('Aluno atualizado com sucesso!');
@@ -402,6 +422,19 @@ const Alunos = () => {
                 <div className="space-y-2">
                   <Label>Observações</Label>
                   <Input value={editStudent.observacoes} onChange={e => setEditStudent({ ...editStudent, observacoes: e.target.value })} />
+                </div>
+                <div className="space-y-2 pt-4 border-t border-border">
+                  <Label>Nova senha (opcional)</Label>
+                  <Input
+                    type="password"
+                    placeholder="Deixe em branco para manter a senha atual"
+                    value={editStudent.newPassword || ''}
+                    onChange={e => setEditStudent({ ...editStudent, newPassword: e.target.value })}
+                    autoComplete="new-password"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Mínimo 6 caracteres. Use apenas se o aluno esqueceu a senha.
+                  </p>
                 </div>
                 <Button type="submit" className="w-full font-semibold" disabled={editLoading}>
                   Salvar Alterações
