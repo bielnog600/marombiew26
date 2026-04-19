@@ -311,108 +311,115 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
         {editing ? (
           // ===== EDIT MODE: structured cards per exercise =====
           <div className="space-y-3 p-3">
-            {displayExercises.map((ex, exIndex) => {
-              const mode = detectMode(ex);
-              const [recReps, workReps] = splitComposed(ex.reps || '');
-              return (
-                <div key={`edit-${day.day}-${exIndex}`} className="rounded-lg border border-border/60 bg-background/60 p-3 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex-1 min-w-[180px]">
-                      <ExerciseCombobox
-                        value={ex.exercise}
-                        options={exerciseOptions}
-                        onChange={(val) => handleFieldChange(exIndex, 'exercise', val)}
-                      />
-                    </div>
-                    <Select value={mode} onValueChange={(v) => setMode(exIndex, v as StructureMode)}>
-                      <SelectTrigger className="h-7 text-xs w-[210px] px-2">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="standard" className="text-xs">Padrão</SelectItem>
-                        <SelectItem value="recognition" className="text-xs">Reconhecimento + trabalho</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={displayExercises.map((_, i) => String(i))} strategy={verticalListSortingStrategy}>
+                {displayExercises.map((ex, exIndex) => {
+                  const mode = detectMode(ex);
+                  const [recReps, workReps] = splitComposed(ex.reps || '');
+                  return (
+                    <SortableExerciseItem key={`edit-${day.day}-${exIndex}`} id={String(exIndex)} position={exIndex + 1} onRemove={() => removeExercise(exIndex)}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex-1 min-w-[180px]">
+                          <ExerciseCombobox
+                            value={ex.exercise}
+                            options={exerciseOptions}
+                            onChange={(val) => handleFieldChange(exIndex, 'exercise', val)}
+                          />
+                        </div>
+                        <Select value={mode} onValueChange={(v) => setMode(exIndex, v as StructureMode)}>
+                          <SelectTrigger className="h-7 text-xs w-[210px] px-2">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="standard" className="text-xs">Padrão</SelectItem>
+                            <SelectItem value="recognition" className="text-xs">Reconhecimento + trabalho</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                  {mode === 'standard' ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      <div className="space-y-0.5">
-                        <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Séries</label>
-                        <QuickSelect value={ex.series} options={WORK_SERIES_OPTS} onChange={(v) => setStandardSeries(exIndex, v)} />
-                      </div>
-                      <div className="space-y-0.5">
-                        <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Reps</label>
-                        <QuickSelect value={ex.reps} options={WORK_REPS_OPTS} onChange={(v) => setStandardReps(exIndex, v)} />
-                      </div>
-                      <div className="space-y-0.5">
-                        <label className="text-[10px] text-muted-foreground uppercase tracking-wide">RIR</label>
-                        <QuickSelect value={ex.rir} options={RIR_OPTS} onChange={(v) => handleFieldChange(exIndex, 'rir', v)} />
-                      </div>
-                      <div className="space-y-0.5">
-                        <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Pausa</label>
-                        <QuickSelect value={ex.pause} options={PAUSE_OPTS} onChange={(v) => handleFieldChange(exIndex, 'pause', v)} />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="rounded-md border border-dashed border-primary/30 p-2 space-y-1">
-                          <p className="text-[10px] font-bold text-primary uppercase tracking-wider">Reconhecimento</p>
-                          <div className="grid grid-cols-2 gap-1.5">
-                            <div className="space-y-0.5">
-                              <label className="text-[9px] text-muted-foreground uppercase">Séries</label>
-                              <QuickSelect value={ex.series} options={REC_SERIES_OPTS} onChange={(v) => setRecSeries(exIndex, v)} width="w-full" />
-                            </div>
-                            <div className="space-y-0.5">
-                              <label className="text-[9px] text-muted-foreground uppercase">Reps</label>
-                              <QuickSelect value={recReps} options={REC_REPS_OPTS} onChange={(v) => setRecReps(exIndex, v)} width="w-full" />
-                            </div>
+                      {mode === 'standard' ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          <div className="space-y-0.5">
+                            <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Séries</label>
+                            <QuickSelect value={ex.series} options={WORK_SERIES_OPTS} onChange={(v) => setStandardSeries(exIndex, v)} />
+                          </div>
+                          <div className="space-y-0.5">
+                            <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Reps</label>
+                            <QuickSelect value={ex.reps} options={WORK_REPS_OPTS} onChange={(v) => setStandardReps(exIndex, v)} />
+                          </div>
+                          <div className="space-y-0.5">
+                            <label className="text-[10px] text-muted-foreground uppercase tracking-wide">RIR</label>
+                            <QuickSelect value={ex.rir} options={RIR_OPTS} onChange={(v) => handleFieldChange(exIndex, 'rir', v)} />
+                          </div>
+                          <div className="space-y-0.5">
+                            <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Pausa</label>
+                            <QuickSelect value={ex.pause} options={PAUSE_OPTS} onChange={(v) => handleFieldChange(exIndex, 'pause', v)} />
                           </div>
                         </div>
-                        <div className="rounded-md border border-dashed border-accent/40 p-2 space-y-1">
-                          <p className="text-[10px] font-bold text-accent-foreground uppercase tracking-wider">Trabalho</p>
-                          <div className="grid grid-cols-2 gap-1.5">
-                            <div className="space-y-0.5">
-                              <label className="text-[9px] text-muted-foreground uppercase">Séries</label>
-                              <QuickSelect value={ex.series2} options={WORK_SERIES_OPTS} onChange={(v) => setWorkSeries(exIndex, v)} width="w-full" />
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="rounded-md border border-dashed border-primary/30 p-2 space-y-1">
+                              <p className="text-[10px] font-bold text-primary uppercase tracking-wider">Reconhecimento</p>
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <div className="space-y-0.5">
+                                  <label className="text-[9px] text-muted-foreground uppercase">Séries</label>
+                                  <QuickSelect value={ex.series} options={REC_SERIES_OPTS} onChange={(v) => setRecSeries(exIndex, v)} width="w-full" />
+                                </div>
+                                <div className="space-y-0.5">
+                                  <label className="text-[9px] text-muted-foreground uppercase">Reps</label>
+                                  <QuickSelect value={recReps} options={REC_REPS_OPTS} onChange={(v) => setRecReps(exIndex, v)} width="w-full" />
+                                </div>
+                              </div>
                             </div>
-                            <div className="space-y-0.5">
-                              <label className="text-[9px] text-muted-foreground uppercase">Reps</label>
-                              <QuickSelect value={workReps} options={WORK_REPS_OPTS} onChange={(v) => setWorkReps(exIndex, v)} width="w-full" />
+                            <div className="rounded-md border border-dashed border-accent/40 p-2 space-y-1">
+                              <p className="text-[10px] font-bold text-accent-foreground uppercase tracking-wider">Trabalho</p>
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <div className="space-y-0.5">
+                                  <label className="text-[9px] text-muted-foreground uppercase">Séries</label>
+                                  <QuickSelect value={ex.series2} options={WORK_SERIES_OPTS} onChange={(v) => setWorkSeries(exIndex, v)} width="w-full" />
+                                </div>
+                                <div className="space-y-0.5">
+                                  <label className="text-[9px] text-muted-foreground uppercase">Reps</label>
+                                  <QuickSelect value={workReps} options={WORK_REPS_OPTS} onChange={(v) => setWorkReps(exIndex, v)} width="w-full" />
+                                </div>
+                              </div>
                             </div>
                           </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-0.5">
+                              <label className="text-[10px] text-muted-foreground uppercase tracking-wide">RIR (trabalho)</label>
+                              <QuickSelect value={ex.rir} options={RIR_OPTS} onChange={(v) => handleFieldChange(exIndex, 'rir', v)} width="w-full" />
+                            </div>
+                            <div className="space-y-0.5">
+                              <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Pausa</label>
+                              <QuickSelect value={ex.pause} options={PAUSE_OPTS} onChange={(v) => handleFieldChange(exIndex, 'pause', v)} width="w-full" />
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            Resumo: <span className="font-mono text-foreground">{ex.series || '?'}x{recReps || '?'} + {ex.series2 || '?'}x{workReps || '?'}</span>
+                          </p>
                         </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-0.5">
-                          <label className="text-[10px] text-muted-foreground uppercase tracking-wide">RIR (trabalho)</label>
-                          <QuickSelect value={ex.rir} options={RIR_OPTS} onChange={(v) => handleFieldChange(exIndex, 'rir', v)} width="w-full" />
-                        </div>
-                        <div className="space-y-0.5">
-                          <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Pausa</label>
-                          <QuickSelect value={ex.pause} options={PAUSE_OPTS} onChange={(v) => handleFieldChange(exIndex, 'pause', v)} width="w-full" />
-                        </div>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground">
-                        Resumo: <span className="font-mono text-foreground">{ex.series || '?'}x{recReps || '?'} + {ex.series2 || '?'}x{workReps || '?'}</span>
-                      </p>
-                    </div>
-                  )}
+                      )}
 
-                  <div className="flex items-center gap-2">
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wide shrink-0">Variação</label>
-                    <div className="flex-1">
-                      <ExerciseCombobox
-                        value={ex.variation}
-                        options={exerciseOptions}
-                        onChange={(val) => handleFieldChange(exIndex, 'variation', val)}
-                      />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+                      <div className="flex items-center gap-2">
+                        <label className="text-[10px] text-muted-foreground uppercase tracking-wide shrink-0">Variação</label>
+                        <div className="flex-1">
+                          <ExerciseCombobox
+                            value={ex.variation}
+                            options={exerciseOptions}
+                            onChange={(val) => handleFieldChange(exIndex, 'variation', val)}
+                          />
+                        </div>
+                      </div>
+                    </SortableExerciseItem>
+                  );
+                })}
+              </SortableContext>
+            </DndContext>
+            <Button variant="outline" size="sm" className="w-full gap-2 text-xs" onClick={addExercise}>
+              <Plus className="h-3 w-3" /> Adicionar exercício
+            </Button>
           </div>
         ) : (
           // ===== READ MODE: original table =====
