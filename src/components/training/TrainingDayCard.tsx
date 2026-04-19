@@ -15,7 +15,7 @@ const REC_REPS_OPTS = ['8', '10', '12', '15', '20'];
 const WORK_SERIES_OPTS = ['1', '2', '3', '4', '5'];
 const WORK_REPS_OPTS = ['6', '8', '10', '12', '15', '6-8', '8-10', '8-12', '10-12', '12-15'];
 const RIR_OPTS = ['', '0', '1', '2', '3', '1-2', '2-3'];
-const PAUSE_OPTS = ['10s', '15s', '30s', '45s', '60s', '90s', '2min', '3min'];
+const PAUSE_OPTS = ['10s', '15s', '30s', '45s', '60s', '90s', '120s', '180s'];
 
 type StructureMode = 'standard' | 'recognition';
 
