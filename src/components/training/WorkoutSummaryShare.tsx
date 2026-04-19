@@ -49,8 +49,26 @@ export const WorkoutSummaryShare: React.FC<WorkoutSummaryShareProps> = ({
   const cardRef = useRef<HTMLDivElement>(null);
   const [isSharing, setIsSharing] = useState(false);
   const [weekDays, setWeekDays] = useState<boolean[]>([false, false, false, false, false, false, false]);
+  const [logoDataUrl, setLogoDataUrl] = useState<string>(logoMarombiew);
   const { user } = useAuth();
   const today = new Date();
+
+  // Preload logo as base64 so html-to-image can inline it reliably
+  useEffect(() => {
+    fetch(logoMarombiew)
+      .then((r) => r.blob())
+      .then(
+        (blob) =>
+          new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          }),
+      )
+      .then(setLogoDataUrl)
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!user) return;
