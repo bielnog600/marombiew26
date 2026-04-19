@@ -197,9 +197,8 @@ export const WorkoutSummaryShare: React.FC<WorkoutSummaryShareProps> = ({
               {/* Header — centered logo */}
               <div className="flex flex-col items-center gap-2">
                 <img
-                  src={logoMarombiew}
+                  src={logoDataUrl}
                   alt="MAROMBIEW"
-                  crossOrigin="anonymous"
                   className="h-32 w-auto object-contain"
                 />
                 {phase && (
