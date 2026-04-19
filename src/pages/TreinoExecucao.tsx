@@ -135,6 +135,9 @@ const TreinoExecucao = () => {
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [sets, setSets] = useState<Record<number, ExerciseSet[]>>({});
+  // Cache of last performed values per exercise name (from previous sessions)
+  const [lastLogsByExercise, setLastLogsByExercise] = useState<Record<string, ExerciseSet[]>>({});
+  const [loadedLogsForIndex, setLoadedLogsForIndex] = useState<Set<number>>(new Set());
   const [exerciseDB, setExerciseDB] = useState<ExerciseDBData[]>([]);
   const [showRestTimer, setShowRestTimer] = useState(false);
   const [restDuration, setRestDuration] = useState(60);
@@ -282,13 +285,82 @@ const TreinoExecucao = () => {
   }, [currentIndex]);
 
   useEffect(() => {
-    if (!sets[currentIndex]) {
-      setSets((prev) => ({
-        ...prev,
-        [currentIndex]: Array.from({ length: totalSeries }, () => ({ reps: exercise?.reps || '', weight: '', rpe: '', completed: false })),
-      }));
+    if (!exercise || !user) return;
+    if (loadedLogsForIndex.has(currentIndex)) return;
+
+    const exName = exercise.exercise;
+    const cached = lastLogsByExercise[exName.toUpperCase().trim()];
+
+    const buildEmpty = (): ExerciseSet[] =>
+      Array.from({ length: totalSeries }, () => ({ reps: exercise?.reps || '', weight: '', rpe: '', completed: false }));
+
+    const applyPrefill = (prevSets: ExerciseSet[] | undefined) => {
+      const base = buildEmpty();
+      if (!prevSets || prevSets.length === 0) return base;
+      return base.map((s, i) => {
+        const prev = prevSets[i];
+        if (!prev) return s;
+        return {
+          reps: prev.reps || s.reps,
+          weight: prev.weight || '',
+          rpe: prev.rpe || '',
+          completed: false,
+        };
+      });
+    };
+
+    const ensureSets = (prefill?: ExerciseSet[]) => {
+      setSets((prev) => {
+        if (prev[currentIndex]) return prev;
+        return { ...prev, [currentIndex]: applyPrefill(prefill) };
+      });
+      setLoadedLogsForIndex((prev) => {
+        const next = new Set(prev);
+        next.add(currentIndex);
+        return next;
+      });
+    };
+
+    if (cached) {
+      ensureSets(cached);
+      return;
     }
-  }, [currentIndex, totalSeries, exercise, sets]);
+
+    // Fetch last session logs for this exercise
+    (async () => {
+      const { data: lastSession } = await supabase
+        .from('exercise_set_logs')
+        .select('session_id, performed_at')
+        .eq('student_id', user.id)
+        .ilike('exercise_name', exName)
+        .order('performed_at', { ascending: false })
+        .limit(1);
+
+      if (!lastSession || lastSession.length === 0) {
+        ensureSets();
+        return;
+      }
+
+      const sessionId = lastSession[0].session_id;
+      const { data: rows } = await supabase
+        .from('exercise_set_logs')
+        .select('set_number, reps, weight_kg, rpe')
+        .eq('student_id', user.id)
+        .ilike('exercise_name', exName)
+        .eq('session_id', sessionId)
+        .order('set_number', { ascending: true });
+
+      const prefill: ExerciseSet[] = (rows || []).map((r) => ({
+        reps: r.reps != null ? String(r.reps) : '',
+        weight: r.weight_kg != null ? String(r.weight_kg) : '',
+        rpe: r.rpe != null ? String(r.rpe) : '',
+        completed: false,
+      }));
+
+      setLastLogsByExercise((prev) => ({ ...prev, [exName.toUpperCase().trim()]: prefill }));
+      ensureSets(prefill);
+    })();
+  }, [currentIndex, totalSeries, exercise, user, lastLogsByExercise, loadedLogsForIndex]);
 
   useEffect(() => {
     if (exercise?.pause) {
