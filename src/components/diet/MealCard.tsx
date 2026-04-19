@@ -82,7 +82,7 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, i
 
   const handleSubstitute = (newFood: ParsedFood) => {
     if (selectedFoodIndex === null) return;
-    setFoods((prev) => {
+    updateFoods((prev) => {
       const updated = [...prev];
       updated[selectedFoodIndex] = newFood;
       return updated;
