@@ -286,8 +286,32 @@ const TabataExecucao: React.FC = () => {
     if (secondsLeft > 0 && secondsLeft <= 3) beep(660, 0.15);
   }, [secondsLeft]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // iOS unlock: must be called SYNCHRONOUSLY inside a user gesture.
+  // Creates the AudioContext (or resumes it) and plays a silent buffer
+  // so subsequent beeps fired from timers/effects are allowed to play.
+  const unlockAudio = () => {
+    try {
+      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => { /* ignore */ });
+      }
+      // Silent buffer to fully unlock on iOS
+      const buffer = ctx.createBuffer(1, 1, 22050);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start(0);
+    } catch {
+      /* ignore */
+    }
+  };
+
   const start = () => {
     if (!steps.length) return;
+    unlockAudio();
     setStepIndex(0);
     setPhase('prep');
     setSecondsLeft(PREP_SECONDS);
@@ -295,6 +319,7 @@ const TabataExecucao: React.FC = () => {
   };
 
   const skip = () => {
+    unlockAudio();
     setSecondsLeft(0);
   };
 
