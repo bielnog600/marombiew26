@@ -14,12 +14,12 @@ import { WorkoutSummaryShare } from '@/components/training/WorkoutSummaryShare';
 import { PhaseInfoSheet } from '@/components/training/PhaseInfoSheet';
 import { MachineAdjustSheet } from '@/components/training/MachineAdjustSheet';
 import { ExerciseLoadHistorySheet } from '@/components/training/ExerciseLoadHistorySheet';
+import { SessionRpeDialog } from '@/components/training/SessionRpeDialog';
 import { Settings2, Info, BarChart3 } from 'lucide-react';
 
 interface ExerciseSet {
   reps: string;
   weight: string;
-  rpe: string;
   completed: boolean;
 }
 
