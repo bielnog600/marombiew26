@@ -11,9 +11,11 @@ import { ArrowLeft, Loader2, Save, HeartPulse, Sparkles, Bike, Activity, Footpri
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import {
-  parseCardioProtocol,
-  serializeCardioProtocol,
+  parseCardioPayload,
+  isWeeklyPlan,
   type CardioProtocol,
+  type CardioPayload,
+  type CardioWeeklyPlan,
   type CardioModality,
   MODALITY_LABEL,
   STRUCTURE_LABEL,
