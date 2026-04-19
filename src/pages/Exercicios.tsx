@@ -9,7 +9,18 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Pencil, Search, X, Plus } from 'lucide-react';
+import { Pencil, Search, Check } from 'lucide-react';
+
+const STANDARD_FIELDS = [
+  'Banco',
+  'Encosto',
+  'Apoio dos pés',
+  'Rolo',
+  'Abertura',
+  'Altura',
+  'Pegada',
+  'Observação',
+] as const;
 import { toast } from 'sonner';
 
 interface Exercise {
