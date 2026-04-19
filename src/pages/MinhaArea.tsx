@@ -378,6 +378,22 @@ const MinhaArea = () => {
           </Card>
         )}
 
+        {/* Rest day card - when student has a training plan but today is not a scheduled training day */}
+        {!todayTraining && trainingDays.length > 0 && (
+          <Card className="glass-card overflow-hidden">
+            <CardContent className="p-5 flex items-center gap-4">
+              <div className="h-14 w-14 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                <span className="text-2xl">🛌</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] uppercase tracking-widest text-primary font-semibold">Hoje</p>
+                <h3 className="text-base font-bold text-foreground mt-0.5 uppercase">Dia de Descanso</h3>
+                <p className="text-xs text-muted-foreground mt-1">Sem treino programado para hoje. Aproveite para recuperar! 💪</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
 
 
         {/* Cardio do Dia */}
