@@ -218,16 +218,12 @@ const MinhaArea = () => {
       .filter((mealIndex) => Number.isInteger(mealIndex) && mealIndex >= 0 && mealIndex < todayMealCount).length;
   }, [tracking.meals_completed, todayMealCount]);
 
-  // Today's training - match by weekday name first, fallback to index cycling
+  // Today's training - ONLY match by weekday name. If today isn't a training day, return undefined (rest day).
   const todayTraining = useMemo(() => {
     if (trainingDays.length === 0) return undefined;
     const jsDay = new Date().getDay(); // 0=Sun
     const todayNames = jsDay === 0 ? ['domingo'] : jsDay === 1 ? ['segunda'] : jsDay === 2 ? ['terca', 'terça'] : jsDay === 3 ? ['quarta'] : jsDay === 4 ? ['quinta'] : jsDay === 5 ? ['sexta'] : ['sabado', 'sábado'];
-    const match = trainingDays.find(d => todayNames.some(n => d.day.toLowerCase().includes(n)));
-    if (match) return match;
-    // Fallback: cycle by index (Mon=0)
-    const idx = (jsDay + 6) % 7 % trainingDays.length;
-    return trainingDays[idx];
+    return trainingDays.find(d => todayNames.some(n => d.day.toLowerCase().includes(n)));
   }, [trainingDays]);
 
   // Detecta se hoje é dia de treino agendado (match real pelo nome do dia)
