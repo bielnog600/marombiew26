@@ -20,9 +20,24 @@ interface DietPlanCardProps {
 const DietPlanCard: React.FC<DietPlanCardProps> = ({ sections, mealsCompleted = [], onToggleMeal }) => {
   const navigate = useNavigate();
 
-  const mealsByDay = useMemo(() =>
-    sections.filter(s => s.type === 'meal' && s.meals && s.meals.length > 0).map(s => s.meals!),
+  const mealSections = useMemo(
+    () => sections.filter(s => s.type === 'meal' && s.meals && s.meals.length > 0),
     [sections]
+  );
+
+  // Detect if sections are "options/cardápios" (variants of same day) instead of weekdays.
+  // If titles contain "opção/opcao/cardápio/cardapio/menu", treat as options → use first only.
+  const isOptions = useMemo(() => {
+    if (mealSections.length <= 1) return false;
+    return mealSections.every(s => {
+      const t = (s.title || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      return /(opcao|cardapio|menu|opç|cardáp)/i.test(t) || t.trim() === '';
+    });
+  }, [mealSections]);
+
+  const mealsByDay = useMemo(
+    () => (isOptions ? mealSections.slice(0, 1) : mealSections).map(s => s.meals!),
+    [mealSections, isOptions]
   );
 
   const hasDays = mealsByDay.length > 1;
@@ -32,15 +47,13 @@ const DietPlanCard: React.FC<DietPlanCardProps> = ({ sections, mealsCompleted = 
     if (!hasDays) return 0;
     const jsDay = new Date().getDay();
     const todayNames = jsDay === 0 ? ['domingo'] : jsDay === 1 ? ['segunda'] : jsDay === 2 ? ['terca', 'terça'] : jsDay === 3 ? ['quarta'] : jsDay === 4 ? ['quinta'] : jsDay === 5 ? ['sexta'] : ['sabado', 'sábado'];
-    // Try to find a section whose title contains today's weekday name
-    const mealSections = sections.filter(s => s.type === 'meal' && s.meals && s.meals.length > 0);
     const matchIdx = mealSections.findIndex(s => {
       const title = (s.title || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       return todayNames.some(n => title.includes(n));
     });
     if (matchIdx >= 0) return matchIdx;
     return (jsDay + 6) % 7 % mealsByDay.length;
-  }, [hasDays, mealsByDay.length, sections]);
+  }, [hasDays, mealsByDay.length, mealSections]);
 
   const currentMeals = mealsByDay[dayIndex] ?? [];
 
