@@ -595,7 +595,7 @@ const TreinoExecucao = () => {
               Cargas
             </button>
           )}
-          {matchedExercise?.id && (matchedExercise.ajustes?.length ?? 0) > 0 && user && (
+          {matchedExercise?.id && user && (
             <button
               type="button"
               onClick={() => setShowAdjust(true)}
