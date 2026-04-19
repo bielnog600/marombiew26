@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { useAuth } from '@/contexts/AuthContext';
 import { type ParsedExercise, parseTrainingSections } from '@/lib/trainingResultParser';
+import { buildSetPlan, buildPlanSummary, type PlannedSet } from '@/lib/setPlanBuilder';
 import { PHASE_SHORT_LABELS, getPhaseByMonthDay, type TrainingPhase } from '@/lib/trainingPhase';
 import { WorkoutSummaryShare } from '@/components/training/WorkoutSummaryShare';
 import { PhaseInfoSheet } from '@/components/training/PhaseInfoSheet';
@@ -240,7 +241,11 @@ const TreinoExecucao = () => {
   }, [user, loadedExercises.length]);
 
   const exercise = exercises[currentIndex];
-  const totalSeries = parseInt(exercise?.series || '3') || 3;
+  const setPlan: PlannedSet[] = useMemo(
+    () => (exercise ? buildSetPlan(exercise.series, exercise.series2, exercise.reps) : []),
+    [exercise],
+  );
+  const totalSeries = setPlan.length || 3;
 
   useEffect(() => {
     const loadExercises = async () => {
@@ -318,7 +323,9 @@ const TreinoExecucao = () => {
     const cached = lastLogsByExercise[exName.toUpperCase().trim()];
 
     const buildEmpty = (): ExerciseSet[] =>
-      Array.from({ length: totalSeries }, () => ({ reps: exercise?.reps || '', weight: '', completed: false }));
+      setPlan.length > 0
+        ? setPlan.map((p) => ({ reps: p.reps || exercise?.reps || '', weight: '', completed: false }))
+        : Array.from({ length: totalSeries }, () => ({ reps: exercise?.reps || '', weight: '', completed: false }));
 
     const applyPrefill = (prevSets: ExerciseSet[] | undefined) => {
       const base = buildEmpty();
@@ -615,11 +622,15 @@ const TreinoExecucao = () => {
             const repsLabel = isReal(exercise.reps) ? parseReps(exercise.reps) : null;
             // RIR só aparece se for realmente RIR (números baixos). Caso contrário ocultamos.
             const rirLabel = isReal(exercise.rir) ? parseRir(exercise.rir) : null;
+            const isComposed = setPlan.some((p) => p.type === 'recognition') && setPlan.some((p) => p.type === 'work');
+            const summary = isComposed ? buildPlanSummary(setPlan) : null;
 
             return (
               <div className="flex items-center gap-2 mt-2 flex-wrap">
-                {isReal(exercise.series) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.series} séries</span>}
-                {repsLabel && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{repsLabel}</span>}
+                {summary
+                  ? <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded font-semibold">{summary}</span>
+                  : isReal(exercise.series) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.series} séries</span>}
+                {!summary && repsLabel && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{repsLabel}</span>}
                 {isReal(exercise.pause) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.pause} descanso</span>}
                 {rirLabel && <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">{rirLabel}</span>}
               </div>
@@ -667,16 +678,23 @@ const TreinoExecucao = () => {
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Carga</span>
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">✓</span>
           </div>
-          {currentSets.map((set, i) => (
-            <div key={i} className={`grid grid-cols-[36px_1fr_1fr_44px] gap-1.5 items-center p-2 rounded-lg transition-colors ${set.completed ? 'bg-primary/10 border border-primary/30' : 'bg-secondary/50'}`}>
-              <span className="text-sm font-bold text-center text-foreground">{i + 1}</span>
-              <Input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} placeholder="10" className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
-              <Input type="text" inputMode="decimal" value={set.weight} onChange={(e) => updateSet(i, 'weight', e.target.value)} placeholder="0" className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
-              <Button size="icon" variant={set.completed ? 'default' : 'outline'} className="h-9 w-9 mx-auto rounded-full" onClick={() => toggleSetComplete(i)}>
-                <Check className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
+          {currentSets.map((set, i) => {
+            const planned = setPlan[i];
+            const isRecognition = planned?.type === 'recognition';
+            return (
+              <div key={i} className={`grid grid-cols-[36px_1fr_1fr_44px] gap-1.5 items-center p-2 rounded-lg transition-colors ${set.completed ? 'bg-primary/10 border border-primary/30' : isRecognition ? 'bg-accent/10 border border-accent/30' : 'bg-secondary/50'}`}>
+                <div className="flex flex-col items-center justify-center">
+                  <span className="text-sm font-bold text-center text-foreground leading-none">{i + 1}</span>
+                  {isRecognition && <span className="text-[8px] uppercase tracking-wider text-accent font-semibold mt-0.5">Rec</span>}
+                </div>
+                <Input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} placeholder={planned?.reps || '10'} className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
+                <Input type="text" inputMode="decimal" value={set.weight} onChange={(e) => updateSet(i, 'weight', e.target.value)} placeholder="0" className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
+                <Button size="icon" variant={set.completed ? 'default' : 'outline'} className="h-9 w-9 mx-auto rounded-full" onClick={() => toggleSetComplete(i)}>
+                  <Check className="h-4 w-4" />
+                </Button>
+              </div>
+            );
+          })}
         </div>
 
       </div>
