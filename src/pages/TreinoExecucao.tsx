@@ -474,6 +474,14 @@ const TreinoExecucao = () => {
           fields={matchedExercise.ajustes ?? []}
         />
       )}
+      {user && exercise && (
+        <ExerciseLoadHistorySheet
+          open={showLoadHistory}
+          onOpenChange={setShowLoadHistory}
+          studentId={user.id}
+          exerciseName={exercise.exercise}
+        />
+      )}
       {summary && (
         <WorkoutSummaryShare
           dayName={dayName}
