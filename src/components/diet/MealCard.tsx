@@ -130,7 +130,7 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, i
         newG = dbFood.fats;
       }
 
-      setFoods((prev) => {
+      updateFoods((prev) => {
         const updated = [...prev];
         updated[foodIndex] = {
           food: dbFood.name,
@@ -145,7 +145,7 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, i
       });
     } else {
       // Not found in DB, just swap name/portion
-      setFoods((prev) => {
+      updateFoods((prev) => {
         const updated = [...prev];
         updated[foodIndex] = {
           ...original,
@@ -155,7 +155,7 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, i
         return updated;
       });
     }
-  }, [foods]);
+  }, [foods, updateFoods]);
 
   return (
     <>
