@@ -393,7 +393,7 @@ const TreinoExecucao = () => {
     }
   }, [exercise]);
 
-  const updateSet = (setIndex: number, field: 'reps' | 'weight' | 'rpe', value: string) => {
+  const updateSet = (setIndex: number, field: 'reps' | 'weight', value: string) => {
     setSets((prev) => {
       const current = [...(prev[currentIndex] || [])];
       current[setIndex] = { ...current[setIndex], [field]: value };
@@ -630,19 +630,17 @@ const TreinoExecucao = () => {
         </div>
 
         <div className="space-y-2">
-          <div className="grid grid-cols-[36px_1fr_1fr_56px_44px] gap-1.5 px-2">
+          <div className="grid grid-cols-[36px_1fr_1fr_44px] gap-1.5 px-2">
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Série</span>
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Reps</span>
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Carga</span>
-            <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">RPE</span>
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">✓</span>
           </div>
           {currentSets.map((set, i) => (
-            <div key={i} className={`grid grid-cols-[36px_1fr_1fr_56px_44px] gap-1.5 items-center p-2 rounded-lg transition-colors ${set.completed ? 'bg-primary/10 border border-primary/30' : 'bg-secondary/50'}`}>
+            <div key={i} className={`grid grid-cols-[36px_1fr_1fr_44px] gap-1.5 items-center p-2 rounded-lg transition-colors ${set.completed ? 'bg-primary/10 border border-primary/30' : 'bg-secondary/50'}`}>
               <span className="text-sm font-bold text-center text-foreground">{i + 1}</span>
               <Input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} placeholder="10" className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
               <Input type="text" inputMode="decimal" value={set.weight} onChange={(e) => updateSet(i, 'weight', e.target.value)} placeholder="0" className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
-              <Input type="text" inputMode="decimal" value={set.rpe} onChange={(e) => updateSet(i, 'rpe', e.target.value)} placeholder="7" className="h-9 text-center bg-background/50 border-border/50 px-1" disabled={set.completed} />
               <Button size="icon" variant={set.completed ? 'default' : 'outline'} className="h-9 w-9 mx-auto rounded-full" onClick={() => toggleSetComplete(i)}>
                 <Check className="h-4 w-4" />
               </Button>
