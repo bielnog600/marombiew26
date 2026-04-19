@@ -163,6 +163,18 @@ const TreinoExecucao = () => {
     return () => clearInterval(id);
   }, [sessionStartAt]);
 
+  // Track workout_started once when component mounts (only if user is aluno)
+  const startTrackedRef = useRef(false);
+  useEffect(() => {
+    if (!user || startTrackedRef.current) return;
+    startTrackedRef.current = true;
+    supabase.from('student_events').insert({
+      student_id: user.id,
+      event_type: 'workout_started',
+      metadata: { day_name: dayName ?? null },
+    }).then(() => {});
+  }, [user, dayName]);
+
   const formatElapsed = (totalSec: number) => {
     const h = Math.floor(totalSec / 3600);
     const m = Math.floor((totalSec % 3600) / 60);

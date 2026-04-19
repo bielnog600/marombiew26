@@ -32,9 +32,14 @@ const MinhaArea = () => {
   const [exerciseImages, setExerciseImages] = useState<Record<string, string>>({});
   const [exerciseMuscles, setExerciseMuscles] = useState<Record<string, string>>({});
   const [exerciseMedia, setExerciseMedia] = useState<Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }>>({});
+  const { trackEvent } = useEventTracking();
+
   useEffect(() => {
-    if (user) loadData();
-  }, [user]);
+    if (user) {
+      loadData();
+      trackEvent('app_opened');
+    }
+  }, [user, trackEvent]);
 
   const loadData = async () => {
     // Profile
