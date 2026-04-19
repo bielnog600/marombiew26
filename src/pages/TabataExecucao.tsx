@@ -343,7 +343,7 @@ const TabataExecucao: React.FC = () => {
     idle: 'PRONTO?',
     prep: 'PREPARE-SE',
     work: 'TRABALHE!',
-    rest: 'DESCANSE',
+    rest: 'DESCANSE!',
     block_rest: 'DESCANSO DO BLOCO',
     done: 'CONCLUÍDO!',
   }[phase];
@@ -430,7 +430,7 @@ const TabataExecucao: React.FC = () => {
       {/* Main timer */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
         {phase !== 'work' && (
-          <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground mb-4 [text-shadow:0_1px_3px_rgba(0,0,0,0.4)]">{phaseLabel}</p>
+          <p className="text-sm uppercase tracking-[0.3em] text-white mb-4 [text-shadow:0_1px_3px_rgba(0,0,0,0.4)]">{phaseLabel}</p>
         )}
 
         {phase === 'idle' && (
