@@ -317,7 +317,7 @@ const TreinoExecucao = () => {
     const cached = lastLogsByExercise[exName.toUpperCase().trim()];
 
     const buildEmpty = (): ExerciseSet[] =>
-      Array.from({ length: totalSeries }, () => ({ reps: exercise?.reps || '', weight: '', rpe: '', completed: false }));
+      Array.from({ length: totalSeries }, () => ({ reps: exercise?.reps || '', weight: '', completed: false }));
 
     const applyPrefill = (prevSets: ExerciseSet[] | undefined) => {
       const base = buildEmpty();
@@ -328,7 +328,6 @@ const TreinoExecucao = () => {
         return {
           reps: prev.reps || s.reps,
           weight: prev.weight || '',
-          rpe: prev.rpe || '',
           completed: false,
         };
       });
