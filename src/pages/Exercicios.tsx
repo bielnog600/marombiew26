@@ -37,7 +37,6 @@ const Exercicios: React.FC = () => {
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Exercise | null>(null);
   const [ajustes, setAjustes] = useState<string[]>([]);
-  const [novoAjuste, setNovoAjuste] = useState('');
 
   const { data: exercises = [], isLoading } = useQuery({
     queryKey: ['exercises-admin'],
