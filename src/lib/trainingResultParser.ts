@@ -67,7 +67,7 @@ export const parseTrainingTable = (tableLines: string[]): ParsedTrainingDay[] =>
     const series2Cell = cleanCell(cells[3] || '');
     const repsCell = cleanCell(cells[4] || '');
     const rirCell = cleanCell(cells[5] || '');
-    const pauseCell = cleanCell(cells[6] || '');
+    const pauseCell = normalizePause(cleanCell(cells[6] || ''));
     const descCell = cleanCell(cells[7] || '');
     const variationCell = cleanCell(cells[8] || '');
 
