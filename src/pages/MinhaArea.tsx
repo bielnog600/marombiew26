@@ -179,6 +179,17 @@ const MinhaArea = () => {
       .maybeSingle();
     if (tabata) setTabataConteudo(tabata.conteudo);
 
+    // Latest CARDIO plan
+    const { data: cardio } = await supabase
+      .from('ai_plans')
+      .select('conteudo')
+      .eq('student_id', user!.id)
+      .eq('tipo', 'cardio')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (cardio) setCardioConteudo(cardio.conteudo);
+
     setLoading(false);
   };
 
@@ -371,6 +382,10 @@ const MinhaArea = () => {
           </Card>
         )}
 
+
+
+        {/* Cardio do Dia */}
+        {cardioConteudo && <CardioDoDiaCard conteudo={cardioConteudo} />}
 
         {/* TABATA do Dia */}
         {tabataConteudo && <TabataDoDiaCard conteudo={tabataConteudo} />}
