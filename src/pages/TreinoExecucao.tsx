@@ -577,6 +577,16 @@ const TreinoExecucao = () => {
             <Info className="h-3 w-3" />
             {PHASE_SHORT_LABELS[currentPhase]}
           </button>
+          {user && exercise && (
+            <button
+              type="button"
+              onClick={() => setShowLoadHistory(true)}
+              className="inline-flex items-center gap-1.5 rounded-full bg-accent/15 border border-accent/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-accent/25 transition-colors"
+            >
+              <BarChart3 className="h-3 w-3" />
+              Cargas
+            </button>
+          )}
           {matchedExercise?.id && (matchedExercise.ajustes?.length ?? 0) > 0 && user && (
             <button
               type="button"
