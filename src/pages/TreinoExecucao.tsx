@@ -135,6 +135,9 @@ const TreinoExecucao = () => {
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [sets, setSets] = useState<Record<number, ExerciseSet[]>>({});
+  // Cache of last performed values per exercise name (from previous sessions)
+  const [lastLogsByExercise, setLastLogsByExercise] = useState<Record<string, ExerciseSet[]>>({});
+  const [loadedLogsForIndex, setLoadedLogsForIndex] = useState<Set<number>>(new Set());
   const [exerciseDB, setExerciseDB] = useState<ExerciseDBData[]>([]);
   const [showRestTimer, setShowRestTimer] = useState(false);
   const [restDuration, setRestDuration] = useState(60);
