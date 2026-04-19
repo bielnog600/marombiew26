@@ -148,15 +148,6 @@ const Evolucao = () => {
       </div>
 
       <div className="flex-1 overflow-auto p-4 pb-28 space-y-5 animate-fade-in">
-        {/* Register weight button */}
-        <Button
-          onClick={() => setDialogOpen(true)}
-          className="w-full bg-primary text-primary-foreground hover:opacity-90 font-semibold"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Registrar peso em jejum
-        </Button>
-
         {/* Period Filter */}
         <div className="flex gap-2 justify-center flex-wrap">
           {PERIODS.map(p => (
