@@ -266,9 +266,31 @@ const Exercicios: React.FC = () => {
               Gerencie a base de exercícios e os ajustes de máquina.
             </p>
           </div>
-          <Button onClick={openCreate} className="gap-2">
-            <Plus className="h-4 w-4" /> Novo exercício
-          </Button>
+          <div className="flex gap-2 flex-wrap">
+            {externalCount > 0 && (
+              <Button
+                variant="outline"
+                onClick={handleBulkMigrate}
+                disabled={bulkMigrating}
+                className="gap-2"
+              >
+                {bulkMigrating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Migrando {bulkProgress.done}/{bulkProgress.total}
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    Migrar todas ({externalCount})
+                  </>
+                )}
+              </Button>
+            )}
+            <Button onClick={openCreate} className="gap-2">
+              <Plus className="h-4 w-4" /> Novo exercício
+            </Button>
+          </div>
         </div>
 
         <Card>
