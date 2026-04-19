@@ -48,7 +48,22 @@ export const WorkoutSummaryShare: React.FC<WorkoutSummaryShareProps> = ({
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isSharing, setIsSharing] = useState(false);
+  const [weeklyWorkouts, setWeeklyWorkouts] = useState<number>(0);
+  const { user } = useAuth();
   const today = new Date();
+
+  useEffect(() => {
+    if (!user) return;
+    const { start, end } = getWeekRange();
+    supabase
+      .from('daily_tracking')
+      .select('id')
+      .eq('student_id', user.id)
+      .eq('workout_completed', true)
+      .gte('date', start)
+      .lte('date', end)
+      .then(({ data }) => setWeeklyWorkouts(data?.length ?? 0));
+  }, [user]);
 
   const generateImage = async (): Promise<Blob | null> => {
     if (!cardRef.current) return null;
