@@ -16,6 +16,7 @@ import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingRes
 import { parseSections, type ParsedMeal, type ParsedSection } from '@/lib/dietResultParser';
 import DietPlanCard from '@/components/DietPlanCard';
 import TabataDoDiaCard from '@/components/home/TabataDoDiaCard';
+import CardioDoDiaCard from '@/components/home/CardioDoDiaCard';
 import { useEventTracking } from '@/hooks/useEventTracking';
 import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
 
@@ -28,6 +29,7 @@ const MinhaArea = () => {
   const [trainingDays, setTrainingDays] = useState<ParsedTrainingDay[]>([]);
   const [meals, setMeals] = useState<ParsedMeal[]>([]);
   const [tabataConteudo, setTabataConteudo] = useState<string | null>(null);
+  const [cardioConteudo, setCardioConteudo] = useState<string | null>(null);
   const [dietSections, setDietSections] = useState<ParsedSection[]>([]);
   const [_trainingTitle, setTrainingTitle] = useState('');
   const [_dietTitle, setDietTitle] = useState('');
@@ -176,6 +178,17 @@ const MinhaArea = () => {
       .limit(1)
       .maybeSingle();
     if (tabata) setTabataConteudo(tabata.conteudo);
+
+    // Latest CARDIO plan
+    const { data: cardio } = await supabase
+      .from('ai_plans')
+      .select('conteudo')
+      .eq('student_id', user!.id)
+      .eq('tipo', 'cardio')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (cardio) setCardioConteudo(cardio.conteudo);
 
     setLoading(false);
   };
@@ -369,6 +382,10 @@ const MinhaArea = () => {
           </Card>
         )}
 
+
+
+        {/* Cardio do Dia */}
+        {cardioConteudo && <CardioDoDiaCard conteudo={cardioConteudo} />}
 
         {/* TABATA do Dia */}
         {tabataConteudo && <TabataDoDiaCard conteudo={tabataConteudo} />}
