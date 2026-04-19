@@ -639,7 +639,7 @@ const TreinoExecucao = () => {
               Cargas
             </button>
           )}
-          {matchedExercise?.id && user && (matchedExercise.ajustes?.length ?? 0) > 0 && (
+          {matchedExercise?.id && user && (
             <button
               type="button"
               onClick={() => setShowAdjust(true)}
