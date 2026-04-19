@@ -622,11 +622,15 @@ const TreinoExecucao = () => {
             const repsLabel = isReal(exercise.reps) ? parseReps(exercise.reps) : null;
             // RIR só aparece se for realmente RIR (números baixos). Caso contrário ocultamos.
             const rirLabel = isReal(exercise.rir) ? parseRir(exercise.rir) : null;
+            const isComposed = setPlan.some((p) => p.type === 'recognition') && setPlan.some((p) => p.type === 'work');
+            const summary = isComposed ? buildPlanSummary(setPlan) : null;
 
             return (
               <div className="flex items-center gap-2 mt-2 flex-wrap">
-                {isReal(exercise.series) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.series} séries</span>}
-                {repsLabel && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{repsLabel}</span>}
+                {summary
+                  ? <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded font-semibold">{summary}</span>
+                  : isReal(exercise.series) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.series} séries</span>}
+                {!summary && repsLabel && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{repsLabel}</span>}
                 {isReal(exercise.pause) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.pause} descanso</span>}
                 {rirLabel && <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">{rirLabel}</span>}
               </div>
