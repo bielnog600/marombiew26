@@ -73,6 +73,18 @@ const Exercicios: React.FC = () => {
   const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0 });
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const { data: exercises = [], isLoading } = useQuery({
+    queryKey: ['exercises-admin'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('exercises')
+        .select('id, nome, grupo_muscular, imagem_url, video_embed, ajustes')
+        .order('nome');
+      if (error) throw error;
+      return (data ?? []) as Exercise[];
+    },
+  });
+
   const externalCount = exercises.filter((e) => e.imagem_url && !isInternalUrl(e.imagem_url)).length;
 
   const handleBulkMigrate = async () => {
@@ -106,18 +118,6 @@ const Exercicios: React.FC = () => {
     toast.success(`Migração concluída: ${ok} ok, ${fail} falhas.`);
   };
 
-
-  const { data: exercises = [], isLoading } = useQuery({
-    queryKey: ['exercises-admin'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('exercises')
-        .select('id, nome, grupo_muscular, imagem_url, video_embed, ajustes')
-        .order('nome');
-      if (error) throw error;
-      return (data ?? []) as Exercise[];
-    },
-  });
 
   const saveMutation = useMutation({
     mutationFn: async () => {
