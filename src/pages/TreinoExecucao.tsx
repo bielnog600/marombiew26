@@ -605,15 +605,6 @@ const TreinoExecucao = () => {
               Ajuste
             </button>
           )}
-                type="button"
-                onClick={() => setShowAdjust(true)}
-                className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 border border-border/60 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-secondary transition-colors"
-              >
-                <Settings2 className="h-3 w-3" />
-                Ajuste
-              </button>
-            );
-          })()}
         </div>
 
         <div className="space-y-2">
