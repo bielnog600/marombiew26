@@ -6,8 +6,57 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { ParsedTrainingDay, ParsedExercise } from '@/lib/trainingResultParser';
 import { supabase } from '@/integrations/supabase/client';
+
+// ===== Quick-pick options for structured editing =====
+const REC_SERIES_OPTS = ['1', '2'];
+const REC_REPS_OPTS = ['8', '10', '12', '15', '20'];
+const WORK_SERIES_OPTS = ['1', '2', '3', '4', '5'];
+const WORK_REPS_OPTS = ['6', '8', '10', '12', '15', '6-8', '8-10', '8-12', '10-12', '12-15'];
+const RIR_OPTS = ['', '0', '1', '2', '3', '1-2', '2-3'];
+const PAUSE_OPTS = ['30s', '45s', '60s', '90s', '2min', '3min'];
+
+type StructureMode = 'standard' | 'recognition';
+
+const isCompositeReps = (reps: string) => reps.includes('+');
+
+const detectMode = (ex: ParsedExercise): StructureMode => {
+  const s1 = parseInt(ex.series || '0', 10) || 0;
+  const s2 = parseInt(ex.series2 || '0', 10) || 0;
+  if (s1 > 0 && s2 > 0) return 'recognition';
+  if (isCompositeReps(ex.reps || '')) return 'recognition';
+  return 'standard';
+};
+
+const splitComposed = (reps: string): [string, string] => {
+  const parts = (reps || '').split('+').map((p) => p.trim());
+  return [parts[0] || '', parts[1] || parts[0] || ''];
+};
+
+interface QuickSelectProps {
+  value: string;
+  options: string[];
+  placeholder?: string;
+  onChange: (val: string) => void;
+  width?: string;
+}
+
+const QuickSelect: React.FC<QuickSelectProps> = ({ value, options, placeholder, onChange, width = 'w-[88px]' }) => (
+  <Select value={value || '__empty__'} onValueChange={(v) => onChange(v === '__empty__' ? '' : v)}>
+    <SelectTrigger className={`h-7 text-xs ${width} px-2`}>
+      <SelectValue placeholder={placeholder || '—'} />
+    </SelectTrigger>
+    <SelectContent>
+      {options.map((opt) => (
+        <SelectItem key={opt || '__empty__'} value={opt || '__empty__'} className="text-xs">
+          {opt || '— vazio —'}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+);
 
 const DAY_SURFACES = [
   'bg-gradient-to-br from-primary/12 to-accent/8 border-primary/25',
