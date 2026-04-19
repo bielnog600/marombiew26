@@ -3,7 +3,9 @@ import { Card } from '@/components/ui/card';
 import { HeartPulse, Play, Bike, Activity, Footprints, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
-  parseCardioProtocol,
+  parseCardioPayload,
+  pickProtocolForToday,
+  isWeeklyPlan,
   MODALITY_LABEL,
   STRUCTURE_LABEL,
   totalCardioDurationSec,
@@ -24,11 +26,13 @@ const MODALITY_ICON: Record<CardioModality, React.ComponentType<any>> = {
 
 const CardioDoDiaCard: React.FC<CardioDoDiaCardProps> = ({ conteudo }) => {
   const navigate = useNavigate();
-  const protocol = parseCardioProtocol(conteudo);
+  const payload = parseCardioPayload(conteudo);
+  const protocol = payload ? pickProtocolForToday(payload) : null;
   if (!protocol) return null;
 
   const Icon = MODALITY_ICON[protocol.modality] || HeartPulse;
   const totalSec = totalCardioDurationSec(protocol);
+  const sessionsCount = payload && isWeeklyPlan(payload) ? payload.protocols.length : 0;
 
   return (
     <Card
