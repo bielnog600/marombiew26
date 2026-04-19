@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { UtensilsCrossed, Droplets, Plus, Minus, Target, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { parseSections, type ParsedSection } from '@/lib/dietResultParser';
+import { parseTrainingSections } from '@/lib/trainingResultParser';
 import { extractTargetsFromSections } from '@/lib/dietTargets';
 import MealCard from '@/components/diet/MealCard';
 import { Progress } from '@/components/ui/progress';
