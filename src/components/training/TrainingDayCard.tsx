@@ -148,6 +148,37 @@ const emptyExercise = (): ParsedExercise => ({
   variation: '',
 });
 
+const SortableExerciseItem: React.FC<{ id: string; position: number; onRemove: () => void; children: React.ReactNode }> = ({ id, position, onRemove, children }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style} className="rounded-lg border border-border/60 bg-background/60 p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2 -mt-1 -mx-1">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            className="cursor-grab active:cursor-grabbing touch-none p-1 text-muted-foreground hover:text-foreground"
+            {...attributes}
+            {...listeners}
+            aria-label="Arrastar para reordenar"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+          <span className="text-[10px] font-bold text-muted-foreground uppercase">#{position}</span>
+        </div>
+        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:text-destructive" onClick={onRemove}>
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </div>
+      {children}
+    </div>
+  );
+};
+
 const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, editable, onDayChange }) => {
   const surface = DAY_SURFACES[index % DAY_SURFACES.length];
   const [editing, setEditing] = useState(false);
