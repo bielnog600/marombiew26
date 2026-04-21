@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Loader2, Save, HeartPulse, Sparkles, Bike, Activity, Footprints, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import AiWizard from '@/components/AiWizard';
 import {
   parseCardioPayload,
   isWeeklyPlan,
@@ -70,6 +71,7 @@ const CardioIA = () => {
   const [generating, setGenerating] = useState(false);
   const [payload, setPayload] = useState<CardioPayload | null>(null);
   const [saving, setSaving] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
   const resultRef = useRef<HTMLDivElement>(null);
 
   const toggleModality = (m: CardioModality) => {
