@@ -142,7 +142,7 @@ const MeusTreinos = () => {
   };
 
   const handleStart = (day: ParsedTrainingDay) => {
-    navigate('/treino-execucao', {
+    navigate('/treino-preview', {
       state: {
         exercises: day.exercises,
         dayName: day.day,
