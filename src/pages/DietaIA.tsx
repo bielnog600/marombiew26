@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
 import { generateDietPDF } from '@/lib/generateDietPDF';
+import AiWizard from '@/components/AiWizard';
 
 type StudentCtx = Record<string, any>;
 
@@ -141,6 +142,9 @@ const DietaIA = () => {
   const [substitutions, setSubstitutions] = useState<{ food: string; portion: string }[]>([]);
   const [newSubFood, setNewSubFood] = useState('');
   const [newSubPortion, setNewSubPortion] = useState('');
+
+  // Wizard
+  const [currentStep, setCurrentStep] = useState(0);
 
   // Result
   const [generating, setGenerating] = useState(false);
@@ -884,7 +888,38 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
           </Card>
         )}
 
-        {/* Step 1: Rotina e Treino */}
+        {(() => {
+          const STEP_TITLES = [
+            'Rotina e Treino',
+            'Estilo, Fase e Hormônios',
+            'Atividade e Estratégia',
+            'Refeições e Preferências',
+            'Ajustes do Protocolo',
+            'Extras',
+            'Substituições',
+          ];
+          const stepValid = [
+            !!trainingTime && !!trainingDays,
+            !!dietStyle && !!phase && usesHormones !== null,
+            !!activityLevel && !!strategy,
+            !!mealCount,
+            true,
+            true,
+            true,
+          ];
+          return (
+            <AiWizard
+              steps={STEP_TITLES}
+              currentStep={currentStep}
+              onStepChange={setCurrentStep}
+              stepValid={stepValid}
+              canGenerate={!!canGenerate}
+              generating={generating}
+              onGenerate={generatePlan}
+              generateLabel="Gerar Plano Alimentar"
+              generateIcon={<UtensilsCrossed className="h-5 w-5" />}
+            >
+              {currentStep === 0 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-4">
             <StepHeader step={1} title="Rotina e Treino" />
@@ -919,8 +954,9 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
             </div>
           </CardContent>
         </Card>
+              )}
 
-        {/* Step 2: Estilo, Fase Atual & Hormônios */}
+              {currentStep === 1 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-4">
             <StepHeader step={2} title="Estilo da Dieta, Fase e Hormônios" />
@@ -967,8 +1003,9 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
             </div>
           </CardContent>
         </Card>
+              )}
 
-        {/* Step 3: Atividade & Estratégia */}
+              {currentStep === 2 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-4">
             <StepHeader step={3} title="Atividade e Estratégia" />
@@ -996,8 +1033,9 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
             </div>
           </CardContent>
         </Card>
+              )}
 
-        {/* Step 4: Refeições & Preferências */}
+              {currentStep === 3 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-4">
             <StepHeader step={4} title="Refeições e Preferências" />
@@ -1061,8 +1099,9 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
             </div>
           </CardContent>
         </Card>
+              )}
 
-        {/* Step 5: Ajustes do Protocolo */}
+              {currentStep === 4 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-3">
             <StepHeader step={5} title="Ajustes do Protocolo (opcional)" />
@@ -1089,8 +1128,9 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
             </div>
           </CardContent>
         </Card>
+              )}
 
-        {/* Step 6: Extras */}
+              {currentStep === 5 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-3">
             <StepHeader step={6} title="Extras (opcional)" />
@@ -1130,8 +1170,9 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
             </div>
           </CardContent>
         </Card>
+              )}
 
-        {/* Step 7: Substituições */}
+              {currentStep === 6 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-3">
             <StepHeader step={7} title="Alimentos para Substituição (opcional)" />
@@ -1180,19 +1221,10 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
             )}
           </CardContent>
         </Card>
-
-        <Button
-          onClick={generatePlan}
-          disabled={!canGenerate || generating}
-          className="w-full font-bold text-base py-6 rounded-xl"
-          size="lg"
-        >
-          {generating ? (
-            <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Gerando Plano Alimentar...</>
-          ) : (
-            <><UtensilsCrossed className="mr-2 h-5 w-5" /> Gerar Plano Alimentar</>
-          )}
-        </Button>
+              )}
+            </AiWizard>
+          );
+        })()}
 
         {result && generating && (
           <Card className="glass-card" ref={resultRef}>
