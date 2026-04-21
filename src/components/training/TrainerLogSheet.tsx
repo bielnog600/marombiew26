@@ -304,6 +304,11 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     const ex = day.exercises[exIdx];
     const st = state[exIdx];
     if (!ex || !st) return;
+    const exerciseName = (st.exerciseName || ex.exercise || '').trim();
+    if (!exerciseName) {
+      toast.error('Selecione um exercício antes de salvar');
+      return;
+    }
 
     const validSets = st.sets
       .map((s, idx) => ({ idx, weight: parseFloat(s.weight), reps: parseInt(s.reps, 10) }))
@@ -318,7 +323,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
 
     const rows = validSets.map((s) => ({
       student_id: studentId,
-      exercise_name: ex.exercise,
+      exercise_name: exerciseName,
       set_number: s.idx + 1,
       weight_kg: Number.isNaN(s.weight) ? null : s.weight,
       reps: Number.isNaN(s.reps) ? null : s.reps,
@@ -350,7 +355,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     if (error) {
       toast.error('Salvo localmente. Sem conexão? Será re-enviado quando você tentar de novo. (' + error.message + ')');
     } else {
-      toast.success(`${rows.length} série(s) registrada(s) — ${ex.exercise}`);
+      toast.success(`${rows.length} série(s) registrada(s) — ${exerciseName}`);
     }
   };
 
