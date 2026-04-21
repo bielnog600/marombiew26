@@ -34,6 +34,7 @@ import Consultoria from "./pages/Consultoria";
 import Perfil from "./pages/Perfil";
 import MinhasDietas from "./pages/MinhasDietas";
 import MeusTreinos from "./pages/MeusTreinos";
+import TreinoPreview from "./pages/TreinoPreview";
 import Evolucao from "./pages/Evolucao";
 import MeuProgresso from "./pages/MeuProgresso";
 
@@ -98,6 +99,7 @@ const App = () => {
               <Route path="/meus-treinos" element={<ProtectedRoute requiredRole="aluno"><MeusTreinos /></ProtectedRoute>} />
               <Route path="/minhas-avaliacoes" element={<ProtectedRoute requiredRole="aluno"><MinhasAvaliacoes /></ProtectedRoute>} />
               <Route path="/treino-execucao" element={<ProtectedRoute requiredRole="aluno"><TreinoExecucao /></ProtectedRoute>} />
+              <Route path="/treino-preview" element={<ProtectedRoute requiredRole="aluno"><TreinoPreview /></ProtectedRoute>} />
               <Route path="/perfil" element={<ProtectedRoute requiredRole="aluno"><Perfil /></ProtectedRoute>} />
               <Route path="/minhas-dietas" element={<ProtectedRoute requiredRole="aluno"><MinhasDietas /></ProtectedRoute>} />
               <Route path="/evolucao" element={<ProtectedRoute requiredRole="aluno"><Evolucao /></ProtectedRoute>} />
