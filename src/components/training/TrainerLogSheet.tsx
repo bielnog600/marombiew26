@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Save, History, Dumbbell, Check } from 'lucide-react';
+import { Loader2, Save, History, Dumbbell, Check, ChevronDown } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { ParsedTrainingDay } from '@/lib/trainingResultParser';
@@ -58,6 +59,95 @@ const buildSetPlan = (series: string, series2: string, reps: string): SetPlan[] 
     for (let i = 0; i < total; i++) plan.push({ kind: 'work', targetReps: reps || '' });
   }
   return plan;
+};
+
+interface HistoryRow {
+  performed_at: string;
+  set_number: number;
+  weight_kg: number | null;
+  reps: number | null;
+}
+
+const HistoryPopover: React.FC<{
+  studentId: string;
+  exerciseName: string;
+  last: { lastWeight: number | null; lastReps: number | null; lastDate: string | null };
+}> = ({ studentId, exerciseName, last }) => {
+  const [rows, setRows] = useState<HistoryRow[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = async () => {
+    if (rows) return;
+    setLoading(true);
+    const { data } = await supabase
+      .from('exercise_set_logs')
+      .select('performed_at, set_number, weight_kg, reps')
+      .eq('student_id', studentId)
+      .ilike('exercise_name', exerciseName)
+      .order('performed_at', { ascending: false })
+      .limit(40);
+    setRows((data as HistoryRow[]) || []);
+    setLoading(false);
+  };
+
+  // Group by date
+  const groups: Record<string, HistoryRow[]> = {};
+  (rows || []).forEach((r) => {
+    const d = format(new Date(r.performed_at), 'dd/MM/yyyy', { locale: ptBR });
+    if (!groups[d]) groups[d] = [];
+    groups[d].push(r);
+  });
+
+  return (
+    <Popover onOpenChange={(o) => o && load()}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 gap-1 px-2 text-[10px] shrink-0"
+        >
+          <History className="h-3 w-3" />
+          {last.lastWeight !== null
+            ? <span><strong className="text-foreground">{last.lastWeight}kg × {last.lastReps ?? '—'}</strong></span>
+            : 'Histórico'}
+          <ChevronDown className="h-3 w-3 opacity-60" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 p-2 max-h-80 overflow-y-auto">
+        <p className="text-xs font-semibold mb-2 px-1">Histórico — {exerciseName}</p>
+        {loading && (
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+          </div>
+        )}
+        {!loading && rows && rows.length === 0 && (
+          <p className="text-[11px] text-muted-foreground px-1 py-2">Sem registros anteriores.</p>
+        )}
+        {!loading && rows && rows.length > 0 && (
+          <div className="space-y-2">
+            {Object.entries(groups).map(([date, sets]) => (
+              <div key={date} className="rounded border border-border/50 p-1.5">
+                <p className="text-[10px] font-semibold text-muted-foreground mb-1">{date}</p>
+                <div className="space-y-0.5">
+                  {sets
+                    .sort((a, b) => a.set_number - b.set_number)
+                    .map((r, i) => (
+                      <div key={i} className="flex justify-between text-[11px]">
+                        <span className="text-muted-foreground">Série {r.set_number}</span>
+                        <span className="font-medium">
+                          {r.weight_kg ?? '—'}kg × {r.reps ?? '—'}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
 };
 
 export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId, days, phase }) => {
@@ -230,14 +320,8 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                           {ex.pause && ` · pausa ${ex.pause}`}
                         </p>
                       </div>
-                      {st.lastWeight !== null && (
-                        <div className="text-right shrink-0 flex items-center gap-1 text-[10px] text-muted-foreground bg-secondary/50 rounded px-1.5 py-0.5">
-                          <History className="h-3 w-3" />
-                          <span>
-                            Última: <strong className="text-foreground">{st.lastWeight ?? '—'}kg × {st.lastReps ?? '—'}</strong>
-                            {st.lastDate && ` · ${format(new Date(st.lastDate), 'dd/MM', { locale: ptBR })}`}
-                          </span>
-                        </div>
+                      {ex.exercise && (
+                        <HistoryPopover studentId={studentId} exerciseName={ex.exercise} last={st} />
                       )}
                     </div>
 
