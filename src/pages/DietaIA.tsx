@@ -888,7 +888,38 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
           </Card>
         )}
 
-        {/* Step 1: Rotina e Treino */}
+        {(() => {
+          const STEP_TITLES = [
+            'Rotina e Treino',
+            'Estilo, Fase e Hormônios',
+            'Atividade e Estratégia',
+            'Refeições e Preferências',
+            'Ajustes do Protocolo',
+            'Extras',
+            'Substituições',
+          ];
+          const stepValid = [
+            !!trainingTime && !!trainingDays,
+            !!dietStyle && !!phase && usesHormones !== null,
+            !!activityLevel && !!strategy,
+            !!mealCount,
+            true,
+            true,
+            true,
+          ];
+          return (
+            <AiWizard
+              steps={STEP_TITLES}
+              currentStep={currentStep}
+              onStepChange={setCurrentStep}
+              stepValid={stepValid}
+              canGenerate={!!canGenerate}
+              generating={generating}
+              onGenerate={generatePlan}
+              generateLabel="Gerar Plano Alimentar"
+              generateIcon={<UtensilsCrossed className="h-5 w-5" />}
+            >
+              {currentStep === 0 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-4">
             <StepHeader step={1} title="Rotina e Treino" />
