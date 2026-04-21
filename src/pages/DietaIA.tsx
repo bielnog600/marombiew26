@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
 import { generateDietPDF } from '@/lib/generateDietPDF';
+import AiWizard from '@/components/AiWizard';
 
 type StudentCtx = Record<string, any>;
 
@@ -141,6 +142,9 @@ const DietaIA = () => {
   const [substitutions, setSubstitutions] = useState<{ food: string; portion: string }[]>([]);
   const [newSubFood, setNewSubFood] = useState('');
   const [newSubPortion, setNewSubPortion] = useState('');
+
+  // Wizard
+  const [currentStep, setCurrentStep] = useState(0);
 
   // Result
   const [generating, setGenerating] = useState(false);
