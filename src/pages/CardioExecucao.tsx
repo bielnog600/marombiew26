@@ -17,6 +17,17 @@ import {
 type Phase = 'idle' | 'prep' | 'block' | 'done';
 
 const PREP_SECONDS = 10;
+const STORAGE_KEY = 'mw_active_cardio_session';
+
+interface PersistedCardio {
+  protocol: CardioProtocol;
+  phase: Phase;
+  blockIndex: number;
+  secondsLeft: number;
+  paused: boolean;
+  // Wall-clock timestamp (ms) when secondsLeft was last set; used to recompute on resume
+  anchorMs: number;
+}
 
 const CardioExecucao: React.FC = () => {
   const location = useLocation();
@@ -26,20 +37,89 @@ const CardioExecucao: React.FC = () => {
     if (stateProtocol && Array.isArray(stateProtocol.blocks)) return stateProtocol;
     // Try parse if string was passed
     const raw = (location.state as any)?.conteudo;
-    return raw ? parseCardioProtocol(raw) : null;
+    if (raw) return parseCardioProtocol(raw);
+    // Fallback: try restoring from localStorage
+    try {
+      const cached = localStorage.getItem(STORAGE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached) as PersistedCardio;
+        return parsed.protocol;
+      }
+    } catch { /* ignore */ }
+    return null;
   }, [stateProtocol, location.state]);
 
-  const [phase, setPhase] = useState<Phase>('idle');
-  const [blockIndex, setBlockIndex] = useState(0);
-  const [secondsLeft, setSecondsLeft] = useState(PREP_SECONDS);
-  const [paused, setPaused] = useState(false);
+  // Restore persisted session if it matches the current protocol
+  const restored = useMemo<PersistedCardio | null>(() => {
+    try {
+      const cached = localStorage.getItem(STORAGE_KEY);
+      if (!cached) return null;
+      const parsed = JSON.parse(cached) as PersistedCardio;
+      if (!protocol || parsed.protocol?.title !== protocol.title) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }, [protocol]);
+
+  // Compute initial seconds based on elapsed wall-clock time since last anchor
+  const computeResumeSeconds = (r: PersistedCardio): number => {
+    if (r.paused || r.phase === 'idle' || r.phase === 'done') return r.secondsLeft;
+    const elapsed = Math.floor((Date.now() - r.anchorMs) / 1000);
+    return Math.max(0, r.secondsLeft - elapsed);
+  };
+
+  const [phase, setPhase] = useState<Phase>(restored?.phase ?? 'idle');
+  const [blockIndex, setBlockIndex] = useState(restored?.blockIndex ?? 0);
+  const [secondsLeft, setSecondsLeft] = useState(
+    restored ? computeResumeSeconds(restored) : PREP_SECONDS
+  );
+  const [paused, setPaused] = useState(restored?.paused ?? false);
   const [muted, setMuted] = useState(false);
+  const anchorRef = useRef<number>(restored?.anchorMs ?? Date.now());
 
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   const blocks = protocol?.blocks || [];
   const totalBlocks = blocks.length;
   const currentBlock: CardioBlock | undefined = blocks[blockIndex];
+
+  // Persist session whenever key state changes
+  useEffect(() => {
+    if (!protocol) return;
+    if (phase === 'idle' || phase === 'done') {
+      localStorage.removeItem(STORAGE_KEY);
+      return;
+    }
+    const data: PersistedCardio = {
+      protocol,
+      phase,
+      blockIndex,
+      secondsLeft,
+      paused,
+      anchorMs: anchorRef.current,
+    };
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch { /* ignore */ }
+  }, [protocol, phase, blockIndex, secondsLeft, paused]);
+
+  // On visibility change, recompute remaining time from wall clock
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (paused || phase === 'idle' || phase === 'done') return;
+      const elapsed = Math.floor((Date.now() - anchorRef.current) / 1000);
+      if (elapsed > 0) {
+        setSecondsLeft(s => Math.max(0, s - elapsed));
+        anchorRef.current = Date.now();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [paused, phase]);
 
   const beep = (frequency: number, duration: number) => {
     if (muted) return;
@@ -93,6 +173,7 @@ const CardioExecucao: React.FC = () => {
       beep(880, 0.3);
       setPhase('block');
       setSecondsLeft(blocks[0].durationSec);
+      anchorRef.current = Date.now();
       return;
     }
 
@@ -101,12 +182,14 @@ const CardioExecucao: React.FC = () => {
       if (isLast) {
         beep(1320, 0.6);
         setPhase('done');
+        localStorage.removeItem(STORAGE_KEY);
         return;
       }
       beep(660, 0.4);
       const nextIdx = blockIndex + 1;
       setBlockIndex(nextIdx);
       setSecondsLeft(blocks[nextIdx].durationSec);
+      anchorRef.current = Date.now();
     }
   }, [secondsLeft, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -138,6 +221,7 @@ const CardioExecucao: React.FC = () => {
     setPhase('prep');
     setSecondsLeft(PREP_SECONDS);
     setPaused(false);
+    anchorRef.current = Date.now();
   };
 
   const skip = () => {
@@ -150,6 +234,8 @@ const CardioExecucao: React.FC = () => {
     setBlockIndex(0);
     setSecondsLeft(PREP_SECONDS);
     setPaused(false);
+    anchorRef.current = Date.now();
+    localStorage.removeItem(STORAGE_KEY);
   };
 
   if (!protocol) {
@@ -354,7 +440,13 @@ const CardioExecucao: React.FC = () => {
             </Button>
             <Button
               size="icon"
-              onClick={() => setPaused(p => !p)}
+              onClick={() => setPaused(p => {
+                if (p) {
+                  // Resuming: reset anchor so countdown continues from now
+                  anchorRef.current = Date.now();
+                }
+                return !p;
+              })}
               aria-label={paused ? 'Retomar' : 'Pausar'}
               className="h-20 w-20 rounded-full bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_10px_40px_-4px_hsl(var(--primary)/0.7)] hover:shadow-[0_14px_48px_-4px_hsl(var(--primary)/0.9)] hover:scale-105 active:scale-95 transition-all border-2 border-primary-foreground/10"
             >
