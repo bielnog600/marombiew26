@@ -46,16 +46,16 @@ interface SetPlan {
 }
 
 const buildSetPlan = (series: string, series2: string, reps: string): SetPlan[] => {
-  const s1 = parseInt(series || '0', 10) || 0;
-  const s2 = parseInt(series2 || '0', 10) || 0;
-  const [reconReps, workReps] = splitComposed(reps);
+  const s1 = parseInt(String(series ?? '') || '0', 10) || 0;
+  const s2 = parseInt(String(series2 ?? '') || '0', 10) || 0;
+  const [reconReps, workReps] = splitComposed(reps ?? '');
   const plan: SetPlan[] = [];
   if (s1 > 0 && s2 > 0) {
-    for (let i = 0; i < s1; i++) plan.push({ kind: 'recon', targetReps: reconReps || reps });
-    for (let i = 0; i < s2; i++) plan.push({ kind: 'work', targetReps: workReps || reps });
+    for (let i = 0; i < s1; i++) plan.push({ kind: 'recon', targetReps: reconReps || reps || '' });
+    for (let i = 0; i < s2; i++) plan.push({ kind: 'work', targetReps: workReps || reps || '' });
   } else {
     const total = s2 > 0 ? s2 : (s1 > 0 ? s1 : 3);
-    for (let i = 0; i < total; i++) plan.push({ kind: 'work', targetReps: reps });
+    for (let i = 0; i < total; i++) plan.push({ kind: 'work', targetReps: reps || '' });
   }
   return plan;
 };
@@ -242,7 +242,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
 
                     <div className="space-y-1.5">
                       {st.sets.map((s, setIdx) => {
-                        const p = st.plan[setIdx];
+                        const p = st.plan?.[setIdx] ?? { kind: 'work' as const, targetReps: '' };
                         const isRecon = p?.kind === 'recon';
                         return (
                           <div key={setIdx} className="grid grid-cols-[68px_1fr_1fr] items-center gap-2">
