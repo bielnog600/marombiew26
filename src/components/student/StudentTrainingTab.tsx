@@ -168,6 +168,15 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1 px-2 text-xs"
+                    title="Transferir para outro aluno"
+                    onClick={(e) => { e.stopPropagation(); openTransfer(plan); }}
+                  >
+                    <Send className="h-3 w-3" />
+                  </Button>
                   {hasChanges && (
                     <Button
                       size="sm"
