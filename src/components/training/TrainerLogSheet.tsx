@@ -194,7 +194,20 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   const [state, setState] = useState<Record<number, ExerciseState>>({});
   const [loading, setLoading] = useState(false);
   const [activeDayIdx, setActiveDayIdx] = useState(0);
+  const [exercisesList, setExercisesList] = useState<{ id: string; nome: string; grupo_muscular: string }[]>([]);
   const day = days[activeDayIdx] || null;
+
+  // Load exercises catalog once when sheet opens
+  useEffect(() => {
+    if (!open || exercisesList.length > 0) return;
+    (async () => {
+      const { data } = await supabase
+        .from('exercises')
+        .select('id, nome, grupo_muscular')
+        .order('nome', { ascending: true });
+      if (data) setExercisesList(data);
+    })();
+  }, [open, exercisesList.length]);
 
   // Auto-select today's weekday on open
   useEffect(() => {
