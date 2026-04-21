@@ -221,6 +221,20 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
           savedSets: 0,
         };
       });
+      // Hydrate from local draft (offline-safe)
+      const draft = loadDraft(studentId, day.day);
+      if (draft) {
+        Object.keys(initial).forEach((k) => {
+          const idx = Number(k);
+          const draftSets = draft.sets?.[idx];
+          if (draftSets && Array.isArray(draftSets)) {
+            // Match length of plan; pad/truncate
+            initial[idx].sets = initial[idx].sets.map((s, i) => draftSets[i] || s);
+          }
+          if (typeof draft.notes?.[idx] === 'string') initial[idx].notes = draft.notes[idx];
+          if (typeof draft.savedSets?.[idx] === 'number') initial[idx].savedSets = draft.savedSets[idx];
+        });
+      }
       // Fetch last log per exercise (latest by performed_at)
       await Promise.all(
         day.exercises.map(async (ex, i) => {
