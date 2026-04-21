@@ -61,6 +61,42 @@ const buildSetPlan = (series: string, series2: string, reps: string): SetPlan[] 
   return plan;
 };
 
+// ===== Local draft persistence (offline-safe) =====
+const draftKey = (studentId: string, dayName: string) => {
+  const today = new Date().toISOString().slice(0, 10);
+  return `trainerlog:${studentId}:${dayName}:${today}`;
+};
+
+interface DraftShape {
+  sets: Record<number, SetEntry[]>;
+  notes: Record<number, string>;
+  savedSets: Record<number, number>;
+}
+
+const loadDraft = (studentId: string, dayName: string): DraftShape | null => {
+  try {
+    const raw = localStorage.getItem(draftKey(studentId, dayName));
+    return raw ? (JSON.parse(raw) as DraftShape) : null;
+  } catch {
+    return null;
+  }
+};
+
+const saveDraft = (studentId: string, dayName: string, state: Record<number, ExerciseState>) => {
+  try {
+    const draft: DraftShape = { sets: {}, notes: {}, savedSets: {} };
+    Object.entries(state).forEach(([k, v]) => {
+      const idx = Number(k);
+      draft.sets[idx] = v.sets;
+      draft.notes[idx] = v.notes;
+      draft.savedSets[idx] = v.savedSets;
+    });
+    localStorage.setItem(draftKey(studentId, dayName), JSON.stringify(draft));
+  } catch {
+    // ignore quota errors
+  }
+};
+
 interface HistoryRow {
   performed_at: string;
   set_number: number;
