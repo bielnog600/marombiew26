@@ -440,7 +440,13 @@ const CardioExecucao: React.FC = () => {
             </Button>
             <Button
               size="icon"
-              onClick={() => setPaused(p => !p)}
+              onClick={() => setPaused(p => {
+                if (p) {
+                  // Resuming: reset anchor so countdown continues from now
+                  anchorRef.current = Date.now();
+                }
+                return !p;
+              })}
               aria-label={paused ? 'Retomar' : 'Pausar'}
               className="h-20 w-20 rounded-full bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_10px_40px_-4px_hsl(var(--primary)/0.7)] hover:shadow-[0_14px_48px_-4px_hsl(var(--primary)/0.9)] hover:scale-105 active:scale-95 transition-all border-2 border-primary-foreground/10"
             >
