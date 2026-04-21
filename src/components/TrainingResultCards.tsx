@@ -54,8 +54,16 @@ const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown, edi
     if (s.type === 'training' && s.days) allDays.push(...s.days);
   }
 
-  const [selectedDay, setSelectedDay] = useState<string>('all');
-  const showDayFilter = (editable || trainingOnly) && allDays.length > 1;
+  const uniqueDayList = Array.from(new Set(allDays.map((d) => d.day)));
+  const [selectedDay, setSelectedDay] = useState<string>(uniqueDayList[0] || '');
+  const showDayFilter = (editable || trainingOnly) && uniqueDayList.length > 1;
+
+  // Keep selection valid when days change
+  React.useEffect(() => {
+    if (uniqueDayList.length > 0 && !uniqueDayList.includes(selectedDay)) {
+      setSelectedDay(uniqueDayList[0]);
+    }
+  }, [uniqueDayList.join('|')]);
 
   const handleDayChange = (globalIndex: number, updatedDay: ParsedTrainingDay) => {
     const newDays = [...allDays];
@@ -108,9 +116,9 @@ const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown, edi
     flushMessages();
 
     if (section.type === 'training' && section.days) {
-      const visibleDays = selectedDay === 'all'
-        ? section.days
-        : section.days.filter((d) => d.day === selectedDay);
+      const visibleDays = showDayFilter
+        ? section.days.filter((d) => d.day === selectedDay)
+        : section.days;
       rendered.push(
         <div key={`training-${rendered.length}`} className="space-y-3">
           {section.title && (
@@ -121,7 +129,7 @@ const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown, edi
           )}
           {section.days.map((day, index) => {
             const gi = globalDayIndex++;
-            if (selectedDay !== 'all' && day.day !== selectedDay) return null;
+            if (showDayFilter && day.day !== selectedDay) return null;
             return (
               <TrainingDayCard
                 key={`${day.day}-${index}`}
@@ -223,21 +231,11 @@ const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown, edi
 
   flushMessages();
 
-  const uniqueDays = Array.from(new Set(allDays.map((d) => d.day)));
-
   return (
     <div className="space-y-4">
       {showDayFilter && (
         <div className="flex flex-wrap gap-1.5 p-2 rounded-lg bg-secondary/40 border border-border/40">
-          <Button
-            size="sm"
-            variant={selectedDay === 'all' ? 'default' : 'ghost'}
-            className="h-7 px-3 text-xs"
-            onClick={() => setSelectedDay('all')}
-          >
-            Todos
-          </Button>
-          {uniqueDays.map((d) => (
+          {uniqueDayList.map((d) => (
             <Button
               key={d}
               size="sm"
