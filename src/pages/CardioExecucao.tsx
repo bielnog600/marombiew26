@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { X, Play, Pause, SkipForward, RotateCcw, Volume2, VolumeX, HeartPulse } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   parseCardioProtocol,
   MODALITY_LABEL,
@@ -32,6 +34,7 @@ interface PersistedCardio {
 const CardioExecucao: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const stateProtocol = (location.state as any)?.protocol as CardioProtocol | undefined;
   const protocol = useMemo(() => {
     if (stateProtocol && Array.isArray(stateProtocol.blocks)) return stateProtocol;
@@ -77,6 +80,40 @@ const CardioExecucao: React.FC = () => {
   const [paused, setPaused] = useState(restored?.paused ?? false);
   const [muted, setMuted] = useState(false);
   const anchorRef = useRef<number>(restored?.anchorMs ?? Date.now());
+
+  // Karvonen zones from student's profile, used to derive BPM when block has only "Zona X"
+  const [hrZones, setHrZones] = useState<Array<{ zona: string; min: number; max: number }>>([]);
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data } = await supabase
+        .from('hr_zones')
+        .select('zonas_karvonen')
+        .eq('student_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const z = (data?.zonas_karvonen as any[]) || [];
+      if (Array.isArray(z)) {
+        setHrZones(z.map((it: any) => ({ zona: String(it.zona || '').toUpperCase(), min: it.min, max: it.max })));
+      }
+    })();
+  }, [user]);
+
+  // Resolve BPM range string for a block. Prefer explicit targetHrRange; otherwise derive
+  // from the student's Karvonen zones using the zone label/number found in targetZone.
+  const resolveBpmRange = (block: CardioBlock | undefined): string | null => {
+    if (!block) return null;
+    if (block.targetHrRange) return block.targetHrRange;
+    const src = `${block.targetZone || ''} ${block.name || ''}`.toLowerCase();
+    // Match Z1..Z5 or "zona 1..5"
+    const m = src.match(/z(?:ona)?\s*([1-5])/);
+    if (!m) return null;
+    const key = `Z${m[1]}`;
+    const zone = hrZones.find(z => z.zona === key);
+    if (!zone || zone.min == null || zone.max == null) return null;
+    return `${zone.min}-${zone.max} bpm`;
+  };
 
   const audioCtxRef = useRef<AudioContext | null>(null);
 
@@ -375,7 +412,10 @@ const CardioExecucao: React.FC = () => {
                     <HeartPulse className="h-7 w-7 text-primary" />
                     <span className="text-2xl sm:text-3xl font-black text-primary tracking-tight">
                       {currentBlock.targetZone}
-                      {currentBlock.targetHrRange ? ` • ${currentBlock.targetHrRange}` : ''}
+                      {(() => {
+                        const bpm = resolveBpmRange(currentBlock);
+                        return bpm ? ` • ${bpm}` : '';
+                      })()}
                     </span>
                   </div>
                 )}
