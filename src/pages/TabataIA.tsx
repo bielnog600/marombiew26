@@ -282,7 +282,27 @@ const TabataIA = () => {
           </CardContent>
         </Card>
 
-        {/* Intensity selection */}
+        {(() => {
+          const STEP_TITLES = ['Intensidade', 'Estilo', 'Tempo e Estrutura', 'Observações'];
+          const stepValid = [
+            !!intensity,
+            !!style,
+            !!workSec && !!restSec && !!rounds && !!totalDuration,
+            true,
+          ];
+          return (
+            <AiWizard
+              steps={STEP_TITLES}
+              currentStep={currentStep}
+              onStepChange={setCurrentStep}
+              stepValid={stepValid}
+              canGenerate={!!intensity}
+              generating={generating}
+              onGenerate={generateTabata}
+              generateLabel="Gerar TABATA"
+              generateIcon={<Sparkles className="h-5 w-5" />}
+            >
+              {currentStep === 0 && (
         <div className="space-y-3">
           <Label className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Intensidade</Label>
           <div className="grid grid-cols-2 gap-2">
@@ -311,8 +331,9 @@ const TabataIA = () => {
             })}
           </div>
         </div>
+              )}
 
-        {/* Style */}
+              {currentStep === 1 && (
         <div className="space-y-2">
           <Label className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             Estilo do TABATA (opcional)
@@ -327,8 +348,9 @@ const TabataIA = () => {
             Ex.: "Em Casa" para alunos sem acesso ao ginásio; "Complementar à Musculação" para finalizar treinos de academia.
           </p>
         </div>
+              )}
 
-        {/* Tempo / Estrutura */}
+              {currentStep === 2 && (
         <div className="space-y-2">
           <Label className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             Tempo &amp; Estrutura (opcional)
@@ -372,8 +394,9 @@ const TabataIA = () => {
             </div>
           </div>
         </div>
+              )}
 
-        {/* Notes */}
+              {currentStep === 3 && (
         <div className="space-y-2">
           <Label htmlFor="notes" className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             Observações (opcional)
@@ -386,20 +409,10 @@ const TabataIA = () => {
             className="min-h-[80px]"
           />
         </div>
-
-        {/* Generate button */}
-        <Button
-          size="lg"
-          className="w-full font-bold gap-2"
-          onClick={generateTabata}
-          disabled={generating}
-        >
-          {generating ? (
-            <><Loader2 className="h-5 w-5 animate-spin" /> Gerando TABATA...</>
-          ) : (
-            <><Sparkles className="h-5 w-5" /> Gerar TABATA com IA</>
-          )}
-        </Button>
+              )}
+            </AiWizard>
+          );
+        })()}
 
         {/* Result */}
         {result && (
