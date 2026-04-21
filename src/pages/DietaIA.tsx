@@ -1128,8 +1128,9 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
             </div>
           </CardContent>
         </Card>
+              )}
 
-        {/* Step 6: Extras */}
+              {currentStep === 5 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-3">
             <StepHeader step={6} title="Extras (opcional)" />
