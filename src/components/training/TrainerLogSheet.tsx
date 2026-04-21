@@ -397,15 +397,26 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                   <CardContent className="p-3 space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="font-semibold text-sm truncate">{ex.exercise || 'Sem nome'}</p>
+                        <ExerciseNamePicker
+                          value={st.exerciseName}
+                          options={exercisesList}
+                          original={ex.exercise || ''}
+                          onChange={(name) => {
+                            setState((prev) => {
+                              const next = { ...prev, [exIdx]: { ...prev[exIdx], exerciseName: name } };
+                              if (day) saveDraft(studentId, day.day, next);
+                              return next;
+                            });
+                          }}
+                        />
                         <p className="text-[10px] text-muted-foreground">
                           Prescrição: {ex.series2 || ex.series} séries × {ex.reps || '—'}
                           {ex.rir && ` · RIR ${ex.rir}`}
                           {ex.pause && ` · pausa ${ex.pause}`}
                         </p>
                       </div>
-                      {ex.exercise && (
-                        <HistoryPopover studentId={studentId} exerciseName={ex.exercise} last={st} />
+                      {st.exerciseName && (
+                        <HistoryPopover studentId={studentId} exerciseName={st.exerciseName} last={st} />
                       )}
                     </div>
 
