@@ -1221,19 +1221,10 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
             )}
           </CardContent>
         </Card>
-
-        <Button
-          onClick={generatePlan}
-          disabled={!canGenerate || generating}
-          className="w-full font-bold text-base py-6 rounded-xl"
-          size="lg"
-        >
-          {generating ? (
-            <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Gerando Plano Alimentar...</>
-          ) : (
-            <><UtensilsCrossed className="mr-2 h-5 w-5" /> Gerar Plano Alimentar</>
-          )}
-        </Button>
+              )}
+            </AiWizard>
+          );
+        })()}
 
         {result && generating && (
           <Card className="glass-card" ref={resultRef}>
