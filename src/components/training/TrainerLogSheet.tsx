@@ -78,6 +78,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   useEffect(() => {
     if (!open || !day) return;
     setLoading(true);
+    setState({});
     (async () => {
       const initial: Record<number, ExerciseState> = {};
       // Init empty
