@@ -5,9 +5,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
-import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar } from 'lucide-react';
+import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import TrainingResultCards from '@/components/TrainingResultCards';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 import {
   TRAINING_PHASES,
   PHASE_LABELS,
@@ -29,6 +32,46 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   const [editedPhases, setEditedPhases] = useState<Record<string, TrainingPhase>>({});
   const [editedStartDates, setEditedStartDates] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [transferPlan, setTransferPlan] = useState<any | null>(null);
+  const [students, setStudents] = useState<{ user_id: string; nome: string }[]>([]);
+  const [targetStudentId, setTargetStudentId] = useState<string>('');
+  const [transferring, setTransferring] = useState(false);
+
+  const openTransfer = async (plan: any) => {
+    setTransferPlan(plan);
+    setTargetStudentId('');
+    if (students.length === 0) {
+      const { data } = await supabase
+        .from('students_profile')
+        .select('user_id, profiles:user_id(nome)')
+        .eq('ativo', true);
+      const list = (data ?? [])
+        .map((s: any) => ({ user_id: s.user_id, nome: s.profiles?.nome || 'Sem nome' }))
+        .filter((s) => s.user_id !== studentId)
+        .sort((a, b) => a.nome.localeCompare(b.nome));
+      setStudents(list);
+    }
+  };
+
+  const handleTransfer = async () => {
+    if (!transferPlan || !targetStudentId) return;
+    setTransferring(true);
+    const { error } = await supabase.from('ai_plans').insert({
+      student_id: targetStudentId,
+      tipo: transferPlan.tipo,
+      titulo: transferPlan.titulo,
+      conteudo: transferPlan.conteudo,
+      fase: transferPlan.fase,
+      fase_inicio_data: transferPlan.fase_inicio_data,
+    });
+    setTransferring(false);
+    if (error) {
+      toast.error('Erro ao transferir: ' + error.message);
+    } else {
+      toast.success('Treino copiado para o outro aluno!');
+      setTransferPlan(null);
+    }
+  };
 
   useEffect(() => {
     loadPlans();
