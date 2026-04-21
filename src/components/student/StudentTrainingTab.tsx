@@ -305,6 +305,14 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <TrainerLogSheet
+      open={!!trainPlan}
+      onOpenChange={(open) => { if (!open) setTrainPlan(null); }}
+      studentId={studentId}
+      days={trainDays}
+      phase={trainPlan?.fase}
+    />
     </>
   );
 };
