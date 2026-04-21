@@ -954,8 +954,9 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
             </div>
           </CardContent>
         </Card>
+              )}
 
-        {/* Step 2: Estilo, Fase Atual & Hormônios */}
+              {currentStep === 1 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-4">
             <StepHeader step={2} title="Estilo da Dieta, Fase e Hormônios" />
