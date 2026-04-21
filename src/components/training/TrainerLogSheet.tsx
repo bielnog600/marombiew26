@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Save, History, Dumbbell, Check, ChevronDown } from 'lucide-react';
+import { Loader2, Save, History, Dumbbell, Check, ChevronDown, Pencil } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { ParsedTrainingDay } from '@/lib/trainingResultParser';
@@ -34,6 +35,7 @@ interface ExerciseState {
   lastReps: number | null;
   lastDate: string | null;
   savedSets: number; // how many sets already persisted now
+  exerciseName: string; // editable name (can override the prescribed one)
 }
 
 const splitComposed = (reps: string): [string, string] => {
@@ -71,6 +73,7 @@ interface DraftShape {
   sets: Record<number, SetEntry[]>;
   notes: Record<number, string>;
   savedSets: Record<number, number>;
+  exerciseNames?: Record<number, string>;
 }
 
 const loadDraft = (studentId: string, dayName: string): DraftShape | null => {
@@ -84,12 +87,13 @@ const loadDraft = (studentId: string, dayName: string): DraftShape | null => {
 
 const saveDraft = (studentId: string, dayName: string, state: Record<number, ExerciseState>) => {
   try {
-    const draft: DraftShape = { sets: {}, notes: {}, savedSets: {} };
+    const draft: DraftShape = { sets: {}, notes: {}, savedSets: {}, exerciseNames: {} };
     Object.entries(state).forEach(([k, v]) => {
       const idx = Number(k);
       draft.sets[idx] = v.sets;
       draft.notes[idx] = v.notes;
       draft.savedSets[idx] = v.savedSets;
+      draft.exerciseNames![idx] = v.exerciseName;
     });
     localStorage.setItem(draftKey(studentId, dayName), JSON.stringify(draft));
   } catch {
@@ -103,6 +107,77 @@ interface HistoryRow {
   weight_kg: number | null;
   reps: number | null;
 }
+
+const ExerciseNamePicker: React.FC<{
+  value: string;
+  original: string;
+  options: { id: string; nome: string; grupo_muscular: string }[];
+  onChange: (name: string) => void;
+}> = ({ value, original, options, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const isChanged = value && original && value.trim().toLowerCase() !== original.trim().toLowerCase();
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="group flex items-center gap-1 text-left max-w-full"
+          title="Clique para trocar o exercício"
+        >
+          <span className="font-semibold text-sm truncate group-hover:text-primary transition-colors">
+            {value || original || 'Sem nome'}
+          </span>
+          <Pencil className="h-3 w-3 text-muted-foreground shrink-0 opacity-60 group-hover:opacity-100" />
+          {isChanged && (
+            <span className="text-[9px] font-bold uppercase bg-primary/15 text-primary border border-primary/30 rounded px-1 py-px shrink-0">
+              alterado
+            </span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-72 p-0">
+        <Command>
+          <CommandInput placeholder="Buscar exercício..." />
+          <CommandList>
+            <CommandEmpty>Nenhum exercício encontrado.</CommandEmpty>
+            {original && (
+              <CommandGroup heading="Original">
+                <CommandItem
+                  value={original}
+                  onSelect={() => {
+                    onChange(original);
+                    setOpen(false);
+                  }}
+                >
+                  <Check className={`h-3 w-3 mr-2 ${value === original ? 'opacity-100' : 'opacity-0'}`} />
+                  {original}
+                </CommandItem>
+              </CommandGroup>
+            )}
+            <CommandGroup heading="Catálogo">
+              {options.map((opt) => (
+                <CommandItem
+                  key={opt.id}
+                  value={`${opt.nome} ${opt.grupo_muscular}`}
+                  onSelect={() => {
+                    onChange(opt.nome);
+                    setOpen(false);
+                  }}
+                >
+                  <Check className={`h-3 w-3 mr-2 ${value === opt.nome ? 'opacity-100' : 'opacity-0'}`} />
+                  <div className="min-w-0">
+                    <p className="truncate">{opt.nome}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{opt.grupo_muscular}</p>
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 const HistoryPopover: React.FC<{
   studentId: string;
@@ -190,7 +265,20 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   const [state, setState] = useState<Record<number, ExerciseState>>({});
   const [loading, setLoading] = useState(false);
   const [activeDayIdx, setActiveDayIdx] = useState(0);
+  const [exercisesList, setExercisesList] = useState<{ id: string; nome: string; grupo_muscular: string }[]>([]);
   const day = days[activeDayIdx] || null;
+
+  // Load exercises catalog once when sheet opens
+  useEffect(() => {
+    if (!open || exercisesList.length > 0) return;
+    (async () => {
+      const { data } = await supabase
+        .from('exercises')
+        .select('id, nome, grupo_muscular')
+        .order('nome', { ascending: true });
+      if (data) setExercisesList(data);
+    })();
+  }, [open, exercisesList.length]);
 
   // Auto-select today's weekday on open
   useEffect(() => {
@@ -211,7 +299,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       day.exercises.forEach((ex, i) => {
         const plan = buildSetPlan(ex.series, ex.series2, ex.reps);
         initial[i] = {
-          sets: plan.map((p) => ({ weight: '', reps: '' })),
+          sets: plan.map(() => ({ weight: '', reps: '' })),
           plan,
           notes: '',
           saving: false,
@@ -219,6 +307,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
           lastReps: null,
           lastDate: null,
           savedSets: 0,
+          exerciseName: ex.exercise || '',
         };
       });
       // Hydrate from local draft (offline-safe)
@@ -233,6 +322,8 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
           }
           if (typeof draft.notes?.[idx] === 'string') initial[idx].notes = draft.notes[idx];
           if (typeof draft.savedSets?.[idx] === 'number') initial[idx].savedSets = draft.savedSets[idx];
+          const draftName = draft.exerciseNames?.[idx];
+          if (typeof draftName === 'string' && draftName.trim()) initial[idx].exerciseName = draftName;
         });
       }
       // Fetch last log per exercise (latest by performed_at)
@@ -284,6 +375,11 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     const ex = day.exercises[exIdx];
     const st = state[exIdx];
     if (!ex || !st) return;
+    const exerciseName = (st.exerciseName || ex.exercise || '').trim();
+    if (!exerciseName) {
+      toast.error('Selecione um exercício antes de salvar');
+      return;
+    }
 
     const validSets = st.sets
       .map((s, idx) => ({ idx, weight: parseFloat(s.weight), reps: parseInt(s.reps, 10) }))
@@ -298,7 +394,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
 
     const rows = validSets.map((s) => ({
       student_id: studentId,
-      exercise_name: ex.exercise,
+      exercise_name: exerciseName,
       set_number: s.idx + 1,
       weight_kg: Number.isNaN(s.weight) ? null : s.weight,
       reps: Number.isNaN(s.reps) ? null : s.reps,
@@ -330,7 +426,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     if (error) {
       toast.error('Salvo localmente. Sem conexão? Será re-enviado quando você tentar de novo. (' + error.message + ')');
     } else {
-      toast.success(`${rows.length} série(s) registrada(s) — ${ex.exercise}`);
+      toast.success(`${rows.length} série(s) registrada(s) — ${exerciseName}`);
     }
   };
 
@@ -377,15 +473,26 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                   <CardContent className="p-3 space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="font-semibold text-sm truncate">{ex.exercise || 'Sem nome'}</p>
+                        <ExerciseNamePicker
+                          value={st.exerciseName}
+                          options={exercisesList}
+                          original={ex.exercise || ''}
+                          onChange={(name) => {
+                            setState((prev) => {
+                              const next = { ...prev, [exIdx]: { ...prev[exIdx], exerciseName: name } };
+                              if (day) saveDraft(studentId, day.day, next);
+                              return next;
+                            });
+                          }}
+                        />
                         <p className="text-[10px] text-muted-foreground">
                           Prescrição: {ex.series2 || ex.series} séries × {ex.reps || '—'}
                           {ex.rir && ` · RIR ${ex.rir}`}
                           {ex.pause && ` · pausa ${ex.pause}`}
                         </p>
                       </div>
-                      {ex.exercise && (
-                        <HistoryPopover studentId={studentId} exerciseName={ex.exercise} last={st} />
+                      {st.exerciseName && (
+                        <HistoryPopover studentId={studentId} exerciseName={st.exerciseName} last={st} />
                       )}
                     </div>
 
