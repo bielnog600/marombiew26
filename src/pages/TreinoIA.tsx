@@ -4,7 +4,7 @@ import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Loader2, Save, Dumbbell, RotateCcw, AlertTriangle, ChevronDown, ChevronUp, Settings2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Dumbbell, RotateCcw, AlertTriangle, ChevronDown, ChevronUp, Settings2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
@@ -87,6 +87,7 @@ const TreinoIA = () => {
   const [result, setResult] = useState('');
   const [saving, setSaving] = useState(false);
   const [configCollapsed, setConfigCollapsed] = useState(!!editPlanId);
+  const [currentStep, setCurrentStep] = useState(0);
   const resultRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
