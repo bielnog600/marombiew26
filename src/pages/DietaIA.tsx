@@ -1033,8 +1033,9 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
             </div>
           </CardContent>
         </Card>
+              )}
 
-        {/* Step 4: Refeições & Preferências */}
+              {currentStep === 3 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-4">
             <StepHeader step={4} title="Refeições e Preferências" />
@@ -1098,8 +1099,9 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
             </div>
           </CardContent>
         </Card>
+              )}
 
-        {/* Step 5: Ajustes do Protocolo */}
+              {currentStep === 4 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-3">
             <StepHeader step={5} title="Ajustes do Protocolo (opcional)" />
