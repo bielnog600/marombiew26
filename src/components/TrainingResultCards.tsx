@@ -119,6 +119,10 @@ const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown, edi
       const visibleDays = showDayFilter
         ? section.days.filter((d) => d.day === selectedDay)
         : section.days;
+      // Always advance global indices so edits map correctly
+      const startIdx = globalDayIndex;
+      globalDayIndex += section.days.length;
+      if (visibleDays.length === 0) continue;
       rendered.push(
         <div key={`training-${rendered.length}`} className="space-y-3">
           {section.title && (
@@ -128,8 +132,8 @@ const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown, edi
             </h3>
           )}
           {section.days.map((day, index) => {
-            const gi = globalDayIndex++;
             if (showDayFilter && day.day !== selectedDay) return null;
+            const gi = startIdx + index;
             return (
               <TrainingDayCard
                 key={`${day.day}-${index}`}
@@ -141,11 +145,6 @@ const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown, edi
               />
             );
           })}
-          {visibleDays.length === 0 && (
-            <p className="text-xs text-muted-foreground text-center py-4">
-              Nenhum treino para este dia.
-            </p>
-          )}
         </div>
       );
       continue;
