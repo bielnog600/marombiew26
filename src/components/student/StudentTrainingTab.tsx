@@ -41,12 +41,13 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
     setTransferPlan(plan);
     setTargetStudentId('');
     if (students.length === 0) {
-      const { data } = await supabase
-        .from('students_profile')
-        .select('user_id, profiles:user_id(nome)')
-        .eq('ativo', true);
-      const list = (data ?? [])
-        .map((s: any) => ({ user_id: s.user_id, nome: s.profiles?.nome || 'Sem nome' }))
+      const [{ data: sp }, { data: pr }] = await Promise.all([
+        supabase.from('students_profile').select('user_id').eq('ativo', true),
+        supabase.from('profiles').select('user_id, nome'),
+      ]);
+      const nomeMap = new Map((pr ?? []).map((p: any) => [p.user_id, p.nome]));
+      const list = (sp ?? [])
+        .map((s: any) => ({ user_id: s.user_id, nome: nomeMap.get(s.user_id) || 'Sem nome' }))
         .filter((s) => s.user_id !== studentId)
         .sort((a, b) => a.nome.localeCompare(b.nome));
       setStudents(list);
