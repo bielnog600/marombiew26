@@ -26,6 +26,7 @@ interface SetEntry {
 
 interface ExerciseState {
   sets: SetEntry[];
+  plan: SetPlan[];
   notes: string;
   saving: boolean;
   lastWeight: number | null;
@@ -34,11 +35,29 @@ interface ExerciseState {
   savedSets: number; // how many sets already persisted now
 }
 
-const parseSeriesCount = (series: string, series2: string): number => {
-  const s2 = parseInt(series2 || '0', 10) || 0;
-  if (s2 > 0) return s2; // working sets
+const splitComposed = (reps: string): [string, string] => {
+  const parts = (reps || '').split('+').map((p) => p.trim());
+  return [parts[0] || '', parts[1] || parts[0] || ''];
+};
+
+interface SetPlan {
+  kind: 'recon' | 'work';
+  targetReps: string;
+}
+
+const buildSetPlan = (series: string, series2: string, reps: string): SetPlan[] => {
   const s1 = parseInt(series || '0', 10) || 0;
-  return s1 > 0 ? s1 : 3;
+  const s2 = parseInt(series2 || '0', 10) || 0;
+  const [reconReps, workReps] = splitComposed(reps);
+  const plan: SetPlan[] = [];
+  if (s1 > 0 && s2 > 0) {
+    for (let i = 0; i < s1; i++) plan.push({ kind: 'recon', targetReps: reconReps || reps });
+    for (let i = 0; i < s2; i++) plan.push({ kind: 'work', targetReps: workReps || reps });
+  } else {
+    const total = s2 > 0 ? s2 : (s1 > 0 ? s1 : 3);
+    for (let i = 0; i < total; i++) plan.push({ kind: 'work', targetReps: reps });
+  }
+  return plan;
 };
 
 export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId, days, phase }) => {
@@ -63,9 +82,10 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       const initial: Record<number, ExerciseState> = {};
       // Init empty
       day.exercises.forEach((ex, i) => {
-        const count = parseSeriesCount(ex.series, ex.series2);
+        const plan = buildSetPlan(ex.series, ex.series2, ex.reps);
         initial[i] = {
-          sets: Array.from({ length: count }, () => ({ weight: '', reps: '' })),
+          sets: plan.map((p) => ({ weight: '', reps: '' })),
+          plan,
           notes: '',
           saving: false,
           lastWeight: null,
@@ -221,27 +241,40 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                     </div>
 
                     <div className="space-y-1.5">
-                      {st.sets.map((s, setIdx) => (
-                        <div key={setIdx} className="grid grid-cols-[28px_1fr_1fr] items-center gap-2">
-                          <span className="text-[10px] font-bold text-muted-foreground text-center">#{setIdx + 1}</span>
-                          <Input
-                            type="number"
-                            inputMode="decimal"
-                            placeholder="kg"
-                            value={s.weight}
-                            onChange={(e) => updateSet(exIdx, setIdx, 'weight', e.target.value)}
-                            className="h-8 text-xs"
-                          />
-                          <Input
-                            type="number"
-                            inputMode="numeric"
-                            placeholder="reps"
-                            value={s.reps}
-                            onChange={(e) => updateSet(exIdx, setIdx, 'reps', e.target.value)}
-                            className="h-8 text-xs"
-                          />
-                        </div>
-                      ))}
+                      {st.sets.map((s, setIdx) => {
+                        const p = st.plan[setIdx];
+                        const isRecon = p?.kind === 'recon';
+                        return (
+                          <div key={setIdx} className="grid grid-cols-[68px_1fr_1fr] items-center gap-2">
+                            <span
+                              className={`text-[9px] font-bold text-center px-1 py-0.5 rounded ${
+                                isRecon
+                                  ? 'bg-primary/15 text-primary border border-primary/30'
+                                  : 'bg-secondary text-foreground'
+                              }`}
+                              title={isRecon ? 'Reconhecimento' : 'Trabalho'}
+                            >
+                              {isRecon ? `REC #${setIdx + 1}` : `#${setIdx + 1}`}
+                            </span>
+                            <Input
+                              type="number"
+                              inputMode="decimal"
+                              placeholder="kg"
+                              value={s.weight}
+                              onChange={(e) => updateSet(exIdx, setIdx, 'weight', e.target.value)}
+                              className="h-8 text-xs"
+                            />
+                            <Input
+                              type="number"
+                              inputMode="numeric"
+                              placeholder={p?.targetReps ? `${p.targetReps}` : 'reps'}
+                              value={s.reps}
+                              onChange={(e) => updateSet(exIdx, setIdx, 'reps', e.target.value)}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        );
+                      })}
                     </div>
 
                     <Textarea
