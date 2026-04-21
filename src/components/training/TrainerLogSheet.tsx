@@ -267,12 +267,17 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       ex.sets = [...ex.sets];
       ex.sets[setIdx] = { ...ex.sets[setIdx], [field]: value };
       copy[exIdx] = ex;
+      if (day) saveDraft(studentId, day.day, copy);
       return copy;
     });
   };
 
   const updateNotes = (exIdx: number, value: string) => {
-    setState((prev) => ({ ...prev, [exIdx]: { ...prev[exIdx], notes: value } }));
+    setState((prev) => {
+      const next = { ...prev, [exIdx]: { ...prev[exIdx], notes: value } };
+      if (day) saveDraft(studentId, day.day, next);
+      return next;
+    });
   };
 
   const saveExercise = async (exIdx: number) => {
