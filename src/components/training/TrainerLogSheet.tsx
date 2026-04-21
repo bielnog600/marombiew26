@@ -231,14 +231,8 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                           {ex.pause && ` · pausa ${ex.pause}`}
                         </p>
                       </div>
-                      {st.lastWeight !== null && (
-                        <div className="text-right shrink-0 flex items-center gap-1 text-[10px] text-muted-foreground bg-secondary/50 rounded px-1.5 py-0.5">
-                          <History className="h-3 w-3" />
-                          <span>
-                            Última: <strong className="text-foreground">{st.lastWeight ?? '—'}kg × {st.lastReps ?? '—'}</strong>
-                            {st.lastDate && ` · ${format(new Date(st.lastDate), 'dd/MM', { locale: ptBR })}`}
-                          </span>
-                        </div>
+                      {ex.exercise && (
+                        <HistoryPopover studentId={studentId} exerciseName={ex.exercise} last={st} />
                       )}
                     </div>
 
