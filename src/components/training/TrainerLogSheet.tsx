@@ -241,27 +241,40 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                     </div>
 
                     <div className="space-y-1.5">
-                      {st.sets.map((s, setIdx) => (
-                        <div key={setIdx} className="grid grid-cols-[28px_1fr_1fr] items-center gap-2">
-                          <span className="text-[10px] font-bold text-muted-foreground text-center">#{setIdx + 1}</span>
-                          <Input
-                            type="number"
-                            inputMode="decimal"
-                            placeholder="kg"
-                            value={s.weight}
-                            onChange={(e) => updateSet(exIdx, setIdx, 'weight', e.target.value)}
-                            className="h-8 text-xs"
-                          />
-                          <Input
-                            type="number"
-                            inputMode="numeric"
-                            placeholder="reps"
-                            value={s.reps}
-                            onChange={(e) => updateSet(exIdx, setIdx, 'reps', e.target.value)}
-                            className="h-8 text-xs"
-                          />
-                        </div>
-                      ))}
+                      {st.sets.map((s, setIdx) => {
+                        const p = st.plan[setIdx];
+                        const isRecon = p?.kind === 'recon';
+                        return (
+                          <div key={setIdx} className="grid grid-cols-[68px_1fr_1fr] items-center gap-2">
+                            <span
+                              className={`text-[9px] font-bold text-center px-1 py-0.5 rounded ${
+                                isRecon
+                                  ? 'bg-primary/15 text-primary border border-primary/30'
+                                  : 'bg-secondary text-foreground'
+                              }`}
+                              title={isRecon ? 'Reconhecimento' : 'Trabalho'}
+                            >
+                              {isRecon ? `REC #${setIdx + 1}` : `#${setIdx + 1}`}
+                            </span>
+                            <Input
+                              type="number"
+                              inputMode="decimal"
+                              placeholder="kg"
+                              value={s.weight}
+                              onChange={(e) => updateSet(exIdx, setIdx, 'weight', e.target.value)}
+                              className="h-8 text-xs"
+                            />
+                            <Input
+                              type="number"
+                              inputMode="numeric"
+                              placeholder={p?.targetReps ? `${p.targetReps}` : 'reps'}
+                              value={s.reps}
+                              onChange={(e) => updateSet(exIdx, setIdx, 'reps', e.target.value)}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        );
+                      })}
                     </div>
 
                     <Textarea
