@@ -355,7 +355,6 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
                 <Check className="h-3 w-3" /> Confirmar
               </Button>
             )}
-            {onCopy(buildDayCopyText(day))}
           </div>
         </div>
 
