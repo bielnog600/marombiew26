@@ -215,7 +215,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       day.exercises.forEach((ex, i) => {
         const plan = buildSetPlan(ex.series, ex.series2, ex.reps);
         initial[i] = {
-          sets: plan.map((p) => ({ weight: '', reps: '' })),
+          sets: plan.map(() => ({ weight: '', reps: '' })),
           plan,
           notes: '',
           saving: false,
@@ -223,6 +223,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
           lastReps: null,
           lastDate: null,
           savedSets: 0,
+          exerciseName: ex.exercise || '',
         };
       });
       // Hydrate from local draft (offline-safe)
@@ -237,6 +238,8 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
           }
           if (typeof draft.notes?.[idx] === 'string') initial[idx].notes = draft.notes[idx];
           if (typeof draft.savedSets?.[idx] === 'number') initial[idx].savedSets = draft.savedSets[idx];
+          const draftName = draft.exerciseNames?.[idx];
+          if (typeof draftName === 'string' && draftName.trim()) initial[idx].exerciseName = draftName;
         });
       }
       // Fetch last log per exercise (latest by performed_at)
