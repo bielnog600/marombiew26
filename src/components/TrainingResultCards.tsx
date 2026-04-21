@@ -54,6 +54,9 @@ const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown, edi
     if (s.type === 'training' && s.days) allDays.push(...s.days);
   }
 
+  const [selectedDay, setSelectedDay] = useState<string>('all');
+  const showDayFilter = (editable || trainingOnly) && allDays.length > 1;
+
   const handleDayChange = (globalIndex: number, updatedDay: ParsedTrainingDay) => {
     const newDays = [...allDays];
     newDays[globalIndex] = updatedDay;
@@ -105,6 +108,9 @@ const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown, edi
     flushMessages();
 
     if (section.type === 'training' && section.days) {
+      const visibleDays = selectedDay === 'all'
+        ? section.days
+        : section.days.filter((d) => d.day === selectedDay);
       rendered.push(
         <div key={`training-${rendered.length}`} className="space-y-3">
           {section.title && (
@@ -115,6 +121,7 @@ const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown, edi
           )}
           {section.days.map((day, index) => {
             const gi = globalDayIndex++;
+            if (selectedDay !== 'all' && day.day !== selectedDay) return null;
             return (
               <TrainingDayCard
                 key={`${day.day}-${index}`}
@@ -126,6 +133,11 @@ const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown, edi
               />
             );
           })}
+          {visibleDays.length === 0 && (
+            <p className="text-xs text-muted-foreground text-center py-4">
+              Nenhum treino para este dia.
+            </p>
+          )}
         </div>
       );
       continue;
@@ -211,8 +223,33 @@ const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown, edi
 
   flushMessages();
 
+  const uniqueDays = Array.from(new Set(allDays.map((d) => d.day)));
+
   return (
     <div className="space-y-4">
+      {showDayFilter && (
+        <div className="flex flex-wrap gap-1.5 p-2 rounded-lg bg-secondary/40 border border-border/40">
+          <Button
+            size="sm"
+            variant={selectedDay === 'all' ? 'default' : 'ghost'}
+            className="h-7 px-3 text-xs"
+            onClick={() => setSelectedDay('all')}
+          >
+            Todos
+          </Button>
+          {uniqueDays.map((d) => (
+            <Button
+              key={d}
+              size="sm"
+              variant={selectedDay === d ? 'default' : 'ghost'}
+              className="h-7 px-3 text-xs"
+              onClick={() => setSelectedDay(d)}
+            >
+              {d}
+            </Button>
+          ))}
+        </div>
+      )}
       {rendered.map((node, i) => (
         <AnimatedSection key={i} index={i}>
           {node}
