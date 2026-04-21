@@ -181,7 +181,10 @@ const TreinoPreview = () => {
       </div>
 
       {/* Botão fixo de iniciar */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-gradient-to-t from-background via-background to-transparent z-40">
+      <div
+        className="fixed left-0 right-0 px-4 pt-4 pb-2 bg-gradient-to-t from-background via-background to-transparent z-40 md:bottom-0"
+        style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}
+      >
         <div className="max-w-2xl mx-auto">
           <Button size="lg" className="w-full gap-2 h-12" onClick={handleStart}>
             <Play className="h-5 w-5" />
