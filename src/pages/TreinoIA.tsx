@@ -111,6 +111,17 @@ const TreinoIA = () => {
     }
   }, [result]);
 
+  // Auto-advance when current step is fully completed (steps 0..2; 3 e 4 são opcionais)
+  useEffect(() => {
+    if (configCollapsed) return;
+    const t = setTimeout(() => {
+      if (currentStep === 0 && level) setCurrentStep(1);
+      else if (currentStep === 1 && daysPerWeek && split) setCurrentStep(2);
+      else if (currentStep === 2 && week && equipment) setCurrentStep(3);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [level, daysPerWeek, split, week, equipment, currentStep, configCollapsed]);
+
   const loadStudentData = async () => {
     setLoading(true);
     const [profileRes, spRes, assessRes] = await Promise.all([
