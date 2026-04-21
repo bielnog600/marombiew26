@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Dumbbell, Pencil, Check, ChevronsUpDown, Plus, Trash2, GripVertical } from 'lucide-react';
+import { Dumbbell, Pencil, Check, ChevronsUpDown, Plus, Trash2, GripVertical, CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -319,10 +319,30 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
     <Card className={`overflow-hidden border ${surface}`}>
       <CardContent className="p-0">
         <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <Dumbbell className="h-4 w-4 text-primary" />
-            <h4 className="font-semibold text-sm">{day.day}</h4>
-            <span className="text-xs text-muted-foreground">({day.exercises.length} exercícios)</span>
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <Dumbbell className="h-4 w-4 text-primary shrink-0" />
+            {editing ? (
+              <Select
+                value={day.day}
+                onValueChange={(val) => onDayChange?.({ ...day, exercises: localExercises, day: val })}
+              >
+                <SelectTrigger className="h-7 text-xs w-[160px] px-2">
+                  <CalendarDays className="h-3 w-3 mr-1 opacity-60" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo','Treino A','Treino B','Treino C','Treino D','Treino E'].map(d => (
+                    <SelectItem key={d} value={d} className="text-xs">{d}</SelectItem>
+                  ))}
+                  {!['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo','Treino A','Treino B','Treino C','Treino D','Treino E'].includes(day.day) && (
+                    <SelectItem value={day.day} className="text-xs">{day.day} (atual)</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            ) : (
+              <h4 className="font-semibold text-sm truncate">{day.day}</h4>
+            )}
+            <span className="text-xs text-muted-foreground shrink-0">({day.exercises.length} ex.)</span>
           </div>
           <div className="flex items-center gap-1">
             {editable && !editing && (

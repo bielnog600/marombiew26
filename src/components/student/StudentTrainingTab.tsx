@@ -5,9 +5,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
-import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar } from 'lucide-react';
+import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import TrainingResultCards from '@/components/TrainingResultCards';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 import {
   TRAINING_PHASES,
   PHASE_LABELS,
@@ -29,6 +32,47 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   const [editedPhases, setEditedPhases] = useState<Record<string, TrainingPhase>>({});
   const [editedStartDates, setEditedStartDates] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [transferPlan, setTransferPlan] = useState<any | null>(null);
+  const [students, setStudents] = useState<{ user_id: string; nome: string }[]>([]);
+  const [targetStudentId, setTargetStudentId] = useState<string>('');
+  const [transferring, setTransferring] = useState(false);
+
+  const openTransfer = async (plan: any) => {
+    setTransferPlan(plan);
+    setTargetStudentId('');
+    if (students.length === 0) {
+      const [{ data: sp }, { data: pr }] = await Promise.all([
+        supabase.from('students_profile').select('user_id').eq('ativo', true),
+        supabase.from('profiles').select('user_id, nome'),
+      ]);
+      const nomeMap = new Map((pr ?? []).map((p: any) => [p.user_id, p.nome]));
+      const list = (sp ?? [])
+        .map((s: any) => ({ user_id: s.user_id, nome: nomeMap.get(s.user_id) || 'Sem nome' }))
+        .filter((s) => s.user_id !== studentId)
+        .sort((a, b) => a.nome.localeCompare(b.nome));
+      setStudents(list);
+    }
+  };
+
+  const handleTransfer = async () => {
+    if (!transferPlan || !targetStudentId) return;
+    setTransferring(true);
+    const { error } = await supabase.from('ai_plans').insert({
+      student_id: targetStudentId,
+      tipo: transferPlan.tipo,
+      titulo: transferPlan.titulo,
+      conteudo: transferPlan.conteudo,
+      fase: transferPlan.fase,
+      fase_inicio_data: transferPlan.fase_inicio_data,
+    });
+    setTransferring(false);
+    if (error) {
+      toast.error('Erro ao transferir: ' + error.message);
+    } else {
+      toast.success('Treino copiado para o outro aluno!');
+      setTransferPlan(null);
+    }
+  };
 
   useEffect(() => {
     loadPlans();
@@ -91,6 +135,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   }
 
   return (
+    <>
     <div className="space-y-3">
       {plans.map(plan => {
         const isExpanded = expandedId === plan.id;
@@ -124,6 +169,15 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1 px-2 text-xs"
+                    title="Transferir para outro aluno"
+                    onClick={(e) => { e.stopPropagation(); openTransfer(plan); }}
+                  >
+                    <Send className="h-3 w-3" />
+                  </Button>
                   {hasChanges && (
                     <Button
                       size="sm"
@@ -198,6 +252,38 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
         );
       })}
     </div>
+
+    <Dialog open={!!transferPlan} onOpenChange={(open) => { if (!open) setTransferPlan(null); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Transferir treino</DialogTitle>
+          <DialogDescription>
+            Copia este treino para outro aluno (o original permanece intacto).
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label className="text-xs">Aluno destino</Label>
+          <Select value={targetStudentId} onValueChange={setTargetStudentId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione um aluno..." />
+            </SelectTrigger>
+            <SelectContent>
+              {students.map(s => (
+                <SelectItem key={s.user_id} value={s.user_id}>{s.nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setTransferPlan(null)}>Cancelar</Button>
+          <Button onClick={handleTransfer} disabled={!targetStudentId || transferring}>
+            {transferring ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+            Transferir
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 };
 
