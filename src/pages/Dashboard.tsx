@@ -7,6 +7,7 @@ import { Users, ClipboardList, TrendingUp, UserPlus, Bell, CalendarClock, Cake, 
 import { supabase } from '@/integrations/supabase/client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useNotifications, NotificationType } from '@/hooks/useNotifications';
+import EngagementOverviewCards from '@/components/consultoria/EngagementOverviewCards';
 
 const Dashboard = () => {
   const [stats, setStats] = useState({ totalAlunos: 0, avaliacoesMes: 0 });
@@ -108,6 +109,14 @@ const Dashboard = () => {
   return (
     <AppLayout title="Dashboard">
       <div className="space-y-6 animate-fade-in">
+        {/* Student behavior overview */}
+        <div className="space-y-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Comportamento dos alunos hoje
+          </h2>
+          <EngagementOverviewCards />
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {statCards.map((stat) => (
             <Card key={stat.title} className="glass-card">

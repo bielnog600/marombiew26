@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Loader2, Sparkles } from 'lucide-react';
 
@@ -38,11 +38,25 @@ export const AiWizard: React.FC<AiWizardProps> = ({
   const total = steps.length;
   const isLast = currentStep === total - 1;
 
-  // Auto-advance when current step gets valid
+  // Track whether the step was already valid when first shown.
+  // We only auto-advance if the user actually transitioned the step
+  // from invalid -> valid (i.e. interacted with it). This prevents
+  // skipping steps that have valid defaults from the start.
+  const initialValidRef = useRef<Record<number, boolean>>({});
+  useEffect(() => {
+    if (initialValidRef.current[currentStep] === undefined) {
+      initialValidRef.current[currentStep] = !!stepValid[currentStep];
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
+
   useEffect(() => {
     if (autoAdvanceDelay <= 0) return;
     if (isLast) return;
     if (!stepValid[currentStep]) return;
+    // Skip auto-advance when this step was already valid on entry
+    // (user hasn't interacted yet).
+    if (initialValidRef.current[currentStep] === true) return;
     const t = setTimeout(() => onStepChange(currentStep + 1), autoAdvanceDelay);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
