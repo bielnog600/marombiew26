@@ -61,6 +61,42 @@ const buildSetPlan = (series: string, series2: string, reps: string): SetPlan[] 
   return plan;
 };
 
+// ===== Local draft persistence (offline-safe) =====
+const draftKey = (studentId: string, dayName: string) => {
+  const today = new Date().toISOString().slice(0, 10);
+  return `trainerlog:${studentId}:${dayName}:${today}`;
+};
+
+interface DraftShape {
+  sets: Record<number, SetEntry[]>;
+  notes: Record<number, string>;
+  savedSets: Record<number, number>;
+}
+
+const loadDraft = (studentId: string, dayName: string): DraftShape | null => {
+  try {
+    const raw = localStorage.getItem(draftKey(studentId, dayName));
+    return raw ? (JSON.parse(raw) as DraftShape) : null;
+  } catch {
+    return null;
+  }
+};
+
+const saveDraft = (studentId: string, dayName: string, state: Record<number, ExerciseState>) => {
+  try {
+    const draft: DraftShape = { sets: {}, notes: {}, savedSets: {} };
+    Object.entries(state).forEach(([k, v]) => {
+      const idx = Number(k);
+      draft.sets[idx] = v.sets;
+      draft.notes[idx] = v.notes;
+      draft.savedSets[idx] = v.savedSets;
+    });
+    localStorage.setItem(draftKey(studentId, dayName), JSON.stringify(draft));
+  } catch {
+    // ignore quota errors
+  }
+};
+
 interface HistoryRow {
   performed_at: string;
   set_number: number;
@@ -185,6 +221,20 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
           savedSets: 0,
         };
       });
+      // Hydrate from local draft (offline-safe)
+      const draft = loadDraft(studentId, day.day);
+      if (draft) {
+        Object.keys(initial).forEach((k) => {
+          const idx = Number(k);
+          const draftSets = draft.sets?.[idx];
+          if (draftSets && Array.isArray(draftSets)) {
+            // Match length of plan; pad/truncate
+            initial[idx].sets = initial[idx].sets.map((s, i) => draftSets[i] || s);
+          }
+          if (typeof draft.notes?.[idx] === 'string') initial[idx].notes = draft.notes[idx];
+          if (typeof draft.savedSets?.[idx] === 'number') initial[idx].savedSets = draft.savedSets[idx];
+        });
+      }
       // Fetch last log per exercise (latest by performed_at)
       await Promise.all(
         day.exercises.map(async (ex, i) => {
@@ -217,12 +267,17 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       ex.sets = [...ex.sets];
       ex.sets[setIdx] = { ...ex.sets[setIdx], [field]: value };
       copy[exIdx] = ex;
+      if (day) saveDraft(studentId, day.day, copy);
       return copy;
     });
   };
 
   const updateNotes = (exIdx: number, value: string) => {
-    setState((prev) => ({ ...prev, [exIdx]: { ...prev[exIdx], notes: value } }));
+    setState((prev) => {
+      const next = { ...prev, [exIdx]: { ...prev[exIdx], notes: value } };
+      if (day) saveDraft(studentId, day.day, next);
+      return next;
+    });
   };
 
   const saveExercise = async (exIdx: number) => {
@@ -254,17 +309,26 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
 
     const { error } = await supabase.from('exercise_set_logs').insert(rows);
 
-    setState((prev) => ({
-      ...prev,
-      [exIdx]: {
-        ...prev[exIdx],
-        saving: false,
-        savedSets: prev[exIdx].savedSets + rows.length,
-      },
-    }));
+    setState((prev) => {
+      const cur = prev[exIdx];
+      let nextSets = cur.sets;
+      let nextSavedSets = cur.savedSets;
+      if (!error) {
+        // Clear only the inputs that were just persisted
+        const savedIdx = new Set(validSets.map((s) => s.idx));
+        nextSets = cur.sets.map((s, i) => (savedIdx.has(i) ? { weight: '', reps: '' } : s));
+        nextSavedSets = cur.savedSets + rows.length;
+      }
+      const next = {
+        ...prev,
+        [exIdx]: { ...cur, saving: false, sets: nextSets, savedSets: nextSavedSets },
+      };
+      if (day) saveDraft(studentId, day.day, next);
+      return next;
+    });
 
     if (error) {
-      toast.error('Erro ao salvar: ' + error.message);
+      toast.error('Salvo localmente. Sem conexão? Será re-enviado quando você tentar de novo. (' + error.message + ')');
     } else {
       toast.success(`${rows.length} série(s) registrada(s) — ${ex.exercise}`);
     }
