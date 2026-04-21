@@ -5,9 +5,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
-import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar, Send } from 'lucide-react';
+import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar, Send, ClipboardList } from 'lucide-react';
 import { toast } from 'sonner';
 import TrainingResultCards from '@/components/TrainingResultCards';
+import TrainerLogSheet from '@/components/training/TrainerLogSheet';
+import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -36,6 +38,17 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   const [students, setStudents] = useState<{ user_id: string; nome: string }[]>([]);
   const [targetStudentId, setTargetStudentId] = useState<string>('');
   const [transferring, setTransferring] = useState(false);
+  const [trainPlan, setTrainPlan] = useState<any | null>(null);
+
+  const trainDays: ParsedTrainingDay[] = React.useMemo(() => {
+    if (!trainPlan) return [];
+    const sections = parseTrainingSections(trainPlan.conteudo || '');
+    const days: ParsedTrainingDay[] = [];
+    for (const s of sections) {
+      if (s.type === 'training' && s.days) days.push(...s.days);
+    }
+    return days;
+  }, [trainPlan]);
 
   const openTransfer = async (plan: any) => {
     setTransferPlan(plan);
