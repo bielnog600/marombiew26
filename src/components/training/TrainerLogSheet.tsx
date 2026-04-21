@@ -15,7 +15,7 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   studentId: string;
-  day: ParsedTrainingDay | null;
+  days: ParsedTrainingDay[];
   phase?: string | null;
 }
 
@@ -41,9 +41,20 @@ const parseSeriesCount = (series: string, series2: string): number => {
   return s1 > 0 ? s1 : 3;
 };
 
-export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId, day, phase }) => {
+export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId, days, phase }) => {
   const [state, setState] = useState<Record<number, ExerciseState>>({});
   const [loading, setLoading] = useState(false);
+  const [activeDayIdx, setActiveDayIdx] = useState(0);
+  const day = days[activeDayIdx] || null;
+
+  // Auto-select today's weekday on open
+  useEffect(() => {
+    if (!open || days.length === 0) return;
+    const weekdays = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+    const today = weekdays[new Date().getDay()];
+    const idx = days.findIndex((d) => d.day.toLowerCase().includes(today));
+    setActiveDayIdx(idx >= 0 ? idx : 0);
+  }, [open, days.length]);
 
   useEffect(() => {
     if (!open || !day) return;
@@ -84,7 +95,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       setState(initial);
       setLoading(false);
     })();
-  }, [open, day, studentId]);
+  }, [open, day?.day, studentId]);
 
   if (!day) return null;
 
@@ -154,12 +165,28 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Dumbbell className="h-5 w-5 text-primary" />
-            Modo Treino — {day.day}
+            Modo Treino
           </SheetTitle>
           <SheetDescription>
             Registre carga, reps e observações de cada exercício enquanto treina o aluno.
           </SheetDescription>
         </SheetHeader>
+
+        {days.length > 1 && (
+          <div className="flex flex-wrap gap-1.5 p-2 mt-3 rounded-lg bg-secondary/40 border border-border/40">
+            {days.map((d, i) => (
+              <Button
+                key={`${d.day}-${i}`}
+                size="sm"
+                variant={activeDayIdx === i ? 'default' : 'ghost'}
+                className="h-7 px-3 text-xs"
+                onClick={() => setActiveDayIdx(i)}
+              >
+                {d.day}
+              </Button>
+            ))}
+          </div>
+        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
