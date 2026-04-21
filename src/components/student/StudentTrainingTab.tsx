@@ -135,6 +135,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   }
 
   return (
+    <>
     <div className="space-y-3">
       {plans.map(plan => {
         const isExpanded = expandedId === plan.id;
@@ -251,6 +252,38 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
         );
       })}
     </div>
+
+    <Dialog open={!!transferPlan} onOpenChange={(open) => { if (!open) setTransferPlan(null); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Transferir treino</DialogTitle>
+          <DialogDescription>
+            Copia este treino para outro aluno (o original permanece intacto).
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label className="text-xs">Aluno destino</Label>
+          <Select value={targetStudentId} onValueChange={setTargetStudentId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione um aluno..." />
+            </SelectTrigger>
+            <SelectContent>
+              {students.map(s => (
+                <SelectItem key={s.user_id} value={s.user_id}>{s.nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setTransferPlan(null)}>Cancelar</Button>
+          <Button onClick={handleTransfer} disabled={!targetStudentId || transferring}>
+            {transferring ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+            Transferir
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 };
 
