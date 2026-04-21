@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Save, History, Dumbbell, Check, ChevronDown } from 'lucide-react';
+import { Loader2, Save, History, Dumbbell, Check, ChevronDown, Pencil } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { ParsedTrainingDay } from '@/lib/trainingResultParser';
@@ -34,6 +35,7 @@ interface ExerciseState {
   lastReps: number | null;
   lastDate: string | null;
   savedSets: number; // how many sets already persisted now
+  exerciseName: string; // editable name (can override the prescribed one)
 }
 
 const splitComposed = (reps: string): [string, string] => {
