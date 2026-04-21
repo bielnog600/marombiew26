@@ -186,6 +186,15 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                     variant="ghost"
                     size="sm"
                     className="h-7 gap-1 px-2 text-xs"
+                    title="Treinar aluno (registrar carga e reps)"
+                    onClick={(e) => { e.stopPropagation(); setTrainPlan(plan); }}
+                  >
+                    <ClipboardList className="h-3 w-3" /> Treinar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1 px-2 text-xs"
                     title="Transferir para outro aluno"
                     onClick={(e) => { e.stopPropagation(); openTransfer(plan); }}
                   >
