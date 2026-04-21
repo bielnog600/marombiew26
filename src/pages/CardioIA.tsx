@@ -268,7 +268,28 @@ const CardioIA = () => {
           </CardContent>
         </Card>
 
-        {/* Modalidades (multi-seleção) */}
+        {(() => {
+          const STEP_TITLES = ['Modalidades', 'Frequência', 'Estilo, Intensidade e Duração', 'Observações'];
+          const stepValid = [
+            true, // modalidades opcional (vazio = automático)
+            !!frequency,
+            !!style && !!intensity && !!duration,
+            true, // observações opcional
+          ];
+          const canGenerate = !!frequency;
+          return (
+            <AiWizard
+              steps={STEP_TITLES}
+              currentStep={currentStep}
+              onStepChange={setCurrentStep}
+              stepValid={stepValid}
+              canGenerate={canGenerate}
+              generating={generating}
+              onGenerate={generateCardio}
+              generateLabel="Gerar Cardio"
+              generateIcon={<Sparkles className="h-4 w-4" />}
+            >
+              {currentStep === 0 && (
         <div className="space-y-3">
           <div className="flex items-baseline justify-between">
             <Label className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -305,8 +326,9 @@ const CardioIA = () => {
             })}
           </div>
         </div>
+              )}
 
-        {/* Frequência */}
+              {currentStep === 1 && (
         <div className="space-y-2">
           <Label className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Frequência semanal</Label>
           <Select value={frequency} onValueChange={setFrequency}>
@@ -316,8 +338,9 @@ const CardioIA = () => {
             </SelectContent>
           </Select>
         </div>
+              )}
 
-        {/* Estilo + Intensidade + Duração */}
+              {currentStep === 2 && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-2">
             <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estilo</Label>
@@ -347,8 +370,9 @@ const CardioIA = () => {
             </Select>
           </div>
         </div>
+              )}
 
-        {/* Observações */}
+              {currentStep === 3 && (
         <div className="space-y-2">
           <Label htmlFor="notes" className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             Observações (opcional)
@@ -361,15 +385,10 @@ const CardioIA = () => {
             className="min-h-[80px]"
           />
         </div>
-
-        {/* Botão gerar */}
-        <Button size="lg" className="w-full font-bold gap-2" onClick={generateCardio} disabled={generating}>
-          {generating ? (
-            <><Loader2 className="h-5 w-5 animate-spin" /> Gerando cardio...</>
-          ) : (
-            <><Sparkles className="h-5 w-5" /> Gerar Cardio com IA</>
-          )}
-        </Button>
+              )}
+            </AiWizard>
+          );
+        })()}
 
         {/* Resultado */}
         {payload && (
