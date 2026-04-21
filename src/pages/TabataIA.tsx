@@ -15,6 +15,7 @@ import { serializeTabata } from '@/lib/tabataSerializer';
 import { TabataStructuredEditor } from '@/components/tabata/TabataStructuredEditor';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import AiWizard from '@/components/AiWizard';
 
 type StudentCtx = Record<string, any>;
 
@@ -63,6 +64,7 @@ const TabataIA = () => {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editDraft, setEditDraft] = useState<ParsedTabata | null>(null);
+  const [currentStep, setCurrentStep] = useState(0);
   const resultRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
