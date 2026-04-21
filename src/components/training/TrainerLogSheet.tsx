@@ -108,6 +108,77 @@ interface HistoryRow {
   reps: number | null;
 }
 
+const ExerciseNamePicker: React.FC<{
+  value: string;
+  original: string;
+  options: { id: string; nome: string; grupo_muscular: string }[];
+  onChange: (name: string) => void;
+}> = ({ value, original, options, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const isChanged = value && original && value.trim().toLowerCase() !== original.trim().toLowerCase();
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="group flex items-center gap-1 text-left max-w-full"
+          title="Clique para trocar o exercício"
+        >
+          <span className="font-semibold text-sm truncate group-hover:text-primary transition-colors">
+            {value || original || 'Sem nome'}
+          </span>
+          <Pencil className="h-3 w-3 text-muted-foreground shrink-0 opacity-60 group-hover:opacity-100" />
+          {isChanged && (
+            <span className="text-[9px] font-bold uppercase bg-primary/15 text-primary border border-primary/30 rounded px-1 py-px shrink-0">
+              alterado
+            </span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-72 p-0">
+        <Command>
+          <CommandInput placeholder="Buscar exercício..." />
+          <CommandList>
+            <CommandEmpty>Nenhum exercício encontrado.</CommandEmpty>
+            {original && (
+              <CommandGroup heading="Original">
+                <CommandItem
+                  value={original}
+                  onSelect={() => {
+                    onChange(original);
+                    setOpen(false);
+                  }}
+                >
+                  <Check className={`h-3 w-3 mr-2 ${value === original ? 'opacity-100' : 'opacity-0'}`} />
+                  {original}
+                </CommandItem>
+              </CommandGroup>
+            )}
+            <CommandGroup heading="Catálogo">
+              {options.map((opt) => (
+                <CommandItem
+                  key={opt.id}
+                  value={`${opt.nome} ${opt.grupo_muscular}`}
+                  onSelect={() => {
+                    onChange(opt.nome);
+                    setOpen(false);
+                  }}
+                >
+                  <Check className={`h-3 w-3 mr-2 ${value === opt.nome ? 'opacity-100' : 'opacity-0'}`} />
+                  <div className="min-w-0">
+                    <p className="truncate">{opt.nome}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{opt.grupo_muscular}</p>
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 const HistoryPopover: React.FC<{
   studentId: string;
   exerciseName: string;
