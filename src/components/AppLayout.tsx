@@ -5,6 +5,7 @@ import BottomNav from '@/components/BottomNav';
 import NotificationBell from '@/components/NotificationBell';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/contexts/AuthContext';
+import { useStudentPresence } from '@/hooks/useStudentPresence';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -14,6 +15,8 @@ interface AppLayoutProps {
 const AppLayout: React.FC<AppLayoutProps> = ({ children, title }) => {
   const isMobile = useIsMobile();
   const { role } = useAuth();
+  // Faz o aluno entrar na presence channel 'students-online' enquanto o app estiver aberto
+  useStudentPresence();
 
   return (
     <SidebarProvider>
