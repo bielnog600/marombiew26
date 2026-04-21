@@ -1170,8 +1170,9 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
             </div>
           </CardContent>
         </Card>
+              )}
 
-        {/* Step 7: Substituições */}
+              {currentStep === 6 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-3">
             <StepHeader step={7} title="Alimentos para Substituição (opcional)" />
