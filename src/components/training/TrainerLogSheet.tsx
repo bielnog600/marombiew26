@@ -73,6 +73,7 @@ interface DraftShape {
   sets: Record<number, SetEntry[]>;
   notes: Record<number, string>;
   savedSets: Record<number, number>;
+  exerciseNames?: Record<number, string>;
 }
 
 const loadDraft = (studentId: string, dayName: string): DraftShape | null => {
@@ -86,12 +87,13 @@ const loadDraft = (studentId: string, dayName: string): DraftShape | null => {
 
 const saveDraft = (studentId: string, dayName: string, state: Record<number, ExerciseState>) => {
   try {
-    const draft: DraftShape = { sets: {}, notes: {}, savedSets: {} };
+    const draft: DraftShape = { sets: {}, notes: {}, savedSets: {}, exerciseNames: {} };
     Object.entries(state).forEach(([k, v]) => {
       const idx = Number(k);
       draft.sets[idx] = v.sets;
       draft.notes[idx] = v.notes;
       draft.savedSets[idx] = v.savedSets;
+      draft.exerciseNames![idx] = v.exerciseName;
     });
     localStorage.setItem(draftKey(studentId, dayName), JSON.stringify(draft));
   } catch {
