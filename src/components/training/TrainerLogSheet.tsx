@@ -26,6 +26,7 @@ interface SetEntry {
 
 interface ExerciseState {
   sets: SetEntry[];
+  plan: SetPlan[];
   notes: string;
   saving: boolean;
   lastWeight: number | null;
@@ -34,11 +35,29 @@ interface ExerciseState {
   savedSets: number; // how many sets already persisted now
 }
 
-const parseSeriesCount = (series: string, series2: string): number => {
-  const s2 = parseInt(series2 || '0', 10) || 0;
-  if (s2 > 0) return s2; // working sets
+const splitComposed = (reps: string): [string, string] => {
+  const parts = (reps || '').split('+').map((p) => p.trim());
+  return [parts[0] || '', parts[1] || parts[0] || ''];
+};
+
+interface SetPlan {
+  kind: 'recon' | 'work';
+  targetReps: string;
+}
+
+const buildSetPlan = (series: string, series2: string, reps: string): SetPlan[] => {
   const s1 = parseInt(series || '0', 10) || 0;
-  return s1 > 0 ? s1 : 3;
+  const s2 = parseInt(series2 || '0', 10) || 0;
+  const [reconReps, workReps] = splitComposed(reps);
+  const plan: SetPlan[] = [];
+  if (s1 > 0 && s2 > 0) {
+    for (let i = 0; i < s1; i++) plan.push({ kind: 'recon', targetReps: reconReps || reps });
+    for (let i = 0; i < s2; i++) plan.push({ kind: 'work', targetReps: workReps || reps });
+  } else {
+    const total = s2 > 0 ? s2 : (s1 > 0 ? s1 : 3);
+    for (let i = 0; i < total; i++) plan.push({ kind: 'work', targetReps: reps });
+  }
+  return plan;
 };
 
 export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId, days, phase }) => {
@@ -63,9 +82,10 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       const initial: Record<number, ExerciseState> = {};
       // Init empty
       day.exercises.forEach((ex, i) => {
-        const count = parseSeriesCount(ex.series, ex.series2);
+        const plan = buildSetPlan(ex.series, ex.series2, ex.reps);
         initial[i] = {
-          sets: Array.from({ length: count }, () => ({ weight: '', reps: '' })),
+          sets: plan.map((p) => ({ weight: '', reps: '' })),
+          plan,
           notes: '',
           saving: false,
           lastWeight: null,
