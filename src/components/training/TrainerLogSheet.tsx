@@ -1,0 +1,257 @@
+import React, { useEffect, useState } from 'react';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent } from '@/components/ui/card';
+import { Loader2, Save, History, Dumbbell, Check } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import type { ParsedTrainingDay } from '@/lib/trainingResultParser';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+
+interface Props {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  studentId: string;
+  day: ParsedTrainingDay | null;
+  phase?: string | null;
+}
+
+interface SetEntry {
+  weight: string;
+  reps: string;
+}
+
+interface ExerciseState {
+  sets: SetEntry[];
+  notes: string;
+  saving: boolean;
+  lastWeight: number | null;
+  lastReps: number | null;
+  lastDate: string | null;
+  savedSets: number; // how many sets already persisted now
+}
+
+const parseSeriesCount = (series: string, series2: string): number => {
+  const s2 = parseInt(series2 || '0', 10) || 0;
+  if (s2 > 0) return s2; // working sets
+  const s1 = parseInt(series || '0', 10) || 0;
+  return s1 > 0 ? s1 : 3;
+};
+
+export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId, day, phase }) => {
+  const [state, setState] = useState<Record<number, ExerciseState>>({});
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open || !day) return;
+    setLoading(true);
+    (async () => {
+      const initial: Record<number, ExerciseState> = {};
+      // Init empty
+      day.exercises.forEach((ex, i) => {
+        const count = parseSeriesCount(ex.series, ex.series2);
+        initial[i] = {
+          sets: Array.from({ length: count }, () => ({ weight: '', reps: '' })),
+          notes: '',
+          saving: false,
+          lastWeight: null,
+          lastReps: null,
+          lastDate: null,
+          savedSets: 0,
+        };
+      });
+      // Fetch last log per exercise (latest by performed_at)
+      await Promise.all(
+        day.exercises.map(async (ex, i) => {
+          if (!ex.exercise) return;
+          const { data } = await supabase
+            .from('exercise_set_logs')
+            .select('weight_kg, reps, performed_at')
+            .eq('student_id', studentId)
+            .ilike('exercise_name', ex.exercise)
+            .order('performed_at', { ascending: false })
+            .limit(1);
+          if (data && data[0]) {
+            initial[i].lastWeight = data[0].weight_kg;
+            initial[i].lastReps = data[0].reps;
+            initial[i].lastDate = data[0].performed_at;
+          }
+        }),
+      );
+      setState(initial);
+      setLoading(false);
+    })();
+  }, [open, day, studentId]);
+
+  if (!day) return null;
+
+  const updateSet = (exIdx: number, setIdx: number, field: keyof SetEntry, value: string) => {
+    setState((prev) => {
+      const copy = { ...prev };
+      const ex = { ...copy[exIdx] };
+      ex.sets = [...ex.sets];
+      ex.sets[setIdx] = { ...ex.sets[setIdx], [field]: value };
+      copy[exIdx] = ex;
+      return copy;
+    });
+  };
+
+  const updateNotes = (exIdx: number, value: string) => {
+    setState((prev) => ({ ...prev, [exIdx]: { ...prev[exIdx], notes: value } }));
+  };
+
+  const saveExercise = async (exIdx: number) => {
+    const ex = day.exercises[exIdx];
+    const st = state[exIdx];
+    if (!ex || !st) return;
+
+    const validSets = st.sets
+      .map((s, idx) => ({ idx, weight: parseFloat(s.weight), reps: parseInt(s.reps, 10) }))
+      .filter((s) => !Number.isNaN(s.weight) || !Number.isNaN(s.reps));
+
+    if (validSets.length === 0) {
+      toast.error('Preencha ao menos uma série (carga ou reps)');
+      return;
+    }
+
+    setState((prev) => ({ ...prev, [exIdx]: { ...prev[exIdx], saving: true } }));
+
+    const rows = validSets.map((s) => ({
+      student_id: studentId,
+      exercise_name: ex.exercise,
+      set_number: s.idx + 1,
+      weight_kg: Number.isNaN(s.weight) ? null : s.weight,
+      reps: Number.isNaN(s.reps) ? null : s.reps,
+      day_name: day.day,
+      phase: phase || null,
+      performed_at: new Date().toISOString(),
+    }));
+
+    const { error } = await supabase.from('exercise_set_logs').insert(rows);
+
+    setState((prev) => ({
+      ...prev,
+      [exIdx]: {
+        ...prev[exIdx],
+        saving: false,
+        savedSets: prev[exIdx].savedSets + rows.length,
+      },
+    }));
+
+    if (error) {
+      toast.error('Erro ao salvar: ' + error.message);
+    } else {
+      toast.success(`${rows.length} série(s) registrada(s) — ${ex.exercise}`);
+    }
+  };
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
+            <Dumbbell className="h-5 w-5 text-primary" />
+            Modo Treino — {day.day}
+          </SheetTitle>
+          <SheetDescription>
+            Registre carga, reps e observações de cada exercício enquanto treina o aluno.
+          </SheetDescription>
+        </SheetHeader>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : (
+          <div className="space-y-3 mt-4">
+            {day.exercises.map((ex, exIdx) => {
+              const st = state[exIdx];
+              if (!st) return null;
+              return (
+                <Card key={exIdx} className="border-border/60">
+                  <CardContent className="p-3 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm truncate">{ex.exercise || 'Sem nome'}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          Prescrição: {ex.series2 || ex.series} séries × {ex.reps || '—'}
+                          {ex.rir && ` · RIR ${ex.rir}`}
+                          {ex.pause && ` · pausa ${ex.pause}`}
+                        </p>
+                      </div>
+                      {st.lastWeight !== null && (
+                        <div className="text-right shrink-0 flex items-center gap-1 text-[10px] text-muted-foreground bg-secondary/50 rounded px-1.5 py-0.5">
+                          <History className="h-3 w-3" />
+                          <span>
+                            Última: <strong className="text-foreground">{st.lastWeight ?? '—'}kg × {st.lastReps ?? '—'}</strong>
+                            {st.lastDate && ` · ${format(new Date(st.lastDate), 'dd/MM', { locale: ptBR })}`}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {st.sets.map((s, setIdx) => (
+                        <div key={setIdx} className="grid grid-cols-[28px_1fr_1fr] items-center gap-2">
+                          <span className="text-[10px] font-bold text-muted-foreground text-center">#{setIdx + 1}</span>
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            placeholder="kg"
+                            value={s.weight}
+                            onChange={(e) => updateSet(exIdx, setIdx, 'weight', e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                          <Input
+                            type="number"
+                            inputMode="numeric"
+                            placeholder="reps"
+                            value={s.reps}
+                            onChange={(e) => updateSet(exIdx, setIdx, 'reps', e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    <Textarea
+                      placeholder="Observações (técnica, progressão, dor...)"
+                      value={st.notes}
+                      onChange={(e) => updateNotes(exIdx, e.target.value.slice(0, 500))}
+                      className="text-xs min-h-[50px]"
+                      maxLength={500}
+                    />
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-muted-foreground">
+                        {st.savedSets > 0 && (
+                          <span className="flex items-center gap-1 text-primary">
+                            <Check className="h-3 w-3" /> {st.savedSets} série(s) salvas
+                          </span>
+                        )}
+                      </span>
+                      <Button
+                        size="sm"
+                        className="h-7 gap-1 px-3 text-xs"
+                        disabled={st.saving}
+                        onClick={() => saveExercise(exIdx)}
+                      >
+                        {st.saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                        Salvar
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+};
+
+export default TrainerLogSheet;
