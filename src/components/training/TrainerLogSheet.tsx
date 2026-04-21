@@ -309,17 +309,26 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
 
     const { error } = await supabase.from('exercise_set_logs').insert(rows);
 
-    setState((prev) => ({
-      ...prev,
-      [exIdx]: {
-        ...prev[exIdx],
-        saving: false,
-        savedSets: prev[exIdx].savedSets + rows.length,
-      },
-    }));
+    setState((prev) => {
+      const cur = prev[exIdx];
+      let nextSets = cur.sets;
+      let nextSavedSets = cur.savedSets;
+      if (!error) {
+        // Clear only the inputs that were just persisted
+        const savedIdx = new Set(validSets.map((s) => s.idx));
+        nextSets = cur.sets.map((s, i) => (savedIdx.has(i) ? { weight: '', reps: '' } : s));
+        nextSavedSets = cur.savedSets + rows.length;
+      }
+      const next = {
+        ...prev,
+        [exIdx]: { ...cur, saving: false, sets: nextSets, savedSets: nextSavedSets },
+      };
+      if (day) saveDraft(studentId, day.day, next);
+      return next;
+    });
 
     if (error) {
-      toast.error('Erro ao salvar: ' + error.message);
+      toast.error('Salvo localmente. Sem conexão? Será re-enviado quando você tentar de novo. (' + error.message + ')');
     } else {
       toast.success(`${rows.length} série(s) registrada(s) — ${ex.exercise}`);
     }
