@@ -4,7 +4,7 @@ import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Loader2, Save, Dumbbell, RotateCcw, AlertTriangle, ChevronDown, ChevronUp, Settings2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Dumbbell, RotateCcw, AlertTriangle, ChevronDown, ChevronUp, Settings2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
@@ -87,6 +87,7 @@ const TreinoIA = () => {
   const [result, setResult] = useState('');
   const [saving, setSaving] = useState(false);
   const [configCollapsed, setConfigCollapsed] = useState(!!editPlanId);
+  const [currentStep, setCurrentStep] = useState(0);
   const resultRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -109,6 +110,17 @@ const TreinoIA = () => {
       resultRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [result]);
+
+  // Auto-advance when current step is fully completed (steps 0..2; 3 e 4 são opcionais)
+  useEffect(() => {
+    if (configCollapsed) return;
+    const t = setTimeout(() => {
+      if (currentStep === 0 && level) setCurrentStep(1);
+      else if (currentStep === 1 && daysPerWeek && split) setCurrentStep(2);
+      else if (currentStep === 2 && week && equipment) setCurrentStep(3);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [level, daysPerWeek, split, week, equipment, currentStep, configCollapsed]);
 
   const loadStudentData = async () => {
     setLoading(true);
@@ -399,8 +411,40 @@ GERE TUDO DE UMA VEZ:
           </Button>
         )}
 
-        {!configCollapsed && <>
-        {/* Step 1: Level */}
+        {!configCollapsed && (() => {
+          const STEP_TITLES = ['Nível', 'Frequência e Divisão', 'Periodização e Equipamento', 'Saúde e Restrições', 'Referência (opcional)'];
+          const stepValid = [
+            !!level,
+            !!daysPerWeek && !!split,
+            !!week && !!equipment,
+            true, // saúde é opcional
+            true, // referência é opcional
+          ];
+          const totalSteps = STEP_TITLES.length;
+          const isLast = currentStep === totalSteps - 1;
+          const goNext = () => setCurrentStep((s) => Math.min(totalSteps - 1, s + 1));
+          const goBack = () => setCurrentStep((s) => Math.max(0, s - 1));
+          return (
+            <div className="space-y-4">
+              {/* Stepper indicator */}
+              <div className="flex items-center gap-1.5">
+                {STEP_TITLES.map((t, i) => (
+                  <button
+                    key={t}
+                    onClick={() => setCurrentStep(i)}
+                    className={`flex-1 h-1.5 rounded-full transition-all ${
+                      i === currentStep ? 'bg-primary' : i < currentStep ? 'bg-primary/60' : 'bg-secondary'
+                    }`}
+                    title={`${i + 1}. ${t}`}
+                    aria-label={t}
+                  />
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground text-center">
+                Etapa {currentStep + 1} de {totalSteps} — <span className="text-foreground font-medium">{STEP_TITLES[currentStep]}</span>
+              </p>
+
+              {currentStep === 0 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-3">
             <h3 className="font-bold text-sm flex items-center gap-2">
@@ -418,8 +462,9 @@ GERE TUDO DE UMA VEZ:
             </div>
           </CardContent>
         </Card>
+              )}
 
-        {/* Step 2: Days + Split */}
+              {currentStep === 1 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-4">
             <h3 className="font-bold text-sm flex items-center gap-2">
@@ -451,8 +496,9 @@ GERE TUDO DE UMA VEZ:
             </div>
           </CardContent>
         </Card>
+              )}
 
-        {/* Step 3: Week + Equipment */}
+              {currentStep === 2 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-4">
             <h3 className="font-bold text-sm flex items-center gap-2">
@@ -494,28 +540,9 @@ GERE TUDO DE UMA VEZ:
             </div>
           </CardContent>
         </Card>
+              )}
 
-        {/* Step 5: Training Reference */}
-        <Card className="glass-card">
-          <CardContent className="p-4 space-y-3">
-            <h3 className="font-bold text-sm flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">5</span>
-              Referência de Treino (opcional)
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              Cole aqui um treino base, estrutura de divisão, faixa de volume ou dicas para a IA seguir como referência exata.
-            </p>
-            <textarea
-              value={treinoReferencia}
-              onChange={(e) => setTreinoReferencia(e.target.value)}
-              placeholder={"Ex:\nSegunda – Lower 1 / quadríceps + glúteo\n  Agachamento goblet\n  Afundo\n  Leg press\n  Extensora\n  Flexora\n  Panturrilha\n\nFaixa de volume semanal:\n  Quadríceps: 10–14 séries\n  Glúteos: 12–16 séries..."}
-              rows={8}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none resize-y min-h-[100px]"
-            />
-          </CardContent>
-        </Card>
-
-        {/* Step 4: Health & Injuries */}
+              {currentStep === 3 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-4">
             <h3 className="font-bold text-sm flex items-center gap-2">
@@ -616,20 +643,64 @@ GERE TUDO DE UMA VEZ:
             </div>
           </CardContent>
         </Card>
+              )}
 
-        <Button
-          onClick={generatePlan}
-          disabled={!canGenerate || generating}
-          className="w-full font-bold text-base py-6 rounded-xl"
-          size="lg"
-        >
-          {generating ? (
-            <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Gerando Protocolo de Treino...</>
-          ) : (
-            <><Dumbbell className="mr-2 h-5 w-5" /> Gerar Protocolo de Treino</>
-          )}
-        </Button>
-        </>}
+              {currentStep === 4 && (
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-3">
+            <h3 className="font-bold text-sm flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">5</span>
+              Referência de Treino (opcional)
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Cole aqui um treino base, estrutura de divisão, faixa de volume ou dicas para a IA seguir como referência exata.
+            </p>
+            <textarea
+              value={treinoReferencia}
+              onChange={(e) => setTreinoReferencia(e.target.value)}
+              placeholder={"Ex:\nSegunda – Lower 1 / quadríceps + glúteo\n  Agachamento goblet\n  Afundo\n  Leg press\n  Extensora\n  Flexora\n  Panturrilha\n\nFaixa de volume semanal:\n  Quadríceps: 10–14 séries\n  Glúteos: 12–16 séries..."}
+              rows={8}
+              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none resize-y min-h-[100px]"
+            />
+          </CardContent>
+        </Card>
+              )}
+
+              {/* Wizard navigation */}
+              <div className="flex items-center justify-between gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={goBack}
+                  disabled={currentStep === 0}
+                  className="gap-1"
+                >
+                  <ChevronLeft className="h-4 w-4" /> Voltar
+                </Button>
+                {!isLast ? (
+                  <Button
+                    onClick={goNext}
+                    disabled={!stepValid[currentStep]}
+                    className="gap-1"
+                  >
+                    Avançar <ChevronRight className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={generatePlan}
+                    disabled={!canGenerate || generating}
+                    className="gap-2 font-bold"
+                  >
+                    {generating ? (
+                      <><Loader2 className="h-4 w-4 animate-spin" /> Gerando...</>
+                    ) : (
+                      <><Dumbbell className="h-4 w-4" /> Gerar Treino</>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Result - streaming raw markdown */}
         {result && generating && (
