@@ -8,6 +8,8 @@ const alunoOrder = ['/minha-area', '/meus-treinos', '/minhas-dietas', '/minhas-a
 const TRIGGER_RATIO = 0.25;   // fração da largura para confirmar troca
 const MAX_OFF_AXIS = 80;      // ignora se vertical excede isso (rolagem)
 const ACTIVATE_PX = 12;       // distância horizontal para "começar" o drag
+const EDGE_DEAD_ZONE = 24;    // ignora toques nas bordas (evita back swipe nativo do iOS/Android)
+const MAX_PROGRESS = 0.5;     // pill chega no vizinho a 50% e para (não pula tabs)
 
 interface TabSwipeState {
   /** -1..+1: -1 = totalmente no próximo, +1 = totalmente no anterior */
@@ -47,6 +49,9 @@ export const TabSwipeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return;
       const t = e.touches[0];
+      // Evita conflito com gesto nativo de "voltar" (swipe da borda) do navegador/SO
+      const w = window.innerWidth || 1;
+      if (t.clientX <= EDGE_DEAD_ZONE || t.clientX >= w - EDGE_DEAD_ZONE) return;
       // Ignora quando toca em controles interativos onde swipe horizontal já tem significado
       const target = e.target as HTMLElement | null;
       if (target?.closest('[data-no-swipe], input[type="range"], [role="slider"], .embla, [data-swipeable]')) return;
@@ -78,8 +83,9 @@ export const TabSwipeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const w = window.innerWidth || 1;
       // dx negativo => próximo => progress negativo
       let progress = dx / w;
-      if (progress > 1) progress = 1;
-      if (progress < -1) progress = -1;
+      // Limita ao próximo vizinho apenas (sem pular tabs)
+      if (progress > MAX_PROGRESS) progress = MAX_PROGRESS;
+      if (progress < -MAX_PROGRESS) progress = -MAX_PROGRESS;
       // Limita às bordas (sem vizinho disponível)
       if (progress > 0 && idx === 0) progress = 0;
       if (progress < 0 && idx === order.length - 1) progress = 0;
