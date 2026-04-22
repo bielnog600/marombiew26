@@ -488,12 +488,25 @@ const MinhasDietas = () => {
               // recognizes the table grid (AI sometimes emits it on a single line).
               const normalizeTables = (raw: string) => {
                 let txt = raw.replace(/^#+\s*/gm, '').trim();
-                // Insert a newline before every "| " that follows another "|"
-                // pattern, but only when it isn't already at line start.
-                txt = txt.replace(/\|\s*\|\s*(?=\S)/g, '|\n|');
-                // Ensure separator row (|---|---|) sits on its own line
-                txt = txt.replace(/\|(\s*-{3,}[\s-|]*)\|/g, (m) => '\n' + m + '\n');
-                // Collapse 3+ newlines
+                // AI sometimes emits the entire table on a single line.
+                // Detect tables and rebuild them row by row.
+                if (txt.includes('|')) {
+                  // Step 1: normalize " | |" sequences (row boundaries) to newlines
+                  // Match "|" followed by optional space, then "|" that begins a new row
+                  txt = txt.replace(/\|\s+\|/g, '|\n|');
+                  // Step 2: ensure separator row sits on its own line
+                  txt = txt.replace(/\n?(\|[\s:-]*-{2,}[\s:|-]*\|)\n?/g, '\n$1\n');
+                  // Step 3: every line that starts with "|" should be a clean row.
+                  // Split on newlines and rejoin, trimming each row.
+                  txt = txt
+                    .split('\n')
+                    .map((line) => line.trim())
+                    .filter((line) => line.length > 0)
+                    .join('\n');
+                  // Step 4: ensure blank line BEFORE the first table row so
+                  // ReactMarkdown recognizes it as a table block.
+                  txt = txt.replace(/([^\n])\n(\|)/g, '$1\n\n$2');
+                }
                 txt = txt.replace(/\n{3,}/g, '\n\n');
                 return txt.trim();
               };
