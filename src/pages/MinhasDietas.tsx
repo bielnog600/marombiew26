@@ -112,7 +112,7 @@ const MinhasDietas = () => {
   const loadDiet = async () => {
     const { data: dieta } = await supabase
       .from('ai_plans')
-      .select('conteudo')
+      .select('id, conteudo, created_at')
       .eq('student_id', user!.id)
       .eq('tipo', 'dieta')
       .order('created_at', { ascending: false })
@@ -120,6 +120,10 @@ const MinhasDietas = () => {
       .maybeSingle();
     if (dieta) {
       setSections(parseSections(dieta.conteudo));
+      // Version key combines plan id + created_at so any admin edit (which
+      // bumps created_at via re-insert OR keeps it via update) is detected.
+      // We hash the content length as a tiebreaker for in-place updates.
+      setPlanVersion(`${dieta.id}-${dieta.conteudo.length}`);
     }
     setLoading(false);
   };
