@@ -40,7 +40,7 @@ export function useActiveWorkoutSession() {
       setLoading(false);
       return;
     }
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('workout_sessions')
       .select('id, student_id, day_name, phase, started_at, session_state, status')
       .eq('student_id', user.id)
@@ -48,6 +48,11 @@ export function useActiveWorkoutSession() {
       .order('started_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    if (error) {
+      setLoading(false);
+      return;
+    }
 
     if (data && data.started_at) {
       const age = Date.now() - new Date(data.started_at).getTime();
