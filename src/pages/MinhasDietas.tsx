@@ -242,11 +242,14 @@ const MinhasDietas = () => {
       'déficit cal', 'deficit cal', 'meta calórica', 'meta calorica',
       'considerando', 'passos detalhados', 'elaborar um plano',
       'timing nutricional', 'pré-treino', 'pre-treino', 'pós-treino', 'pos-treino',
+      // Carb cycling é aplicado diretamente nos alimentos/quantidades de cada
+      // dia nas refeições — não exibimos card teórico para o aluno.
+      'carb cycling', 'carb cyc', 'ciclagem de carbo', 'ciclagem de carb',
+      'ciclagem de carboidrato',
     ];
     // Keywords that indicate PRACTICAL content the student SHOULD see
     const SHOW_KEYWORDS = [
       'suplement', 'fitoter', 'chá', 'cha ', 'infus', 'erva',
-      'carb cycling', 'carb cyc', 'ciclagem',
       'refeed', 'recarga',
       'diet break', 'pausa',
       'platô', 'plato', 'estagnaç', 'estagnac',
@@ -256,8 +259,10 @@ const MinhasDietas = () => {
       'emagrec', 'jejum', 'hiit', 'termog',
       'ajuste do protocolo', 'ajustes do protocolo',
     ];
-    const isPractical = (str: string) => SHOW_KEYWORDS.some((k) => str.includes(k));
+    // HIDE has priority over SHOW so carb cycling never leaks through even if
+    // the heading also matches a generic practical keyword.
     const isTheoretical = (str: string) => HIDE_KEYWORDS.some((k) => str.includes(k));
+    const isPractical = (str: string) => !isTheoretical(str) && SHOW_KEYWORDS.some((k) => str.includes(k));
 
     // First pass: merge consecutive text/heading lines + their following table
     // into a single virtual section so we can decide based on the heading.
