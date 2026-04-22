@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const WEEKDAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const OPTION_TITLE_REGEX = /(op[cç][aã]o|card[aá]pio)/i;
@@ -26,6 +27,42 @@ const parseNum = (v?: string) => {
 };
 
 const formatValue = (value: number, suffix = '') => `${Math.round(value || 0)}${suffix}`;
+
+const cleanMarkdownContent = (raw: string) =>
+  raw
+    .replace(/^#+\s*/gm, '')
+    .replace(/\*\*/g, '')
+    .replace(/\r/g, '')
+    .trim();
+
+const extractLooseMarkdownTable = (raw: string): { headers: string[]; rows: string[][] } | null => {
+  const cleaned = cleanMarkdownContent(raw);
+  const separatorMatch = cleaned.match(/\|(?:\s*:?-{3,}:?\s*\|){2,}/);
+
+  if (!separatorMatch || separatorMatch.index === undefined) return null;
+
+  const columnCount = (separatorMatch[0].match(/\|/g)?.length ?? 0) - 1;
+  if (columnCount < 2) return null;
+
+  const splitCells = (value: string) =>
+    value
+      .split('|')
+      .map((cell) => cell.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim())
+      .filter(Boolean);
+
+  const beforeSeparator = cleaned.slice(0, separatorMatch.index).trim();
+  const afterSeparator = cleaned.slice(separatorMatch.index + separatorMatch[0].length).trim();
+  const headers = splitCells(beforeSeparator).slice(-columnCount);
+  const cells = splitCells(afterSeparator);
+  const rows: string[][] = [];
+
+  for (let index = 0; index < cells.length; index += columnCount) {
+    const row = cells.slice(index, index + columnCount);
+    if (row.length === columnCount) rows.push(row);
+  }
+
+  return headers.length === columnCount && rows.length > 0 ? { headers, rows } : null;
+};
 
 const MinhasDietas = () => {
   const { user } = useAuth();
