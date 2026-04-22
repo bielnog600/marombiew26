@@ -521,33 +521,8 @@ const MinhasDietas = () => {
           <div className="space-y-3 pt-2">
             {extraSections.map((s, i) => {
               const Icon = getExtraIcon(s);
-              // Normalize table content: re-insert newlines so ReactMarkdown
-              // recognizes the table grid (AI sometimes emits it on a single line).
-              const normalizeTables = (raw: string) => {
-                let txt = raw.replace(/^#+\s*/gm, '').trim();
-                // AI sometimes emits the entire table on a single line.
-                // Detect tables and rebuild them row by row.
-                if (txt.includes('|')) {
-                  // Step 1: normalize " | |" sequences (row boundaries) to newlines
-                  // Match "|" followed by optional space, then "|" that begins a new row
-                  txt = txt.replace(/\|\s+\|/g, '|\n|');
-                  // Step 2: ensure separator row sits on its own line
-                  txt = txt.replace(/\n?(\|[\s:-]*-{2,}[\s:|-]*\|)\n?/g, '\n$1\n');
-                  // Step 3: every line that starts with "|" should be a clean row.
-                  // Split on newlines and rejoin, trimming each row.
-                  txt = txt
-                    .split('\n')
-                    .map((line) => line.trim())
-                    .filter((line) => line.length > 0)
-                    .join('\n');
-                  // Step 4: ensure blank line BEFORE the first table row so
-                  // ReactMarkdown recognizes it as a table block.
-                  txt = txt.replace(/([^\n])\n(\|)/g, '$1\n\n$2');
-                }
-                txt = txt.replace(/\n{3,}/g, '\n\n');
-                return txt.trim();
-              };
-              const body = normalizeTables(s.content || '');
+              const body = cleanMarkdownContent(s.content || '').replace(/\n{3,}/g, '\n\n');
+              const parsedTable = extractLooseMarkdownTable(s.content || '');
               const title = (s.title || '').trim() || (
                 s.type === 'text' ? body.split('\n')[0].slice(0, 80) : 'Informações'
               );
@@ -560,9 +535,39 @@ const MinhasDietas = () => {
                         {title && (
                           <h3 className="text-sm font-bold text-foreground mb-2">{title}</h3>
                         )}
-                        <div className="prose prose-sm dark:prose-invert max-w-none text-sm text-muted-foreground [&_strong]:text-foreground [&_strong]:font-semibold [&_table]:text-xs [&_table]:w-full [&_th]:bg-muted [&_th]:p-1.5 [&_td]:p-1.5 [&_td]:border [&_th]:border [&_table]:block [&_table]:overflow-x-auto">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
-                        </div>
+                        {parsedTable ? (
+                          <div className="overflow-hidden rounded-lg border border-border/60 bg-background/40">
+                            <Table className="text-xs">
+                              <TableHeader>
+                                <TableRow className="hover:bg-transparent">
+                                  {parsedTable.headers.map((header, headerIndex) => (
+                                    <TableHead key={`${header}-${headerIndex}`} className="h-9 px-3 text-xs font-semibold">
+                                      {header}
+                                    </TableHead>
+                                  ))}
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {parsedTable.rows.map((row, rowIndex) => (
+                                  <TableRow key={`row-${rowIndex}`}>
+                                    {row.map((cell, cellIndex) => (
+                                      <TableCell
+                                        key={`cell-${rowIndex}-${cellIndex}`}
+                                        className={`px-3 py-2 align-top ${cellIndex === 0 ? 'font-medium text-foreground' : 'text-muted-foreground'}`}
+                                      >
+                                        {cell || '—'}
+                                      </TableCell>
+                                    ))}
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        ) : (
+                          <div className="prose prose-sm dark:prose-invert max-w-none text-sm text-muted-foreground [&_strong]:text-foreground [&_strong]:font-semibold [&_table]:text-xs [&_table]:w-full [&_th]:bg-muted [&_th]:p-1.5 [&_td]:p-1.5 [&_td]:border [&_th]:border [&_table]:block [&_table]:overflow-x-auto">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </CardContent>
