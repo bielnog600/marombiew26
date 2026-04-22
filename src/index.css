@@ -158,6 +158,22 @@
     animation: app-in 0.4s ease-out;
   }
 
+  @keyframes pulse-glow-primary {
+    0%, 100% {
+      box-shadow: 0 0 0 0 hsl(var(--primary) / 0.7), 0 0 0 0 hsl(var(--primary) / 0.4);
+      background-color: hsl(var(--primary) / 0.15);
+    }
+    50% {
+      box-shadow: 0 0 0 6px hsl(var(--primary) / 0), 0 0 14px 2px hsl(var(--primary) / 0.6);
+      background-color: hsl(var(--primary) / 0.35);
+    }
+  }
+  .animate-pulse-glow {
+    animation: pulse-glow-primary 1.4s ease-in-out infinite;
+    border-color: hsl(var(--primary)) !important;
+    color: hsl(var(--primary)) !important;
+  }
+
   .glass-card {
     @apply bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl shadow-lg;
   }

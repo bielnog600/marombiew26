@@ -801,7 +801,7 @@ const TreinoExecucao = () => {
                 </div>
                 <Input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} placeholder={planned?.reps || '10'} className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
                 <Input type="text" inputMode="decimal" value={set.weight} onChange={(e) => updateSet(i, 'weight', e.target.value)} placeholder="0" className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
-                <Button size="icon" variant={set.completed ? 'default' : 'outline'} className="h-9 w-9 mx-auto rounded-full" onClick={() => toggleSetComplete(i)}>
+                <Button size="icon" variant={set.completed ? 'default' : 'outline'} className={`h-9 w-9 mx-auto rounded-full ${!set.completed ? 'animate-pulse-glow' : ''}`} onClick={() => toggleSetComplete(i)}>
                   <Check className="h-4 w-4" />
                 </Button>
               </div>
