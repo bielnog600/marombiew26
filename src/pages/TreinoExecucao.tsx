@@ -511,7 +511,17 @@ const TreinoExecucao = () => {
     setSets((prev) => {
       const current = [...(prev[currentIndex] || [])];
       current[setIndex] = { ...current[setIndex], completed: !current[setIndex].completed };
-      return { ...prev, [currentIndex]: current };
+      const next = { ...prev, [currentIndex]: current };
+      // Persist imediatamente para não perder a série marcada se o app fechar
+      // antes do auto-save debounced disparar.
+      if (sessionId) {
+        supabase
+          .from('workout_sessions')
+          .update({ session_state: { sets: next, currentIndex } as any })
+          .eq('id', sessionId)
+          .then(() => {});
+      }
+      return next;
     });
     setShowRestTimer(true);
   };
