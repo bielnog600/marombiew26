@@ -218,24 +218,63 @@ const MinhasDietas = () => {
       'emagrec', 'jejum', 'hiit', 'termog',
       'ajuste do protocolo', 'ajustes do protocolo',
     ];
-    return sections.filter((s) => {
+    const isPractical = (str: string) => SHOW_KEYWORDS.some((k) => str.includes(k));
+    const isTheoretical = (str: string) => HIDE_KEYWORDS.some((k) => str.includes(k));
+
+    // First pass: merge consecutive text/heading lines + their following table
+    // into a single virtual section so we can decide based on the heading.
+    const merged: ParsedSection[] = [];
+    let buffer: ParsedSection | null = null;
+
+    const flushBuffer = () => {
+      if (buffer && (buffer.content || '').trim()) merged.push(buffer);
+      buffer = null;
+    };
+
+    for (const s of sections) {
+      if (s.type === 'meal' || s.type === 'message' || s.type === 'tip') {
+        flushBuffer();
+        merged.push(s);
+        continue;
+      }
+      if (s.type === 'text') {
+        const line = (s.content || '').trim();
+        const isHeading = /^#{1,6}\s/.test(line) || /^\*\*.+\*\*$/.test(line);
+        if (isHeading) {
+          flushBuffer();
+          buffer = {
+            type: 'text',
+            title: line.replace(/^#+\s*/, '').replace(/\*\*/g, '').trim(),
+            content: '',
+          };
+        } else if (buffer) {
+          buffer.content += (buffer.content ? '\n' : '') + line;
+        } else {
+          // Stray text, skip — these are reasoning fragments
+          continue;
+        }
+        continue;
+      }
+      // summary / table — attach to current buffer or stand alone
+      if (buffer) {
+        buffer.content += (buffer.content ? '\n\n' : '') + (s.content || '');
+        flushBuffer();
+      } else {
+        merged.push(s);
+      }
+    }
+    flushBuffer();
+
+    return merged.filter((s) => {
       if (s.type === 'meal' || s.type === 'message') return false;
       const content = (s.content || '').trim();
       const title = (s.title || '').trim();
       if (!content && !title) return false;
       const lower = (title + ' ' + content).toLowerCase();
-      // Always allow tables/summaries that match practical keywords
-      const isPractical = SHOW_KEYWORDS.some((k) => lower.includes(k));
-      if (isPractical) return true;
-      // Hide theoretical/calculation content
-      const isTheoretical = HIDE_KEYWORDS.some((k) => lower.includes(k));
-      if (isTheoretical) return false;
-      // Hide loose text fragments (single sentences from AI reasoning)
-      // Only keep text sections that look like a real card with a clear heading
-      if (s.type === 'text') return false;
-      // Hide generic summary tables that didn't match practical keywords
-      if (s.type === 'summary') return false;
-      return true;
+      if (isPractical(lower)) return true;
+      if (isTheoretical(lower)) return false;
+      // Default: hide anything that didn't explicitly match practical content
+      return false;
     });
   }, [sections]);
 
