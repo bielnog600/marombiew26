@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { UtensilsCrossed, Droplets, Plus, Minus, Target, ArrowLeft } from 'lucide-react';
+import { UtensilsCrossed, Droplets, Plus, Minus, Target, ArrowLeft, Lightbulb, Leaf, Pill, Zap, SlidersHorizontal } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { parseSections, type ParsedSection } from '@/lib/dietResultParser';
 import { parseTrainingSections } from '@/lib/trainingResultParser';
@@ -13,6 +13,7 @@ import MealCard from '@/components/diet/MealCard';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
+import ReactMarkdown from 'react-markdown';
 
 const WEEKDAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const OPTION_TITLE_REGEX = /(op[cç][aã]o|card[aá]pio)/i;
