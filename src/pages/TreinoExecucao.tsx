@@ -186,8 +186,17 @@ const TreinoExecucao = () => {
     if (!user || sessionInitRef.current) return;
     sessionInitRef.current = true;
     (async () => {
+      const applyState = (state: any) => {
+        if (state?.currentIndex != null) setCurrentIndex(state.currentIndex);
+        if (state?.sets) {
+          setSets(state.sets);
+          const idxs = new Set<number>(Object.keys(state.sets).map((k) => Number(k)));
+          setLoadedLogsForIndex(idxs);
+        }
+      };
+
       // 1. Verifica se já existe sessão em andamento
-      const { data: existing } = await supabase
+      const { data: existing, error } = await supabase
         .from('workout_sessions')
         .select('id, started_at, day_name, phase, session_state')
         .eq('student_id', user.id)
@@ -199,28 +208,31 @@ const TreinoExecucao = () => {
       if (existing && existing.started_at) {
         const age = Date.now() - new Date(existing.started_at).getTime();
         if (age <= 12 * 60 * 60 * 1000) {
+          const state = (activeSession?.id === existing.id ? activeSession.session_state : null) ?? existing.session_state;
           setSessionId(existing.id);
           setSessionStartAt(new Date(existing.started_at).getTime());
-          // Restaura estado se houver
-          const state = existing.session_state as any;
-          if (state?.currentIndex != null) setCurrentIndex(state.currentIndex);
-          if (state?.sets) {
-            setSets(state.sets);
-            const idxs = new Set<number>(Object.keys(state.sets).map((k) => Number(k)));
-            setLoadedLogsForIndex(idxs);
-          }
+          applyState(state);
           setLocalActiveSession({
             id: existing.id,
             student_id: user.id,
             day_name: existing.day_name,
             phase: existing.phase,
             started_at: existing.started_at,
-            session_state: existing.session_state,
+            session_state: state,
           });
           return;
         } else {
-          // Auto-abandona sessão muito antiga
           await supabase.from('workout_sessions').update({ status: 'abandoned' }).eq('id', existing.id);
+        }
+      }
+
+      if (error && activeSession?.id && activeSession.started_at) {
+        const age = Date.now() - new Date(activeSession.started_at).getTime();
+        if (age <= 12 * 60 * 60 * 1000) {
+          setSessionId(activeSession.id);
+          setSessionStartAt(new Date(activeSession.started_at).getTime());
+          applyState(activeSession.session_state);
+          return;
         }
       }
 
@@ -260,7 +272,7 @@ const TreinoExecucao = () => {
         });
       }
     })();
-  }, [user, dayName, phase, exercises.length, setLocalActiveSession]);
+  }, [user, dayName, phase, exercises.length, setLocalActiveSession, activeSession]);
 
   const formatElapsed = (totalSec: number) => {
     const h = Math.floor(totalSec / 3600);
@@ -269,6 +281,22 @@ const TreinoExecucao = () => {
     const pad = (n: number) => n.toString().padStart(2, '0');
     return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
   };
+
+  const syncLocalActiveSession = (nextSets: Record<number, ExerciseSet[]>, nextIndex: number, targetSessionId = sessionId, targetStartedAt = sessionStartAt) => {
+    if (!targetSessionId || !user) return;
+    setLocalActiveSession({
+      id: targetSessionId,
+      student_id: user.id,
+      day_name: dayName,
+      phase: phase ?? null,
+      started_at: new Date(targetStartedAt).toISOString(),
+      session_state: { sets: nextSets, currentIndex: nextIndex },
+    });
+  };
+
+  useEffect(() => {
+    syncLocalActiveSession(sets, currentIndex);
+  }, [sets, currentIndex, syncLocalActiveSession]);
 
   // Auto-save de progresso (sets + currentIndex) na sessão em andamento — debounced
   useEffect(() => {
@@ -512,6 +540,7 @@ const TreinoExecucao = () => {
       const current = [...(prev[currentIndex] || [])];
       current[setIndex] = { ...current[setIndex], completed: !current[setIndex].completed };
       const next = { ...prev, [currentIndex]: current };
+      syncLocalActiveSession(next, currentIndex);
       // Persist imediatamente para não perder a série marcada se o app fechar
       // antes do auto-save debounced disparar.
       if (sessionId) {
