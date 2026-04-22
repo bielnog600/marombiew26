@@ -282,7 +282,7 @@ const TreinoExecucao = () => {
     return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
   };
 
-  const syncLocalActiveSession = (nextSets: Record<number, ExerciseSet[]>, nextIndex: number, targetSessionId = sessionId, targetStartedAt = sessionStartAt) => {
+  const syncLocalActiveSession = useCallback((nextSets: Record<number, ExerciseSet[]>, nextIndex: number, targetSessionId = sessionId, targetStartedAt = sessionStartAt) => {
     if (!targetSessionId || !user) return;
     setLocalActiveSession({
       id: targetSessionId,
@@ -292,7 +292,7 @@ const TreinoExecucao = () => {
       started_at: new Date(targetStartedAt).toISOString(),
       session_state: { sets: nextSets, currentIndex: nextIndex },
     });
-  };
+  }, [sessionId, sessionStartAt, user, setLocalActiveSession, dayName, phase]);
 
   useEffect(() => {
     syncLocalActiveSession(sets, currentIndex);
