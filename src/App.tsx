@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { TabSwipeProvider } from "@/contexts/TabSwipeContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import SplashScreen from "@/components/SplashScreen";
 import InstallBanner from "@/components/InstallBanner";
@@ -73,6 +74,7 @@ const App = () => {
           <ScrollToTop />
           <div>
           <AuthProvider>
+            <TabSwipeProvider>
             <Routes>
               <Route path="/" element={<RootRedirect />} />
               <Route path="/login" element={<Login />} />
@@ -106,6 +108,7 @@ const App = () => {
               <Route path="/meu-progresso" element={<ProtectedRoute requiredRole="aluno"><MeuProgresso /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </TabSwipeProvider>
           </AuthProvider>
           </div>
         </BrowserRouter>
