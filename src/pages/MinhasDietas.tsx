@@ -34,16 +34,30 @@ const MinhasDietas = () => {
   const [selectedGroupIndex, setSelectedGroupIndex] = useState(0);
   const [isTrainingDay, setIsTrainingDay] = useState(false);
   const [substitutions, setSubstitutions] = useState<Record<string, any[]>>({});
+  const [planVersion, setPlanVersion] = useState<string | null>(null);
   const { tracking, addWater, removeWater, toggleMeal, waterCurrentMl, waterTargetMl, waterGoalGlasses } = useDailyTracking({ isTrainingDay });
 
-  const subsStorageKey = user ? `diet-subs-${user.id}` : '';
+  // Key local substitutions per plan version so admin edits invalidate stale subs
+  const subsStorageKey = user && planVersion ? `diet-subs-${user.id}-${planVersion}` : '';
 
   // Load persisted substitutions
   useEffect(() => {
     if (!subsStorageKey) return;
     try {
       const raw = localStorage.getItem(subsStorageKey);
-      if (raw) setSubstitutions(JSON.parse(raw));
+      setSubstitutions(raw ? JSON.parse(raw) : {});
+      // Cleanup old subs from previous plan versions for this user
+      if (user) {
+        const prefix = `diet-subs-${user.id}-`;
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(prefix) && k !== subsStorageKey) {
+            localStorage.removeItem(k);
+          }
+        }
+        // Also remove legacy key without version
+        localStorage.removeItem(`diet-subs-${user.id}`);
+      }
     } catch { /* ignore */ }
   }, [subsStorageKey]);
 
