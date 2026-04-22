@@ -185,6 +185,34 @@ const MinhasDietas = () => {
     [sections]
   );
 
+  // Extra sections to show to the student (suplementação, fitoterapia,
+  // ajustes do protocolo, dicas, emagrecimento rápido, etc.).
+  // We skip pure meal tables (already rendered) and WhatsApp messages
+  // (admin-only content).
+  const extraSections = useMemo(() => {
+    return sections.filter((s) => {
+      if (s.type === 'meal' || s.type === 'message') return false;
+      const content = (s.content || '').trim();
+      const title = (s.title || '').trim();
+      if (!content && !title) return false;
+      // Hide raw macro tables (already shown at top)
+      const lower = (title + ' ' + content).toLowerCase();
+      if (s.type === 'summary' && (lower.includes('tmb') || lower.includes('get ') || lower.includes('macros') || lower.includes('calorias alvo'))) {
+        return false;
+      }
+      return true;
+    });
+  }, [sections]);
+
+  const getExtraIcon = (s: ParsedSection) => {
+    const text = ((s.title || '') + ' ' + (s.content || '')).toLowerCase();
+    if (text.includes('fitoter') || text.includes('chá') || text.includes('infus')) return Leaf;
+    if (text.includes('suplement')) return Pill;
+    if (text.includes('emagrec') || text.includes('jejum') || text.includes('hiit') || text.includes('termog')) return Zap;
+    if (text.includes('ajuste') || text.includes('refeed') || text.includes('carb cyc') || text.includes('platô') || text.includes('plato') || text.includes('diet break')) return SlidersHorizontal;
+    return Lightbulb;
+  };
+
   const hasMultipleGroups = displayGroups.length > 1;
   const activeGroupIndex = displayGroups[selectedGroupIndex] ? selectedGroupIndex : defaultGroupIndex;
   const currentMeals = displayGroups.length > 0 ? (displayGroups[activeGroupIndex]?.meals ?? []) : allMeals;
