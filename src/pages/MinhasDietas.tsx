@@ -14,6 +14,7 @@ import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const WEEKDAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const OPTION_TITLE_REGEX = /(op[cç][aã]o|card[aá]pio)/i;
@@ -483,7 +484,20 @@ const MinhasDietas = () => {
           <div className="space-y-3 pt-2">
             {extraSections.map((s, i) => {
               const Icon = getExtraIcon(s);
-              const body = (s.content || '').replace(/^#+\s*/gm, '').trim();
+              // Normalize table content: re-insert newlines so ReactMarkdown
+              // recognizes the table grid (AI sometimes emits it on a single line).
+              const normalizeTables = (raw: string) => {
+                let txt = raw.replace(/^#+\s*/gm, '').trim();
+                // Insert a newline before every "| " that follows another "|"
+                // pattern, but only when it isn't already at line start.
+                txt = txt.replace(/\|\s*\|\s*(?=\S)/g, '|\n|');
+                // Ensure separator row (|---|---|) sits on its own line
+                txt = txt.replace(/\|(\s*-{3,}[\s-|]*)\|/g, (m) => '\n' + m + '\n');
+                // Collapse 3+ newlines
+                txt = txt.replace(/\n{3,}/g, '\n\n');
+                return txt.trim();
+              };
+              const body = normalizeTables(s.content || '');
               const title = (s.title || '').trim() || (
                 s.type === 'text' ? body.split('\n')[0].slice(0, 80) : 'Informações'
               );
@@ -497,7 +511,7 @@ const MinhasDietas = () => {
                           <h3 className="text-sm font-bold text-foreground mb-2">{title}</h3>
                         )}
                         <div className="prose prose-sm dark:prose-invert max-w-none text-sm text-muted-foreground [&_strong]:text-foreground [&_strong]:font-semibold [&_table]:text-xs [&_table]:w-full [&_th]:bg-muted [&_th]:p-1.5 [&_td]:p-1.5 [&_td]:border [&_th]:border [&_table]:block [&_table]:overflow-x-auto">
-                          <ReactMarkdown>{body}</ReactMarkdown>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
                         </div>
                       </div>
                     </div>
