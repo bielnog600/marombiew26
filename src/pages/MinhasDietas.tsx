@@ -187,19 +187,54 @@ const MinhasDietas = () => {
 
   // Extra sections to show to the student (suplementação, fitoterapia,
   // ajustes do protocolo, dicas, emagrecimento rápido, etc.).
-  // We skip pure meal tables (already rendered) and WhatsApp messages
-  // (admin-only content).
+  // We skip pure meal tables (already rendered), WhatsApp messages
+  // (admin-only) and any theoretical/calculation content like TMB, GET,
+  // Harris Benedict, distribuição de macros, fórmulas, justificativas etc.
+  // The student should only see PRACTICAL items: nomes de suplementos,
+  // fitoterápicos, e os ajustes ativados pelo admin (carb cycling,
+  // refeed, diet break, sódio, água, mudança de refeições, platô...).
   const extraSections = useMemo(() => {
+    // Keywords that indicate theoretical/calculation content — hide these
+    const HIDE_KEYWORDS = [
+      'tmb', 'taxa metab', 'harris benedict', 'mifflin', 'katch',
+      'get ', 'gasto energ', 'consumo energ', 'fator de atividade',
+      'fórmula', 'formula', 'justificativa', 'escolha da fórmula',
+      'cálculo', 'calculo do get', 'distribuição de macro',
+      'distribuicao de macro', 'macros', 'calorias alvo',
+      'déficit cal', 'deficit cal', 'meta calórica', 'meta calorica',
+      'considerando', 'passos detalhados', 'elaborar um plano',
+      'timing nutricional', 'pré-treino', 'pre-treino', 'pós-treino', 'pos-treino',
+    ];
+    // Keywords that indicate PRACTICAL content the student SHOULD see
+    const SHOW_KEYWORDS = [
+      'suplement', 'fitoter', 'chá', 'cha ', 'infus', 'erva',
+      'carb cycling', 'carb cyc', 'ciclagem',
+      'refeed', 'recarga',
+      'diet break', 'pausa',
+      'platô', 'plato', 'estagnaç', 'estagnac',
+      'ajuste de sódio', 'ajuste de sodio', 'protocolo de sódio', 'protocolo de sodio', 'manipulação de sódio',
+      'ajuste de água', 'ajuste de agua', 'ingestão hídrica', 'ingestao hidrica', 'protocolo hídrico',
+      'mudança de refei', 'mudanca de refei', 'distribuição de refei',
+      'emagrec', 'jejum', 'hiit', 'termog',
+      'ajuste do protocolo', 'ajustes do protocolo',
+    ];
     return sections.filter((s) => {
       if (s.type === 'meal' || s.type === 'message') return false;
       const content = (s.content || '').trim();
       const title = (s.title || '').trim();
       if (!content && !title) return false;
-      // Hide raw macro tables (already shown at top)
       const lower = (title + ' ' + content).toLowerCase();
-      if (s.type === 'summary' && (lower.includes('tmb') || lower.includes('get ') || lower.includes('macros') || lower.includes('calorias alvo'))) {
-        return false;
-      }
+      // Always allow tables/summaries that match practical keywords
+      const isPractical = SHOW_KEYWORDS.some((k) => lower.includes(k));
+      if (isPractical) return true;
+      // Hide theoretical/calculation content
+      const isTheoretical = HIDE_KEYWORDS.some((k) => lower.includes(k));
+      if (isTheoretical) return false;
+      // Hide loose text fragments (single sentences from AI reasoning)
+      // Only keep text sections that look like a real card with a clear heading
+      if (s.type === 'text') return false;
+      // Hide generic summary tables that didn't match practical keywords
+      if (s.type === 'summary') return false;
       return true;
     });
   }, [sections]);
