@@ -8,6 +8,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Dumbbell, Play, Target } from 'lucide-react';
+import { X, Clock } from 'lucide-react';
+import { toast } from 'sonner';
+import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import {
   TRAINING_PHASES,
@@ -29,6 +32,40 @@ interface PlanRow {
 const MeusTreinos = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { session: activeSession, clear: clearActiveSession } = useActiveWorkoutSession();
+  const [activeElapsed, setActiveElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!activeSession) return;
+    const update = () => {
+      const ms = Date.now() - new Date(activeSession.started_at).getTime();
+      setActiveElapsed(Math.max(0, Math.floor(ms / 1000)));
+    };
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [activeSession]);
+
+  const formatElapsed = (totalSec: number) => {
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+  };
+
+  const handleCancelActive = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!activeSession) return;
+    if (!window.confirm('Cancelar o treino em andamento? O progresso será descartado.')) return;
+    await supabase.from('workout_sessions').update({ status: 'abandoned' }).eq('id', activeSession.id);
+    clearActiveSession();
+    toast.success('Treino cancelado.');
+  };
+
+  const handleResumeActive = () => {
+    navigate('/treino-execucao');
+  };
   const [plans, setPlans] = useState<PlanRow[]>([]);
   const [exerciseMedia, setExerciseMedia] = useState<Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }>>({});
   const [loading, setLoading] = useState(true);
@@ -214,6 +251,7 @@ const MeusTreinos = () => {
         ) : (
           trainingDays.map((day, i) => {
             const isToday = i === todayIndex;
+            const isActiveDay = isToday && !!activeSession;
             const muscles = getMuscleGroups(day);
             const heroImage = (() => {
               const start = Math.min(2, day.exercises.length - 1);
@@ -227,7 +265,7 @@ const MeusTreinos = () => {
             return (
               <Card
                 key={day.day + i}
-                className={`glass-card overflow-hidden ${isToday ? 'ring-2 ring-primary/50' : ''}`}
+                className={`glass-card overflow-hidden ${isActiveDay ? 'ring-2 ring-primary/60 shadow-lg shadow-primary/10' : isToday ? 'ring-2 ring-primary/50' : ''}`}
               >
                 {heroImage && (
                   <div className="relative h-32 overflow-hidden">
@@ -237,8 +275,23 @@ const MeusTreinos = () => {
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${PHASE_BADGE_CLASS[activePhase]}`}>
                         {PHASE_SHORT_LABELS[activePhase]}
                       </span>
+                      {isActiveDay && (
+                        <span className="flex items-center gap-1 bg-primary/90 backdrop-blur rounded-full px-2 py-0.5">
+                          <span className="h-1.5 w-1.5 rounded-full bg-primary-foreground animate-pulse" />
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-primary-foreground">Em andamento</span>
+                        </span>
+                      )}
                     </div>
-                    {isToday && (
+                    {isActiveDay ? (
+                      <button
+                        type="button"
+                        onClick={handleCancelActive}
+                        aria-label="Cancelar treino em andamento"
+                        className="absolute top-2 right-2 z-10 h-7 w-7 rounded-full bg-background/80 backdrop-blur flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground transition-colors"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    ) : isToday && (
                       <div className="absolute top-2 right-2 bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
                         Hoje
                       </div>
@@ -270,11 +323,20 @@ const MeusTreinos = () => {
                       <Target className="h-3.5 w-3.5" />
                       {day.exercises.length} exercícios
                     </span>
+                    {isActiveDay && (
+                      <span className="flex items-center gap-1 text-primary font-mono font-bold tabular-nums">
+                        <Clock className="h-3.5 w-3.5" />
+                        {formatElapsed(activeElapsed)}
+                      </span>
+                    )}
                   </div>
 
-                  <Button className="w-full gap-2" onClick={() => handleStart(day)}>
+                  <Button
+                    className="w-full gap-2"
+                    onClick={() => (isActiveDay ? handleResumeActive() : handleStart(day))}
+                  >
                     <Play className="h-4 w-4" />
-                    Iniciar Treino
+                    {isActiveDay ? 'Continuar Treino' : 'Iniciar Treino'}
                   </Button>
                 </CardContent>
               </Card>
