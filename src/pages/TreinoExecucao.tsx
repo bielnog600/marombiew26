@@ -790,9 +790,12 @@ const TreinoExecucao = () => {
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Carga</span>
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">✓</span>
           </div>
-          {currentSets.map((set, i) => {
+          {(() => {
+            const nextPendingIndex = currentSets.findIndex((s) => !s.completed);
+            return currentSets.map((set, i) => {
             const planned = setPlan[i];
             const isRecognition = planned?.type === 'recognition';
+            const isNextPending = i === nextPendingIndex;
             return (
               <div key={i} className={`grid grid-cols-[36px_1fr_1fr_44px] gap-1.5 items-center p-2 rounded-lg transition-colors ${set.completed ? 'bg-primary/10 border border-primary/30' : isRecognition ? 'bg-accent/10 border border-accent/30' : 'bg-secondary/50'}`}>
                 <div className="flex flex-col items-center justify-center">
@@ -801,12 +804,13 @@ const TreinoExecucao = () => {
                 </div>
                 <Input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} placeholder={planned?.reps || '10'} className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
                 <Input type="text" inputMode="decimal" value={set.weight} onChange={(e) => updateSet(i, 'weight', e.target.value)} placeholder="0" className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
-                <Button size="icon" variant={set.completed ? 'default' : 'outline'} className={`h-9 w-9 mx-auto rounded-full ${!set.completed ? 'animate-pulse-glow' : ''}`} onClick={() => toggleSetComplete(i)}>
+                <Button size="icon" variant={set.completed ? 'default' : 'outline'} className={`h-9 w-9 mx-auto rounded-full ${isNextPending ? 'animate-pulse-glow' : ''}`} onClick={() => toggleSetComplete(i)}>
                   <Check className="h-4 w-4" />
                 </Button>
               </div>
             );
-          })}
+            });
+          })()}
         </div>
 
       </div>
