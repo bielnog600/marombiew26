@@ -511,7 +511,7 @@ const MinhasDietas = () => {
                           <h3 className="text-sm font-bold text-foreground mb-2">{title}</h3>
                         )}
                         <div className="prose prose-sm dark:prose-invert max-w-none text-sm text-muted-foreground [&_strong]:text-foreground [&_strong]:font-semibold [&_table]:text-xs [&_table]:w-full [&_th]:bg-muted [&_th]:p-1.5 [&_td]:p-1.5 [&_td]:border [&_th]:border [&_table]:block [&_table]:overflow-x-auto">
-                          <ReactMarkdown>{body}</ReactMarkdown>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
                         </div>
                       </div>
                     </div>
