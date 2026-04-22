@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Hls from 'hls.js';
 import { ArrowLeft, Play, Pause, Check, ChevronLeft, ChevronRight, X, Clock } from 'lucide-react';
@@ -196,7 +196,7 @@ const TreinoExecucao = () => {
       };
 
       // 1. Verifica se já existe sessão em andamento
-      const { data: existing, error } = await supabase
+      const { data: existing, error: existingError } = await supabase
         .from('workout_sessions')
         .select('id, started_at, day_name, phase, session_state')
         .eq('student_id', user.id)
@@ -226,7 +226,7 @@ const TreinoExecucao = () => {
         }
       }
 
-      if (error && activeSession?.id && activeSession.started_at) {
+      if (existingError && activeSession?.id && activeSession.started_at) {
         const age = Date.now() - new Date(activeSession.started_at).getTime();
         if (age <= 12 * 60 * 60 * 1000) {
           setSessionId(activeSession.id);
@@ -238,7 +238,7 @@ const TreinoExecucao = () => {
 
       // 2. Cria nova sessão em andamento
       const startedAtIso = new Date().toISOString();
-      const { data: newSession, error } = await supabase
+      const { data: newSession, error: createSessionError } = await supabase
         .from('workout_sessions')
         .insert({
           student_id: user.id,
@@ -253,7 +253,7 @@ const TreinoExecucao = () => {
         .select('id, started_at')
         .single();
 
-      if (!error && newSession) {
+      if (!createSessionError && newSession) {
         setSessionId(newSession.id);
         setSessionStartAt(new Date(newSession.started_at).getTime());
         setLocalActiveSession({
