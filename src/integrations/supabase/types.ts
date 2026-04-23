@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_notifications: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          message: string
+          priority: string
+          sender_id: string
+          student_id: string
+          title: string
+          viewed_at: string | null
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          message: string
+          priority?: string
+          sender_id: string
+          student_id: string
+          title: string
+          viewed_at?: string | null
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          message?: string
+          priority?: string
+          sender_id?: string
+          student_id?: string
+          title?: string
+          viewed_at?: string | null
+        }
+        Relationships: []
+      }
       ai_plans: {
         Row: {
           conteudo: string
