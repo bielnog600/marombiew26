@@ -12,6 +12,7 @@ import { X, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
+import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import {
   TRAINING_PHASES,
   PHASE_LABELS,
@@ -125,11 +126,7 @@ const MeusTreinos = () => {
       if (dbExercises) {
         const mediaMap: Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }> = {};
         for (const name of uniqueNames) {
-          const match = dbExercises.find(e =>
-            e.nome.toUpperCase().trim() === name ||
-            name.includes(e.nome.toUpperCase().trim()) ||
-            e.nome.toUpperCase().trim().includes(name)
-          );
+          const match = findBestExerciseMatch(name, dbExercises);
           if (match) {
             mediaMap[name] = {
               id: match.id,

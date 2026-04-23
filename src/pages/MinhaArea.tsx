@@ -19,6 +19,7 @@ import TabataDoDiaCard from '@/components/home/TabataDoDiaCard';
 import CardioDoDiaCard from '@/components/home/CardioDoDiaCard';
 import { useEventTracking } from '@/hooks/useEventTracking';
 import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
+import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 
 const MinhaArea = () => {
   const { user } = useAuth();
@@ -127,11 +128,7 @@ const MinhaArea = () => {
           const muscleMap: Record<string, string> = {};
           const mediaMap: Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }> = {};
           for (const name of uniqueNames) {
-            const match = dbExercises.find(e =>
-              e.nome.toUpperCase().trim() === name ||
-              name.includes(e.nome.toUpperCase().trim()) ||
-              e.nome.toUpperCase().trim().includes(name)
-            );
+            const match = findBestExerciseMatch(name, dbExercises);
             if (match?.imagem_url) imgMap[name] = match.imagem_url;
             if (match?.grupo_muscular) muscleMap[name] = match.grupo_muscular;
             if (match) {

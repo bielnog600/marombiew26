@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
 import { type ParsedExercise, parseTrainingSections } from '@/lib/trainingResultParser';
 import { buildSetPlan, buildPlanSummary, type PlannedSet } from '@/lib/setPlanBuilder';
+import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { PHASE_SHORT_LABELS, getPhaseByMonthDay, type TrainingPhase } from '@/lib/trainingPhase';
 import { WorkoutSummaryShare } from '@/components/training/WorkoutSummaryShare';
 import { PhaseInfoSheet } from '@/components/training/PhaseInfoSheet';
@@ -344,11 +345,7 @@ const TreinoExecucao = () => {
           if (dbEx) {
             const mediaMap: ExerciseMediaMap = {};
             for (const name of uniqueNames) {
-              const match = dbEx.find(e =>
-                e.nome.toUpperCase().trim() === name ||
-                name.includes(e.nome.toUpperCase().trim()) ||
-                e.nome.toUpperCase().trim().includes(name)
-              );
+              const match = findBestExerciseMatch(name, dbEx);
               if (match) {
                 mediaMap[name] = {
                   id: match.id,
