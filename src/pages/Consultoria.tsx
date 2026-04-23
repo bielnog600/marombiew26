@@ -358,23 +358,6 @@ const Consultoria = () => {
   return (
     <AppLayout title="Consultoria">
       <div className="space-y-4 animate-fade-in">
-        {/* Stat cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {statCards.map(stat => (
-            <Card key={stat.title} className="glass-card">
-              <CardContent className="flex items-center gap-3 p-3">
-                <div className={`rounded-xl p-2 bg-secondary ${stat.color}`}>
-                  <stat.icon className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground">{stat.title}</p>
-                  <p className="text-xl font-bold">{loading ? '…' : stat.value}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
         {/* Main scrollable tabs */}
         <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
           <div className="flex gap-2 w-max">
