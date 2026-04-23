@@ -5,14 +5,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
-import { format, formatDistanceToNow, differenceInDays, startOfWeek, endOfWeek, subDays, eachDayOfInterval } from 'date-fns';
+import { format, formatDistanceToNow, differenceInDays, subDays, eachDayOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   Activity, Calendar, Dumbbell, Utensils, GlassWater, AlertTriangle,
   TrendingUp, TrendingDown, Minus, Clock, Flame, Send, History, CheckCircle2, XCircle, Sparkles
 } from 'lucide-react';
 import SendNotificationDialog from './SendNotificationDialog';
-import { Button } from '@/components/ui/button';
 
 interface Props {
   studentId: string;
@@ -155,7 +154,6 @@ const StudentBehavior360: React.FC<Props> = ({ studentId, studentName }) => {
     const exerciseProgress = Array.from(byExercise.entries())
       .map(([name, logs]) => {
         const sorted = [...logs].sort((a, b) => new Date(a.performed_at).getTime() - new Date(b.performed_at).getTime());
-        const first = sorted[0];
         const last = sorted[sorted.length - 1];
         const maxFirst = Math.max(...sorted.slice(0, Math.min(3, sorted.length)).map(l => Number(l.weight_kg) || 0));
         const maxLast = Math.max(...sorted.slice(-3).map(l => Number(l.weight_kg) || 0));
