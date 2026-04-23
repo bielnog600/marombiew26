@@ -462,7 +462,8 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="relative w-full sm:max-w-2xl overflow-y-auto">
+      <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+        <div className="relative min-h-full">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Dumbbell className="h-5 w-5 text-primary" />
@@ -671,6 +672,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
           </div>
           </div>
         )}
+        </div>
       </SheetContent>
     </Sheet>
   );
