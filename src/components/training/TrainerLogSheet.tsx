@@ -607,6 +607,63 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
           </div>
         )}
       </SheetContent>
+      {restTimer && (
+        <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center">
+          <button
+            type="button"
+            onClick={() => setRestTimer(null)}
+            className="absolute top-4 right-4 p-2 rounded-full bg-secondary hover:bg-secondary/80"
+            aria-label="Fechar"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground mb-6 font-semibold">
+            Descanso
+          </p>
+          <div className="relative w-48 h-48 flex items-center justify-center">
+            <svg className="absolute inset-0 -rotate-90" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="46" fill="none" stroke="hsl(var(--secondary))" strokeWidth="6" />
+              <circle
+                cx="50"
+                cy="50"
+                r="46"
+                fill="none"
+                stroke="hsl(var(--primary))"
+                strokeWidth="6"
+                strokeLinecap="round"
+                strokeDasharray={2 * Math.PI * 46}
+                strokeDashoffset={
+                  2 * Math.PI * 46 * (1 - (restTimer.total > 0 ? restTimer.remaining / restTimer.total : 0))
+                }
+                style={{ transition: 'stroke-dashoffset 1s linear' }}
+              />
+            </svg>
+            <span className="text-5xl font-bold tabular-nums">
+              {Math.floor(restTimer.remaining / 60)}:
+              {String(restTimer.remaining % 60).padStart(2, '0')}
+            </span>
+          </div>
+          <div className="mt-8 flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRestTimer((p) => (p ? { ...p, remaining: Math.max(0, p.remaining - 15) } : p))}
+            >
+              -15s
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRestTimer((p) => (p ? { ...p, remaining: p.remaining + 15, total: p.total + 15 } : p))}
+            >
+              +15s
+            </Button>
+            <Button size="sm" onClick={() => setRestTimer(null)}>
+              Pular
+            </Button>
+          </div>
+        </div>
+      )}
     </Sheet>
   );
 };
