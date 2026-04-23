@@ -468,13 +468,14 @@ const TreinoExecucao = () => {
 
   const activeExercise = showingVariation && matchedVariation ? matchedVariation : matchedExercise;
   const selectedExerciseName = showingVariation && exercise?.variation ? exercise.variation : exercise?.exercise || '';
+  const currentVariationPref = exercise ? variationPrefs[normalizeExerciseKey(exercise.exercise)] : undefined;
 
   // Carrega a preferência de variação salva por exercício ao trocar de exercício
   useEffect(() => {
     if (!exercise) return;
     const cacheKey = normalizeExerciseKey(exercise.exercise);
     const localPref = loadVariationPref(user?.id, exercise.exercise);
-    setShowingVariation(variationPrefs[cacheKey] ?? localPref);
+    setShowingVariation(currentVariationPref ?? localPref);
 
     if (!user || !matchedExercise?.id) return;
 
@@ -492,14 +493,14 @@ const TreinoExecucao = () => {
         const backendPref = typeof stored[VARIATION_PREF_FIELD] === 'boolean'
           ? stored[VARIATION_PREF_FIELD]
           : localPref;
-        setVariationPrefs((prev) => ({ ...prev, [cacheKey]: backendPref }));
+        setVariationPrefs((prev) => (prev[cacheKey] === backendPref ? prev : { ...prev, [cacheKey]: backendPref }));
         setShowingVariation(backendPref);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [exercise, user, matchedExercise?.id, variationPrefs]);
+  }, [exercise, user, matchedExercise?.id, currentVariationPref]);
 
   // Persiste a escolha sempre que mudar
   const toggleVariation = async () => {
