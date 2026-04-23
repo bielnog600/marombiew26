@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { FileText, Utensils, Dumbbell, ClipboardList, Users, ChevronRight, Bell, MessageSquare, CalendarClock, Cake, Phone, AlertTriangle, RefreshCw, ExternalLink, X, UtensilsCrossed, Activity, Sparkles } from 'lucide-react';
+import { FileText, Utensils, Dumbbell, ClipboardList, Users, Bell, MessageSquare, CalendarClock, Cake, Phone, AlertTriangle, RefreshCw, ExternalLink, X, UtensilsCrossed, Activity, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -90,7 +90,7 @@ const Consultoria = () => {
   const [students, setStudents] = useState<StudentSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [totals, setTotals] = useState({ dietas: 0, treinos: 0, fichas: 0, fichasPendentes: 0, alunos: 0, dietasVencidas: 0, treinosVencidos: 0 });
-  const [tab, setTab] = useState('alertas');
+  const [tab, setTab] = useState('dashboard');
   const navigate = useNavigate();
 
   const { notifications, loading: notifLoading, count: notifCount, refresh: refreshNotifs, dismissNotification } = useNotifications();
@@ -286,11 +286,12 @@ const Consultoria = () => {
     );
   };
 
-  const statCards = [
-    { title: 'Alunos', value: totals.alunos, icon: Users, color: 'text-primary' },
-    { title: 'Alertas', value: notifCount, icon: Bell, color: 'text-orange-500' },
-    { title: 'Sem Dieta', value: semDieta.length, icon: Utensils, color: 'text-destructive' },
-    { title: 'Sem Treino', value: semTreino.length, icon: Dumbbell, color: 'text-destructive' },
+  const totalAlerts = notifCount + behavioralAlerts.length;
+  const dashboardCards = [
+    { title: 'Alunos', value: totals.alunos, icon: Users, color: 'text-primary', onClick: () => setTab('alunos') },
+    { title: 'Alertas ativos', value: totalAlerts, icon: Bell, color: 'text-orange-500', onClick: () => setTab('alertas') },
+    { title: 'Sem dieta', value: semDieta.length, icon: Utensils, color: 'text-destructive', onClick: () => setTab('sem-dieta') },
+    { title: 'Sem treino', value: semTreino.length, icon: Dumbbell, color: 'text-destructive', onClick: () => setTab('sem-treino') },
   ];
 
   const fichaStatusBadge = (status: string) => {
@@ -335,13 +336,11 @@ const Consultoria = () => {
   };
 
   const mainTabs = [
-    { value: 'alertas', label: 'Alertas', icon: Bell, count: notifCount },
-    { value: 'overview', label: 'Visão Geral', icon: FileText, count: null },
+    { value: 'dashboard', label: 'Dashboard', icon: FileText, count: null },
+    { value: 'alertas', label: 'Alertas', icon: Bell, count: totalAlerts || null },
     { value: 'alunos', label: 'Alunos', icon: Users, count: null },
     { value: 'dietas', label: 'Dietas', icon: Utensils, count: null },
     { value: 'treinos', label: 'Treinos', icon: Dumbbell, count: null },
-    { value: 'sem-dieta', label: 'Sem Dieta', icon: Utensils, count: semDieta.length },
-    { value: 'sem-treino', label: 'Sem Treino', icon: Dumbbell, count: semTreino.length },
     { value: 'fichas', label: 'Fichas', icon: ClipboardList, count: totals.fichasPendentes },
   ];
 
@@ -359,23 +358,6 @@ const Consultoria = () => {
   return (
     <AppLayout title="Consultoria">
       <div className="space-y-4 animate-fade-in">
-        {/* Stat cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {statCards.map(stat => (
-            <Card key={stat.title} className="glass-card">
-              <CardContent className="flex items-center gap-3 p-3">
-                <div className={`rounded-xl p-2 bg-secondary ${stat.color}`}>
-                  <stat.icon className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground">{stat.title}</p>
-                  <p className="text-xl font-bold">{loading ? '…' : stat.value}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
         {/* Main scrollable tabs */}
         <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
           <div className="flex gap-2 w-max">
@@ -408,11 +390,42 @@ const Consultoria = () => {
         </div>
 
         {/* Tab content */}
+        {tab === 'dashboard' && (
+          <div className="space-y-4">
+            {/* KPIs principais */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {dashboardCards.map(stat => (
+                <Card
+                  key={stat.title}
+                  className="glass-card cursor-pointer hover:bg-secondary/40 transition-colors"
+                  onClick={stat.onClick}
+                >
+                  <CardContent className="flex items-center gap-3 p-3">
+                    <div className={`rounded-xl p-2 bg-secondary ${stat.color}`}>
+                      <stat.icon className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{stat.title}</p>
+                      <p className="text-xl font-bold">{loading ? '…' : stat.value}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Bloco resumido de comportamento/aderência */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Activity className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-semibold">Comportamento de hoje</h3>
+              </div>
+              <EngagementOverviewCards />
+            </div>
+          </div>
+        )}
+
         {tab === 'alertas' && (
           <div className="space-y-4">
-            {/* Engagement overview cards */}
-            <EngagementOverviewCards />
-
             {/* Category filter */}
             <div className="flex gap-2 flex-wrap items-center">
               {([
@@ -588,70 +601,6 @@ const Consultoria = () => {
               )}
             </div>
           </div>
-        )}
-
-        {tab === 'overview' && (
-          <Card className="glass-card">
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-5 w-5 text-primary" />
-                Resumo por Aluno
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <p className="text-sm text-muted-foreground">Carregando...</p>
-              ) : students.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhum aluno cadastrado.</p>
-              ) : (
-                <div className="space-y-2">
-                  {students.map(s => {
-                    const dietaCycle = getCycleInfo(s.ultimaDieta);
-                    const treinoCycle = getCycleInfo(s.ultimoTreino);
-                    return (
-                      <div
-                        key={s.userId}
-                        className="p-3 rounded-lg bg-secondary/50 cursor-pointer hover:bg-secondary transition-colors"
-                        onClick={() => navigate(`/alunos/${s.userId}?tab=ia`)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/20 text-primary font-semibold text-sm shrink-0">
-                            {s.nome[0].toUpperCase()}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium truncate">{s.nome}</p>
-                            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
-                              {s.totalDietas > 0 && (
-                                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                  🍽 {s.totalDietas}
-                                  <span className={`text-[10px] ${dietaCycle.status === 'vencido' ? 'text-destructive' : dietaCycle.status === 'atencao' ? 'text-orange-500' : 'text-emerald-500'}`}>
-                                    ({dietaCycle.remaining > 0 ? `${dietaCycle.remaining}d` : 'vencida'})
-                                  </span>
-                                </span>
-                              )}
-                              {s.totalTreinos > 0 && (
-                                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                  🏋️ {s.totalTreinos}
-                                  <span className={`text-[10px] ${treinoCycle.status === 'vencido' ? 'text-destructive' : treinoCycle.status === 'atencao' ? 'text-orange-500' : 'text-emerald-500'}`}>
-                                    ({treinoCycle.remaining > 0 ? `${treinoCycle.remaining}d` : 'vencido'})
-                                  </span>
-                                </span>
-                              )}
-                              <span className="text-xs text-muted-foreground">📋 {s.totalAvaliacoes}</span>
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-end gap-1">
-                            {fichaStatusBadge(s.fichaStatus)}
-                          </div>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
         )}
 
         {tab === 'alunos' && (
