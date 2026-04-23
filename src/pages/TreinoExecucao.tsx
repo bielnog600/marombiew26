@@ -751,7 +751,7 @@ const TreinoExecucao = () => {
             {exercise.variation && (
               <button
                 type="button"
-                onClick={() => setShowingVariation(!showingVariation)}
+                onClick={toggleVariation}
                 className={`relative z-10 shrink-0 mt-1 touch-manipulation rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider backdrop-blur transition-colors ${showingVariation ? 'bg-primary text-primary-foreground' : 'bg-background/80 text-foreground border border-border/50'}`}
               >
                 {showingVariation ? 'Original' : 'Variação'}
