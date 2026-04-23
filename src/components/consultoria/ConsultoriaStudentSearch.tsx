@@ -85,23 +85,41 @@ const ConsultoriaStudentSearch: React.FC = () => {
     const q = query.trim().toLowerCase();
     return rows.filter(r => {
       if (q && !r.name.toLowerCase().includes(q) && !r.email.toLowerCase().includes(q)) return false;
+      // Filtros que NÃO são "desativados" só consideram alunos ativos
+      if (filter !== 'desativados' && !r.ativo) return false;
       switch (filter) {
         case 'risco_alto': return r.risk === 'alto';
         case 'sem_plano': return !r.hasPlan;
         case 'baixa_aderencia': return r.adherence < 40;
         case 'ativos': return r.risk === 'baixo';
+        case 'desativados': return !r.ativo;
         default: return true;
       }
     });
   }, [rows, query, filter]);
 
   const filters: { value: FilterKey; label: string; count: number }[] = [
-    { value: 'todos', label: 'Todos', count: rows.length },
-    { value: 'ativos', label: 'Ativos', count: rows.filter(r => r.risk === 'baixo').length },
-    { value: 'risco_alto', label: 'Risco abandono', count: rows.filter(r => r.risk === 'alto').length },
-    { value: 'baixa_aderencia', label: 'Baixa aderência', count: rows.filter(r => r.adherence < 40).length },
-    { value: 'sem_plano', label: 'Sem plano', count: rows.filter(r => !r.hasPlan).length },
+    { value: 'todos', label: 'Todos', count: rows.filter(r => r.ativo).length },
+    { value: 'ativos', label: 'Engajados', count: rows.filter(r => r.ativo && r.risk === 'baixo').length },
+    { value: 'risco_alto', label: 'Risco abandono', count: rows.filter(r => r.ativo && r.risk === 'alto').length },
+    { value: 'baixa_aderencia', label: 'Baixa aderência', count: rows.filter(r => r.ativo && r.adherence < 40).length },
+    { value: 'sem_plano', label: 'Sem plano', count: rows.filter(r => r.ativo && !r.hasPlan).length },
+    { value: 'desativados', label: 'Desativados', count: rows.filter(r => !r.ativo).length },
   ];
+
+  const toggleAtivo = async (id: string, currentAtivo: boolean) => {
+    const newAtivo = !currentAtivo;
+    const { error } = await supabase
+      .from('students_profile')
+      .update({ ativo: newAtivo })
+      .eq('user_id', id);
+    if (error) {
+      toast.error('Erro ao atualizar status do aluno');
+      return;
+    }
+    setRows(prev => prev.map(r => r.id === id ? { ...r, ativo: newAtivo } : r));
+    toast.success(newAtivo ? 'Aluno reativado — alertas voltam a aparecer' : 'Aluno desativado — alertas serão ocultados');
+  };
 
   return (
     <div className="space-y-3">
