@@ -90,7 +90,7 @@ const Consultoria = () => {
   const [students, setStudents] = useState<StudentSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [totals, setTotals] = useState({ dietas: 0, treinos: 0, fichas: 0, fichasPendentes: 0, alunos: 0, dietasVencidas: 0, treinosVencidos: 0 });
-  const [tab, setTab] = useState('alertas');
+  const [tab, setTab] = useState('dashboard');
   const navigate = useNavigate();
 
   const { notifications, loading: notifLoading, count: notifCount, refresh: refreshNotifs, dismissNotification } = useNotifications();
@@ -286,11 +286,12 @@ const Consultoria = () => {
     );
   };
 
-  const statCards = [
-    { title: 'Alunos', value: totals.alunos, icon: Users, color: 'text-primary' },
-    { title: 'Alertas', value: notifCount, icon: Bell, color: 'text-orange-500' },
-    { title: 'Sem Dieta', value: semDieta.length, icon: Utensils, color: 'text-destructive' },
-    { title: 'Sem Treino', value: semTreino.length, icon: Dumbbell, color: 'text-destructive' },
+  const totalAlerts = notifCount + behavioralAlerts.length;
+  const dashboardCards = [
+    { title: 'Alunos', value: totals.alunos, icon: Users, color: 'text-primary', onClick: () => setTab('alunos') },
+    { title: 'Alertas ativos', value: totalAlerts, icon: Bell, color: 'text-orange-500', onClick: () => setTab('alertas') },
+    { title: 'Sem dieta', value: semDieta.length, icon: Utensils, color: 'text-destructive', onClick: () => setTab('sem-dieta') },
+    { title: 'Sem treino', value: semTreino.length, icon: Dumbbell, color: 'text-destructive', onClick: () => setTab('sem-treino') },
   ];
 
   const fichaStatusBadge = (status: string) => {
@@ -335,13 +336,11 @@ const Consultoria = () => {
   };
 
   const mainTabs = [
-    { value: 'alertas', label: 'Alertas', icon: Bell, count: notifCount },
-    { value: 'overview', label: 'Visão Geral', icon: FileText, count: null },
+    { value: 'dashboard', label: 'Dashboard', icon: FileText, count: null },
+    { value: 'alertas', label: 'Alertas', icon: Bell, count: totalAlerts || null },
     { value: 'alunos', label: 'Alunos', icon: Users, count: null },
     { value: 'dietas', label: 'Dietas', icon: Utensils, count: null },
     { value: 'treinos', label: 'Treinos', icon: Dumbbell, count: null },
-    { value: 'sem-dieta', label: 'Sem Dieta', icon: Utensils, count: semDieta.length },
-    { value: 'sem-treino', label: 'Sem Treino', icon: Dumbbell, count: semTreino.length },
     { value: 'fichas', label: 'Fichas', icon: ClipboardList, count: totals.fichasPendentes },
   ];
 
