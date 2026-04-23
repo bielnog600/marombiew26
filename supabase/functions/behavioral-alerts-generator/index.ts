@@ -40,7 +40,16 @@ Deno.serve(async (req) => {
       .select('user_id')
       .eq('role', 'aluno');
 
-    const studentIds = (alunoRoles ?? []).map((r) => r.user_id);
+    const allStudentIds = (alunoRoles ?? []).map((r) => r.user_id);
+
+    // Filtrar somente alunos com students_profile.ativo = true
+    const { data: activeProfiles } = await supabase
+      .from('students_profile')
+      .select('user_id')
+      .eq('ativo', true)
+      .in('user_id', allStudentIds);
+
+    const studentIds = (activeProfiles ?? []).map((p) => p.user_id);
     if (!studentIds.length) {
       return new Response(JSON.stringify({ generated: 0 }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
