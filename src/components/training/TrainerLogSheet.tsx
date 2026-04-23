@@ -521,6 +521,22 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                       )}
                     </div>
 
+                    <div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 gap-1.5 px-2.5 text-[10px] border-primary/40 text-primary hover:bg-primary/10"
+                        onClick={() => {
+                          const secs = parsePauseSeconds(ex.pause);
+                          setRestTimer({ total: secs, remaining: secs });
+                        }}
+                      >
+                        <Timer className="h-3 w-3" />
+                        Cronômetro de descanso{ex.pause ? ` · ${ex.pause}` : ''}
+                      </Button>
+                    </div>
+
                     <div className="space-y-1.5">
                       {st.sets.map((s, setIdx) => {
                         const p = st.plan?.[setIdx] ?? { kind: 'work' as const, targetReps: '' };
