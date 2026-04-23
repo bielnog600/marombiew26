@@ -21,6 +21,9 @@ import { SessionRpeDialog } from '@/components/training/SessionRpeDialog';
 import { Settings2, Info, BarChart3, Timer } from 'lucide-react';
 
 const VARIATION_PREF_KEY = 'mw_exercise_variation_pref';
+const VARIATION_PREF_FIELD = '__preferred_variation';
+
+const normalizeExerciseKey = (exerciseName: string) => exerciseName.toUpperCase().trim();
 
 const loadVariationPref = (userId: string | undefined, exerciseName: string): boolean => {
   if (!userId || !exerciseName) return false;
@@ -28,7 +31,7 @@ const loadVariationPref = (userId: string | undefined, exerciseName: string): bo
     const raw = localStorage.getItem(`${VARIATION_PREF_KEY}:${userId}`);
     if (!raw) return false;
     const map = JSON.parse(raw) as Record<string, boolean>;
-    return !!map[exerciseName.toUpperCase().trim()];
+    return !!map[normalizeExerciseKey(exerciseName)];
   } catch {
     return false;
   }
@@ -40,7 +43,7 @@ const saveVariationPref = (userId: string | undefined, exerciseName: string, val
     const key = `${VARIATION_PREF_KEY}:${userId}`;
     const raw = localStorage.getItem(key);
     const map = raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
-    map[exerciseName.toUpperCase().trim()] = value;
+    map[normalizeExerciseKey(exerciseName)] = value;
     localStorage.setItem(key, JSON.stringify(map));
   } catch {
     /* ignore */
@@ -175,6 +178,7 @@ const TreinoExecucao = () => {
   const [restDuration, setRestDuration] = useState(60);
   const [showPlayFallback, setShowPlayFallback] = useState(false);
   const [showingVariation, setShowingVariation] = useState(false);
+  const [variationPrefs, setVariationPrefs] = useState<Record<string, boolean>>({});
   // Sessão persistida: started_at vem do banco (ou agora se ainda não existe)
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionStartAt, setSessionStartAt] = useState<number>(() => Date.now());
@@ -441,10 +445,12 @@ const TreinoExecucao = () => {
 
     if (exerciseMedia[name]) {
       return {
+        id: exerciseMedia[name].id,
         nome: name,
         imagem_url: exerciseMedia[name].imageUrl ?? null,
         video_embed: exerciseMedia[name].videoEmbed ?? null,
         grupo_muscular: exerciseMedia[name].muscleGroup ?? '',
+        ajustes: exerciseMedia[name].ajustes ?? null,
       } as ExerciseDBData;
     }
 
@@ -461,18 +467,79 @@ const TreinoExecucao = () => {
   }, [exercise, exerciseDB, exerciseMedia, showingVariation]);
 
   const activeExercise = showingVariation && matchedVariation ? matchedVariation : matchedExercise;
+  const selectedExerciseName = showingVariation && exercise?.variation ? exercise.variation : exercise?.exercise || '';
 
   // Carrega a preferência de variação salva por exercício ao trocar de exercício
   useEffect(() => {
     if (!exercise) return;
-    setShowingVariation(loadVariationPref(user?.id, exercise.exercise));
-  }, [currentIndex, exercise, user?.id]);
+    const cacheKey = normalizeExerciseKey(exercise.exercise);
+    const localPref = loadVariationPref(user?.id, exercise.exercise);
+    setShowingVariation(variationPrefs[cacheKey] ?? localPref);
+
+    if (!user || !matchedExercise?.id) return;
+
+    let cancelled = false;
+
+    supabase
+      .from('student_exercise_adjustments')
+      .select('valores')
+      .eq('student_id', user.id)
+      .eq('exercise_id', matchedExercise.id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled || error) return;
+        const stored = (data?.valores as Record<string, any> | null) ?? {};
+        const backendPref = typeof stored[VARIATION_PREF_FIELD] === 'boolean'
+          ? stored[VARIATION_PREF_FIELD]
+          : localPref;
+        setVariationPrefs((prev) => ({ ...prev, [cacheKey]: backendPref }));
+        setShowingVariation(backendPref);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [exercise, user, matchedExercise?.id, variationPrefs]);
 
   // Persiste a escolha sempre que mudar
-  const toggleVariation = () => {
+  const toggleVariation = async () => {
+    if (!exercise) return;
     const next = !showingVariation;
+    const cacheKey = normalizeExerciseKey(exercise.exercise);
     setShowingVariation(next);
-    if (exercise) saveVariationPref(user?.id, exercise.exercise, next);
+    setVariationPrefs((prev) => ({ ...prev, [cacheKey]: next }));
+    saveVariationPref(user?.id, exercise.exercise, next);
+
+    if (!user || !matchedExercise?.id) return;
+
+    const { data: existing } = await supabase
+      .from('student_exercise_adjustments')
+      .select('valores')
+      .eq('student_id', user.id)
+      .eq('exercise_id', matchedExercise.id)
+      .maybeSingle();
+
+    const payload = {
+      ...((existing?.valores as Record<string, any> | null) ?? {}),
+      [VARIATION_PREF_FIELD]: next,
+    };
+
+    const { error } = await supabase
+      .from('student_exercise_adjustments')
+      .upsert(
+        { student_id: user.id, exercise_id: matchedExercise.id, valores: payload },
+        { onConflict: 'student_id,exercise_id' }
+      );
+
+    if (error) {
+      setShowingVariation(!next);
+      setVariationPrefs((prev) => ({ ...prev, [cacheKey]: !next }));
+      saveVariationPref(user?.id, exercise.exercise, !next);
+      toast.error('Não foi possível salvar a troca de exercício.');
+      return;
+    }
+
+    toast.success(next ? 'Variação salva para este exercício.' : 'Exercício original restaurado.');
   };
 
   useEffect(() => {
@@ -669,10 +736,10 @@ const TreinoExecucao = () => {
         <MachineAdjustSheet
           open={showAdjust}
           onOpenChange={setShowAdjust}
-          exerciseId={matchedExercise.id}
-          exerciseName={exercise?.exercise || ''}
+          exerciseId={activeExercise?.id || matchedExercise.id}
+          exerciseName={selectedExerciseName}
           studentId={user.id}
-          fields={matchedExercise.ajustes ?? []}
+          fields={activeExercise?.ajustes ?? matchedExercise.ajustes ?? []}
         />
       )}
       {user && exercise && (
@@ -680,7 +747,7 @@ const TreinoExecucao = () => {
           open={showLoadHistory}
           onOpenChange={setShowLoadHistory}
           studentId={user.id}
-          exerciseName={exercise.exercise}
+          exerciseName={selectedExerciseName}
         />
       )}
       {summary && (
@@ -718,7 +785,7 @@ const TreinoExecucao = () => {
             )}
           </>
         ) : imageUrl ? (
-          <img src={imageUrl} alt={exercise.exercise} className="w-full h-full object-cover" />
+          <img src={imageUrl} alt={selectedExerciseName} className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <span className="text-muted-foreground text-sm">Sem mídia disponível</span>
@@ -745,7 +812,7 @@ const TreinoExecucao = () => {
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <p className="text-[10px] uppercase tracking-widest text-primary font-semibold" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{activeExercise?.grupo_muscular || dayName}</p>
               </div>
-              <h1 className="text-xl font-bold text-foreground leading-tight" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}>{showingVariation && exercise.variation ? exercise.variation : exercise.exercise}</h1>
+              <h1 className="text-xl font-bold text-foreground leading-tight" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}>{selectedExerciseName}</h1>
               {exercise.description && <p className="text-xs text-foreground/90 mt-1" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>{exercise.description}</p>}
             </div>
             {exercise.variation && (
@@ -928,7 +995,8 @@ const TreinoExecucao = () => {
               const exIdx = Number(exIdxStr);
               const ex = exercises[exIdx];
               if (!ex) return;
-              const exName = ex.exercise || '';
+               const useVariation = variationPrefs[normalizeExerciseKey(ex.exercise)] ?? loadVariationPref(user?.id, ex.exercise);
+               const exName = useVariation && ex.variation ? ex.variation : (ex.exercise || '');
               const muscle = exerciseDB.find((d) => d.nome.toLowerCase() === exName.toLowerCase())?.grupo_muscular || null;
               arr.forEach((s, i) => {
                 if (!s.completed) return;
