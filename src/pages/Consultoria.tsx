@@ -390,11 +390,42 @@ const Consultoria = () => {
         </div>
 
         {/* Tab content */}
+        {tab === 'dashboard' && (
+          <div className="space-y-4">
+            {/* KPIs principais */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {dashboardCards.map(stat => (
+                <Card
+                  key={stat.title}
+                  className="glass-card cursor-pointer hover:bg-secondary/40 transition-colors"
+                  onClick={stat.onClick}
+                >
+                  <CardContent className="flex items-center gap-3 p-3">
+                    <div className={`rounded-xl p-2 bg-secondary ${stat.color}`}>
+                      <stat.icon className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{stat.title}</p>
+                      <p className="text-xl font-bold">{loading ? '…' : stat.value}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Bloco resumido de comportamento/aderência */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Activity className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-semibold">Comportamento de hoje</h3>
+              </div>
+              <EngagementOverviewCards />
+            </div>
+          </div>
+        )}
+
         {tab === 'alertas' && (
           <div className="space-y-4">
-            {/* Engagement overview cards */}
-            <EngagementOverviewCards />
-
             {/* Category filter */}
             <div className="flex gap-2 flex-wrap items-center">
               {([
