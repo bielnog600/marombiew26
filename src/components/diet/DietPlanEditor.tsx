@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Trash2, ArrowRightLeft, Sliders, AlertTriangle, Clock, UtensilsCrossed } from 'lucide-react';
+import { Plus, Trash2, Sliders, AlertTriangle, Clock, UtensilsCrossed } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
@@ -178,27 +178,28 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
                     <TableHead className="h-8 px-2 text-right">P</TableHead>
                     <TableHead className="h-8 px-2 text-right">C</TableHead>
                     <TableHead className="h-8 px-2 text-right">G</TableHead>
-                    <TableHead className="h-8 px-2 w-[78px] text-right">Ações</TableHead>
+                    <TableHead className="h-8 px-2 w-[40px] text-right"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {meal.foods.map((food, foodIdx) => (
                     <TableRow key={`${food.food}-${foodIdx}`}>
-                      <TableCell className="px-2 py-1.5 font-medium">{food.food}</TableCell>
+                      <TableCell
+                        className="px-2 py-1.5 font-medium cursor-pointer hover:text-primary hover:underline transition-colors"
+                        onClick={() => setSubTarget({ mealIdx, foodIdx })}
+                        title="Clique para substituir"
+                      >
+                        {food.food}
+                      </TableCell>
                       <TableCell className="px-2 py-1.5 text-muted-foreground">{food.qty || '—'}</TableCell>
                       <TableCell className="px-2 py-1.5 text-right">{food.kcal || '—'}</TableCell>
                       <TableCell className="px-2 py-1.5 text-right">{food.p || '—'}</TableCell>
                       <TableCell className="px-2 py-1.5 text-right">{food.c || '—'}</TableCell>
                       <TableCell className="px-2 py-1.5 text-right">{food.g || '—'}</TableCell>
                       <TableCell className="px-2 py-1.5 text-right">
-                        <div className="flex justify-end gap-0.5">
-                          <Button size="icon" variant="ghost" className="h-6 w-6" title="Substituir" onClick={() => setSubTarget({ mealIdx, foodIdx })}>
-                            <ArrowRightLeft className="h-3 w-3" />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive hover:text-destructive" title="Remover" onClick={() => removeFood(mealIdx, foodIdx)}>
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
+                        <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive hover:text-destructive" title="Remover" onClick={() => removeFood(mealIdx, foodIdx)}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
