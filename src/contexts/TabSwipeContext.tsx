@@ -54,7 +54,7 @@ export const TabSwipeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (t.clientX <= EDGE_DEAD_ZONE || t.clientX >= w - EDGE_DEAD_ZONE) return;
       // Ignora quando toca em controles interativos onde swipe horizontal já tem significado
       const target = e.target as HTMLElement | null;
-      if (target?.closest('[data-no-swipe], input[type="range"], [role="slider"], .embla, [data-swipeable]')) return;
+      if (target?.closest('[data-no-swipe], input[type="range"], [role="slider"], .embla, [data-swipeable], [role="tablist"], [data-radix-scroll-area-viewport]')) return;
       startRef.current = { x: t.clientX, y: t.clientY, id: t.identifier };
       activeRef.current = true;
       draggingRef.current = false;
