@@ -139,7 +139,7 @@ const AlunoDetail = () => {
           </CardContent>
         </Card>
 
-        <Tabs defaultValue={initialTab}>
+        <Tabs defaultValue={initialTab} data-no-swipe>
           <div className="overflow-x-auto -mx-4 px-4 pb-2">
             <TabsList className="bg-secondary w-max min-w-full">
               <TabsTrigger value="perfil" className="text-xs sm:text-sm"><User className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Perfil</span><span className="sm:hidden">Perfil</span></TabsTrigger>
