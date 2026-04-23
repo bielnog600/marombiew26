@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { UtensilsCrossed, ChevronDown, ChevronUp, Pencil, Save, Loader2, X, Eye } from 'lucide-react';
+import { UtensilsCrossed, ChevronDown, ChevronUp, Pencil, Save, Loader2, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import DietResultCards from '@/components/DietResultCards';
 import { Textarea } from '@/components/ui/textarea';
