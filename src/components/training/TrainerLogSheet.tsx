@@ -291,6 +291,11 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     return () => clearInterval(id);
   }, [restTimer]);
 
+  // Reset rest timer when sheet closes so it doesn't cover the modal on reopen
+  useEffect(() => {
+    if (!open) setRestTimer(null);
+  }, [open]);
+
   const day = days[activeDayIdx] || null;
 
   // Load exercises catalog once when sheet opens
