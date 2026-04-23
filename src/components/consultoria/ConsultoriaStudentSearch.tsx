@@ -5,11 +5,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, ChevronRight, AlertTriangle, Activity, Send } from 'lucide-react';
+import { Search, ChevronRight, AlertTriangle, Activity, Send, UserX, UserCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { differenceInDays, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import SendNotificationDialog from './SendNotificationDialog';
+import { toast } from 'sonner';
 
 interface StudentRow {
   id: string;
@@ -22,9 +23,10 @@ interface StudentRow {
   adherence: number;
   risk: 'baixo' | 'medio' | 'alto';
   hasPlan: boolean;
+  ativo: boolean;
 }
 
-type FilterKey = 'todos' | 'risco_alto' | 'sem_plano' | 'baixa_aderencia' | 'ativos';
+type FilterKey = 'todos' | 'risco_alto' | 'sem_plano' | 'baixa_aderencia' | 'ativos' | 'desativados';
 
 const ConsultoriaStudentSearch: React.FC = () => {
   const navigate = useNavigate();
