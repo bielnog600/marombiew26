@@ -344,11 +344,7 @@ const TreinoExecucao = () => {
           if (dbEx) {
             const mediaMap: ExerciseMediaMap = {};
             for (const name of uniqueNames) {
-              const match = dbEx.find(e =>
-                e.nome.toUpperCase().trim() === name ||
-                name.includes(e.nome.toUpperCase().trim()) ||
-                e.nome.toUpperCase().trim().includes(name)
-              );
+              const match = findBestExerciseMatch(name, dbEx);
               if (match) {
                 mediaMap[name] = {
                   id: match.id,
