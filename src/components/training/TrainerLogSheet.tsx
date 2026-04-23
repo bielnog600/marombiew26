@@ -266,6 +266,31 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   const [loading, setLoading] = useState(false);
   const [activeDayIdx, setActiveDayIdx] = useState(0);
   const [exercisesList, setExercisesList] = useState<{ id: string; nome: string; grupo_muscular: string }[]>([]);
+  const [restTimer, setRestTimer] = useState<{ total: number; remaining: number } | null>(null);
+
+  // Parse "60s", "1min", "1:30", "90" => seconds
+  const parsePauseSeconds = (raw?: string | null): number => {
+    if (!raw) return 60;
+    const s = String(raw).trim().toLowerCase();
+    const mmss = s.match(/^(\d+):(\d{1,2})$/);
+    if (mmss) return parseInt(mmss[1], 10) * 60 + parseInt(mmss[2], 10);
+    if (/min/.test(s)) {
+      const n = parseFloat(s.replace(/[^\d.,]/g, '').replace(',', '.'));
+      return Math.round((isFinite(n) ? n : 1) * 60);
+    }
+    const n = parseInt(s.replace(/[^\d]/g, ''), 10);
+    return isFinite(n) && n > 0 ? n : 60;
+  };
+
+  useEffect(() => {
+    if (!restTimer) return;
+    if (restTimer.remaining <= 0) return;
+    const id = setInterval(() => {
+      setRestTimer((prev) => (prev ? { ...prev, remaining: Math.max(0, prev.remaining - 1) } : prev));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [restTimer]);
+
   const day = days[activeDayIdx] || null;
 
   // Load exercises catalog once when sheet opens
