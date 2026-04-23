@@ -911,14 +911,6 @@ const TreinoExecucao = () => {
               Ajuste
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setShowRestTimer(true)}
-            className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/25 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary/15 transition-colors ml-auto"
-          >
-            <Timer className="h-3 w-3" />
-            Descanso {restDuration}s
-          </button>
         </div>
 
         <div className="space-y-2">
