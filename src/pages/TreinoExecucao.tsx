@@ -18,7 +18,34 @@ import { PhaseInfoSheet } from '@/components/training/PhaseInfoSheet';
 import { MachineAdjustSheet } from '@/components/training/MachineAdjustSheet';
 import { ExerciseLoadHistorySheet } from '@/components/training/ExerciseLoadHistorySheet';
 import { SessionRpeDialog } from '@/components/training/SessionRpeDialog';
-import { Settings2, Info, BarChart3 } from 'lucide-react';
+import { Settings2, Info, BarChart3, Timer } from 'lucide-react';
+
+const VARIATION_PREF_KEY = 'mw_exercise_variation_pref';
+
+const loadVariationPref = (userId: string | undefined, exerciseName: string): boolean => {
+  if (!userId || !exerciseName) return false;
+  try {
+    const raw = localStorage.getItem(`${VARIATION_PREF_KEY}:${userId}`);
+    if (!raw) return false;
+    const map = JSON.parse(raw) as Record<string, boolean>;
+    return !!map[exerciseName.toUpperCase().trim()];
+  } catch {
+    return false;
+  }
+};
+
+const saveVariationPref = (userId: string | undefined, exerciseName: string, value: boolean) => {
+  if (!userId || !exerciseName) return;
+  try {
+    const key = `${VARIATION_PREF_KEY}:${userId}`;
+    const raw = localStorage.getItem(key);
+    const map = raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+    map[exerciseName.toUpperCase().trim()] = value;
+    localStorage.setItem(key, JSON.stringify(map));
+  } catch {
+    /* ignore */
+  }
+};
 
 interface ExerciseSet {
   reps: string;
