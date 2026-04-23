@@ -5,7 +5,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { UtensilsCrossed, ChevronDown, ChevronUp, Pencil, Save, Loader2, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import DietResultCards from '@/components/DietResultCards';
-import { Textarea } from '@/components/ui/textarea';
+import DietPlanEditor from '@/components/diet/DietPlanEditor';
+import { replaceMealTableInMarkdown } from '@/lib/dietMarkdownSerializer';
+import type { ParsedMeal } from '@/lib/dietResultParser';
 
 interface StudentDietTabProps {
   studentId: string;
@@ -61,8 +63,8 @@ const stripDietPreamble = (markdown: string): string => {
 const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   const [plans, setPlans] = useState<any[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [editedMarkdowns, setEditedMarkdowns] = useState<Record<string, string>>({});
-  const [showRawId, setShowRawId] = useState<string | null>(null);
+  const [editedMeals, setEditedMeals] = useState<Record<string, ParsedMeal[]>>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
 
   useEffect(() => {
@@ -79,13 +81,16 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     setPlans(data ?? []);
   };
 
-  const handleMarkdownChange = (planId: string, value: string) => {
-    setEditedMarkdowns(prev => ({ ...prev, [planId]: value }));
+  const handleMealsChange = (planId: string, meals: ParsedMeal[]) => {
+    setEditedMeals(prev => ({ ...prev, [planId]: meals }));
   };
 
   const handleSave = async (planId: string) => {
-    const newContent = editedMarkdowns[planId];
-    if (newContent === undefined) return;
+    const meals = editedMeals[planId];
+    if (!meals) return;
+    const plan = plans.find(p => p.id === planId);
+    if (!plan) return;
+    const newContent = replaceMealTableInMarkdown(plan.conteudo, meals);
 
     setSaving(planId);
     const { error } = await supabase
@@ -98,7 +103,8 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     } else {
       toast.success('Dieta salva com sucesso!');
       setPlans(prev => prev.map(p => p.id === planId ? { ...p, conteudo: newContent } : p));
-      setEditedMarkdowns(prev => { const c = { ...prev }; delete c[planId]; return c; });
+      setEditedMeals(prev => { const c = { ...prev }; delete c[planId]; return c; });
+      setEditingId(null);
     }
     setSaving(null);
   };
@@ -117,10 +123,9 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     <div className="space-y-3">
       {plans.map(plan => {
         const isExpanded = expandedId === plan.id;
-        const hasChanges = editedMarkdowns[plan.id] !== undefined;
-        const currentMarkdown = editedMarkdowns[plan.id] ?? plan.conteudo;
-        const isShowingRaw = showRawId === plan.id;
-        const cleanedMarkdown = stripDietPreamble(currentMarkdown);
+        const hasChanges = editedMeals[plan.id] !== undefined;
+        const isEditing = editingId === plan.id;
+        const cleanedMarkdown = stripDietPreamble(plan.conteudo);
 
         return (
           <Card key={plan.id} className="glass-card">
@@ -144,14 +149,18 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                       variant="ghost"
                       size="sm"
                       className="h-7 gap-1 px-2 text-xs"
-                      title={isShowingRaw ? 'Voltar à pré-visualização' : 'Editar conteúdo'}
+                      title={isEditing ? 'Voltar à pré-visualização' : 'Editar dieta'}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setShowRawId(isShowingRaw ? null : plan.id);
+                        setEditingId(isEditing ? null : plan.id);
+                        if (isEditing) {
+                          // discard pending edits when leaving editor without saving
+                          setEditedMeals(prev => { const c = { ...prev }; delete c[plan.id]; return c; });
+                        }
                       }}
                     >
-                      {isShowingRaw ? <Eye className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
-                      {isShowingRaw ? 'Visualizar' : 'Editar'}
+                      {isEditing ? <Eye className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
+                      {isEditing ? 'Visualizar' : 'Editar'}
                     </Button>
                   )}
                   {isExpanded && hasChanges && (
@@ -171,12 +180,10 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
 
               {isExpanded && (
                 <div className="mt-4 pt-4 border-t border-border">
-                  {isShowingRaw ? (
-                    <Textarea
-                      value={currentMarkdown}
-                      onChange={(e) => handleMarkdownChange(plan.id, e.target.value)}
-                      className="min-h-[400px] font-mono text-xs"
-                      placeholder="Conteúdo em markdown..."
+                  {isEditing ? (
+                    <DietPlanEditor
+                      markdown={plan.conteudo}
+                      onMealsChange={(meals) => handleMealsChange(plan.id, meals)}
                     />
                   ) : (
                     <DietResultCards markdown={cleanedMarkdown} />
