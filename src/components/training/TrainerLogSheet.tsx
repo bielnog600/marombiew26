@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Save, History, Dumbbell, Check, ChevronDown, Pencil } from 'lucide-react';
+import { Loader2, Save, History, Dumbbell, Check, ChevronDown, Pencil, Timer, X } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { supabase } from '@/integrations/supabase/client';
@@ -266,6 +266,31 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   const [loading, setLoading] = useState(false);
   const [activeDayIdx, setActiveDayIdx] = useState(0);
   const [exercisesList, setExercisesList] = useState<{ id: string; nome: string; grupo_muscular: string }[]>([]);
+  const [restTimer, setRestTimer] = useState<{ total: number; remaining: number } | null>(null);
+
+  // Parse "60s", "1min", "1:30", "90" => seconds
+  const parsePauseSeconds = (raw?: string | null): number => {
+    if (!raw) return 60;
+    const s = String(raw).trim().toLowerCase();
+    const mmss = s.match(/^(\d+):(\d{1,2})$/);
+    if (mmss) return parseInt(mmss[1], 10) * 60 + parseInt(mmss[2], 10);
+    if (/min/.test(s)) {
+      const n = parseFloat(s.replace(/[^\d.,]/g, '').replace(',', '.'));
+      return Math.round((isFinite(n) ? n : 1) * 60);
+    }
+    const n = parseInt(s.replace(/[^\d]/g, ''), 10);
+    return isFinite(n) && n > 0 ? n : 60;
+  };
+
+  useEffect(() => {
+    if (!restTimer) return;
+    if (restTimer.remaining <= 0) return;
+    const id = setInterval(() => {
+      setRestTimer((prev) => (prev ? { ...prev, remaining: Math.max(0, prev.remaining - 1) } : prev));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [restTimer]);
+
   const day = days[activeDayIdx] || null;
 
   // Load exercises catalog once when sheet opens
@@ -496,6 +521,22 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                       )}
                     </div>
 
+                    <div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 gap-1.5 px-2.5 text-[10px] border-primary/40 text-primary hover:bg-primary/10"
+                        onClick={() => {
+                          const secs = parsePauseSeconds(ex.pause);
+                          setRestTimer({ total: secs, remaining: secs });
+                        }}
+                      >
+                        <Timer className="h-3 w-3" />
+                        Cronômetro de descanso{ex.pause ? ` · ${ex.pause}` : ''}
+                      </Button>
+                    </div>
+
                     <div className="space-y-1.5">
                       {st.sets.map((s, setIdx) => {
                         const p = st.plan?.[setIdx] ?? { kind: 'work' as const, targetReps: '' };
@@ -566,6 +607,63 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
           </div>
         )}
       </SheetContent>
+      {restTimer && (
+        <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center">
+          <button
+            type="button"
+            onClick={() => setRestTimer(null)}
+            className="absolute top-4 right-4 p-2 rounded-full bg-secondary hover:bg-secondary/80"
+            aria-label="Fechar"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground mb-6 font-semibold">
+            Descanso
+          </p>
+          <div className="relative w-48 h-48 flex items-center justify-center">
+            <svg className="absolute inset-0 -rotate-90" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="46" fill="none" stroke="hsl(var(--secondary))" strokeWidth="6" />
+              <circle
+                cx="50"
+                cy="50"
+                r="46"
+                fill="none"
+                stroke="hsl(var(--primary))"
+                strokeWidth="6"
+                strokeLinecap="round"
+                strokeDasharray={2 * Math.PI * 46}
+                strokeDashoffset={
+                  2 * Math.PI * 46 * (1 - (restTimer.total > 0 ? restTimer.remaining / restTimer.total : 0))
+                }
+                style={{ transition: 'stroke-dashoffset 1s linear' }}
+              />
+            </svg>
+            <span className="text-5xl font-bold tabular-nums">
+              {Math.floor(restTimer.remaining / 60)}:
+              {String(restTimer.remaining % 60).padStart(2, '0')}
+            </span>
+          </div>
+          <div className="mt-8 flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRestTimer((p) => (p ? { ...p, remaining: Math.max(0, p.remaining - 15) } : p))}
+            >
+              -15s
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRestTimer((p) => (p ? { ...p, remaining: p.remaining + 15, total: p.total + 15 } : p))}
+            >
+              +15s
+            </Button>
+            <Button size="sm" onClick={() => setRestTimer(null)}>
+              Pular
+            </Button>
+          </div>
+        </div>
+      )}
     </Sheet>
   );
 };
