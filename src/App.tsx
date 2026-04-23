@@ -11,6 +11,7 @@ import SplashScreen from "@/components/SplashScreen";
 import InstallBanner from "@/components/InstallBanner";
 import PWAUpdater from "@/components/PWAUpdater";
 import ScrollToTop from "@/components/ScrollToTop";
+import AdminNotificationModal from "@/components/AdminNotificationModal";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Alunos from "./pages/Alunos";
@@ -75,6 +76,7 @@ const App = () => {
           <div>
           <AuthProvider>
             <TabSwipeProvider>
+            <AdminNotificationModal />
             <Routes>
               <Route path="/" element={<RootRedirect />} />
               <Route path="/login" element={<Login />} />
