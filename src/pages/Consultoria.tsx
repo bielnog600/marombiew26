@@ -105,7 +105,15 @@ const Consultoria = () => {
   const loadData = async () => {
     setLoading(true);
     const { data: roles } = await supabase.from('user_roles').select('user_id').eq('role', 'aluno');
-    const alunoIds = (roles ?? []).map(r => r.user_id);
+    const allAlunoIds = (roles ?? []).map(r => r.user_id);
+    if (allAlunoIds.length === 0) { setLoading(false); return; }
+    // Considerar apenas alunos ativos (students_profile.ativo = true)
+    const { data: activeProfiles } = await supabase
+      .from('students_profile')
+      .select('user_id')
+      .eq('ativo', true)
+      .in('user_id', allAlunoIds);
+    const alunoIds = (activeProfiles ?? []).map(p => p.user_id);
     if (alunoIds.length === 0) { setLoading(false); return; }
 
     const [profilesRes, plansRes, assessmentsRes, questionnairesRes] = await Promise.all([

@@ -5,11 +5,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, ChevronRight, AlertTriangle, Activity, Send } from 'lucide-react';
+import { Search, ChevronRight, AlertTriangle, Activity, Send, UserX, UserCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { differenceInDays, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import SendNotificationDialog from './SendNotificationDialog';
+import { toast } from 'sonner';
 
 interface StudentRow {
   id: string;
@@ -22,9 +23,10 @@ interface StudentRow {
   adherence: number;
   risk: 'baixo' | 'medio' | 'alto';
   hasPlan: boolean;
+  ativo: boolean;
 }
 
-type FilterKey = 'todos' | 'risco_alto' | 'sem_plano' | 'baixa_aderencia' | 'ativos';
+type FilterKey = 'todos' | 'risco_alto' | 'sem_plano' | 'baixa_aderencia' | 'ativos' | 'desativados';
 
 const ConsultoriaStudentSearch: React.FC = () => {
   const navigate = useNavigate();
@@ -43,11 +45,12 @@ const ConsultoriaStudentSearch: React.FC = () => {
       const since30 = new Date(); since30.setDate(since30.getDate() - 30);
       const sinceIso = since30.toISOString();
 
-      const [profilesRes, eventsRes, sessionsRes, plansRes] = await Promise.all([
+      const [profilesRes, eventsRes, sessionsRes, plansRes, activeRes] = await Promise.all([
         supabase.from('profiles').select('user_id, nome, email, telefone').in('user_id', ids),
         supabase.from('student_events').select('student_id, created_at').eq('event_type', 'app_opened').in('student_id', ids).order('created_at', { ascending: false }),
         supabase.from('workout_sessions').select('student_id, completed_at, status').in('student_id', ids).gte('completed_at', sinceIso).eq('status', 'completed'),
         supabase.from('ai_plans').select('student_id').in('student_id', ids),
+        supabase.from('students_profile').select('user_id, ativo').in('user_id', ids),
       ]);
 
       const lastOpenMap = new Map<string, string>();
@@ -57,6 +60,8 @@ const ConsultoriaStudentSearch: React.FC = () => {
       const workoutsMap = new Map<string, number>();
       for (const s of (sessionsRes.data ?? [])) workoutsMap.set(s.student_id, (workoutsMap.get(s.student_id) ?? 0) + 1);
       const planSet = new Set((plansRes.data ?? []).map(p => p.student_id));
+      const activeMap = new Map<string, boolean>();
+      for (const a of (activeRes.data ?? [])) activeMap.set(a.user_id, a.ativo !== false);
 
       const list: StudentRow[] = (profilesRes.data ?? []).map(p => {
         const lastOpen = lastOpenMap.get(p.user_id) ?? null;
@@ -67,6 +72,7 @@ const ConsultoriaStudentSearch: React.FC = () => {
         return {
           id: p.user_id, name: p.nome || 'Sem nome', email: p.email, phone: p.telefone,
           lastOpen, daysSinceOpen, workouts30d, adherence, risk, hasPlan: planSet.has(p.user_id),
+          ativo: activeMap.get(p.user_id) ?? true,
         };
       });
 
@@ -79,23 +85,41 @@ const ConsultoriaStudentSearch: React.FC = () => {
     const q = query.trim().toLowerCase();
     return rows.filter(r => {
       if (q && !r.name.toLowerCase().includes(q) && !r.email.toLowerCase().includes(q)) return false;
+      // Filtros que NÃO são "desativados" só consideram alunos ativos
+      if (filter !== 'desativados' && !r.ativo) return false;
       switch (filter) {
         case 'risco_alto': return r.risk === 'alto';
         case 'sem_plano': return !r.hasPlan;
         case 'baixa_aderencia': return r.adherence < 40;
         case 'ativos': return r.risk === 'baixo';
+        case 'desativados': return !r.ativo;
         default: return true;
       }
     });
   }, [rows, query, filter]);
 
   const filters: { value: FilterKey; label: string; count: number }[] = [
-    { value: 'todos', label: 'Todos', count: rows.length },
-    { value: 'ativos', label: 'Ativos', count: rows.filter(r => r.risk === 'baixo').length },
-    { value: 'risco_alto', label: 'Risco abandono', count: rows.filter(r => r.risk === 'alto').length },
-    { value: 'baixa_aderencia', label: 'Baixa aderência', count: rows.filter(r => r.adherence < 40).length },
-    { value: 'sem_plano', label: 'Sem plano', count: rows.filter(r => !r.hasPlan).length },
+    { value: 'todos', label: 'Todos', count: rows.filter(r => r.ativo).length },
+    { value: 'ativos', label: 'Engajados', count: rows.filter(r => r.ativo && r.risk === 'baixo').length },
+    { value: 'risco_alto', label: 'Risco abandono', count: rows.filter(r => r.ativo && r.risk === 'alto').length },
+    { value: 'baixa_aderencia', label: 'Baixa aderência', count: rows.filter(r => r.ativo && r.adherence < 40).length },
+    { value: 'sem_plano', label: 'Sem plano', count: rows.filter(r => r.ativo && !r.hasPlan).length },
+    { value: 'desativados', label: 'Desativados', count: rows.filter(r => !r.ativo).length },
   ];
+
+  const toggleAtivo = async (id: string, currentAtivo: boolean) => {
+    const newAtivo = !currentAtivo;
+    const { error } = await supabase
+      .from('students_profile')
+      .update({ ativo: newAtivo })
+      .eq('user_id', id);
+    if (error) {
+      toast.error('Erro ao atualizar status do aluno');
+      return;
+    }
+    setRows(prev => prev.map(r => r.id === id ? { ...r, ativo: newAtivo } : r));
+    toast.success(newAtivo ? 'Aluno reativado — alertas voltam a aparecer' : 'Aluno desativado — alertas serão ocultados');
+  };
 
   return (
     <div className="space-y-3">
@@ -167,6 +191,15 @@ const ConsultoriaStudentSearch: React.FC = () => {
                         studentName={r.name}
                         trigger={<Button variant="ghost" size="icon" className="h-8 w-8" title="Enviar notificação"><Send className="h-3.5 w-3.5" /></Button>}
                       />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => toggleAtivo(r.id, r.ativo)}
+                        title={r.ativo ? 'Desativar aluno (oculta alertas)' : 'Reativar aluno'}
+                      >
+                        {r.ativo ? <UserX className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" /> : <UserCheck className="h-3.5 w-3.5 text-emerald-500" />}
+                      </Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate(`/alunos/${r.id}?tab=comportamento`)}>
                         <ChevronRight className="h-4 w-4" />
                       </Button>
