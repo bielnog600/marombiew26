@@ -614,7 +614,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
         )}
         {restTimer && (
           <div
-            className="absolute inset-0 z-20 bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center"
+            className="fixed inset-0 z-[60] bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center"
             onPointerDown={(e) => e.stopPropagation()}
           >
           <button
