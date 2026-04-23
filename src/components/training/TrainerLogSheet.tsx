@@ -457,7 +457,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+      <SheetContent side="right" className="relative w-full sm:max-w-2xl overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Dumbbell className="h-5 w-5 text-primary" />
@@ -606,9 +606,11 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
             })}
           </div>
         )}
-      </SheetContent>
-      {restTimer && (
-        <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center">
+        {restTimer && (
+          <div
+            className="absolute inset-0 z-20 bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
           <button
             type="button"
             onClick={() => setRestTimer(null)}
@@ -662,8 +664,9 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
               Pular
             </Button>
           </div>
-        </div>
-      )}
+          </div>
+        )}
+      </SheetContent>
     </Sheet>
   );
 };
