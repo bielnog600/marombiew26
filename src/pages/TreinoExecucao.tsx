@@ -18,7 +18,34 @@ import { PhaseInfoSheet } from '@/components/training/PhaseInfoSheet';
 import { MachineAdjustSheet } from '@/components/training/MachineAdjustSheet';
 import { ExerciseLoadHistorySheet } from '@/components/training/ExerciseLoadHistorySheet';
 import { SessionRpeDialog } from '@/components/training/SessionRpeDialog';
-import { Settings2, Info, BarChart3 } from 'lucide-react';
+import { Settings2, Info, BarChart3, Timer } from 'lucide-react';
+
+const VARIATION_PREF_KEY = 'mw_exercise_variation_pref';
+
+const loadVariationPref = (userId: string | undefined, exerciseName: string): boolean => {
+  if (!userId || !exerciseName) return false;
+  try {
+    const raw = localStorage.getItem(`${VARIATION_PREF_KEY}:${userId}`);
+    if (!raw) return false;
+    const map = JSON.parse(raw) as Record<string, boolean>;
+    return !!map[exerciseName.toUpperCase().trim()];
+  } catch {
+    return false;
+  }
+};
+
+const saveVariationPref = (userId: string | undefined, exerciseName: string, value: boolean) => {
+  if (!userId || !exerciseName) return;
+  try {
+    const key = `${VARIATION_PREF_KEY}:${userId}`;
+    const raw = localStorage.getItem(key);
+    const map = raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+    map[exerciseName.toUpperCase().trim()] = value;
+    localStorage.setItem(key, JSON.stringify(map));
+  } catch {
+    /* ignore */
+  }
+};
 
 interface ExerciseSet {
   reps: string;
@@ -435,9 +462,18 @@ const TreinoExecucao = () => {
 
   const activeExercise = showingVariation && matchedVariation ? matchedVariation : matchedExercise;
 
+  // Carrega a preferência de variação salva por exercício ao trocar de exercício
   useEffect(() => {
-    setShowingVariation(false);
-  }, [currentIndex]);
+    if (!exercise) return;
+    setShowingVariation(loadVariationPref(user?.id, exercise.exercise));
+  }, [currentIndex, exercise, user?.id]);
+
+  // Persiste a escolha sempre que mudar
+  const toggleVariation = () => {
+    const next = !showingVariation;
+    setShowingVariation(next);
+    if (exercise) saveVariationPref(user?.id, exercise.exercise, next);
+  };
 
   useEffect(() => {
     if (!exercise || !user) return;
@@ -715,7 +751,7 @@ const TreinoExecucao = () => {
             {exercise.variation && (
               <button
                 type="button"
-                onClick={() => setShowingVariation(!showingVariation)}
+                onClick={toggleVariation}
                 className={`relative z-10 shrink-0 mt-1 touch-manipulation rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider backdrop-blur transition-colors ${showingVariation ? 'bg-primary text-primary-foreground' : 'bg-background/80 text-foreground border border-border/50'}`}
               >
                 {showingVariation ? 'Original' : 'Variação'}
@@ -807,6 +843,14 @@ const TreinoExecucao = () => {
               Ajuste
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => setShowRestTimer(true)}
+            className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/25 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary/15 transition-colors ml-auto"
+          >
+            <Timer className="h-3 w-3" />
+            Descanso {restDuration}s
+          </button>
         </div>
 
         <div className="space-y-2">
