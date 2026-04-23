@@ -37,19 +37,23 @@ export const useBehavioralAlerts = () => {
 
     const studentIds = [...new Set((data ?? []).map((a) => a.student_id))];
     let nameMap: Record<string, string> = {};
+    let activeSet = new Set<string>();
     if (studentIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('user_id, nome')
-        .in('user_id', studentIds);
+      const [{ data: profiles }, { data: activeProfiles }] = await Promise.all([
+        supabase.from('profiles').select('user_id, nome').in('user_id', studentIds),
+        supabase.from('students_profile').select('user_id').eq('ativo', true).in('user_id', studentIds),
+      ]);
       nameMap = Object.fromEntries((profiles ?? []).map((p) => [p.user_id, p.nome]));
+      activeSet = new Set((activeProfiles ?? []).map((p) => p.user_id));
     }
 
     setAlerts(
-      (data ?? []).map((a: any) => ({
-        ...a,
-        studentName: nameMap[a.student_id] || 'Aluno',
-      }))
+      (data ?? [])
+        .filter((a: any) => activeSet.has(a.student_id))
+        .map((a: any) => ({
+          ...a,
+          studentName: nameMap[a.student_id] || 'Aluno',
+        }))
     );
     setLoading(false);
   }, []);
