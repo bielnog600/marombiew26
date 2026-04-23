@@ -12,6 +12,7 @@ import { X, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
+import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import {
   TRAINING_PHASES,
   PHASE_LABELS,
@@ -123,49 +124,9 @@ const MeusTreinos = () => {
         .select('id, nome, imagem_url, video_embed, grupo_muscular, ajustes');
 
       if (dbExercises) {
-        // Normaliza: maiúsculas, sem acentos, espaços colapsados, sem pontuação
-        const normalize = (s: string) =>
-          s
-            .toUpperCase()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .replace(/[^A-Z0-9\s]/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-
-        const dbNormalized = dbExercises.map(e => ({ ...e, _norm: normalize(e.nome) }));
-
         const mediaMap: Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }> = {};
         for (const name of uniqueNames) {
-          const target = normalize(name);
-
-          // 1) Match exato (após normalização) - prioridade máxima
-          let match = dbNormalized.find(e => e._norm === target);
-
-          // 2) Match por sobreposição de palavras (mais específico vence)
-          if (!match) {
-            const targetWords = new Set(target.split(' ').filter(w => w.length > 2));
-            let bestScore = 0;
-            let bestMatch: typeof dbNormalized[number] | undefined;
-            for (const e of dbNormalized) {
-              const eWords = e._norm.split(' ').filter(w => w.length > 2);
-              if (eWords.length === 0) continue;
-              const overlap = eWords.filter(w => targetWords.has(w)).length;
-              if (overlap === 0) continue;
-              // Exige que TODAS as palavras do nome do banco estejam no alvo
-              // (evita "ROSCA" casar com "ROSCA DIRETA" indevidamente quando há
-              // entrada mais específica disponível). Pontua pelo tamanho do match.
-              if (overlap === eWords.length) {
-                const score = overlap * 10 + eWords.length;
-                if (score > bestScore) {
-                  bestScore = score;
-                  bestMatch = e;
-                }
-              }
-            }
-            match = bestMatch;
-          }
-
+          const match = findBestExerciseMatch(name, dbExercises);
           if (match) {
             mediaMap[name] = {
               id: match.id,
