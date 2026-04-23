@@ -45,11 +45,12 @@ const ConsultoriaStudentSearch: React.FC = () => {
       const since30 = new Date(); since30.setDate(since30.getDate() - 30);
       const sinceIso = since30.toISOString();
 
-      const [profilesRes, eventsRes, sessionsRes, plansRes] = await Promise.all([
+      const [profilesRes, eventsRes, sessionsRes, plansRes, activeRes] = await Promise.all([
         supabase.from('profiles').select('user_id, nome, email, telefone').in('user_id', ids),
         supabase.from('student_events').select('student_id, created_at').eq('event_type', 'app_opened').in('student_id', ids).order('created_at', { ascending: false }),
         supabase.from('workout_sessions').select('student_id, completed_at, status').in('student_id', ids).gte('completed_at', sinceIso).eq('status', 'completed'),
         supabase.from('ai_plans').select('student_id').in('student_id', ids),
+        supabase.from('students_profile').select('user_id, ativo').in('user_id', ids),
       ]);
 
       const lastOpenMap = new Map<string, string>();
@@ -59,6 +60,8 @@ const ConsultoriaStudentSearch: React.FC = () => {
       const workoutsMap = new Map<string, number>();
       for (const s of (sessionsRes.data ?? [])) workoutsMap.set(s.student_id, (workoutsMap.get(s.student_id) ?? 0) + 1);
       const planSet = new Set((plansRes.data ?? []).map(p => p.student_id));
+      const activeMap = new Map<string, boolean>();
+      for (const a of (activeRes.data ?? [])) activeMap.set(a.user_id, a.ativo !== false);
 
       const list: StudentRow[] = (profilesRes.data ?? []).map(p => {
         const lastOpen = lastOpenMap.get(p.user_id) ?? null;
@@ -69,6 +72,7 @@ const ConsultoriaStudentSearch: React.FC = () => {
         return {
           id: p.user_id, name: p.nome || 'Sem nome', email: p.email, phone: p.telefone,
           lastOpen, daysSinceOpen, workouts30d, adherence, risk, hasPlan: planSet.has(p.user_id),
+          ativo: activeMap.get(p.user_id) ?? true,
         };
       });
 
