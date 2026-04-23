@@ -161,6 +161,11 @@ const FoodSubstitutionDialog: React.FC<FoodSubstitutionDialogProps> = ({
                   const newPortion = kcalPer100 > 0 && origKcal > 0
                     ? Math.round((origKcal / kcalPer100) * 10) / 10
                     : food.portion_size || 100;
+                  const scale = newPortion / (food.portion_size || 100);
+                  const scaledKcal = Math.round(food.calories * scale);
+                  const scaledP = Math.round(food.protein * scale * 10) / 10;
+                  const scaledC = Math.round(food.carbs * scale * 10) / 10;
+                  const scaledG = Math.round(food.fats * scale * 10) / 10;
 
                   return (
                     <button
@@ -172,10 +177,10 @@ const FoodSubstitutionDialog: React.FC<FoodSubstitutionDialogProps> = ({
                         <p className="text-sm font-medium truncate">{food.name}</p>
                         <div className="flex gap-2 text-xs text-muted-foreground mt-0.5">
                           <span className="text-primary font-medium">{newPortion}g</span>
-                          <span>≈{origKcal > 0 ? origKcal : food.calories} kcal</span>
-                          <span>P:{food.protein}</span>
-                          <span>C:{food.carbs}</span>
-                          <span>G:{food.fats}</span>
+                          <span>≈{scaledKcal} kcal</span>
+                          <span>P:{scaledP}</span>
+                          <span>C:{scaledC}</span>
+                          <span>G:{scaledG}</span>
                         </div>
                       </div>
                       <ArrowRightLeft className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
