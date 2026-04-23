@@ -27,6 +27,8 @@ const QUICK_TEMPLATES = [
   { label: 'Treino novo', title: 'Treino atualizado!', message: 'Seu treino foi atualizado. Confira a nova fase e bons treinos! 💪' },
   { label: 'Dieta nova', title: 'Dieta atualizada', message: 'Sua dieta foi ajustada com base nos seus feedbacks. Confira na aba Dieta! 🥗' },
   { label: 'Cobrança suave', title: 'Sentindo sua falta', message: 'Notei que você não treina há alguns dias. Tudo bem? Vamos retomar a rotina!' },
+  { label: 'Cargas & Reps', title: 'Registre suas cargas e reps', message: 'Lembre-se de registrar as cargas e repetições de cada série no app durante o treino. Esses dados são essenciais para acompanharmos sua progressão e ajustarmos seu plano! 📊💪' },
+  { label: 'Refeição & Água', title: 'Registre refeições e água', message: 'Não esqueça de marcar suas refeições concluídas e o consumo de água no app. A consistência nesses registros faz toda diferença no resultado! 🥗💧' },
 ];
 
 const SendNotificationDialog: React.FC<Props> = ({ studentId, studentName, trigger, onSent }) => {
