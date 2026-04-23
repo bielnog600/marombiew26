@@ -462,9 +462,18 @@ const TreinoExecucao = () => {
 
   const activeExercise = showingVariation && matchedVariation ? matchedVariation : matchedExercise;
 
+  // Carrega a preferência de variação salva por exercício ao trocar de exercício
   useEffect(() => {
-    setShowingVariation(false);
-  }, [currentIndex]);
+    if (!exercise) return;
+    setShowingVariation(loadVariationPref(user?.id, exercise.exercise));
+  }, [currentIndex, exercise, user?.id]);
+
+  // Persiste a escolha sempre que mudar
+  const toggleVariation = () => {
+    const next = !showingVariation;
+    setShowingVariation(next);
+    if (exercise) saveVariationPref(user?.id, exercise.exercise, next);
+  };
 
   useEffect(() => {
     if (!exercise || !user) return;
