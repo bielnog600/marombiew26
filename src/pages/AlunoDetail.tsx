@@ -175,6 +175,10 @@ const AlunoDetail = () => {
             </Card>
           </TabsContent>
 
+          <TabsContent value="comportamento">
+            <StudentBehavior360 studentId={id!} studentName={profile?.nome} />
+          </TabsContent>
+
           <TabsContent value="avaliacoes">
             <div className="space-y-4">
               <div className="flex flex-wrap gap-2">

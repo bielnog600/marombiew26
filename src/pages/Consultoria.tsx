@@ -14,6 +14,7 @@ import { useNotifications, NotificationType, buildWhatsAppUrl, Notification } fr
 import { useBehavioralAlerts } from '@/hooks/useBehavioralAlerts';
 import BehavioralAlertCard from '@/components/consultoria/BehavioralAlertCard';
 import EngagementOverviewCards from '@/components/consultoria/EngagementOverviewCards';
+import ConsultoriaStudentSearch from '@/components/consultoria/ConsultoriaStudentSearch';
 
 const CYCLE_MIN_DAYS = 28;
 const CYCLE_MAX_DAYS = 42;
@@ -336,6 +337,7 @@ const Consultoria = () => {
   const mainTabs = [
     { value: 'alertas', label: 'Alertas', icon: Bell, count: notifCount },
     { value: 'overview', label: 'Visão Geral', icon: FileText, count: null },
+    { value: 'alunos', label: 'Alunos', icon: Users, count: null },
     { value: 'dietas', label: 'Dietas', icon: Utensils, count: null },
     { value: 'treinos', label: 'Treinos', icon: Dumbbell, count: null },
     { value: 'sem-dieta', label: 'Sem Dieta', icon: Utensils, count: semDieta.length },
