@@ -191,6 +191,15 @@ const ConsultoriaStudentSearch: React.FC = () => {
                         studentName={r.name}
                         trigger={<Button variant="ghost" size="icon" className="h-8 w-8" title="Enviar notificação"><Send className="h-3.5 w-3.5" /></Button>}
                       />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => toggleAtivo(r.id, r.ativo)}
+                        title={r.ativo ? 'Desativar aluno (oculta alertas)' : 'Reativar aluno'}
+                      >
+                        {r.ativo ? <UserX className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" /> : <UserCheck className="h-3.5 w-3.5 text-emerald-500" />}
+                      </Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate(`/alunos/${r.id}?tab=comportamento`)}>
                         <ChevronRight className="h-4 w-4" />
                       </Button>
