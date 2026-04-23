@@ -206,15 +206,15 @@ Deno.serve(async (req) => {
       if (upsertError) throw upsertError;
     }
 
-    // 4. Auto-resolver alertas que não estão mais ativos
+    // 4. Auto-resolver alertas que não estão mais ativos (inclui alertas de alunos desativados)
     const { data: existing } = await supabase
       .from('behavioral_alerts')
       .select('id, student_id, alert_key, status')
-      .neq('status', 'resolvido')
-      .in('student_id', studentIds);
+      .neq('status', 'resolvido');
 
+    const activeStudentSet = new Set(studentIds);
     const toResolve = (existing ?? []).filter(
-      (a) => !activeKeysByStudent[a.student_id]?.has(a.alert_key)
+      (a) => !activeStudentSet.has(a.student_id) || !activeKeysByStudent[a.student_id]?.has(a.alert_key)
     );
 
     if (toResolve.length > 0) {
