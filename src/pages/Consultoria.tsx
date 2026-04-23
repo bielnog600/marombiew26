@@ -654,6 +654,10 @@ const Consultoria = () => {
           </Card>
         )}
 
+        {tab === 'alunos' && (
+          <ConsultoriaStudentSearch />
+        )}
+
         {tab === 'dietas' && (
           <Card className="glass-card">
             <CardHeader>
