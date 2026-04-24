@@ -343,6 +343,28 @@ const TreinoExecucao = () => {
     return () => clearTimeout(t);
   }, [sets, currentIndex, sessionId]);
 
+  // Flush imediato ao backgrounded/fechar app — evita perder reps/cargas digitadas
+  // que ainda não foram persistidas pelo debounce.
+  useEffect(() => {
+    if (!sessionId) return;
+    const flush = () => {
+      supabase
+        .from('workout_sessions')
+        .update({ session_state: { sets, currentIndex } as any })
+        .eq('id', sessionId)
+        .then(() => {});
+    };
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', onHide);
+    };
+  }, [sets, currentIndex, sessionId]);
+
 
   // Auto-load training plan from DB when accessed directly (no state)
   useEffect(() => {
