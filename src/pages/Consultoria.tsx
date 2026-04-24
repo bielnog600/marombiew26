@@ -16,6 +16,7 @@ import BehavioralAlertCard from '@/components/consultoria/BehavioralAlertCard';
 import EngagementOverviewCards from '@/components/consultoria/EngagementOverviewCards';
 import ConsultoriaStudentSearch from '@/components/consultoria/ConsultoriaStudentSearch';
 import DietRenewalPanel from '@/components/consultoria/DietRenewalPanel';
+import WorkoutRenewalPanel from '@/components/consultoria/WorkoutRenewalPanel';
 
 const CYCLE_MIN_DAYS = 35; // Pré-renovação aos 35d (faltam 10)
 const CYCLE_MAX_DAYS = 45;
@@ -646,6 +647,8 @@ const Consultoria = () => {
         )}
 
         {tab === 'treinos' && (
+          <div className="space-y-4">
+          <WorkoutRenewalPanel />
           <Card className="glass-card">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
@@ -669,6 +672,7 @@ const Consultoria = () => {
               )}
             </CardContent>
           </Card>
+          </div>
         )}
 
         {tab === 'sem-dieta' && (
