@@ -10,6 +10,7 @@ const corsHeaders = {
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 function daysBetween(a: Date, b: Date) {
   return Math.floor((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24));
@@ -173,6 +174,289 @@ function actionToCycleStatus(action: string): string {
     default:
       return "pre_renovacao";
   }
+}
+
+/**
+ * Build a rich student context (similar to DietaIA front-end) so diet-agent
+ * has enough data to produce a coherent renewed diet.
+ */
+async function buildStudentContextForAgent(supabase: any, studentId: string) {
+  const [{ data: profile }, { data: sp }, { data: assessment }] = await Promise.all([
+    supabase.from("profiles").select("nome").eq("user_id", studentId).maybeSingle(),
+    supabase
+      .from("students_profile")
+      .select("data_nascimento, sexo, altura, objetivo, observacoes, restricoes, lesoes, raca")
+      .eq("user_id", studentId)
+      .maybeSingle(),
+    supabase
+      .from("assessments")
+      .select("id")
+      .eq("student_id", studentId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  let antro: any = null;
+  let comp: any = null;
+  let questionario: any = null;
+
+  if (assessment?.id) {
+    const [{ data: a }, { data: c }] = await Promise.all([
+      supabase.from("anthropometrics").select("*").eq("assessment_id", assessment.id).maybeSingle(),
+      supabase.from("composition").select("*").eq("assessment_id", assessment.id).maybeSingle(),
+    ]);
+    antro = a;
+    comp = c;
+  }
+
+  const { data: q } = await supabase
+    .from("diet_questionnaires")
+    .select("*")
+    .eq("student_id", studentId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  questionario = q;
+
+  return {
+    nome: profile?.nome,
+    sexo: sp?.sexo,
+    data_nascimento: sp?.data_nascimento,
+    altura: sp?.altura,
+    objetivo: sp?.objetivo,
+    observacoes: sp?.observacoes,
+    restricoes: sp?.restricoes,
+    lesoes: sp?.lesoes,
+    raca: sp?.raca,
+    peso: antro?.peso,
+    imc: antro?.imc,
+    cintura: antro?.cintura,
+    quadril: antro?.quadril,
+    rcq: antro?.rcq,
+    antropometria_completa: antro,
+    percentual_gordura: comp?.percentual_gordura,
+    massa_magra: comp?.massa_magra,
+    massa_gorda: comp?.massa_gorda,
+    composicao_obs: comp?.observacoes,
+    questionario_dieta: questionario,
+  };
+}
+
+/**
+ * Calls the diet-agent (which streams SSE) and accumulates the final markdown.
+ */
+async function callDietAgent(prompt: string, studentContext: any): Promise<string> {
+  const url = `${SUPABASE_URL}/functions/v1/diet-agent`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+    body: JSON.stringify({
+      messages: [{ role: "user", content: prompt }],
+      studentContext,
+    }),
+  });
+
+  if (!resp.ok || !resp.body) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`diet-agent error ${resp.status}: ${text.slice(0, 300)}`);
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let textBuffer = "";
+  let accumulated = "";
+  let streamDone = false;
+
+  while (!streamDone) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    textBuffer += decoder.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = textBuffer.indexOf("\n")) !== -1) {
+      let line = textBuffer.slice(0, idx);
+      textBuffer = textBuffer.slice(idx + 1);
+      if (line.endsWith("\r")) line = line.slice(0, -1);
+      if (!line.startsWith("data: ")) continue;
+      const jsonStr = line.slice(6).trim();
+      if (jsonStr === "[DONE]") {
+        streamDone = true;
+        break;
+      }
+      try {
+        const parsed = JSON.parse(jsonStr);
+        const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+        if (content) accumulated += content;
+      } catch {
+        textBuffer = line + "\n" + textBuffer;
+        break;
+      }
+    }
+  }
+
+  return accumulated.trim();
+}
+
+/**
+ * Generate a renewed-diet draft using diet-agent + the latest renewal analysis.
+ * Saves a snapshot of the current plan to diet_plan_versions and creates a new
+ * ai_plans row with is_draft=true and parent_plan_id pointing to the live plan.
+ */
+async function generateDraft(
+  supabase: any,
+  planId: string,
+  source: "manual" | "auto",
+) {
+  const { data: plan, error } = await supabase
+    .from("ai_plans")
+    .select("*")
+    .eq("id", planId)
+    .maybeSingle();
+  if (error || !plan) throw new Error("Plan not found");
+  if (plan.is_draft) throw new Error("Source plan is already a draft");
+
+  // If a draft already exists for this plan, return it instead of duplicating
+  const { data: existingDraft } = await supabase
+    .from("ai_plans")
+    .select("*")
+    .eq("parent_plan_id", planId)
+    .eq("is_draft", true)
+    .maybeSingle();
+  if (existingDraft) {
+    return { draft: existingDraft, reused: true };
+  }
+
+  // Latest analysis for context
+  const { data: latestAnalysis } = await supabase
+    .from("diet_renewal_analysis")
+    .select("*")
+    .eq("plan_id", planId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const studentContext = await buildStudentContextForAgent(supabase, plan.student_id);
+
+  const ctxBlock = latestAnalysis
+    ? `\n\n=== ANÁLISE DE RENOVAÇÃO DA IA ===\n` +
+      `Sugestão: ${latestAnalysis.suggested_action}\n` +
+      `Aderência: ${latestAnalysis.adherence_score ?? "—"}\n` +
+      `Frequência registro: ${latestAnalysis.meal_log_frequency ?? "—"}\n` +
+      `Tendência peso: ${latestAnalysis.weight_trend ?? "—"}\n` +
+      `Justificativa: ${latestAnalysis.rationale}\n` +
+      `=== FIM ANÁLISE ===\n`
+    : "";
+
+  const previousExcerpt = (plan.conteudo ?? "").slice(0, 1500);
+
+  const prompt = `Você está RENOVANDO o ciclo alimentar de 45 dias deste aluno.${ctxBlock}
+
+OBJETIVO DA RENOVAÇÃO:
+- Considere a aderência, evolução de peso e justificativa da IA acima
+- Aumente variedade e evite repetir EXATAMENTE os mesmos alimentos do plano anterior
+- Mantenha o objetivo do aluno e a fase atual
+- Ajuste calorias/macros conforme tendência (peso subindo em cutting → reduzir; peso descendo em bulking → aumentar)
+
+TRECHO DO PLANO ATUAL (referência do que NÃO repetir 100%):
+${previousExcerpt}
+
+ENTREGUE OBRIGATORIAMENTE:
+1) Tabela de TMB e escolha justificada
+2) GET e Consumo Energético com ajuste pela tendência observada
+3) Distribuição de macros (P, C, G)
+4) EXATAMENTE 3 opções de cardápio completas e diferentes entre si, em tabela:
+   Refeição | Horário | Alimento | Quantidade (g) | Kcal | P | C | G | Substituição
+5) Total de cada refeição e do dia
+6) Timing nutricional pré/pós-treino
+7) Mensagens prontas para WhatsApp explicando a nova fase`;
+
+  const draftContent = await callDietAgent(prompt, studentContext);
+  if (!draftContent || draftContent.length < 200) {
+    throw new Error("Conteúdo do rascunho insuficiente — tente novamente");
+  }
+
+  // Snapshot current plan into versions
+  await supabase.from("diet_plan_versions").insert({
+    plan_id: plan.id,
+    student_id: plan.student_id,
+    version: plan.version ?? 1,
+    titulo: plan.titulo,
+    conteudo: plan.conteudo,
+    fase: plan.fase,
+    source: source === "manual" ? "manual_draft" : "auto_renewal",
+    archived_at: new Date().toISOString(),
+  });
+
+  const reason =
+    latestAnalysis?.rationale?.slice(0, 500) ??
+    (source === "manual" ? "Rascunho gerado manualmente pelo admin." : "Rascunho gerado automaticamente.");
+
+  const { data: draft, error: draftErr } = await supabase
+    .from("ai_plans")
+    .insert({
+      student_id: plan.student_id,
+      tipo: "dieta",
+      titulo: `${plan.titulo} (rascunho v${(plan.version ?? 1) + 1})`,
+      conteudo: draftContent,
+      fase: plan.fase,
+      cycle_days: plan.cycle_days,
+      cycle_status: "rascunho_gerado",
+      renewal_mode: plan.renewal_mode,
+      parent_plan_id: plan.id,
+      version: (plan.version ?? 1) + 1,
+      is_draft: true,
+      draft_source: source,
+      draft_reason: reason,
+      draft_analysis_id: latestAnalysis?.id ?? null,
+    })
+    .select()
+    .single();
+  if (draftErr) throw draftErr;
+
+  // Update parent status + link analysis
+  await supabase
+    .from("ai_plans")
+    .update({ cycle_status: "rascunho_gerado" })
+    .eq("id", plan.id);
+
+  if (latestAnalysis?.id) {
+    await supabase
+      .from("diet_renewal_analysis")
+      .update({ draft_plan_id: draft.id })
+      .eq("id", latestAnalysis.id);
+  }
+
+  return { draft, reused: false };
+}
+
+async function discardDraft(supabase: any, draftId: string) {
+  const { data: draft } = await supabase
+    .from("ai_plans")
+    .select("*")
+    .eq("id", draftId)
+    .maybeSingle();
+  if (!draft || !draft.is_draft) throw new Error("Draft not found");
+
+  const parentId = draft.parent_plan_id;
+  await supabase.from("ai_plans").delete().eq("id", draftId);
+
+  if (parentId) {
+    // Revert parent to "renovacao_sugerida" if there is an analysis, else pre_renovacao
+    const { data: latest } = await supabase
+      .from("diet_renewal_analysis")
+      .select("suggested_action")
+      .eq("plan_id", parentId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const newStatus = latest ? actionToCycleStatus(latest.suggested_action) : "pre_renovacao";
+    await supabase.from("ai_plans").update({ cycle_status: newStatus }).eq("id", parentId);
+  }
+
+  return { ok: true };
 }
 
 async function analyzePlan(supabase: any, planId: string) {
@@ -355,6 +639,25 @@ serve(async (req) => {
       }
 
       throw new Error("Unknown user_action");
+    }
+
+    if (action === "generate_draft") {
+      const planId = body.plan_id;
+      const source = (body.source as "manual" | "auto") ?? "manual";
+      if (!planId) throw new Error("plan_id required");
+      const { draft, reused } = await generateDraft(supabase, planId, source);
+      return new Response(JSON.stringify({ ok: true, draft_id: draft.id, reused }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "discard_draft") {
+      const draftId = body.draft_id;
+      if (!draftId) throw new Error("draft_id required");
+      const r = await discardDraft(supabase, draftId);
+      return new Response(JSON.stringify(r), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     throw new Error("Unknown action");
