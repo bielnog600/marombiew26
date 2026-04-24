@@ -633,7 +633,12 @@ const TreinoExecucao = () => {
     setSets((prev) => {
       const current = [...(prev[currentIndex] || [])];
       current[setIndex] = { ...current[setIndex], [field]: value };
-      return { ...prev, [currentIndex]: current };
+      const next = { ...prev, [currentIndex]: current };
+      // syncLocalActiveSession já será disparado pelo useEffect que observa `sets`,
+      // mas chamamos aqui também para garantir gravação síncrona em localStorage
+      // antes que o app possa ser fechado/backgrounded.
+      syncLocalActiveSession(next, currentIndex);
+      return next;
     });
   };
   const toggleSetComplete = (setIndex: number) => {
