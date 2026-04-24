@@ -1054,25 +1054,39 @@ const TreinoExecucao = () => {
               }
 
               if (setLogRows.length > 0 && finalSessionId) {
-                await supabase
-                  .from('exercise_set_logs')
-                  .insert(setLogRows.map((r) => ({ ...r, session_id: finalSessionId })));
-                await supabase.from('student_events').insert({
-                  student_id: user.id,
-                  event_type: 'workout_load_logged',
-                  metadata: { sets: setLogRows.length, session_id: finalSessionId },
+                const { writeWithFallback } = await import('@/lib/offlineQueue');
+                await writeWithFallback({
+                  table: 'exercise_set_logs',
+                  op: 'insert',
+                  payload: setLogRows.map((r) => ({ ...r, session_id: finalSessionId })),
+                });
+                await writeWithFallback({
+                  table: 'student_events',
+                  op: 'insert',
+                  payload: {
+                    student_id: user.id,
+                    event_type: 'workout_load_logged',
+                    metadata: { sets: setLogRows.length, session_id: finalSessionId },
+                  },
                 });
               }
-              await supabase.from('student_events').insert({
-                student_id: user.id,
-                event_type: 'workout_completed',
-                metadata: {
-                  day_name: dayName,
-                  duration_minutes: durationMinutes,
-                  exercises_completed: exercisesCompleted,
-                  session_rpe: sessionRpe,
-                },
-              });
+              {
+                const { writeWithFallback } = await import('@/lib/offlineQueue');
+                await writeWithFallback({
+                  table: 'student_events',
+                  op: 'insert',
+                  payload: {
+                    student_id: user.id,
+                    event_type: 'workout_completed',
+                    metadata: {
+                      day_name: dayName,
+                      duration_minutes: durationMinutes,
+                      exercises_completed: exercisesCompleted,
+                      session_rpe: sessionRpe,
+                    },
+                  },
+                });
+              }
 
               clearActiveSession();
             }
