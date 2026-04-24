@@ -54,32 +54,53 @@ export type Database = {
         Row: {
           conteudo: string
           created_at: string
+          cycle_days: number
+          cycle_status: string
           fase: string
           fase_inicio_data: string | null
           id: string
+          is_draft: boolean
+          last_analysis_at: string | null
+          parent_plan_id: string | null
+          renewal_mode: string
           student_id: string
           tipo: string
           titulo: string
+          version: number
         }
         Insert: {
           conteudo?: string
           created_at?: string
+          cycle_days?: number
+          cycle_status?: string
           fase?: string
           fase_inicio_data?: string | null
           id?: string
+          is_draft?: boolean
+          last_analysis_at?: string | null
+          parent_plan_id?: string | null
+          renewal_mode?: string
           student_id: string
           tipo?: string
           titulo?: string
+          version?: number
         }
         Update: {
           conteudo?: string
           created_at?: string
+          cycle_days?: number
+          cycle_status?: string
           fase?: string
           fase_inicio_data?: string | null
           id?: string
+          is_draft?: boolean
+          last_analysis_at?: string | null
+          parent_plan_id?: string | null
+          renewal_mode?: string
           student_id?: string
           tipo?: string
           titulo?: string
+          version?: number
         }
         Relationships: []
       }
@@ -221,6 +242,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      app_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
       }
       assessment_photos: {
         Row: {
@@ -391,6 +430,45 @@ export type Database = {
         }
         Relationships: []
       }
+      diet_plan_versions: {
+        Row: {
+          archived_at: string | null
+          conteudo: string
+          created_at: string
+          fase: string | null
+          id: string
+          plan_id: string
+          source: string
+          student_id: string
+          titulo: string
+          version: number
+        }
+        Insert: {
+          archived_at?: string | null
+          conteudo: string
+          created_at?: string
+          fase?: string | null
+          id?: string
+          plan_id: string
+          source?: string
+          student_id: string
+          titulo: string
+          version: number
+        }
+        Update: {
+          archived_at?: string | null
+          conteudo?: string
+          created_at?: string
+          fase?: string | null
+          id?: string
+          plan_id?: string
+          source?: string
+          student_id?: string
+          titulo?: string
+          version?: number
+        }
+        Relationships: []
+      }
       diet_questionnaires: {
         Row: {
           alimentos_por_refeicao: Json | null
@@ -536,6 +614,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      diet_renewal_analysis: {
+        Row: {
+          adherence_score: number | null
+          applied: boolean
+          applied_at: string | null
+          context_snapshot: Json
+          created_at: string
+          data_quality: string
+          days_remaining: number
+          draft_plan_id: string | null
+          id: string
+          meal_log_frequency: number | null
+          plan_id: string
+          rationale: string
+          student_id: string
+          suggested_action: string
+          weight_trend: string | null
+        }
+        Insert: {
+          adherence_score?: number | null
+          applied?: boolean
+          applied_at?: string | null
+          context_snapshot?: Json
+          created_at?: string
+          data_quality?: string
+          days_remaining: number
+          draft_plan_id?: string | null
+          id?: string
+          meal_log_frequency?: number | null
+          plan_id: string
+          rationale: string
+          student_id: string
+          suggested_action: string
+          weight_trend?: string | null
+        }
+        Update: {
+          adherence_score?: number | null
+          applied?: boolean
+          applied_at?: string | null
+          context_snapshot?: Json
+          created_at?: string
+          data_quality?: string
+          days_remaining?: number
+          draft_plan_id?: string | null
+          id?: string
+          meal_log_frequency?: number | null
+          plan_id?: string
+          rationale?: string
+          student_id?: string
+          suggested_action?: string
+          weight_trend?: string | null
+        }
+        Relationships: []
       }
       dismissed_notifications: {
         Row: {

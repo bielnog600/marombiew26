@@ -15,9 +15,10 @@ import { useBehavioralAlerts } from '@/hooks/useBehavioralAlerts';
 import BehavioralAlertCard from '@/components/consultoria/BehavioralAlertCard';
 import EngagementOverviewCards from '@/components/consultoria/EngagementOverviewCards';
 import ConsultoriaStudentSearch from '@/components/consultoria/ConsultoriaStudentSearch';
+import DietRenewalPanel from '@/components/consultoria/DietRenewalPanel';
 
-const CYCLE_MIN_DAYS = 28;
-const CYCLE_MAX_DAYS = 42;
+const CYCLE_MIN_DAYS = 35; // Pré-renovação aos 35d (faltam 10)
+const CYCLE_MAX_DAYS = 45;
 
 type CycleStatus = 'ok' | 'atencao' | 'vencido';
 
@@ -616,11 +617,13 @@ const Consultoria = () => {
         )}
 
         {tab === 'dietas' && (
+          <div className="space-y-4">
+          <DietRenewalPanel />
           <Card className="glass-card">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <Utensils className="h-5 w-5 text-emerald-500" />
-                Ciclo de Dietas (4-6 semanas)
+                Ciclo de Dietas (45 dias)
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -639,6 +642,7 @@ const Consultoria = () => {
               )}
             </CardContent>
           </Card>
+          </div>
         )}
 
         {tab === 'treinos' && (
