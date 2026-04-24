@@ -4,10 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
-import { Sparkles, RefreshCw, Check, FileEdit, FileText, AlertTriangle, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { Sparkles, RefreshCw, Check, FileEdit, FileText, AlertTriangle, ChevronDown, ChevronUp, Loader2, GitCompare, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import DietDraftComparisonDialog from './DietDraftComparisonDialog';
 
 type CycleStatus =
   | 'em_dia'
@@ -33,6 +34,8 @@ interface PlanRow {
   parent_plan_id: string | null;
   last_analysis_at: string | null;
   student_name?: string;
+  draft_source?: string | null;
+  draft_reason?: string | null;
 }
 
 interface AnalysisRow {
@@ -73,8 +76,10 @@ const DietRenewalPanel: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [plans, setPlans] = useState<PlanRow[]>([]);
   const [analyses, setAnalyses] = useState<Record<string, AnalysisRow>>({});
+  const [drafts, setDrafts] = useState<Record<string, PlanRow>>({});
   const [expanded, setExpanded] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [compareFor, setCompareFor] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -112,6 +117,22 @@ const DietRenewalPanel: React.FC = () => {
         if (!map[a.plan_id]) map[a.plan_id] = a;
       });
       setAnalyses(map);
+
+      // 5. Drafts (is_draft=true) whose parent is one of these plans
+      const { data: draftRows } = await supabase
+        .from('ai_plans')
+        .select('*')
+        .eq('tipo', 'dieta')
+        .eq('is_draft', true)
+        .in('parent_plan_id', planIds);
+      const draftMap: Record<string, PlanRow> = {};
+      (draftRows ?? []).forEach((d: any) => {
+        if (d.parent_plan_id) draftMap[d.parent_plan_id] = d as PlanRow;
+      });
+      setDrafts(draftMap);
+    } else {
+      setAnalyses({});
+      setDrafts({});
     }
 
     setPlans(focus);
@@ -155,6 +176,52 @@ const DietRenewalPanel: React.FC = () => {
     }
   };
 
+  const handleGenerateDraft = async (planId: string) => {
+    setBusy(planId);
+    try {
+      const r = await callRenewal({ action: 'generate_draft', plan_id: planId, source: 'manual' });
+      toast.success(r?.reused ? 'Rascunho existente carregado.' : 'Rascunho gerado pela IA.');
+      await load();
+      setCompareFor(planId);
+    } catch (e: any) {
+      toast.error('Erro ao gerar rascunho: ' + (e.message ?? 'desconhecido'));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handlePublishDraft = async (planId: string) => {
+    const draft = drafts[planId];
+    if (!draft) return;
+    setBusy(planId);
+    try {
+      await callRenewal({ action: 'apply_action', user_action: 'publish_draft', plan_id: planId, draft_id: draft.id });
+      toast.success('Nova versão publicada.');
+      setCompareFor(null);
+      await load();
+    } catch (e: any) {
+      toast.error('Erro ao publicar: ' + e.message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleDiscardDraft = async (planId: string) => {
+    const draft = drafts[planId];
+    if (!draft) return;
+    setBusy(planId);
+    try {
+      await callRenewal({ action: 'discard_draft', draft_id: draft.id });
+      toast.success('Rascunho descartado.');
+      setCompareFor(null);
+      await load();
+    } catch (e: any) {
+      toast.error('Erro ao descartar: ' + e.message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <Card className="glass-card">
       <CardHeader>
@@ -182,6 +249,7 @@ const DietRenewalPanel: React.FC = () => {
               const status = plan.cycle_status;
               const meta = statusMeta[status];
               const analysis = analyses[plan.id];
+              const draft = drafts[plan.id];
               const isExpanded = expanded === plan.id;
               return (
                 <Card key={plan.id} className="bg-secondary/30 border-border/50">
@@ -246,6 +314,35 @@ const DietRenewalPanel: React.FC = () => {
                           </div>
                         )}
 
+                        {draft && (
+                          <div className="rounded-md border border-violet-500/30 bg-violet-500/5 p-3 space-y-2">
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                              <div className="flex items-center gap-2">
+                                <Wand2 className="h-4 w-4 text-violet-500" />
+                                <p className="text-sm font-medium">Rascunho v{draft.version} pronto</p>
+                                <Badge variant="outline" className="text-[10px] bg-violet-500/10 text-violet-500 border-violet-500/30">
+                                  {draft.draft_source === 'auto' ? 'auto' : 'manual'}
+                                </Badge>
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {format(new Date(draft.created_at), "dd/MM HH:mm", { locale: ptBR })}
+                              </span>
+                            </div>
+                            {draft.draft_reason && (
+                              <p className="text-xs text-muted-foreground line-clamp-2">{draft.draft_reason}</p>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="default"
+                              disabled={busy === plan.id}
+                              onClick={() => setCompareFor(plan.id)}
+                            >
+                              <GitCompare className="h-3 w-3" />
+                              Comparar e publicar
+                            </Button>
+                          </div>
+                        )}
+
                         <div className="flex flex-wrap gap-2">
                           <Button
                             size="sm"
@@ -278,11 +375,11 @@ const DietRenewalPanel: React.FC = () => {
                           <Button
                             size="sm"
                             variant="outline"
-                            disabled={busy === plan.id}
-                            onClick={() => toast.info('Para gerar rascunho/renovar, abra Dieta IA do aluno.')}
+                            disabled={busy === plan.id || !!draft}
+                            onClick={() => handleGenerateDraft(plan.id)}
                           >
-                            <FileText className="h-3 w-3" />
-                            Gerar rascunho
+                            {busy === plan.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
+                            {draft ? 'Rascunho gerado' : 'Gerar rascunho'}
                           </Button>
                         </div>
                       </div>
@@ -294,6 +391,18 @@ const DietRenewalPanel: React.FC = () => {
           </div>
         )}
       </CardContent>
+
+      <DietDraftComparisonDialog
+        open={!!compareFor}
+        onOpenChange={(v) => !v && setCompareFor(null)}
+        current={compareFor ? plans.find((p) => p.id === compareFor) ?? null : null}
+        draft={compareFor ? drafts[compareFor] ?? null : null}
+        rationale={compareFor ? analyses[compareFor]?.rationale ?? null : null}
+        busy={busy === compareFor}
+        onPublish={() => compareFor && handlePublishDraft(compareFor)}
+        onKeep={() => compareFor && handleKeep(compareFor)}
+        onDiscard={() => compareFor && handleDiscardDraft(compareFor)}
+      />
     </Card>
   );
 };
