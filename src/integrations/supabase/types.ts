@@ -1347,6 +1347,140 @@ export type Database = {
         }
         Relationships: []
       }
+      workout_plan_versions: {
+        Row: {
+          archived_at: string | null
+          conteudo: string
+          created_at: string
+          fase: string | null
+          generated_by: string
+          id: string
+          plan_id: string
+          previous_version_id: string | null
+          published_at: string | null
+          reason_summary: string | null
+          snapshot_json: Json
+          status: string
+          student_id: string
+          titulo: string
+          version_number: number
+        }
+        Insert: {
+          archived_at?: string | null
+          conteudo: string
+          created_at?: string
+          fase?: string | null
+          generated_by?: string
+          id?: string
+          plan_id: string
+          previous_version_id?: string | null
+          published_at?: string | null
+          reason_summary?: string | null
+          snapshot_json?: Json
+          status?: string
+          student_id: string
+          titulo: string
+          version_number: number
+        }
+        Update: {
+          archived_at?: string | null
+          conteudo?: string
+          created_at?: string
+          fase?: string | null
+          generated_by?: string
+          id?: string
+          plan_id?: string
+          previous_version_id?: string | null
+          published_at?: string | null
+          reason_summary?: string | null
+          snapshot_json?: Json
+          status?: string
+          student_id?: string
+          titulo?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workout_plan_versions_previous_version_id_fkey"
+            columns: ["previous_version_id"]
+            isOneToOne: false
+            referencedRelation: "workout_plan_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workout_renewal_analysis: {
+        Row: {
+          adherence_score: number | null
+          applied: boolean
+          applied_at: string | null
+          avg_rpe: number | null
+          completion_rate: number | null
+          context_snapshot: Json
+          created_at: string
+          data_quality: string
+          days_remaining: number
+          draft_plan_id: string | null
+          fatigue_signal: string | null
+          id: string
+          load_progression: string | null
+          monotony_risk: string | null
+          plan_id: string
+          rationale: string
+          reps_progression: string | null
+          session_frequency: number | null
+          student_id: string
+          suggested_action: string
+          volume_trend: string | null
+        }
+        Insert: {
+          adherence_score?: number | null
+          applied?: boolean
+          applied_at?: string | null
+          avg_rpe?: number | null
+          completion_rate?: number | null
+          context_snapshot?: Json
+          created_at?: string
+          data_quality?: string
+          days_remaining: number
+          draft_plan_id?: string | null
+          fatigue_signal?: string | null
+          id?: string
+          load_progression?: string | null
+          monotony_risk?: string | null
+          plan_id: string
+          rationale: string
+          reps_progression?: string | null
+          session_frequency?: number | null
+          student_id: string
+          suggested_action: string
+          volume_trend?: string | null
+        }
+        Update: {
+          adherence_score?: number | null
+          applied?: boolean
+          applied_at?: string | null
+          avg_rpe?: number | null
+          completion_rate?: number | null
+          context_snapshot?: Json
+          created_at?: string
+          data_quality?: string
+          days_remaining?: number
+          draft_plan_id?: string | null
+          fatigue_signal?: string | null
+          id?: string
+          load_progression?: string | null
+          monotony_risk?: string | null
+          plan_id?: string
+          rationale?: string
+          reps_progression?: string | null
+          session_frequency?: number | null
+          student_id?: string
+          suggested_action?: string
+          volume_trend?: string | null
+        }
+        Relationships: []
+      }
       workout_sessions: {
         Row: {
           avg_rpe: number | null
