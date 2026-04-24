@@ -17,8 +17,8 @@ import EngagementOverviewCards from '@/components/consultoria/EngagementOverview
 import ConsultoriaStudentSearch from '@/components/consultoria/ConsultoriaStudentSearch';
 import DietRenewalPanel from '@/components/consultoria/DietRenewalPanel';
 
-const CYCLE_MIN_DAYS = 28;
-const CYCLE_MAX_DAYS = 42;
+const CYCLE_MIN_DAYS = 35; // Pré-renovação aos 35d (faltam 10)
+const CYCLE_MAX_DAYS = 45;
 
 type CycleStatus = 'ok' | 'atencao' | 'vencido';
 
