@@ -65,13 +65,25 @@ export function useActiveWorkoutSession() {
         localStorage.removeItem(LOCAL_KEY);
         setSession(null);
       } else {
+        // Preserva session_state local se for da MESMA sessão — pode conter
+        // edições recentes ainda não persistidas no banco (debounce / app fechado).
+        let cachedState: any = null;
+        try {
+          const raw = localStorage.getItem(LOCAL_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw) as ActiveWorkoutSession;
+            if (parsed.id === data.id && parsed.session_state) {
+              cachedState = parsed.session_state;
+            }
+          }
+        } catch {}
         const active: ActiveWorkoutSession = {
           id: data.id,
           student_id: data.student_id,
           day_name: data.day_name,
           phase: data.phase,
           started_at: data.started_at,
-          session_state: data.session_state,
+          session_state: cachedState ?? data.session_state,
         };
         setSession(active);
         localStorage.setItem(LOCAL_KEY, JSON.stringify(active));
