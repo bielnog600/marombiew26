@@ -56,6 +56,9 @@ export type Database = {
           created_at: string
           cycle_days: number
           cycle_status: string
+          draft_analysis_id: string | null
+          draft_reason: string | null
+          draft_source: string | null
           fase: string
           fase_inicio_data: string | null
           id: string
@@ -73,6 +76,9 @@ export type Database = {
           created_at?: string
           cycle_days?: number
           cycle_status?: string
+          draft_analysis_id?: string | null
+          draft_reason?: string | null
+          draft_source?: string | null
           fase?: string
           fase_inicio_data?: string | null
           id?: string
@@ -90,6 +96,9 @@ export type Database = {
           created_at?: string
           cycle_days?: number
           cycle_status?: string
+          draft_analysis_id?: string | null
+          draft_reason?: string | null
+          draft_source?: string | null
           fase?: string
           fase_inicio_data?: string | null
           id?: string
