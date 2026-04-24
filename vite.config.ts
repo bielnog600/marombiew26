@@ -24,7 +24,8 @@ export default defineConfig(({ mode }) => ({
       },
       workbox: {
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-        navigateFallbackDenylist: [/^\/~oauth/, /^\/rest\//, /^\/auth\//],
+        navigateFallback: "/index.html",
+        navigateFallbackDenylist: [/^\/~oauth/, /^\/rest\//, /^\/auth\//, /^\/functions\//],
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2,jpg,jpeg,webp}"],
         cleanupOutdatedCaches: true,
         skipWaiting: true,
@@ -39,6 +40,16 @@ export default defineConfig(({ mode }) => ({
             },
           },
           {
+            // Imagens de exercícios e fotos hospedadas no Supabase Storage
+            urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/v1\/object\/public\/.*\.(png|jpg|jpeg|webp|svg|gif)$/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "supabase-images",
+              expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 90 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
             handler: "CacheFirst",
             options: {
@@ -47,12 +58,15 @@ export default defineConfig(({ mode }) => ({
             },
           },
           {
-            urlPattern: /\/rest\/v1\//i,
+            // GETs do Supabase REST → cache para leitura offline
+            urlPattern: ({ url, request }) =>
+              url.pathname.startsWith('/rest/v1/') && request.method === 'GET',
             handler: "NetworkFirst",
             options: {
               cacheName: "api-cache",
               networkTimeoutSeconds: 5,
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 },
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              cacheableResponse: { statuses: [0, 200] },
             },
           },
         ],

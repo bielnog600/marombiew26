@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEventTracking } from '@/hooks/useEventTracking';
+import { writeWithFallback } from '@/lib/offlineQueue';
 
 interface DailyTracking {
   id?: string;
@@ -123,7 +124,13 @@ export function useDailyTracking(opts?: { isTrainingDay?: boolean }) {
       workout_completed: next.workout_completed,
     };
 
-    await supabase.from('daily_tracking').upsert(row, { onConflict: 'student_id,date' });
+    // Tenta online; se falhar/offline, enfileira para sincronizar depois.
+    await writeWithFallback({
+      table: 'daily_tracking',
+      op: 'upsert',
+      payload: row,
+      onConflict: 'student_id,date',
+    });
   }, [user, tracking]);
 
   const addWater = useCallback(() => {
