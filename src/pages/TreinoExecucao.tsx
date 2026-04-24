@@ -343,6 +343,28 @@ const TreinoExecucao = () => {
     return () => clearTimeout(t);
   }, [sets, currentIndex, sessionId]);
 
+  // Flush imediato ao backgrounded/fechar app — evita perder reps/cargas digitadas
+  // que ainda não foram persistidas pelo debounce.
+  useEffect(() => {
+    if (!sessionId) return;
+    const flush = () => {
+      supabase
+        .from('workout_sessions')
+        .update({ session_state: { sets, currentIndex } as any })
+        .eq('id', sessionId)
+        .then(() => {});
+    };
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', onHide);
+    };
+  }, [sets, currentIndex, sessionId]);
+
 
   // Auto-load training plan from DB when accessed directly (no state)
   useEffect(() => {
@@ -633,7 +655,12 @@ const TreinoExecucao = () => {
     setSets((prev) => {
       const current = [...(prev[currentIndex] || [])];
       current[setIndex] = { ...current[setIndex], [field]: value };
-      return { ...prev, [currentIndex]: current };
+      const next = { ...prev, [currentIndex]: current };
+      // syncLocalActiveSession já será disparado pelo useEffect que observa `sets`,
+      // mas chamamos aqui também para garantir gravação síncrona em localStorage
+      // antes que o app possa ser fechado/backgrounded.
+      syncLocalActiveSession(next, currentIndex);
+      return next;
     });
   };
   const toggleSetComplete = (setIndex: number) => {
