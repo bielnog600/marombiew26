@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { format, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import WorkoutDraftComparisonDialog from './WorkoutDraftComparisonDialog';
+import WhatsAppDataRequestButton from './WhatsAppDataRequestButton';
 
 type CycleStatus =
   | 'em_dia'
@@ -35,6 +36,7 @@ interface PlanRow {
   last_analysis_at: string | null;
   fase: string | null;
   student_name?: string;
+  student_phone?: string | null;
   draft_source?: string | null;
   draft_reason?: string | null;
 }
@@ -102,10 +104,14 @@ const WorkoutRenewalPanel: React.FC = () => {
 
     const studentIds = Array.from(new Set(focus.map((p) => p.student_id)));
     const { data: profiles } = studentIds.length
-      ? await supabase.from('profiles').select('user_id, nome').in('user_id', studentIds)
+      ? await supabase.from('profiles').select('user_id, nome, telefone').in('user_id', studentIds)
       : { data: [] as any[] };
-    const nameMap = new Map((profiles ?? []).map((p: any) => [p.user_id, p.nome]));
-    focus.forEach((p) => (p.student_name = nameMap.get(p.student_id) ?? 'Aluno'));
+    const profileMap = new Map((profiles ?? []).map((p: any) => [p.user_id, p]));
+    focus.forEach((p) => {
+      const prof = profileMap.get(p.student_id);
+      p.student_name = prof?.nome ?? 'Aluno';
+      p.student_phone = prof?.telefone ?? null;
+    });
 
     const planIds = focus.map((p) => p.id);
     if (planIds.length) {
@@ -360,6 +366,20 @@ const WorkoutRenewalPanel: React.FC = () => {
                             {busy === plan.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                             {analysis ? 'Reanalisar' : 'Analisar com IA'}
                           </Button>
+                          <WhatsAppDataRequestButton
+                            phone={plan.student_phone}
+                            studentName={plan.student_name}
+                            planType="treino"
+                            rationale={analysis?.rationale}
+                            dataQuality={analysis?.data_quality}
+                            suggestedAction={analysis?.suggested_action}
+                            missingItems={analysis ? [
+                              analysis.session_frequency == null || (analysis.session_frequency ?? 0) < 2 ? 'Registrar treinos concluídos no app' : null,
+                              analysis.completion_rate == null || (analysis.completion_rate ?? 0) < 0.5 ? 'Marcar séries/exercícios como feitos' : null,
+                              analysis.avg_rpe == null ? 'Informar RPE (esforço percebido) ao final dos treinos' : null,
+                              analysis.load_progression == null || analysis.load_progression === 'sem_dados' ? 'Atualizar cargas usadas em cada exercício' : null,
+                            ].filter(Boolean) as string[] : []}
+                          />
                           <Button
                             size="sm"
                             variant="outline"
