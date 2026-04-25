@@ -22,6 +22,10 @@ export interface Notification {
     avgWaterGlasses: number;
     daysWithMeals: number;
     weighedThisWeek: boolean;
+    hasTreinoPlan: boolean;
+    hasDietaPlan: boolean;
+    totalSetsLogged: number;
+    trackingDays: number;
   };
 }
 
