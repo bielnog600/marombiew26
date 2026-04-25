@@ -763,6 +763,7 @@ const NovaAvaliacao = () => {
 
                   {skinfoldFields.map((key) => {
                     const avg = avgSk(key);
+                    const prevValue = (previousSkinfolds as any)?.[key] ?? null;
 
                     return (
                       <div key={key} className="rounded-lg border border-border/60 p-3">
@@ -790,10 +791,30 @@ const NovaAvaliacao = () => {
                             <span className="font-bold text-sm text-primary">{avg || '-'}</span>
                           </div>
                         </div>
+                        {prevValue !== null && prevValue !== undefined && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSkinfolds({
+                                ...skinfolds,
+                                [`${key}_1`]: String(prevValue),
+                              })
+                            }
+                            className="mt-2 text-[10px] text-muted-foreground/80 hover:text-primary transition-colors text-left"
+                            title="Clique para preencher Med. 1 com o valor anterior"
+                          >
+                            Anterior: <span className="font-medium text-foreground/70">{String(prevValue).replace('.', ',')} mm</span>
+                          </button>
+                        )}
                       </div>
                     );
                   })}
                 </div>
+                {previousAssessmentDate && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Comparando dobras com avaliação de {format(previousAssessmentDate, "dd/MM/yyyy")}
+                  </p>
+                )}
                 <div className="p-3 rounded-lg bg-secondary/50 space-y-1">
                   <div>
                     <span className="text-xs text-muted-foreground">% Gordura Estimado: </span>
