@@ -165,14 +165,14 @@ serve(async (req) => {
     };
     const styleInstr = STYLE_INSTR[style] || STYLE_INSTR.auto;
 
-    const intensityInstr =
-      {
+    const INTENSITY_INSTR: Record<string, string> = {
         auto: "AUTO: analise o perfil completo e decida a intensidade ideal por sessão.",
         leve: "LEVE: predominância Z1-Z2, sem picos.",
         moderada: "MODERADA: predominância Z2-Z3, opcional pequenos picos em Z4.",
         intensa:
           "INTENSA: predominância Z3-Z4 com picos Z5 quando seguro. SOMENTE se sem restrições e bom condicionamento.",
-      }[intensity] || "AUTO";
+    };
+    const intensityInstr = INTENSITY_INSTR[intensity] || "AUTO";
 
     const modalityInstr = `MODALIDADES PERMITIDAS: ${allowedMods.join(", ")}. ${
       allowedMods.length > 1
