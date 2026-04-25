@@ -37,14 +37,45 @@ const WhatsAppDataRequestButton: React.FC<Props> = ({
   const handleClick = () => {
     const firstName = (studentName ?? 'aluno').split(' ')[0];
     const planLabel = planType === 'dieta' ? 'sua dieta' : 'seu treino';
-    const itemsLine = missingItems && missingItems.length > 0
-      ? `\n\nPreciso especialmente de:\n${missingItems.map((i) => `• ${i}`).join('\n')}`
+
+    // Transforma cada item em uma frase amigável, oferecendo ajuda em vez de cobrar
+    const friendlyLines = (missingItems ?? []).map((item) => {
+      const lower = item.toLowerCase();
+      if (lower.includes('pesagem') || lower.includes('peso')) {
+        return '⚖️ Consegue se pesar amanhã pela manhã, em jejum e após ir ao banheiro? É super rápido e me ajuda demais a calibrar seu plano.';
+      }
+      if (lower.includes('refeições') || lower.includes('refeicoes') || lower.includes('alimenta')) {
+        return '🍽️ Quando puder, registra as refeições do dia no app — mesmo que seja só marcar as que você já fez. Não precisa ser perfeito!';
+      }
+      if (lower.includes('rpe') || lower.includes('esforço') || lower.includes('esforco')) {
+        return '💪 Ao terminar o treino, marca o RPE (o quanto foi puxado de 1 a 10). Leva 2 segundos e me ajuda a ajustar a intensidade pra você.';
+      }
+      if (lower.includes('carga')) {
+        return '🏋️ Se puder, anota as cargas que você está usando nos exercícios. Assim consigo planejar a progressão certa pra você.';
+      }
+      if (lower.includes('séries') || lower.includes('series') || lower.includes('exerc')) {
+        return '✅ Tenta marcar as séries/exercícios concluídos no app durante o treino. Qualquer registro já me ajuda muito.';
+      }
+      if (lower.includes('treinos concluídos') || lower.includes('treinos concluidos') || lower.includes('frequ')) {
+        return '📅 Sempre que treinar, dá um check no app. Se faltar algum dia, sem problema — me conta o que aconteceu pra gente ajustar juntos.';
+      }
+      if (lower.includes('água') || lower.includes('agua') || lower.includes('hidrat')) {
+        return '💧 Se conseguir, vai marcando os copos de água no app. Pequenos registros já me dão um ótimo panorama.';
+      }
+      if (lower.includes('sono') || lower.includes('humor') || lower.includes('energia')) {
+        return '😴 Quando lembrar, registra como está seu sono e energia. Esses dados me ajudam a entender seu contexto além do treino.';
+      }
+      return `• ${item}`;
+    });
+
+    const itemsBlock = friendlyLines.length > 0
+      ? `\n\nPra eu te ajudar melhor, se conseguir essa semana:\n\n${friendlyLines.join('\n\n')}`
       : '';
-    const aiNote = rationale ? `\n\nResumo da análise:\n"${rationale.slice(0, 280)}${rationale.length > 280 ? '…' : ''}"` : '';
+
     const msg =
-      `Olá ${firstName}! Tudo bem? 💪\n\n` +
-      `Estou revisando ${planLabel} e percebi que faltam alguns dados importantes para eu fazer o melhor ajuste possível.${itemsLine}${aiNote}\n\n` +
-      `Pode atualizar essas informações no app esta semana? Qualquer dúvida me chama por aqui!`;
+      `Oi ${firstName}, tudo bem? 😊\n\n` +
+      `Tô aqui revisando ${planLabel} pra deixar tudo certinho pra próxima fase e queria te ajudar a tirar o melhor proveito possível.${itemsBlock}\n\n` +
+      `Sem pressão e sem cobrança, tá? Qualquer dificuldade me chama por aqui que a gente resolve junto. Tô torcendo por você! 🙌`;
 
     const cleaned = (phone ?? '').replace(/\D/g, '');
     // Adiciona DDI Brasil se faltar
