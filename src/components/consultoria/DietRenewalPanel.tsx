@@ -359,6 +359,19 @@ const DietRenewalPanel: React.FC = () => {
                             {busy === plan.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                             {analysis ? 'Reanalisar' : 'Analisar com IA'}
                           </Button>
+                          <WhatsAppDataRequestButton
+                            phone={plan.student_phone}
+                            studentName={plan.student_name}
+                            planType="dieta"
+                            rationale={analysis?.rationale}
+                            dataQuality={analysis?.data_quality}
+                            suggestedAction={analysis?.suggested_action}
+                            missingItems={analysis ? [
+                              analysis.meal_log_frequency == null || (analysis.meal_log_frequency ?? 0) < 0.4 ? 'Registro das refeições do dia (ao menos 4x/semana)' : null,
+                              analysis.weight_trend == null || analysis.weight_trend === 'sem_dados' ? 'Pesagem semanal atualizada' : null,
+                              analysis.adherence_score == null || (analysis.adherence_score ?? 0) < 0.4 ? 'Marcar refeições concluídas no app' : null,
+                            ].filter(Boolean) as string[] : []}
+                          />
                           <Button
                             size="sm"
                             variant="outline"
