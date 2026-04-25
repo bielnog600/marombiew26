@@ -186,6 +186,8 @@ export function useNotifications() {
           const avgWaterGlasses = tracking.length > 0 ? Math.round(totalWater / tracking.length) : 0;
           const daysWithMeals = tracking.filter(t => Array.isArray(t.meals_completed) && t.meals_completed.length > 0).length;
 
+          const studentPlanTypes = studentPlansMap.get(uid) ?? new Set<string>();
+
           weeklyStatsMap.set(uid, {
             workoutsCompleted: sessions.length,
             setsWithoutLoad,
@@ -194,6 +196,10 @@ export function useNotifications() {
             avgWaterGlasses,
             daysWithMeals,
             weighedThisWeek: weights.length > 0,
+            hasTreinoPlan: studentPlanTypes.has('treino'),
+            hasDietaPlan: studentPlanTypes.has('dieta'),
+            totalSetsLogged: logs.length,
+            trackingDays: tracking.length,
           });
         }
       }
