@@ -147,6 +147,15 @@ export function useNotifications() {
 
       const isSaturday = today.getDay() === 6;
 
+      // Build AI plans map early so weekly stats can use it
+      const studentPlansMap = new Map<string, Set<string>>();
+      aiPlans?.forEach(p => {
+        if (!studentPlansMap.has(p.student_id)) {
+          studentPlansMap.set(p.student_id, new Set());
+        }
+        studentPlansMap.get(p.student_id)!.add(p.tipo);
+      });
+
       let weeklyStatsMap = new Map<string, NonNullable<Notification['weeklyStats']>>();
       if (isSaturday) {
         const [sessionsRes, setLogsRes, trackingRes, weightsRes] = await Promise.all([
@@ -212,15 +221,6 @@ export function useNotifications() {
         if (!latestAssessmentMap.has(a.student_id)) {
           latestAssessmentMap.set(a.student_id, a.created_at);
         }
-      });
-
-      // Build AI plans map
-      const studentPlansMap = new Map<string, Set<string>>();
-      aiPlans?.forEach(p => {
-        if (!studentPlansMap.has(p.student_id)) {
-          studentPlansMap.set(p.student_id, new Set());
-        }
-        studentPlansMap.get(p.student_id)!.add(p.tipo);
       });
 
       // Build latest completed questionnaire map
