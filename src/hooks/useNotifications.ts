@@ -14,6 +14,15 @@ export interface Notification {
   studentPhone?: string | null;
   date?: string;
   priority: 'high' | 'medium' | 'low';
+  weeklyStats?: {
+    workoutsCompleted: number;
+    setsWithoutLoad: number;
+    setsWithoutReps: number;
+    setsWithoutRpe: number;
+    avgWaterGlasses: number;
+    daysWithMeals: number;
+    weighedThisWeek: boolean;
+  };
 }
 
 /**
@@ -125,6 +134,66 @@ export function useNotifications() {
         .in('student_id', userIds)
         .order('created_at', { ascending: false });
 
+      // Weekly engagement data (last 7 days) — used by Saturday weekly message
+      const today = new Date();
+      const sevenDaysAgo = new Date(today);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const sevenDaysAgoISO = sevenDaysAgo.toISOString();
+      const sevenDaysAgoDate = sevenDaysAgoISO.slice(0, 10);
+
+      const isSaturday = today.getDay() === 6;
+
+      let weeklyStatsMap = new Map<string, NonNullable<Notification['weeklyStats']>>();
+      if (isSaturday) {
+        const [sessionsRes, setLogsRes, trackingRes, weightsRes] = await Promise.all([
+          supabase
+            .from('workout_sessions')
+            .select('student_id, completed_at, status')
+            .in('student_id', userIds)
+            .gte('completed_at', sevenDaysAgoISO),
+          supabase
+            .from('exercise_set_logs')
+            .select('student_id, weight_kg, reps, rpe, performed_at')
+            .in('student_id', userIds)
+            .gte('performed_at', sevenDaysAgoISO),
+          supabase
+            .from('daily_tracking')
+            .select('student_id, date, water_glasses, meals_completed')
+            .in('student_id', userIds)
+            .gte('date', sevenDaysAgoDate),
+          supabase
+            .from('weight_logs')
+            .select('student_id, data')
+            .in('student_id', userIds)
+            .gte('data', sevenDaysAgoDate),
+        ]);
+
+        for (const uid of userIds) {
+          const sessions = (sessionsRes.data ?? []).filter(s => s.student_id === uid && s.status === 'completed');
+          const logs = (setLogsRes.data ?? []).filter(l => l.student_id === uid);
+          const tracking = (trackingRes.data ?? []).filter(t => t.student_id === uid);
+          const weights = (weightsRes.data ?? []).filter(w => w.student_id === uid);
+
+          const setsWithoutLoad = logs.filter(l => l.weight_kg == null || Number(l.weight_kg) === 0).length;
+          const setsWithoutReps = logs.filter(l => l.reps == null || Number(l.reps) === 0).length;
+          const setsWithoutRpe = logs.filter(l => l.rpe == null).length;
+
+          const totalWater = tracking.reduce((sum, t) => sum + (t.water_glasses ?? 0), 0);
+          const avgWaterGlasses = tracking.length > 0 ? Math.round(totalWater / tracking.length) : 0;
+          const daysWithMeals = tracking.filter(t => Array.isArray(t.meals_completed) && t.meals_completed.length > 0).length;
+
+          weeklyStatsMap.set(uid, {
+            workoutsCompleted: sessions.length,
+            setsWithoutLoad,
+            setsWithoutReps,
+            setsWithoutRpe,
+            avgWaterGlasses,
+            daysWithMeals,
+            weighedThisWeek: weights.length > 0,
+          });
+        }
+      }
+
       const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
 
       // Build latest assessment map
@@ -160,7 +229,6 @@ export function useNotifications() {
         }
       });
 
-      const today = new Date();
       const notifs: Notification[] = [];
 
       for (const student of students) {
@@ -233,18 +301,21 @@ export function useNotifications() {
           }
         }
 
-        // 4. Weekly message reminder (every Monday)
-        const dayOfWeek = today.getDay();
-        if (dayOfWeek === 1) {
+        // 4. Weekly message reminder (every Saturday) — personalized per student
+        if (isSaturday) {
+          const stats = weeklyStatsMap.get(student.user_id);
           notifs.push({
             id: `weekly-${student.user_id}`,
             type: 'mensagem_semanal',
             title: 'Mensagem semanal',
-            description: `Envie uma mensagem de acompanhamento para ${name}.`,
+            description: stats && stats.workoutsCompleted > 0
+              ? `${name} treinou ${stats.workoutsCompleted}x essa semana. Pergunte como foi e ajude com registros faltantes.`
+              : `${name} sem treinos registrados essa semana. Mande um oi e veja se precisa de ajuda.`,
             studentId: student.user_id,
             studentName: name,
             studentPhone: phone,
             priority: 'low',
+            weeklyStats: stats,
           });
         }
 

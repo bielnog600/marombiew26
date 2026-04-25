@@ -216,8 +216,70 @@ const Consultoria = () => {
         return `Olá ${n.studentName}! 😊 Está na hora da sua reavaliação. Vamos agendar? Entre em contato para marcarmos o melhor horário!`;
       case 'aniversario':
         return `Parabéns ${n.studentName}! 🎂🎉 Desejo tudo de melhor nesse novo ciclo! Continue firme nos treinos! 💪`;
-      case 'mensagem_semanal':
-        return `Olá ${n.studentName}! Como foi a semana de treinos? Alguma dúvida ou feedback? Estou aqui para ajudar! 💪`;
+      case 'mensagem_semanal': {
+        const firstName = (n.studentName ?? 'aluno').split(' ')[0];
+        const s = n.weeklyStats;
+        const tips: string[] = [];
+        if (s) {
+          if (s.setsWithoutLoad > 0) {
+            tips.push(
+              '🏋️ *Cargas* — vi que algumas séries ficaram sem o peso anotado. ' +
+              'Da próxima vez é só registrar enquanto treina.\n' +
+              '👉 No app: *Treino de hoje → tocar no exercício → campo Carga (kg)*. ' +
+              'Isso me ajuda a planejar a progressão certinha pra você.'
+            );
+          }
+          if (s.setsWithoutReps > 0) {
+            tips.push(
+              '🔢 *Repetições* — algumas séries ficaram sem o número de reps.\n' +
+              '👉 No app: *Treino de hoje → tocar no exercício → campo Reps*. ' +
+              'Mesmo um número aproximado já me ajuda muito.'
+            );
+          }
+          if (s.setsWithoutRpe > 0 && s.workoutsCompleted > 0) {
+            tips.push(
+              '💪 *RPE (esforço de 1 a 10)* — ao terminar o treino aparece a tela pra marcar o quanto foi puxado. ' +
+              'É 1 toque e me ajuda a ajustar a intensidade.'
+            );
+          }
+          if (!s.weighedThisWeek) {
+            tips.push(
+              '⚖️ *Pesagem* — consegue se pesar amanhã pela manhã, em jejum?\n' +
+              '👉 No app: *Perfil → Meu Progresso → Registrar peso*. Leva 10 segundos.'
+            );
+          }
+          if (s.daysWithMeals < 3) {
+            tips.push(
+              '🍽️ *Refeições* — quando fizer cada refeição, é só marcar como concluída.\n' +
+              '👉 No app: *Home → Dieta de hoje → tocar na refeição → Marcar como feita*. ' +
+              'Não precisa ser perfeito.'
+            );
+          }
+          if (s.avgWaterGlasses < 6) {
+            tips.push(
+              '💧 *Hidratação* — vai marcando os copos de água ao longo do dia.\n' +
+              '👉 No app: *Home → card Água → tocar no copo +*.'
+            );
+          }
+        }
+
+        const intro = s && s.workoutsCompleted > 0
+          ? `Vi aqui que você treinou *${s.workoutsCompleted}x* essa semana — parabéns pelo compromisso! 🙌`
+          : `Tô passando pra saber como foi sua semana e se posso te ajudar em algo. 🙌`;
+
+        const tipsBlock = tips.length > 0
+          ? `\n\nPra eu te ajudar melhor na próxima semana, se conseguir:\n\n${tips.join('\n\n')}`
+          : '';
+
+        return (
+          `Oi ${firstName}, tudo bem? 😊\n\n` +
+          `${intro}\n\n` +
+          `Como foi a semana pra você? Teve alguma dificuldade — algum exercício que travou, ` +
+          `algum horário que não rolou, fome fora de hora, sono, energia? ` +
+          `Me conta tudo, qualquer detalhe ajuda a gente a ajustar.${tipsBlock}\n\n` +
+          `Sem pressão e sem cobrança, tá? Tô aqui pra te ajudar. Bom fim de semana! 🚀`
+        );
+      }
       case 'ficha_mensal':
         return `Olá ${n.studentName}! 📋 Enviei uma ficha alimentar para você preencher. Pode responder quando puder? É rapidinho e vai me ajudar a montar seu plano! 💪`;
       default:
