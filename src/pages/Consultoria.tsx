@@ -220,8 +220,15 @@ const Consultoria = () => {
         const firstName = (n.studentName ?? 'aluno').split(' ')[0];
         const s = n.weeklyStats;
         const tips: string[] = [];
+        const hasTreino = s?.hasTreinoPlan ?? false;
+        const hasDieta = s?.hasDietaPlan ?? false;
+        const treinouAlgo = (s?.workoutsCompleted ?? 0) > 0;
+        const registrouSets = (s?.totalSetsLogged ?? 0) > 0;
+        const usouTracking = (s?.trackingDays ?? 0) > 0;
+
         if (s) {
-          if (s.setsWithoutLoad > 0) {
+          // === Bloco TREINO — só se tem plano de treino ===
+          if (hasTreino && registrouSets && s.setsWithoutLoad > 0) {
             tips.push(
               '🏋️ *Cargas* — vi que algumas séries ficaram sem o peso anotado. ' +
               'Da próxima vez é só registrar enquanto treina.\n' +
@@ -229,33 +236,44 @@ const Consultoria = () => {
               'Isso me ajuda a planejar a progressão certinha pra você.'
             );
           }
-          if (s.setsWithoutReps > 0) {
+          if (hasTreino && registrouSets && s.setsWithoutReps > 0) {
             tips.push(
               '🔢 *Repetições* — algumas séries ficaram sem o número de reps.\n' +
               '👉 No app: *Treino de hoje → tocar no exercício → campo Reps*. ' +
               'Mesmo um número aproximado já me ajuda muito.'
             );
           }
-          if (s.setsWithoutRpe > 0 && s.workoutsCompleted > 0) {
+          if (hasTreino && treinouAlgo && s.setsWithoutRpe > 0) {
             tips.push(
               '💪 *RPE (esforço de 1 a 10)* — ao terminar o treino aparece a tela pra marcar o quanto foi puxado. ' +
               'É 1 toque e me ajuda a ajustar a intensidade.'
             );
           }
+          if (hasTreino && !treinouAlgo) {
+            tips.push(
+              '🏋️ *Treinos* — não vi treinos registrados essa semana. Tudo bem? ' +
+              'Se rolou de treinar fora do app, me avisa que eu ajusto. ' +
+              'Se algo travou (tempo, motivação, dor), me conta — a gente reorganiza junto.'
+            );
+          }
+
+          // === Bloco PESAGEM — independente de treino/dieta ===
           if (!s.weighedThisWeek) {
             tips.push(
               '⚖️ *Pesagem* — consegue se pesar amanhã pela manhã, em jejum?\n' +
               '👉 No app: *Perfil → Meu Progresso → Registrar peso*. Leva 10 segundos.'
             );
           }
-          if (s.daysWithMeals < 3) {
+
+          // === Bloco DIETA — só se tem plano de dieta ===
+          if (hasDieta && s.daysWithMeals < 3) {
             tips.push(
               '🍽️ *Refeições* — quando fizer cada refeição, é só marcar como concluída.\n' +
               '👉 No app: *Home → Dieta de hoje → tocar na refeição → Marcar como feita*. ' +
               'Não precisa ser perfeito.'
             );
           }
-          if (s.avgWaterGlasses < 6) {
+          if (hasDieta && usouTracking && s.avgWaterGlasses < 6) {
             tips.push(
               '💧 *Hidratação* — vai marcando os copos de água ao longo do dia.\n' +
               '👉 No app: *Home → card Água → tocar no copo +*.'
@@ -263,9 +281,22 @@ const Consultoria = () => {
           }
         }
 
-        const intro = s && s.workoutsCompleted > 0
-          ? `Vi aqui que você treinou *${s.workoutsCompleted}x* essa semana — parabéns pelo compromisso! 🙌`
-          : `Tô passando pra saber como foi sua semana e se posso te ajudar em algo. 🙌`;
+        // Intro personalizada
+        let intro: string;
+        if (treinouAlgo) {
+          intro = `Vi aqui que você treinou *${s!.workoutsCompleted}x* essa semana — parabéns pelo compromisso! 🙌`;
+        } else if (hasTreino) {
+          intro = `Tô passando pra saber como foi sua semana. 🙌`;
+        } else {
+          intro = `Tô passando só pra dar um oi e saber como você tá. 🙌`;
+        }
+
+        // Pergunta personalizada conforme o que o aluno tem
+        const perguntas: string[] = [];
+        if (hasTreino) perguntas.push('algum exercício que travou ou pegou pesado');
+        if (hasDieta) perguntas.push('fome fora de hora, alguma refeição difícil de encaixar');
+        perguntas.push('sono, energia, humor');
+        const perguntaTxt = perguntas.join(', ');
 
         const tipsBlock = tips.length > 0
           ? `\n\nPra eu te ajudar melhor na próxima semana, se conseguir:\n\n${tips.join('\n\n')}`
@@ -274,9 +305,8 @@ const Consultoria = () => {
         return (
           `Oi ${firstName}, tudo bem? 😊\n\n` +
           `${intro}\n\n` +
-          `Como foi a semana pra você? Teve alguma dificuldade — algum exercício que travou, ` +
-          `algum horário que não rolou, fome fora de hora, sono, energia? ` +
-          `Me conta tudo, qualquer detalhe ajuda a gente a ajustar.${tipsBlock}\n\n` +
+          `Como foi a semana pra você? Teve alguma dificuldade — ${perguntaTxt}? ` +
+          `Me conta qualquer detalhe, ajuda muito a gente a ajustar.${tipsBlock}\n\n` +
           `Sem pressão e sem cobrança, tá? Tô aqui pra te ajudar. Bom fim de semana! 🚀`
         );
       }
