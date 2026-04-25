@@ -511,7 +511,7 @@ serve(async (req) => {
     }
 
     if (action === "scan_due") {
-      // Find all active diet plans whose remaining days <= 10 and analyze
+      // Find all active diet plans whose remaining days <= 15 and analyze
       const { data: plans } = await supabase
         .from("ai_plans")
         .select("id, created_at, cycle_days, cycle_status, is_draft")
@@ -521,7 +521,7 @@ serve(async (req) => {
       const due = (plans ?? []).filter((p: any) => {
         const elapsed = Math.floor((now - new Date(p.created_at).getTime()) / 86400000);
         const remaining = (p.cycle_days ?? 45) - elapsed;
-        return remaining <= 10;
+        return remaining <= 15;
       });
       const results = [];
       for (const p of due) {

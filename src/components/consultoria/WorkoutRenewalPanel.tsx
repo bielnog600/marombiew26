@@ -98,7 +98,7 @@ const WorkoutRenewalPanel: React.FC = () => {
       .order('created_at', { ascending: false });
 
     const planList = (planRows ?? []) as PlanRow[];
-    const focus = planList.filter((p) => daysRemaining(p) <= 10 || p.cycle_status !== 'em_dia');
+    const focus = planList.filter((p) => daysRemaining(p) <= 15 || p.cycle_status !== 'em_dia');
 
     const studentIds = Array.from(new Set(focus.map((p) => p.student_id)));
     const { data: profiles } = studentIds.length
@@ -232,7 +232,7 @@ const WorkoutRenewalPanel: React.FC = () => {
           <Badge variant="outline" className="ml-2 text-[10px]">IA</Badge>
         </CardTitle>
         <p className="text-xs text-muted-foreground mt-1">
-          A IA analisa aderência, frequência, progressão de cargas, RPE e fadiga para sugerir manter, ajustar ou renovar o treino quando faltam ≤ 10 dias.
+          A IA analisa aderência, frequência, progressão de cargas, RPE e fadiga para sugerir manter, ajustar ou renovar o treino quando faltam ≤ 15 dias.
         </p>
       </CardHeader>
       <CardContent>
@@ -268,7 +268,7 @@ const WorkoutRenewalPanel: React.FC = () => {
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5 truncate">{plan.titulo}</p>
                         <div className="flex items-center gap-3 mt-2 text-xs flex-wrap">
-                          <span className={remaining <= 0 ? 'text-destructive font-medium' : remaining <= 10 ? 'text-amber-500 font-medium' : 'text-muted-foreground'}>
+                          <span className={remaining <= 0 ? 'text-destructive font-medium' : remaining <= 15 ? 'text-amber-500 font-medium' : 'text-muted-foreground'}>
                             {remaining > 0 ? `${remaining}d restantes` : `Vencido há ${Math.abs(remaining)}d`}
                           </span>
                           {analysis && (
