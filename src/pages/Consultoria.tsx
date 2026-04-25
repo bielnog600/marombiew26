@@ -492,6 +492,58 @@ const Consultoria = () => {
       );
     }
     if (n.studentPhone) {
+      // Mensagem semanal: dropdown com variantes
+      if (n.type === 'mensagem_semanal') {
+        const phone = n.studentPhone;
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" className="h-7 text-xs text-green-600 border-green-500/30 hover:bg-green-500/10">
+                <MessageSquare className="h-3 w-3 mr-1" />
+                WhatsApp
+                <ChevronDown className="h-3 w-3 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel className="text-xs">Tipo de mensagem</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <a href={buildWhatsAppUrl(phone, getQuickMessage(n, 'checkin'))} target="_blank" rel="noopener noreferrer" className="cursor-pointer">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-medium">👋 Apenas check-in</span>
+                    <span className="text-[10px] text-muted-foreground">"Como foi a semana?" — sem cobrança</span>
+                  </div>
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href={buildWhatsAppUrl(phone, getQuickMessage(n, 'registros'))} target="_blank" rel="noopener noreferrer" className="cursor-pointer">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-medium">📋 Registros faltantes</span>
+                    <span className="text-[10px] text-muted-foreground">Lembrar de cargas, peso, refeições</span>
+                  </div>
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href={buildWhatsAppUrl(phone, getQuickMessage(n, 'motivacional'))} target="_blank" rel="noopener noreferrer" className="cursor-pointer">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-medium">🔥 Motivacional</span>
+                    <span className="text-[10px] text-muted-foreground">Elogio + incentivo curto</span>
+                  </div>
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <a href={buildWhatsAppUrl(phone, getQuickMessage(n, 'completa'))} target="_blank" rel="noopener noreferrer" className="cursor-pointer">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-medium">✨ Completa</span>
+                    <span className="text-[10px] text-muted-foreground">Check-in + perguntas + registros</span>
+                  </div>
+                </a>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
+      }
       return (
         <Button size="sm" variant="outline" className="h-7 text-xs text-green-600 border-green-500/30 hover:bg-green-500/10" asChild>
           <a href={buildWhatsAppUrl(n.studentPhone, getQuickMessage(n))} target="_blank" rel="noopener noreferrer">
