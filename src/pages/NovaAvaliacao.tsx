@@ -70,6 +70,29 @@ const InputField = ({ label, value, onChange, unit, type = 'text', placeholder =
   </div>
 );
 
+const PreviousValueHint = ({
+  value,
+  unit,
+  onApply,
+}: {
+  value: number | null | undefined;
+  unit: string;
+  onApply?: () => void;
+}) => {
+  if (value === null || value === undefined) return null;
+  const formatted = Number(value).toString().replace('.', ',');
+  return (
+    <button
+      type="button"
+      onClick={onApply}
+      className="text-[10px] text-muted-foreground/80 hover:text-primary transition-colors text-left mt-0.5"
+      title="Clique para preencher com o valor anterior"
+    >
+      Anterior: <span className="font-medium text-foreground/70">{formatted} {unit}</span>
+    </button>
+  );
+};
+
 const TextareaField = ({ label, value, onChange }: any) => (
   <div className="space-y-1">
     <Label className="text-xs text-muted-foreground">{label}</Label>
