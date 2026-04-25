@@ -6,6 +6,15 @@ import { FileText, Utensils, Dumbbell, ClipboardList, Users, Bell, MessageSquare
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ChevronDown } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Progress } from '@/components/ui/progress';
@@ -210,7 +219,12 @@ const Consultoria = () => {
     ficha_mensal: notifications.filter(n => n.type === 'ficha_mensal').length,
   };
 
-  const getQuickMessage = (n: Notification) => {
+  // Variantes da mensagem semanal
+  type WeeklyVariant = 'completa' | 'checkin' | 'registros' | 'motivacional';
+
+  const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+
+  const getQuickMessage = (n: Notification, weeklyVariant: WeeklyVariant = 'completa') => {
     switch (n.type) {
       case 'reavaliacao':
         return `Olá ${n.studentName}! 😊 Está na hora da sua reavaliação. Vamos agendar? Entre em contato para marcarmos o melhor horário!`;
@@ -219,13 +233,97 @@ const Consultoria = () => {
       case 'mensagem_semanal': {
         const firstName = (n.studentName ?? 'aluno').split(' ')[0];
         const s = n.weeklyStats;
-        const tips: string[] = [];
         const hasTreino = s?.hasTreinoPlan ?? false;
         const hasDieta = s?.hasDietaPlan ?? false;
         const treinouAlgo = (s?.workoutsCompleted ?? 0) > 0;
         const registrouSets = (s?.totalSetsLogged ?? 0) > 0;
         const usouTracking = (s?.trackingDays ?? 0) > 0;
 
+        // ============================================================
+        // VARIANTE: APENAS CHECK-IN (como foi a semana, sem nada mais)
+        // ============================================================
+        if (weeklyVariant === 'checkin') {
+          const saudacoes = [
+            `Oi ${firstName}, tudo certo por aí? 😊`,
+            `E aí ${firstName}, beleza? 🙌`,
+            `Oi ${firstName}! Passando rapidinho 👋`,
+            `Fala ${firstName}, tudo bem contigo? 😄`,
+          ];
+          const perguntasGerais = [
+            `Só queria saber: como foi a semana pra você?`,
+            `Conta pra mim: como tá se sentindo essa semana?`,
+            `Como foi sua semana? Bora fazer um check-in rapidinho.`,
+            `Queria saber como você tá — semana foi tranquila ou pesada?`,
+          ];
+          const fechos = [
+            `Sem cobrança nenhuma, tá? Só quero saber se tá tudo bem. Bom fim de semana! 🚀`,
+            `Pode responder quando der, sem pressa. Bom descanso! 💙`,
+            `Tô por aqui se precisar de qualquer coisa. Bom fim de semana! ✨`,
+            `Qualquer coisa me chama, viu? Aproveita o fim de semana! 🙌`,
+          ];
+          return `${pick(saudacoes)}\n\n${pick(perguntasGerais)}\n\n${pick(fechos)}`;
+        }
+
+        // ============================================================
+        // VARIANTE: APENAS REGISTROS FALTANTES (sem check-in geral)
+        // ============================================================
+        if (weeklyVariant === 'registros') {
+          const tipsR: string[] = [];
+          if (s) {
+            if (hasTreino && registrouSets && s.setsWithoutLoad > 0) {
+              tipsR.push('🏋️ *Cargas* — algumas séries ficaram sem o peso anotado.\n👉 *Treino de hoje → tocar no exercício → Carga (kg)*.');
+            }
+            if (hasTreino && registrouSets && s.setsWithoutReps > 0) {
+              tipsR.push('🔢 *Repetições* — algumas séries ficaram sem reps.\n👉 *Treino de hoje → tocar no exercício → Reps*.');
+            }
+            if (hasTreino && treinouAlgo && s.setsWithoutRpe > 0) {
+              tipsR.push('💪 *RPE* — ao terminar o treino aparece a tela pra marcar o esforço (1 a 10). É 1 toque.');
+            }
+            if (!s.weighedThisWeek) {
+              tipsR.push('⚖️ *Pesagem* — consegue se pesar amanhã em jejum?\n👉 *Perfil → Meu Progresso → Registrar peso*.');
+            }
+            if (hasDieta && s.daysWithMeals < 3) {
+              tipsR.push('🍽️ *Refeições* — marca como concluída quando comer.\n👉 *Home → Dieta de hoje → tocar na refeição*.');
+            }
+            if (hasDieta && usouTracking && s.avgWaterGlasses < 6) {
+              tipsR.push('💧 *Água* — vai marcando os copos no dia.\n👉 *Home → card Água → +*.');
+            }
+          }
+          if (tipsR.length === 0) {
+            return `Oi ${firstName}! 🙌\n\nTá tudo em dia com seus registros essa semana — parabéns pelo capricho! Continua assim. 💪`;
+          }
+          const intros = [
+            `Oi ${firstName}, tudo bem? 😊\n\nTô passando só pra te lembrar de uns registros que ajudam muito a ajustar seu plano:`,
+            `E aí ${firstName}! 👋\n\nVi alguns registros que ficaram em branco essa semana. Quando der, dá uma olhadinha:`,
+            `Oi ${firstName}! 🙌\n\nPra eu conseguir te ajudar melhor na próxima semana, se conseguir registrar:`,
+          ];
+          return `${pick(intros)}\n\n${tipsR.join('\n\n')}\n\nSem pressão — qualquer coisa me chama. 💙`;
+        }
+
+        // ============================================================
+        // VARIANTE: MOTIVACIONAL (elogio + leve incentivo)
+        // ============================================================
+        if (weeklyVariant === 'motivacional') {
+          const aberturas = [
+            treinouAlgo
+              ? `Oi ${firstName}! 🔥 Vi que você treinou *${s!.workoutsCompleted}x* essa semana — isso é resultado de constância, não de sorte. Tô orgulhoso(a)!`
+              : `Oi ${firstName}! 💙 Sei que essa semana pode não ter saído como planejado, e tudo bem. O que importa é não desistir.`,
+            treinouAlgo
+              ? `E aí ${firstName}! 🙌 *${s!.workoutsCompleted}* treino${s!.workoutsCompleted > 1 ? 's' : ''} essa semana — cada um deles te coloca um passo à frente. Manda muito!`
+              : `E aí ${firstName}! 🌱 Toda semana é uma nova chance. A gente recomeça quantas vezes precisar — sem culpa.`,
+          ];
+          const fechos = [
+            `Bora pra próxima semana com tudo? Tô aqui se precisar de qualquer ajuste. 🚀`,
+            `Lembra: progresso é jornada, não corrida. Continua firme! 💪`,
+            `Qualquer coisa me chama. Bom fim de semana! ✨`,
+          ];
+          return `${pick(aberturas)}\n\n${pick(fechos)}`;
+        }
+
+        // ============================================================
+        // VARIANTE: COMPLETA (padrão atual — check-in + tips)
+        // ============================================================
+        const tips: string[] = [];
         if (s) {
           // === Bloco TREINO — só se tem plano de treino ===
           if (hasTreino && registrouSets && s.setsWithoutLoad > 0) {
@@ -281,14 +379,26 @@ const Consultoria = () => {
           }
         }
 
-        // Intro personalizada
+        // Intro personalizada (variantes para diversidade)
         let intro: string;
         if (treinouAlgo) {
-          intro = `Vi aqui que você treinou *${s!.workoutsCompleted}x* essa semana — parabéns pelo compromisso! 🙌`;
+          intro = pick([
+            `Vi aqui que você treinou *${s!.workoutsCompleted}x* essa semana — parabéns pelo compromisso! 🙌`,
+            `Boa! *${s!.workoutsCompleted}* treino${s!.workoutsCompleted > 1 ? 's' : ''} essa semana. Constância é tudo. 💪`,
+            `Caprichou — *${s!.workoutsCompleted}x* na academia essa semana. Tô orgulhoso(a)! 🔥`,
+          ]);
         } else if (hasTreino) {
-          intro = `Tô passando pra saber como foi sua semana. 🙌`;
+          intro = pick([
+            `Tô passando pra saber como foi sua semana. 🙌`,
+            `Queria fazer um check-in rapidinho com você. 😊`,
+            `Passando aqui pra saber como você tá. 💙`,
+          ]);
         } else {
-          intro = `Tô passando só pra dar um oi e saber como você tá. 🙌`;
+          intro = pick([
+            `Tô passando só pra dar um oi e saber como você tá. 🙌`,
+            `Oi! Só um check-in pra saber como tá tudo. 😊`,
+            `Passando pra saber como você tá essa semana. 💙`,
+          ]);
         }
 
         // Pergunta personalizada conforme o que o aluno tem
@@ -302,12 +412,23 @@ const Consultoria = () => {
           ? `\n\nPra eu te ajudar melhor na próxima semana, se conseguir:\n\n${tips.join('\n\n')}`
           : '';
 
+        const saudacoesIniciais = [
+          `Oi ${firstName}, tudo bem? 😊`,
+          `E aí ${firstName}, beleza? 🙌`,
+          `Fala ${firstName}, tudo certo? 😄`,
+        ];
+        const fechosFinais = [
+          `Sem pressão e sem cobrança, tá? Tô aqui pra te ajudar. Bom fim de semana! 🚀`,
+          `Qualquer coisa me chama. Bom descanso e bom fim de semana! 💙`,
+          `Tô na torcida por você. Aproveita o fim de semana! ✨`,
+        ];
+
         return (
-          `Oi ${firstName}, tudo bem? 😊\n\n` +
+          `${pick(saudacoesIniciais)}\n\n` +
           `${intro}\n\n` +
           `Como foi a semana pra você? Teve alguma dificuldade — ${perguntaTxt}? ` +
           `Me conta qualquer detalhe, ajuda muito a gente a ajustar.${tipsBlock}\n\n` +
-          `Sem pressão e sem cobrança, tá? Tô aqui pra te ajudar. Bom fim de semana! 🚀`
+          `${pick(fechosFinais)}`
         );
       }
       case 'ficha_mensal':
@@ -371,6 +492,58 @@ const Consultoria = () => {
       );
     }
     if (n.studentPhone) {
+      // Mensagem semanal: dropdown com variantes
+      if (n.type === 'mensagem_semanal') {
+        const phone = n.studentPhone;
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" className="h-7 text-xs text-green-600 border-green-500/30 hover:bg-green-500/10">
+                <MessageSquare className="h-3 w-3 mr-1" />
+                WhatsApp
+                <ChevronDown className="h-3 w-3 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel className="text-xs">Tipo de mensagem</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <a href={buildWhatsAppUrl(phone, getQuickMessage(n, 'checkin'))} target="_blank" rel="noopener noreferrer" className="cursor-pointer">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-medium">👋 Apenas check-in</span>
+                    <span className="text-[10px] text-muted-foreground">"Como foi a semana?" — sem cobrança</span>
+                  </div>
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href={buildWhatsAppUrl(phone, getQuickMessage(n, 'registros'))} target="_blank" rel="noopener noreferrer" className="cursor-pointer">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-medium">📋 Registros faltantes</span>
+                    <span className="text-[10px] text-muted-foreground">Lembrar de cargas, peso, refeições</span>
+                  </div>
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href={buildWhatsAppUrl(phone, getQuickMessage(n, 'motivacional'))} target="_blank" rel="noopener noreferrer" className="cursor-pointer">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-medium">🔥 Motivacional</span>
+                    <span className="text-[10px] text-muted-foreground">Elogio + incentivo curto</span>
+                  </div>
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <a href={buildWhatsAppUrl(phone, getQuickMessage(n, 'completa'))} target="_blank" rel="noopener noreferrer" className="cursor-pointer">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-medium">✨ Completa</span>
+                    <span className="text-[10px] text-muted-foreground">Check-in + perguntas + registros</span>
+                  </div>
+                </a>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
+      }
       return (
         <Button size="sm" variant="outline" className="h-7 text-xs text-green-600 border-green-500/30 hover:bg-green-500/10" asChild>
           <a href={buildWhatsAppUrl(n.studentPhone, getQuickMessage(n))} target="_blank" rel="noopener noreferrer">
