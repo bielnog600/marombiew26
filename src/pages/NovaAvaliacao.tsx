@@ -638,9 +638,20 @@ const NovaAvaliacao = () => {
 
             {currentStep === 2 && (
               <div className="space-y-4">
+                {previousAssessmentDate && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Comparando com avaliação de {format(previousAssessmentDate, "dd/MM/yyyy")} • clique no valor anterior para preencher
+                  </p>
+                )}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <InputField label="Peso" value={anthro.peso} onChange={(e: any) => setAnthro({ ...anthro, peso: e.target.value })} unit="kg" type="number" />
-                  <InputField label="Altura" value={anthro.altura} onChange={(e: any) => setAnthro({ ...anthro, altura: e.target.value })} unit="cm" type="number" />
+                  <div>
+                    <InputField label="Peso" value={anthro.peso} onChange={(e: any) => setAnthro({ ...anthro, peso: e.target.value })} unit="kg" type="number" />
+                    <PreviousValueHint value={previousAnthro?.peso ?? null} unit="kg" onApply={() => setAnthro({ ...anthro, peso: String(previousAnthro?.peso ?? '') })} />
+                  </div>
+                  <div>
+                    <InputField label="Altura" value={anthro.altura} onChange={(e: any) => setAnthro({ ...anthro, altura: e.target.value })} unit="cm" type="number" />
+                    <PreviousValueHint value={previousAnthro?.altura ?? null} unit="cm" onApply={() => setAnthro({ ...anthro, altura: String(previousAnthro?.altura ?? '') })} />
+                  </div>
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">IMC <span className="text-primary">(calculado)</span></Label>
                     <div className="h-10 flex items-center px-3 rounded-md bg-secondary text-sm font-medium gap-2">
@@ -651,12 +662,30 @@ const NovaAvaliacao = () => {
                       })()}
                     </div>
                   </div>
-                  <InputField label="Pescoço" value={anthro.pescoco} onChange={(e: any) => setAnthro({ ...anthro, pescoco: e.target.value })} unit="cm" type="number" />
-                  <InputField label="Tórax" value={anthro.torax} onChange={(e: any) => setAnthro({ ...anthro, torax: e.target.value })} unit="cm" type="number" />
-                  <InputField label="Ombro" value={anthro.ombro} onChange={(e: any) => setAnthro({ ...anthro, ombro: e.target.value })} unit="cm" type="number" />
-                  <InputField label="Cintura" value={anthro.cintura} onChange={(e: any) => setAnthro({ ...anthro, cintura: e.target.value })} unit="cm" type="number" />
-                  <InputField label="Abdômen" value={anthro.abdomen} onChange={(e: any) => setAnthro({ ...anthro, abdomen: e.target.value })} unit="cm" type="number" />
-                  <InputField label="Quadril" value={anthro.quadril} onChange={(e: any) => setAnthro({ ...anthro, quadril: e.target.value })} unit="cm" type="number" />
+                  <div>
+                    <InputField label="Pescoço" value={anthro.pescoco} onChange={(e: any) => setAnthro({ ...anthro, pescoco: e.target.value })} unit="cm" type="number" />
+                    <PreviousValueHint value={previousAnthro?.pescoco ?? null} unit="cm" onApply={() => setAnthro({ ...anthro, pescoco: String(previousAnthro?.pescoco ?? '') })} />
+                  </div>
+                  <div>
+                    <InputField label="Tórax" value={anthro.torax} onChange={(e: any) => setAnthro({ ...anthro, torax: e.target.value })} unit="cm" type="number" />
+                    <PreviousValueHint value={previousAnthro?.torax ?? null} unit="cm" onApply={() => setAnthro({ ...anthro, torax: String(previousAnthro?.torax ?? '') })} />
+                  </div>
+                  <div>
+                    <InputField label="Ombro" value={anthro.ombro} onChange={(e: any) => setAnthro({ ...anthro, ombro: e.target.value })} unit="cm" type="number" />
+                    <PreviousValueHint value={previousAnthro?.ombro ?? null} unit="cm" onApply={() => setAnthro({ ...anthro, ombro: String(previousAnthro?.ombro ?? '') })} />
+                  </div>
+                  <div>
+                    <InputField label="Cintura" value={anthro.cintura} onChange={(e: any) => setAnthro({ ...anthro, cintura: e.target.value })} unit="cm" type="number" />
+                    <PreviousValueHint value={previousAnthro?.cintura ?? null} unit="cm" onApply={() => setAnthro({ ...anthro, cintura: String(previousAnthro?.cintura ?? '') })} />
+                  </div>
+                  <div>
+                    <InputField label="Abdômen" value={anthro.abdomen} onChange={(e: any) => setAnthro({ ...anthro, abdomen: e.target.value })} unit="cm" type="number" />
+                    <PreviousValueHint value={previousAnthro?.abdomen ?? null} unit="cm" onApply={() => setAnthro({ ...anthro, abdomen: String(previousAnthro?.abdomen ?? '') })} />
+                  </div>
+                  <div>
+                    <InputField label="Quadril" value={anthro.quadril} onChange={(e: any) => setAnthro({ ...anthro, quadril: e.target.value })} unit="cm" type="number" />
+                    <PreviousValueHint value={previousAnthro?.quadril ?? null} unit="cm" onApply={() => setAnthro({ ...anthro, quadril: String(previousAnthro?.quadril ?? '') })} />
+                  </div>
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">RCQ <span className="text-primary">(calculado)</span></Label>
                     <div className="h-10 flex items-center px-3 rounded-md bg-secondary text-sm font-medium gap-2">
@@ -667,16 +696,46 @@ const NovaAvaliacao = () => {
                       })()}
                     </div>
                   </div>
-                  <InputField label="Braço Direito" value={anthro.braco_direito} onChange={(e: any) => setAnthro({ ...anthro, braco_direito: e.target.value })} unit="cm" type="number" />
-                  <InputField label="Braço Esquerdo" value={anthro.braco_esquerdo} onChange={(e: any) => setAnthro({ ...anthro, braco_esquerdo: e.target.value })} unit="cm" type="number" />
-                  <InputField label="Bíceps Contraído Dir." value={anthro.biceps_contraido_direito} onChange={(e: any) => setAnthro({ ...anthro, biceps_contraido_direito: e.target.value })} unit="cm" type="number" />
-                  <InputField label="Bíceps Contraído Esq." value={anthro.biceps_contraido_esquerdo} onChange={(e: any) => setAnthro({ ...anthro, biceps_contraido_esquerdo: e.target.value })} unit="cm" type="number" />
-                  <InputField label="Antebraço Dir." value={anthro.antebraco} onChange={(e: any) => setAnthro({ ...anthro, antebraco: e.target.value })} unit="cm" type="number" />
-                  <InputField label="Antebraço Esq." value={anthro.antebraco_esquerdo} onChange={(e: any) => setAnthro({ ...anthro, antebraco_esquerdo: e.target.value })} unit="cm" type="number" />
-                  <InputField label="Coxa Direita" value={anthro.coxa_direita} onChange={(e: any) => setAnthro({ ...anthro, coxa_direita: e.target.value })} unit="cm" type="number" />
-                  <InputField label="Coxa Esquerda" value={anthro.coxa_esquerda} onChange={(e: any) => setAnthro({ ...anthro, coxa_esquerda: e.target.value })} unit="cm" type="number" />
-                  <InputField label="Panturrilha Direita" value={anthro.panturrilha_direita} onChange={(e: any) => setAnthro({ ...anthro, panturrilha_direita: e.target.value })} unit="cm" type="number" />
-                  <InputField label="Panturrilha Esquerda" value={anthro.panturrilha_esquerda} onChange={(e: any) => setAnthro({ ...anthro, panturrilha_esquerda: e.target.value })} unit="cm" type="number" />
+                  <div>
+                    <InputField label="Braço Direito" value={anthro.braco_direito} onChange={(e: any) => setAnthro({ ...anthro, braco_direito: e.target.value })} unit="cm" type="number" />
+                    <PreviousValueHint value={previousAnthro?.braco_direito ?? null} unit="cm" onApply={() => setAnthro({ ...anthro, braco_direito: String(previousAnthro?.braco_direito ?? '') })} />
+                  </div>
+                  <div>
+                    <InputField label="Braço Esquerdo" value={anthro.braco_esquerdo} onChange={(e: any) => setAnthro({ ...anthro, braco_esquerdo: e.target.value })} unit="cm" type="number" />
+                    <PreviousValueHint value={previousAnthro?.braco_esquerdo ?? null} unit="cm" onApply={() => setAnthro({ ...anthro, braco_esquerdo: String(previousAnthro?.braco_esquerdo ?? '') })} />
+                  </div>
+                  <div>
+                    <InputField label="Bíceps Contraído Dir." value={anthro.biceps_contraido_direito} onChange={(e: any) => setAnthro({ ...anthro, biceps_contraido_direito: e.target.value })} unit="cm" type="number" />
+                    <PreviousValueHint value={previousAnthro?.biceps_contraido_direito ?? null} unit="cm" onApply={() => setAnthro({ ...anthro, biceps_contraido_direito: String(previousAnthro?.biceps_contraido_direito ?? '') })} />
+                  </div>
+                  <div>
+                    <InputField label="Bíceps Contraído Esq." value={anthro.biceps_contraido_esquerdo} onChange={(e: any) => setAnthro({ ...anthro, biceps_contraido_esquerdo: e.target.value })} unit="cm" type="number" />
+                    <PreviousValueHint value={previousAnthro?.biceps_contraido_esquerdo ?? null} unit="cm" onApply={() => setAnthro({ ...anthro, biceps_contraido_esquerdo: String(previousAnthro?.biceps_contraido_esquerdo ?? '') })} />
+                  </div>
+                  <div>
+                    <InputField label="Antebraço Dir." value={anthro.antebraco} onChange={(e: any) => setAnthro({ ...anthro, antebraco: e.target.value })} unit="cm" type="number" />
+                    <PreviousValueHint value={previousAnthro?.antebraco ?? null} unit="cm" onApply={() => setAnthro({ ...anthro, antebraco: String(previousAnthro?.antebraco ?? '') })} />
+                  </div>
+                  <div>
+                    <InputField label="Antebraço Esq." value={anthro.antebraco_esquerdo} onChange={(e: any) => setAnthro({ ...anthro, antebraco_esquerdo: e.target.value })} unit="cm" type="number" />
+                    <PreviousValueHint value={previousAnthro?.antebraco_esquerdo ?? null} unit="cm" onApply={() => setAnthro({ ...anthro, antebraco_esquerdo: String(previousAnthro?.antebraco_esquerdo ?? '') })} />
+                  </div>
+                  <div>
+                    <InputField label="Coxa Direita" value={anthro.coxa_direita} onChange={(e: any) => setAnthro({ ...anthro, coxa_direita: e.target.value })} unit="cm" type="number" />
+                    <PreviousValueHint value={previousAnthro?.coxa_direita ?? null} unit="cm" onApply={() => setAnthro({ ...anthro, coxa_direita: String(previousAnthro?.coxa_direita ?? '') })} />
+                  </div>
+                  <div>
+                    <InputField label="Coxa Esquerda" value={anthro.coxa_esquerda} onChange={(e: any) => setAnthro({ ...anthro, coxa_esquerda: e.target.value })} unit="cm" type="number" />
+                    <PreviousValueHint value={previousAnthro?.coxa_esquerda ?? null} unit="cm" onApply={() => setAnthro({ ...anthro, coxa_esquerda: String(previousAnthro?.coxa_esquerda ?? '') })} />
+                  </div>
+                  <div>
+                    <InputField label="Panturrilha Direita" value={anthro.panturrilha_direita} onChange={(e: any) => setAnthro({ ...anthro, panturrilha_direita: e.target.value })} unit="cm" type="number" />
+                    <PreviousValueHint value={previousAnthro?.panturrilha_direita ?? null} unit="cm" onApply={() => setAnthro({ ...anthro, panturrilha_direita: String(previousAnthro?.panturrilha_direita ?? '') })} />
+                  </div>
+                  <div>
+                    <InputField label="Panturrilha Esquerda" value={anthro.panturrilha_esquerda} onChange={(e: any) => setAnthro({ ...anthro, panturrilha_esquerda: e.target.value })} unit="cm" type="number" />
+                    <PreviousValueHint value={previousAnthro?.panturrilha_esquerda ?? null} unit="cm" onApply={() => setAnthro({ ...anthro, panturrilha_esquerda: String(previousAnthro?.panturrilha_esquerda ?? '') })} />
+                  </div>
                 </div>
               </div>
             )}
