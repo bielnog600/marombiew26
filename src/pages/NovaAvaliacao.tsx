@@ -190,6 +190,40 @@ const NovaAvaliacao = () => {
   const [notasGerais, setNotasGerais] = useState('');
   const [dataAvaliacao, setDataAvaliacao] = useState<Date>(new Date());
 
+  const [previousAnthro, setPreviousAnthro] = useState<Record<string, number | null> | null>(null);
+  const [previousSkinfolds, setPreviousSkinfolds] = useState<Record<string, number | null> | null>(null);
+  const [previousAssessmentDate, setPreviousAssessmentDate] = useState<Date | null>(null);
+
+  useEffect(() => {
+    if (!studentId) return;
+    const loadPrevious = async () => {
+      let query = supabase
+        .from('assessments')
+        .select('id, created_at')
+        .eq('student_id', studentId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (editId) query = query.neq('id', editId);
+
+      const { data: prev } = await query.maybeSingle();
+      if (!prev) {
+        setPreviousAnthro(null);
+        setPreviousSkinfolds(null);
+        setPreviousAssessmentDate(null);
+        return;
+      }
+      setPreviousAssessmentDate(new Date(prev.created_at));
+
+      const [aRes, sRes] = await Promise.all([
+        supabase.from('anthropometrics').select('*').eq('assessment_id', prev.id).maybeSingle(),
+        supabase.from('skinfolds').select('*').eq('assessment_id', prev.id).maybeSingle(),
+      ]);
+      setPreviousAnthro((aRes.data as any) ?? null);
+      setPreviousSkinfolds((sRes.data as any) ?? null);
+    };
+    loadPrevious();
+  }, [studentId, editId]);
+
   const str = (v: any) => (v != null && v !== '' ? String(v) : '');
 
   useEffect(() => {
