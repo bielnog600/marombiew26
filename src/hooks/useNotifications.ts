@@ -14,6 +14,15 @@ export interface Notification {
   studentPhone?: string | null;
   date?: string;
   priority: 'high' | 'medium' | 'low';
+  weeklyStats?: {
+    workoutsCompleted: number;
+    setsWithoutLoad: number;
+    setsWithoutReps: number;
+    setsWithoutRpe: number;
+    avgWaterGlasses: number;
+    daysWithMeals: number;
+    weighedThisWeek: boolean;
+  };
 }
 
 /**
