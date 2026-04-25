@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { format, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import DietDraftComparisonDialog from './DietDraftComparisonDialog';
+import WhatsAppDataRequestButton from './WhatsAppDataRequestButton';
 
 type CycleStatus =
   | 'em_dia'
@@ -34,6 +35,7 @@ interface PlanRow {
   parent_plan_id: string | null;
   last_analysis_at: string | null;
   student_name?: string;
+  student_phone?: string | null;
   draft_source?: string | null;
   draft_reason?: string | null;
 }
@@ -99,10 +101,14 @@ const DietRenewalPanel: React.FC = () => {
     // 3. Fetch student names
     const studentIds = Array.from(new Set(focus.map((p) => p.student_id)));
     const { data: profiles } = studentIds.length
-      ? await supabase.from('profiles').select('user_id, nome').in('user_id', studentIds)
+      ? await supabase.from('profiles').select('user_id, nome, telefone').in('user_id', studentIds)
       : { data: [] as any[] };
-    const nameMap = new Map((profiles ?? []).map((p: any) => [p.user_id, p.nome]));
-    focus.forEach((p) => (p.student_name = nameMap.get(p.student_id) ?? 'Aluno'));
+    const profileMap = new Map((profiles ?? []).map((p: any) => [p.user_id, p]));
+    focus.forEach((p) => {
+      const prof = profileMap.get(p.student_id);
+      p.student_name = prof?.nome ?? 'Aluno';
+      p.student_phone = prof?.telefone ?? null;
+    });
 
     // 4. Latest analysis per plan
     const planIds = focus.map((p) => p.id);
