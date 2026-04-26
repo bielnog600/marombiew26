@@ -10,6 +10,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Alunos = () => {
@@ -17,7 +20,7 @@ const Alunos = () => {
   const [search, setSearch] = useState('');
   const [filterAtivo, setFilterAtivo] = useState<string>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [newStudent, setNewStudent] = useState({ nome: '', email: '', password: '', telefone: '', sexo: 'masculino', raca: '', objetivo: '' });
+  const [newStudent, setNewStudent] = useState({ nome: '', email: '', password: '', telefone: '', sexo: 'masculino', raca: '', objetivo: '', low_cost: false });
   const [loading, setLoading] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editStudent, setEditStudent] = useState<any>(null);
@@ -46,6 +49,7 @@ const Alunos = () => {
           restricoes: sp?.restricoes || '',
           lesoes: sp?.lesoes || '',
           observacoes: sp?.observacoes || '',
+          low_cost: sp?.low_cost === true,
           newPassword: '',
         });
         setEditDialogOpen(true);
@@ -89,6 +93,7 @@ const Alunos = () => {
         telefone: newStudent.telefone,
         sexo: newStudent.sexo,
         raca: newStudent.raca,
+        low_cost: newStudent.low_cost,
       },
     });
 
@@ -97,7 +102,7 @@ const Alunos = () => {
     } else {
       toast.success('Aluno cadastrado com sucesso!');
       setDialogOpen(false);
-      setNewStudent({ nome: '', email: '', password: '', telefone: '', sexo: 'masculino', raca: '', objetivo: '' });
+      setNewStudent({ nome: '', email: '', password: '', telefone: '', sexo: 'masculino', raca: '', objetivo: '', low_cost: false });
       setTimeout(loadStudents, 1000);
     }
     setLoading(false);
@@ -118,6 +123,7 @@ const Alunos = () => {
       restricoes: sp?.restricoes || '',
       lesoes: sp?.lesoes || '',
       observacoes: sp?.observacoes || '',
+      low_cost: sp?.low_cost === true,
       newPassword: '',
     });
     setEditDialogOpen(true);
@@ -152,6 +158,7 @@ const Alunos = () => {
         restricoes: editStudent.restricoes || null,
         lesoes: editStudent.lesoes || null,
         observacoes: editStudent.observacoes || null,
+        low_cost: !!editStudent.low_cost,
       }, { onConflict: 'user_id' });
 
     if (spError) {
@@ -280,6 +287,20 @@ const Alunos = () => {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                  <div className="space-y-0.5 pr-3">
+                    <Label className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-primary" /> Plano Low Cost
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      A IA reavalia treino e dieta automaticamente a cada 30 dias.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={newStudent.low_cost}
+                    onCheckedChange={(v) => setNewStudent({ ...newStudent, low_cost: v })}
+                  />
+                </div>
                 <Button type="submit" className="w-full font-semibold" disabled={loading}>
                   Cadastrar
                 </Button>
@@ -310,6 +331,11 @@ const Alunos = () => {
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-sm leading-tight">{s.nome || 'Sem nome'}</p>
                       <p className="text-xs text-muted-foreground truncate mt-0.5">{s.email}</p>
+                      {s.students_profile?.low_cost && (
+                        <Badge variant="secondary" className="mt-1.5 gap-1 text-[10px] py-0 px-1.5">
+                          <Sparkles className="h-2.5 w-2.5" /> Low Cost
+                        </Badge>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center justify-end gap-1 mt-2">
@@ -423,6 +449,20 @@ const Alunos = () => {
                 <div className="space-y-2">
                   <Label>Observações</Label>
                   <Input value={editStudent.observacoes} onChange={e => setEditStudent({ ...editStudent, observacoes: e.target.value })} />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                  <div className="space-y-0.5 pr-3">
+                    <Label className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-primary" /> Plano Low Cost
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      A IA reavalia treino e dieta automaticamente a cada 30 dias.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={!!editStudent.low_cost}
+                    onCheckedChange={(v) => setEditStudent({ ...editStudent, low_cost: v })}
+                  />
                 </div>
                 <div className="space-y-2 pt-4 border-t border-border">
                   <Label>Nova senha (opcional)</Label>

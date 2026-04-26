@@ -64,6 +64,9 @@ export type Database = {
           id: string
           is_draft: boolean
           last_analysis_at: string | null
+          low_cost_last_review_at: string | null
+          low_cost_next_review_at: string | null
+          low_cost_review_interval_days: number
           parent_plan_id: string | null
           renewal_mode: string
           student_id: string
@@ -86,6 +89,9 @@ export type Database = {
           id?: string
           is_draft?: boolean
           last_analysis_at?: string | null
+          low_cost_last_review_at?: string | null
+          low_cost_next_review_at?: string | null
+          low_cost_review_interval_days?: number
           parent_plan_id?: string | null
           renewal_mode?: string
           student_id: string
@@ -108,6 +114,9 @@ export type Database = {
           id?: string
           is_draft?: boolean
           last_analysis_at?: string | null
+          low_cost_last_review_at?: string | null
+          low_cost_next_review_at?: string | null
+          low_cost_review_interval_days?: number
           parent_plan_id?: string | null
           renewal_mode?: string
           student_id?: string
@@ -1228,6 +1237,7 @@ export type Database = {
           fotos: string[] | null
           id: string
           lesoes: string | null
+          low_cost: boolean
           objetivo: string | null
           observacoes: string | null
           raca: string | null
@@ -1244,6 +1254,7 @@ export type Database = {
           fotos?: string[] | null
           id?: string
           lesoes?: string | null
+          low_cost?: boolean
           objetivo?: string | null
           observacoes?: string | null
           raca?: string | null
@@ -1260,6 +1271,7 @@ export type Database = {
           fotos?: string[] | null
           id?: string
           lesoes?: string | null
+          low_cost?: boolean
           objetivo?: string | null
           observacoes?: string | null
           raca?: string | null
