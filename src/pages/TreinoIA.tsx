@@ -68,6 +68,7 @@ const TreinoIA = () => {
   const [treinoReferencia, setTreinoReferencia] = useState('');
   // Custom split: muscle groups per day (optional)
   const [customSplit, setCustomSplit] = useState<Record<number, string[]>>({});
+  const [showCustomSplit, setShowCustomSplit] = useState(false);
 
   // Health & Injuries
   const [hasLesao, setHasLesao] = useState(false);
