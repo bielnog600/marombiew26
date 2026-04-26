@@ -141,7 +141,9 @@ const Alunos = () => {
 
     const { error: spError } = await supabase
       .from('students_profile')
-      .update({
+      .upsert({
+        user_id: editStudent.user_id,
+        ativo: true,
         sexo: editStudent.sexo || null,
         raca: editStudent.raca || null,
         objetivo: editStudent.objetivo || null,
@@ -150,8 +152,7 @@ const Alunos = () => {
         restricoes: editStudent.restricoes || null,
         lesoes: editStudent.lesoes || null,
         observacoes: editStudent.observacoes || null,
-      })
-      .eq('user_id', editStudent.user_id);
+      }, { onConflict: 'user_id' });
 
     if (spError) {
       toast.error('Erro ao atualizar dados: ' + spError.message);
