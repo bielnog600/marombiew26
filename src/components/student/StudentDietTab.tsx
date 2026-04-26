@@ -6,6 +6,7 @@ import { UtensilsCrossed, ChevronDown, ChevronUp, Pencil, Save, Loader2, Eye } f
 import { toast } from 'sonner';
 import DietResultCards from '@/components/DietResultCards';
 import DietPlanEditor from '@/components/diet/DietPlanEditor';
+import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
 import { replaceMealTableInMarkdown } from '@/lib/dietMarkdownSerializer';
 import type { ParsedMeal } from '@/lib/dietResultParser';
 
@@ -163,6 +164,15 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                       {isEditing ? 'Visualizar' : 'Editar'}
                     </Button>
                   )}
+                  <WhatsAppNotifyPlanButton
+                    plan={plan}
+                    studentId={studentId}
+                    onNotified={(planId, notifiedAt, count) =>
+                      setPlans(prev => prev.map(p =>
+                        p.id === planId ? { ...p, whatsapp_notified_at: notifiedAt, whatsapp_notified_count: count } : p
+                      ))
+                    }
+                  />
                   {isExpanded && hasChanges && (
                     <Button
                       size="sm"
