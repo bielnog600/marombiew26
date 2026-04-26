@@ -510,6 +510,68 @@ GERE TUDO DE UMA VEZ:
                 ))}
               </div>
             </div>
+            {daysPerWeek && (
+              <div className="pt-2 border-t border-border">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs text-muted-foreground">
+                    Grupos musculares por dia <span className="text-[10px]">(opcional — sobrepõe a divisão acima)</span>
+                  </p>
+                  {Object.keys(customSplit).length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomSplit({})}
+                      className="text-[11px] text-primary hover:underline"
+                    >
+                      Limpar
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  {Array.from({ length: parseInt(daysPerWeek, 10) }).map((_, i) => {
+                    const MUSCLE_GROUPS = [
+                      'Peito', 'Costas', 'Ombro', 'Bíceps', 'Tríceps',
+                      'Antebraço', 'Quadríceps', 'Posterior', 'Glúteo',
+                      'Panturrilha', 'Abdômen', 'Lombar', 'Trapézio', 'Cardio',
+                    ];
+                    const selected = customSplit[i] ?? [];
+                    const toggle = (g: string) => {
+                      setCustomSplit(prev => {
+                        const cur = prev[i] ?? [];
+                        const next = cur.includes(g) ? cur.filter(x => x !== g) : [...cur, g];
+                        const copy = { ...prev };
+                        if (next.length === 0) delete copy[i];
+                        else copy[i] = next;
+                        return copy;
+                      });
+                    };
+                    return (
+                      <div key={i} className="rounded-xl border border-border p-2">
+                        <p className="text-xs font-semibold mb-1.5">Dia {i + 1}</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {MUSCLE_GROUPS.map(g => {
+                            const isOn = selected.includes(g);
+                            return (
+                              <button
+                                key={g}
+                                type="button"
+                                onClick={() => toggle(g)}
+                                className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-all ${
+                                  isOn
+                                    ? 'border-primary bg-primary text-primary-foreground'
+                                    : 'border-border bg-background hover:border-primary/50'
+                                }`}
+                              >
+                                {g}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
               )}
