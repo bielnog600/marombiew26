@@ -9,6 +9,7 @@ import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar, Send, Clipbo
 import { toast } from 'sonner';
 import TrainingResultCards from '@/components/TrainingResultCards';
 import TrainerLogSheet from '@/components/training/TrainerLogSheet';
+import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -200,6 +201,15 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                   >
                     <Send className="h-3 w-3" />
                   </Button>
+                  <WhatsAppNotifyPlanButton
+                    plan={plan}
+                    studentId={studentId}
+                    onNotified={(planId, notifiedAt, count) =>
+                      setPlans(prev => prev.map(p =>
+                        p.id === planId ? { ...p, whatsapp_notified_at: notifiedAt, whatsapp_notified_count: count } : p
+                      ))
+                    }
+                  />
                   {hasChanges && (
                     <Button
                       size="sm"
