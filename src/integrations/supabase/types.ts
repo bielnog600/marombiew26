@@ -70,6 +70,8 @@ export type Database = {
           tipo: string
           titulo: string
           version: number
+          whatsapp_notified_at: string | null
+          whatsapp_notified_count: number
         }
         Insert: {
           conteudo?: string
@@ -90,6 +92,8 @@ export type Database = {
           tipo?: string
           titulo?: string
           version?: number
+          whatsapp_notified_at?: string | null
+          whatsapp_notified_count?: number
         }
         Update: {
           conteudo?: string
@@ -110,6 +114,8 @@ export type Database = {
           tipo?: string
           titulo?: string
           version?: number
+          whatsapp_notified_at?: string | null
+          whatsapp_notified_count?: number
         }
         Relationships: []
       }
