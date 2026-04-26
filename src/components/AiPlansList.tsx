@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { Trash2, Dumbbell, UtensilsCrossed, ChevronDown, ChevronUp, Pencil, ClipboardCheck, Flame, HeartPulse } from 'lucide-react';
+import { Trash2, Dumbbell, UtensilsCrossed, ChevronDown, ChevronUp, Pencil, ClipboardCheck, Flame, HeartPulse, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useNavigate } from 'react-router-dom';
@@ -25,10 +25,23 @@ const AiPlansList = ({ studentId, tipos }: AiPlansListProps) => {
   const [plans, setPlans] = useState<any[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [readjustPlanId, setReadjustPlanId] = useState<string | null>(null);
+  const [studentPhone, setStudentPhone] = useState<string | null>(null);
+  const [studentName, setStudentName] = useState<string>('aluno');
 
   useEffect(() => {
     loadPlans();
+    loadStudent();
   }, [studentId, tipos?.join(',')]);
+
+  const loadStudent = async () => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('nome, telefone')
+      .eq('user_id', studentId)
+      .maybeSingle();
+    setStudentPhone(data?.telefone ?? null);
+    setStudentName(data?.nome || 'aluno');
+  };
 
   const loadPlans = async () => {
     let query = supabase
@@ -47,6 +60,51 @@ const AiPlansList = ({ studentId, tipos }: AiPlansListProps) => {
     if (error) { toast.error('Erro ao deletar'); return; }
     toast.success('Plano deletado.');
     setPlans(prev => prev.filter(p => p.id !== planId));
+  };
+
+  const planTypeLabel = (tipo: string, isAdjust: boolean) => {
+    const noun = tipo === 'treino'
+      ? 'treino'
+      : tipo === 'tabata'
+      ? 'protocolo de Tabata'
+      : tipo === 'cardio'
+      ? 'protocolo de cardio'
+      : 'dieta';
+    return { noun, verb: isAdjust ? 'foi ajustado(a) e já está disponível' : 'já está liberado(a) no app' };
+  };
+
+  const handleNotifyWhatsApp = async (plan: any) => {
+    const isAdjust = (plan.whatsapp_notified_count ?? 0) > 0;
+    const firstName = (studentName || 'aluno').split(' ')[0];
+    const { noun, verb } = planTypeLabel(plan.tipo, isAdjust);
+
+    const msg = isAdjust
+      ? `Oi ${firstName}! 💪\n\nFiz alguns ajustes no seu *${noun}* ("${plan.titulo}") e ${verb}. Pode abrir o app pra conferir as novidades.\n\nQualquer dúvida me chama por aqui! 🙌`
+      : `Oi ${firstName}! 🚀\n\nSeu novo *${noun}* ("${plan.titulo}") ${verb}. É só abrir o app pra começar!\n\nBons treinos e qualquer dúvida me chama por aqui. 🙌`;
+
+    const cleaned = (studentPhone ?? '').replace(/\D/g, '');
+    const withDdi = cleaned.length === 10 || cleaned.length === 11 ? `55${cleaned}` : cleaned;
+    const url = withDdi
+      ? `https://wa.me/${withDdi}?text=${encodeURIComponent(msg)}`
+      : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from('ai_plans')
+      .update({
+        whatsapp_notified_at: now,
+        whatsapp_notified_count: (plan.whatsapp_notified_count ?? 0) + 1,
+      })
+      .eq('id', plan.id);
+
+    if (error) {
+      toast.error('Não foi possível registrar o envio.');
+      return;
+    }
+    setPlans(prev => prev.map(p => p.id === plan.id
+      ? { ...p, whatsapp_notified_at: now, whatsapp_notified_count: (p.whatsapp_notified_count ?? 0) + 1 }
+      : p));
   };
 
   if (plans.length === 0) {
@@ -96,6 +154,21 @@ const AiPlansList = ({ studentId, tipos }: AiPlansListProps) => {
                   onClick={() => setReadjustPlanId(plan.id)}
                 >
                   <ClipboardCheck className="w-4 h-4" />
+                </Button>
+              )}
+              {!plan.whatsapp_notified_at && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-[#25D366] hover:text-[#25D366] hover:bg-[#25D366]/10 ml-1"
+                  title={
+                    (plan.whatsapp_notified_count ?? 0) > 0
+                      ? 'Avisar aluno sobre ajuste (WhatsApp)'
+                      : 'Avisar aluno que está liberado (WhatsApp)'
+                  }
+                  onClick={() => handleNotifyWhatsApp(plan)}
+                >
+                  <MessageCircle className="w-4 h-4" />
                 </Button>
               )}
               <Button
