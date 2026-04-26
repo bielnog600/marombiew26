@@ -66,6 +66,8 @@ const TreinoIA = () => {
   const [equipment, setEquipment] = useState('');
   const [notes, setNotes] = useState('');
   const [treinoReferencia, setTreinoReferencia] = useState('');
+  // Custom split: muscle groups per day (optional)
+  const [customSplit, setCustomSplit] = useState<Record<number, string[]>>({});
 
   // Health & Injuries
   const [hasLesao, setHasLesao] = useState(false);
@@ -245,6 +247,19 @@ const TreinoIA = () => {
       ? `\n\nCONDIÇÕES DE SAÚDE E RESTRIÇÕES DO ALUNO (ADAPTAR O TREINO OBRIGATORIAMENTE):\n${healthLines.join('\n')}\n\nIMPORTANTE: Adapte exercícios, amplitude, carga e volume considerando as condições acima. Inclua exercícios corretivos/compensatórios quando houver desvios posturais. Evite exercícios que agravem lesões ou dores reportadas.`
       : '';
 
+    // Custom muscle group split per day (overrides "Divisão" when defined)
+    const numDays = parseInt(daysPerWeek || '0', 10);
+    const customLines: string[] = [];
+    for (let i = 0; i < numDays; i++) {
+      const groups = customSplit[i];
+      if (groups && groups.length > 0) {
+        customLines.push(`- Dia ${i + 1}: ${groups.join(' + ')}`);
+      }
+    }
+    const customSplitBlock = customLines.length > 0
+      ? `\n\nDIVISÃO PERSONALIZADA POR DIA (USE EXATAMENTE ESTA ESTRUTURA, sobrepõe a divisão padrão):\n${customLines.join('\n')}\n\nMonte cada dia com os grupos musculares listados acima, respeitando volume adequado para o nível.`
+      : '';
+
     const prompt = `Gere o TREINO COMPLETO agora com as seguintes configurações:
 
 - Nível: ${selectedLevel?.label}
@@ -252,7 +267,7 @@ const TreinoIA = () => {
 - Divisão: ${selectedSplit?.label}
 - Semana do ciclo: ${week} de 4
 - Equipamento: ${selectedEquip?.label}
-${notes ? `- Observações adicionais: ${notes}` : ''}${healthBlock}
+${notes ? `- Observações adicionais: ${notes}` : ''}${customSplitBlock}${healthBlock}
 ${treinoReferencia ? `\n\nREFERÊNCIA DE TREINO FORNECIDA PELO PROFESSOR (USE COMO BASE EXATA para estruturar o treino, exercícios, divisão, volume e faixas de repetição):\n---\n${treinoReferencia}\n---\nSiga essa estrutura o mais fielmente possível, adaptando apenas para as condições de saúde e equipamento informados.` : ''}
 
 GERE TUDO DE UMA VEZ:
