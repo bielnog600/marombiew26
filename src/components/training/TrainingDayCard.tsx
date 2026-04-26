@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { findBestExerciseMatch, type MatchableExercise } from '@/lib/exerciseMatcher';
 
 // ===== Quick-pick options for structured editing =====
 const REC_SERIES_OPTS = ['1', '2'];
@@ -88,6 +89,33 @@ interface ExerciseOption {
   nome: string;
   grupo_muscular: string;
 }
+
+interface ExerciseCatalogItem extends MatchableExercise {
+  nome: string;
+  grupo_muscular: string;
+  imagem_url: string | null;
+}
+
+const ExerciseThumb: React.FC<{ name: string; catalog: ExerciseCatalogItem[]; size?: 'sm' | 'md' }> = ({ name, catalog, size = 'sm' }) => {
+  const match = name ? findBestExerciseMatch(name, catalog as any) : undefined;
+  const url = (match as any)?.imagem_url as string | null | undefined;
+  const dim = size === 'md' ? 'h-10 w-10' : 'h-8 w-8';
+  if (!url) {
+    return (
+      <div className={`${dim} shrink-0 rounded-md bg-muted/40 flex items-center justify-center border border-border/40`}>
+        <Dumbbell className="h-3.5 w-3.5 text-muted-foreground" />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={url}
+      alt={name}
+      loading="lazy"
+      className={`${dim} shrink-0 rounded-md object-cover border border-border/40 bg-muted/40`}
+    />
+  );
+};
 
 const ExerciseCombobox: React.FC<{
   value: string;
@@ -184,6 +212,7 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
   const [editing, setEditing] = useState(false);
   const [localExercises, setLocalExercises] = useState<ParsedExercise[]>(day.exercises);
   const [exerciseOptions, setExerciseOptions] = useState<ExerciseOption[]>([]);
+  const [exerciseCatalog, setExerciseCatalog] = useState<ExerciseCatalogItem[]>([]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -191,16 +220,18 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
   );
 
   useEffect(() => {
-    if (editing && exerciseOptions.length === 0) {
-      supabase
-        .from('exercises')
-        .select('nome, grupo_muscular')
-        .order('nome')
-        .then(({ data }) => {
-          if (data) setExerciseOptions(data);
-        });
-    }
-  }, [editing, exerciseOptions.length]);
+    if (exerciseCatalog.length > 0) return;
+    supabase
+      .from('exercises')
+      .select('id, nome, grupo_muscular, imagem_url')
+      .order('nome')
+      .then(({ data }) => {
+        if (data) {
+          setExerciseCatalog(data as any);
+          setExerciseOptions(data.map((d: any) => ({ nome: d.nome, grupo_muscular: d.grupo_muscular })));
+        }
+      });
+  }, [exerciseCatalog.length]);
 
   const handleFieldChange = (exIndex: number, field: keyof ParsedExercise, value: string) => {
     setLocalExercises(prev => {
