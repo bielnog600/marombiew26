@@ -684,6 +684,120 @@ GERE TUDO DE UMA VEZ:
           <CardContent className="p-4 space-y-4">
             <h3 className="font-bold text-sm flex items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">4</span>
+              <AlertTriangle className="h-4 w-4 text-red-500" />
+              Restrições Estruturadas (regras rígidas)
+            </h3>
+            <p className="text-xs text-muted-foreground bg-red-500/10 border border-red-500/30 rounded-lg p-2">
+              ⚠️ Os campos abaixo são tratados como <strong>regras obrigatórias</strong> de segurança e têm prioridade absoluta sobre o restante do treino. Use-os para casos com restrições clínicas ou funcionais sérias.
+            </p>
+
+            {/* Caso adaptado */}
+            <div className="flex items-center justify-between rounded-xl border-2 p-3 transition-all border-border">
+              <div>
+                <Label htmlFor="caso-adaptado" className="text-sm font-medium">Caso adaptado / reabilitativo</Label>
+                <p className="text-xs text-muted-foreground">Ative para casos com restrições clínicas relevantes.</p>
+              </div>
+              <Switch id="caso-adaptado" checked={casoAdaptado} onCheckedChange={setCasoAdaptado} />
+            </div>
+
+            {/* Objetivos terapêuticos */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Objetivos terapêuticos / funcionais obrigatórios</Label>
+              <textarea
+                value={objetivosTerapeuticos}
+                onChange={(e) => setObjetivosTerapeuticos(e.target.value)}
+                placeholder={'Ex: fortalecimento cervical, posteriores de ombro, estabilização escapular, core, alongamento isquiotibiais/iliopsoas, isometria...'}
+                rows={3}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none resize-y"
+              />
+            </div>
+
+            {/* Exercícios proibidos */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Restrições absolutas — exercícios proibidos</Label>
+              <textarea
+                value={exerciciosProibidos}
+                onChange={(e) => setExerciciosProibidos(e.target.value)}
+                placeholder={'Ex: agachamento livre, smith squat, stiff, sumô terra, abdominal canivete, elevação pélvica, desenvolvimento militar...'}
+                rows={3}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none resize-y"
+              />
+              <p className="text-[11px] text-muted-foreground">A IA bloqueia esses exercícios e suas variações/sinônimos com o mesmo padrão.</p>
+            </div>
+
+            {/* Padrões proibidos */}
+            <div className="space-y-2">
+              <Label className="text-xs">Padrões de movimento proibidos</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {FORBIDDEN_PATTERNS.map(p => {
+                  const isOn = padroesProibidos.includes(p.id);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() =>
+                        setPadroesProibidos(prev =>
+                          prev.includes(p.id) ? prev.filter(x => x !== p.id) : [...prev, p.id]
+                        )
+                      }
+                      className={`rounded-xl border-2 p-2.5 text-left transition-all ${
+                        isOn ? 'border-red-500 bg-red-500/10' : 'border-border hover:border-red-500/50'
+                      }`}
+                    >
+                      <span className="text-sm font-medium block">{p.label}</span>
+                      <span className="text-[11px] text-muted-foreground">{p.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Exercícios permitidos */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Exercícios permitidos / prioritários</Label>
+              <textarea
+                value={exerciciosPermitidos}
+                onChange={(e) => setExerciciosPermitidos(e.target.value)}
+                placeholder={'Ex: leg press com amplitude controlada, cadeira extensora carga leve, face pull, prancha, mobilidade escapular, alongamento glúteo...'}
+                rows={3}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none resize-y"
+              />
+            </div>
+
+            {/* Regras execução */}
+            <div className="space-y-2">
+              <Label className="text-xs">Regras de carga e execução</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {EXECUTION_RULES.map(r => {
+                  const isOn = regrasExecucao.includes(r.id);
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() =>
+                        setRegrasExecucao(prev =>
+                          prev.includes(r.id) ? prev.filter(x => x !== r.id) : [...prev, r.id]
+                        )
+                      }
+                      className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-all ${
+                        isOn ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:border-primary/50'
+                      }`}
+                    >
+                      {r.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+              )}
+
+              {currentStep === 4 && (
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-4">
+            <h3 className="font-bold text-sm flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">5</span>
               <AlertTriangle className="h-4 w-4 text-orange-500" />
               Saúde e Restrições
             </h3>
@@ -782,11 +896,11 @@ GERE TUDO DE UMA VEZ:
         </Card>
               )}
 
-              {currentStep === 4 && (
+              {currentStep === 5 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-3">
             <h3 className="font-bold text-sm flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">5</span>
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">6</span>
               Referência de Treino (opcional)
             </h3>
             <p className="text-xs text-muted-foreground">
