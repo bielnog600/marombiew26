@@ -49,6 +49,28 @@ const EQUIPMENT = [
   { value: 'casa', label: 'Home Gym', desc: 'Treino em casa com básico' },
 ];
 
+const FORBIDDEN_PATTERNS = [
+  { id: 'sobrecarga_axial', label: 'Sobrecarga axial', desc: 'Agachamento livre, smith, afundo c/ barra' },
+  { id: 'hinge_pesado', label: 'Hinge pesado', desc: 'Stiff, sumô terra, peso morto, good morning' },
+  { id: 'overhead', label: 'Movimentos acima da cabeça', desc: 'Desenvolvimentos, elevação frontal alta' },
+  { id: 'compressao_cervical', label: 'Compressão cervical/ombros', desc: 'Cargas sobre trapézio/cervical' },
+  { id: 'flexao_lombar', label: 'Flexão lombar agressiva', desc: 'Abdominais dinâmicos, canivete, hiperextensão' },
+  { id: 'alto_impacto', label: 'Alto impacto / explosivos', desc: 'Saltos, burpees, skips, polichinelo' },
+  { id: 'instabilidade', label: 'Instabilidade excessiva', desc: 'Bola, BOSU, exercícios em superfície instável' },
+  { id: 'unilateral', label: 'Unilateral pesado', desc: 'Búlgaro, afundo c/ carga, passadas' },
+];
+
+const EXECUTION_RULES = [
+  { id: 'baixa_carga', label: 'Baixa carga' },
+  { id: 'pouca_serie', label: 'Pouca série' },
+  { id: 'amplitude_controlada', label: 'Amplitude controlada' },
+  { id: 'amplitude_parcial', label: 'Amplitude parcial' },
+  { id: 'priorizar_isometria', label: 'Priorizar isometria' },
+  { id: 'sem_peso', label: 'Sem peso quando possível' },
+  { id: 'tempo_controlado', label: 'Tempo / cadência controlada' },
+  { id: 'sem_falha', label: 'Longe da falha (RIR alto)' },
+];
+
 const TreinoIA = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
@@ -85,6 +107,14 @@ const TreinoIA = () => {
   const [tabagismo, setTabagismo] = useState(false);
   const [stressAlto, setStressAlto] = useState(false);
   const [sonoRuim, setSonoRuim] = useState(false);
+
+  // Structured safety / adapted-case rules
+  const [casoAdaptado, setCasoAdaptado] = useState(false);
+  const [objetivosTerapeuticos, setObjetivosTerapeuticos] = useState('');
+  const [exerciciosProibidos, setExerciciosProibidos] = useState('');
+  const [padroesProibidos, setPadroesProibidos] = useState<string[]>([]);
+  const [exerciciosPermitidos, setExerciciosPermitidos] = useState('');
+  const [regrasExecucao, setRegrasExecucao] = useState<string[]>([]);
 
   // Result
   const [generating, setGenerating] = useState(false);
@@ -240,6 +270,31 @@ const TreinoIA = () => {
       ? `\n\nCONDIÇÕES DE SAÚDE E RESTRIÇÕES DO ALUNO (ADAPTAR O TREINO OBRIGATORIAMENTE):\n${healthLines.join('\n')}\n\nIMPORTANTE: Adapte exercícios, amplitude, carga e volume considerando as condições acima. Inclua exercícios corretivos/compensatórios quando houver desvios posturais. Evite exercícios que agravem lesões ou dores reportadas.`
       : '';
 
+    // Structured safety rules block (PRIORIDADE ABSOLUTA)
+    const safetyLines: string[] = [];
+    if (casoAdaptado) safetyLines.push('CASO_ADAPTADO: SIM (tratar como caso reabilitativo / adaptado — segurança acima de qualquer outra regra)');
+    if (objetivosTerapeuticos.trim()) safetyLines.push(`OBJETIVOS_TERAPEUTICOS_OBRIGATORIOS: ${objetivosTerapeuticos.trim()}`);
+    if (exerciciosProibidos.trim()) safetyLines.push(`EXERCICIOS_PROIBIDOS (bloqueio absoluto, inclusive variações/sinônimos): ${exerciciosProibidos.trim()}`);
+    if (padroesProibidos.length > 0) {
+      const labels = padroesProibidos
+        .map(id => FORBIDDEN_PATTERNS.find(p => p.id === id)?.label)
+        .filter(Boolean)
+        .join(', ');
+      safetyLines.push(`PADROES_DE_MOVIMENTO_PROIBIDOS: ${labels}`);
+    }
+    if (exerciciosPermitidos.trim()) safetyLines.push(`EXERCICIOS_PERMITIDOS_OU_PRIORITARIOS: ${exerciciosPermitidos.trim()}`);
+    if (regrasExecucao.length > 0) {
+      const labels = regrasExecucao
+        .map(id => EXECUTION_RULES.find(r => r.id === id)?.label)
+        .filter(Boolean)
+        .join(', ');
+      safetyLines.push(`REGRAS_DE_CARGA_E_EXECUCAO: ${labels}`);
+    }
+
+    const structuredSafetyBlock = safetyLines.length > 0
+      ? `\n\n========================================\n🚨 REGRAS RÍGIDAS DE SEGURANÇA ESTRUTURADAS (PRIORIDADE ABSOLUTA — LEIA PRIMEIRO)\n========================================\nEstes campos foram preenchidos pelo professor em formato estruturado.\nNÃO são observações soltas — são REGRAS OBRIGATÓRIAS que VENCEM qualquer outra regra do prompt (volume, intensidade, técnicas avançadas, divisão padrão, periodização).\n\n${safetyLines.map(l => `• ${l}`).join('\n')}\n\nFLUXO OBRIGATÓRIO:\n1) Aplique este filtro ANTES de escolher qualquer exercício.\n2) Bloqueie todo exercício que bata com EXERCICIOS_PROIBIDOS (nome ou sinônimo) ou que use PADROES_DE_MOVIMENTO_PROIBIDOS.\n3) NÃO substitua um proibido por uma variação que mantenha o mesmo padrão (ex: smith squat continua sendo sobrecarga axial; stiff halteres continua sendo hinge pesado).\n4) Inclua obrigatoriamente exercícios alinhados aos OBJETIVOS_TERAPEUTICOS_OBRIGATORIOS.\n5) Aplique REGRAS_DE_CARGA_E_EXECUCAO em cada exercício escolhido e mencione a adaptação na coluna DESCRIÇÃO (ex: "carga baixa, amplitude controlada, isometria 20s").\n6) Se o quadro for sério e não couber treino completo respeitando tudo, monte um treino MENOR — NUNCA preencha com exercício duvidoso.\n========================================`
+      : '';
+
     // Custom muscle group split per day (overrides "Divisão" when defined)
     const numDays = parseInt(daysPerWeek || '0', 10);
     const WEEKDAYS = [
@@ -266,7 +321,7 @@ const TreinoIA = () => {
       : selectedSplit?.label}
 - Semana do ciclo: ${week} de 4
 - Equipamento: ${selectedEquip?.label}
-${notes ? `- Observações adicionais: ${notes}` : ''}${customSplitBlock}${healthBlock}
+${notes ? `- Observações adicionais (complementares — NÃO substituem as regras estruturadas acima): ${notes}` : ''}${customSplitBlock}${structuredSafetyBlock}${healthBlock}
 ${treinoReferencia ? `\n\nREFERÊNCIA DE TREINO FORNECIDA PELO PROFESSOR (USE COMO BASE EXATA para estruturar o treino, exercícios, divisão, volume e faixas de repetição):\n---\n${treinoReferencia}\n---\nSiga essa estrutura o mais fielmente possível, adaptando apenas para as condições de saúde e equipamento informados.` : ''}
 
 GERE TUDO DE UMA VEZ:
@@ -427,11 +482,12 @@ GERE TUDO DE UMA VEZ:
         )}
 
         {!configCollapsed && (() => {
-          const STEP_TITLES = ['Nível', 'Frequência e Divisão', 'Periodização e Equipamento', 'Saúde e Restrições', 'Referência (opcional)'];
+          const STEP_TITLES = ['Nível', 'Frequência e Divisão', 'Periodização e Equipamento', 'Restrições Estruturadas', 'Saúde e Restrições', 'Referência (opcional)'];
           const stepValid = [
             !!level,
             !!daysPerWeek && !!split,
             !!week && !!equipment,
+            true, // restrições estruturadas é opcional
             true, // saúde é opcional
             true, // referência é opcional
           ];
@@ -628,6 +684,120 @@ GERE TUDO DE UMA VEZ:
           <CardContent className="p-4 space-y-4">
             <h3 className="font-bold text-sm flex items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">4</span>
+              <AlertTriangle className="h-4 w-4 text-red-500" />
+              Restrições Estruturadas (regras rígidas)
+            </h3>
+            <p className="text-xs text-muted-foreground bg-red-500/10 border border-red-500/30 rounded-lg p-2">
+              ⚠️ Os campos abaixo são tratados como <strong>regras obrigatórias</strong> de segurança e têm prioridade absoluta sobre o restante do treino. Use-os para casos com restrições clínicas ou funcionais sérias.
+            </p>
+
+            {/* Caso adaptado */}
+            <div className="flex items-center justify-between rounded-xl border-2 p-3 transition-all border-border">
+              <div>
+                <Label htmlFor="caso-adaptado" className="text-sm font-medium">Caso adaptado / reabilitativo</Label>
+                <p className="text-xs text-muted-foreground">Ative para casos com restrições clínicas relevantes.</p>
+              </div>
+              <Switch id="caso-adaptado" checked={casoAdaptado} onCheckedChange={setCasoAdaptado} />
+            </div>
+
+            {/* Objetivos terapêuticos */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Objetivos terapêuticos / funcionais obrigatórios</Label>
+              <textarea
+                value={objetivosTerapeuticos}
+                onChange={(e) => setObjetivosTerapeuticos(e.target.value)}
+                placeholder={'Ex: fortalecimento cervical, posteriores de ombro, estabilização escapular, core, alongamento isquiotibiais/iliopsoas, isometria...'}
+                rows={3}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none resize-y"
+              />
+            </div>
+
+            {/* Exercícios proibidos */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Restrições absolutas — exercícios proibidos</Label>
+              <textarea
+                value={exerciciosProibidos}
+                onChange={(e) => setExerciciosProibidos(e.target.value)}
+                placeholder={'Ex: agachamento livre, smith squat, stiff, sumô terra, abdominal canivete, elevação pélvica, desenvolvimento militar...'}
+                rows={3}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none resize-y"
+              />
+              <p className="text-[11px] text-muted-foreground">A IA bloqueia esses exercícios e suas variações/sinônimos com o mesmo padrão.</p>
+            </div>
+
+            {/* Padrões proibidos */}
+            <div className="space-y-2">
+              <Label className="text-xs">Padrões de movimento proibidos</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {FORBIDDEN_PATTERNS.map(p => {
+                  const isOn = padroesProibidos.includes(p.id);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() =>
+                        setPadroesProibidos(prev =>
+                          prev.includes(p.id) ? prev.filter(x => x !== p.id) : [...prev, p.id]
+                        )
+                      }
+                      className={`rounded-xl border-2 p-2.5 text-left transition-all ${
+                        isOn ? 'border-red-500 bg-red-500/10' : 'border-border hover:border-red-500/50'
+                      }`}
+                    >
+                      <span className="text-sm font-medium block">{p.label}</span>
+                      <span className="text-[11px] text-muted-foreground">{p.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Exercícios permitidos */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Exercícios permitidos / prioritários</Label>
+              <textarea
+                value={exerciciosPermitidos}
+                onChange={(e) => setExerciciosPermitidos(e.target.value)}
+                placeholder={'Ex: leg press com amplitude controlada, cadeira extensora carga leve, face pull, prancha, mobilidade escapular, alongamento glúteo...'}
+                rows={3}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none resize-y"
+              />
+            </div>
+
+            {/* Regras execução */}
+            <div className="space-y-2">
+              <Label className="text-xs">Regras de carga e execução</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {EXECUTION_RULES.map(r => {
+                  const isOn = regrasExecucao.includes(r.id);
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() =>
+                        setRegrasExecucao(prev =>
+                          prev.includes(r.id) ? prev.filter(x => x !== r.id) : [...prev, r.id]
+                        )
+                      }
+                      className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-all ${
+                        isOn ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:border-primary/50'
+                      }`}
+                    >
+                      {r.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+              )}
+
+              {currentStep === 4 && (
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-4">
+            <h3 className="font-bold text-sm flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">5</span>
               <AlertTriangle className="h-4 w-4 text-orange-500" />
               Saúde e Restrições
             </h3>
@@ -726,11 +896,11 @@ GERE TUDO DE UMA VEZ:
         </Card>
               )}
 
-              {currentStep === 4 && (
+              {currentStep === 5 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-3">
             <h3 className="font-bold text-sm flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">5</span>
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">6</span>
               Referência de Treino (opcional)
             </h3>
             <p className="text-xs text-muted-foreground">
