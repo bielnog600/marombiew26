@@ -88,6 +88,7 @@ interface TrainingDayCardProps {
 interface ExerciseOption {
   nome: string;
   grupo_muscular: string;
+  imagem_url?: string | null;
 }
 
 interface ExerciseCatalogItem extends MatchableExercise {
@@ -151,10 +152,22 @@ const ExerciseCombobox: React.FC<{
                     onChange(opt.nome);
                     setOpen(false);
                   }}
-                  className="text-xs"
+                  className="text-xs gap-2"
                 >
-                  <span className="flex-1">{opt.nome}</span>
-                  <span className="text-[10px] text-muted-foreground ml-2">{opt.grupo_muscular}</span>
+                  {opt.imagem_url ? (
+                    <img
+                      src={opt.imagem_url}
+                      alt={opt.nome}
+                      loading="lazy"
+                      className="h-7 w-7 shrink-0 rounded object-cover border border-border/40 bg-muted/40"
+                    />
+                  ) : (
+                    <div className="h-7 w-7 shrink-0 rounded bg-muted/40 flex items-center justify-center border border-border/40">
+                      <Dumbbell className="h-3 w-3 text-muted-foreground" />
+                    </div>
+                  )}
+                  <span className="flex-1 truncate">{opt.nome}</span>
+                  <span className="text-[10px] text-muted-foreground ml-1 shrink-0">{opt.grupo_muscular}</span>
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -228,7 +241,7 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
       .then(({ data }) => {
         if (data) {
           setExerciseCatalog(data as any);
-          setExerciseOptions(data.map((d: any) => ({ nome: d.nome, grupo_muscular: d.grupo_muscular })));
+          setExerciseOptions(data.map((d: any) => ({ nome: d.nome, grupo_muscular: d.grupo_muscular, imagem_url: d.imagem_url })));
         }
       });
   }, [exerciseCatalog.length]);
