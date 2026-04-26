@@ -510,6 +510,7 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="h-9 px-3">Treino do Dia</TableHead>
+                  <TableHead className="h-9 px-2 w-[50px]"></TableHead>
                   <TableHead className="h-9 px-3">Exercício</TableHead>
                   <TableHead className="h-9 px-3 text-center">Séries</TableHead>
                   <TableHead className="h-9 px-3 text-center">Séries 2</TableHead>
@@ -524,6 +525,9 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
                 {displayExercises.map((ex, exIndex) => (
                   <TableRow key={`${day.day}-${ex.exercise}-${exIndex}`}>
                     <TableCell className="px-3 py-2 font-semibold text-primary align-top whitespace-nowrap">{day.day}</TableCell>
+                    <TableCell className="px-2 py-2 align-middle">
+                      <ExerciseThumb name={ex.exercise} catalog={exerciseCatalog} />
+                    </TableCell>
                     <TableCell className="px-3 py-2 font-medium align-top">{ex.exercise}</TableCell>
                     <TableCell className="px-3 py-2 text-center align-top">{ex.series || '—'}</TableCell>
                     <TableCell className="px-3 py-2 text-center align-top">{ex.series2 || '—'}</TableCell>
