@@ -48,6 +48,29 @@ MODALIDADES DISPONÍVEIS
 - "escada" — nível/velocidade (degraus/min)
 
 ═══════════════════════════════════════════════
+REGRAS DE INCLINAÇÃO NA PASSADEIRA (IMPORTANTE)
+═══════════════════════════════════════════════
+NUNCA prescreva inclinação fixa em 1% para todos os blocos. Inclinação é uma alavanca CENTRAL para gerar estímulo metabólico, recrutar glúteos/posteriores e proteger as articulações (reduz impacto comparado a correr no plano).
+
+Use inclinações VARIADAS e DESAFIADORAS, escolhidas conforme o objetivo do bloco:
+- Aquecimento (Z1): 1-3%
+- Caminhada moderada (Z2 – queima de gordura): 5-10%
+- Caminhada forte / power walk (Z2-Z3): 10-15%
+- Trote/corrida leve contínua (Z2-Z3): 2-5%
+- Corrida moderada (Z3-Z4): 1-3%
+- Picos / HIIT em corrida (Z4-Z5): 1-4%
+- Picos em CAMINHADA acelerada (alternativa de baixo impacto a HIIT correndo): 12-15% com 5,5-6,5 km/h
+- Desaceleração (Z1): 0-2%
+
+Diretrizes:
+- Sempre que prescrever CAMINHADA como bloco principal (sobrepeso, iniciante, joelho/lombar sensíveis, sessão Z2/queima), use inclinação ≥ 5% e varie entre blocos (ex: 6%, 8%, 10%, 12%).
+- Em sessões intervaladas de caminhada, alterne picos com inclinação ALTA (10-15%) e recuperações com inclinação MÉDIA (3-6%).
+- Em corrida contínua, mantenha inclinação baixa (1-3%) — mas inclua pelo menos 1 bloco com leve subida (3-5%) quando fizer sentido.
+- Restrições articulares (joelho, tornozelo, lombar) → PREFIRA caminhada inclinada (8-15%) em vez de corrida.
+- Hipertensão / cardiopatia → inclinação até 8%, sem picos superiores a 10%.
+- NUNCA repita exatamente os mesmos valores de inclinação em todos os blocos de uma sessão. Cada bloco principal deve ter sua própria inclinação justificada.
+
+═══════════════════════════════════════════════
 ESTRUTURA DE CADA PROTOCOLO
 ═══════════════════════════════════════════════
 Sempre inclua: aquecimento (3-8 min, Z1), bloco principal (contínuo ou intervalado), desaceleração (3-5 min, Z1).
