@@ -33,6 +33,7 @@ const SPLITS = [
   { value: 'push_pull_legs', label: 'Push/Pull/Legs', desc: 'Empurrar/Puxar/Pernas' },
   { value: 'abcde', label: 'ABCDE', desc: 'Um grupo muscular por dia' },
   { value: 'decida', label: 'Decida por mim', desc: 'IA escolhe a melhor divisão' },
+  { value: 'custom', label: 'Selecione grupos', desc: 'Escolher grupos por dia' },
 ];
 
 const WEEKS = [
