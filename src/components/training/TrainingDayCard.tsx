@@ -400,6 +400,7 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
                   return (
                     <SortableExerciseItem key={`edit-${day.day}-${exIndex}`} id={String(exIndex)} position={exIndex + 1} onRemove={() => removeExercise(exIndex)}>
                       <div className="flex flex-wrap items-center gap-2">
+                        <ExerciseThumb name={ex.exercise} catalog={exerciseCatalog} />
                         <div className="flex-1 min-w-[180px]">
                           <ExerciseCombobox
                             value={ex.exercise}
