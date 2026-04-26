@@ -287,6 +287,20 @@ const Alunos = () => {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                  <div className="space-y-0.5 pr-3">
+                    <Label className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-primary" /> Plano Low Cost
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      A IA reavalia treino e dieta automaticamente a cada 30 dias.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={newStudent.low_cost}
+                    onCheckedChange={(v) => setNewStudent({ ...newStudent, low_cost: v })}
+                  />
+                </div>
                 <Button type="submit" className="w-full font-semibold" disabled={loading}>
                   Cadastrar
                 </Button>
