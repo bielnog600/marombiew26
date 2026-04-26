@@ -257,7 +257,9 @@ const TreinoIA = () => {
 
 - Nível: ${selectedLevel?.label}
 - Dias por semana: ${daysPerWeek}
-- Divisão: ${selectedSplit?.label}
+- Divisão: ${split === 'decida'
+      ? 'IA DEVE ESCOLHER a melhor divisão (Full Body, Upper/Lower, Push/Pull/Legs ou ABCDE) com base no nível, dias por semana, objetivo e condições de saúde do aluno. Justifique brevemente a escolha no Resumo do protocolo.'
+      : selectedSplit?.label}
 - Semana do ciclo: ${week} de 4
 - Equipamento: ${selectedEquip?.label}
 ${notes ? `- Observações adicionais: ${notes}` : ''}${customSplitBlock}${healthBlock}
