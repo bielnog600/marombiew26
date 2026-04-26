@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import type { ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 
 interface Props {
   open: boolean;
@@ -265,7 +266,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   const [state, setState] = useState<Record<number, ExerciseState>>({});
   const [loading, setLoading] = useState(false);
   const [activeDayIdx, setActiveDayIdx] = useState(0);
-  const [exercisesList, setExercisesList] = useState<{ id: string; nome: string; grupo_muscular: string }[]>([]);
+  const [exercisesList, setExercisesList] = useState<{ id: string; nome: string; grupo_muscular: string; imagem_url?: string | null }[]>([]);
   const [restTimer, setRestTimer] = useState<{ total: number; remaining: number } | null>(null);
 
   // Parse "60s", "1min", "1:30", "90" => seconds
@@ -304,7 +305,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     (async () => {
       const { data } = await supabase
         .from('exercises')
-        .select('id, nome, grupo_muscular')
+        .select('id, nome, grupo_muscular, imagem_url')
         .order('nome', { ascending: true });
       if (data) setExercisesList(data);
     })();
@@ -503,7 +504,24 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                 <Card key={exIdx} className="border-border/60">
                   <CardContent className="p-3 space-y-3">
                     <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
+                      <div className="flex items-start gap-2 min-w-0 flex-1">
+                        {(() => {
+                          const m = st.exerciseName ? findBestExerciseMatch(st.exerciseName, exercisesList as any) : undefined;
+                          const url = (m as any)?.imagem_url as string | null | undefined;
+                          return url ? (
+                            <img
+                              src={url}
+                              alt={st.exerciseName}
+                              loading="lazy"
+                              className="h-10 w-10 shrink-0 rounded-md object-cover border border-border/40 bg-muted/40"
+                            />
+                          ) : (
+                            <div className="h-10 w-10 shrink-0 rounded-md bg-muted/40 flex items-center justify-center border border-border/40">
+                              <Dumbbell className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                          );
+                        })()}
+                        <div className="min-w-0 flex-1">
                         <ExerciseNamePicker
                           value={st.exerciseName}
                           options={exercisesList}
@@ -521,6 +539,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                           {ex.rir && ` · RIR ${ex.rir}`}
                           {ex.pause && ` · pausa ${ex.pause}`}
                         </p>
+                        </div>
                       </div>
                       {st.exerciseName && (
                         <HistoryPopover studentId={studentId} exerciseName={st.exerciseName} last={st} />
