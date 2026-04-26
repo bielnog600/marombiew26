@@ -242,11 +242,15 @@ const TreinoIA = () => {
 
     // Custom muscle group split per day (overrides "Divisão" when defined)
     const numDays = parseInt(daysPerWeek || '0', 10);
+    const WEEKDAYS = [
+      'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira',
+      'Sexta-feira', 'Sábado', 'Domingo',
+    ];
     const customLines: string[] = [];
     for (let i = 0; i < numDays; i++) {
       const groups = customSplit[i];
       if (groups && groups.length > 0) {
-        customLines.push(`- Dia ${i + 1}: ${groups.join(' + ')}`);
+        customLines.push(`- ${WEEKDAYS[i] ?? `Dia ${i + 1}`}: ${groups.join(' + ')}`);
       }
     }
     const customSplitBlock = customLines.length > 0
