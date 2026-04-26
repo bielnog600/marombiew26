@@ -507,13 +507,46 @@ async function generateDraft(supabase: any, planId: string, source: "manual" | "
 
   const studentContext = await buildStudentContextForAgent(supabase, plan.student_id);
 
+  // Detect Low Cost mode for continuity-aware prompt
+  const { data: spLc } = await supabase
+    .from("students_profile")
+    .select("low_cost")
+    .eq("user_id", plan.student_id)
+    .maybeSingle();
+  const isLowCost = !!spLc?.low_cost;
+
+  const lastSession = latestAnalysis?.context_snapshot?.last_session_summary ?? null;
+  const recentStats = latestAnalysis?.context_snapshot?.recent_exercise_stats ?? [];
+
   const ctxBlock = latestAnalysis
     ? `\n\n=== ANÁLISE DE RENOVAÇÃO DA IA ===\nSugestão: ${latestAnalysis.suggested_action}\nAderência: ${latestAnalysis.adherence_score ?? "—"}\nFrequência semanal: ${latestAnalysis.session_frequency ?? "—"}\nProgressão de carga: ${latestAnalysis.load_progression ?? "—"}\nProgressão de reps: ${latestAnalysis.reps_progression ?? "—"}\nVolume: ${latestAnalysis.volume_trend ?? "—"}\nRPE médio: ${latestAnalysis.avg_rpe ?? "—"}\nFadiga: ${latestAnalysis.fatigue_signal ?? "—"}\nMonotonia: ${latestAnalysis.monotony_risk ?? "—"}\nJustificativa: ${latestAnalysis.rationale}\n=== FIM ANÁLISE ===\n`
     : "";
 
-  const previousExcerpt = (plan.conteudo ?? "").slice(0, 1500);
+  const previousExcerpt = (plan.conteudo ?? "").slice(0, isLowCost ? 3000 : 1500);
 
-  const prompt = `Você está RENOVANDO o ciclo de treino de 45 dias deste aluno.${ctxBlock}
+  const lowCostBlock = isLowCost
+    ? `\n\n=== MODO LOW COST — CONTINUIDADE ===\nEste aluno está no fluxo automatizado. A nova versão DEVE preservar continuidade:\n- USE o plano atual (abaixo) como BASE ESTRUTURAL (mesma divisão, mesma lógica de fases, mesmo objetivo).\n- USE os últimos registros REAIS do aluno como ponto de partida da progressão (cargas, reps, exercícios concluídos/pulados, tempo de sessão).\n- NÃO troque o treino inteiro. Refine: aumente carga onde houve subida, mantenha onde estável, reduza onde houve fadiga alta ou exercícios pulados recorrentes.\n- Substitua APENAS exercícios claramente estagnados (≥3 semanas sem progressão de carga/reps) ou que o aluno tem pulado consistentemente.\n\nÚLTIMA SESSÃO REAL DO ALUNO:\n${lastSession ? JSON.stringify(lastSession, null, 2) : "— (sem registro)"}\n\nESTATÍSTICAS POR EXERCÍCIO (últimas 2-4 semanas, top 10):\n${recentStats.length ? JSON.stringify(recentStats, null, 2) : "— (sem registros suficientes)"}\n=== FIM MODO LOW COST ===\n`
+    : "";
+
+  const prompt = isLowCost
+    ? `Você está RENOVANDO o ciclo de treino deste aluno em MODO LOW COST (revisão automatizada a cada 30 dias).${ctxBlock}${lowCostBlock}
+
+OBJETIVO DA RENOVAÇÃO LOW COST:
+- Manter CONTINUIDADE com o plano atual (mesma estrutura/divisão) e com o último desempenho real registrado.
+- Ajustar cargas, reps e volume com base nos números reais do aluno (acima).
+- NÃO recriar o treino do zero — evolua a partir do que existe.
+- Respeitar restrições/lesões e o objetivo do aluno.
+- Se houver platô claro, substitua APENAS os exercícios estagnados (não todos).
+
+PLANO ATUAL (BASE ESTRUTURAL — preservar divisão e lógica):
+${previousExcerpt}
+
+ENTREGUE OBRIGATORIAMENTE:
+1) Tabela completa do treino com TODAS as colunas: TREINO DO DIA | EXERCÍCIO | SÉRIE | SÉRIE 2 | REPETIÇÕES | RIR | PAUSA | DESCRIÇÃO | VARIAÇÃO
+2) Divisão semanal idêntica à atual (a menos que haja motivo claro para mudar)
+3) Periodização contínua a partir da fase atual (${plan.fase ?? "fase atual"})
+4) Notas curtas de progressão indicando, por exercício mantido, a nova carga sugerida com base na última carga real registrada`
+    : `Você está RENOVANDO o ciclo de treino de 45 dias deste aluno.${ctxBlock}
 
 OBJETIVO DA RENOVAÇÃO:
 - Considere a aderência, progressão e fadiga acima
