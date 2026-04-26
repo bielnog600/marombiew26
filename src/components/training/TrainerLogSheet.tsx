@@ -266,7 +266,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   const [state, setState] = useState<Record<number, ExerciseState>>({});
   const [loading, setLoading] = useState(false);
   const [activeDayIdx, setActiveDayIdx] = useState(0);
-  const [exercisesList, setExercisesList] = useState<{ id: string; nome: string; grupo_muscular: string }[]>([]);
+  const [exercisesList, setExercisesList] = useState<{ id: string; nome: string; grupo_muscular: string; imagem_url?: string | null }[]>([]);
   const [restTimer, setRestTimer] = useState<{ total: number; remaining: number } | null>(null);
 
   // Parse "60s", "1min", "1:30", "90" => seconds
@@ -305,7 +305,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     (async () => {
       const { data } = await supabase
         .from('exercises')
-        .select('id, nome, grupo_muscular')
+        .select('id, nome, grupo_muscular, imagem_url')
         .order('nome', { ascending: true });
       if (data) setExercisesList(data);
     })();
