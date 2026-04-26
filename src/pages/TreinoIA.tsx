@@ -482,11 +482,12 @@ GERE TUDO DE UMA VEZ:
         )}
 
         {!configCollapsed && (() => {
-          const STEP_TITLES = ['Nível', 'Frequência e Divisão', 'Periodização e Equipamento', 'Saúde e Restrições', 'Referência (opcional)'];
+          const STEP_TITLES = ['Nível', 'Frequência e Divisão', 'Periodização e Equipamento', 'Restrições Estruturadas', 'Saúde e Restrições', 'Referência (opcional)'];
           const stepValid = [
             !!level,
             !!daysPerWeek && !!split,
             !!week && !!equipment,
+            true, // restrições estruturadas é opcional
             true, // saúde é opcional
             true, // referência é opcional
           ];
