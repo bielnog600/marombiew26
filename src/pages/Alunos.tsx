@@ -331,6 +331,11 @@ const Alunos = () => {
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-sm leading-tight">{s.nome || 'Sem nome'}</p>
                       <p className="text-xs text-muted-foreground truncate mt-0.5">{s.email}</p>
+                      {s.students_profile?.low_cost && (
+                        <Badge variant="secondary" className="mt-1.5 gap-1 text-[10px] py-0 px-1.5">
+                          <Sparkles className="h-2.5 w-2.5" /> Low Cost
+                        </Badge>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center justify-end gap-1 mt-2">
