@@ -10,6 +10,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Alunos = () => {
@@ -17,7 +20,7 @@ const Alunos = () => {
   const [search, setSearch] = useState('');
   const [filterAtivo, setFilterAtivo] = useState<string>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [newStudent, setNewStudent] = useState({ nome: '', email: '', password: '', telefone: '', sexo: 'masculino', raca: '', objetivo: '' });
+  const [newStudent, setNewStudent] = useState({ nome: '', email: '', password: '', telefone: '', sexo: 'masculino', raca: '', objetivo: '', low_cost: false });
   const [loading, setLoading] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editStudent, setEditStudent] = useState<any>(null);
@@ -46,6 +49,7 @@ const Alunos = () => {
           restricoes: sp?.restricoes || '',
           lesoes: sp?.lesoes || '',
           observacoes: sp?.observacoes || '',
+          low_cost: sp?.low_cost === true,
           newPassword: '',
         });
         setEditDialogOpen(true);
@@ -89,6 +93,7 @@ const Alunos = () => {
         telefone: newStudent.telefone,
         sexo: newStudent.sexo,
         raca: newStudent.raca,
+        low_cost: newStudent.low_cost,
       },
     });
 
@@ -97,7 +102,7 @@ const Alunos = () => {
     } else {
       toast.success('Aluno cadastrado com sucesso!');
       setDialogOpen(false);
-      setNewStudent({ nome: '', email: '', password: '', telefone: '', sexo: 'masculino', raca: '', objetivo: '' });
+      setNewStudent({ nome: '', email: '', password: '', telefone: '', sexo: 'masculino', raca: '', objetivo: '', low_cost: false });
       setTimeout(loadStudents, 1000);
     }
     setLoading(false);
@@ -118,6 +123,7 @@ const Alunos = () => {
       restricoes: sp?.restricoes || '',
       lesoes: sp?.lesoes || '',
       observacoes: sp?.observacoes || '',
+      low_cost: sp?.low_cost === true,
       newPassword: '',
     });
     setEditDialogOpen(true);
@@ -152,6 +158,7 @@ const Alunos = () => {
         restricoes: editStudent.restricoes || null,
         lesoes: editStudent.lesoes || null,
         observacoes: editStudent.observacoes || null,
+        low_cost: !!editStudent.low_cost,
       }, { onConflict: 'user_id' });
 
     if (spError) {
