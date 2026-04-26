@@ -528,6 +528,10 @@ GERE TUDO DE UMA VEZ:
                       'Antebraço', 'Quadríceps', 'Posterior', 'Glúteo',
                       'Panturrilha', 'Abdômen', 'Lombar', 'Trapézio', 'Cardio',
                     ];
+                    const WEEKDAYS = [
+                      'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira',
+                      'Sexta-feira', 'Sábado', 'Domingo',
+                    ];
                     const selected = customSplit[i] ?? [];
                     const toggle = (g: string) => {
                       setCustomSplit(prev => {
@@ -541,7 +545,7 @@ GERE TUDO DE UMA VEZ:
                     };
                     return (
                       <div key={i} className="rounded-xl border border-border p-2">
-                        <p className="text-xs font-semibold mb-1.5">Dia {i + 1}</p>
+                        <p className="text-xs font-semibold mb-1.5">{WEEKDAYS[i] ?? `Dia ${i + 1}`}</p>
                         <div className="flex flex-wrap gap-1.5">
                           {MUSCLE_GROUPS.map(g => {
                             const isOn = selected.includes(g);
