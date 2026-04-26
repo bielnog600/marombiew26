@@ -445,6 +445,20 @@ const Alunos = () => {
                   <Label>Observações</Label>
                   <Input value={editStudent.observacoes} onChange={e => setEditStudent({ ...editStudent, observacoes: e.target.value })} />
                 </div>
+                <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                  <div className="space-y-0.5 pr-3">
+                    <Label className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-primary" /> Plano Low Cost
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      A IA reavalia treino e dieta automaticamente a cada 30 dias.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={!!editStudent.low_cost}
+                    onCheckedChange={(v) => setEditStudent({ ...editStudent, low_cost: v })}
+                  />
+                </div>
                 <div className="space-y-2 pt-4 border-t border-border">
                   <Label>Nova senha (opcional)</Label>
                   <Input
