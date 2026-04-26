@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import DietResultCards from '@/components/DietResultCards';
 import TrainingResultCards from '@/components/TrainingResultCards';
+import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
@@ -98,6 +99,15 @@ const AiPlansList = ({ studentId, tipos }: AiPlansListProps) => {
                   <ClipboardCheck className="w-4 h-4" />
                 </Button>
               )}
+              <WhatsAppNotifyPlanButton
+                plan={plan}
+                studentId={studentId}
+                onNotified={(planId, notifiedAt, count) =>
+                  setPlans(prev => prev.map(p =>
+                    p.id === planId ? { ...p, whatsapp_notified_at: notifiedAt, whatsapp_notified_count: count } : p
+                  ))
+                }
+              />
               <Button
                 variant="ghost"
                 size="icon"
