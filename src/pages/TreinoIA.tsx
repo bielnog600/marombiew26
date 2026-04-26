@@ -49,6 +49,28 @@ const EQUIPMENT = [
   { value: 'casa', label: 'Home Gym', desc: 'Treino em casa com básico' },
 ];
 
+const FORBIDDEN_PATTERNS = [
+  { id: 'sobrecarga_axial', label: 'Sobrecarga axial', desc: 'Agachamento livre, smith, afundo c/ barra' },
+  { id: 'hinge_pesado', label: 'Hinge pesado', desc: 'Stiff, sumô terra, peso morto, good morning' },
+  { id: 'overhead', label: 'Movimentos acima da cabeça', desc: 'Desenvolvimentos, elevação frontal alta' },
+  { id: 'compressao_cervical', label: 'Compressão cervical/ombros', desc: 'Cargas sobre trapézio/cervical' },
+  { id: 'flexao_lombar', label: 'Flexão lombar agressiva', desc: 'Abdominais dinâmicos, canivete, hiperextensão' },
+  { id: 'alto_impacto', label: 'Alto impacto / explosivos', desc: 'Saltos, burpees, skips, polichinelo' },
+  { id: 'instabilidade', label: 'Instabilidade excessiva', desc: 'Bola, BOSU, exercícios em superfície instável' },
+  { id: 'unilateral', label: 'Unilateral pesado', desc: 'Búlgaro, afundo c/ carga, passadas' },
+];
+
+const EXECUTION_RULES = [
+  { id: 'baixa_carga', label: 'Baixa carga' },
+  { id: 'pouca_serie', label: 'Pouca série' },
+  { id: 'amplitude_controlada', label: 'Amplitude controlada' },
+  { id: 'amplitude_parcial', label: 'Amplitude parcial' },
+  { id: 'priorizar_isometria', label: 'Priorizar isometria' },
+  { id: 'sem_peso', label: 'Sem peso quando possível' },
+  { id: 'tempo_controlado', label: 'Tempo / cadência controlada' },
+  { id: 'sem_falha', label: 'Longe da falha (RIR alto)' },
+];
+
 const TreinoIA = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
@@ -85,6 +107,14 @@ const TreinoIA = () => {
   const [tabagismo, setTabagismo] = useState(false);
   const [stressAlto, setStressAlto] = useState(false);
   const [sonoRuim, setSonoRuim] = useState(false);
+
+  // Structured safety / adapted-case rules
+  const [casoAdaptado, setCasoAdaptado] = useState(false);
+  const [objetivosTerapeuticos, setObjetivosTerapeuticos] = useState('');
+  const [exerciciosProibidos, setExerciciosProibidos] = useState('');
+  const [padroesProibidos, setPadroesProibidos] = useState<string[]>([]);
+  const [exerciciosPermitidos, setExerciciosPermitidos] = useState('');
+  const [regrasExecucao, setRegrasExecucao] = useState<string[]>([]);
 
   // Result
   const [generating, setGenerating] = useState(false);
@@ -240,6 +270,31 @@ const TreinoIA = () => {
       ? `\n\nCONDIÇÕES DE SAÚDE E RESTRIÇÕES DO ALUNO (ADAPTAR O TREINO OBRIGATORIAMENTE):\n${healthLines.join('\n')}\n\nIMPORTANTE: Adapte exercícios, amplitude, carga e volume considerando as condições acima. Inclua exercícios corretivos/compensatórios quando houver desvios posturais. Evite exercícios que agravem lesões ou dores reportadas.`
       : '';
 
+    // Structured safety rules block (PRIORIDADE ABSOLUTA)
+    const safetyLines: string[] = [];
+    if (casoAdaptado) safetyLines.push('CASO_ADAPTADO: SIM (tratar como caso reabilitativo / adaptado — segurança acima de qualquer outra regra)');
+    if (objetivosTerapeuticos.trim()) safetyLines.push(`OBJETIVOS_TERAPEUTICOS_OBRIGATORIOS: ${objetivosTerapeuticos.trim()}`);
+    if (exerciciosProibidos.trim()) safetyLines.push(`EXERCICIOS_PROIBIDOS (bloqueio absoluto, inclusive variações/sinônimos): ${exerciciosProibidos.trim()}`);
+    if (padroesProibidos.length > 0) {
+      const labels = padroesProibidos
+        .map(id => FORBIDDEN_PATTERNS.find(p => p.id === id)?.label)
+        .filter(Boolean)
+        .join(', ');
+      safetyLines.push(`PADROES_DE_MOVIMENTO_PROIBIDOS: ${labels}`);
+    }
+    if (exerciciosPermitidos.trim()) safetyLines.push(`EXERCICIOS_PERMITIDOS_OU_PRIORITARIOS: ${exerciciosPermitidos.trim()}`);
+    if (regrasExecucao.length > 0) {
+      const labels = regrasExecucao
+        .map(id => EXECUTION_RULES.find(r => r.id === id)?.label)
+        .filter(Boolean)
+        .join(', ');
+      safetyLines.push(`REGRAS_DE_CARGA_E_EXECUCAO: ${labels}`);
+    }
+
+    const structuredSafetyBlock = safetyLines.length > 0
+      ? `\n\n========================================\n🚨 REGRAS RÍGIDAS DE SEGURANÇA ESTRUTURADAS (PRIORIDADE ABSOLUTA — LEIA PRIMEIRO)\n========================================\nEstes campos foram preenchidos pelo professor em formato estruturado.\nNÃO são observações soltas — são REGRAS OBRIGATÓRIAS que VENCEM qualquer outra regra do prompt (volume, intensidade, técnicas avançadas, divisão padrão, periodização).\n\n${safetyLines.map(l => `• ${l}`).join('\n')}\n\nFLUXO OBRIGATÓRIO:\n1) Aplique este filtro ANTES de escolher qualquer exercício.\n2) Bloqueie todo exercício que bata com EXERCICIOS_PROIBIDOS (nome ou sinônimo) ou que use PADROES_DE_MOVIMENTO_PROIBIDOS.\n3) NÃO substitua um proibido por uma variação que mantenha o mesmo padrão (ex: smith squat continua sendo sobrecarga axial; stiff halteres continua sendo hinge pesado).\n4) Inclua obrigatoriamente exercícios alinhados aos OBJETIVOS_TERAPEUTICOS_OBRIGATORIOS.\n5) Aplique REGRAS_DE_CARGA_E_EXECUCAO em cada exercício escolhido e mencione a adaptação na coluna DESCRIÇÃO (ex: "carga baixa, amplitude controlada, isometria 20s").\n6) Se o quadro for sério e não couber treino completo respeitando tudo, monte um treino MENOR — NUNCA preencha com exercício duvidoso.\n========================================`
+      : '';
+
     // Custom muscle group split per day (overrides "Divisão" when defined)
     const numDays = parseInt(daysPerWeek || '0', 10);
     const WEEKDAYS = [
@@ -266,7 +321,7 @@ const TreinoIA = () => {
       : selectedSplit?.label}
 - Semana do ciclo: ${week} de 4
 - Equipamento: ${selectedEquip?.label}
-${notes ? `- Observações adicionais: ${notes}` : ''}${customSplitBlock}${healthBlock}
+${notes ? `- Observações adicionais (complementares — NÃO substituem as regras estruturadas acima): ${notes}` : ''}${customSplitBlock}${structuredSafetyBlock}${healthBlock}
 ${treinoReferencia ? `\n\nREFERÊNCIA DE TREINO FORNECIDA PELO PROFESSOR (USE COMO BASE EXATA para estruturar o treino, exercícios, divisão, volume e faixas de repetição):\n---\n${treinoReferencia}\n---\nSiga essa estrutura o mais fielmente possível, adaptando apenas para as condições de saúde e equipamento informados.` : ''}
 
 GERE TUDO DE UMA VEZ:
