@@ -369,7 +369,7 @@ const AlunoDetail = () => {
                   </CardContent>
                 </Card>
               </div>
-              <AiPlansList studentId={id!} />
+              <AiPlansList studentId={id!} tipos={['cardio', 'tabata']} />
             </div>
           </TabsContent>
 

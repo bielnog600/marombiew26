@@ -16,10 +16,11 @@ import DietReadjustmentDialog from '@/components/DietReadjustmentDialog';
 
 interface AiPlansListProps {
   studentId: string;
+  tipos?: string[];
 }
 
 
-const AiPlansList = ({ studentId }: AiPlansListProps) => {
+const AiPlansList = ({ studentId, tipos }: AiPlansListProps) => {
   const navigate = useNavigate();
   const [plans, setPlans] = useState<any[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -27,14 +28,17 @@ const AiPlansList = ({ studentId }: AiPlansListProps) => {
 
   useEffect(() => {
     loadPlans();
-  }, [studentId]);
+  }, [studentId, tipos?.join(',')]);
 
   const loadPlans = async () => {
-    const { data } = await supabase
+    let query = supabase
       .from('ai_plans')
       .select('*')
-      .eq('student_id', studentId)
-      .order('created_at', { ascending: false });
+      .eq('student_id', studentId);
+    if (tipos && tipos.length > 0) {
+      query = query.in('tipo', tipos);
+    }
+    const { data } = await query.order('created_at', { ascending: false });
     setPlans(data ?? []);
   };
 
