@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import type { ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 
 interface Props {
   open: boolean;
