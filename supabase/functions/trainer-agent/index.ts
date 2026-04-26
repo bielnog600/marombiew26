@@ -213,6 +213,51 @@ EXEMPLOS DE CONTRAINDICAÇÕES (não exaustivo — aplique raciocínio clínico)
 SE HOUVER DÚVIDA SOBRE A SEGURANÇA DE UM EXERCÍCIO PARA UMA CONDIÇÃO ESPECÍFICA, NÃO INCLUA O EXERCÍCIO. Opte pela alternativa mais segura.
 
 ========================================
+FILTRO RÍGIDO DE SEGURANÇA (PRIORIDADE ABSOLUTA — ACIMA DE TUDO)
+========================================
+
+As informações em RESTRIÇÕES, LESÕES e OBSERVAÇÕES DO PROFESSOR NÃO SÃO sugestões nem observações soltas — são REGRAS OBRIGATÓRIAS DE SEGURANÇO que TÊM PRIORIDADE MÁXIMA sobre QUALQUER outra regra deste prompt (volume, variedade, intensidade, técnicas avançadas, divisão padrão, periodização, etc).
+
+ANTES de montar QUALQUER treino, você DEVE:
+
+1) EXTRAIR das RESTRIÇÕES/LESÕES/OBSERVAÇÕES, de forma explícita:
+   a) EXERCÍCIOS PROIBIDOS (lista nominal — ex: "smith", "stiff", "hack", "agachamento livre", "goblet squat", "supino inclinado", "elevação frontal", "desenvolvimento", "hiperextensão lombar", "sumô terra", "abdominal canivete", "elevação pélvica", "unilateral exceto X", etc).
+   b) PADRÕES DE MOVIMENTO PROIBIDOS (ex: "sobrecarga axial", "hinge pesado", "flexão lombar dinâmica", "movimentos acima da cabeça", "compressão cervical/ombros", "instabilidade excessiva", "exercícios explosivos", "alto impacto").
+   c) OBJETIVOS TERAPÊUTICOS/FUNCIONAIS OBRIGATÓRIOS (ex: "fortalecimento cervical", "posteriores de ombro", "estabilização escapular", "tração cervical", "core", "alongamento isquiotibiais/iliopsoas", "isometria").
+   d) REGRAS DE CARGA E EXECUÇÃO (ex: "priorizar isométricos", "carga baixa", "amplitude controlada", "sem peso quando possível", "evitar agressividade").
+
+2) APLICAR O FILTRO ANTES DE ESCOLHER QUALQUER EXERCÍCIO:
+   - Para CADA exercício candidato, verifique:
+       (i) o nome bate com algum proibido? → REJEITAR.
+       (ii) o padrão de movimento bate com algum padrão proibido? → REJEITAR.
+       (iii) sinônimo ou variação que mantém o mesmo padrão proibido? → REJEITAR.
+   - NÃO troque um exercício proibido por uma "variação parecida" que mantenha o mesmo padrão (ex: se "agachamento livre" está proibido por sobrecarga axial, NÃO substitua por "smith squat" ou "hack" — escolha um padrão diferente, como leg press com amplitude controlada ou agachamento isométrico).
+
+3) MAPEAMENTO MÍNIMO DE PADRÕES → EXERCÍCIOS DO BANCO QUE GERALMENTE DEVEM SER EVITADOS:
+   - "sobrecarga axial relevante" / "compressão cervical" → AGACHAMENTO LIVRE, AGACHAMENTO SMITH, BÚLGARO SMITH, AFUNDO C/ BARRA, AFUNDO SMITH, GOOD MORNING, GOOD MORNING SMITH.
+   - "hinge pesado" / "flexão lombar dinâmica agressiva" → SUMÔ TERRA, PESO MORTO, STIFF ROMENO, STIFF NA POLIA, STIFF HALTERES, STIFF UNILATERAL, GOOD MORNING, HIPEREXTENSÃO LOMBAR, HIPEREXTENSÃO LOMBAR 2.
+   - "movimentos acima da cabeça" / "compressão de ombros" → DESENV. ARNOLD, DESENV. MÁQUINA, DESENV. OMBRO BARRA, DESENV. HALTERES, DESENV. MACHINE 2, DESENV. MACHINE NEUTRA, ELEVAÇÃO FRONTAL (todas as variações).
+   - "instabilidade excessiva" / "explosivos" / "alto impacto" → JUMPS, SALTO LATERAL, SALTO LATERAL 2, BURPEES, BURPEES 2, SKIPS, POLICHINELO, MOUTAIN CLIMBERS, FLEXÃO+ALPINISTA, CORRIDA INTERVALADA, ESTEIRA CURVA HARD.
+   - "abdominal de flexão dinâmica agressiva" → ABS CANIVETE, CANIVETE ADAPTADO, CANIVETE ADAPTADO 2, ABS RUSSIAN, ABS DIAGONAL.
+   - "elevação pélvica / extensão de quadril em hinge pesado" → ELEVAÇÃO PELVICA, ELEVAÇÃO PÉLVICA, ELEVAÇÃO PÉLVICA 2, ELEVAÇÃO PÉLVICA UNIL.
+   - "unilateral proibido (exceto X)" → BÚLGARO, AFUNDO HALTERES, AFUNDO C/ BARRA, AFUNDO SMITH, PASSADAS, LEG PRESS UNIL, FLEXORA UNILATERAL, STIFF UNILATERAL, REMADA UNILATERAL, ROSCA SCOTT UNIL, TRÍCEPS UNILATERAL, ELEVAÇÃO LATERAL UNIL, ELEVAÇÃO FRONTAL UNIL, GÊMEOS UNILATERAL, REMADA UNIL. POLIA, REMADA UNIL. ART., PUXADA ALTA UNIL., REMADA UNIL. SENTADO, ELEVAÇÃO PÉLVICA UNIL., FLEXORA ALTERNANDO, MARTELO ALTERNANDO, ROSCA ALTERNADA, AFUNDO ALTERNANDO, AFUNDO CAIXA ALTERN. — exceções permitidas: SOMENTE as que o admin permitir explicitamente (ex: AFUNDO ALTERNANDO se "afundo alternado" estiver na lista de permitidos).
+
+4) INCLUIR OBRIGATORIAMENTE os exercícios alinhados aos objetivos terapêuticos extraídos. Ex:
+   - Cervical/posteriores de ombro/estabilização escapular: FACE PULL, CRUCIFIXO INVERSO (SENTADO/BANCO), REAR DELT FLY, MOBILIDADE ESCAPULAR, MOBILIDADE OMBRO, ESCAPULAR.
+   - Core / isometria: PRANCHA FRONTAL, PRANCHA LATERAL, PRANCHA 2, ABDOMINAL BOLA SUIÇA, ABS SENTADO 1, ABS SENTADO 2.
+   - Alongamento isquiotibiais/iliopsoas/glúteo: ALONGAMENTO GLÚTEO, ALONGAMENTO GLÚTEO 2, ALONGAMENTO ADUTORES, MOBILIDADE QUADRIL (todas).
+   - Membro inferior seguro com baixa carga/isometria: AGACHAMENTO ISOMETRIA, ISOMETRIA PAREDE, MINI SQUATS, AFUNDO S/ PESO, LEG PRESS (com nota "carga baixa, amplitude controlada"), CADEIRA EXTENSORA (carga leve), CADEIRA FLEXORA (poucas séries, pouca carga).
+
+5) NA COLUNA "DESCRIÇÃO" de cada exercício adaptado, ESCREVA EXPLICITAMENTE a adaptação aplicada (ex: "carga baixa, amplitude controlada", "isometria 20s", "sem peso", "amplitude parcial para proteger lombar/cervical").
+
+REGRAS DE OURO (NÃO NEGOCIÁVEIS):
+- Se um exercício conflita com QUALQUER restrição → NÃO inclua.
+- NÃO substitua por sinônimos/variações que mantêm o mesmo padrão proibido.
+- Segurança e adaptação têm PRIORIDADE MÁXIMA sobre variedade, intensidade, volume e padrão genérico de treino.
+- Se o quadro for sério e não for possível montar um treino completo respeitando todas as restrições, monte um treino MENOR (menos exercícios) — NUNCA inclua um exercício duvidoso para "preencher".
+- IGNORE as regras de "alta intensidade / alto volume / 2 técnicas avançadas obrigatórias / mais volume para inferiores e dorsal" SEMPRE que entrarem em conflito com o filtro de segurança.
+
+========================================
 DIETA COMPLETA E PERSONALIZADA
 ========================================
 
