@@ -337,7 +337,30 @@ serve(async (req) => {
         contextMessage += `\n========== ⚠️ DADOS CRÍTICOS DE SEGURANÇA — LEIA COM ATENÇÃO MÁXIMA ⚠️ ==========\n`;
         contextMessage += safetyFields.join('\n') + '\n';
         contextMessage += `==========================================================================\n`;
-        contextMessage += `INSTRUÇÃO: Os dados acima DEVEM ser cruzados com CADA exercício do treino. Se QUALQUER exercício puder agravar uma lesão, restrição ou condição mencionada, NÃO inclua esse exercício. Substitua por uma alternativa segura do banco.\n\n`;
+        contextMessage += `INSTRUÇÃO OBRIGATÓRIA — FILTRO RÍGIDO DE SEGURANÇA:
+
+ANTES de gerar o treino, você DEVE executar internamente as seguintes etapas (em ordem):
+
+ETAPA 1 — EXTRAÇÃO: leia RESTRIÇÕES, LESÕES e OBSERVAÇÕES DO PROFESSOR acima e MONTE 4 listas internas:
+  • EXERCÍCIOS_PROIBIDOS = [todos os nomes de exercícios mencionados como proibidos / a evitar / contraindicados]
+  • PADRÕES_PROIBIDOS = [padrões de movimento mencionados como proibidos: sobrecarga axial, hinge pesado, flexão lombar dinâmica, movimentos acima da cabeça, compressão cervical, instabilidade, explosivos, alto impacto, etc]
+  • OBJETIVOS_OBRIGATORIOS = [objetivos terapêuticos/funcionais mencionados: cervical, posteriores de ombro, estabilização escapular, core, alongamento isquios/iliopsoas, isometria, etc]
+  • REGRAS_EXECUCAO = [regras de carga/execução: priorizar isométricos, carga baixa, amplitude controlada, sem peso, evitar agressividade, etc]
+
+ETAPA 2 — FILTRAGEM: para CADA exercício candidato do banco, REJEITE se:
+  (a) o nome aparece (mesmo parcialmente) em EXERCÍCIOS_PROIBIDOS;
+  (b) o padrão de movimento aparece em PADRÕES_PROIBIDOS;
+  (c) é sinônimo/variação que mantém o mesmo padrão proibido (ex: smith squat ≡ agachamento livre quanto à sobrecarga axial; stiff halteres ≡ stiff barra quanto ao hinge pesado).
+
+ETAPA 3 — INCLUSÃO OBRIGATÓRIA: garanta que o treino contempla os OBJETIVOS_OBRIGATORIOS (face pull, crucifixo inverso, mobilidade escapular/cervical, prancha, alongamentos, isometrias, etc).
+
+ETAPA 4 — APLICAÇÃO DE REGRAS_EXECUCAO em cada exercício escolhido: descreva na coluna DESCRIÇÃO a adaptação concreta (carga baixa, amplitude controlada, isometria Xs, sem peso, etc).
+
+REGRA DE OURO: as informações acima NÃO são observações soltas — são REGRAS RÍGIDAS. Segurança > variedade > volume > intensidade > divisão padrão. Se conflitar com qualquer outra regra deste prompt (alta intensidade, alto volume, técnicas avançadas, mais volume para inferiores/dorsal), o filtro de segurança VENCE sempre.
+
+PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserva o mesmo padrão proibido. PROIBIDO: incluir um exercício "duvidoso" para preencher volume — prefira um treino menor e seguro.
+
+`;
       }
       if (studentContext.raca) contextMessage += `Raça/etnia: ${studentContext.raca}\n`;
 
