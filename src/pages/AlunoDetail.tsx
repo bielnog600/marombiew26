@@ -149,9 +149,9 @@ const AlunoDetail = () => {
               <TabsTrigger value="avaliacoes" className="text-xs sm:text-sm"><ClipboardList className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Avaliações</span><span className="sm:hidden">Aval.</span></TabsTrigger>
               <TabsTrigger value="comparar" className="text-xs sm:text-sm"><BarChart3 className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Comparar</span><span className="sm:hidden">Comp.</span></TabsTrigger>
               <TabsTrigger value="treinos" className="text-xs sm:text-sm"><Dumbbell className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Treinos</span><span className="sm:hidden">Treino</span></TabsTrigger>
+              <TabsTrigger value="cardio" className="text-xs sm:text-sm"><HeartPulse className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Cardio</span><span className="sm:hidden">Cardio</span></TabsTrigger>
               <TabsTrigger value="dietas" className="text-xs sm:text-sm"><UtensilsCrossed className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Dietas</span><span className="sm:hidden">Dieta</span></TabsTrigger>
               <TabsTrigger value="fichas" className="text-xs sm:text-sm"><FileQuestion className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Fichas</span><span className="sm:hidden">Fichas</span></TabsTrigger>
-              <TabsTrigger value="ia" className="text-xs sm:text-sm"><Bot className="mr-1 h-4 w-4 shrink-0" /> IA</TabsTrigger>
             </TabsList>
           </div>
 
@@ -330,45 +330,27 @@ const AlunoDetail = () => {
           </TabsContent>
 
           <TabsContent value="treinos">
-            <StudentTrainingTab studentId={id!} />
-          </TabsContent>
-
-          <TabsContent value="dietas">
-            <StudentDietTab studentId={id!} />
-          </TabsContent>
-
-          <TabsContent value="fichas">
-            <DietQuestionnairesList studentId={id!} studentPhone={profile?.telefone} studentName={profile?.nome} />
-          </TabsContent>
-
-          <TabsContent value="ia">
             <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Card className="glass-card">
-                  <CardContent className="p-6 text-center space-y-4">
-                    <Bot className="h-12 w-12 mx-auto text-primary" />
-                    <h3 className="text-lg font-bold">Agente de Treino</h3>
-                    <p className="text-muted-foreground text-sm">Gere treinos personalizados com IA baseados nos dados do aluno.</p>
-                    <Button onClick={() => navigate(`/treino-ia/${id}`)} className="font-semibold w-full">
-                      <Bot className="mr-2 h-4 w-4" /> Gerar Treino
-                    </Button>
-                  </CardContent>
-                </Card>
+              <Card className="glass-card border-primary/30">
+                <CardContent className="p-6 text-center space-y-3">
+                  <Bot className="h-10 w-10 mx-auto text-primary" />
+                  <h3 className="text-lg font-bold">Agente de Treino</h3>
+                  <p className="text-muted-foreground text-sm">Gere treinos personalizados com IA baseados nos dados do aluno.</p>
+                  <Button onClick={() => navigate(`/treino-ia/${id}`)} className="font-semibold">
+                    <Bot className="mr-2 h-4 w-4" /> Gerar Treino
+                  </Button>
+                </CardContent>
+              </Card>
+              <StudentTrainingTab studentId={id!} />
+            </div>
+          </TabsContent>
 
-                <Card className="glass-card">
-                  <CardContent className="p-6 text-center space-y-4">
-                    <UtensilsCrossed className="h-12 w-12 mx-auto text-primary" />
-                    <h3 className="text-lg font-bold">Agente de Dieta</h3>
-                    <p className="text-muted-foreground text-sm">Calcule TMB, GET e gere dietas personalizadas com múltiplas estratégias.</p>
-                    <Button onClick={() => navigate(`/dieta-ia/${id}`)} className="font-semibold w-full">
-                      <UtensilsCrossed className="mr-2 h-4 w-4" /> Gerar Dieta
-                    </Button>
-                  </CardContent>
-                </Card>
-
+          <TabsContent value="cardio">
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Card className="glass-card border-primary/30">
-                  <CardContent className="p-6 text-center space-y-4">
-                    <Flame className="h-12 w-12 mx-auto text-primary" />
+                  <CardContent className="p-6 text-center space-y-3">
+                    <Flame className="h-10 w-10 mx-auto text-primary" />
                     <h3 className="text-lg font-bold">TABATA IA</h3>
                     <p className="text-muted-foreground text-sm">Gere treinos HIIT/TABATA seguros e personalizados ao perfil do aluno.</p>
                     <Button onClick={() => navigate(`/tabata-ia/${id}`)} className="font-semibold w-full">
@@ -376,10 +358,9 @@ const AlunoDetail = () => {
                     </Button>
                   </CardContent>
                 </Card>
-
                 <Card className="glass-card border-primary/30">
-                  <CardContent className="p-6 text-center space-y-4">
-                    <HeartPulse className="h-12 w-12 mx-auto text-primary" />
+                  <CardContent className="p-6 text-center space-y-3">
+                    <HeartPulse className="h-10 w-10 mx-auto text-primary" />
                     <h3 className="text-lg font-bold">Cardio IA</h3>
                     <p className="text-muted-foreground text-sm">Gere protocolos de cardio personalizados (passadeira, bike, elíptica, escada) com zona Karvonen alvo.</p>
                     <Button onClick={() => navigate(`/cardio-ia/${id}`)} className="font-semibold w-full">
@@ -388,9 +369,28 @@ const AlunoDetail = () => {
                   </CardContent>
                 </Card>
               </div>
-
               <AiPlansList studentId={id!} />
             </div>
+          </TabsContent>
+
+          <TabsContent value="dietas">
+            <div className="space-y-4">
+              <Card className="glass-card border-primary/30">
+                <CardContent className="p-6 text-center space-y-3">
+                  <UtensilsCrossed className="h-10 w-10 mx-auto text-primary" />
+                  <h3 className="text-lg font-bold">Agente de Dieta</h3>
+                  <p className="text-muted-foreground text-sm">Calcule TMB, GET e gere dietas personalizadas com múltiplas estratégias.</p>
+                  <Button onClick={() => navigate(`/dieta-ia/${id}`)} className="font-semibold">
+                    <UtensilsCrossed className="mr-2 h-4 w-4" /> Gerar Dieta
+                  </Button>
+                </CardContent>
+              </Card>
+              <StudentDietTab studentId={id!} />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="fichas">
+            <DietQuestionnairesList studentId={id!} studentPhone={profile?.telefone} studentName={profile?.nome} />
           </TabsContent>
         </Tabs>
       </div>
