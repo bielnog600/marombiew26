@@ -16,6 +16,8 @@ import DietQuestionnairesList from '@/components/DietQuestionnairesList';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Sparkles } from 'lucide-react';
 import KarvonenZones from '@/components/KarvonenZones';
 import { toast } from 'sonner';
 import {
@@ -31,6 +33,7 @@ const AlunoDetail = () => {
   const [profile, setProfile] = useState<any>(null);
   const [studentProfile, setStudentProfile] = useState<any>(null);
   const [assessments, setAssessments] = useState<any[]>([]);
+  const [lowCostNextReview, setLowCostNextReview] = useState<string | null>(null);
   const [goals, setGoals] = useState<any[]>([]);
   const [notes, setNotes] = useState<any[]>([]);
   const [postureScans, setPostureScans] = useState<any[]>([]);
@@ -61,6 +64,22 @@ const AlunoDetail = () => {
 
     const { data: ps } = await supabase.from('posture_scans').select('*').eq('student_id', id).order('created_at', { ascending: false });
     setPostureScans(ps ?? []);
+
+    // Find next Low Cost review across non-draft active plans (treino + dieta)
+    if (sp?.low_cost) {
+      const { data: plansWithReview } = await supabase
+        .from('ai_plans')
+        .select('low_cost_next_review_at')
+        .eq('student_id', id)
+        .eq('is_draft', false)
+        .in('tipo', ['treino', 'dieta'])
+        .not('low_cost_next_review_at', 'is', null)
+        .order('low_cost_next_review_at', { ascending: true })
+        .limit(1);
+      setLowCostNextReview(plansWithReview?.[0]?.low_cost_next_review_at ?? null);
+    } else {
+      setLowCostNextReview(null);
+    }
 
     // Load latest FC repouso from vitals
     if (avals && avals.length > 0) {
@@ -132,10 +151,30 @@ const AlunoDetail = () => {
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/20 text-primary text-2xl font-bold">
                 {(profile.nome || '?')[0].toUpperCase()}
               </div>
-              <div>
-                <h2 className="text-xl font-bold">{profile.nome}</h2>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-xl font-bold truncate">{profile.nome}</h2>
+                  {studentProfile?.low_cost && (
+                    <Badge variant="secondary" className="gap-1">
+                      <Sparkles className="h-3 w-3" /> Low Cost
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-muted-foreground">{profile.email}</p>
                 {profile.telefone && <p className="text-sm text-muted-foreground">{profile.telefone}</p>}
+                {studentProfile?.low_cost && lowCostNextReview && (
+                  <p className="text-xs text-primary mt-1">
+                    Próxima revisão automática:{' '}
+                    {new Date(lowCostNextReview).toLocaleDateString('pt-BR', {
+                      day: '2-digit', month: '2-digit', year: 'numeric'
+                    })}
+                  </p>
+                )}
+                {studentProfile?.low_cost && !lowCostNextReview && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Revisão automática será agendada após o primeiro treino/dieta gerado.
+                  </p>
+                )}
               </div>
             </div>
           </CardContent>
