@@ -145,7 +145,7 @@ const AlunoDetail = () => {
           <div className="overflow-x-auto -mx-4 px-4 pb-2">
             <TabsList className="bg-secondary w-max min-w-full">
               <TabsTrigger value="perfil" className="text-xs sm:text-sm"><User className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Perfil</span><span className="sm:hidden">Perfil</span></TabsTrigger>
-              <TabsTrigger value="comportamento" className="text-xs sm:text-sm"><Activity className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Comportamento</span><span className="sm:hidden">360°</span></TabsTrigger>
+              <TabsTrigger value="comportamento" className="text-xs sm:text-sm"><Activity className="mr-1 h-4 w-4 shrink-0" /> 360°</TabsTrigger>
               <TabsTrigger value="avaliacoes" className="text-xs sm:text-sm"><ClipboardList className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Avaliações</span><span className="sm:hidden">Aval.</span></TabsTrigger>
               <TabsTrigger value="comparar" className="text-xs sm:text-sm"><BarChart3 className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Comparar</span><span className="sm:hidden">Comp.</span></TabsTrigger>
               <TabsTrigger value="treinos" className="text-xs sm:text-sm"><Dumbbell className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Treinos</span><span className="sm:hidden">Treino</span></TabsTrigger>
