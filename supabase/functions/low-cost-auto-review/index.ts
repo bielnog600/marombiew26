@@ -38,6 +38,25 @@ async function callAnalyzer(fnName: string, planId: string) {
   return { ok: true, body: parsed };
 }
 
+async function callRenewal(fnName: string, body: Record<string, unknown>) {
+  const url = `${SUPABASE_URL}/functions/v1/${fnName}`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${SERVICE_ROLE}`,
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await resp.text();
+  let parsed: any = null;
+  try { parsed = JSON.parse(text); } catch { /* ignore */ }
+  if (!resp.ok) {
+    return { ok: false, status: resp.status, error: parsed?.error ?? text.slice(0, 200) };
+  }
+  return { ok: true, body: parsed };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -133,13 +152,34 @@ Deno.serve(async (req) => {
         })
         .eq("id", p.id);
 
+      // For training plans where the AI suggests adjusting or generating new,
+      // automatically generate a continuity-aware draft (Low Cost mode preserves
+      // the current plan as structural base + uses real recent performance).
+      let draftResult: any = null;
+      const suggested = r.body?.analysis?.suggested_action ?? null;
+      if (
+        r.ok &&
+        p.tipo === "treino" &&
+        (suggested === "ajustar" || suggested === "gerar_novo")
+      ) {
+        const dr = await callRenewal("workout-renewal-analyzer", {
+          action: "generate_draft",
+          plan_id: p.id,
+          source: "auto",
+        });
+        draftResult = dr.ok
+          ? { ok: true, draft_id: dr.body?.draft_id, reused: dr.body?.reused ?? false }
+          : { ok: false, error: dr.error };
+      }
+
       results.push({
         plan_id: p.id,
         tipo: p.tipo,
         student_id: p.student_id,
         ok: r.ok,
         next_review_at: nextReview,
-        suggested_action: r.body?.analysis?.suggested_action ?? null,
+        suggested_action: suggested,
+        draft: draftResult,
         error: r.ok ? null : r.error,
       });
     }

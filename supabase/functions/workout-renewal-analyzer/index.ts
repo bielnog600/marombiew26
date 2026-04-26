@@ -37,9 +37,19 @@ async function gatherContext(supabase: any, plan: any) {
   const elapsed = daysBetween(created, now);
   const remaining = cycleDays - elapsed;
 
-  // Look at the last 21 days of training activity
+  // Check Low Cost flag — Low Cost flow uses a longer window (last 28 days = 2-4 weeks)
+  // to avoid making decisions based on a single isolated session.
+  const { data: spFlag } = await supabase
+    .from("students_profile")
+    .select("low_cost")
+    .eq("user_id", studentId)
+    .maybeSingle();
+  const isLowCost = !!spFlag?.low_cost;
+
+  // Standard window: 21 days. Low Cost: 28 days (last 2-4 weeks).
+  const windowDays = isLowCost ? 28 : 21;
   const since = new Date(now);
-  since.setDate(since.getDate() - 21);
+  since.setDate(since.getDate() - windowDays);
   const sinceIso = since.toISOString();
 
   const [
@@ -84,7 +94,7 @@ async function gatherContext(supabase: any, plan: any) {
   const completedSessions = (sessions ?? []).filter((s: any) => s.status === "completed");
   const abandonedSessions = (sessions ?? []).filter((s: any) => s.status !== "completed");
   const sessionsCount = completedSessions.length;
-  const sessionFrequency = sessionsCount / 3; // sessions per week (21 days)
+  const sessionFrequency = sessionsCount / (windowDays / 7); // sessions per week
 
   // Completion rate (exercises_completed / total_exercises)
   const compRates = completedSessions
@@ -97,7 +107,7 @@ async function gatherContext(supabase: any, plan: any) {
   // Aderência geral: workout_completed days / 21 + completion mix
   const trackingDays = tracking ?? [];
   const workoutDays = trackingDays.filter((d: any) => d.workout_completed).length;
-  const baseAdherence = workoutDays / 21;
+  const baseAdherence = workoutDays / windowDays;
   const adherenceScore = Math.min(
     1,
     completionRate != null ? baseAdherence * 0.6 + completionRate * 0.4 : baseAdherence,
@@ -142,12 +152,81 @@ async function gatherContext(supabase: any, plan: any) {
 
   const dataQuality = sessionsCount >= 6 ? "sufficient" : sessionsCount >= 3 ? "partial" : "insufficient";
 
+  // For Low Cost, also gather the LATEST real session as a continuity anchor
+  // (last performed exercises, loads, reps, skipped items, session time).
+  let lastSessionSummary: any = null;
+  let recentExerciseStats: any[] = [];
+  if (isLowCost) {
+    const lastSession = completedSessions[0] ?? null;
+    if (lastSession) {
+      const lastLogs = (setLogs ?? []).filter((s: any) => {
+        // logs from same calendar day as last completed session
+        if (!lastSession.completed_at) return false;
+        const d1 = new Date(s.performed_at).toISOString().slice(0, 10);
+        const d2 = new Date(lastSession.completed_at).toISOString().slice(0, 10);
+        return d1 === d2;
+      });
+      const exMap = new Map<string, { sets: number; reps: number[]; loads: number[]; rpe: number[] }>();
+      for (const l of lastLogs) {
+        const k = l.exercise_name;
+        if (!exMap.has(k)) exMap.set(k, { sets: 0, reps: [], loads: [], rpe: [] });
+        const e = exMap.get(k)!;
+        e.sets += 1;
+        if (l.reps != null) e.reps.push(Number(l.reps));
+        if (l.weight_kg != null) e.loads.push(Number(l.weight_kg));
+        if (l.rpe != null) e.rpe.push(Number(l.rpe));
+      }
+      const skipped = Math.max(0, (lastSession.total_exercises ?? 0) - (lastSession.exercises_completed ?? 0));
+      lastSessionSummary = {
+        date: lastSession.completed_at,
+        day_name: lastSession.day_name ?? null,
+        phase: lastSession.phase ?? null,
+        duration_minutes: lastSession.duration_minutes ?? null,
+        exercises_completed: lastSession.exercises_completed ?? null,
+        total_exercises: lastSession.total_exercises ?? null,
+        skipped_exercises: skipped,
+        total_volume_kg: lastSession.total_volume_kg ?? null,
+        avg_rpe: lastSession.avg_rpe ?? null,
+        exercises: Array.from(exMap.entries()).map(([name, v]) => ({
+          name,
+          sets: v.sets,
+          last_load_kg: v.loads.length ? Math.max(...v.loads) : null,
+          avg_reps: v.reps.length ? Math.round(v.reps.reduce((a, b) => a + b, 0) / v.reps.length) : null,
+          avg_rpe: v.rpe.length ? Number((v.rpe.reduce((a, b) => a + b, 0) / v.rpe.length).toFixed(1)) : null,
+        })),
+      };
+    }
+
+    // Aggregate per-exercise progression across the window (top 10 by volume of sets)
+    const exAgg = new Map<string, { sets: number; loads: number[]; reps: number[] }>();
+    for (const l of setLogs ?? []) {
+      const k = l.exercise_name;
+      if (!exAgg.has(k)) exAgg.set(k, { sets: 0, loads: [], reps: [] });
+      const e = exAgg.get(k)!;
+      e.sets += 1;
+      if (l.weight_kg != null) e.loads.push(Number(l.weight_kg));
+      if (l.reps != null) e.reps.push(Number(l.reps));
+    }
+    recentExerciseStats = Array.from(exAgg.entries())
+      .map(([name, v]) => ({
+        name,
+        sets: v.sets,
+        load_trend: trend(v.loads),
+        reps_trend: trend(v.reps),
+        max_load_kg: v.loads.length ? Math.max(...v.loads) : null,
+      }))
+      .sort((a, b) => b.sets - a.sets)
+      .slice(0, 10);
+  }
+
   return {
     student_name: profile?.nome ?? "",
     days_elapsed: elapsed,
     days_remaining: remaining,
     cycle_days: cycleDays,
-    sessions_last_21d: sessionsCount,
+    window_days: windowDays,
+    sessions_in_window: sessionsCount,
+    low_cost: isLowCost,
     abandoned_sessions: abandonedSessions.length,
     session_frequency: Number(sessionFrequency.toFixed(2)),
     completion_rate: completionRate != null ? Number(completionRate.toFixed(2)) : null,
@@ -166,11 +245,17 @@ async function gatherContext(supabase: any, plan: any) {
     pain_alerts: painAlerts,
     fase_atual: plan.fase ?? null,
     data_quality: dataQuality,
+    last_session_summary: lastSessionSummary,
+    recent_exercise_stats: recentExerciseStats,
   };
 }
 
 async function callAI(context: any, currentPlanExcerpt: string) {
-  const system = `Você é um treinador físico sênior, especialista em periodização. Analisa o ciclo de treino de um aluno (45 dias) e decide se vale MANTER, AJUSTAR, GERAR_NOVO treino ou SOLICITAR_DADOS antes de renovar. Considere: aderência, frequência real, taxa de conclusão, evolução de cargas/reps/volume, RPE médio, sinais de fadiga ou platô, monotonia, alertas de dor/lesão, fase atual e objetivo. Seja conservador: se data_quality != sufficient, prefira solicitar_dados. Se houver dor/lesão ativa, recomende ajustar (não gerar novo). Se cargas/volume estão estagnados (estavel/descendo) e aderência boa, recomende gerar_novo (estímulo novo). Se aderência < 0.4, prefira ajustar para reduzir volume e aumentar consistência.`;
+  const lowCostNote = context.low_cost
+    ? `\n\nMODO LOW COST: Este aluno está no fluxo automatizado de revisão. A decisão deve manter CONTINUIDADE com o plano atual e com o desempenho real recente (cargas, reps, exercícios concluídos/pulados, tempo de sessão da última sessão e estatísticas das últimas 2-4 semanas). NÃO baseie a decisão em uma única sessão isolada — sempre cruze 'last_session_summary' com 'recent_exercise_stats' e métricas agregadas. Prefira AJUSTAR (manter base estrutural, refinar cargas/reps/volume) ao invés de GERAR_NOVO, exceto quando houver platô claro (≥3 semanas estagnadas em cargas e volume) com aderência boa.`
+    : "";
+
+  const system = `Você é um treinador físico sênior, especialista em periodização. Analisa o ciclo de treino de um aluno e decide se vale MANTER, AJUSTAR, GERAR_NOVO treino ou SOLICITAR_DADOS antes de renovar. Considere: aderência, frequência real, taxa de conclusão, evolução de cargas/reps/volume, RPE médio, sinais de fadiga ou platô, monotonia, alertas de dor/lesão, fase atual e objetivo. Seja conservador: se data_quality != sufficient, prefira solicitar_dados. Se houver dor/lesão ativa, recomende ajustar (não gerar novo). Se cargas/volume estão estagnados (estavel/descendo) e aderência boa, recomende gerar_novo (estímulo novo). Se aderência < 0.4, prefira ajustar para reduzir volume e aumentar consistência.${lowCostNote}`;
 
   const body = {
     model: "google/gemini-2.5-flash",
@@ -422,13 +507,46 @@ async function generateDraft(supabase: any, planId: string, source: "manual" | "
 
   const studentContext = await buildStudentContextForAgent(supabase, plan.student_id);
 
+  // Detect Low Cost mode for continuity-aware prompt
+  const { data: spLc } = await supabase
+    .from("students_profile")
+    .select("low_cost")
+    .eq("user_id", plan.student_id)
+    .maybeSingle();
+  const isLowCost = !!spLc?.low_cost;
+
+  const lastSession = latestAnalysis?.context_snapshot?.last_session_summary ?? null;
+  const recentStats = latestAnalysis?.context_snapshot?.recent_exercise_stats ?? [];
+
   const ctxBlock = latestAnalysis
     ? `\n\n=== ANÁLISE DE RENOVAÇÃO DA IA ===\nSugestão: ${latestAnalysis.suggested_action}\nAderência: ${latestAnalysis.adherence_score ?? "—"}\nFrequência semanal: ${latestAnalysis.session_frequency ?? "—"}\nProgressão de carga: ${latestAnalysis.load_progression ?? "—"}\nProgressão de reps: ${latestAnalysis.reps_progression ?? "—"}\nVolume: ${latestAnalysis.volume_trend ?? "—"}\nRPE médio: ${latestAnalysis.avg_rpe ?? "—"}\nFadiga: ${latestAnalysis.fatigue_signal ?? "—"}\nMonotonia: ${latestAnalysis.monotony_risk ?? "—"}\nJustificativa: ${latestAnalysis.rationale}\n=== FIM ANÁLISE ===\n`
     : "";
 
-  const previousExcerpt = (plan.conteudo ?? "").slice(0, 1500);
+  const previousExcerpt = (plan.conteudo ?? "").slice(0, isLowCost ? 3000 : 1500);
 
-  const prompt = `Você está RENOVANDO o ciclo de treino de 45 dias deste aluno.${ctxBlock}
+  const lowCostBlock = isLowCost
+    ? `\n\n=== MODO LOW COST — CONTINUIDADE ===\nEste aluno está no fluxo automatizado. A nova versão DEVE preservar continuidade:\n- USE o plano atual (abaixo) como BASE ESTRUTURAL (mesma divisão, mesma lógica de fases, mesmo objetivo).\n- USE os últimos registros REAIS do aluno como ponto de partida da progressão (cargas, reps, exercícios concluídos/pulados, tempo de sessão).\n- NÃO troque o treino inteiro. Refine: aumente carga onde houve subida, mantenha onde estável, reduza onde houve fadiga alta ou exercícios pulados recorrentes.\n- Substitua APENAS exercícios claramente estagnados (≥3 semanas sem progressão de carga/reps) ou que o aluno tem pulado consistentemente.\n\nÚLTIMA SESSÃO REAL DO ALUNO:\n${lastSession ? JSON.stringify(lastSession, null, 2) : "— (sem registro)"}\n\nESTATÍSTICAS POR EXERCÍCIO (últimas 2-4 semanas, top 10):\n${recentStats.length ? JSON.stringify(recentStats, null, 2) : "— (sem registros suficientes)"}\n=== FIM MODO LOW COST ===\n`
+    : "";
+
+  const prompt = isLowCost
+    ? `Você está RENOVANDO o ciclo de treino deste aluno em MODO LOW COST (revisão automatizada a cada 30 dias).${ctxBlock}${lowCostBlock}
+
+OBJETIVO DA RENOVAÇÃO LOW COST:
+- Manter CONTINUIDADE com o plano atual (mesma estrutura/divisão) e com o último desempenho real registrado.
+- Ajustar cargas, reps e volume com base nos números reais do aluno (acima).
+- NÃO recriar o treino do zero — evolua a partir do que existe.
+- Respeitar restrições/lesões e o objetivo do aluno.
+- Se houver platô claro, substitua APENAS os exercícios estagnados (não todos).
+
+PLANO ATUAL (BASE ESTRUTURAL — preservar divisão e lógica):
+${previousExcerpt}
+
+ENTREGUE OBRIGATORIAMENTE:
+1) Tabela completa do treino com TODAS as colunas: TREINO DO DIA | EXERCÍCIO | SÉRIE | SÉRIE 2 | REPETIÇÕES | RIR | PAUSA | DESCRIÇÃO | VARIAÇÃO
+2) Divisão semanal idêntica à atual (a menos que haja motivo claro para mudar)
+3) Periodização contínua a partir da fase atual (${plan.fase ?? "fase atual"})
+4) Notas curtas de progressão indicando, por exercício mantido, a nova carga sugerida com base na última carga real registrada`
+    : `Você está RENOVANDO o ciclo de treino de 45 dias deste aluno.${ctxBlock}
 
 OBJETIVO DA RENOVAÇÃO:
 - Considere a aderência, progressão e fadiga acima
