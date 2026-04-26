@@ -505,20 +505,44 @@ GERE TUDO DE UMA VEZ:
             </div>
             {daysPerWeek && (
               <div className="pt-2 border-t border-border">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs text-muted-foreground">
-                    Grupos musculares por dia <span className="text-[10px]">(opcional — sobrepõe a divisão acima)</span>
-                  </p>
-                  {Object.keys(customSplit).length > 0 && (
+                <p className="text-xs text-muted-foreground mb-2">
+                  Grupos musculares por dia <span className="text-[10px]">(opcional — sobrepõe a divisão acima)</span>
+                </p>
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomSplit(v => !v)}
+                    className={`rounded-xl border-2 px-3 py-2 text-xs font-medium transition-all ${
+                      showCustomSplit ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    {showCustomSplit ? 'Ocultar grupos' : 'Selecionar grupos'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomSplit({});
+                      setShowCustomSplit(false);
+                    }}
+                    className={`rounded-xl border-2 px-3 py-2 text-xs font-medium transition-all ${
+                      !showCustomSplit && Object.keys(customSplit).length === 0
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    Decida por mim
+                  </button>
+                  {showCustomSplit && Object.keys(customSplit).length > 0 && (
                     <button
                       type="button"
                       onClick={() => setCustomSplit({})}
-                      className="text-[11px] text-primary hover:underline"
+                      className="ml-auto text-[11px] text-primary hover:underline"
                     >
                       Limpar
                     </button>
                   )}
                 </div>
+                {showCustomSplit && (
                 <div className="space-y-2">
                   {Array.from({ length: parseInt(daysPerWeek, 10) }).map((_, i) => {
                     const MUSCLE_GROUPS = [
@@ -563,6 +587,7 @@ GERE TUDO DE UMA VEZ:
                     );
                   })}
                 </div>
+                )}
               </div>
             )}
           </CardContent>
