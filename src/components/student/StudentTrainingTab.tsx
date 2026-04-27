@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar, Send, ClipboardList } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import TrainingResultCards from '@/components/TrainingResultCards';
 import TrainerLogSheet from '@/components/training/TrainerLogSheet';
@@ -14,6 +15,10 @@ import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingRes
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
+} from '@/components/ui/alert-dialog';
 import {
   TRAINING_PHASES,
   PHASE_LABELS,
@@ -40,6 +45,13 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   const [targetStudentId, setTargetStudentId] = useState<string>('');
   const [transferring, setTransferring] = useState(false);
   const [trainPlan, setTrainPlan] = useState<any | null>(null);
+
+  const handleDelete = async (planId: string) => {
+    const { error } = await supabase.from('ai_plans').delete().eq('id', planId);
+    if (error) { toast.error('Erro ao deletar: ' + error.message); return; }
+    toast.success('Treino deletado.');
+    setPlans(prev => prev.filter(p => p.id !== planId));
+  };
 
   const trainDays: ParsedTrainingDay[] = React.useMemo(() => {
     if (!trainPlan) return [];
@@ -210,6 +222,34 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                       ))
                     }
                   />
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        title="Deletar treino"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Deletar treino?</AlertDialogTitle>
+                        <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleDelete(plan.id)}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Deletar
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                   {hasChanges && (
                     <Button
                       size="sm"

@@ -2,13 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { UtensilsCrossed, ChevronDown, ChevronUp, Pencil, Save, Loader2, Eye } from 'lucide-react';
+import { UtensilsCrossed, ChevronDown, ChevronUp, Pencil, Save, Loader2, Eye, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import DietResultCards from '@/components/DietResultCards';
 import DietPlanEditor from '@/components/diet/DietPlanEditor';
 import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
 import { replaceMealTableInMarkdown } from '@/lib/dietMarkdownSerializer';
 import type { ParsedMeal } from '@/lib/dietResultParser';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
+} from '@/components/ui/alert-dialog';
 
 interface StudentDietTabProps {
   studentId: string;
@@ -67,6 +71,13 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   const [editedMeals, setEditedMeals] = useState<Record<string, ParsedMeal[]>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
+
+  const handleDelete = async (planId: string) => {
+    const { error } = await supabase.from('ai_plans').delete().eq('id', planId);
+    if (error) { toast.error('Erro ao deletar: ' + error.message); return; }
+    toast.success('Dieta deletada.');
+    setPlans(prev => prev.filter(p => p.id !== planId));
+  };
 
   useEffect(() => {
     loadPlans();
@@ -173,6 +184,34 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                       ))
                     }
                   />
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        title="Deletar dieta"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Deletar dieta?</AlertDialogTitle>
+                        <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleDelete(plan.id)}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Deletar
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                   {isExpanded && hasChanges && (
                     <Button
                       size="sm"
