@@ -220,7 +220,7 @@ const Consultoria = () => {
   };
 
   // Variantes da mensagem semanal
-  type WeeklyVariant = 'completa' | 'checkin' | 'registros' | 'motivacional';
+  type WeeklyVariant = 'completa' | 'checkin' | 'registros' | 'motivacional' | 'sugestao_dia';
 
   const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
@@ -238,6 +238,54 @@ const Consultoria = () => {
         const treinouAlgo = (s?.workoutsCompleted ?? 0) > 0;
         const registrouSets = (s?.totalSetsLogged ?? 0) > 0;
         const usouTracking = (s?.trackingDays ?? 0) > 0;
+
+        // ============================================================
+        // VARIANTE: SUGESTÃO DO DIA (antes de treinar — progressão de carga)
+        // ============================================================
+        if (weeklyVariant === 'sugestao_dia') {
+          const prog = s?.progression;
+          const saud = pick([
+            `Oi ${firstName}! 💪`,
+            `E aí ${firstName}, bora treinar? 🔥`,
+            `Fala ${firstName}! Antes do treino de hoje 👇`,
+          ]);
+
+          if (!prog) {
+            return `${saud}\n\nDica pro treino de hoje: foca em ativação — aquecimento específico (1–2 séries leves), capricha na técnica e tenta *+1 rep* ou um pouquinho mais de carga vs. a última vez. Bora! 🚀`;
+          }
+
+          const exs = prog.topExercises ?? [];
+          const exemplos = exs
+            .map((e) => {
+              const w = e.weight ? `*${e.weight}kg*` : '';
+              const r = e.reps ? `*${e.reps} reps*` : '';
+              const detalhe = [w, r].filter(Boolean).join(' x ');
+              return detalhe ? `• ${e.name} — semana passada: ${detalhe}${e.rpe ? ` (RPE ${e.rpe})` : ''}` : null;
+            })
+            .filter(Boolean)
+            .join('\n');
+
+          let sugestao = '';
+          if (prog.avgRpe === 0) {
+            sugestao = `Hoje é *${prog.muscleLabel}* — sem histórico recente desse treino. Vai com calma no aquecimento, capricha na técnica e tenta *+1 rep* ou pequena progressão de carga vs. a última vez.`;
+          } else if (prog.tone === 'progress') {
+            sugestao = `Hoje é *${prog.muscleLabel}*. Semana passada esse treino ficou com RPE médio *${prog.avgRpe}* (folga 👀). Bora subir: *+2,5 a 5 kg* ou *+1–2 reps* nos principais. Se a carga subir e travar, tudo bem — usa *rest-pause* (descansa 10–15s e tenta mais 2–3 reps) ou *drop-set* na última série.`;
+          } else if (prog.tone === 'caution') {
+            sugestao = `Hoje é *${prog.muscleLabel}*. Semana passada ficou bem puxado (RPE *${prog.avgRpe}*). Vamos *manter as cargas* e focar em técnica e cadência (3s na descida). Sem se cobrar.`;
+          } else {
+            sugestao = `Hoje é *${prog.muscleLabel}*. Semana passada ficou em zona ideal (RPE *${prog.avgRpe}*). Pode manter as cargas ou tentar *+1 rep* nos principais. Se sobrar gás, fecha com uma *série até a falha técnica*.`;
+          }
+
+          const fecho = pick([
+            `Anota como sentir cada exercício pra eu ajustar a próxima semana. Bora! 🚀`,
+            `Qualquer dor ou desconforto, recua e me avisa. Bom treino! 💪`,
+            `Se precisar de ajuste no meio do treino, me chama. Manda ver! 🔥`,
+          ]);
+
+          return exemplos
+            ? `${saud}\n\n${sugestao}\n\n📊 *Referências da semana passada:*\n${exemplos}\n\n${fecho}`
+            : `${saud}\n\n${sugestao}\n\n${fecho}`;
+        }
 
         // ============================================================
         // VARIANTE: APENAS CHECK-IN (como foi a semana, sem nada mais)
