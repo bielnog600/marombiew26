@@ -101,13 +101,19 @@ const PhotoCard = ({
     let cancelled = false;
     img.onload = () => {
       if (cancelled || !img.naturalWidth) return;
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
+      // iOS Safari caps canvas around 4096px and ~16MB total — scale down
+      const MAX_SIDE = 1600;
+      const scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+      const w = Math.max(1, Math.round(img.naturalWidth * scale));
+      const h = Math.max(1, Math.round(img.naturalHeight * scale));
+      canvas.width = w;
+      canvas.height = h;
       const ctx = canvas.getContext('2d')!;
-      ctx.drawImage(img, 0, 0);
-      drawPoseOverlay(ctx, keypoints, img.naturalWidth, img.naturalHeight, scores);
+      ctx.drawImage(img, 0, 0, w, h);
+      drawPoseOverlay(ctx, keypoints, w, h, scores);
     };
     img.onerror = () => console.warn('Falha ao carregar foto para overlay:', photoUrl);
+    // Cache-bust on iOS where stale CORS responses can break canvas
     img.src = photoUrl;
     return () => { cancelled = true; };
   }, [photoUrl, keypoints, showOverlay, scores]);
@@ -117,7 +123,7 @@ const PhotoCard = ({
       <div className="relative aspect-[3/4] bg-secondary/30">
         {photoUrl ? (
           <>
-            <img ref={imgRef} src={photoUrl} className="w-full h-full object-cover" crossOrigin="anonymous" />
+            <img ref={imgRef} src={photoUrl} className="w-full h-full object-cover" loading="lazy" />
             {showOverlay && keypoints && (
               <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
             )}
