@@ -20,8 +20,16 @@ const PREP_SECONDS = 10;
 
 const extractStreamVideoId = (embed: string | null | undefined): string | null => {
   if (!embed) return null;
-  const match = embed.match(/cloudflarestream\.com\/([a-f0-9]{32})\//);
-  return match ? match[1] : null;
+  const patterns = [
+    /cloudflarestream\.com\/([a-f0-9]{32})/i,
+    /videodelivery\.net\/([a-f0-9]{32})/i,
+    /cloudflarestream\.com\/([a-f0-9]{32})\/iframe/i,
+  ];
+  for (const re of patterns) {
+    const m = embed.match(re);
+    if (m) return m[1];
+  }
+  return null;
 };
 
 const STOP_WORDS = new Set(['de', 'da', 'do', 'das', 'dos', 'com', 'em', 'na', 'no', 'a', 'o', 'e', 'para', 'pra']);
