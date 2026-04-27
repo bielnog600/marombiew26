@@ -700,21 +700,16 @@ export const generatePDF = async (data: ReportData, lang: PdfLang = 'pt') => {
         if (postureScan.side_photo_url) photoEntries.push({ url: postureScan.side_photo_url, label: t.side, position: 'side' });
         if (postureScan.back_photo_url) photoEntries.push({ url: postureScan.back_photo_url, label: t.back, position: 'back' });
 
-        const loadedPhotos: { canvas: HTMLCanvasElement | null; img: HTMLImageElement | null; label: string; ratio: number }[] = [];
+        const loadedPhotos: { canvas: HTMLCanvasElement; label: string; ratio: number }[] = [];
         for (const entry of photoEntries) {
           try {
             const overlayCanvas = await renderOverlayPhoto(entry.url, poseKeypoints, entry.position, regionScores);
             if (overlayCanvas) {
-              loadedPhotos.push({ canvas: overlayCanvas, img: null, label: entry.label, ratio: overlayCanvas.height / overlayCanvas.width });
+              loadedPhotos.push({ canvas: overlayCanvas, label: entry.label, ratio: overlayCanvas.height / overlayCanvas.width });
             } else {
-              const img = await loadImage(entry.url);
-              const fallbackCanvas = document.createElement('canvas');
-              fallbackCanvas.width = img.naturalWidth;
-              fallbackCanvas.height = img.naturalHeight;
-              const fCtx = fallbackCanvas.getContext('2d')!;
-              fCtx.drawImage(img, 0, 0);
+              const fallbackCanvas = await loadImageAsCleanCanvas(entry.url);
               blurFaceOnCanvas(fallbackCanvas, poseKeypoints, entry.position);
-              loadedPhotos.push({ canvas: fallbackCanvas, img: null, label: entry.label, ratio: img.naturalHeight / img.naturalWidth });
+              loadedPhotos.push({ canvas: fallbackCanvas, label: entry.label, ratio: fallbackCanvas.height / fallbackCanvas.width });
             }
           } catch {
             // Skip
@@ -747,11 +742,7 @@ export const generatePDF = async (data: ReportData, lang: PdfLang = 'pt') => {
             const { w: pw, h: ph } = photoDims[i];
             const photo = loadedPhotos[i];
             const imgY = y + (maxH - ph) / 2;
-            if (photo.canvas) {
-              doc.addImage(photo.canvas.toDataURL('image/jpeg', 0.92), 'JPEG', curX, imgY, pw, ph);
-            } else if (photo.img) {
-              doc.addImage(photo.img, 'JPEG', curX, imgY, pw, ph);
-            }
+            doc.addImage(photo.canvas.toDataURL('image/jpeg', 0.92), 'JPEG', curX, imgY, pw, ph);
             doc.setFontSize(7);
             doc.setTextColor(...BRAND.gray);
             doc.text(photo.label, curX + pw / 2, y + maxH + 4, { align: 'center' });
