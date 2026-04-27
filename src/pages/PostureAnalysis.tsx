@@ -15,7 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import {
   ChevronRight, ChevronLeft, Check, AlertTriangle,
-  Save, FileDown, ArrowLeft, Eye, Upload, Maximize2, ImageIcon,
+  Save, FileDown, ArrowLeft, Eye, Upload, Maximize2, ImageIcon, FolderOpen,
   TrendingUp, Edit3, Trash2
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -224,7 +224,7 @@ const PostureAnalysis = () => {
     setLoadingHistory(true);
     const { data } = await supabase
       .from('posture_scans')
-      .select('id, created_at, front_photo_url, side_photo_url, back_photo_url, notes, region_scores_json')
+      .select('*')
       .eq('student_id', studentId)
       .order('created_at', { ascending: false });
     setScanHistory(data || []);
@@ -260,6 +260,34 @@ const PostureAnalysis = () => {
     if (error) { toast.error('Erro ao deletar: ' + error.message); return; }
     toast.success('Avaliação deletada.');
     setScanHistory(prev => prev.filter(s => s.id !== scanId));
+  };
+
+  const loadScan = (scan: any) => {
+    setPhotos({
+      front: scan.front_photo_url ?? null,
+      side: scan.side_photo_url ?? null,
+      back: scan.back_photo_url ?? null,
+    });
+    setPhotoBlobs({ front: null, side: null, back: null });
+    const kp = (scan.pose_keypoints_json ?? {}) as any;
+    setKeypoints({
+      front: kp.front ?? null,
+      side: kp.side ?? null,
+      back: kp.back ?? null,
+    });
+    setAngles((scan.angles_json ?? null) as any);
+    setRegionScores((scan.region_scores_json ?? []) as any);
+    setAttentionPoints((scan.attention_points_json ?? []) as any);
+    const ov = (scan.overrides_json ?? {}) as any;
+    setOverrides(ov.values ?? {});
+    setManualFlags(ov.manual_flags ?? {});
+    setPostureConditions(ov.conditions ?? []);
+    setNotes(scan.notes ?? '');
+    if (scan.height_cm) setHeightCm(String(scan.height_cm));
+    if (scan.sex) setSex(scan.sex);
+    setStep(3);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    toast.success('Avaliação carregada.');
   };
 
   // Load MediaPipe
