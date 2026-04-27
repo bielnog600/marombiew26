@@ -228,7 +228,10 @@ const Exercicios: React.FC = () => {
     e.target.value = '';
     if (!file) return;
 
-    if (!file.type.startsWith('video/')) {
+    const isVideo =
+      file.type.startsWith('video/') ||
+      /\.(mp4|mov|m4v|webm|mkv|avi|3gp|qt)$/i.test(file.name);
+    if (!isVideo) {
       toast.error('Selecione um arquivo de vídeo.');
       return;
     }
