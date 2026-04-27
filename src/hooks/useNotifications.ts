@@ -235,6 +235,28 @@ export function useNotifications() {
           ? topMuscles.join(' / ')
           : (lwSession?.day_name || 'treino de hoje');
 
+        // Top exercícios da semana passada (com maior carga registrada)
+        const exerciseMap = new Map<string, { weight: number | null; reps: number | null; rpe: number | null }>();
+        for (const l of lwLogs) {
+          const name = (l.exercise_name || '').trim();
+          if (!name) continue;
+          const w = Number(l.weight_kg);
+          const r = Number(l.reps);
+          const rp = Number(l.rpe);
+          const cur = exerciseMap.get(name);
+          const wVal = Number.isFinite(w) && w > 0 ? w : null;
+          const rVal = Number.isFinite(r) && r > 0 ? r : null;
+          const rpVal = Number.isFinite(rp) && rp > 0 ? rp : null;
+          if (!cur || (wVal !== null && (cur.weight === null || wVal > cur.weight))) {
+            exerciseMap.set(name, { weight: wVal, reps: rVal, rpe: rpVal });
+          }
+        }
+        const topExercises = Array.from(exerciseMap.entries())
+          .filter(([, v]) => v.weight !== null || v.reps !== null)
+          .sort((a, b) => (b[1].weight ?? 0) - (a[1].weight ?? 0))
+          .slice(0, 3)
+          .map(([name, v]) => ({ name, ...v }));
+
         let tone: 'progress' | 'maintain' | 'caution' = 'maintain';
         let summary = '';
         let avgRpeOut = 0;
@@ -257,7 +279,7 @@ export function useNotifications() {
           summary = `Sem histórico recente desse treino. Foque em ativação: aquecimento específico (1–2 séries leves), boa técnica e tente +1 rep ou pequena progressão de carga vs. a última vez.`;
         }
 
-        progressionMap.set(uid, { tone, avgRpe: avgRpeOut, muscleLabel, summary });
+        progressionMap.set(uid, { tone, avgRpe: avgRpeOut, muscleLabel, summary, topExercises });
       }
 
       if (isSaturday) {
