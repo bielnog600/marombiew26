@@ -412,6 +412,15 @@ const Consultoria = () => {
           ? `\n\nPra eu te ajudar melhor na próxima semana, se conseguir:\n\n${tips.join('\n\n')}`
           : '';
 
+        const prog = s?.progression;
+        const progressionBlock = prog
+          ? (prog.tone === 'progress'
+              ? `\n\n🚀 *Sugestão pro treino de hoje (${prog.muscleLabel})*: na semana passada esse treino ficou com RPE médio *${prog.avgRpe}* (folga). Que tal subir *+2,5 a 5 kg* ou *+1–2 reps* nos principais exercícios pra ativar mais? Anota como sentir.`
+              : prog.tone === 'caution'
+                ? `\n\n⚠️ *Treino de hoje (${prog.muscleLabel})*: semana passada ficou bem puxado (RPE médio *${prog.avgRpe}*). Vamos *manter as cargas* e focar em técnica e execução. Sem se cobrar.`
+                : `\n\n💪 *Treino de hoje (${prog.muscleLabel})*: semana passada ficou em zona ideal (RPE médio *${prog.avgRpe}*). Pode manter as cargas ou tentar *+1 rep* nos principais.`)
+          : '';
+
         const saudacoesIniciais = [
           `Oi ${firstName}, tudo bem? 😊`,
           `E aí ${firstName}, beleza? 🙌`,
@@ -427,7 +436,7 @@ const Consultoria = () => {
           `${pick(saudacoesIniciais)}\n\n` +
           `${intro}\n\n` +
           `Como foi a semana pra você? Teve alguma dificuldade — ${perguntaTxt}? ` +
-          `Me conta qualquer detalhe, ajuda muito a gente a ajustar.${tipsBlock}\n\n` +
+          `Me conta qualquer detalhe, ajuda muito a gente a ajustar.${progressionBlock}${tipsBlock}\n\n` +
           `${pick(fechosFinais)}`
         );
       }
