@@ -5,13 +5,15 @@ import { motion } from 'framer-motion';
 import { useTabSwipe } from '@/contexts/TabSwipeContext';
 import {
   LayoutDashboard, Users, ClipboardList, User, Briefcase, LogOut,
-  Home, Dumbbell, UtensilsCrossed,
+  Home, Dumbbell, UtensilsCrossed, Apple, Settings2,
 } from 'lucide-react';
 
 const adminItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
   { title: 'Alunos', url: '/alunos', icon: Users },
   { title: 'Consultoria', url: '/consultoria', icon: Briefcase },
+  { title: 'Alimentos', url: '/alimentos', icon: Apple },
+  { title: 'Exercícios', url: '/exercicios', icon: Settings2 },
 ];
 
 const alunoItems = [
