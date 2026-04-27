@@ -414,7 +414,9 @@ const Consultoria = () => {
 
         const prog = s?.progression;
         const progressionBlock = prog
-          ? (prog.tone === 'progress'
+          ? (prog.avgRpe === 0
+              ? `\n\n🚀 *Sugestão pro treino de hoje (${prog.muscleLabel})*: foca em uma boa ativação — aquecimento específico (1–2 séries leves), capricha na técnica e tenta *+1 rep* ou pequena progressão de carga vs. a última vez. Anota como sentir cada exercício.`
+              : prog.tone === 'progress'
               ? `\n\n🚀 *Sugestão pro treino de hoje (${prog.muscleLabel})*: na semana passada esse treino ficou com RPE médio *${prog.avgRpe}* (folga). Que tal subir *+2,5 a 5 kg* ou *+1–2 reps* nos principais exercícios pra ativar mais? Anota como sentir.`
               : prog.tone === 'caution'
                 ? `\n\n⚠️ *Treino de hoje (${prog.muscleLabel})*: semana passada ficou bem puxado (RPE médio *${prog.avgRpe}*). Vamos *manter as cargas* e focar em técnica e execução. Sem se cobrar.`

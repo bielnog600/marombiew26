@@ -197,19 +197,25 @@ export function useNotifications() {
       for (const uid of userIds) {
         const alreadyToday = (todaySessionsRes.data ?? []).some(s => s.student_id === uid);
         if (alreadyToday) continue;
+        // Só gera sugestão para alunos que possuem plano de treino ativo
+        const hasTreino = studentPlansMap.get(uid)?.has('treino');
+        if (!hasTreino) continue;
+
         const lwSession = (lastWeekSessionsRes.data ?? []).find(s => s.student_id === uid);
-        if (!lwSession) continue;
         const lwDateStr = lastWeekSameDayStart.toISOString().slice(0, 10);
-        const lwLogs = (lastWeekLogsRes.data ?? []).filter(l => {
-          if (l.student_id !== uid) return false;
-          if (l.session_id && lwSession.id && l.session_id === lwSession.id) return true;
-          return l.performed_at?.slice(0, 10) === lwDateStr;
-        });
+        const lwLogs = lwSession
+          ? (lastWeekLogsRes.data ?? []).filter(l => {
+              if (l.student_id !== uid) return false;
+              if (l.session_id && lwSession.id && l.session_id === lwSession.id) return true;
+              return l.performed_at?.slice(0, 10) === lwDateStr;
+            })
+          : [];
         const rpes = lwLogs.map(l => Number(l.rpe)).filter(r => Number.isFinite(r) && r > 0);
         const avgRpe = rpes.length > 0
           ? rpes.reduce((a, b) => a + b, 0) / rpes.length
-          : (lwSession.avg_rpe ? Number(lwSession.avg_rpe) : NaN);
-        if (!Number.isFinite(avgRpe)) continue;
+          : (lwSession?.avg_rpe ? Number(lwSession.avg_rpe) : NaN);
+
+        // Determinar grupo muscular (preferir histórico; senão usar day_name da sessão; senão genérico)
         const muscleCounts: Record<string, number> = {};
         for (const l of lwLogs) {
           const m = (l.muscle_group || '').trim();
@@ -219,21 +225,33 @@ export function useNotifications() {
           .sort((a, b) => b[1] - a[1])
           .slice(0, 2)
           .map(([m]) => m);
-        const muscleLabel = topMuscles.length > 0 ? topMuscles.join(' / ') : (lwSession.day_name || 'treino');
+        const muscleLabel = topMuscles.length > 0
+          ? topMuscles.join(' / ')
+          : (lwSession?.day_name || 'treino de hoje');
 
         let tone: 'progress' | 'maintain' | 'caution' = 'maintain';
         let summary = '';
-        if (avgRpe <= 7) {
-          tone = 'progress';
-          summary = `Semana passada esse treino teve RPE médio ${avgRpe.toFixed(1)} (folga). Sugerir +2,5 a 5 kg ou +1–2 reps nos principais.`;
-        } else if (avgRpe >= 9) {
-          tone = 'caution';
-          summary = `RPE médio ${avgRpe.toFixed(1)} (muito alto). Manter cargas e focar em técnica/recuperação.`;
+        let avgRpeOut = 0;
+
+        if (Number.isFinite(avgRpe)) {
+          avgRpeOut = Number((avgRpe as number).toFixed(1));
+          if ((avgRpe as number) <= 7) {
+            tone = 'progress';
+            summary = `Semana passada esse treino teve RPE médio ${avgRpeOut} (folga). Sugerir +2,5 a 5 kg ou +1–2 reps nos principais.`;
+          } else if ((avgRpe as number) >= 9) {
+            tone = 'caution';
+            summary = `RPE médio ${avgRpeOut} na semana passada (muito alto). Manter cargas e focar em técnica/recuperação.`;
+          } else {
+            tone = 'maintain';
+            summary = `RPE médio ${avgRpeOut} na semana passada (zona ideal). Manter cargas ou +1 rep.`;
+          }
         } else {
-          tone = 'maintain';
-          summary = `RPE médio ${avgRpe.toFixed(1)} (zona ideal). Manter cargas ou +1 rep.`;
+          // Sem histórico do mesmo dia da semana passada → dica preparatória genérica
+          tone = 'progress';
+          summary = `Sem histórico recente desse treino. Foque em ativação: aquecimento específico (1–2 séries leves), boa técnica e tente +1 rep ou pequena progressão de carga vs. a última vez.`;
         }
-        progressionMap.set(uid, { tone, avgRpe: Number(avgRpe.toFixed(1)), muscleLabel, summary });
+
+        progressionMap.set(uid, { tone, avgRpe: avgRpeOut, muscleLabel, summary });
       }
 
       if (isSaturday) {
