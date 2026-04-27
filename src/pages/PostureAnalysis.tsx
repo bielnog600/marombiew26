@@ -834,6 +834,15 @@ const PostureAnalysis = () => {
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0 text-muted-foreground hover:text-primary"
+                        title="Abrir avaliação"
+                        onClick={() => loadScan(scan)}
+                      >
+                        <FolderOpen className="w-4 h-4" />
+                      </Button>
                     </div>
                   );
                 })}
