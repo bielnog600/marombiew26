@@ -88,9 +88,9 @@ const PhotoCard = ({
       <div className="relative aspect-[3/4] bg-secondary/30">
         {photoUrl ? (
           <>
-            <img ref={imgRef} src={photoUrl} className={showOverlay && keypoints ? 'hidden' : 'w-full h-full object-cover'} crossOrigin="anonymous" />
+            <img ref={imgRef} src={photoUrl} className="w-full h-full object-cover" crossOrigin="anonymous" />
             {showOverlay && keypoints && (
-              <canvas ref={canvasRef} className="w-full h-full object-cover" />
+              <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
             )}
             {/* Overlay buttons */}
             <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
