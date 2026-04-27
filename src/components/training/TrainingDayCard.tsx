@@ -444,10 +444,10 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo','Treino A','Treino B','Treino C','Treino D','Treino E'].map(d => (
+                  {['SEGUNDA-FEIRA','TERÇA-FEIRA','QUARTA-FEIRA','QUINTA-FEIRA','SEXTA-FEIRA','SÁBADO','DOMINGO','TREINO A','TREINO B','TREINO C','TREINO D','TREINO E'].map(d => (
                     <SelectItem key={d} value={d} className="text-xs">{d}</SelectItem>
                   ))}
-                  {!['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo','Treino A','Treino B','Treino C','Treino D','Treino E'].includes(day.day) && (
+                  {!['SEGUNDA-FEIRA','TERÇA-FEIRA','QUARTA-FEIRA','QUINTA-FEIRA','SEXTA-FEIRA','SÁBADO','DOMINGO','TREINO A','TREINO B','TREINO C','TREINO D','TREINO E'].includes(day.day) && (
                     <SelectItem value={day.day} className="text-xs">{day.day} (atual)</SelectItem>
                   )}
                 </SelectContent>
