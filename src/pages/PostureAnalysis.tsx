@@ -348,7 +348,10 @@ const PostureAnalysis = () => {
   const uploadPhoto = async (blob: Blob, position: string): Promise<string | null> => {
     const fileName = `${studentId}/${Date.now()}_${position}.jpg`;
     const { data, error } = await supabase.storage.from('scan-photos').upload(fileName, blob, { contentType: 'image/jpeg' });
-    if (error) { console.error('Upload error:', error); return null; }
+    if (error) {
+      console.error('Upload error:', error);
+      throw new Error(`Falha ao enviar foto (${position}): ${error.message}`);
+    }
     const { data: urlData } = supabase.storage.from('scan-photos').getPublicUrl(data.path);
     return urlData.publicUrl;
   };
@@ -362,6 +365,9 @@ const PostureAnalysis = () => {
         photoBlobs.side ? uploadPhoto(photoBlobs.side, 'side') : null,
         photoBlobs.back ? uploadPhoto(photoBlobs.back, 'back') : null,
       ]);
+      if (!frontUrl && !sideUrl && !backUrl) {
+        throw new Error('Nenhuma foto foi enviada. Tente novamente.');
+      }
       const { error } = await supabase.from('posture_scans').insert({
         student_id: studentId,
         height_cm: heightCm ? parseFloat(heightCm) : null,
