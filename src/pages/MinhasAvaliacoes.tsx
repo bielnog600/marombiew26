@@ -56,11 +56,16 @@ const PosturePhoto = ({ url, keypoints, scores }: { url: string | null; keypoint
     let cancelled = false;
     img.onload = () => {
       if (cancelled || !img.naturalWidth) return;
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
+      // iOS Safari caps canvas around 4096px / ~16MB — scale down for reliability
+      const MAX_SIDE = 1600;
+      const scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+      const w = Math.max(1, Math.round(img.naturalWidth * scale));
+      const h = Math.max(1, Math.round(img.naturalHeight * scale));
+      canvas.width = w;
+      canvas.height = h;
       const ctx = canvas.getContext('2d')!;
-      ctx.drawImage(img, 0, 0);
-      drawPoseOverlay(ctx, keypoints, img.naturalWidth, img.naturalHeight, scores);
+      ctx.drawImage(img, 0, 0, w, h);
+      drawPoseOverlay(ctx, keypoints, w, h, scores);
     };
     img.src = url;
     return () => { cancelled = true; };
@@ -77,8 +82,9 @@ const PosturePhoto = ({ url, keypoints, scores }: { url: string | null; keypoint
   return (
     <>
       <div className="relative aspect-[3/4] bg-secondary/30 rounded-lg overflow-hidden group cursor-pointer" onClick={() => setExpanded(true)}>
-        <img ref={imgRef} src={url} className={keypoints ? 'hidden' : 'w-full h-full object-cover'} crossOrigin="anonymous" />
-        {keypoints && <canvas ref={canvasRef} className="w-full h-full object-cover" />}
+        {/* Always show the photo; canvas overlays on top when keypoints exist */}
+        <img ref={imgRef} src={url} className="w-full h-full object-cover" loading="lazy" />
+        {keypoints && <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover pointer-events-none" />}
         <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <div className="bg-background/80 rounded-full p-1">
             <Maximize2 className="h-3 w-3 text-foreground" />
@@ -87,7 +93,7 @@ const PosturePhoto = ({ url, keypoints, scores }: { url: string | null; keypoint
       </div>
       <Dialog open={expanded} onOpenChange={setExpanded}>
         <DialogContent className="max-w-3xl p-2">
-          <img src={url} className="w-full h-auto rounded" crossOrigin="anonymous" />
+          <img src={url} className="w-full h-auto rounded" />
         </DialogContent>
       </Dialog>
     </>
