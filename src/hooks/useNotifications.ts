@@ -31,6 +31,12 @@ export interface Notification {
       avgRpe: number;
       muscleLabel: string;
       summary: string;
+      topExercises?: Array<{
+        name: string;
+        weight: number | null;
+        reps: number | null;
+        rpe: number | null;
+      }>;
     } | null;
   };
 }
