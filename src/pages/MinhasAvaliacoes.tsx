@@ -49,17 +49,21 @@ const PosturePhoto = ({ url, keypoints, scores }: { url: string | null; keypoint
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
-    if (!url || !keypoints || !imgRef.current || !canvasRef.current) return;
-    const img = imgRef.current;
+    if (!url || !keypoints || !canvasRef.current) return;
     const canvas = canvasRef.current;
-    const draw = () => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    let cancelled = false;
+    img.onload = () => {
+      if (cancelled || !img.naturalWidth) return;
       canvas.width = img.naturalWidth;
       canvas.height = img.naturalHeight;
       const ctx = canvas.getContext('2d')!;
       ctx.drawImage(img, 0, 0);
       drawPoseOverlay(ctx, keypoints, img.naturalWidth, img.naturalHeight, scores);
     };
-    if (img.complete) draw(); else img.onload = draw;
+    img.src = url;
+    return () => { cancelled = true; };
   }, [url, keypoints, scores]);
 
   if (!url) {

@@ -64,17 +64,23 @@ const PhotoCard = ({
   const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
-    if (!photoUrl || !keypoints || !showOverlay || !imgRef.current || !canvasRef.current) return;
-    const img = imgRef.current;
+    if (!photoUrl || !keypoints || !showOverlay || !canvasRef.current) return;
     const canvas = canvasRef.current;
-    const draw = () => {
+    // Load image programmatically so it works even when the <img> is hidden
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    let cancelled = false;
+    img.onload = () => {
+      if (cancelled || !img.naturalWidth) return;
       canvas.width = img.naturalWidth;
       canvas.height = img.naturalHeight;
       const ctx = canvas.getContext('2d')!;
       ctx.drawImage(img, 0, 0);
       drawPoseOverlay(ctx, keypoints, img.naturalWidth, img.naturalHeight, scores);
     };
-    if (img.complete) draw(); else img.onload = draw;
+    img.onerror = () => console.warn('Falha ao carregar foto para overlay:', photoUrl);
+    img.src = photoUrl;
+    return () => { cancelled = true; };
   }, [photoUrl, keypoints, showOverlay, scores]);
 
   return (
