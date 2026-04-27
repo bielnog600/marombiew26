@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Dumbbell, Pencil, Check, ChevronsUpDown, Plus, Trash2, GripVertical, CalendarDays } from 'lucide-react';
+import { Dumbbell, Pencil, Check, ChevronsUpDown, Plus, Trash2, GripVertical, CalendarDays, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -12,6 +12,8 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { findBestExerciseMatch, type MatchableExercise } from '@/lib/exerciseMatcher';
+import AiEditExerciseDialog, { type AiEditAction } from '@/components/training/AiEditExerciseDialog';
+import { useParams } from 'react-router-dom';
 
 // ===== Quick-pick options for structured editing =====
 const REC_SERIES_OPTS = ['1', '2'];
@@ -226,6 +228,9 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
   const [localExercises, setLocalExercises] = useState<ParsedExercise[]>(day.exercises);
   const [exerciseOptions, setExerciseOptions] = useState<ExerciseOption[]>([]);
   const [exerciseCatalog, setExerciseCatalog] = useState<ExerciseCatalogItem[]>([]);
+  const [aiOpen, setAiOpen] = useState(false);
+  const params = useParams();
+  const studentIdFromRoute = (params as any)?.id as string | undefined;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -285,6 +290,70 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
   };
 
   const displayExercises = editing ? localExercises : day.exercises;
+
+  const applyAiActions = (actions: AiEditAction[]) => {
+    setLocalExercises((prev) => {
+      let list = [...prev];
+      const norm = (s: string) =>
+        (s || '')
+          .toUpperCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^A-Z0-9 ]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+      const findIdx = (action: AiEditAction): number => {
+        if (typeof action.index === 'number' && action.index >= 0 && action.index < list.length) return action.index;
+        if (action.match) {
+          const target = norm(action.match);
+          // exact
+          let idx = list.findIndex((e) => norm(e.exercise) === target);
+          if (idx >= 0) return idx;
+          // partial
+          idx = list.findIndex((e) => norm(e.exercise).includes(target) || target.includes(norm(e.exercise)));
+          return idx;
+        }
+        return -1;
+      };
+      const fillDefaults = (ex: Partial<ParsedExercise>): ParsedExercise => ({
+        exercise: ex.exercise || '',
+        series: ex.series || '3',
+        series2: ex.series2 || '',
+        reps: ex.reps || '8-12',
+        rir: ex.rir || '',
+        pause: ex.pause || '60s',
+        description: ex.description || '',
+        variation: ex.variation || '',
+      });
+
+      for (const action of actions) {
+        const op = action.op;
+        if (op === 'add') {
+          const newEx = fillDefaults(action.exercise || {});
+          if (!newEx.exercise) continue;
+          if (typeof action.index === 'number' && action.index >= 0 && action.index <= list.length) {
+            list.splice(action.index, 0, newEx);
+          } else {
+            list.push(newEx);
+          }
+        } else if (op === 'remove') {
+          const idx = findIdx(action);
+          if (idx >= 0) list.splice(idx, 1);
+        } else if (op === 'replace') {
+          const idx = findIdx(action);
+          const newEx = fillDefaults(action.exercise || {});
+          if (idx >= 0 && newEx.exercise) list[idx] = newEx;
+          else if (newEx.exercise) list.push(newEx);
+        } else if (op === 'modify') {
+          const idx = findIdx(action);
+          if (idx >= 0 && action.exercise) {
+            list[idx] = { ...list[idx], ...action.exercise } as ParsedExercise;
+          }
+        }
+      }
+      return list;
+    });
+  };
 
   // Handlers for structured fields
   const setMode = (exIndex: number, mode: StructureMode) => {
@@ -395,9 +464,19 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
               </Button>
             )}
             {editing && (
-              <Button variant="default" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={commitEdits}>
-                <Check className="h-3 w-3" /> Confirmar
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1 px-2 text-xs border-primary/40 text-primary hover:text-primary hover:bg-primary/10"
+                  onClick={() => setAiOpen(true)}
+                >
+                  <Sparkles className="h-3 w-3" /> IA
+                </Button>
+                <Button variant="default" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={commitEdits}>
+                  <Check className="h-3 w-3" /> Confirmar
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -564,6 +643,15 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
           </span>
         </div>
       </CardContent>
+      <AiEditExerciseDialog
+        open={aiOpen}
+        onOpenChange={setAiOpen}
+        dayName={day.day}
+        currentExercises={localExercises}
+        exerciseCatalog={exerciseCatalog.map((c) => ({ nome: c.nome, grupo_muscular: c.grupo_muscular }))}
+        studentId={studentIdFromRoute}
+        onApply={applyAiActions}
+      />
     </Card>
   );
 };
