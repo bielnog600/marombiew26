@@ -181,8 +181,8 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
           }
         }}
       >
-        <img ref={imgRef} src={photoUrl} className="hidden" crossOrigin="anonymous" />
-        <canvas ref={canvasRef} className="w-full h-full" />
+        <img ref={imgRef} src={photoUrl} className="w-full h-full object-cover" crossOrigin="anonymous" />
+        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
         {onClick && (
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
             <Maximize2 className="w-6 h-6 text-white opacity-0 group-hover:opacity-80 transition-opacity drop-shadow-lg" />

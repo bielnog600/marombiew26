@@ -50,6 +50,35 @@ const statusLabel = (status: string) =>
 const statusTextClass = (status: string) =>
   status === 'risk' ? 'text-destructive' : status === 'attention' ? 'text-primary' : 'text-[hsl(142,71%,45%)]';
 
+const normalizeImageFile = (file: File): Promise<{ blob: Blob; dataUrl: string }> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Falha ao ler a imagem.'));
+    reader.onload = () => {
+      const originalDataUrl = reader.result as string;
+      const img = new Image();
+      img.onload = () => {
+        const maxSide = 2200;
+        const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve({ blob: file, dataUrl: originalDataUrl });
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          if (!blob) return resolve({ blob: file, dataUrl: originalDataUrl });
+          resolve({ blob, dataUrl: canvas.toDataURL('image/jpeg', 0.9) });
+        }, 'image/jpeg', 0.9);
+      };
+      img.onerror = () => resolve({ blob: file, dataUrl: originalDataUrl });
+      img.src = originalDataUrl;
+    };
+    reader.readAsDataURL(file);
+  });
+
 // ── Photo Card Component ──
 const PhotoCard = ({
   position, label, photoUrl, hasKeypoints, showOverlay, onToggleOverlay,
@@ -329,9 +358,9 @@ const PostureAnalysis = () => {
   const onFileSelected = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !uploadTarget) return;
-    const dataUrl = await new Promise<string>(r => { const rd = new FileReader(); rd.onload = () => r(rd.result as string); rd.readAsDataURL(file); });
+    const { blob, dataUrl } = await normalizeImageFile(file);
     setPhotos(prev => ({ ...prev, [uploadTarget]: dataUrl }));
-    setPhotoBlobs(prev => ({ ...prev, [uploadTarget]: file }));
+    setPhotoBlobs(prev => ({ ...prev, [uploadTarget]: blob }));
     if (poseLandmarkerRef.current) {
       try {
         const img = new Image();
