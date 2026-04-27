@@ -26,6 +26,12 @@ export interface Notification {
     hasDietaPlan: boolean;
     totalSetsLogged: number;
     trackingDays: number;
+    progression?: {
+      tone: 'progress' | 'maintain' | 'caution';
+      avgRpe: number;
+      muscleLabel: string;
+      summary: string;
+    } | null;
   };
 }
 
@@ -157,6 +163,79 @@ export function useNotifications() {
       });
 
       let weeklyStatsMap = new Map<string, NonNullable<Notification['weeklyStats']>>();
+
+      // Janela "mesmo dia da semana passada" para sugestão de progressão diária
+      const lastWeekSameDayStart = new Date(today);
+      lastWeekSameDayStart.setDate(lastWeekSameDayStart.getDate() - 7);
+      lastWeekSameDayStart.setHours(0, 0, 0, 0);
+      const lastWeekSameDayEnd = new Date(lastWeekSameDayStart);
+      lastWeekSameDayEnd.setHours(23, 59, 59, 999);
+      const todayDateStr = today.toISOString().slice(0, 10);
+
+      // Buscar logs/sessões da semana passada (mesmo dia) — sempre, p/ sugestão diária
+      const eightDaysAgoISO = new Date(today.getTime() - 8 * 86400000).toISOString();
+      const [lastWeekSessionsRes, lastWeekLogsRes, todaySessionsRes] = await Promise.all([
+        supabase
+          .from('workout_sessions')
+          .select('id, student_id, day_name, avg_rpe, completed_at')
+          .in('student_id', userIds)
+          .gte('completed_at', lastWeekSameDayStart.toISOString())
+          .lte('completed_at', lastWeekSameDayEnd.toISOString()),
+        supabase
+          .from('exercise_set_logs')
+          .select('student_id, session_id, muscle_group, exercise_name, weight_kg, reps, rpe, performed_at')
+          .in('student_id', userIds)
+          .gte('performed_at', eightDaysAgoISO),
+        supabase
+          .from('workout_sessions')
+          .select('student_id, completed_at')
+          .in('student_id', userIds)
+          .gte('completed_at', `${todayDateStr}T00:00:00`),
+      ]);
+
+      const progressionMap = new Map<string, NonNullable<NonNullable<Notification['weeklyStats']>['progression']>>();
+      for (const uid of userIds) {
+        const alreadyToday = (todaySessionsRes.data ?? []).some(s => s.student_id === uid);
+        if (alreadyToday) continue;
+        const lwSession = (lastWeekSessionsRes.data ?? []).find(s => s.student_id === uid);
+        if (!lwSession) continue;
+        const lwDateStr = lastWeekSameDayStart.toISOString().slice(0, 10);
+        const lwLogs = (lastWeekLogsRes.data ?? []).filter(l => {
+          if (l.student_id !== uid) return false;
+          if (l.session_id && lwSession.id && l.session_id === lwSession.id) return true;
+          return l.performed_at?.slice(0, 10) === lwDateStr;
+        });
+        const rpes = lwLogs.map(l => Number(l.rpe)).filter(r => Number.isFinite(r) && r > 0);
+        const avgRpe = rpes.length > 0
+          ? rpes.reduce((a, b) => a + b, 0) / rpes.length
+          : (lwSession.avg_rpe ? Number(lwSession.avg_rpe) : NaN);
+        if (!Number.isFinite(avgRpe)) continue;
+        const muscleCounts: Record<string, number> = {};
+        for (const l of lwLogs) {
+          const m = (l.muscle_group || '').trim();
+          if (m) muscleCounts[m] = (muscleCounts[m] || 0) + 1;
+        }
+        const topMuscles = Object.entries(muscleCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 2)
+          .map(([m]) => m);
+        const muscleLabel = topMuscles.length > 0 ? topMuscles.join(' / ') : (lwSession.day_name || 'treino');
+
+        let tone: 'progress' | 'maintain' | 'caution' = 'maintain';
+        let summary = '';
+        if (avgRpe <= 7) {
+          tone = 'progress';
+          summary = `Semana passada esse treino teve RPE médio ${avgRpe.toFixed(1)} (folga). Sugerir +2,5 a 5 kg ou +1–2 reps nos principais.`;
+        } else if (avgRpe >= 9) {
+          tone = 'caution';
+          summary = `RPE médio ${avgRpe.toFixed(1)} (muito alto). Manter cargas e focar em técnica/recuperação.`;
+        } else {
+          tone = 'maintain';
+          summary = `RPE médio ${avgRpe.toFixed(1)} (zona ideal). Manter cargas ou +1 rep.`;
+        }
+        progressionMap.set(uid, { tone, avgRpe: Number(avgRpe.toFixed(1)), muscleLabel, summary });
+      }
+
       if (isSaturday) {
         const [sessionsRes, setLogsRes, trackingRes, weightsRes] = await Promise.all([
           supabase
@@ -209,6 +288,7 @@ export function useNotifications() {
             hasDietaPlan: studentPlanTypes.has('dieta'),
             totalSetsLogged: logs.length,
             trackingDays: tracking.length,
+            progression: progressionMap.get(uid) ?? null,
           });
         }
       }
@@ -312,19 +392,41 @@ export function useNotifications() {
         }
 
         // 4. Weekly message reminder (every Saturday) — personalized per student
-        if (isSaturday) {
-          const stats = weeklyStatsMap.get(student.user_id);
+        const progressionTip = progressionMap.get(student.user_id);
+        if (isSaturday || progressionTip) {
+          let stats = weeklyStatsMap.get(student.user_id);
+          if (!stats && progressionTip) {
+            const studentPlanTypes = studentPlansMap.get(student.user_id) ?? new Set<string>();
+            stats = {
+              workoutsCompleted: 0,
+              setsWithoutLoad: 0,
+              setsWithoutReps: 0,
+              setsWithoutRpe: 0,
+              avgWaterGlasses: 0,
+              daysWithMeals: 0,
+              weighedThisWeek: false,
+              hasTreinoPlan: studentPlanTypes.has('treino'),
+              hasDietaPlan: studentPlanTypes.has('dieta'),
+              totalSetsLogged: 0,
+              trackingDays: 0,
+              progression: progressionTip,
+            };
+          }
+          const baseDesc = stats && stats.workoutsCompleted > 0
+            ? `${name} treinou ${stats.workoutsCompleted}x essa semana. Pergunte como foi e ajude com registros faltantes.`
+            : `${name} sem treinos registrados essa semana. Mande um oi e veja se precisa de ajuda.`;
+          const progDesc = progressionTip
+            ? `Sugestão p/ hoje (${progressionTip.muscleLabel}): ${progressionTip.summary}`
+            : null;
           notifs.push({
-            id: `weekly-${student.user_id}`,
+            id: isSaturday ? `weekly-${student.user_id}` : `weekly-prog-${student.user_id}-${todayDateStr}`,
             type: 'mensagem_semanal',
-            title: 'Mensagem semanal',
-            description: stats && stats.workoutsCompleted > 0
-              ? `${name} treinou ${stats.workoutsCompleted}x essa semana. Pergunte como foi e ajude com registros faltantes.`
-              : `${name} sem treinos registrados essa semana. Mande um oi e veja se precisa de ajuda.`,
+            title: progressionTip ? `Sugestão de progressão — ${progressionTip.muscleLabel}` : 'Mensagem semanal',
+            description: progDesc ?? baseDesc,
             studentId: student.user_id,
             studentName: name,
             studentPhone: phone,
-            priority: 'low',
+            priority: progressionTip ? 'medium' : 'low',
             weeklyStats: stats,
           });
         }
