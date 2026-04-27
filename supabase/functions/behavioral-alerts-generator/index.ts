@@ -33,6 +33,14 @@ Deno.serve(async (req) => {
     const fiveDaysAgo = daysAgo(5).toISOString();
     const threeDaysAgo = daysAgo(3).toISOString();
     const twoDaysAgo = daysAgo(2).toISOString();
+    const eightDaysAgo = daysAgo(8).toISOString();
+
+    // Janela do "mesmo dia da semana passada" (7 dias atrás, dia inteiro)
+    const lastWeekSameDayStart = new Date();
+    lastWeekSameDayStart.setDate(lastWeekSameDayStart.getDate() - 7);
+    lastWeekSameDayStart.setHours(0, 0, 0, 0);
+    const lastWeekSameDayEnd = new Date(lastWeekSameDayStart);
+    lastWeekSameDayEnd.setHours(23, 59, 59, 999);
 
     // 1. Carregar alunos ativos
     const { data: alunoRoles } = await supabase
@@ -65,9 +73,9 @@ Deno.serve(async (req) => {
         .gte('created_at', fiveDaysAgo),
       supabase
         .from('workout_sessions')
-        .select('student_id, completed_at')
+        .select('id, student_id, day_name, phase, avg_rpe, total_volume_kg, total_sets, completed_at')
         .in('student_id', studentIds)
-        .gte('completed_at', fiveDaysAgo),
+        .gte('completed_at', eightDaysAgo),
       supabase
         .from('daily_tracking')
         .select('student_id, date, water_glasses, meals_completed, workout_completed')
@@ -75,9 +83,9 @@ Deno.serve(async (req) => {
         .gte('date', daysAgo(5).toISOString().slice(0, 10)),
       supabase
         .from('exercise_set_logs')
-        .select('student_id, performed_at')
+        .select('student_id, performed_at, session_id, day_name, muscle_group, exercise_name, weight_kg, reps, rpe')
         .in('student_id', studentIds)
-        .gte('performed_at', threeDaysAgo),
+        .gte('performed_at', eightDaysAgo),
     ]);
 
     const events = eventsRes.data ?? [];
@@ -195,6 +203,79 @@ Deno.serve(async (req) => {
           title: 'Água abaixo da meta há 3 dias',
           description: 'Não bateu meta de hidratação (8 copos) nos últimos 3 dias.',
         });
+      }
+
+      // MÉDIA: progressão de carga — análise do mesmo dia da semana passada
+      // Identifica a sessão concluída no mesmo dia da semana (7 dias atrás)
+      const lastWeekSession = studentSessions.find((s) => {
+        if (!s.completed_at) return false;
+        const t = new Date(s.completed_at).getTime();
+        return t >= lastWeekSameDayStart.getTime() && t <= lastWeekSameDayEnd.getTime();
+      });
+
+      if (lastWeekSession) {
+        // Logs daquela sessão (preferir session_id; fallback por dia/day_name)
+        const lastWeekDateStr = lastWeekSameDayStart.toISOString().slice(0, 10);
+        const lastWeekLogs = studentLogs.filter((l) => {
+          if (l.session_id && lastWeekSession.id && l.session_id === lastWeekSession.id) return true;
+          return l.performed_at?.slice(0, 10) === lastWeekDateStr;
+        });
+
+        // Garantir que é o treino do MESMO dia da semana de hoje (já é por construção)
+        // Calcular RPE médio (preferir o do log; senão o agregado da sessão)
+        const rpes = lastWeekLogs.map((l) => Number(l.rpe)).filter((r) => Number.isFinite(r) && r > 0);
+        const avgRpe = rpes.length > 0
+          ? rpes.reduce((a, b) => a + b, 0) / rpes.length
+          : (lastWeekSession.avg_rpe ? Number(lastWeekSession.avg_rpe) : null);
+
+        // Já treinou hoje? Se sim, não faz sentido sugerir progressão antes
+        const alreadyTrainedToday = studentSessions.some(
+          (s) => s.completed_at?.slice(0, 10) === today
+        );
+
+        if (!alreadyTrainedToday && avgRpe !== null) {
+          // Grupos musculares mais frequentes no treino da semana passada
+          const muscleCounts: Record<string, number> = {};
+          for (const l of lastWeekLogs) {
+            const m = (l.muscle_group || '').trim();
+            if (m) muscleCounts[m] = (muscleCounts[m] || 0) + 1;
+          }
+          const topMuscles = Object.entries(muscleCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 2)
+            .map(([m]) => m);
+          const muscleLabel = topMuscles.length > 0 ? topMuscles.join(' / ') : (lastWeekSession.day_name || 'treino');
+
+          let priority: 'alta' | 'media' | 'baixa' = 'baixa';
+          let title = '';
+          let description = '';
+
+          if (avgRpe <= 7) {
+            priority = 'media';
+            title = `Progressão sugerida: ${muscleLabel}`;
+            description = `Semana passada o aluno fez este treino com RPE médio ${avgRpe.toFixed(1)} (folga). Sugerir +2,5 a 5 kg ou +1–2 reps nos principais exercícios para mais ativação.`;
+          } else if (avgRpe >= 9) {
+            priority = 'media';
+            title = `Atenção à fadiga: ${muscleLabel}`;
+            description = `RPE médio ${avgRpe.toFixed(1)} na semana passada (muito alto). Manter cargas e focar em técnica/recuperação antes de progredir.`;
+          } else {
+            priority = 'baixa';
+            title = `Manter estímulo: ${muscleLabel}`;
+            description = `RPE médio ${avgRpe.toFixed(1)} na semana passada (zona ideal). Manter cargas ou pequena progressão de +1 rep.`;
+          }
+
+          // Chave estável por dia da semana — auto-resolve quando o aluno treinar hoje
+          const dow = new Date().getDay();
+          const key = `progression_dow_${dow}_${today}`;
+          activeKeysByStudent[studentId].add(key);
+          alerts.push({
+            student_id: studentId,
+            alert_key: key,
+            priority,
+            title,
+            description,
+          });
+        }
       }
     }
 
