@@ -392,19 +392,41 @@ export function useNotifications() {
         }
 
         // 4. Weekly message reminder (every Saturday) — personalized per student
-        if (isSaturday) {
-          const stats = weeklyStatsMap.get(student.user_id);
+        const progressionTip = progressionMap.get(student.user_id);
+        if (isSaturday || progressionTip) {
+          let stats = weeklyStatsMap.get(student.user_id);
+          if (!stats && progressionTip) {
+            const studentPlanTypes = studentPlansMap.get(student.user_id) ?? new Set<string>();
+            stats = {
+              workoutsCompleted: 0,
+              setsWithoutLoad: 0,
+              setsWithoutReps: 0,
+              setsWithoutRpe: 0,
+              avgWaterGlasses: 0,
+              daysWithMeals: 0,
+              weighedThisWeek: false,
+              hasTreinoPlan: studentPlanTypes.has('treino'),
+              hasDietaPlan: studentPlanTypes.has('dieta'),
+              totalSetsLogged: 0,
+              trackingDays: 0,
+              progression: progressionTip,
+            };
+          }
+          const baseDesc = stats && stats.workoutsCompleted > 0
+            ? `${name} treinou ${stats.workoutsCompleted}x essa semana. Pergunte como foi e ajude com registros faltantes.`
+            : `${name} sem treinos registrados essa semana. Mande um oi e veja se precisa de ajuda.`;
+          const progDesc = progressionTip
+            ? `Sugestão p/ hoje (${progressionTip.muscleLabel}): ${progressionTip.summary}`
+            : null;
           notifs.push({
-            id: `weekly-${student.user_id}`,
+            id: isSaturday ? `weekly-${student.user_id}` : `weekly-prog-${student.user_id}-${todayDateStr}`,
             type: 'mensagem_semanal',
-            title: 'Mensagem semanal',
-            description: stats && stats.workoutsCompleted > 0
-              ? `${name} treinou ${stats.workoutsCompleted}x essa semana. Pergunte como foi e ajude com registros faltantes.`
-              : `${name} sem treinos registrados essa semana. Mande um oi e veja se precisa de ajuda.`,
+            title: progressionTip ? `Sugestão de progressão — ${progressionTip.muscleLabel}` : 'Mensagem semanal',
+            description: progDesc ?? baseDesc,
             studentId: student.user_id,
             studentName: name,
             studentPhone: phone,
-            priority: 'low',
+            priority: progressionTip ? 'medium' : 'low',
             weeklyStats: stats,
           });
         }
