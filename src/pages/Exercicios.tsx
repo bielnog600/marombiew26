@@ -20,7 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Pencil, Search, Check, Plus, Trash2, Upload, Download, X, ImageIcon, Loader2 } from 'lucide-react';
+import { Pencil, Search, Check, Plus, Trash2, Upload, Download, X, ImageIcon, Loader2, Video } from 'lucide-react';
 import { toast } from 'sonner';
 
 const STANDARD_FIELDS = [
@@ -71,7 +71,10 @@ const Exercicios: React.FC = () => {
   const [migrating, setMigrating] = useState(false);
   const [bulkMigrating, setBulkMigrating] = useState(false);
   const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0 });
+  const [videoUploading, setVideoUploading] = useState(false);
+  const [videoProgress, setVideoProgress] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
+  const videoFileRef = useRef<HTMLInputElement>(null);
 
   const { data: exercises = [], isLoading } = useQuery({
     queryKey: ['exercises-admin'],
@@ -218,6 +221,64 @@ const Exercicios: React.FC = () => {
 
   const handleRemoveImage = () => {
     setForm((f) => ({ ...f, imagem_url: '' }));
+  };
+
+  const handleVideoFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('video/')) {
+      toast.error('Selecione um arquivo de vídeo.');
+      return;
+    }
+    // Cloudflare Stream supports up to 30GB but keep a sane cap for exercise demos
+    const MAX_VIDEO = 500 * 1024 * 1024; // 500MB
+    if (file.size > MAX_VIDEO) {
+      toast.error('Vídeo muito grande. Máximo 500MB.');
+      return;
+    }
+
+    setVideoUploading(true);
+    setVideoProgress(0);
+    try {
+      // 1) Get a one-time upload URL from our edge function
+      const { data, error } = await supabase.functions.invoke('cloudflare-stream-upload', {
+        body: { name: form.nome || file.name, maxDurationSeconds: 600 },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const { uploadURL, embed } = data as { uploadURL: string; uid: string; embed: string };
+      if (!uploadURL || !embed) throw new Error('Resposta inválida do servidor.');
+
+      // 2) Upload directly to Cloudflare Stream with progress
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', uploadURL, true);
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) {
+            setVideoProgress(Math.round((ev.loaded / ev.total) * 100));
+          }
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else reject(new Error(`Upload falhou (HTTP ${xhr.status})`));
+        };
+        xhr.onerror = () => reject(new Error('Erro de rede no upload'));
+        const fd = new FormData();
+        fd.append('file', file);
+        xhr.send(fd);
+      });
+
+      setForm((f) => ({ ...f, video_embed: embed }));
+      toast.success('Vídeo enviado. Pode levar alguns segundos para processar no Cloudflare.');
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message ?? 'Erro no upload do vídeo.');
+    } finally {
+      setVideoUploading(false);
+      setVideoProgress(0);
+    }
   };
 
   const openEdit = (ex: Exercise) => {
@@ -498,6 +559,46 @@ const Exercicios: React.FC = () => {
 
               <div className="space-y-1.5">
                 <Label htmlFor="video">Vídeo (embed/iframe ou URL)</Label>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    ref={videoFileRef}
+                    type="file"
+                    accept="video/*"
+                    className="hidden"
+                    onChange={handleVideoFileSelect}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => videoFileRef.current?.click()}
+                    disabled={videoUploading}
+                    className="gap-2"
+                  >
+                    {videoUploading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Enviando {videoProgress}%
+                      </>
+                    ) : (
+                      <>
+                        <Video className="h-4 w-4" />
+                        Enviar vídeo (Cloudflare)
+                      </>
+                    )}
+                  </Button>
+                  {form.video_embed && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setForm((f) => ({ ...f, video_embed: '' }))}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <X className="h-4 w-4" /> Remover
+                    </Button>
+                  )}
+                </div>
                 <Textarea
                   id="video"
                   value={form.video_embed}
@@ -505,6 +606,9 @@ const Exercicios: React.FC = () => {
                   placeholder="<iframe ...></iframe> ou URL"
                   rows={3}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Faça upload direto pro Cloudflare Stream ou cole um embed/URL manualmente. MP4 até 500MB.
+                </p>
               </div>
 
               <div>
@@ -545,7 +649,7 @@ const Exercicios: React.FC = () => {
               <Button variant="outline" onClick={closeDialog}>Cancelar</Button>
               <Button
                 onClick={() => saveMutation.mutate()}
-                disabled={saveMutation.isPending || uploading || migrating}
+                disabled={saveMutation.isPending || uploading || migrating || videoUploading}
               >
                 {saveMutation.isPending ? 'Salvando...' : 'Salvar'}
               </Button>
