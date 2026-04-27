@@ -105,10 +105,13 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
 
   useEffect(() => {
     if (!photoUrl || !imgRef.current || !canvasRef.current) return;
-    const img = imgRef.current;
     const canvas = canvasRef.current;
+    let cancelled = false;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
 
     const draw = () => {
+      if (cancelled) return;
       const imageW = img.naturalWidth;
       const imageH = img.naturalHeight;
       if (!imageW || !imageH) return;
@@ -161,7 +164,10 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
       }
     };
 
-    if (img.complete) draw(); else img.onload = draw;
+    img.onload = draw;
+    img.onerror = () => console.warn('Falha ao carregar foto para overlay (Relatorio):', photoUrl);
+    img.src = photoUrl;
+    return () => { cancelled = true; };
   }, [photoUrl, keypoints, scores, showPoseOverlay]);
 
   if (!photoUrl) return null;
@@ -181,7 +187,7 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
           }
         }}
       >
-        <img ref={imgRef} src={photoUrl} className="w-full h-full object-cover" crossOrigin="anonymous" />
+        <img ref={imgRef} src={photoUrl} className="w-full h-full object-cover" loading="lazy" />
         <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
         {onClick && (
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
