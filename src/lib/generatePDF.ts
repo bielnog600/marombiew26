@@ -50,6 +50,18 @@ const loadImage = (src: string): Promise<HTMLImageElement> =>
     img.src = src;
   });
 
+const loadImageAsCleanCanvas = async (src: string): Promise<HTMLCanvasElement> => {
+  const img = await loadImage(src);
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth || img.width;
+  canvas.height = img.naturalHeight || img.height;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas;
+};
+
 /** Blur face region on a canvas using pose keypoints */
 const blurFaceOnCanvas = (canvas: HTMLCanvasElement, keypoints: any, position: 'front' | 'side' | 'back') => {
   const ctx = canvas.getContext('2d');
@@ -142,7 +154,10 @@ const renderOverlayPhoto = async (
     canvas.width = img.naturalWidth;
     canvas.height = img.naturalHeight;
     const ctx = canvas.getContext('2d')!;
+    if (!canvas.width || !canvas.height) return null;
     
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(img, 0, 0);
     blurFaceOnCanvas(canvas, allKeypoints, position);
     
