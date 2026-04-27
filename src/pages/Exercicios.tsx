@@ -566,7 +566,7 @@ const Exercicios: React.FC = () => {
                   <input
                     ref={videoFileRef}
                     type="file"
-                    accept="video/*"
+                    accept="video/*,video/mp4,video/quicktime,.mov,.mp4,.m4v,.webm"
                     className="hidden"
                     onChange={handleVideoFileSelect}
                   />
