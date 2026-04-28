@@ -165,7 +165,7 @@ const NovaAvaliacao = () => {
   });
 
   const [skinfolds, setSkinfolds] = useState({
-    metodo: 'jackson_pollock_3',
+    metodo: 'auto' as ProtocolId,
     triceps_1: '', triceps_2: '',
     subescapular_1: '', subescapular_2: '',
     suprailiaca_1: '', suprailiaca_2: '',
@@ -173,6 +173,8 @@ const NovaAvaliacao = () => {
     peitoral_1: '', peitoral_2: '',
     axilar_media_1: '', axilar_media_2: '',
     coxa_1: '', coxa_2: '',
+    biceps_1: '', biceps_2: '',
+    panturrilha_medial_1: '', panturrilha_medial_2: '',
   });
 
   const avgSk = (key: string): string => {
