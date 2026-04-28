@@ -1127,9 +1127,11 @@ export type Database = {
           abdominal: number | null
           assessment_id: string
           axilar_media: number | null
+          biceps: number | null
           coxa: number | null
           id: string
           metodo: string | null
+          panturrilha_medial: number | null
           peitoral: number | null
           subescapular: number | null
           suprailiaca: number | null
@@ -1139,9 +1141,11 @@ export type Database = {
           abdominal?: number | null
           assessment_id: string
           axilar_media?: number | null
+          biceps?: number | null
           coxa?: number | null
           id?: string
           metodo?: string | null
+          panturrilha_medial?: number | null
           peitoral?: number | null
           subescapular?: number | null
           suprailiaca?: number | null
@@ -1151,9 +1155,11 @@ export type Database = {
           abdominal?: number | null
           assessment_id?: string
           axilar_media?: number | null
+          biceps?: number | null
           coxa?: number | null
           id?: string
           metodo?: string | null
+          panturrilha_medial?: number | null
           peitoral?: number | null
           subescapular?: number | null
           suprailiaca?: number | null

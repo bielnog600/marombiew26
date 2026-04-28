@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { ArrowLeft, ArrowRight, Save, Loader2, CalendarIcon, Camera, X, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { calcAuto, calcProtocol, PROTOCOLS, type ProtocolId, type SkinfoldKey } from '@/lib/skinfoldProtocols';
 
 const steps = [
   'Anamnese',
@@ -36,9 +37,11 @@ const skinfoldFieldLabels: Record<string, string> = {
   peitoral: 'Peitoral',
   axilar_media: 'Axilar Média',
   coxa: 'Coxa',
+  biceps: 'Bíceps',
+  panturrilha_medial: 'Panturrilha Medial',
 };
 
-const skinfoldFields = ['triceps', 'subescapular', 'suprailiaca', 'abdominal', 'peitoral', 'axilar_media', 'coxa'] as const;
+const skinfoldFields = ['triceps', 'subescapular', 'suprailiaca', 'abdominal', 'peitoral', 'axilar_media', 'coxa', 'biceps', 'panturrilha_medial'] as const;
 
 const classifyIMC = (imc: number): { label: string; color: string } => {
   if (imc < 18.5) return { label: 'Abaixo do peso', color: 'text-yellow-500' };
@@ -162,7 +165,7 @@ const NovaAvaliacao = () => {
   });
 
   const [skinfolds, setSkinfolds] = useState({
-    metodo: 'jackson_pollock_3',
+    metodo: 'auto' as ProtocolId,
     triceps_1: '', triceps_2: '',
     subescapular_1: '', subescapular_2: '',
     suprailiaca_1: '', suprailiaca_2: '',
@@ -170,6 +173,8 @@ const NovaAvaliacao = () => {
     peitoral_1: '', peitoral_2: '',
     axilar_media_1: '', axilar_media_2: '',
     coxa_1: '', coxa_2: '',
+    biceps_1: '', biceps_2: '',
+    panturrilha_medial_1: '', panturrilha_medial_2: '',
   });
 
   const avgSk = (key: string): string => {
@@ -274,7 +279,7 @@ const NovaAvaliacao = () => {
         if (skRes.data) {
           const d = skRes.data;
           setSkinfolds({
-            metodo: d.metodo || 'jackson_pollock_3',
+            metodo: ((d.metodo as ProtocolId) || 'auto'),
             triceps_1: str(d.triceps), triceps_2: '',
             subescapular_1: str(d.subescapular), subescapular_2: '',
             suprailiaca_1: str(d.suprailiaca), suprailiaca_2: '',
@@ -282,6 +287,8 @@ const NovaAvaliacao = () => {
             peitoral_1: str(d.peitoral), peitoral_2: '',
             axilar_media_1: str(d.axilar_media), axilar_media_2: '',
             coxa_1: str(d.coxa), coxa_2: '',
+            biceps_1: str((d as any).biceps), biceps_2: '',
+            panturrilha_medial_1: str((d as any).panturrilha_medial), panturrilha_medial_2: '',
           });
         }
         if (perfRes.data) {
@@ -324,78 +331,38 @@ const NovaAvaliacao = () => {
     return '-';
   };
 
+  // Body fat calculation — uses skinfoldProtocols lib (supports auto-pick + 6 protocols).
+  const computeBodyFat = (): { bf: number | null; protocol: ProtocolId; reason?: string } => {
+    if (skinfolds.metodo === 'manual') return { bf: null, protocol: 'manual' };
+    const calcAge = (): number | null => {
+      if (!studentBirthDate) return null;
+      let age = (dataAvaliacao || new Date()).getFullYear() - studentBirthDate.getFullYear();
+      const ref = dataAvaliacao || new Date();
+      const monthDiff = ref.getMonth() - studentBirthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && ref.getDate() < studentBirthDate.getDate())) age--;
+      return age > 0 ? age : null;
+    };
+    const parseNum = (s: string) => {
+      const n = parseFloat((s || '').replace(',', '.'));
+      return isNaN(n) ? undefined : n;
+    };
+    const values: Partial<Record<SkinfoldKey, number>> = {};
+    for (const k of skinfoldFields) {
+      const v = parseNum(avgSk(k));
+      if (v != null) (values as any)[k] = v;
+    }
+    const input = { sex: studentSex, ageYears: calcAge(), values };
+    if (skinfolds.metodo === 'auto') {
+      const r = calcAuto(input);
+      return { bf: r.bodyFat, protocol: r.autoPicked, reason: r.reason };
+    }
+    const r = calcProtocol(skinfolds.metodo as any, input);
+    return { bf: r.bodyFat, protocol: skinfolds.metodo, reason: r.reason };
+  };
+
   const calcGordura = () => {
-    const parseNum = (value: string) => {
-      if (!value) return NaN;
-      const normalized = value.replace(',', '.').replace(/[^\d.-]/g, '');
-      return parseFloat(normalized);
-    };
-
-    const normalizeSex = (value: string | null) => (value || '').trim().toLowerCase();
-
-    const calculateAgeOnDate = (birthDate: Date, referenceDate: Date) => {
-      let age = referenceDate.getFullYear() - birthDate.getFullYear();
-      const monthDiff = referenceDate.getMonth() - birthDate.getMonth();
-      if (monthDiff < 0 || (monthDiff === 0 && referenceDate.getDate() < birthDate.getDate())) {
-        age--;
-      }
-      return age;
-    };
-
-    if (skinfolds.metodo === 'manual') return '-';
-    if (!studentBirthDate) return '-';
-
-    const age = calculateAgeOnDate(studentBirthDate, dataAvaliacao || new Date());
-    if (!age || age <= 0) return '-';
-
-    const sex = normalizeSex(studentSex);
-    const isFemale = ['f', 'female', 'feminino', 'mulher'].includes(sex) || sex.startsWith('fem');
-
-    if (skinfolds.metodo === 'jackson_pollock_7') {
-      // 7 dobras: peitoral, axilar média, tríceps, subescapular, abdominal, suprailíaca, coxa
-      const vals = [
-        parseNum(avgSk('peitoral')),
-        parseNum(avgSk('axilar_media')),
-        parseNum(avgSk('triceps')),
-        parseNum(avgSk('subescapular')),
-        parseNum(avgSk('abdominal')),
-        parseNum(avgSk('suprailiaca')),
-        parseNum(avgSk('coxa')),
-      ];
-
-      if (vals.some((v) => isNaN(v) || v <= 0)) return '-';
-      const soma = vals.reduce((a, b) => a + b, 0);
-
-      const dc = isFemale
-        ? 1.097 - (0.00046971 * soma) + (0.00000056 * soma * soma) - (0.00012828 * age)
-        : 1.112 - (0.00043499 * soma) + (0.00000055 * soma * soma) - (0.00028826 * age);
-
-      const bf = ((4.95 / dc) - 4.5) * 100;
-      return bf > 0 && bf < 60 ? bf.toFixed(1) : '-';
-    }
-
-    // Jackson & Pollock 3 dobras
-    if (isFemale) {
-      // Mulheres: tríceps, suprailíaca, coxa
-      const t = parseNum(avgSk('triceps'));
-      const si = parseNum(avgSk('suprailiaca'));
-      const cx = parseNum(avgSk('coxa'));
-      if (!(t > 0 && si > 0 && cx > 0)) return '-';
-      const soma = t + si + cx;
-      const dc = 1.0994921 - (0.0009929 * soma) + (0.0000023 * soma * soma) - (0.0001392 * age);
-      const bf = ((4.95 / dc) - 4.5) * 100;
-      return bf > 0 && bf < 60 ? bf.toFixed(1) : '-';
-    }
-
-    // Homens: peitoral, abdominal, coxa
-    const p = parseNum(avgSk('peitoral'));
-    const ab = parseNum(avgSk('abdominal'));
-    const cx = parseNum(avgSk('coxa'));
-    if (!(p > 0 && ab > 0 && cx > 0)) return '-';
-    const soma = p + ab + cx;
-    const dc = 1.10938 - (0.0008267 * soma) + (0.0000016 * soma * soma) - (0.0002574 * age);
-    const bf = ((4.95 / dc) - 4.5) * 100;
-    return bf > 0 && bf < 60 ? bf.toFixed(1) : '-';
+    const r = computeBodyFat();
+    return r.bf != null ? r.bf.toFixed(1) : '-';
   };
 
   const handleSave = async () => {
@@ -474,7 +441,12 @@ const NovaAvaliacao = () => {
         } as any),
         supabase.from('skinfolds').insert({
           assessment_id: aid,
-          metodo: skinfolds.metodo,
+          metodo: (() => {
+            // Persist the actually-used protocol (resolve "auto").
+            if (skinfolds.metodo !== 'auto') return skinfolds.metodo;
+            const r = computeBodyFat();
+            return r.protocol === 'manual' ? 'auto' : r.protocol;
+          })(),
           triceps: avgSk('triceps') ? parseFloat(avgSk('triceps')) : null,
           subescapular: avgSk('subescapular') ? parseFloat(avgSk('subescapular')) : null,
           suprailiaca: avgSk('suprailiaca') ? parseFloat(avgSk('suprailiaca')) : null,
@@ -482,7 +454,9 @@ const NovaAvaliacao = () => {
           peitoral: avgSk('peitoral') ? parseFloat(avgSk('peitoral')) : null,
           axilar_media: avgSk('axilar_media') ? parseFloat(avgSk('axilar_media')) : null,
           coxa: avgSk('coxa') ? parseFloat(avgSk('coxa')) : null,
-        }),
+          biceps: avgSk('biceps') ? parseFloat(avgSk('biceps')) : null,
+          panturrilha_medial: avgSk('panturrilha_medial') ? parseFloat(avgSk('panturrilha_medial')) : null,
+        } as any),
         supabase.from('composition').insert({
           assessment_id: aid,
           percentual_gordura: gordura !== '-' ? parseFloat(gordura) : null,
@@ -744,14 +718,29 @@ const NovaAvaliacao = () => {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Método de Cálculo</Label>
-                  <Select value={skinfolds.metodo} onValueChange={(v) => setSkinfolds({ ...skinfolds, metodo: v })}>
+                  <Select value={skinfolds.metodo} onValueChange={(v) => setSkinfolds({ ...skinfolds, metodo: v as ProtocolId })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="auto">⚡ Automático (recomendado p/ aluno)</SelectItem>
                       <SelectItem value="jackson_pollock_3">Jackson & Pollock 3 Dobras</SelectItem>
                       <SelectItem value="jackson_pollock_7">Jackson & Pollock 7 Dobras</SelectItem>
+                      <SelectItem value="guedes_3">Guedes 3 Dobras (BR)</SelectItem>
+                      <SelectItem value="petroski_4">Petroski 4 Dobras (BR)</SelectItem>
+                      <SelectItem value="faulkner_4">Faulkner 4 Dobras</SelectItem>
+                      <SelectItem value="durnin_4">Durnin & Womersley 4 Dobras</SelectItem>
                       <SelectItem value="manual">Manual</SelectItem>
                     </SelectContent>
                   </Select>
+                  {skinfolds.metodo !== 'manual' && skinfolds.metodo !== 'auto' && (
+                    <p className="text-[11px] text-muted-foreground">
+                      {PROTOCOLS[skinfolds.metodo as Exclude<ProtocolId,'auto'|'manual'>]?.description}
+                    </p>
+                  )}
+                  {skinfolds.metodo === 'auto' && (
+                    <p className="text-[11px] text-muted-foreground">
+                      A IA escolhe o protocolo ideal com base em sexo, idade e dobras preenchidas.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-3">
                   <div className="hidden md:grid md:grid-cols-[160px_1fr_1fr_90px] gap-2 px-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -821,13 +810,25 @@ const NovaAvaliacao = () => {
                     <span className="font-bold text-primary">{calcGordura()}%</span>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    Método: {skinfolds.metodo === 'jackson_pollock_7' ? 'Pollock 7' : skinfolds.metodo === 'jackson_pollock_3' ? 'Pollock 3' : 'Manual'} • Sexo: {studentSex || 'não informado'} • Idade: {studentBirthDate ? (() => {
+                    Método usado: <span className="font-medium text-foreground">{(() => {
+                      const r = computeBodyFat();
+                      if (r.protocol === 'manual') return 'Manual';
+                      const meta = (PROTOCOLS as any)[r.protocol];
+                      const base = meta?.short || r.protocol;
+                      return skinfolds.metodo === 'auto' ? `${base} (auto)` : base;
+                    })()}</span> • Sexo: {studentSex || 'não informado'} • Idade: {studentBirthDate ? (() => {
                       let age = dataAvaliacao.getFullYear() - studentBirthDate.getFullYear();
                       const monthDiff = dataAvaliacao.getMonth() - studentBirthDate.getMonth();
                       if (monthDiff < 0 || (monthDiff === 0 && dataAvaliacao.getDate() < studentBirthDate.getDate())) age--;
                       return age;
                     })() : 'não informada'}
                   </p>
+                  {(() => {
+                    const r = computeBodyFat();
+                    return r.bf == null && r.reason ? (
+                      <p className="text-[11px] text-yellow-500">{r.reason}</p>
+                    ) : null;
+                  })()}
                 </div>
               </div>
             )}
