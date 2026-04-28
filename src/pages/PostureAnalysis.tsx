@@ -24,8 +24,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
-import { calculatePostureAngles, calculateRegionScores, analyzePostureConditions, drawPoseOverlay, type PoseKeypoint, type PostureAngles, type RegionScore, type PostureCondition } from '@/lib/postureUtils';
-import { getCanvasFitSize, loadImageForCanvas } from '@/lib/canvasImage';
+import { calculatePostureAngles, calculateRegionScores, analyzePostureConditions, type PoseKeypoint, type PostureAngles, type RegionScore, type PostureCondition } from '@/lib/postureUtils';
+import { renderPostureAnalysisDataUrl } from '@/lib/postureCanvas';
 
 type CapturePosition = 'front' | 'side' | 'back';
 
@@ -90,30 +90,26 @@ const PhotoCard = ({
   onUpload: () => void; onExpand: () => void;
   keypoints: PoseKeypoint[] | null; scores: RegionScore[];
 }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  const [renderedOverlayUrl, setRenderedOverlayUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!photoUrl || !keypoints || !showOverlay || !canvasRef.current) return;
-    const canvas = canvasRef.current;
+    if (!photoUrl || !keypoints || !showOverlay) {
+      setRenderedOverlayUrl(null);
+      return;
+    }
     let cancelled = false;
-    let cleanup = () => {};
 
-    loadImageForCanvas(photoUrl)
-      .then(({ image, cleanup: release }) => {
-        cleanup = release;
-        if (cancelled || !image.naturalWidth) return;
-        const size = getCanvasFitSize(image.naturalWidth, image.naturalHeight, 1200);
-        canvas.width = size.width;
-        canvas.height = size.height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        ctx.drawImage(image, 0, 0, size.width, size.height);
-        drawPoseOverlay(ctx, keypoints, size.width, size.height, scores);
+    renderPostureAnalysisDataUrl({ photoUrl, keypoints, scores, maxWidth: 720 })
+      .then((dataUrl) => {
+        if (!cancelled) setRenderedOverlayUrl(dataUrl);
       })
-      .catch(() => console.warn('Falha ao carregar foto para overlay:', photoUrl));
+      .catch(() => {
+        if (!cancelled) setRenderedOverlayUrl(null);
+        console.warn('Falha ao carregar foto para overlay:', photoUrl);
+      });
 
-    return () => { cancelled = true; cleanup(); };
+    return () => { cancelled = true; };
   }, [photoUrl, keypoints, showOverlay, scores]);
 
   return (
@@ -121,10 +117,7 @@ const PhotoCard = ({
       <div className="relative aspect-[3/4] bg-secondary/30">
         {photoUrl ? (
           <>
-            <img ref={imgRef} src={photoUrl} className="w-full h-full object-cover" loading="lazy" />
-            {showOverlay && keypoints && (
-              <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
-            )}
+            <img ref={imgRef} src={renderedOverlayUrl || photoUrl} className="w-full h-full object-cover" loading="lazy" />
             {/* Overlay buttons */}
             <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <Button size="sm" variant="secondary" className="h-7 w-7 p-0" onClick={onExpand}>
