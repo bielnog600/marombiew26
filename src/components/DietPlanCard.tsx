@@ -64,11 +64,11 @@ const DietPlanCard: React.FC<DietPlanCardProps> = ({ sections, mealsCompleted = 
     fats: currentMeals.reduce((sum, meal) => sum + parseNum(meal.totalG), 0),
   }), [currentMeals]);
 
-  const targets = useMemo(() => extractTargetsFromSections(sections), [sections]);
-  const totalKcal = targets?.calories || parsedTotals.kcal;
-  const totalP = targets?.protein || parsedTotals.protein;
-  const totalC = targets?.carbs || parsedTotals.carbs;
-  const totalG = targets?.fats || parsedTotals.fats;
+  // Always show the real sum from the meal table (matches admin view)
+  const totalKcal = parsedTotals.kcal;
+  const totalP = parsedTotals.protein;
+  const totalC = parsedTotals.carbs;
+  const totalG = parsedTotals.fats;
 
   if (currentMeals.length === 0) return null;
 
