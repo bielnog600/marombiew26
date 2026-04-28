@@ -69,6 +69,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   const [plans, setPlans] = useState<any[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editedMeals, setEditedMeals] = useState<Record<string, ParsedMeal[]>>({});
+  const [aiNotes, setAiNotes] = useState<Record<string, string[]>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
 
@@ -102,7 +103,11 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     if (!meals) return;
     const plan = plans.find(p => p.id === planId);
     if (!plan) return;
-    const newContent = replaceMealTableInMarkdown(plan.conteudo, meals);
+    let newContent = replaceMealTableInMarkdown(plan.conteudo, meals);
+    const notes = aiNotes[planId];
+    if (notes && notes.length) {
+      newContent = `${newContent.trimEnd()}\n\n## 📝 Observações da IA\n\n${notes.join('\n\n')}\n`;
+    }
 
     setSaving(planId);
     const { error } = await supabase
@@ -116,6 +121,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
       toast.success('Dieta salva com sucesso!');
       setPlans(prev => prev.map(p => p.id === planId ? { ...p, conteudo: newContent } : p));
       setEditedMeals(prev => { const c = { ...prev }; delete c[planId]; return c; });
+      setAiNotes(prev => { const c = { ...prev }; delete c[planId]; return c; });
       setEditingId(null);
     }
     setSaving(null);
@@ -135,7 +141,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     <div className="space-y-3">
       {plans.map(plan => {
         const isExpanded = expandedId === plan.id;
-        const hasChanges = editedMeals[plan.id] !== undefined;
+        const hasChanges = editedMeals[plan.id] !== undefined || (aiNotes[plan.id]?.length || 0) > 0;
         const isEditing = editingId === plan.id;
         const cleanedMarkdown = stripDietPreamble(plan.conteudo);
 
@@ -233,6 +239,8 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                     <DietPlanEditor
                       markdown={plan.conteudo}
                       onMealsChange={(meals) => handleMealsChange(plan.id, meals)}
+                      studentId={studentId}
+                      onAiNotes={(notes) => setAiNotes(prev => ({ ...prev, [plan.id]: [...(prev[plan.id] || []), ...notes] }))}
                     />
                   ) : (
                     <DietResultCards markdown={cleanedMarkdown} />
