@@ -16,10 +16,11 @@ import { toast } from 'sonner';
 import {
   ChevronRight, ChevronLeft, Check, AlertTriangle,
   Save, FileDown, ArrowLeft, Eye, Upload, Maximize2, ImageIcon, FolderOpen,
-  TrendingUp, Edit3, Trash2
+  TrendingUp, Edit3, Trash2, Sparkles, Loader2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import ReactMarkdown from 'react-markdown';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
@@ -242,6 +243,10 @@ const PostureAnalysis = () => {
   // Expand photo dialog
   const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null);
 
+  // AI analysis (OpenAI GPT-4o vision)
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+
   // Pose detection
   const poseLandmarkerRef = useRef<any>(null);
   const [poseReady, setPoseReady] = useState(false);
@@ -317,6 +322,7 @@ const PostureAnalysis = () => {
     setNotes(scan.notes ?? '');
     if (scan.height_cm) setHeightCm(String(scan.height_cm));
     if (scan.sex) setSex(scan.sex);
+    setAiAnalysis(null);
     setStep(3);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     toast.success('Avaliação carregada.');
@@ -450,6 +456,36 @@ const PostureAnalysis = () => {
   const handleOverride = (key: string, value: number | null) => {
     setOverrides(prev => ({ ...prev, [key]: value }));
     setManualFlags(prev => ({ ...prev, [key]: true }));
+  };
+
+  const handleAIAnalysis = async () => {
+    if (!photos.front && !photos.side && !photos.back) {
+      toast.error('Anexe ao menos uma foto.');
+      return;
+    }
+    setAiLoading(true);
+    setAiAnalysis(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('posture-ai-analysis', {
+        body: {
+          photos,
+          heightCm: heightCm ? parseFloat(heightCm) : null,
+          sex,
+          angles,
+          regionScores,
+          notes,
+        },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      setAiAnalysis((data as any).analysis || '');
+      toast.success('Análise gerada com OpenAI!');
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Erro ao gerar análise: ' + (err.message || 'desconhecido'));
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const getMetricValue = (key: string): number | null => {
@@ -798,10 +834,48 @@ const PostureAnalysis = () => {
               <Button variant="outline" onClick={() => setStep(1)}>
                 <ChevronLeft className="mr-1 w-4 h-4" /> Refazer Captura
               </Button>
+              <Button
+                variant="outline"
+                onClick={handleAIAnalysis}
+                disabled={aiLoading}
+                className="border-primary/50 text-primary hover:bg-primary/10"
+              >
+                {aiLoading ? (
+                  <><Loader2 className="mr-2 w-4 h-4 animate-spin" /> Analisando...</>
+                ) : (
+                  <><Sparkles className="mr-2 w-4 h-4" /> Análise com IA (OpenAI)</>
+                )}
+              </Button>
               <Button onClick={handleSave} disabled={saving} className="flex-1">
                 <Save className="mr-2 w-4 h-4" /> {saving ? 'Salvando...' : 'Salvar Avaliação'}
               </Button>
             </div>
+
+            {/* AI Analysis Result */}
+            {(aiLoading || aiAnalysis) && (
+              <Card className="glass-card border-primary/30">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-primary" /> Laudo Postural Inteligente (GPT-4o)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {aiLoading ? (
+                    <div className="flex items-center gap-3 py-6 text-muted-foreground">
+                      <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                      <span className="text-sm">A IA está analisando as fotos e métricas...</span>
+                    </div>
+                  ) : (
+                    <div className="prose prose-sm prose-invert max-w-none text-foreground
+                      prose-headings:text-foreground prose-headings:font-bold
+                      prose-h2:text-base prose-h2:mt-4 prose-h2:mb-2
+                      prose-strong:text-primary prose-li:my-1 prose-p:my-2">
+                      <ReactMarkdown>{aiAnalysis || ''}</ReactMarkdown>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
 
