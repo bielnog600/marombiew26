@@ -11,6 +11,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { drawPoseOverlay, type PoseKeypoint, type RegionScore } from '@/lib/postureUtils';
+import { getCanvasFitSize, loadImageForCanvas } from '@/lib/canvasImage';
 
 interface AssessmentRow {
   id: string;
@@ -51,24 +52,24 @@ const PosturePhoto = ({ url, keypoints, scores }: { url: string | null; keypoint
   useEffect(() => {
     if (!url || !keypoints || !canvasRef.current) return;
     const canvas = canvasRef.current;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
     let cancelled = false;
-    img.onload = () => {
-      if (cancelled || !img.naturalWidth) return;
-      // iOS Safari caps canvas around 4096px / ~16MB — scale down for reliability
-      const MAX_SIDE = 1600;
-      const scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
-      const w = Math.max(1, Math.round(img.naturalWidth * scale));
-      const h = Math.max(1, Math.round(img.naturalHeight * scale));
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d')!;
-      ctx.drawImage(img, 0, 0, w, h);
-      drawPoseOverlay(ctx, keypoints, w, h, scores);
-    };
-    img.src = url;
-    return () => { cancelled = true; };
+    let cleanup = () => {};
+
+    loadImageForCanvas(url)
+      .then(({ image, cleanup: release }) => {
+        cleanup = release;
+        if (cancelled || !image.naturalWidth) return;
+        const size = getCanvasFitSize(image.naturalWidth, image.naturalHeight, 1200);
+        canvas.width = size.width;
+        canvas.height = size.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.drawImage(image, 0, 0, size.width, size.height);
+        drawPoseOverlay(ctx, keypoints, size.width, size.height, scores);
+      })
+      .catch(() => console.warn('Falha ao carregar foto para overlay:', url));
+
+    return () => { cancelled = true; cleanup(); };
   }, [url, keypoints, scores]);
 
   if (!url) {

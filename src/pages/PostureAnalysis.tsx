@@ -25,6 +25,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
 import { calculatePostureAngles, calculateRegionScores, analyzePostureConditions, drawPoseOverlay, type PoseKeypoint, type PostureAngles, type RegionScore, type PostureCondition } from '@/lib/postureUtils';
+import { getCanvasFitSize, loadImageForCanvas } from '@/lib/canvasImage';
 
 type CapturePosition = 'front' | 'side' | 'back';
 
@@ -95,27 +96,24 @@ const PhotoCard = ({
   useEffect(() => {
     if (!photoUrl || !keypoints || !showOverlay || !canvasRef.current) return;
     const canvas = canvasRef.current;
-    // Load image programmatically so it works even when the <img> is hidden
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
     let cancelled = false;
-    img.onload = () => {
-      if (cancelled || !img.naturalWidth) return;
-      // iOS Safari caps canvas around 4096px and ~16MB total — scale down
-      const MAX_SIDE = 1600;
-      const scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
-      const w = Math.max(1, Math.round(img.naturalWidth * scale));
-      const h = Math.max(1, Math.round(img.naturalHeight * scale));
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d')!;
-      ctx.drawImage(img, 0, 0, w, h);
-      drawPoseOverlay(ctx, keypoints, w, h, scores);
-    };
-    img.onerror = () => console.warn('Falha ao carregar foto para overlay:', photoUrl);
-    // Cache-bust on iOS where stale CORS responses can break canvas
-    img.src = photoUrl;
-    return () => { cancelled = true; };
+    let cleanup = () => {};
+
+    loadImageForCanvas(photoUrl)
+      .then(({ image, cleanup: release }) => {
+        cleanup = release;
+        if (cancelled || !image.naturalWidth) return;
+        const size = getCanvasFitSize(image.naturalWidth, image.naturalHeight, 1200);
+        canvas.width = size.width;
+        canvas.height = size.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.drawImage(image, 0, 0, size.width, size.height);
+        drawPoseOverlay(ctx, keypoints, size.width, size.height, scores);
+      })
+      .catch(() => console.warn('Falha ao carregar foto para overlay:', photoUrl));
+
+    return () => { cancelled = true; cleanup(); };
   }, [photoUrl, keypoints, showOverlay, scores]);
 
   return (
