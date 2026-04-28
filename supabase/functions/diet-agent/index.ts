@@ -174,7 +174,7 @@ REGRAS
 2) Quantidades em GRAMAS e PRECISAS para atingir os macros
 3) CALCULE calorias e macros PROPORCIONALMENTE à quantidade em gramas
 4) TOTAL de cada refeição e TOTAL DIÁRIO
-5) Gere EXATAMENTE 3 opções de cardápio completas (SIGNIFICATIVAMENTE DIFERENTES entre si — veja seção VARIEDADE)
+5) Gere EXATAMENTE 1 (UM) cardápio único, que vale para TODOS os dias da semana (segunda a domingo). NÃO gere múltiplas opções/cardápios.
 6) Considere preferências e restrições alimentares
 7) Timing nutricional baseado no horário de treino (pré, intra, pós)
 8) Diferencie dias de treino e dias off quando aplicável
