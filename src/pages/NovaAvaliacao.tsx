@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { ArrowLeft, ArrowRight, Save, Loader2, CalendarIcon, Camera, X, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { calcAuto, calcProtocol, PROTOCOLS, type ProtocolId, type SkinfoldKey } from '@/lib/skinfoldProtocols';
 
 const steps = [
   'Anamnese',
@@ -36,9 +37,11 @@ const skinfoldFieldLabels: Record<string, string> = {
   peitoral: 'Peitoral',
   axilar_media: 'Axilar Média',
   coxa: 'Coxa',
+  biceps: 'Bíceps',
+  panturrilha_medial: 'Panturrilha Medial',
 };
 
-const skinfoldFields = ['triceps', 'subescapular', 'suprailiaca', 'abdominal', 'peitoral', 'axilar_media', 'coxa'] as const;
+const skinfoldFields = ['triceps', 'subescapular', 'suprailiaca', 'abdominal', 'peitoral', 'axilar_media', 'coxa', 'biceps', 'panturrilha_medial'] as const;
 
 const classifyIMC = (imc: number): { label: string; color: string } => {
   if (imc < 18.5) return { label: 'Abaixo do peso', color: 'text-yellow-500' };
