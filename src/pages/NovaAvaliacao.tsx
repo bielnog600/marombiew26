@@ -711,14 +711,29 @@ const NovaAvaliacao = () => {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Método de Cálculo</Label>
-                  <Select value={skinfolds.metodo} onValueChange={(v) => setSkinfolds({ ...skinfolds, metodo: v })}>
+                  <Select value={skinfolds.metodo} onValueChange={(v) => setSkinfolds({ ...skinfolds, metodo: v as ProtocolId })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="auto">⚡ Automático (recomendado p/ aluno)</SelectItem>
                       <SelectItem value="jackson_pollock_3">Jackson & Pollock 3 Dobras</SelectItem>
                       <SelectItem value="jackson_pollock_7">Jackson & Pollock 7 Dobras</SelectItem>
+                      <SelectItem value="guedes_3">Guedes 3 Dobras (BR)</SelectItem>
+                      <SelectItem value="petroski_4">Petroski 4 Dobras (BR)</SelectItem>
+                      <SelectItem value="faulkner_4">Faulkner 4 Dobras</SelectItem>
+                      <SelectItem value="durnin_4">Durnin & Womersley 4 Dobras</SelectItem>
                       <SelectItem value="manual">Manual</SelectItem>
                     </SelectContent>
                   </Select>
+                  {skinfolds.metodo !== 'manual' && skinfolds.metodo !== 'auto' && (
+                    <p className="text-[11px] text-muted-foreground">
+                      {PROTOCOLS[skinfolds.metodo as Exclude<ProtocolId,'auto'|'manual'>]?.description}
+                    </p>
+                  )}
+                  {skinfolds.metodo === 'auto' && (
+                    <p className="text-[11px] text-muted-foreground">
+                      A IA escolhe o protocolo ideal com base em sexo, idade e dobras preenchidas.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-3">
                   <div className="hidden md:grid md:grid-cols-[160px_1fr_1fr_90px] gap-2 px-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
