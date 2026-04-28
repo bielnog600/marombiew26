@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import logoUrl from '@/assets/logo_marombiew.png';
 import { type PdfLang, getTranslations } from './pdfTranslations';
+import { getCanvasFitSize, loadImageForCanvas } from './canvasImage';
 
 interface ReportData {
   profile: { nome: string; email?: string; telefone?: string } | null;
@@ -41,25 +42,21 @@ const classifyRCQ = (rcq: number, t: ReturnType<typeof getTranslations>) => {
   return t.rcqVeryHigh;
 };
 
-const loadImage = (src: string): Promise<HTMLImageElement> =>
-  new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = src;
-  });
-
 const loadImageAsCleanCanvas = async (src: string): Promise<HTMLCanvasElement> => {
-  const img = await loadImage(src);
+  const { image: img, cleanup } = await loadImageForCanvas(src);
   const canvas = document.createElement('canvas');
-  canvas.width = img.naturalWidth || img.width;
-  canvas.height = img.naturalHeight || img.height;
-  const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  return canvas;
+  try {
+    const size = getCanvasFitSize(img.naturalWidth || img.width, img.naturalHeight || img.height, 1400);
+    canvas.width = size.width;
+    canvas.height = size.height;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas;
+  } finally {
+    cleanup();
+  }
 };
 
 /** Blur face region on a canvas using pose keypoints */
