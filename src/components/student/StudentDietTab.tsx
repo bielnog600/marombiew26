@@ -141,7 +141,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     <div className="space-y-3">
       {plans.map(plan => {
         const isExpanded = expandedId === plan.id;
-        const hasChanges = editedMeals[plan.id] !== undefined;
+        const hasChanges = editedMeals[plan.id] !== undefined || (aiNotes[plan.id]?.length || 0) > 0;
         const isEditing = editingId === plan.id;
         const cleanedMarkdown = stripDietPreamble(plan.conteudo);
 
