@@ -279,7 +279,7 @@ const NovaAvaliacao = () => {
         if (skRes.data) {
           const d = skRes.data;
           setSkinfolds({
-            metodo: d.metodo || 'jackson_pollock_3',
+            metodo: ((d.metodo as ProtocolId) || 'auto'),
             triceps_1: str(d.triceps), triceps_2: '',
             subescapular_1: str(d.subescapular), subescapular_2: '',
             suprailiaca_1: str(d.suprailiaca), suprailiaca_2: '',
@@ -287,6 +287,8 @@ const NovaAvaliacao = () => {
             peitoral_1: str(d.peitoral), peitoral_2: '',
             axilar_media_1: str(d.axilar_media), axilar_media_2: '',
             coxa_1: str(d.coxa), coxa_2: '',
+            biceps_1: str((d as any).biceps), biceps_2: '',
+            panturrilha_medial_1: str((d as any).panturrilha_medial), panturrilha_medial_2: '',
           });
         }
         if (perfRes.data) {
