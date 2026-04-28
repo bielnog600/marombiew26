@@ -441,7 +441,12 @@ const NovaAvaliacao = () => {
         } as any),
         supabase.from('skinfolds').insert({
           assessment_id: aid,
-          metodo: skinfolds.metodo,
+          metodo: (() => {
+            // Persist the actually-used protocol (resolve "auto").
+            if (skinfolds.metodo !== 'auto') return skinfolds.metodo;
+            const r = computeBodyFat();
+            return r.protocol === 'manual' ? 'auto' : r.protocol;
+          })(),
           triceps: avgSk('triceps') ? parseFloat(avgSk('triceps')) : null,
           subescapular: avgSk('subescapular') ? parseFloat(avgSk('subescapular')) : null,
           suprailiaca: avgSk('suprailiaca') ? parseFloat(avgSk('suprailiaca')) : null,
@@ -449,7 +454,9 @@ const NovaAvaliacao = () => {
           peitoral: avgSk('peitoral') ? parseFloat(avgSk('peitoral')) : null,
           axilar_media: avgSk('axilar_media') ? parseFloat(avgSk('axilar_media')) : null,
           coxa: avgSk('coxa') ? parseFloat(avgSk('coxa')) : null,
-        }),
+          biceps: avgSk('biceps') ? parseFloat(avgSk('biceps')) : null,
+          panturrilha_medial: avgSk('panturrilha_medial') ? parseFloat(avgSk('panturrilha_medial')) : null,
+        } as any),
         supabase.from('composition').insert({
           assessment_id: aid,
           percentual_gordura: gordura !== '-' ? parseFloat(gordura) : null,
