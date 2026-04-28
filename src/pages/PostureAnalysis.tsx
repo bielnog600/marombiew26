@@ -458,6 +458,36 @@ const PostureAnalysis = () => {
     setManualFlags(prev => ({ ...prev, [key]: true }));
   };
 
+  const handleAIAnalysis = async () => {
+    if (!photos.front && !photos.side && !photos.back) {
+      toast.error('Anexe ao menos uma foto.');
+      return;
+    }
+    setAiLoading(true);
+    setAiAnalysis(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('posture-ai-analysis', {
+        body: {
+          photos,
+          heightCm: heightCm ? parseFloat(heightCm) : null,
+          sex,
+          angles,
+          regionScores,
+          notes,
+        },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      setAiAnalysis((data as any).analysis || '');
+      toast.success('Análise gerada com OpenAI!');
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Erro ao gerar análise: ' + (err.message || 'desconhecido'));
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   const getMetricValue = (key: string): number | null => {
     if (manualFlags[key]) return overrides[key] ?? null;
     if (!angles) return null;
