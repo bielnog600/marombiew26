@@ -656,7 +656,7 @@ export const generatePDF = async (data: ReportData, lang: PdfLang = 'pt') => {
             const { w: pw, h: ph } = photoDims[i];
             const photo = loadedPhotos[i];
             const imgY = y + (maxH - ph) / 2;
-            doc.addImage(photo.canvas.toDataURL('image/jpeg', 0.92), 'JPEG', curX, imgY, pw, ph);
+            doc.addImage(canvasToSafeDataUrl(photo.canvas, 'image/jpeg', 0.9), 'JPEG', curX, imgY, pw, ph);
             doc.setFontSize(7);
             doc.setTextColor(...BRAND.gray);
             doc.text(photo.label, curX + pw / 2, y + maxH + 4, { align: 'center' });
