@@ -338,15 +338,12 @@ const MinhasDietas = () => {
   const totalP = currentMeals.reduce((s, m) => s + parseNum(m.totalP), 0);
   const totalC = currentMeals.reduce((s, m) => s + parseNum(m.totalC), 0);
   const totalG = currentMeals.reduce((s, m) => s + parseNum(m.totalG), 0);
-  const targets = useMemo(() => extractTargetsFromSections(sections), [sections]);
-  const displaySummary = usesMealOptions || !targets
-    ? { calories: totalKcal, protein: totalP, carbs: totalC, fats: totalG }
-    : targets;
-  const summaryTitle = usesMealOptions
-    ? 'Totais da opção selecionada'
-    : targets
-      ? 'Metas do dia'
-      : 'Totais do dia';
+  // Always show the REAL sum of foods on the table — never the theoretical
+  // "calorias alvo" written by the AI in the preamble, because the two often
+  // diverge (ex: meta 1455 kcal mas alimentos somam 1830 kcal). The student
+  // must see what they will actually eat, matching what the admin sees.
+  const displaySummary = { calories: totalKcal, protein: totalP, carbs: totalC, fats: totalG };
+  const summaryTitle = usesMealOptions ? 'Totais da opção selecionada' : 'Totais do dia';
 
   const waterMl = waterCurrentMl;
   const waterGoalMl = waterTargetMl;
