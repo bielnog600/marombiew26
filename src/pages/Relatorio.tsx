@@ -10,6 +10,7 @@ import { generatePDF } from '@/lib/generatePDF';
 import KarvonenZones from '@/components/KarvonenZones';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { drawPoseOverlay, analyzePostureConditions, type PoseKeypoint, type RegionScore, type PostureCondition, type PostureAngles } from '@/lib/postureUtils';
+import { loadImageForCanvas } from '@/lib/canvasImage';
 
 
 const statusColor = (status: string) =>
@@ -107,10 +108,8 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
     if (!photoUrl || !imgRef.current || !canvasRef.current) return;
     const canvas = canvasRef.current;
     let cancelled = false;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
 
-    const draw = () => {
+    const draw = (img: HTMLImageElement) => {
       if (cancelled) return;
       const imageW = img.naturalWidth;
       const imageH = img.naturalHeight;
@@ -164,10 +163,15 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
       }
     };
 
-    img.onload = draw;
-    img.onerror = () => console.warn('Falha ao carregar foto para overlay (Relatorio):', photoUrl);
-    img.src = photoUrl;
-    return () => { cancelled = true; };
+    let cleanup = () => {};
+    loadImageForCanvas(photoUrl)
+      .then(({ image, cleanup: release }) => {
+        cleanup = release;
+        draw(image);
+      })
+      .catch(() => console.warn('Falha ao carregar foto para overlay (Relatorio):', photoUrl));
+
+    return () => { cancelled = true; cleanup(); };
   }, [photoUrl, keypoints, scores, showPoseOverlay]);
 
   if (!photoUrl) return null;
