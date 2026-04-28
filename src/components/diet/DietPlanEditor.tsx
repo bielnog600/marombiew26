@@ -27,14 +27,18 @@ const num = (v?: string) => {
 };
 const fmt = (v: number) => Number.isInteger(v) ? String(v) : (Math.round(v * 10) / 10).toFixed(1);
 
-/** Extract every meal across all meal sections from the markdown. */
+/**
+ * Extract meals from the markdown. If the diet has multiple "Cardápio/Opção"
+ * sections, we only edit the FIRST one — otherwise we'd sum the calories of
+ * every alternative menu and the totals (and "Editar com IA") would inflate
+ * to 3x or more the real daily kcal.
+ */
 const extractMeals = (markdown: string): ParsedMeal[] => {
   const sections = parseSections(markdown);
-  const out: ParsedMeal[] = [];
-  for (const s of sections) {
-    if (s.type === 'meal' && s.meals) out.push(...s.meals);
-  }
-  return out;
+  const mealSections = sections.filter((s) => s.type === 'meal' && s.meals && s.meals.length > 0);
+  if (mealSections.length === 0) return [];
+  // Only take the first menu/cardápio block to avoid summing alternatives
+  return [...(mealSections[0].meals || [])];
 };
 
 const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange, studentId, onAiNotes }) => {
