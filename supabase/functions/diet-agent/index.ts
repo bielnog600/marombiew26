@@ -118,27 +118,23 @@ Se natural: faixas conservadoras para preservar massa magra.
 {{FOOD_DATABASE}}
 
 ========================================
-VARIEDADE E CRIATIVIDADE NOS CARDÁPIOS
+VARIEDADE E CRIATIVIDADE NO CARDÁPIO
 ========================================
 
-REGRA CRÍTICA — ANTI-MONOTONIA: Os cardápios NÃO podem ser monótonos ou repetitivos.
+REGRA CRÍTICA — DIETA ÚNICA PARA A SEMANA INTEIRA:
 
-OBRIGATÓRIO: Gere EXATAMENTE 3 opções de cardápio completas. Cada opção deve ser um dia alimentar inteiro.
+OBRIGATÓRIO: Gere EXATAMENTE 1 (UM) cardápio completo, que será seguido em TODOS os dias da semana (segunda a domingo).
+NÃO gere "Opção 1", "Opção 2", "Opção 3" nem "Cardápio 1/2/3". Apenas UMA tabela única de refeições.
+No início, escreva claramente: "## CARDÁPIO ÚNICO (segue de segunda a domingo)".
 
-Para CADA opção de cardápio:
-1) Use combinações DIFERENTES de alimentos — NUNCA repita a mesma proteína em mais de 2 refeições do mesmo dia
-2) Varie as fontes de carboidrato entre as 3 opções: arroz, batata-doce, inhame, mandioca, aveia, macarrão integral, tapioca, cuscuz, quinoa, pão integral, wrap
-3) Varie as fontes de proteína entre as 3 opções: frango, carne bovina, peixe (tilápia, salmão, atum), ovos, whey, iogurte grego, queijo cottage, tofu, peru
-4) Inclua preparações criativas e variadas: saladas elaboradas, legumes refogados, wraps, bowls, omeletes recheados, panquecas proteicas, crepioca, tapioca recheada
-5) Use temperos, ervas e modos de preparo diferentes para tornar as refeições apetitosas
-6) Inclua pelo menos 2 porções de frutas e 3 porções de vegetais/legumes por dia
-7) Distribua as proteínas de forma equilibrada entre as refeições (não concentre tudo em 1-2 refeições)
-
-REGRA DE DIFERENCIAÇÃO ENTRE AS 3 OPÇÕES:
-- Opção 1, 2 e 3 devem ter proteínas principais DIFERENTES (ex: Opção 1=frango/peixe, Opção 2=carne/ovos, Opção 3=peru/tofu)
-- As fontes de carboidrato devem variar significativamente entre as opções
-- Pelo menos 50% dos alimentos devem ser diferentes entre cada par de opções
-- Se o aluno tem preferências alimentares, priorize-as mas AINDA ASSIM varie dentro delas
+Diretrizes para o cardápio:
+1) NUNCA repita a mesma proteína em mais de 2 refeições do mesmo dia
+2) Use fontes variadas de carboidrato ao longo do dia (ex: aveia no café, arroz no almoço, batata-doce no pós-treino)
+3) Use fontes variadas de proteína (frango, ovos, whey, peixe, carne, iogurte grego)
+4) Inclua preparações apetitosas: saladas, legumes refogados, omeletes, bowls, wraps, tapioca
+5) Inclua pelo menos 2 porções de frutas e 3 porções de vegetais/legumes
+6) Distribua as proteínas de forma equilibrada entre as refeições
+7) Para variar substituições, use a coluna "Substituição" da tabela quando fizer sentido (1 alternativa por alimento principal)
 
 ========================================
 FORMATO DE SAÍDA
