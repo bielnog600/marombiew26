@@ -834,10 +834,48 @@ const PostureAnalysis = () => {
               <Button variant="outline" onClick={() => setStep(1)}>
                 <ChevronLeft className="mr-1 w-4 h-4" /> Refazer Captura
               </Button>
+              <Button
+                variant="outline"
+                onClick={handleAIAnalysis}
+                disabled={aiLoading}
+                className="border-primary/50 text-primary hover:bg-primary/10"
+              >
+                {aiLoading ? (
+                  <><Loader2 className="mr-2 w-4 h-4 animate-spin" /> Analisando...</>
+                ) : (
+                  <><Sparkles className="mr-2 w-4 h-4" /> Análise com IA (OpenAI)</>
+                )}
+              </Button>
               <Button onClick={handleSave} disabled={saving} className="flex-1">
                 <Save className="mr-2 w-4 h-4" /> {saving ? 'Salvando...' : 'Salvar Avaliação'}
               </Button>
             </div>
+
+            {/* AI Analysis Result */}
+            {(aiLoading || aiAnalysis) && (
+              <Card className="glass-card border-primary/30">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-primary" /> Laudo Postural Inteligente (GPT-4o)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {aiLoading ? (
+                    <div className="flex items-center gap-3 py-6 text-muted-foreground">
+                      <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                      <span className="text-sm">A IA está analisando as fotos e métricas...</span>
+                    </div>
+                  ) : (
+                    <div className="prose prose-sm prose-invert max-w-none text-foreground
+                      prose-headings:text-foreground prose-headings:font-bold
+                      prose-h2:text-base prose-h2:mt-4 prose-h2:mb-2
+                      prose-strong:text-primary prose-li:my-1 prose-p:my-2">
+                      <ReactMarkdown>{aiAnalysis || ''}</ReactMarkdown>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
 
