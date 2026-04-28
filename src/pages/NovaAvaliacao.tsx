@@ -331,78 +331,38 @@ const NovaAvaliacao = () => {
     return '-';
   };
 
+  // Body fat calculation — uses skinfoldProtocols lib (supports auto-pick + 6 protocols).
+  const computeBodyFat = (): { bf: number | null; protocol: ProtocolId; reason?: string } => {
+    if (skinfolds.metodo === 'manual') return { bf: null, protocol: 'manual' };
+    const calcAge = (): number | null => {
+      if (!studentBirthDate) return null;
+      let age = (dataAvaliacao || new Date()).getFullYear() - studentBirthDate.getFullYear();
+      const ref = dataAvaliacao || new Date();
+      const monthDiff = ref.getMonth() - studentBirthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && ref.getDate() < studentBirthDate.getDate())) age--;
+      return age > 0 ? age : null;
+    };
+    const parseNum = (s: string) => {
+      const n = parseFloat((s || '').replace(',', '.'));
+      return isNaN(n) ? undefined : n;
+    };
+    const values: Partial<Record<SkinfoldKey, number>> = {};
+    for (const k of skinfoldFields) {
+      const v = parseNum(avgSk(k));
+      if (v != null) (values as any)[k] = v;
+    }
+    const input = { sex: studentSex, ageYears: calcAge(), values };
+    if (skinfolds.metodo === 'auto') {
+      const r = calcAuto(input);
+      return { bf: r.bodyFat, protocol: r.autoPicked, reason: r.reason };
+    }
+    const r = calcProtocol(skinfolds.metodo as any, input);
+    return { bf: r.bodyFat, protocol: skinfolds.metodo, reason: r.reason };
+  };
+
   const calcGordura = () => {
-    const parseNum = (value: string) => {
-      if (!value) return NaN;
-      const normalized = value.replace(',', '.').replace(/[^\d.-]/g, '');
-      return parseFloat(normalized);
-    };
-
-    const normalizeSex = (value: string | null) => (value || '').trim().toLowerCase();
-
-    const calculateAgeOnDate = (birthDate: Date, referenceDate: Date) => {
-      let age = referenceDate.getFullYear() - birthDate.getFullYear();
-      const monthDiff = referenceDate.getMonth() - birthDate.getMonth();
-      if (monthDiff < 0 || (monthDiff === 0 && referenceDate.getDate() < birthDate.getDate())) {
-        age--;
-      }
-      return age;
-    };
-
-    if (skinfolds.metodo === 'manual') return '-';
-    if (!studentBirthDate) return '-';
-
-    const age = calculateAgeOnDate(studentBirthDate, dataAvaliacao || new Date());
-    if (!age || age <= 0) return '-';
-
-    const sex = normalizeSex(studentSex);
-    const isFemale = ['f', 'female', 'feminino', 'mulher'].includes(sex) || sex.startsWith('fem');
-
-    if (skinfolds.metodo === 'jackson_pollock_7') {
-      // 7 dobras: peitoral, axilar média, tríceps, subescapular, abdominal, suprailíaca, coxa
-      const vals = [
-        parseNum(avgSk('peitoral')),
-        parseNum(avgSk('axilar_media')),
-        parseNum(avgSk('triceps')),
-        parseNum(avgSk('subescapular')),
-        parseNum(avgSk('abdominal')),
-        parseNum(avgSk('suprailiaca')),
-        parseNum(avgSk('coxa')),
-      ];
-
-      if (vals.some((v) => isNaN(v) || v <= 0)) return '-';
-      const soma = vals.reduce((a, b) => a + b, 0);
-
-      const dc = isFemale
-        ? 1.097 - (0.00046971 * soma) + (0.00000056 * soma * soma) - (0.00012828 * age)
-        : 1.112 - (0.00043499 * soma) + (0.00000055 * soma * soma) - (0.00028826 * age);
-
-      const bf = ((4.95 / dc) - 4.5) * 100;
-      return bf > 0 && bf < 60 ? bf.toFixed(1) : '-';
-    }
-
-    // Jackson & Pollock 3 dobras
-    if (isFemale) {
-      // Mulheres: tríceps, suprailíaca, coxa
-      const t = parseNum(avgSk('triceps'));
-      const si = parseNum(avgSk('suprailiaca'));
-      const cx = parseNum(avgSk('coxa'));
-      if (!(t > 0 && si > 0 && cx > 0)) return '-';
-      const soma = t + si + cx;
-      const dc = 1.0994921 - (0.0009929 * soma) + (0.0000023 * soma * soma) - (0.0001392 * age);
-      const bf = ((4.95 / dc) - 4.5) * 100;
-      return bf > 0 && bf < 60 ? bf.toFixed(1) : '-';
-    }
-
-    // Homens: peitoral, abdominal, coxa
-    const p = parseNum(avgSk('peitoral'));
-    const ab = parseNum(avgSk('abdominal'));
-    const cx = parseNum(avgSk('coxa'));
-    if (!(p > 0 && ab > 0 && cx > 0)) return '-';
-    const soma = p + ab + cx;
-    const dc = 1.10938 - (0.0008267 * soma) + (0.0000016 * soma * soma) - (0.0002574 * age);
-    const bf = ((4.95 / dc) - 4.5) * 100;
-    return bf > 0 && bf < 60 ? bf.toFixed(1) : '-';
+    const r = computeBodyFat();
+    return r.bf != null ? r.bf.toFixed(1) : '-';
   };
 
   const handleSave = async () => {
