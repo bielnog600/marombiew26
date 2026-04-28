@@ -145,17 +145,21 @@ const renderOverlayPhoto = async (
   position: 'front' | 'side' | 'back',
   regionScores: any[]
 ): Promise<HTMLCanvasElement | null> => {
+  let cleanup = () => {};
   try {
-    const img = await loadImage(photoUrl);
+    const loaded = await loadImageForCanvas(photoUrl);
+    const img = loaded.image;
+    cleanup = loaded.cleanup;
     const canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
+    const size = getCanvasFitSize(img.naturalWidth || img.width, img.naturalHeight || img.height, 1400);
+    canvas.width = size.width;
+    canvas.height = size.height;
     const ctx = canvas.getContext('2d')!;
     if (!canvas.width || !canvas.height) return null;
     
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     blurFaceOnCanvas(canvas, allKeypoints, position);
     
     const w = canvas.width;
@@ -242,6 +246,8 @@ const renderOverlayPhoto = async (
     return canvas;
   } catch {
     return null;
+  } finally {
+    cleanup();
   }
 };
 
