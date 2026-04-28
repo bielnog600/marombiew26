@@ -16,10 +16,11 @@ import { toast } from 'sonner';
 import {
   ChevronRight, ChevronLeft, Check, AlertTriangle,
   Save, FileDown, ArrowLeft, Eye, Upload, Maximize2, ImageIcon, FolderOpen,
-  TrendingUp, Edit3, Trash2
+  TrendingUp, Edit3, Trash2, Sparkles, Loader2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import ReactMarkdown from 'react-markdown';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
@@ -242,6 +243,10 @@ const PostureAnalysis = () => {
   // Expand photo dialog
   const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null);
 
+  // AI analysis (OpenAI GPT-4o vision)
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+
   // Pose detection
   const poseLandmarkerRef = useRef<any>(null);
   const [poseReady, setPoseReady] = useState(false);
@@ -317,6 +322,7 @@ const PostureAnalysis = () => {
     setNotes(scan.notes ?? '');
     if (scan.height_cm) setHeightCm(String(scan.height_cm));
     if (scan.sex) setSex(scan.sex);
+    setAiAnalysis(null);
     setStep(3);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     toast.success('Avaliação carregada.');
