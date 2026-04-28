@@ -4,16 +4,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Trash2, Sliders, AlertTriangle, Clock, UtensilsCrossed } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { parseSections, type ParsedFood, type ParsedMeal } from '@/lib/dietResultParser';
 import { computeDayTotals, scaleMealsToTarget } from '@/lib/dietMarkdownSerializer';
 import FoodSubstitutionDialog from './FoodSubstitutionDialog';
+import AiEditDietDialog from './AiEditDietDialog';
 
 interface DietPlanEditorProps {
   markdown: string;
   onMealsChange: (meals: ParsedMeal[]) => void;
+  studentId?: string;
+  onAiNotes?: (notes: string[]) => void;
 }
 
 const num = (v?: string) => {
@@ -33,12 +37,13 @@ const extractMeals = (markdown: string): ParsedMeal[] => {
   return out;
 };
 
-const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange }) => {
+const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange, studentId, onAiNotes }) => {
   const initialMeals = useMemo(() => extractMeals(markdown), [markdown]);
   const [meals, setMeals] = useState<ParsedMeal[]>(initialMeals);
   const [target, setTarget] = useState<number>(() => Math.round(computeDayTotals(initialMeals).kcal));
   const [subTarget, setSubTarget] = useState<{ mealIdx: number; foodIdx: number } | null>(null);
   const [addingForMeal, setAddingForMeal] = useState<number | null>(null);
+  const [aiOpen, setAiOpen] = useState(false);
 
   // Reset when source markdown changes
   useEffect(() => {
@@ -97,6 +102,19 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
 
   return (
     <div className="space-y-3">
+      {/* AI quick action */}
+      <div className="flex justify-end">
+        <Button
+          size="sm"
+          variant="default"
+          className="h-8 gap-1 bg-gradient-to-r from-primary to-primary/80"
+          onClick={() => setAiOpen(true)}
+        >
+          <Sparkles className="h-3.5 w-3.5" />
+          Editar com IA
+        </Button>
+      </div>
+
       {/* Target / totals banner */}
       <Card className={`border ${offTarget ? 'border-destructive/40 bg-destructive/5' : 'border-primary/30 bg-primary/5'}`}>
         <CardContent className="p-3 space-y-2">
@@ -235,6 +253,18 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
           onAdd={(food) => handleAddFood(addingForMeal, food)}
         />
       )}
+
+      {/* AI editor */}
+      <AiEditDietDialog
+        open={aiOpen}
+        onOpenChange={setAiOpen}
+        currentMeals={meals}
+        studentId={studentId}
+        onApply={(newMeals, notes) => {
+          setMeals(newMeals);
+          if (notes.length && onAiNotes) onAiNotes(notes);
+        }}
+      />
     </div>
   );
 };
