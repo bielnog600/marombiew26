@@ -78,7 +78,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { currentMeals, instruction, foodCatalog, studentContext, dayTotals } = await req.json();
+    const { currentMeals, instruction, foodCatalog, studentContext, dayTotals, trainingContext } = await req.json();
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
@@ -133,7 +133,14 @@ serve(async (req) => {
       if (parts.length) safetyBlock = `\n\n=== DADOS DO ALUNO (RESPEITAR) ===\n${parts.join("\n")}`;
     }
 
-    const userMessage = `${currentBlock}${totalsBlock}${safetyBlock}${catalogBlock}\n\n=== INSTRUÇÃO DO USUÁRIO ===\n${instruction}\n\nRetorne o JSON com as ações.`;
+    let trainingBlock = "";
+    if (trainingContext && typeof trainingContext === "string" && trainingContext.trim().length > 0) {
+      trainingBlock =
+        "\n\n=== TREINO ATUAL DO ALUNO (use para identificar dias de treino e grupos musculares — ex: dias de QUADRÍCEPS / ISQUIOTIBIAIS / GLÚTEOS / POSTERIOR / PANTURRILHA = dias de INFERIORES) ===\n" +
+        trainingContext;
+    }
+
+    const userMessage = `${currentBlock}${totalsBlock}${safetyBlock}${trainingBlock}${catalogBlock}\n\n=== INSTRUÇÃO DO USUÁRIO ===\n${instruction}\n\nRetorne o JSON com as ações.`;
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
