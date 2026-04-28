@@ -323,9 +323,10 @@ export const generatePDF = async (data: ReportData, lang: PdfLang = 'pt') => {
   // HEADER
   // ══════════════════════════════════════════════
   try {
-    const logo = await loadImage(logoUrl);
+    const { image: logo, cleanup } = await loadImageForCanvas(logoUrl);
     const logoSize = 28;
     doc.addImage(logo, 'PNG', margin, y, logoSize, logoSize);
+    cleanup();
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...BRAND.dark);
