@@ -10,8 +10,8 @@ import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { drawPoseOverlay, type PoseKeypoint, type RegionScore } from '@/lib/postureUtils';
-import { getCanvasFitSize, loadImageForCanvas } from '@/lib/canvasImage';
+import { type PoseKeypoint, type RegionScore } from '@/lib/postureUtils';
+import { renderPostureAnalysisDataUrl } from '@/lib/postureCanvas';
 
 interface AssessmentRow {
   id: string;
@@ -45,31 +45,27 @@ const statusBadgeClass = (status: string) =>
     : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30';
 
 const PosturePhoto = ({ url, keypoints, scores }: { url: string | null; keypoints: PoseKeypoint[] | null; scores: RegionScore[] }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const [expanded, setExpanded] = useState(false);
+  const [renderedOverlayUrl, setRenderedOverlayUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!url || !keypoints || !canvasRef.current) return;
-    const canvas = canvasRef.current;
+    if (!url || !keypoints) {
+      setRenderedOverlayUrl(null);
+      return;
+    }
     let cancelled = false;
-    let cleanup = () => {};
 
-    loadImageForCanvas(url)
-      .then(({ image, cleanup: release }) => {
-        cleanup = release;
-        if (cancelled || !image.naturalWidth) return;
-        const size = getCanvasFitSize(image.naturalWidth, image.naturalHeight, 1200);
-        canvas.width = size.width;
-        canvas.height = size.height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        ctx.drawImage(image, 0, 0, size.width, size.height);
-        drawPoseOverlay(ctx, keypoints, size.width, size.height, scores);
+    renderPostureAnalysisDataUrl({ photoUrl: url, keypoints, scores, maxWidth: 720 })
+      .then((dataUrl) => {
+        if (!cancelled) setRenderedOverlayUrl(dataUrl);
       })
-      .catch(() => console.warn('Falha ao carregar foto para overlay:', url));
+      .catch(() => {
+        if (!cancelled) setRenderedOverlayUrl(null);
+        console.warn('Falha ao carregar foto para overlay:', url);
+      });
 
-    return () => { cancelled = true; cleanup(); };
+    return () => { cancelled = true; };
   }, [url, keypoints, scores]);
 
   if (!url) {
@@ -83,9 +79,7 @@ const PosturePhoto = ({ url, keypoints, scores }: { url: string | null; keypoint
   return (
     <>
       <div className="relative aspect-[3/4] bg-secondary/30 rounded-lg overflow-hidden group cursor-pointer" onClick={() => setExpanded(true)}>
-        {/* Always show the photo; canvas overlays on top when keypoints exist */}
-        <img ref={imgRef} src={url} className="w-full h-full object-cover" loading="lazy" />
-        {keypoints && <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover pointer-events-none" />}
+        <img ref={imgRef} src={renderedOverlayUrl || url} className="w-full h-full object-cover" loading="lazy" />
         <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <div className="bg-background/80 rounded-full p-1">
             <Maximize2 className="h-3 w-3 text-foreground" />
@@ -94,7 +88,7 @@ const PosturePhoto = ({ url, keypoints, scores }: { url: string | null; keypoint
       </div>
       <Dialog open={expanded} onOpenChange={setExpanded}>
         <DialogContent className="max-w-3xl p-2">
-          <img src={url} className="w-full h-auto rounded" />
+          <img src={renderedOverlayUrl || url} className="w-full h-auto rounded" />
         </DialogContent>
       </Dialog>
     </>
