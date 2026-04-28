@@ -7,7 +7,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -258,7 +258,7 @@ async function callAI(context: any, currentPlanExcerpt: string) {
   const system = `Você é um treinador físico sênior, especialista em periodização. Analisa o ciclo de treino de um aluno e decide se vale MANTER, AJUSTAR, GERAR_NOVO treino ou SOLICITAR_DADOS antes de renovar. Considere: aderência, frequência real, taxa de conclusão, evolução de cargas/reps/volume, RPE médio, sinais de fadiga ou platô, monotonia, alertas de dor/lesão, fase atual e objetivo. Seja conservador: se data_quality != sufficient, prefira solicitar_dados. Se houver dor/lesão ativa, recomende ajustar (não gerar novo). Se cargas/volume estão estagnados (estavel/descendo) e aderência boa, recomende gerar_novo (estímulo novo). Se aderência < 0.4, prefira ajustar para reduzir volume e aumentar consistência.${lowCostNote}`;
 
   const body = {
-    model: "google/gemini-2.5-flash",
+    model: "gpt-4o-mini",
     messages: [
       { role: "system", content: system },
       {
@@ -298,9 +298,9 @@ async function callAI(context: any, currentPlanExcerpt: string) {
     tool_choice: { type: "function", function: { name: "recommend_action" } },
   };
 
-  const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
-    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
 
