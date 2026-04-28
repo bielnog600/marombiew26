@@ -803,13 +803,25 @@ const NovaAvaliacao = () => {
                     <span className="font-bold text-primary">{calcGordura()}%</span>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    Método: {skinfolds.metodo === 'jackson_pollock_7' ? 'Pollock 7' : skinfolds.metodo === 'jackson_pollock_3' ? 'Pollock 3' : 'Manual'} • Sexo: {studentSex || 'não informado'} • Idade: {studentBirthDate ? (() => {
+                    Método usado: <span className="font-medium text-foreground">{(() => {
+                      const r = computeBodyFat();
+                      if (r.protocol === 'manual') return 'Manual';
+                      const meta = (PROTOCOLS as any)[r.protocol];
+                      const base = meta?.short || r.protocol;
+                      return skinfolds.metodo === 'auto' ? `${base} (auto)` : base;
+                    })()}</span> • Sexo: {studentSex || 'não informado'} • Idade: {studentBirthDate ? (() => {
                       let age = dataAvaliacao.getFullYear() - studentBirthDate.getFullYear();
                       const monthDiff = dataAvaliacao.getMonth() - studentBirthDate.getMonth();
                       if (monthDiff < 0 || (monthDiff === 0 && dataAvaliacao.getDate() < studentBirthDate.getDate())) age--;
                       return age;
                     })() : 'não informada'}
                   </p>
+                  {(() => {
+                    const r = computeBodyFat();
+                    return r.bf == null && r.reason ? (
+                      <p className="text-[11px] text-yellow-500">{r.reason}</p>
+                    ) : null;
+                  })()}
                 </div>
               </div>
             )}
