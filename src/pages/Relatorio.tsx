@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,8 +9,8 @@ import { ArrowLeft, Download, Eye, AlertTriangle, Loader2, Maximize2 } from 'luc
 import { generatePDF } from '@/lib/generatePDF';
 import KarvonenZones from '@/components/KarvonenZones';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { drawPoseOverlay, analyzePostureConditions, type PoseKeypoint, type RegionScore, type PostureCondition, type PostureAngles } from '@/lib/postureUtils';
-import { loadImageForCanvas } from '@/lib/canvasImage';
+import { analyzePostureConditions, type PoseKeypoint, type RegionScore, type PostureCondition, type PostureAngles } from '@/lib/postureUtils';
+import { renderPostureAnalysisDataUrl } from '@/lib/postureCanvas';
 
 
 const statusColor = (status: string) =>
@@ -101,77 +101,31 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
   onClick?: () => void;
   showPoseOverlay?: boolean;
 }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imgRef = useRef<HTMLImageElement>(null);
+  const [renderedUrl, setRenderedUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!photoUrl || !imgRef.current || !canvasRef.current) return;
-    const canvas = canvasRef.current;
+    if (!photoUrl) {
+      setRenderedUrl(null);
+      return;
+    }
     let cancelled = false;
 
-    const draw = (img: HTMLImageElement) => {
-      if (cancelled) return;
-      const imageW = img.naturalWidth;
-      const imageH = img.naturalHeight;
-      if (!imageW || !imageH) return;
-
-      const canvasW = 900;
-      const canvasH = Math.round(canvasW / ALIGN_RATIO);
-      canvas.width = canvasW;
-      canvas.height = canvasH;
-
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      const crop = normalizeCropFromKeypoints(keypoints, imageW, imageH);
-      ctx.drawImage(img, crop.x, crop.y, crop.width, crop.height, 0, 0, canvasW, canvasH);
-
-      // Draw analysis grid (subtle)
-      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-      ctx.lineWidth = 1;
-      const cols = 24;
-      const rows = 32;
-      for (let i = 1; i < cols; i++) {
-        ctx.beginPath();
-        ctx.moveTo((canvasW / cols) * i, 0);
-        ctx.lineTo((canvasW / cols) * i, canvasH);
-        ctx.stroke();
-      }
-      for (let i = 1; i < rows; i++) {
-        ctx.beginPath();
-        ctx.moveTo(0, (canvasH / rows) * i);
-        ctx.lineTo(canvasW, (canvasH / rows) * i);
-        ctx.stroke();
-      }
-      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([10, 6]);
-      ctx.beginPath();
-      ctx.moveTo(canvasW / 2, 0);
-      ctx.lineTo(canvasW / 2, canvasH);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(0, canvasH / 2);
-      ctx.lineTo(canvasW, canvasH / 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      if (showPoseOverlay && Array.isArray(keypoints) && keypoints.length >= 29) {
-        const safeScores = Array.isArray(scores) ? scores : [];
-        const remapped = remapKeypointsToCrop(keypoints, crop, imageW, imageH);
-        drawPoseOverlay(ctx, remapped, canvasW, canvasH, safeScores);
-      }
-    };
-
-    let cleanup = () => {};
-    loadImageForCanvas(photoUrl)
-      .then(({ image, cleanup: release }) => {
-        cleanup = release;
-        draw(image);
+    renderPostureAnalysisDataUrl({
+      photoUrl,
+      keypoints,
+      scores,
+      maxWidth: 720,
+      drawPose: showPoseOverlay,
+    })
+      .then((dataUrl) => {
+        if (!cancelled) setRenderedUrl(dataUrl);
       })
-      .catch(() => console.warn('Falha ao carregar foto para overlay (Relatorio):', photoUrl));
+      .catch(() => {
+        if (!cancelled) setRenderedUrl(null);
+        console.warn('Falha ao carregar foto para overlay (Relatorio):', photoUrl);
+      });
 
-    return () => { cancelled = true; cleanup(); };
+    return () => { cancelled = true; };
   }, [photoUrl, keypoints, scores, showPoseOverlay]);
 
   if (!photoUrl) return null;
@@ -191,8 +145,7 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
           }
         }}
       >
-        <img ref={imgRef} src={photoUrl} className="w-full h-full object-cover" loading="lazy" />
-        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
+        <img src={renderedUrl || photoUrl} className="w-full h-full object-cover" loading="lazy" />
         {onClick && (
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
             <Maximize2 className="w-6 h-6 text-white opacity-0 group-hover:opacity-80 transition-opacity drop-shadow-lg" />
