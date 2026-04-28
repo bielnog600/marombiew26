@@ -7,7 +7,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -106,7 +106,7 @@ async function callAI(context: any, currentPlanExcerpt: string) {
   const system = `Você é um nutricionista esportivo sênior. Analisa o ciclo alimentar de um aluno (45 dias) e decide se vale MANTER, AJUSTAR, GERAR_NOVA dieta ou SOLICITAR_DADOS antes de renovar. Considere aderência, frequência de registro, evolução de peso, objetivo, sinais de monotonia e qualidade dos dados. Seja conservador: NÃO recomende gerar nova se faltam dados (data_quality != sufficient) — prefira solicitar_dados. Se aderência < 0.4, prefira ajustar. Se tendência contraria objetivo, recomende ajustar/gerar_nova.`;
 
   const body = {
-    model: "google/gemini-2.5-flash",
+    model: "gpt-4o-mini",
     messages: [
       { role: "system", content: system },
       {
@@ -145,9 +145,9 @@ async function callAI(context: any, currentPlanExcerpt: string) {
     tool_choice: { type: "function", function: { name: "recommend_action" } },
   };
 
-  const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
-    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
 
