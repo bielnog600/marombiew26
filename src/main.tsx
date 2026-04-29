@@ -20,7 +20,8 @@ const cleanupServiceWorkers = async () => {
   await Promise.all(
     regs.map(async (reg) => {
       const url = reg.active?.scriptURL || reg.waiting?.scriptURL || reg.installing?.scriptURL || "";
-      if (isPreviewHost || isInIframe || !url.endsWith(APP_SW_PATH)) {
+      const isOldAppWorker = url.endsWith("/sw.js") || url.endsWith("/service-worker.js");
+      if (isPreviewHost || isInIframe || isOldAppWorker) {
         await reg.unregister();
       }
     })
