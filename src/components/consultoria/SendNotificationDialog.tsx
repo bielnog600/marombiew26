@@ -70,17 +70,25 @@ const SendNotificationDialog: React.FC<Props> = ({ studentId, studentName, trigg
       return;
     }
 
-    // Dispara push para o aluno (best-effort, não bloqueia o fluxo)
-    supabase.functions.invoke('send-push-notification', {
+    // Dispara push para o aluno e informa quando ele ainda não ativou no aparelho
+    const { data: pushResult, error: pushError } = await supabase.functions.invoke('send-push-notification', {
       body: {
         user_ids: [studentId],
         title: title.trim(),
         message: message.trim(),
         data: { type: 'admin_notification', priority },
       },
-    }).catch((e) => console.warn('push falhou:', e));
+    });
 
-    toast.success('Notificação enviada!');
+    if (pushError) {
+      console.warn('push falhou:', pushError);
+      toast.warning('Aviso salvo no app, mas o push falhou no envio.');
+    } else if (pushResult?.reason === 'no_subscribers' || pushResult?.delivered === 0) {
+      toast.warning('Aviso salvo no app, mas este aluno ainda não ativou push neste aparelho.');
+    } else {
+      toast.success('Notificação push enviada!');
+    }
+
     reset();
     setOpen(false);
     onSent?.();
