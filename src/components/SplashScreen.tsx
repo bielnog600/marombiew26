@@ -5,8 +5,8 @@ const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
   useEffect(() => {
     const timer = setTimeout(() => {
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistration().then((reg) => {
-          if (reg) reg.update().catch(() => {});
+        navigator.serviceWorker.getRegistration('/').then((reg) => {
+          if (reg?.active?.scriptURL.endsWith('/app-sw.js')) reg.update().catch(() => {});
         });
       }
       onFinish();
