@@ -65,6 +65,17 @@ const isStandalonePWA = () =>
 
 let oneSignalPromise: Promise<OneSignalSdk> | null = null;
 
+const ensureOneSignalScript = (onError: () => void) => {
+  if (document.getElementById("onesignal-sdk")) return;
+
+  const script = document.createElement("script");
+  script.id = "onesignal-sdk";
+  script.src = "https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js";
+  script.async = true;
+  script.onerror = onError;
+  document.head.appendChild(script);
+};
+
 const getOneSignal = () => {
   window.OneSignalDeferred = window.OneSignalDeferred || [];
 
@@ -103,6 +114,10 @@ const getOneSignal = () => {
           oneSignalPromise = null;
           reject(err);
         }
+      });
+      ensureOneSignalScript(() => {
+        oneSignalPromise = null;
+        reject(new Error("OneSignal SDK failed to load"));
       });
     });
   }
@@ -177,6 +192,16 @@ export const usePushNotifications = () => {
     if (!isPushSupported()) {
       console.log("[Push] Skipped: unsupported browser");
       setStatus("unsupported");
+      return;
+    }
+
+    if (Notification.permission === "denied") {
+      setStatus("blocked");
+      return;
+    }
+
+    if (Notification.permission !== "granted") {
+      setStatus("ready");
       return;
     }
 
