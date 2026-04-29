@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { toPng } from 'html-to-image';
-import { Share2, Download, Check, Clock, Flame, Calendar } from 'lucide-react';
+import { Share2, Download, Check, Clock, Flame, Calendar, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { PHASE_LABELS, type TrainingPhase } from '@/lib/trainingPhase';
@@ -175,6 +175,15 @@ export const WorkoutSummaryShare: React.FC<WorkoutSummaryShareProps> = ({
 
   return (
     <div className="fixed inset-0 z-[200] bg-background flex flex-col animate-fade-in overflow-y-auto">
+      {/* Close button — always visible at top-right */}
+      <button
+        onClick={onClose}
+        aria-label="Fechar"
+        className="absolute right-3 z-10 h-10 w-10 rounded-full bg-card/80 backdrop-blur border border-border flex items-center justify-center text-foreground hover:bg-card transition-colors"
+        style={{ top: 'calc(env(safe-area-inset-top, 12px) + 12px)' }}
+      >
+        <X className="h-5 w-5" />
+      </button>
       <div className="flex-1 p-4 flex flex-col items-center gap-6" style={{ paddingTop: 'calc(env(safe-area-inset-top, 16px) + 16px)' }}>
         <div className="text-center">
           <h2 className="text-2xl font-bold text-foreground">Treino Concluído!</h2>
@@ -356,8 +365,8 @@ export const WorkoutSummaryShare: React.FC<WorkoutSummaryShareProps> = ({
             variant="ghost"
             className="w-full h-11 rounded-xl gap-2 text-muted-foreground"
           >
-            <Check className="h-4 w-4" />
-            Concluir
+            <X className="h-4 w-4" />
+            Fechar
           </Button>
         </div>
       </div>
