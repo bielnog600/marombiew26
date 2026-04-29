@@ -440,7 +440,12 @@ const DietRenewalPanel: React.FC = () => {
           onOpenChange={(v) => !v && setWeightFor(null)}
           studentId={weightFor.student_id}
           studentName={weightFor.student_name}
-          onSaved={() => load()}
+          onSaved={async () => {
+            const planId = weightFor.id;
+            await load();
+            toast.info('Reanalisando com o novo peso...');
+            await handleAnalyze(planId);
+          }}
         />
       )}
     </Card>
