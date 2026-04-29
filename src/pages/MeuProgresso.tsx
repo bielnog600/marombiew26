@@ -12,11 +12,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Dumbbell, Activity, Flame, BarChart3, TrendingUp, TrendingDown, Minus,
+  Share2,
 } from 'lucide-react';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip,
   AreaChart, Area, BarChart, Bar, CartesianGrid,
 } from 'recharts';
+import { WorkoutSummaryShare } from '@/components/training/WorkoutSummaryShare';
+import type { TrainingPhase } from '@/lib/trainingPhase';
 
 type Period = '7d' | '1m' | '3m' | '6m' | '1y' | 'all';
 
@@ -104,6 +107,7 @@ const MeuProgresso: React.FC = () => {
   const [muscleFilter, setMuscleFilter] = useState<string>('all');
   const [logs, setLogs] = useState<SetLog[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [shareSession, setShareSession] = useState<Session | null>(null);
 
   useEffect(() => {
     if (user) load();
@@ -367,6 +371,53 @@ const MeuProgresso: React.FC = () => {
         {noData ? (
           <EmptyState message="Ainda não há treinos registrados. Conclua um treino para começar a ver sua evolução." />
         ) : (
+          <>
+          {/* Compartilhar treinos recentes */}
+          {sessions.length > 0 && (
+            <Card className="glass-card">
+              <CardContent className="p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Share2 className="h-4 w-4 text-primary" />
+                  <p className="text-xs font-semibold text-foreground">Compartilhar treinos recentes</p>
+                </div>
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  Esqueceu de postar? Escolha um treino abaixo e compartilhe nos stories.
+                </p>
+                <div className="space-y-1.5 pt-1">
+                  {[...sessions]
+                    .sort((a, b) => b.completed_at.localeCompare(a.completed_at))
+                    .slice(0, 5)
+                    .map((s) => {
+                      const d = new Date(s.completed_at);
+                      const dateLabel = d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+                      const dur = s.duration_minutes || 0;
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => setShareSession(s)}
+                          className="w-full flex items-center justify-between gap-2 p-2.5 rounded-lg bg-background/40 hover:bg-background/70 border border-border/40 transition-colors text-left"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-foreground truncate">
+                              {s.day_name || 'Treino'}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {dateLabel} · {dur} min · {s.exercises_completed}/{s.total_exercises} exerc.
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 text-primary text-[10px] font-bold uppercase tracking-wider shrink-0">
+                            <Share2 className="h-3.5 w-3.5" />
+                            Postar
+                          </div>
+                        </button>
+                      );
+                    })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Tabs defaultValue="cargas" className="space-y-4">
             <TabsList className="grid grid-cols-4 w-full">
               <TabsTrigger value="cargas" className="text-xs">Cargas</TabsTrigger>
@@ -605,8 +656,20 @@ const MeuProgresso: React.FC = () => {
               )}
             </TabsContent>
           </Tabs>
+          </>
         )}
       </div>
+
+      {shareSession && (
+        <WorkoutSummaryShare
+          dayName={shareSession.day_name || 'Treino'}
+          durationSeconds={(shareSession.duration_minutes || 0) * 60}
+          exercisesCompleted={shareSession.exercises_completed || 0}
+          totalExercises={shareSession.total_exercises || 0}
+          phase={(shareSession.phase as TrainingPhase | null) ?? null}
+          onClose={() => setShareSession(null)}
+        />
+      )}
     </AppLayout>
   );
 };
