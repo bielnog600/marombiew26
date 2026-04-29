@@ -80,7 +80,7 @@ const getOneSignal = () => {
             notifyButton: { enable: false },
             autoResubscribe: false,
             autoRegister: false,
-            promptOptions: { slidedown: { prompts: [] } },
+            promptOptions: { slidedown: { prompts: [] }, autoPrompt: false } as any,
           });
           console.log("[Push] OneSignal init OK");
           resolve(OneSignal);
