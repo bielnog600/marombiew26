@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
       // Verify token exists and is pending
       const { data: existing } = await supabase
         .from("diet_questionnaires")
-        .select("id, status")
+        .select("id, status, student_id")
         .eq("token", token)
         .maybeSingle();
 
