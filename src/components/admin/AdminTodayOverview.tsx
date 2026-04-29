@@ -1,15 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { UserCheck, Wifi, Dumbbell } from 'lucide-react';
+import { UserCheck, CheckCircle2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-type CardKey = 'online' | 'openedToday' | 'workoutToday';
-
-interface Row { id: string; name: string; detail?: string }
+interface Row {
+  id: string;
+  name: string;
+  firstAccess?: string;
+  lastAccess?: string;
+  accessCount: number;
+  online: boolean;
+  workedOut: boolean;
+  workoutTime?: string;
+}
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -18,7 +25,7 @@ const AdminTodayOverview: React.FC = () => {
   const [openedEvents, setOpenedEvents] = useState<{ student_id: string; created_at: string }[]>([]);
   const [workoutSessions, setWorkoutSessions] = useState<{ student_id: string; completed_at: string }[]>([]);
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
-  const [openCard, setOpenCard] = useState<CardKey | null>(null);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null;
@@ -73,81 +80,76 @@ const AdminTodayOverview: React.FC = () => {
   const nameOf = (id: string) => students.find((s) => s.id === id)?.name ?? 'Aluno';
   const fmt = (iso: string) => format(new Date(iso), 'HH:mm', { locale: ptBR });
 
-  const openedSet = new Set(openedEvents.map((e) => e.student_id));
-  const workoutSet = new Set(workoutSessions.map((w) => w.student_id));
-
-  const cards = [
-    { key: 'online' as CardKey, label: 'Online agora', value: onlineIds.size, icon: Wifi, color: 'text-emerald-500' },
-    { key: 'openedToday' as CardKey, label: 'Acessaram hoje', value: openedSet.size, icon: UserCheck, color: 'text-primary' },
-    { key: 'workoutToday' as CardKey, label: 'Treinaram hoje', value: workoutSet.size, icon: Dumbbell, color: 'text-amber-500' },
-  ];
-
-  const getRows = (key: CardKey): Row[] => {
-    if (key === 'online') {
-      return Array.from(onlineIds)
-        .map((id) => ({ id, name: nameOf(id), detail: 'Online agora' }))
-        .sort((a, b) => a.name.localeCompare(b.name));
+  const buildRows = (): Row[] => {
+    const byStudent = new Map<string, string[]>();
+    for (const e of openedEvents) {
+      if (!byStudent.has(e.student_id)) byStudent.set(e.student_id, []);
+      byStudent.get(e.student_id)!.push(e.created_at);
     }
-    if (key === 'openedToday') {
-      const byStudent = new Map<string, string[]>();
-      for (const e of openedEvents) {
-        if (!byStudent.has(e.student_id)) byStudent.set(e.student_id, []);
-        byStudent.get(e.student_id)!.push(e.created_at);
-      }
-      return Array.from(byStudent.entries())
-        .map(([id, times]) => {
-          const sorted = times.sort();
-          const detail = sorted.length === 1
-            ? `às ${fmt(sorted[0])}`
-            : `${sorted.length}× · ${fmt(sorted[0])} – ${fmt(sorted[sorted.length - 1])}`;
-          return { id, name: nameOf(id), detail };
-        })
-        .sort((a, b) => a.name.localeCompare(b.name));
-    }
-    // workoutToday
-    const byStudent = new Map<string, string>();
+    const workoutByStudent = new Map<string, string>();
     for (const w of workoutSessions) {
-      if (!byStudent.has(w.student_id)) byStudent.set(w.student_id, w.completed_at);
+      if (!workoutByStudent.has(w.student_id)) workoutByStudent.set(w.student_id, w.completed_at);
     }
-    return Array.from(byStudent.entries())
-      .map(([id, t]) => ({ id, name: nameOf(id), detail: `Concluído às ${fmt(t)}` }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    // Include online students even if no event recorded today
+    const allIds = new Set<string>([...byStudent.keys(), ...onlineIds]);
+    return Array.from(allIds)
+      .map((id) => {
+        const times = (byStudent.get(id) ?? []).sort();
+        return {
+          id,
+          name: nameOf(id),
+          firstAccess: times[0],
+          lastAccess: times[times.length - 1],
+          accessCount: times.length,
+          online: onlineIds.has(id),
+          workedOut: workoutByStudent.has(id),
+          workoutTime: workoutByStudent.get(id),
+        };
+      })
+      .sort((a, b) => {
+        if (a.online !== b.online) return a.online ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
   };
 
-  const currentCard = cards.find((c) => c.key === openCard);
-  const rows = openCard ? getRows(openCard) : [];
+  const rows = buildRows();
+  const totalAccessed = rows.length;
+  const onlineCount = rows.filter((r) => r.online).length;
 
   return (
     <>
-      <div className="grid grid-cols-3 gap-2">
-        {cards.map((c) => (
-          <Card
-            key={c.key}
-            className="glass-card cursor-pointer hover:bg-secondary/50 transition-colors"
-            onClick={() => setOpenCard(c.key)}
-          >
-            <CardContent className="p-3 flex items-center gap-2">
-              <div className={`rounded-lg p-2 bg-secondary ${c.color} relative`}>
-                <c.icon className="h-4 w-4" />
-                {c.key === 'online' && c.value > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                )}
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] text-muted-foreground leading-tight uppercase truncate">{c.label}</p>
-                <p className="text-xl font-bold leading-tight">{c.value}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <Card
+        className="glass-card cursor-pointer hover:bg-secondary/50 transition-colors"
+        onClick={() => setOpen(true)}
+      >
+        <CardContent className="p-4 flex items-center gap-3">
+          <div className="rounded-lg p-2.5 bg-secondary text-primary relative">
+            <UserCheck className="h-5 w-5" />
+            {onlineCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse ring-2 ring-background" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] text-muted-foreground leading-tight uppercase truncate">
+              Acessaram hoje
+            </p>
+            <p className="text-2xl font-bold leading-tight">{totalAccessed}</p>
+          </div>
+          {onlineCount > 0 && (
+            <div className="flex items-center gap-1.5 text-xs text-emerald-500 font-medium shrink-0">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              {onlineCount} online
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-      <Dialog open={!!openCard} onOpenChange={(o) => !o && setOpenCard(null)}>
+      <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              {currentCard && <currentCard.icon className={`h-5 w-5 ${currentCard.color}`} />}
-              {currentCard?.label} ({rows.length})
+              <UserCheck className="h-5 w-5 text-primary" />
+              Acessaram hoje ({rows.length})
             </DialogTitle>
           </DialogHeader>
           <ScrollArea className="max-h-[60vh] pr-3">
@@ -155,15 +157,34 @@ const AdminTodayOverview: React.FC = () => {
               <p className="text-sm text-muted-foreground text-center py-6">Nenhum aluno nesta lista.</p>
             ) : (
               <div className="space-y-2">
-                {rows.map((r) => (
-                  <div
-                    key={`${r.id}-${r.detail}`}
-                    className="flex items-center justify-between p-2.5 rounded-lg bg-secondary/40"
-                  >
-                    <p className="text-sm font-medium truncate">{r.name}</p>
-                    <p className="text-xs text-muted-foreground shrink-0 ml-2">{r.detail}</p>
-                  </div>
-                ))}
+                {rows.map((r) => {
+                  const accessLabel = r.firstAccess
+                    ? r.accessCount > 1
+                      ? `${fmt(r.firstAccess)} – ${fmt(r.lastAccess!)}`
+                      : `às ${fmt(r.firstAccess)}`
+                    : 'Online agora';
+                  return (
+                    <div
+                      key={r.id}
+                      className="flex items-center gap-2 p-2.5 rounded-lg bg-secondary/40"
+                    >
+                      <span
+                        className={`h-2.5 w-2.5 rounded-full shrink-0 ${
+                          r.online ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground/30'
+                        }`}
+                        title={r.online ? 'Online agora' : 'Offline'}
+                      />
+                      <p className="text-sm font-medium truncate flex-1">{r.name}</p>
+                      {r.workedOut && (
+                        <CheckCircle2
+                          className="h-4 w-4 text-amber-500 shrink-0"
+                          aria-label={r.workoutTime ? `Treinou às ${fmt(r.workoutTime)}` : 'Treinou hoje'}
+                        />
+                      )}
+                      <p className="text-xs text-muted-foreground shrink-0 ml-1">{accessLabel}</p>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </ScrollArea>
