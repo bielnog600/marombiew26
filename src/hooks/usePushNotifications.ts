@@ -85,6 +85,7 @@ const getOneSignal = () => {
         try {
           await OneSignal.init({
             appId: ONESIGNAL_APP_ID,
+            language: "pt-BR",
             allowLocalhostAsSecureOrigin: true,
             serviceWorkerPath: "onesignal/OneSignalSDKWorker.js",
             serviceWorkerParam: { scope: "/onesignal/" },
@@ -92,7 +93,19 @@ const getOneSignal = () => {
             autoResubscribe: false,
             autoRegister: false,
             promptOptions: {
-              slidedown: { prompts: [] },
+              slidedown: {
+                prompts: [
+                  {
+                    type: "push",
+                    autoPrompt: false,
+                    text: {
+                      actionMessage: "Permita notificações para receber avisos importantes do seu personal.",
+                      acceptButton: "Permitir",
+                      cancelButton: "Agora não",
+                    },
+                  },
+                ],
+              },
               autoPrompt: false,
               native: { enabled: false, autoPrompt: false },
             } as any,
