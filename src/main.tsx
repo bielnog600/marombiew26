@@ -45,13 +45,17 @@ const applyPortraitLock = () => {
   document.documentElement.classList.toggle("force-portrait-landscape", shouldForcePortrait);
 
   try {
-    const orientation = (screen as any).orientation;
+    const orientation = screen.orientation as ScreenOrientation & {
+      lock?: (orientation: OrientationLockType) => Promise<void>;
+    };
     if (orientation && typeof orientation.lock === "function") {
       void orientation.lock("portrait-primary").catch(() => {
         void orientation.lock("portrait").catch(() => {});
       });
     }
-  } catch {}
+  } catch {
+    return;
+  }
 };
 
 applyPortraitLock();
