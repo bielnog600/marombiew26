@@ -4,12 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
-import { Sparkles, RefreshCw, Check, FileEdit, FileText, AlertTriangle, ChevronDown, ChevronUp, Loader2, GitCompare, Wand2 } from 'lucide-react';
+import { Sparkles, RefreshCw, Check, FileEdit, FileText, AlertTriangle, ChevronDown, ChevronUp, Loader2, GitCompare, Wand2, Scale } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import DietDraftComparisonDialog from './DietDraftComparisonDialog';
 import WhatsAppDataRequestButton from './WhatsAppDataRequestButton';
+import QuickWeightLogDialog from './QuickWeightLogDialog';
 
 type CycleStatus =
   | 'em_dia'
@@ -82,6 +83,7 @@ const DietRenewalPanel: React.FC = () => {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [compareFor, setCompareFor] = useState<string | null>(null);
+  const [weightFor, setWeightFor] = useState<PlanRow | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -358,6 +360,15 @@ const DietRenewalPanel: React.FC = () => {
                           >
                             {busy === plan.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                             {analysis ? 'Reanalisar' : 'Analisar com IA'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-primary border-primary/30"
+                            onClick={() => setWeightFor(plan)}
+                          >
+                            <Scale className="h-3 w-3" />
+                            + Peso
                           </Button>
                           <WhatsAppDataRequestButton
                             phone={plan.student_phone}
