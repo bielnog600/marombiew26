@@ -52,7 +52,9 @@ const isPushSupported = () =>
   "serviceWorker" in navigator &&
   "PushManager" in window;
 
-const isIOSDevice = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isIOSDevice = () =>
+  /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+  (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
 const isStandalonePWA = () =>
   window.matchMedia("(display-mode: standalone)").matches ||
@@ -142,6 +144,12 @@ export const usePushNotifications = () => {
     if (isPreviewHost()) {
       console.log("[Push] Skipped: preview host");
       setStatus("preview");
+      return;
+    }
+
+    if (isIOSDevice() && !isStandalonePWA()) {
+      console.log("[Push] Waiting for iOS standalone PWA");
+      setStatus("ready");
       return;
     }
 
