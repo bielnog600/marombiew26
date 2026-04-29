@@ -6,10 +6,39 @@ const ONESIGNAL_APP_ID = "59537140-b7f1-435a-b57d-c8380b0d3276";
 
 type PushStatus = "idle" | "initializing" | "ready" | "enabled" | "blocked" | "unsupported" | "preview" | "error";
 
+interface OneSignalSdk {
+  init: (options: {
+    appId: string;
+    allowLocalhostAsSecureOrigin?: boolean;
+    serviceWorkerPath?: string;
+    serviceWorkerParam?: { scope: string };
+    notifyButton?: { enable: boolean };
+  }) => Promise<void>;
+  login: (externalId: string) => Promise<void>;
+  Notifications: {
+    permission: boolean;
+    requestPermission: () => Promise<boolean | void>;
+    addEventListener?: (event: "permissionChange", callback: () => void | Promise<void>) => void;
+    removeEventListener?: (event: "permissionChange", callback: () => void | Promise<void>) => void;
+  };
+  Slidedown: {
+    promptPush: (options?: { force?: boolean }) => Promise<void>;
+  };
+  User: {
+    PushSubscription: {
+      id?: string;
+      optedIn?: boolean;
+      optIn: () => Promise<void>;
+      addEventListener: (event: "change", callback: () => void | Promise<void>) => void;
+      removeEventListener?: (event: "change", callback: () => void | Promise<void>) => void;
+    };
+  };
+}
+
 declare global {
   interface Window {
-    OneSignal?: any;
-    OneSignalDeferred?: any[];
+    OneSignal?: OneSignalSdk;
+    OneSignalDeferred?: Array<(OneSignal: OneSignalSdk) => void | Promise<void>>;
   }
 }
 
@@ -29,14 +58,14 @@ const isStandalonePWA = () =>
   window.matchMedia("(display-mode: standalone)").matches ||
   (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
-let oneSignalPromise: Promise<any> | null = null;
+let oneSignalPromise: Promise<OneSignalSdk> | null = null;
 
 const getOneSignal = () => {
   window.OneSignalDeferred = window.OneSignalDeferred || [];
 
   if (!oneSignalPromise) {
     oneSignalPromise = new Promise((resolve, reject) => {
-      window.OneSignalDeferred!.push(async (OneSignal: any) => {
+      window.OneSignalDeferred!.push(async (OneSignal: OneSignalSdk) => {
         try {
           await OneSignal.init({
             appId: ONESIGNAL_APP_ID,
@@ -58,7 +87,7 @@ const getOneSignal = () => {
   return oneSignalPromise;
 };
 
-const saveSubscription = async (OneSignal: any, userId: string) => {
+const saveSubscription = async (OneSignal: OneSignalSdk, userId: string) => {
   const playerId = OneSignal.User.PushSubscription.id;
   console.log("[Push] registerSubscription playerId:", playerId);
   if (!playerId) return false;
@@ -84,7 +113,7 @@ const saveSubscription = async (OneSignal: any, userId: string) => {
   return true;
 };
 
-const resolveStatus = (OneSignal: any): PushStatus => {
+const resolveStatus = (OneSignal: OneSignalSdk): PushStatus => {
   if (Notification.permission === "denied") return "blocked";
   const hasPermission = OneSignal.Notifications.permission === true;
   const hasPlayerId = Boolean(OneSignal.User.PushSubscription.id);
