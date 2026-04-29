@@ -5,13 +5,61 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Mail, Phone, User, Calendar, Ruler, Target, TrendingUp, BarChart3 } from 'lucide-react';
+import { LogOut, Mail, Phone, User, Calendar, Ruler, Target, TrendingUp, BarChart3, Bell, BellOff, BellRing, CheckCircle2 } from 'lucide-react';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { toast } from 'sonner';
 
 const Perfil = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<any>(null);
   const [studentProfile, setStudentProfile] = useState<any>(null);
+  const { status, enableNotifications, isIOS, isStandalone } = usePushNotifications();
+  const [enabling, setEnabling] = useState(false);
+
+  const handleEnableNotifications = async () => {
+    // iOS: precisa estar no PWA instalado para o prompt aparecer
+    if (isIOS && !isStandalone) {
+      toast.error('No iPhone, instale o app primeiro', {
+        description: 'Abra no Safari → botão Compartilhar → "Adicionar à Tela de Início". Depois abra pelo ícone instalado.',
+        duration: 8000,
+      });
+      return;
+    }
+
+    if (status === 'blocked') {
+      toast.error('Notificações bloqueadas', {
+        description: isIOS
+          ? 'Vá em Ajustes do iPhone → Notificações → Marombiew e ative.'
+          : 'Permita notificações nas configurações do navegador para este site.',
+        duration: 8000,
+      });
+      return;
+    }
+
+    if (status === 'unsupported') {
+      toast.error('Dispositivo não suportado', {
+        description: 'Atualize seu sistema (iOS 16.4+) ou use outro navegador.',
+      });
+      return;
+    }
+
+    setEnabling(true);
+    try {
+      const ok = await enableNotifications();
+      if (ok) {
+        toast.success('Notificações ativadas!', {
+          description: 'Você receberá avisos do seu personal aqui no aparelho.',
+        });
+      } else {
+        toast.warning('Não foi possível ativar', {
+          description: 'Tente novamente. Se aparecer um popup, clique em "Permitir".',
+        });
+      }
+    } finally {
+      setEnabling(false);
+    }
+  };
 
   useEffect(() => {
     if (user) loadProfile();
@@ -92,6 +140,48 @@ const Perfil = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* Notificações */}
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-3">
+              {status === 'enabled' ? (
+                <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
+              ) : status === 'blocked' ? (
+                <BellOff className="h-5 w-5 text-destructive shrink-0" />
+              ) : (
+                <BellRing className="h-5 w-5 text-primary shrink-0" />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground">Notificações push</p>
+                <p className="text-xs text-muted-foreground">
+                  {status === 'enabled'
+                    ? 'Ativadas neste aparelho ✓'
+                    : status === 'blocked'
+                    ? 'Bloqueadas — ative nos ajustes do sistema'
+                    : isIOS && !isStandalone
+                    ? 'Instale o app na tela de início para ativar'
+                    : 'Receba avisos do seu personal'}
+                </p>
+              </div>
+            </div>
+            {status !== 'enabled' && (
+              <Button
+                onClick={handleEnableNotifications}
+                disabled={enabling || status === 'initializing'}
+                className="w-full gradient-primary text-primary-foreground font-semibold"
+              >
+                <Bell className="h-4 w-4 mr-2" />
+                {enabling || status === 'initializing' ? 'Ativando...' : 'Ativar notificações'}
+              </Button>
+            )}
+            {isIOS && !isStandalone && (
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                <strong>iPhone:</strong> abra no Safari, toque no botão Compartilhar e em "Adicionar à Tela de Início". Depois abra o app pelo ícone instalado e volte aqui.
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Evolution */}
         <Button
