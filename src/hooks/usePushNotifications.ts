@@ -9,6 +9,7 @@ type PushStatus = "idle" | "initializing" | "ready" | "enabled" | "blocked" | "u
 interface OneSignalSdk {
   init: (options: {
     appId: string;
+    language?: string;
     allowLocalhostAsSecureOrigin?: boolean;
     serviceWorkerPath?: string;
     serviceWorkerParam?: { scope: string };
