@@ -117,6 +117,31 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Notifica admins via push (best-effort)
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("nome")
+          .eq("user_id", existing.student_id)
+          .maybeSingle();
+        const studentName = profile?.nome || "Aluno";
+        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-push-notification`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({
+            send_to_admins: true,
+            title: "Questionário respondido 📝",
+            message: `${studentName} respondeu o questionário de dieta.`,
+            data: { type: "questionnaire_completed", student_id: existing.student_id },
+          }),
+        });
+      } catch (e) {
+        console.warn("push admin falhou:", e);
+      }
+
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
