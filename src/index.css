@@ -199,3 +199,22 @@
   opacity: 0 !important;
   pointer-events: none !important;
 }
+
+/* Force portrait layout on iOS/Android even when device rotation is on.
+   When the viewport becomes landscape, rotate the entire app back to portrait. */
+@media screen and (orientation: landscape) and (max-device-width: 1024px) {
+  html, body {
+    overflow: hidden;
+  }
+  #root {
+    transform: rotate(-90deg);
+    transform-origin: left top;
+    width: 100vh;
+    height: 100vw;
+    overflow-x: hidden;
+    overflow-y: auto;
+    position: absolute;
+    top: 100%;
+    left: 0;
+  }
+}
