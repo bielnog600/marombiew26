@@ -108,7 +108,10 @@ const AdminTodayOverview: React.FC = () => {
         };
       })
       .sort((a, b) => {
-        if (a.online !== b.online) return a.online ? -1 : 1;
+        // Mais recente primeiro: prioriza lastAccess; online sem evento vai para o topo
+        const aTime = a.lastAccess ? new Date(a.lastAccess).getTime() : (a.online ? Infinity : 0);
+        const bTime = b.lastAccess ? new Date(b.lastAccess).getTime() : (b.online ? Infinity : 0);
+        if (aTime !== bTime) return bTime - aTime;
         return a.name.localeCompare(b.name);
       });
   };
