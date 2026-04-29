@@ -80,9 +80,24 @@ const getOneSignal = () => {
             notifyButton: { enable: false },
             autoResubscribe: false,
             autoRegister: false,
-            promptOptions: { slidedown: { prompts: [] }, autoPrompt: false } as any,
+            promptOptions: {
+              slidedown: { prompts: [] },
+              autoPrompt: false,
+              native: { enabled: false, autoPrompt: false },
+            } as any,
           });
           console.log("[Push] OneSignal init OK");
+          // Trava extra: remove qualquer slidedown injetado pelo OneSignal
+          const removeSlidedown = () => {
+            document
+              .querySelectorAll(
+                "#onesignal-slidedown-container, #onesignal-slidedown-dialog, .onesignal-slidedown-container, #onesignal-popover-container, .onesignal-bell-container"
+              )
+              .forEach((el) => el.remove());
+          };
+          removeSlidedown();
+          const observer = new MutationObserver(removeSlidedown);
+          observer.observe(document.body, { childList: true, subtree: true });
           resolve(OneSignal);
         } catch (err) {
           oneSignalPromise = null;
