@@ -22,16 +22,17 @@ export const usePushNotifications = () => {
   useEffect(() => {
     if (!user || initRef.current) return;
 
-    // Bloqueia em iframe/preview do Lovable
-    const isInIframe = (() => {
-      try { return window.self !== window.top; } catch { return true; }
-    })();
+    // Bloqueia apenas em preview do Lovable (não em PWA standalone do iOS)
     const isPreviewHost =
       window.location.hostname.includes("id-preview--") ||
       window.location.hostname.includes("lovableproject.com");
-    if (isInIframe || isPreviewHost) return;
+    if (isPreviewHost) {
+      console.log("[Push] Skipped: preview host");
+      return;
+    }
 
     initRef.current = true;
+    console.log("[Push] Initializing OneSignal for user:", user.id);
     window.OneSignalDeferred = window.OneSignalDeferred || [];
 
     window.OneSignalDeferred.push(async (OneSignal: any) => {
@@ -42,23 +43,29 @@ export const usePushNotifications = () => {
           serviceWorkerPath: "/OneSignalSDKWorker.js",
           notifyButton: { enable: false },
         });
+        console.log("[Push] OneSignal init OK");
 
         // Vincula external_id ao Supabase user.id
         await OneSignal.login(user.id);
+        console.log("[Push] OneSignal login OK");
 
         // Pede permissão se ainda não foi decidida
         const permission = OneSignal.Notifications.permission;
+        console.log("[Push] Current permission:", permission);
         if (!permission) {
-          // delay para não atropelar splash
           setTimeout(() => {
-            OneSignal.Slidedown.promptPush({ force: false }).catch(() => {});
+            console.log("[Push] Prompting for push permission");
+            OneSignal.Slidedown.promptPush({ force: true }).catch((e: any) =>
+              console.warn("[Push] prompt failed:", e)
+            );
           }, 4000);
         }
 
         const registerSubscription = async () => {
           const playerId = OneSignal.User.PushSubscription.id;
+          console.log("[Push] registerSubscription playerId:", playerId);
           if (!playerId) return;
-          await supabase.from("push_subscriptions").upsert(
+          const { error } = await supabase.from("push_subscriptions").upsert(
             {
               user_id: user.id,
               player_id: playerId,
@@ -69,13 +76,15 @@ export const usePushNotifications = () => {
             },
             { onConflict: "user_id,player_id" }
           );
+          if (error) console.warn("[Push] upsert error:", error);
+          else console.log("[Push] subscription saved ✅");
         };
 
         // Registra agora se já tem id, e em mudanças
         await registerSubscription();
         OneSignal.User.PushSubscription.addEventListener("change", registerSubscription);
       } catch (err) {
-        console.warn("OneSignal init failed:", err);
+        console.warn("[Push] OneSignal init failed:", err);
       }
     });
   }, [user]);
