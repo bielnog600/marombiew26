@@ -198,6 +198,21 @@ const DietRenewalPanel: React.FC = () => {
     }
   };
 
+  const handleAdjustPlan = async (planId: string) => {
+    setBusy(planId);
+    try {
+      toast.info('Analisando dieta e aplicando estratégias avançadas...');
+      const r = await callRenewal({ action: 'generate_draft', plan_id: planId, source: 'manual', mode: 'adjust' });
+      toast.success(r?.reused ? 'Ajuste existente carregado.' : 'Ajuste gerado pela IA.');
+      await load();
+      setCompareFor(planId);
+    } catch (e: any) {
+      toast.error('Erro ao ajustar plano: ' + (e.message ?? 'desconhecido'));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const handlePublishDraft = async (planId: string) => {
     const draft = drafts[planId];
     if (!draft) return;
@@ -397,9 +412,9 @@ const DietRenewalPanel: React.FC = () => {
                             size="sm"
                             variant="outline"
                             disabled={busy === plan.id}
-                            onClick={() => toast.info('Use a aba Dieta IA para ajustar e salve para versionar.')}
+                            onClick={() => handleAdjustPlan(plan.id)}
                           >
-                            <FileEdit className="h-3 w-3" />
+                            {busy === plan.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileEdit className="h-3 w-3" />}
                             Ajustar plano
                           </Button>
                           <Button
