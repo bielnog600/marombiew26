@@ -246,6 +246,12 @@ const MinhasDietas = () => {
       // dia nas refeições — não exibimos card teórico para o aluno.
       'carb cycling', 'carb cyc', 'ciclagem de carbo', 'ciclagem de carb',
       'ciclagem de carboidrato',
+      // Nunca expor menções a IA / observações automáticas para o aluno.
+      'observações da ia', 'observacoes da ia', 'observação da ia', 'observacao da ia',
+      'ia ', ' ia.', ' ia,', ' ia:', '(ia)',
+      'inteligência artificial', 'inteligencia artificial',
+      'ciclo de carbo', 'ciclo de carb', 'ciclo de carboidrato',
+      'low carb:', 'high carb:',
     ];
     // Keywords that indicate PRACTICAL content the student SHOULD see
     const SHOW_KEYWORDS = [
