@@ -53,6 +53,7 @@ const AdminTodayOverview: React.FC = () => {
         supabase
           .from('workout_sessions')
           .select('student_id, completed_at')
+          .eq('status', 'completed')
           .gte('completed_at', startOfDay)
           .in('student_id', safeIds)
           .order('completed_at', { ascending: false }),
