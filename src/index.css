@@ -186,3 +186,16 @@
     -webkit-text-fill-color: transparent;
   }
 }
+
+/* Esconde qualquer slidedown/popover padrão do OneSignal — usamos banner customizado */
+#onesignal-slidedown-container,
+#onesignal-slidedown-dialog,
+.onesignal-slidedown-container,
+#onesignal-popover-container,
+.onesignal-bell-container,
+#onesignal-bell-container {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
