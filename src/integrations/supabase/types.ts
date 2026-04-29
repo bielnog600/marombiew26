@@ -1122,6 +1122,102 @@ export type Database = {
         }
         Relationships: []
       }
+      push_notification_log: {
+        Row: {
+          created_at: string
+          data: Json | null
+          error: string | null
+          id: string
+          message: string
+          onesignal_id: string | null
+          recipient_user_id: string | null
+          sender_user_id: string | null
+          status: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json | null
+          error?: string | null
+          id?: string
+          message: string
+          onesignal_id?: string | null
+          recipient_user_id?: string | null
+          sender_user_id?: string | null
+          status?: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json | null
+          error?: string | null
+          id?: string
+          message?: string
+          onesignal_id?: string | null
+          recipient_user_id?: string | null
+          sender_user_id?: string | null
+          status?: string
+          title?: string
+        }
+        Relationships: []
+      }
+      push_reminder_runs: {
+        Row: {
+          created_at: string
+          id: string
+          reminder_key: string
+          run_date: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          reminder_key: string
+          run_date?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          reminder_key?: string
+          run_date?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          platform: string
+          player_id: string
+          updated_at: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          platform?: string
+          player_id: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          platform?: string
+          player_id?: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       skinfolds: {
         Row: {
           abdominal: number | null

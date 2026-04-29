@@ -1125,6 +1125,24 @@ const TreinoExecucao = () => {
                 });
               }
 
+              // Push aos admins (best-effort)
+              try {
+                const { data: profile } = await supabase
+                  .from('profiles')
+                  .select('nome')
+                  .eq('user_id', user.id)
+                  .maybeSingle();
+                const studentName = profile?.nome || 'Aluno';
+                supabase.functions.invoke('send-push-notification', {
+                  body: {
+                    send_to_admins: true,
+                    title: 'Treino concluído 🏋️',
+                    message: `${studentName} concluiu o treino${dayName ? ` (${dayName})` : ''}.`,
+                    data: { type: 'workout_completed', student_id: user.id },
+                  },
+                }).catch(() => {});
+              } catch {}
+
               clearActiveSession();
             }
           } catch (e) {

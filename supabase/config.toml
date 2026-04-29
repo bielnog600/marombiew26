@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.cardio-agent]
 verify_jwt = false
+
+[functions.send-push-notification]
+verify_jwt = false
+
+[functions.push-reminders-cron]
+verify_jwt = false

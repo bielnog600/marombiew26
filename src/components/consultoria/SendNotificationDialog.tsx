@@ -69,6 +69,17 @@ const SendNotificationDialog: React.FC<Props> = ({ studentId, studentName, trigg
       toast.error('Erro ao enviar: ' + error.message);
       return;
     }
+
+    // Dispara push para o aluno (best-effort, não bloqueia o fluxo)
+    supabase.functions.invoke('send-push-notification', {
+      body: {
+        user_ids: [studentId],
+        title: title.trim(),
+        message: message.trim(),
+        data: { type: 'admin_notification', priority },
+      },
+    }).catch((e) => console.warn('push falhou:', e));
+
     toast.success('Notificação enviada!');
     reset();
     setOpen(false);
