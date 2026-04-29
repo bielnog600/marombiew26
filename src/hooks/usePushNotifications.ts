@@ -13,6 +13,9 @@ interface OneSignalSdk {
     serviceWorkerPath?: string;
     serviceWorkerParam?: { scope: string };
     notifyButton?: { enable: boolean };
+    autoResubscribe?: boolean;
+    autoRegister?: boolean;
+    promptOptions?: { slidedown?: { prompts?: unknown[] } };
   }) => Promise<void>;
   login: (externalId: string) => Promise<void>;
   Notifications: {
@@ -75,6 +78,9 @@ const getOneSignal = () => {
             serviceWorkerPath: "onesignal/OneSignalSDKWorker.js",
             serviceWorkerParam: { scope: "/onesignal/" },
             notifyButton: { enable: false },
+            autoResubscribe: false,
+            autoRegister: false,
+            promptOptions: { slidedown: { prompts: [] } },
           });
           console.log("[Push] OneSignal init OK");
           resolve(OneSignal);
@@ -207,12 +213,7 @@ export const usePushNotifications = () => {
       await OneSignal.login(user.id);
 
       if (!OneSignal.Notifications.permission) {
-        try {
-          await OneSignal.Notifications.requestPermission();
-        } catch (nativeErr) {
-          console.warn("[Push] native prompt failed, trying slidedown:", nativeErr);
-          await OneSignal.Slidedown.promptPush({ force: true });
-        }
+        await OneSignal.Notifications.requestPermission();
       }
 
       if (OneSignal.User.PushSubscription.optedIn === false) {
