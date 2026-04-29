@@ -433,6 +433,16 @@ const DietRenewalPanel: React.FC = () => {
         onKeep={() => compareFor && handleKeep(compareFor)}
         onDiscard={() => compareFor && handleDiscardDraft(compareFor)}
       />
+
+      {weightFor && (
+        <QuickWeightLogDialog
+          open={!!weightFor}
+          onOpenChange={(v) => !v && setWeightFor(null)}
+          studentId={weightFor.student_id}
+          studentName={weightFor.student_name}
+          onSaved={() => load()}
+        />
+      )}
     </Card>
   );
 };
