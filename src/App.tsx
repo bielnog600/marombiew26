@@ -12,7 +12,6 @@ import InstallBanner from "@/components/InstallBanner";
 import PWAUpdater from "@/components/PWAUpdater";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import ScrollToTop from "@/components/ScrollToTop";
-import AdminNotificationModal from "@/components/AdminNotificationModal";
 import PushNotificationsInit from "@/components/PushNotificationsInit";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -79,7 +78,6 @@ const App = () => {
           <div>
           <AuthProvider>
             <TabSwipeProvider>
-            <AdminNotificationModal />
             <PushNotificationsInit />
             <Routes>
               <Route path="/" element={<RootRedirect />} />
