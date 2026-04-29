@@ -200,21 +200,45 @@
   pointer-events: none !important;
 }
 
-/* Force portrait layout on iOS/Android even when device rotation is on.
-   When the viewport becomes landscape, rotate the entire app back to portrait. */
-@media screen and (orientation: landscape) and (max-device-width: 1024px) {
-  html, body {
-    overflow: hidden;
+  html {
+    --app-vw: 100vw;
+    --app-vh: 100vh;
   }
-  #root {
-    transform: rotate(-90deg);
-    transform-origin: left top;
-    width: 100vh;
-    height: 100vw;
-    overflow-x: hidden;
+
+  /* Fallback para iOS/navegadores que não permitem bloquear rotação via API. */
+  html.force-portrait-landscape,
+  html.force-portrait-landscape body {
+    width: var(--app-vw);
+    height: var(--app-vh);
+    max-width: var(--app-vw);
+    max-height: var(--app-vh);
+    overflow: hidden !important;
+    position: fixed;
+    inset: 0;
+  }
+
+  html.force-portrait-landscape body {
+    padding: 0;
+    background: hsl(var(--background));
+  }
+
+  html.force-portrait-landscape #root {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    width: var(--app-vh);
+    height: var(--app-vw);
+    min-width: var(--app-vh);
+    min-height: var(--app-vw);
+    max-width: var(--app-vh);
+    max-height: var(--app-vw);
     overflow-y: auto;
-    position: absolute;
-    top: 100%;
-    left: 0;
+    overflow-x: hidden;
+    transform: translate(-50%, -50%) rotate(-90deg);
+    transform-origin: center center;
+    -webkit-overflow-scrolling: touch;
   }
-}
+
+  html.force-portrait-landscape body::before {
+    display: none;
+  }
