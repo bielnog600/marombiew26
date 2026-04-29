@@ -13,6 +13,9 @@ interface OneSignalSdk {
     serviceWorkerPath?: string;
     serviceWorkerParam?: { scope: string };
     notifyButton?: { enable: boolean };
+    autoResubscribe?: boolean;
+    autoRegister?: boolean;
+    promptOptions?: { slidedown?: { prompts?: unknown[] } };
   }) => Promise<void>;
   login: (externalId: string) => Promise<void>;
   Notifications: {
