@@ -75,6 +75,9 @@ const getOneSignal = () => {
             serviceWorkerPath: "onesignal/OneSignalSDKWorker.js",
             serviceWorkerParam: { scope: "/onesignal/" },
             notifyButton: { enable: false },
+            autoResubscribe: false,
+            autoRegister: false,
+            promptOptions: { slidedown: { prompts: [] } },
           });
           console.log("[Push] OneSignal init OK");
           resolve(OneSignal);
