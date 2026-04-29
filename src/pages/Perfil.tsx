@@ -5,9 +5,21 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Mail, Phone, User, Calendar, Ruler, Target, TrendingUp, BarChart3, Bell, BellOff, BellRing, CheckCircle2 } from 'lucide-react';
+import { LogOut, Mail, Phone, User, Calendar, Ruler, Target, TrendingUp, BarChart3, Bell, BellOff, BellRing, CheckCircle2, Share2 } from 'lucide-react';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { toast } from 'sonner';
+import { WorkoutSummaryShare } from '@/components/training/WorkoutSummaryShare';
+import type { TrainingPhase } from '@/lib/trainingPhase';
+
+interface RecentSession {
+  id: string;
+  duration_minutes: number;
+  exercises_completed: number;
+  total_exercises: number;
+  completed_at: string;
+  day_name: string | null;
+  phase: string | null;
+}
 
 const Perfil = () => {
   const { user, signOut } = useAuth();
@@ -16,6 +28,8 @@ const Perfil = () => {
   const [studentProfile, setStudentProfile] = useState<any>(null);
   const { status, enableNotifications, isIOS, isStandalone } = usePushNotifications();
   const [enabling, setEnabling] = useState(false);
+  const [recentSessions, setRecentSessions] = useState<RecentSession[]>([]);
+  const [shareSession, setShareSession] = useState<RecentSession | null>(null);
 
   const handleEnableNotifications = async () => {
     // iOS: precisa estar no PWA instalado para o prompt aparecer
@@ -72,6 +86,14 @@ const Perfil = () => {
     ]);
     setProfile(profRes.data);
     setStudentProfile(studentRes.data);
+
+    const { data: sessions } = await supabase
+      .from('workout_sessions')
+      .select('id, duration_minutes, exercises_completed, total_exercises, completed_at, day_name, phase')
+      .eq('student_id', user!.id)
+      .order('completed_at', { ascending: false })
+      .limit(5);
+    setRecentSessions((sessions ?? []) as RecentSession[]);
   };
 
   const handleSignOut = async () => {
@@ -202,6 +224,48 @@ const Perfil = () => {
           Meu Progresso
         </Button>
 
+        {/* Compartilhar treinos recentes */}
+        {recentSessions.length > 0 && (
+          <Card className="glass-card">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Share2 className="h-4 w-4 text-primary" />
+                <p className="text-sm font-semibold text-foreground">Compartilhar treino</p>
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Esqueceu de postar? Escolha um treino abaixo e compartilhe nos stories.
+              </p>
+              <div className="space-y-1.5">
+                {recentSessions.map((s) => {
+                  const d = new Date(s.completed_at);
+                  const dateLabel = d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setShareSession(s)}
+                      className="w-full flex items-center justify-between gap-2 p-2.5 rounded-lg bg-background/40 hover:bg-background/70 border border-border/40 transition-colors text-left"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-foreground truncate">
+                          {s.day_name || 'Treino'}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {dateLabel} · {s.duration_minutes || 0} min · {s.exercises_completed}/{s.total_exercises} exerc.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 text-primary text-[10px] font-bold uppercase tracking-wider shrink-0">
+                        <Share2 className="h-3.5 w-3.5" />
+                        Postar
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Sign Out */}
         <Button
           variant="outline"
@@ -212,6 +276,17 @@ const Perfil = () => {
           Sair da conta
         </Button>
       </div>
+
+      {shareSession && (
+        <WorkoutSummaryShare
+          dayName={shareSession.day_name || 'Treino'}
+          durationSeconds={(shareSession.duration_minutes || 0) * 60}
+          exercisesCompleted={shareSession.exercises_completed || 0}
+          totalExercises={shareSession.total_exercises || 0}
+          phase={(shareSession.phase as TrainingPhase | null) ?? null}
+          onClose={() => setShareSession(null)}
+        />
+      )}
     </AppLayout>
   );
 };
