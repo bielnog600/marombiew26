@@ -5,16 +5,18 @@ import { BellRing, Loader2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 
 const PushNotificationsInit = () => {
-  const { role } = useAuth();
+  const { user, role, loading } = useAuth();
   const { status, enableNotifications, isIOS, isStandalone } = usePushNotifications();
 
-  if (role !== "aluno" || status === "enabled" || status === "preview" || status === "unsupported") {
+  if (loading || !user || role === "admin" || status === "enabled" || status === "preview") {
     return null;
   }
 
   const isBusy = status === "initializing";
   const isBlocked = status === "blocked";
+  const isUnsupported = status === "unsupported";
   const needsInstall = isIOS && !isStandalone;
+  const canAskPermission = !isBlocked && !isUnsupported && !needsInstall;
 
   const handleEnable = async () => {
     const enabled = await enableNotifications();
@@ -31,17 +33,25 @@ const PushNotificationsInit = () => {
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-foreground">
-            {isBlocked ? "Notificações bloqueadas" : needsInstall ? "Instale para receber avisos" : "Ativar notificações"}
+            {isBlocked
+              ? "Notificações bloqueadas"
+              : needsInstall
+                ? "Abra pelo app instalado"
+                : isUnsupported
+                  ? "Notificações indisponíveis"
+                  : "Ativar notificações"}
           </p>
           <p className="text-xs leading-snug text-muted-foreground">
             {isBlocked
               ? "Ative em Ajustes do iPhone para receber avisos fora do app."
               : needsInstall
-                ? "Abra pela tela de início para liberar os avisos."
-                : "Toque aqui para permitir avisos no iPhone."}
+                ? "No iPhone, notificações só liberam abrindo pelo ícone da tela de início."
+                : isUnsupported
+                  ? "Atualize para iOS 16.4+ e use o app instalado pela tela de início."
+                  : "Toque aqui para permitir avisos no iPhone."}
           </p>
         </div>
-        {!isBlocked && !needsInstall && (
+        {canAskPermission && (
           <Button size="sm" onClick={handleEnable} disabled={isBusy} className="shrink-0 font-semibold">
             {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Permitir"}
           </Button>
