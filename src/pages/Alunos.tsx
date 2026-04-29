@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Bell, BellOff } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 
 const Alunos = () => {
   const [students, setStudents] = useState<any[]>([]);
+  const [pushUserIds, setPushUserIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [filterAtivo, setFilterAtivo] = useState<string>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -75,6 +76,13 @@ const Alunos = () => {
     const spMap = new Map((studentsData ?? []).map(sp => [sp.user_id, sp]));
     const merged = (profilesData ?? []).map(p => ({ ...p, students_profile: spMap.get(p.user_id) || null }));
     setStudents(merged);
+
+    const { data: pushData } = await supabase
+      .from('push_subscriptions')
+      .select('user_id')
+      .in('user_id', alunoIds)
+      .eq('active', true);
+    setPushUserIds(new Set((pushData ?? []).map(p => p.user_id)));
   };
 
   const handleCreateStudent = async (e: React.FormEvent) => {
@@ -329,8 +337,22 @@ const Alunos = () => {
                       {(s.nome || '?')[0].toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-sm leading-tight">{s.nome || 'Sem nome'}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-medium text-sm leading-tight truncate">{s.nome || 'Sem nome'}</p>
+                        {pushUserIds.has(s.user_id) ? (
+                          <span title="Notificações ativadas" className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-emerald-500/15 text-emerald-500 shrink-0 ring-1 ring-emerald-500/40 shadow-[0_0_6px_hsl(var(--primary)/0)]">
+                            <Bell className="h-2.5 w-2.5" />
+                          </span>
+                        ) : (
+                          <span title="Notificações desativadas" className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-destructive/15 text-destructive shrink-0 ring-1 ring-destructive/40">
+                            <BellOff className="h-2.5 w-2.5" />
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground truncate mt-0.5">{s.email}</p>
+                      {s.telefone && (
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">{s.telefone}</p>
+                      )}
                       {s.students_profile?.low_cost && (
                         <Badge variant="secondary" className="mt-1.5 gap-1 text-[10px] py-0 px-1.5">
                           <Sparkles className="h-2.5 w-2.5" /> Low Cost
