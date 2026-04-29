@@ -213,12 +213,7 @@ export const usePushNotifications = () => {
       await OneSignal.login(user.id);
 
       if (!OneSignal.Notifications.permission) {
-        try {
-          await OneSignal.Notifications.requestPermission();
-        } catch (nativeErr) {
-          console.warn("[Push] native prompt failed, trying slidedown:", nativeErr);
-          await OneSignal.Slidedown.promptPush({ force: true });
-        }
+        await OneSignal.Notifications.requestPermission();
       }
 
       if (OneSignal.User.PushSubscription.optedIn === false) {
