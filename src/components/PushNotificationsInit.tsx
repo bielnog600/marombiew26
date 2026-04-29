@@ -26,7 +26,7 @@ const PushNotificationsInit = () => {
   };
 
   return (
-    <div className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-40 animate-fade-in">
+    <div className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-[60] animate-fade-in">
       <div className="flex items-center gap-3 rounded-xl border border-border bg-card/95 p-3 shadow-lg backdrop-blur">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
           {isBlocked ? <ShieldAlert className="h-5 w-5" /> : <BellRing className="h-5 w-5" />}
