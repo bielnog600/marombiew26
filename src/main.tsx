@@ -30,4 +30,15 @@ const cleanupServiceWorkers = async () => {
 
 void cleanupServiceWorkers();
 
+// Lock screen orientation to portrait (best-effort; works in installed PWA on Android)
+const lockOrientation = () => {
+  try {
+    const orientation = (screen as any).orientation;
+    if (orientation && typeof orientation.lock === "function") {
+      orientation.lock("portrait").catch(() => {});
+    }
+  } catch {}
+};
+lockOrientation();
+
 createRoot(document.getElementById("root")!).render(<App />);
