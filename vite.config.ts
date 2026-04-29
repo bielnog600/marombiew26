@@ -37,7 +37,7 @@ export default defineConfig(({ mode }) => ({
             options: {
               cacheName: "html-cache",
               networkTimeoutSeconds: 3,
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 },
+              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 5 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },
@@ -65,18 +65,6 @@ export default defineConfig(({ mode }) => ({
             options: {
               cacheName: "images",
               expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 30 },
-            },
-          },
-          {
-            // GETs do Supabase REST → cache para leitura offline
-            urlPattern: ({ url, request }) =>
-              url.pathname.startsWith('/rest/v1/') && request.method === 'GET',
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "api-cache",
-              networkTimeoutSeconds: 5,
-              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 7 },
-              cacheableResponse: { statuses: [0, 200] },
             },
           },
         ],
