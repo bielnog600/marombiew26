@@ -309,6 +309,7 @@ async function generateDraft(
   supabase: any,
   planId: string,
   source: "manual" | "auto",
+  mode: "renew" | "adjust" = "renew",
 ) {
   const { data: plan, error } = await supabase
     .from("ai_plans")
@@ -352,11 +353,63 @@ async function generateDraft(
 
   const previousExcerpt = (plan.conteudo ?? "").slice(0, 1500);
 
-  const prompt = `Você está RENOVANDO o ciclo alimentar de 45 dias deste aluno.${ctxBlock}
+  // Extrai alimentos preferidos da ficha respondida pelo aluno
+  const q = (studentContext as any).questionario_dieta;
+  const foodsByMealLines: string[] = [];
+  if (q?.alimentos_por_refeicao && typeof q.alimentos_por_refeicao === "object") {
+    for (const [refeicao, alimentos] of Object.entries(q.alimentos_por_refeicao)) {
+      const list = Array.isArray(alimentos) ? alimentos : [];
+      if (list.length) foodsByMealLines.push(`- ${refeicao}: ${list.join(", ")}`);
+    }
+  }
+  const fichaBlock = foodsByMealLines.length
+    ? `\n\n=== ALIMENTOS DA FICHA (RESPONDIDA PELO ALUNO) ===\n` +
+      foodsByMealLines.join("\n") +
+      (q?.estilo_dieta ? `\nEstilo: ${q.estilo_dieta}` : "") +
+      (q?.num_refeicoes ? `\nQtd refeições: ${q.num_refeicoes}` : "") +
+      (q?.restricoes_alimentares ? `\nRestrições: ${q.restricoes_alimentares}` : "") +
+      (q?.preferencias_alimentares ? `\nPreferências: ${q.preferencias_alimentares}` : "") +
+      (q?.horario_treino ? `\nHorário do treino: ${q.horario_treino}` : "") +
+      `\n=== FIM FICHA ===`
+    : "";
+
+  const isAdjust = mode === "adjust";
+
+  const prompt = isAdjust
+    ? `Você vai AJUSTAR a dieta atual deste aluno (não é renovação completa de ciclo).${ctxBlock}${fichaBlock}
+
+OBJETIVO DO AJUSTE:
+- Analise a dieta antiga abaixo e proponha uma versão melhorada usando ESTRITAMENTE os alimentos listados na FICHA acima (mantenha as preferências do aluno)
+- Aplique estratégias avançadas para acelerar resultados, mesmo em CUTTING ou BULKING:
+  • Ciclagem de carboidratos (alto/médio/baixo conforme dia de treino vs descanso)
+  • Refeed estratégico se houver platô e adesão for boa
+  • Recomposição corporal se peso estável e composição importa mais
+  • Timing nutricional: peri-treino, janela anabólica, distribuição de proteína a cada 3–4h
+  • Ajuste fino de calorias (não mais que ±10%) e macros (P 1.8–2.4 g/kg)
+  • Sugestão de suplementação básica (whey, creatina, cafeína) quando fizer sentido
+- NÃO repita exatamente as mesmas combinações da dieta antiga — varie preparos e horários
+- Mantenha o objetivo (${studentContext.objetivo ?? "—"}) e respeite restrições/lesões
+
+DIETA ATUAL (referência):
+${previousExcerpt}
+
+ENTREGUE OBRIGATORIAMENTE:
+1) Diagnóstico curto do que está travando o resultado (3–5 bullets)
+2) Estratégia escolhida (ex.: ciclagem de carbo, refeed semanal, recomp) com justificativa
+3) Tabela de TMB e GET ajustados
+4) Distribuição de macros (P, C, G) com gramas e %
+5) EXATAMENTE 3 opções de cardápio completas usando os alimentos da ficha, em tabela:
+   Refeição | Horário | Alimento | Quantidade (g) | Kcal | P | C | G | Substituição
+6) Total de cada refeição e do dia
+7) Timing pré/pós-treino específico para o horário do aluno
+8) Suplementação sugerida (curta)
+9) Mensagem pronta para WhatsApp explicando os ajustes ao aluno`
+    : `Você está RENOVANDO o ciclo alimentar de 45 dias deste aluno.${ctxBlock}${fichaBlock}
 
 OBJETIVO DA RENOVAÇÃO:
 - Considere a aderência, evolução de peso e justificativa da IA acima
-- Aumente variedade e evite repetir EXATAMENTE os mesmos alimentos do plano anterior
+- Use prioritariamente os alimentos listados na FICHA acima (preferências do aluno)
+- Aumente variedade e evite repetir EXATAMENTE as mesmas combinações do plano anterior
 - Mantenha o objetivo do aluno e a fase atual
 - Ajuste calorias/macros conforme tendência (peso subindo em cutting → reduzir; peso descendo em bulking → aumentar)
 
@@ -391,15 +444,16 @@ ENTREGUE OBRIGATORIAMENTE:
   });
 
   const reason =
-    latestAnalysis?.rationale?.slice(0, 500) ??
-    (source === "manual" ? "Rascunho gerado manualmente pelo admin." : "Rascunho gerado automaticamente.");
+    (isAdjust ? "Ajuste fino baseado na ficha do aluno e estratégias avançadas. " : "") +
+    (latestAnalysis?.rationale?.slice(0, 400) ??
+      (source === "manual" ? "Rascunho gerado manualmente pelo admin." : "Rascunho gerado automaticamente."));
 
   const { data: draft, error: draftErr } = await supabase
     .from("ai_plans")
     .insert({
       student_id: plan.student_id,
       tipo: "dieta",
-      titulo: `${plan.titulo} (rascunho v${(plan.version ?? 1) + 1})`,
+      titulo: `${plan.titulo} (${isAdjust ? "ajuste" : "rascunho"} v${(plan.version ?? 1) + 1})`,
       conteudo: draftContent,
       fase: plan.fase,
       cycle_days: plan.cycle_days,
@@ -644,8 +698,9 @@ serve(async (req) => {
     if (action === "generate_draft") {
       const planId = body.plan_id;
       const source = (body.source as "manual" | "auto") ?? "manual";
+      const mode = (body.mode as "renew" | "adjust") ?? "renew";
       if (!planId) throw new Error("plan_id required");
-      const { draft, reused } = await generateDraft(supabase, planId, source);
+      const { draft, reused } = await generateDraft(supabase, planId, source, mode);
       return new Response(JSON.stringify({ ok: true, draft_id: draft.id, reused }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
