@@ -13,6 +13,7 @@ import PWAUpdater from "@/components/PWAUpdater";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import ScrollToTop from "@/components/ScrollToTop";
 import AdminNotificationModal from "@/components/AdminNotificationModal";
+import PushNotificationsInit from "@/components/PushNotificationsInit";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Alunos from "./pages/Alunos";
@@ -79,6 +80,7 @@ const App = () => {
           <AuthProvider>
             <TabSwipeProvider>
             <AdminNotificationModal />
+            <PushNotificationsInit />
             <Routes>
               <Route path="/" element={<RootRedirect />} />
               <Route path="/login" element={<Login />} />
