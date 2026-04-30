@@ -18,6 +18,27 @@
     <!-- Preload splash logo so it appears instantly, even offline (cached by SW) -->
     <link rel="preload" as="image" href="/splash-logo.webp" type="image/webp" fetchpriority="high" />
 
+    <!-- Inline critical styles: prevents white flash before CSS/JS load on slow connections -->
+    <style>
+      html, body { background-color: #0F1115 !important; margin: 0; padding: 0; }
+      html { color-scheme: dark; }
+      #root { background-color: #0F1115; min-height: 100vh; }
+      #boot-splash {
+        position: fixed; inset: 0; z-index: 99999;
+        display: flex; align-items: center; justify-content: center;
+        background-color: #0F1115;
+      }
+      #boot-splash img {
+        width: 154px; height: 154px; border-radius: 16px;
+        animation: boot-pop 0.7s ease-out;
+      }
+      @keyframes boot-pop {
+        0% { opacity: 0; transform: scale(0.6); }
+        60% { opacity: 1; transform: scale(1.08); }
+        100% { opacity: 1; transform: scale(1); }
+      }
+    </style>
+
     <!-- OG Tags -->
     
     
@@ -34,6 +55,7 @@
 </head>
 
   <body>
+    <div id="boot-splash"><img src="/splash-logo.webp" alt="MAROMBIEW" /></div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
