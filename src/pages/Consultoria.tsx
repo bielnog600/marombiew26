@@ -686,6 +686,7 @@ const Consultoria = () => {
     { value: 'dietas', label: 'Dietas', icon: Utensils, count: null },
     { value: 'treinos', label: 'Treinos', icon: Dumbbell, count: null },
     { value: 'fichas', label: 'Fichas', icon: ClipboardList, count: totals.fichasPendentes },
+    { value: 'push_hoje', label: 'Notificações', icon: Send, count: null },
   ];
 
   const notifFilterTabs = [
