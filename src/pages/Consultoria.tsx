@@ -1120,6 +1120,20 @@ const Consultoria = () => {
             </CardContent>
           </Card>
         )}
+
+        {tab === 'push_hoje' && (
+          <Card className="glass-card">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Send className="h-5 w-5 text-primary" />
+                Notificações enviadas hoje
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <PushNotificationsToday />
+            </CardContent>
+          </Card>
+        )}
       </div>
     </AppLayout>
   );
