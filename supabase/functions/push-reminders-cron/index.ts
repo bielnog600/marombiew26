@@ -292,18 +292,47 @@ Deno.serve(async (req) => {
       const mealsDone = Array.isArray(tracking?.meals_completed) ? tracking!.meals_completed.length : 0;
       const workoutDone = !!tracking?.workout_completed;
 
-      // ---------- 1. TREINO 09h local ----------
-      if (hour === 9 && !workoutDone) {
-        const key = "workout_reminder";
-        if (!(await alreadyRanForUser(key, userId, dateStr))) {
-          const sent = await sendPushToUser(
-            userId,
-            "Hora de treinar 💪",
-            `${name}, bora movimentar o corpo? Seu treino te espera no app!`,
-            { type: "workout_reminder" }
-          );
-          await markRanForUser(key, userId, dateStr);
-          if (sent) results.workout++;
+      // ---------- 1. TREINO — 1h antes do horário habitual (fallback 09h local) ----------
+      if (!workoutDone) {
+        const usual = await getUsualWorkoutHour(userId, tz);
+        // Se não há histórico, usa 09h (lembrete chega às 08h por padrão? não — usamos 09h direto como fallback)
+        const reminderHour = usual !== null
+          ? Math.max(5, (usual - 1 + 24) % 24) // 1h antes, nunca antes de 5h
+          : 9;
+        if (hour === reminderHour) {
+          const key = "workout_reminder";
+          if (!(await alreadyRanForUser(key, userId, dateStr))) {
+            // Busca plano de treino do dia
+            const { data: plans } = await supabase
+              .from("ai_plans")
+              .select("conteudo, titulo")
+              .eq("student_id", userId)
+              .eq("tipo", "treino")
+              .eq("is_draft", false)
+              .order("created_at", { ascending: false })
+              .limit(1);
+            const plan = plans?.[0];
+            // Dia da semana no fuso local
+            const wdFmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" });
+            const wdShort = wdFmt.format(new Date()).toLowerCase();
+            const wdMap: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+            const todayWeekday = wdMap[wdShort] ?? 1;
+            let title = "Hora de treinar 💪";
+            let body = `${name}, bora movimentar o corpo? Seu treino te espera no app!`;
+            if (plan) {
+              const days = parseTrainingDays(plan.conteudo);
+              const todayBlock = pickTodayBlock(days, todayWeekday);
+              if (todayBlock) {
+                const muscles = detectMuscleGroups(todayBlock.exercises);
+                const msg = buildWorkoutMessage(name, muscles, todayBlock.day);
+                title = msg.title;
+                body = msg.body;
+              }
+            }
+            const sent = await sendPushToUser(userId, title, body, { type: "workout_reminder" });
+            await markRanForUser(key, userId, dateStr);
+            if (sent) results.workout++;
+          }
         }
       }
 
