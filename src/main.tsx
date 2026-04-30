@@ -69,8 +69,14 @@ window.visualViewport?.addEventListener("resize", applyPortraitLock, { passive: 
 
 createRoot(document.getElementById("root")!).render(<App />);
 
-// Remove the inline boot splash once React has mounted — the React SplashScreen takes over.
+// Remove the inline boot splash only after React has actually painted a frame,
+// so the React SplashScreen is already on screen → no flash between the two.
 requestAnimationFrame(() => {
-  const boot = document.getElementById("boot-splash");
-  if (boot) boot.remove();
+  requestAnimationFrame(() => {
+    const boot = document.getElementById("boot-splash");
+    if (!boot) return;
+    boot.style.transition = "opacity 200ms ease-out";
+    boot.style.opacity = "0";
+    setTimeout(() => boot.remove(), 220);
+  });
 });
