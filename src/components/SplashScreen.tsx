@@ -1,5 +1,8 @@
 import React, { useEffect } from 'react';
-import logo from '@/assets/logo_marombiew.png';
+
+// Served from /public so it's preloaded via <link rel="preload"> in index.html
+// and cached by the service worker → appears instantly, including offline.
+const logo = '/splash-logo.webp';
 
 const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
   useEffect(() => {
