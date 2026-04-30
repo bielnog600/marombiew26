@@ -68,3 +68,9 @@ document.addEventListener("pointerdown", applyPortraitLock, { passive: true });
 window.visualViewport?.addEventListener("resize", applyPortraitLock, { passive: true });
 
 createRoot(document.getElementById("root")!).render(<App />);
+
+// Remove the inline boot splash once React has mounted — the React SplashScreen takes over.
+requestAnimationFrame(() => {
+  const boot = document.getElementById("boot-splash");
+  if (boot) boot.remove();
+});
