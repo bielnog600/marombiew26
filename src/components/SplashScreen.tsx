@@ -1,9 +1,11 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 
-// Served from /public so it's preloaded via <link rel="preload"> in index.html
-// and cached by the service worker → appears instantly, including offline.
-const logo = '/splash-logo.webp';
-
+/**
+ * SplashScreen does NOT render its own visuals. The splash UI lives in
+ * index.html as #boot-splash so it appears instantly (even before React/CSS).
+ * This component just controls the fade-out + onFinish handover, so the logo
+ * and spinner stay perfectly fixed (no remount/jump) from boot to app ready.
+ */
 const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
   useEffect(() => {
     const boot = document.getElementById('boot-splash');
@@ -14,61 +16,20 @@ const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
         });
       }
       if (boot) {
-        boot.style.transition = 'opacity 180ms ease-out';
-        boot.style.opacity = '0';
-        setTimeout(() => boot.remove(), 200);
+        boot.classList.add('boot-leaving');
+        setTimeout(() => {
+          boot.remove();
+          onFinish();
+        }, 340);
+      } else {
+        onFinish();
       }
-      onFinish();
-    }, 2200);
+    }, 2000);
 
     return () => clearTimeout(timer);
   }, [onFinish]);
 
-  const size = 170;
-  const stroke = 4;
-  const radius = (size - stroke) / 2;
-  const circumference = 2 * Math.PI * radius;
-  // Visible arc (~25% of circle)
-  const arc = circumference * 0.25;
-
-  return (
-    <div className="fixed inset-0 z-[9998] flex flex-col items-center justify-center bg-background">
-      <div className="relative" style={{ width: size, height: size }}>
-        <svg
-          width={size}
-          height={size}
-          className="absolute inset-0 animate-spin"
-          style={{ animationDuration: '1.2s' }}
-        >
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            stroke="hsl(var(--muted))"
-            strokeWidth={stroke}
-            fill="none"
-            opacity={0.25}
-          />
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            stroke="hsl(var(--primary))"
-            strokeWidth={stroke}
-            fill="none"
-            strokeLinecap="round"
-            strokeDasharray={`${arc} ${circumference - arc}`}
-          />
-        </svg>
-        <img
-          src={logo}
-          alt="MAROMBIEW"
-          className="absolute inset-0 m-auto rounded-2xl"
-          style={{ width: size - 16, height: size - 16 }}
-        />
-      </div>
-    </div>
-  );
+  return null;
 };
 
 export default SplashScreen;
