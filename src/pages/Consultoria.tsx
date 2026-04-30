@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { FileText, Utensils, Dumbbell, ClipboardList, Users, Bell, MessageSquare, CalendarClock, Cake, Phone, AlertTriangle, RefreshCw, ExternalLink, X, UtensilsCrossed, Activity, Sparkles } from 'lucide-react';
+import { FileText, Utensils, Dumbbell, ClipboardList, Users, Bell, MessageSquare, CalendarClock, Cake, Phone, AlertTriangle, RefreshCw, ExternalLink, X, UtensilsCrossed, Activity, Sparkles, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ import EngagementOverviewCards from '@/components/consultoria/EngagementOverview
 import ConsultoriaStudentSearch from '@/components/consultoria/ConsultoriaStudentSearch';
 import DietRenewalPanel from '@/components/consultoria/DietRenewalPanel';
 import WorkoutRenewalPanel from '@/components/consultoria/WorkoutRenewalPanel';
+import PushNotificationsToday from '@/components/consultoria/PushNotificationsToday';
 
 const CYCLE_MIN_DAYS = 35; // Pré-renovação aos 35d (faltam 10)
 const CYCLE_MAX_DAYS = 45;
