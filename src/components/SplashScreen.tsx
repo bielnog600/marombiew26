@@ -27,7 +27,7 @@ const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
 
   return (
     <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background animate-splash-out">
-      <div className="relative" style={{ width: size, height: size, animation: 'splash-logo-in 0.7s ease-out' }}>
+      <div className="relative" style={{ width: size, height: size }}>
         <svg
           width={size}
           height={size}
