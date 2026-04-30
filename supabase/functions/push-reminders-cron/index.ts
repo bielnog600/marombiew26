@@ -14,6 +14,143 @@ const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
+// ---------- Parser de treino + detecção de grupos musculares ----------
+interface DayBlock { day: string; exercises: string[] }
+
+function parseTrainingDays(markdown: string): DayBlock[] {
+  const days: DayBlock[] = [];
+  const lines = (markdown || "").split("\n");
+  let lastDay = "";
+  let current: DayBlock | null = null;
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line.startsWith("|") || line.includes("---")) continue;
+    const cells = line.split("|").slice(1, -1).map((c) => c.replace(/\*\*/g, "").trim());
+    if (cells.length < 2) continue;
+    const first = cells[0].toLowerCase();
+    if (first.includes("treino do dia") || first.includes("exercício") || first.includes("exercicio")) continue;
+    const dayCell = cells[0];
+    const exCell = cells[1];
+    if (dayCell && dayCell !== "-" && dayCell.toLowerCase() !== lastDay.toLowerCase()) {
+      if (current && current.exercises.length) days.push(current);
+      current = { day: dayCell, exercises: [] };
+      lastDay = dayCell;
+    }
+    if (!current) current = { day: lastDay || "Treino", exercises: [] };
+    if (exCell && !exCell.toLowerCase().includes("exerc")) current.exercises.push(exCell);
+  }
+  if (current && current.exercises.length) days.push(current);
+  return days;
+}
+
+const MUSCLE_KEYWORDS: Record<string, string[]> = {
+  peito: ["supino", "crucifixo", "peck", "peitoral", "crossover", "flexão", "flexao"],
+  costas: ["remada", "puxada", "pulldown", "pull-down", "pull up", "pull-up", "barra fixa", "levantamento terra", "deadlift"],
+  ombros: ["desenvolvimento", "elevação lateral", "elevacao lateral", "arnold", "shoulder", "encolhimento", "crucifixo inverso", "elevação frontal"],
+  bíceps: ["rosca", "biceps", "bíceps", "curl"],
+  tríceps: ["tríceps", "triceps", "francês", "frances", "pulley triceps", "corda triceps", "testa", "mergulho"],
+  quadríceps: ["agachamento", "leg press", "cadeira extensora", "extensora", "hack", "afundo", "avanço", "avanco", "búlgaro", "bulgaro"],
+  posteriores: ["stiff", "mesa flexora", "flexora", "good morning", "romeno", "rdl"],
+  glúteos: ["glúteo", "gluteo", "hip thrust", "elevação pélvica", "cadeira abdutora", "abdutora", "coice", "kickback"],
+  panturrilha: ["panturrilha", "gêmeo", "gemeo", "calf"],
+  abdômen: ["abdominal", "abdomen", "prancha", "crunch", "oblíquo", "obliquo"],
+  cardio: ["esteira", "bike", "elíptico", "eliptico", "corrida", "caminhada"],
+};
+
+function detectMuscleGroups(exercises: string[]): string[] {
+  const found = new Set<string>();
+  for (const ex of exercises) {
+    const lower = ex.toLowerCase();
+    for (const [group, kws] of Object.entries(MUSCLE_KEYWORDS)) {
+      if (kws.some((kw) => lower.includes(kw))) found.add(group);
+    }
+  }
+  return [...found];
+}
+
+const WEEKDAY_NAMES = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+const WEEKDAY_ALIASES: Record<string, string[]> = {
+  domingo: ["domingo", "dom"],
+  segunda: ["segunda", "seg"],
+  terça: ["terça", "terca", "ter"],
+  quarta: ["quarta", "qua"],
+  quinta: ["quinta", "qui"],
+  sexta: ["sexta", "sex"],
+  sábado: ["sábado", "sabado", "sab"],
+};
+
+function pickTodayBlock(days: DayBlock[], todayWeekday: number): DayBlock | null {
+  if (days.length === 0) return null;
+  const todayName = WEEKDAY_NAMES[todayWeekday];
+  const aliases = WEEKDAY_ALIASES[todayName];
+  const byWeekday = days.find((d) => {
+    const lower = d.day.toLowerCase();
+    return aliases.some((a) => lower.includes(a));
+  });
+  if (byWeekday) return byWeekday;
+  if (todayWeekday === 0 && days.length <= 6) return null;
+  const workIndex = todayWeekday === 0 ? 6 : todayWeekday - 1;
+  return days[workIndex % days.length] ?? null;
+}
+
+const MOTIVATION_TEMPLATES: Array<(name: string, focus: string) => string> = [
+  (n, f) => `Vamos com tudo, ${n}! Hoje é ${f}. Foca na amplitude e cadência. 💥`,
+  (n, f) => `${n}, dia de ${f}! Cada repetição te aproxima da sua melhor versão. 🔥`,
+  (n, f) => `${n}, daqui a pouco é ${f}. Mente forte, técnica perfeita. 💪`,
+  (n, f) => `${n}, hoje vamos atacar ${f}! Conexão mente-músculo no máximo. ⚡`,
+  (n, f) => `Bora, ${n}! ${f} no foco. Você não vai treinar, você vai dominar. 🏋️`,
+  (n, f) => `${n}, é dia de ${f}! Capricha na execução, o resultado vem certo. ✨`,
+  (n, f) => `Show, ${n}! Treino de ${f} chegando. Respira, contrai, executa. 🎯`,
+  (n, f) => `${n}, ${f} te chamando! Sem desculpa, com foco. Bora! 🚀`,
+  (n, f) => `E aí, ${n}? Logo é ${f}. Cada série conta — entrega o seu melhor. 💯`,
+  (n, f) => `${n}, dia de ativar ${f}! Carga controlada, técnica afiada. 🔝`,
+  (n, f) => `${n}, treino de ${f} se aproximando! Foco total nos primeiros 5 minutos. 🧠`,
+];
+
+function buildWorkoutMessage(name: string, muscles: string[], dayLabel: string): { title: string; body: string } {
+  const focus = muscles.length > 0 ? muscles.join(" e ") : dayLabel;
+  const tpl = MOTIVATION_TEMPLATES[Math.floor(Math.random() * MOTIVATION_TEMPLATES.length)];
+  return {
+    title: `Treino se aproximando 💪 ${dayLabel}`,
+    body: tpl(name, focus),
+  };
+}
+
+// Calcula o horário médio (0-23) que o aluno costuma treinar, no fuso local dele.
+// Retorna null se não houver dados suficientes.
+async function getUsualWorkoutHour(userId: string, tz: string): Promise<number | null> {
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: sessions } = await supabase
+    .from("workout_sessions")
+    .select("completed_at")
+    .eq("student_id", userId)
+    .eq("status", "completed")
+    .gte("completed_at", since)
+    .limit(50);
+  const times = (sessions ?? []).map((s) => s.completed_at).filter(Boolean) as string[];
+  if (times.length < 3) return null; // precisa de ao menos 3 sessões
+
+  // Converte cada timestamp para hora no fuso local e tira a média circular.
+  const hours: number[] = [];
+  for (const ts of times) {
+    const fmt = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const parts = fmt.formatToParts(new Date(ts));
+    const h = parseInt(parts.find((p) => p.type === "hour")?.value ?? "0", 10);
+    const m = parseInt(parts.find((p) => p.type === "minute")?.value ?? "0", 10);
+    hours.push(h + m / 60);
+  }
+  // Média circular (24h)
+  const sumSin = hours.reduce((a, h) => a + Math.sin((h / 24) * 2 * Math.PI), 0);
+  const sumCos = hours.reduce((a, h) => a + Math.cos((h / 24) * 2 * Math.PI), 0);
+  let avg = (Math.atan2(sumSin, sumCos) / (2 * Math.PI)) * 24;
+  if (avg < 0) avg += 24;
+  return Math.round(avg); // hora cheia
+}
 // Mapa DDI -> IANA timezone. Fallback: America/Sao_Paulo.
 const DDI_TZ: Record<string, string> = {
   "55": "America/Sao_Paulo",   // Brasil
@@ -155,18 +292,47 @@ Deno.serve(async (req) => {
       const mealsDone = Array.isArray(tracking?.meals_completed) ? tracking!.meals_completed.length : 0;
       const workoutDone = !!tracking?.workout_completed;
 
-      // ---------- 1. TREINO 09h local ----------
-      if (hour === 9 && !workoutDone) {
-        const key = "workout_reminder";
-        if (!(await alreadyRanForUser(key, userId, dateStr))) {
-          const sent = await sendPushToUser(
-            userId,
-            "Hora de treinar 💪",
-            `${name}, bora movimentar o corpo? Seu treino te espera no app!`,
-            { type: "workout_reminder" }
-          );
-          await markRanForUser(key, userId, dateStr);
-          if (sent) results.workout++;
+      // ---------- 1. TREINO — 1h antes do horário habitual (fallback 09h local) ----------
+      if (!workoutDone) {
+        const usual = await getUsualWorkoutHour(userId, tz);
+        // Se não há histórico, usa 09h (lembrete chega às 08h por padrão? não — usamos 09h direto como fallback)
+        const reminderHour = usual !== null
+          ? Math.max(5, (usual - 1 + 24) % 24) // 1h antes, nunca antes de 5h
+          : 9;
+        if (hour === reminderHour) {
+          const key = "workout_reminder";
+          if (!(await alreadyRanForUser(key, userId, dateStr))) {
+            // Busca plano de treino do dia
+            const { data: plans } = await supabase
+              .from("ai_plans")
+              .select("conteudo, titulo")
+              .eq("student_id", userId)
+              .eq("tipo", "treino")
+              .eq("is_draft", false)
+              .order("created_at", { ascending: false })
+              .limit(1);
+            const plan = plans?.[0];
+            // Dia da semana no fuso local
+            const wdFmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" });
+            const wdShort = wdFmt.format(new Date()).toLowerCase();
+            const wdMap: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+            const todayWeekday = wdMap[wdShort] ?? 1;
+            let title = "Hora de treinar 💪";
+            let body = `${name}, bora movimentar o corpo? Seu treino te espera no app!`;
+            if (plan) {
+              const days = parseTrainingDays(plan.conteudo);
+              const todayBlock = pickTodayBlock(days, todayWeekday);
+              if (todayBlock) {
+                const muscles = detectMuscleGroups(todayBlock.exercises);
+                const msg = buildWorkoutMessage(name, muscles, todayBlock.day);
+                title = msg.title;
+                body = msg.body;
+              }
+            }
+            const sent = await sendPushToUser(userId, title, body, { type: "workout_reminder" });
+            await markRanForUser(key, userId, dateStr);
+            if (sent) results.workout++;
+          }
         }
       }
 
