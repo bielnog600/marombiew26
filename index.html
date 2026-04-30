@@ -26,16 +26,23 @@
       #boot-splash {
         position: fixed; inset: 0; z-index: 99999;
         display: flex; align-items: center; justify-content: center;
+        flex-direction: column;
         background-color: #0F1115;
       }
-      #boot-splash img {
-        width: 154px; height: 154px; border-radius: 16px;
-        animation: boot-pop 0.7s ease-out;
+      #boot-splash .boot-logo-wrap {
+        position: relative;
+        width: 170px; height: 170px;
       }
-      @keyframes boot-pop {
-        0% { opacity: 0; transform: scale(0.6); }
-        60% { opacity: 1; transform: scale(1.08); }
-        100% { opacity: 1; transform: scale(1); }
+      #boot-splash svg {
+        position: absolute; inset: 0;
+        animation: boot-spin 1.2s linear infinite;
+      }
+      #boot-splash img {
+        position: absolute; inset: 0; margin: auto;
+        width: 154px; height: 154px; border-radius: 16px;
+      }
+      @keyframes boot-spin {
+        to { transform: rotate(360deg); }
       }
     </style>
 
@@ -55,7 +62,15 @@
 </head>
 
   <body>
-    <div id="boot-splash"><img src="/splash-logo.webp" alt="MAROMBIEW" /></div>
+    <div id="boot-splash">
+      <div class="boot-logo-wrap">
+        <svg width="170" height="170" viewBox="0 0 170 170" aria-hidden="true">
+          <circle cx="85" cy="85" r="83" stroke="#171A21" stroke-width="4" fill="none" opacity="0.45" />
+          <circle cx="85" cy="85" r="83" stroke="#FFC400" stroke-width="4" fill="none" stroke-linecap="round" stroke-dasharray="130 391" />
+        </svg>
+        <img src="/splash-logo.webp" alt="MAROMBIEW" />
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

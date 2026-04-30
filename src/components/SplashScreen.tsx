@@ -6,11 +6,17 @@ const logo = '/splash-logo.webp';
 
 const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
   useEffect(() => {
+    const boot = document.getElementById('boot-splash');
     const timer = setTimeout(() => {
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistration('/').then((reg) => {
           if (reg?.active?.scriptURL.endsWith('/app-sw.js')) reg.update().catch(() => {});
         });
+      }
+      if (boot) {
+        boot.style.transition = 'opacity 180ms ease-out';
+        boot.style.opacity = '0';
+        setTimeout(() => boot.remove(), 200);
       }
       onFinish();
     }, 2200);
@@ -26,7 +32,7 @@ const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
   const arc = circumference * 0.25;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background animate-splash-out">
+    <div className="fixed inset-0 z-[9998] flex flex-col items-center justify-center bg-background">
       <div className="relative" style={{ width: size, height: size }}>
         <svg
           width={size}
