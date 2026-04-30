@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.push-reminders-cron]
 verify_jwt = false
+
+[functions.daily-workout-motivator]
+verify_jwt = false
