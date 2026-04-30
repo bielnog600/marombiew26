@@ -28,12 +28,17 @@
         display: flex; align-items: center; justify-content: center;
         flex-direction: column;
         background-color: #0F1115;
-        opacity: 0;
-        animation: boot-fade-in 280ms ease-out forwards;
+        opacity: 1;
+        transform: translateZ(0);
+        backface-visibility: hidden;
       }
       #boot-splash .boot-logo-wrap {
         position: relative;
         width: 170px; height: 170px;
+        opacity: 0;
+        transform: scale(0.96) translateZ(0);
+        animation: boot-enter 280ms ease-out forwards;
+        transform-origin: center;
       }
       #boot-splash svg {
         position: absolute; inset: 0;
@@ -46,12 +51,11 @@
       @keyframes boot-spin {
         to { transform: rotate(360deg); }
       }
-      @keyframes boot-fade-in {
-        from { opacity: 0; }
-        to { opacity: 1; }
+      @keyframes boot-enter {
+        from { opacity: 0; transform: scale(0.96) translateZ(0); }
+        to { opacity: 1; transform: scale(1) translateZ(0); }
       }
       #boot-splash.boot-leaving {
-        animation: none;
         opacity: 0;
         transition: opacity 320ms ease-in;
       }
