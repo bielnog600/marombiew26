@@ -20,6 +20,7 @@ import {
 } from 'recharts';
 import { WorkoutSummaryShare } from '@/components/training/WorkoutSummaryShare';
 import type { TrainingPhase } from '@/lib/trainingPhase';
+import { fetchWithCache } from '@/lib/offlineCache';
 
 type Period = '7d' | '1m' | '3m' | '6m' | '1y' | 'all';
 
@@ -116,24 +117,24 @@ const MeuProgresso: React.FC = () => {
   const load = async () => {
     setLoading(true);
     const since = periodToDate(period);
+    const sinceISO = since?.toISOString() ?? '';
 
-    let logsQuery = supabase
-      .from('exercise_set_logs')
-      .select('*')
-      .eq('student_id', user!.id)
-      .order('performed_at', { ascending: true });
-    if (since) logsQuery = logsQuery.gte('performed_at', since.toISOString());
+    const { data: logsData } = await fetchWithCache(`set_logs:${user!.id}:${period}`, async () => {
+      let q = supabase.from('exercise_set_logs').select('*').eq('student_id', user!.id).order('performed_at', { ascending: true });
+      if (sinceISO) q = q.gte('performed_at', sinceISO);
+      const { data } = await q;
+      return data;
+    });
 
-    let sessionsQuery = supabase
-      .from('workout_sessions')
-      .select('*')
-      .eq('student_id', user!.id)
-      .order('completed_at', { ascending: true });
-    if (since) sessionsQuery = sessionsQuery.gte('completed_at', since.toISOString());
+    const { data: sessionsData } = await fetchWithCache(`sessions:${user!.id}:${period}`, async () => {
+      let q = supabase.from('workout_sessions').select('*').eq('student_id', user!.id).order('completed_at', { ascending: true });
+      if (sinceISO) q = q.gte('completed_at', sinceISO);
+      const { data } = await q;
+      return data;
+    });
 
-    const [logsRes, sessionsRes] = await Promise.all([logsQuery, sessionsQuery]);
-    setLogs((logsRes.data ?? []) as SetLog[]);
-    setSessions((sessionsRes.data ?? []) as Session[]);
+    setLogs((logsData ?? []) as SetLog[]);
+    setSessions((sessionsData ?? []) as Session[]);
     setLoading(false);
   };
 
