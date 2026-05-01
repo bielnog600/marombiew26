@@ -340,7 +340,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                         const newDay: ParsedTrainingDay = {
                           day: nextDay,
                           exercises: [{
-                            exercise: '',
+                            exercise: 'Novo exercício',
                             series: '3',
                             series2: '',
                             reps: '8-12',
