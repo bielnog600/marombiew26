@@ -5,13 +5,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
-import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar, Send, ClipboardList } from 'lucide-react';
+import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar, Send, ClipboardList, Plus, Sparkles } from 'lucide-react';
 import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import TrainingResultCards from '@/components/TrainingResultCards';
 import TrainerLogSheet from '@/components/training/TrainerLogSheet';
 import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
+import { rebuildTrainingMarkdown } from '@/lib/trainingResultParser';
+import AiEditAllDaysDialog from '@/components/training/AiEditAllDaysDialog';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -45,6 +47,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   const [targetStudentId, setTargetStudentId] = useState<string>('');
   const [transferring, setTransferring] = useState(false);
   const [trainPlan, setTrainPlan] = useState<any | null>(null);
+  const [aiAllDaysOpen, setAiAllDaysOpen] = useState<string | null>(null);
 
   const handleDelete = async (planId: string) => {
     const { error } = await supabase.from('ai_plans').delete().eq('id', planId);
@@ -317,6 +320,69 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                     trainingOnly={true}
                     onMarkdownChange={(newMd) => handleMarkdownChange(plan.id, newMd)}
                   />
+
+                  {/* Add day + AI edit all */}
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5 text-xs"
+                      onClick={() => {
+                        const sections = parseTrainingSections(currentMarkdown);
+                        const existingDays: ParsedTrainingDay[] = [];
+                        for (const s of sections) {
+                          if (s.type === 'training' && s.days) existingDays.push(...s.days);
+                        }
+                        const allDayNames = ['SEGUNDA-FEIRA','TERÇA-FEIRA','QUARTA-FEIRA','QUINTA-FEIRA','SEXTA-FEIRA','SÁBADO','DOMINGO'];
+                        const usedDays = existingDays.map(d => d.day.toUpperCase());
+                        const nextDay = allDayNames.find(d => !usedDays.includes(d)) || `TREINO ${String.fromCharCode(65 + existingDays.length)}`;
+                        const newDay: ParsedTrainingDay = {
+                          day: nextDay,
+                          exercises: [{
+                            exercise: '',
+                            series: '3',
+                            series2: '',
+                            reps: '8-12',
+                            rir: '',
+                            pause: '60s',
+                            description: '',
+                            variation: '',
+                          }],
+                        };
+                        const updatedDays = [...existingDays, newDay];
+                        handleMarkdownChange(plan.id, rebuildTrainingMarkdown(currentMarkdown, updatedDays));
+                      }}
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Adicionar dia
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5 text-xs border-primary/40 text-primary hover:text-primary hover:bg-primary/10"
+                      onClick={() => setAiAllDaysOpen(plan.id)}
+                    >
+                      <Sparkles className="h-3.5 w-3.5" /> IA editar todos os dias
+                    </Button>
+                  </div>
+
+                  {aiAllDaysOpen === plan.id && (() => {
+                    const sections = parseTrainingSections(currentMarkdown);
+                    const days: ParsedTrainingDay[] = [];
+                    for (const s of sections) {
+                      if (s.type === 'training' && s.days) days.push(...s.days);
+                    }
+                    return (
+                      <AiEditAllDaysDialog
+                        open={true}
+                        onOpenChange={(o) => { if (!o) setAiAllDaysOpen(null); }}
+                        allDays={days}
+                        studentId={studentId}
+                        onApply={(updatedDays) => {
+                          handleMarkdownChange(plan.id, rebuildTrainingMarkdown(currentMarkdown, updatedDays));
+                        }}
+                      />
+                    );
+                  })()}
                 </div>
               )}
             </CardContent>

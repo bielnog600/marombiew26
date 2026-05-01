@@ -1,0 +1,228 @@
+import React, { useState } from 'react';
+import { Sparkles, Loader2, Wand2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import type { ParsedExercise, ParsedTrainingDay } from '@/lib/trainingResultParser';
+
+interface AiAllDaysAction {
+  day: string;
+  op: 'add' | 'modify' | 'remove' | 'replace';
+  index?: number;
+  match?: string;
+  exercise?: Partial<ParsedExercise>;
+}
+
+interface Props {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  allDays: ParsedTrainingDay[];
+  studentId: string;
+  onApply: (updatedDays: ParsedTrainingDay[]) => void;
+}
+
+const QUICK_OPTIONS: { label: string; instruction: string }[] = [
+  { label: '+ Core em todos os dias', instruction: 'Adicione 1-2 exercícios de core/abdômen ao final de cada dia de treino, variando entre supra, infra e estabilização.' },
+  { label: '↑ Intensidade geral', instruction: 'Aumente a intensidade de todos os dias: reduza RIR para 0-1 nos compostos, adicione drop-set ou rest-pause em 1 exercício de cada dia.' },
+  { label: '↓ Volume geral', instruction: 'Reduza o volume de todos os dias: remova 1 exercício acessório por dia.' },
+  { label: '↓ Pausa menor', instruction: 'Reduza o tempo de pausa para 45s nos isoladores e 60s nos compostos em todos os dias.' },
+  { label: '+ Mobilidade no início', instruction: 'Adicione 1-2 exercícios de mobilidade/ativação no início de cada dia, específicos para o grupo muscular daquele dia.' },
+  { label: '+ Reconhecimento', instruction: 'Adicione 1 série de reconhecimento (12 reps carga leve) antes das séries de trabalho nos 2 principais compostos de cada dia.' },
+];
+
+const AiEditAllDaysDialog: React.FC<Props> = ({
+  open, onOpenChange, allDays, studentId, onApply,
+}) => {
+  const [instruction, setInstruction] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const runWithInstruction = async (text: string) => {
+    if (!text.trim()) {
+      toast.error('Escreva uma instrução.');
+      return;
+    }
+    setLoading(true);
+    try {
+      let studentContext: any = undefined;
+      if (studentId) {
+        const { data } = await supabase
+          .from('students_profile')
+          .select('lesoes, restricoes, observacoes, objetivo')
+          .eq('user_id', studentId)
+          .maybeSingle();
+        if (data) studentContext = data;
+      }
+
+      // Fetch exercise catalog once
+      const { data: catalog } = await supabase
+        .from('exercises')
+        .select('nome, grupo_muscular')
+        .order('nome');
+
+      const updatedDays = [...allDays];
+      let totalActions = 0;
+      let lastSummary = '';
+
+      // Call AI for each day sequentially
+      for (let i = 0; i < allDays.length; i++) {
+        const day = allDays[i];
+        const { data, error } = await supabase.functions.invoke('training-edit-agent', {
+          body: {
+            dayName: day.day,
+            currentExercises: day.exercises,
+            instruction: text,
+            exerciseCatalog: catalog || [],
+            studentContext,
+          },
+        });
+
+        if (error) throw error;
+        if ((data as any)?.error) throw new Error((data as any).error);
+
+        const actions = Array.isArray((data as any)?.actions) ? (data as any).actions : [];
+        if (actions.length > 0) {
+          updatedDays[i] = applyActionsToDay(day, actions);
+          totalActions += actions.length;
+          lastSummary = (data as any)?.summary || '';
+        }
+      }
+
+      if (totalActions === 0) {
+        toast.error('A IA não retornou alterações. Tente uma instrução mais específica.');
+        return;
+      }
+
+      onApply(updatedDays);
+      toast.success(`${totalActions} alteração(ões) em ${allDays.length} dias. ${lastSummary}`);
+      setInstruction('');
+      onOpenChange(false);
+    } catch (e: any) {
+      console.error(e);
+      toast.error('Erro: ' + (e?.message || 'falha ao chamar IA'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!loading) onOpenChange(o); }}>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            Editar todos os dias com IA
+          </DialogTitle>
+          <DialogDescription>
+            A instrução será aplicada em cada dia ({allDays.map(d => d.day).join(', ')}).
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Opções rápidas</p>
+            <div className="flex flex-wrap gap-1.5">
+              {QUICK_OPTIONS.map(opt => (
+                <Button
+                  key={opt.label}
+                  variant="outline"
+                  size="sm"
+                  disabled={loading}
+                  className="h-7 text-xs"
+                  onClick={() => runWithInstruction(opt.instruction)}
+                >
+                  {loading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                  {opt.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1.5 pt-2 border-t border-border/60">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Wand2 className="h-3.5 w-3.5" />
+              Instrução livre
+            </p>
+            <Textarea
+              value={instruction}
+              onChange={(e) => setInstruction(e.target.value)}
+              placeholder='Ex: "adicionar core em todos os dias", "diminuir descanso geral", "trocar todos isoladores por compostos"...'
+              rows={4}
+              disabled={loading}
+              className="text-sm resize-none"
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading}>
+            Cancelar
+          </Button>
+          <Button onClick={() => runWithInstruction(instruction)} disabled={loading || !instruction.trim()}>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
+            Aplicar em todos os dias
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+function applyActionsToDay(day: ParsedTrainingDay, actions: any[]): ParsedTrainingDay {
+  let list = [...day.exercises];
+  const norm = (s: string) =>
+    (s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  const findIdx = (action: any): number => {
+    if (typeof action.index === 'number' && action.index >= 0 && action.index < list.length) return action.index;
+    if (action.match) {
+      const target = norm(action.match);
+      let idx = list.findIndex((e) => norm(e.exercise) === target);
+      if (idx >= 0) return idx;
+      idx = list.findIndex((e) => norm(e.exercise).includes(target) || target.includes(norm(e.exercise)));
+      return idx;
+    }
+    return -1;
+  };
+
+  const fill = (ex: any): ParsedExercise => ({
+    exercise: ex?.exercise || '',
+    series: ex?.series || '3',
+    series2: ex?.series2 || '',
+    reps: ex?.reps || '8-12',
+    rir: ex?.rir || '',
+    pause: ex?.pause || '60s',
+    description: ex?.description || '',
+    variation: ex?.variation || '',
+  });
+
+  for (const action of actions) {
+    if (action.op === 'add') {
+      const newEx = fill(action.exercise);
+      if (!newEx.exercise) continue;
+      if (typeof action.index === 'number' && action.index >= 0 && action.index <= list.length) {
+        list.splice(action.index, 0, newEx);
+      } else {
+        list.push(newEx);
+      }
+    } else if (action.op === 'remove') {
+      const idx = findIdx(action);
+      if (idx >= 0) list.splice(idx, 1);
+    } else if (action.op === 'replace') {
+      const idx = findIdx(action);
+      const newEx = fill(action.exercise);
+      if (idx >= 0 && newEx.exercise) list[idx] = newEx;
+      else if (newEx.exercise) list.push(newEx);
+    } else if (action.op === 'modify') {
+      const idx = findIdx(action);
+      if (idx >= 0 && action.exercise) {
+        list[idx] = { ...list[idx], ...action.exercise } as ParsedExercise;
+      }
+    }
+  }
+
+  return { ...day, exercises: list };
+}
+
+export default AiEditAllDaysDialog;
