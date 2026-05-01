@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { type PoseKeypoint, type RegionScore } from '@/lib/postureUtils';
 import { renderPostureAnalysisDataUrl } from '@/lib/postureCanvas';
+import { fetchWithCache } from '@/lib/offlineCache';
 
 interface AssessmentRow {
   id: string;
@@ -112,33 +113,28 @@ const MinhasAvaliacoes = () => {
   }, [user]);
 
   const loadAssessments = async () => {
-    const { data: avals } = await supabase
-      .from('assessments')
-      .select('id, created_at')
-      .eq('student_id', user!.id)
-      .order('created_at', { ascending: false });
-
-    if (!avals) { setLoading(false); return; }
-
-    const enriched = await Promise.all(
-      avals.map(async (a) => {
-        const { data: anth } = await supabase.from('anthropometrics').select('peso').eq('assessment_id', a.id).maybeSingle();
-        const { data: comp } = await supabase.from('composition').select('percentual_gordura').eq('assessment_id', a.id).maybeSingle();
-        return { ...a, peso: anth?.peso, gordura: comp?.percentual_gordura };
-      })
-    );
-    setAssessments(enriched);
+    const { data: enriched } = await fetchWithCache(`assessments:enriched:${user!.id}`, async () => {
+      const { data: avals } = await supabase.from('assessments').select('id, created_at').eq('student_id', user!.id).order('created_at', { ascending: false });
+      if (!avals) return [];
+      return Promise.all(
+        avals.map(async (a) => {
+          const { data: anth } = await supabase.from('anthropometrics').select('peso').eq('assessment_id', a.id).maybeSingle();
+          const { data: comp } = await supabase.from('composition').select('percentual_gordura').eq('assessment_id', a.id).maybeSingle();
+          return { ...a, peso: anth?.peso, gordura: comp?.percentual_gordura };
+        })
+      );
+    });
+    setAssessments(enriched ?? []);
     setLoading(false);
   };
 
   const loadPostureScans = async () => {
     setLoadingScans(true);
-    const { data } = await supabase
-      .from('posture_scans')
-      .select('id, created_at, front_photo_url, side_photo_url, back_photo_url, pose_keypoints_json, region_scores_json, attention_points_json, angles_json, notes')
-      .eq('student_id', user!.id)
-      .order('created_at', { ascending: false });
-    setScans(data ?? []);
+    const { data: scansData } = await fetchWithCache(`posture_scans:${user!.id}`, async () => {
+      const { data } = await supabase.from('posture_scans').select('id, created_at, front_photo_url, side_photo_url, back_photo_url, pose_keypoints_json, region_scores_json, attention_points_json, angles_json, notes').eq('student_id', user!.id).order('created_at', { ascending: false });
+      return data;
+    });
+    setScans(scansData ?? []);
     setLoadingScans(false);
   };
 
