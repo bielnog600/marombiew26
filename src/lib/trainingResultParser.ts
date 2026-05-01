@@ -205,8 +205,10 @@ export const rebuildTrainingMarkdown = (
       if (section.title) lines.push(`## ${section.title}`);
       lines.push('| TREINO DO DIA | EXERCÍCIO | SÉRIE | SÉRIE 2 | REPETIÇÕES | RIR | PAUSA | DESCRIÇÃO | VARIAÇÃO |');
       lines.push('|---|---|---|---|---|---|---|---|---|');
-      for (let i = 0; i < section.days.length; i++) {
+      const count = Math.max(section.days.length, updatedDays.length - dayOffset);
+      for (let i = 0; i < count; i++) {
         const day = updatedDays[dayOffset + i] || section.days[i];
+        if (!day) break;
         for (const ex of day.exercises) {
           lines.push(`| ${day.day} | ${ex.exercise} | ${ex.series || '-'} | ${ex.series2 || '-'} | ${ex.reps || '-'} | ${ex.rir || '-'} | ${ex.pause || '-'} | ${ex.description || '-'} | ${ex.variation || '-'} |`);
         }
