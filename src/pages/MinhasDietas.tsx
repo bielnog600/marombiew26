@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { fetchWithCache } from '@/lib/offlineCache';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const WEEKDAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
@@ -103,14 +104,10 @@ const MinhasDietas = () => {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data } = await supabase
-        .from('ai_plans')
-        .select('conteudo')
-        .eq('student_id', user.id)
-        .eq('tipo', 'treino')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { data } = await fetchWithCache(`plan:treino:${user.id}`, async () => {
+        const { data } = await supabase.from('ai_plans').select('conteudo').eq('student_id', user.id).eq('tipo', 'treino').order('created_at', { ascending: false }).limit(1).maybeSingle();
+        return data;
+      });
       if (!data) return;
       const days = parseTrainingSections(data.conteudo).flatMap(s => s.days ?? []);
       if (days.length === 0) return;
@@ -148,14 +145,10 @@ const MinhasDietas = () => {
   }, [user]);
 
   const loadDiet = async () => {
-    const { data: dieta } = await supabase
-      .from('ai_plans')
-      .select('id, conteudo, created_at')
-      .eq('student_id', user!.id)
-      .eq('tipo', 'dieta')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const { data: dieta } = await fetchWithCache(`plan:dieta:full:${user!.id}`, async () => {
+      const { data } = await supabase.from('ai_plans').select('id, conteudo, created_at').eq('student_id', user!.id).eq('tipo', 'dieta').order('created_at', { ascending: false }).limit(1).maybeSingle();
+      return data;
+    });
     if (dieta) {
       setSections(parseSections(dieta.conteudo));
       // Version key combines plan id + created_at so any admin edit (which
