@@ -333,7 +333,6 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                         for (const s of sections) {
                           if (s.type === 'training' && s.days) existingDays.push(...s.days);
                         }
-                        console.log('[AddDay] sections:', sections.length, 'existingDays:', existingDays.length, 'markdown length:', currentMarkdown?.length);
                         const allDayNames = ['SEGUNDA-FEIRA','TERÇA-FEIRA','QUARTA-FEIRA','QUINTA-FEIRA','SEXTA-FEIRA','SÁBADO','DOMINGO'];
                         const usedDays = existingDays.map(d => d.day.toUpperCase());
                         const nextDay = allDayNames.find(d => !usedDays.includes(d)) || `TREINO ${String.fromCharCode(65 + existingDays.length)}`;
@@ -352,9 +351,8 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                         };
                         const updatedDays = [...existingDays, newDay];
                         const newMarkdown = rebuildTrainingMarkdown(currentMarkdown, updatedDays);
-                        console.log('[AddDay] updatedDays:', updatedDays.length, 'newMarkdown length:', newMarkdown?.length);
-                        console.log('[AddDay] newMarkdown preview:', newMarkdown?.substring(0, 300));
                         handleMarkdownChange(plan.id, newMarkdown);
+                        toast.success(`${nextDay} adicionado ao treino.`);
                       }}
                     >
                       <Plus className="h-3.5 w-3.5" /> Adicionar dia

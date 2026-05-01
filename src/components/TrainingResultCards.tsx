@@ -56,14 +56,22 @@ const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown, edi
 
   const uniqueDayList = Array.from(new Set(allDays.map((d) => d.day)));
   const [selectedDay, setSelectedDay] = useState<string>(uniqueDayList[0] || '');
+  const previousDayListRef = React.useRef<string[]>(uniqueDayList);
   const showDayFilter = (editable || trainingOnly) && uniqueDayList.length > 1;
 
-  // Keep selection valid when days change
+  // Keep selection valid and jump to a newly added day
   React.useEffect(() => {
-    if (uniqueDayList.length > 0 && !uniqueDayList.includes(selectedDay)) {
+    const previousDayList = previousDayListRef.current;
+    const addedDay = uniqueDayList.find((day) => !previousDayList.includes(day));
+
+    if (addedDay && uniqueDayList.length > previousDayList.length) {
+      setSelectedDay(addedDay);
+    } else if (uniqueDayList.length > 0 && !uniqueDayList.includes(selectedDay)) {
       setSelectedDay(uniqueDayList[0]);
     }
-  }, [uniqueDayList.join('|')]);
+
+    previousDayListRef.current = uniqueDayList;
+  }, [uniqueDayList.join('|'), selectedDay]);
 
   const handleDayChange = (globalIndex: number, updatedDay: ParsedTrainingDay) => {
     const newDays = [...allDays];
