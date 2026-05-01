@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
+import { fetchWithCache } from '@/lib/offlineCache';
 import {
   TRAINING_PHASES,
   PHASE_LABELS,
@@ -89,12 +90,10 @@ const MeusTreinos = () => {
   }, [user]);
 
   const loadTraining = async () => {
-    const { data } = await supabase
-      .from('ai_plans')
-      .select('id, conteudo, fase, fase_inicio_data')
-      .eq('student_id', user!.id)
-      .eq('tipo', 'treino')
-      .order('created_at', { ascending: false });
+    const { data } = await fetchWithCache(`plans:treino:all:${user!.id}`, async () => {
+      const { data } = await supabase.from('ai_plans').select('id, conteudo, fase, fase_inicio_data').eq('student_id', user!.id).eq('tipo', 'treino').order('created_at', { ascending: false });
+      return data;
+    });
 
     const allPlans = (data ?? []) as PlanRow[];
     setPlans(allPlans);
@@ -119,9 +118,10 @@ const MeusTreinos = () => {
     const uniqueNames = [...new Set(exerciseNames)];
 
     if (uniqueNames.length > 0) {
-      const { data: dbExercises } = await supabase
-        .from('exercises')
-        .select('id, nome, imagem_url, video_embed, grupo_muscular, ajustes');
+      const { data: dbExercises } = await fetchWithCache('exercises:all', async () => {
+        const { data } = await supabase.from('exercises').select('id, nome, imagem_url, video_embed, grupo_muscular, ajustes');
+        return data;
+      });
 
       if (dbExercises) {
         const mediaMap: Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }> = {};
