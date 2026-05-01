@@ -19,6 +19,7 @@ import { MachineAdjustSheet } from '@/components/training/MachineAdjustSheet';
 import { ExerciseLoadHistorySheet } from '@/components/training/ExerciseLoadHistorySheet';
 import { SessionRpeDialog } from '@/components/training/SessionRpeDialog';
 import { Settings2, Info, BarChart3, Timer } from 'lucide-react';
+import { fetchWithCache } from '@/lib/offlineCache';
 
 const VARIATION_PREF_KEY = 'mw_exercise_variation_pref';
 const VARIATION_PREF_FIELD = '__preferred_variation';
@@ -404,7 +405,10 @@ const TreinoExecucao = () => {
             .map((name) => name?.toUpperCase().trim())
             .filter(Boolean) as string[];
           const uniqueNames = [...new Set(names)];
-          const { data: dbEx } = await supabase.from('exercises').select('id, nome, imagem_url, video_embed, grupo_muscular, ajustes');
+          const { data: dbEx } = await fetchWithCache('exercises:all', async () => {
+            const { data } = await supabase.from('exercises').select('id, nome, imagem_url, video_embed, grupo_muscular, ajustes');
+            return data;
+          });
           if (dbEx) {
             const mediaMap: ExerciseMediaMap = {};
             for (const name of uniqueNames) {
@@ -436,8 +440,11 @@ const TreinoExecucao = () => {
 
   useEffect(() => {
     const loadExercises = async () => {
-      const { data } = await supabase.from('exercises').select('id, nome, imagem_url, video_embed, grupo_muscular, ajustes');
-      if (data) setExerciseDB(data as ExerciseDBData[]);
+      const { data: dbData } = await fetchWithCache('exercises:all', async () => {
+        const { data } = await supabase.from('exercises').select('id, nome, imagem_url, video_embed, grupo_muscular, ajustes');
+        return data;
+      });
+      if (dbData) setExerciseDB(dbData as ExerciseDBData[]);
     };
 
     loadExercises();
