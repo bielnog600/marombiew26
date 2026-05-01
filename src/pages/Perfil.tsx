@@ -10,6 +10,7 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { toast } from 'sonner';
 import { WorkoutSummaryShare } from '@/components/training/WorkoutSummaryShare';
 import type { TrainingPhase } from '@/lib/trainingPhase';
+import { fetchWithCache } from '@/lib/offlineCache';
 
 interface RecentSession {
   id: string;
@@ -80,19 +81,22 @@ const Perfil = () => {
   }, [user]);
 
   const loadProfile = async () => {
-    const [profRes, studentRes] = await Promise.all([
-      supabase.from('profiles').select('*').eq('user_id', user!.id).maybeSingle(),
-      supabase.from('students_profile').select('*').eq('user_id', user!.id).maybeSingle(),
-    ]);
-    setProfile(profRes.data);
-    setStudentProfile(studentRes.data);
+    const { data: profData } = await fetchWithCache(`profile:full:${user!.id}`, async () => {
+      const { data } = await supabase.from('profiles').select('*').eq('user_id', user!.id).maybeSingle();
+      return data;
+    });
+    setProfile(profData);
 
-    const { data: sessions } = await supabase
-      .from('workout_sessions')
-      .select('id, duration_minutes, exercises_completed, total_exercises, completed_at, day_name, phase')
-      .eq('student_id', user!.id)
-      .order('completed_at', { ascending: false })
-      .limit(5);
+    const { data: studentData } = await fetchWithCache(`student_profile:${user!.id}`, async () => {
+      const { data } = await supabase.from('students_profile').select('*').eq('user_id', user!.id).maybeSingle();
+      return data;
+    });
+    setStudentProfile(studentData);
+
+    const { data: sessions } = await fetchWithCache(`sessions:recent:${user!.id}`, async () => {
+      const { data } = await supabase.from('workout_sessions').select('id, duration_minutes, exercises_completed, total_exercises, completed_at, day_name, phase').eq('student_id', user!.id).order('completed_at', { ascending: false }).limit(5);
+      return data;
+    });
     setRecentSessions((sessions ?? []) as RecentSession[]);
   };
 

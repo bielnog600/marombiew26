@@ -20,6 +20,7 @@ import CardioDoDiaCard from '@/components/home/CardioDoDiaCard';
 import { useEventTracking } from '@/hooks/useEventTracking';
 import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
+import { fetchWithCache } from '@/lib/offlineCache';
 
 const MinhaArea = () => {
   const { user } = useAuth();
@@ -84,32 +85,26 @@ const MinhaArea = () => {
 
   const loadData = async () => {
     // Profile
-    const { data: prof } = await supabase
-      .from('profiles')
-      .select('nome')
-      .eq('user_id', user!.id)
-      .maybeSingle();
+    const { data: prof } = await fetchWithCache(`profile:${user!.id}`, async () => {
+      const { data } = await supabase.from('profiles').select('nome').eq('user_id', user!.id).maybeSingle();
+      return data;
+    });
     setProfile(prof);
 
     // Latest assessment stats
-    const { data: avals } = await supabase
-      .from('assessments')
-      .select('id, created_at')
-      .eq('student_id', user!.id)
-      .order('created_at', { ascending: false });
+    const { data: avals } = await fetchWithCache(`assessments:${user!.id}`, async () => {
+      const { data } = await supabase.from('assessments').select('id, created_at').eq('student_id', user!.id).order('created_at', { ascending: false });
+      return data;
+    });
     setAssessmentCount(avals?.length ?? 0);
 
     // (assessment detail stats removed - no longer displayed on home)
 
     // Latest training plan
-    const { data: treino } = await supabase
-      .from('ai_plans')
-      .select('conteudo, titulo')
-      .eq('student_id', user!.id)
-      .eq('tipo', 'treino')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const { data: treino } = await fetchWithCache(`plan:treino:${user!.id}`, async () => {
+      const { data } = await supabase.from('ai_plans').select('conteudo, titulo').eq('student_id', user!.id).eq('tipo', 'treino').order('created_at', { ascending: false }).limit(1).maybeSingle();
+      return data;
+    });
     if (treino) {
       setTrainingTitle(treino.titulo);
       const sections = parseTrainingSections(treino.conteudo);
@@ -120,9 +115,10 @@ const MinhaArea = () => {
       const exerciseNames = allDays.flatMap(d => d.exercises.map(e => e.exercise.toUpperCase().trim()));
       const uniqueNames = [...new Set(exerciseNames)];
       if (uniqueNames.length > 0) {
-        const { data: dbExercises } = await supabase
-          .from('exercises')
-          .select('id, nome, imagem_url, grupo_muscular, video_embed, ajustes');
+        const { data: dbExercises } = await fetchWithCache('exercises:all', async () => {
+          const { data } = await supabase.from('exercises').select('id, nome, imagem_url, grupo_muscular, video_embed, ajustes');
+          return data;
+        });
         if (dbExercises) {
           const imgMap: Record<string, string> = {};
           const muscleMap: Record<string, string> = {};
@@ -149,14 +145,10 @@ const MinhaArea = () => {
     }
 
     // Latest diet plan
-    const { data: dieta } = await supabase
-      .from('ai_plans')
-      .select('conteudo, titulo')
-      .eq('student_id', user!.id)
-      .eq('tipo', 'dieta')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const { data: dieta } = await fetchWithCache(`plan:dieta:${user!.id}`, async () => {
+      const { data } = await supabase.from('ai_plans').select('conteudo, titulo').eq('student_id', user!.id).eq('tipo', 'dieta').order('created_at', { ascending: false }).limit(1).maybeSingle();
+      return data;
+    });
     if (dieta) {
       setDietTitle(dieta.titulo);
       const sections = parseSections(dieta.conteudo);
@@ -166,25 +158,17 @@ const MinhaArea = () => {
     }
 
     // Latest TABATA plan
-    const { data: tabata } = await supabase
-      .from('ai_plans')
-      .select('conteudo')
-      .eq('student_id', user!.id)
-      .eq('tipo', 'tabata')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const { data: tabata } = await fetchWithCache(`plan:tabata:${user!.id}`, async () => {
+      const { data } = await supabase.from('ai_plans').select('conteudo').eq('student_id', user!.id).eq('tipo', 'tabata').order('created_at', { ascending: false }).limit(1).maybeSingle();
+      return data;
+    });
     if (tabata) setTabataConteudo(tabata.conteudo);
 
     // Latest CARDIO plan
-    const { data: cardio } = await supabase
-      .from('ai_plans')
-      .select('conteudo')
-      .eq('student_id', user!.id)
-      .eq('tipo', 'cardio')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const { data: cardio } = await fetchWithCache(`plan:cardio:${user!.id}`, async () => {
+      const { data } = await supabase.from('ai_plans').select('conteudo').eq('student_id', user!.id).eq('tipo', 'cardio').order('created_at', { ascending: false }).limit(1).maybeSingle();
+      return data;
+    });
     if (cardio) setCardioConteudo(cardio.conteudo);
 
     setLoading(false);

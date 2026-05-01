@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEventTracking } from '@/hooks/useEventTracking';
 import { writeWithFallback } from '@/lib/offlineQueue';
+import { fetchWithCache } from '@/lib/offlineCache';
 
 interface DailyTracking {
   id?: string;
@@ -46,12 +47,11 @@ export function useDailyTracking(opts?: { isTrainingDay?: boolean }) {
 
   const load = useCallback(async () => {
     if (!user) return;
-    const { data } = await supabase
-      .from('daily_tracking')
-      .select('*')
-      .eq('student_id', user.id)
-      .eq('date', todayStr())
-      .maybeSingle();
+    const today = todayStr();
+    const { data } = await fetchWithCache(`tracking:${user.id}:${today}`, async () => {
+      const { data } = await supabase.from('daily_tracking').select('*').eq('student_id', user.id).eq('date', today).maybeSingle();
+      return data;
+    });
 
     if (data) {
       const mealsCompletedRaw = data.meals_completed;
@@ -71,31 +71,20 @@ export function useDailyTracking(opts?: { isTrainingDay?: boolean }) {
 
     // Count workouts completed this week
     const { start, end } = getWeekRange();
-    const { data: weekData } = await supabase
-      .from('daily_tracking')
-      .select('id')
-      .eq('student_id', user.id)
-      .eq('workout_completed', true)
-      .gte('date', start)
-      .lte('date', end);
+    const { data: weekData } = await fetchWithCache(`weekly:${user.id}:${start}`, async () => {
+      const { data } = await supabase.from('daily_tracking').select('id').eq('student_id', user.id).eq('workout_completed', true).gte('date', start).lte('date', end);
+      return data;
+    });
     setWeeklyWorkouts(weekData?.length ?? 0);
 
     // Carrega peso da última avaliação para calcular meta de água
-    const { data: assessment } = await supabase
-      .from('assessments')
-      .select('id')
-      .eq('student_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (assessment) {
-      const { data: anthro } = await supabase
-        .from('anthropometrics')
-        .select('peso')
-        .eq('assessment_id', assessment.id)
-        .maybeSingle();
-      if (anthro?.peso) setWeightKg(Number(anthro.peso));
-    }
+    const { data: weightData } = await fetchWithCache(`weight:${user.id}`, async () => {
+      const { data: assessment } = await supabase.from('assessments').select('id').eq('student_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (!assessment) return null;
+      const { data: anthro } = await supabase.from('anthropometrics').select('peso').eq('assessment_id', assessment.id).maybeSingle();
+      return anthro?.peso ? Number(anthro.peso) : null;
+    });
+    if (weightData != null) setWeightKg(weightData);
 
     setLoading(false);
   }, [user]);
