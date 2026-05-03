@@ -86,11 +86,18 @@ Consumo Energético = GET × (1 + porcentagem de ajuste)
 MACRONUTRIENTES POR FASE
 ========================================
 
-**BULKING:** P: 1.8-2.2g/kg | G: 0.8-1.2g/kg | C: restante (alto)
-**CUTTING:** P: 2.2-2.8g/kg | G: 0.6-0.8g/kg | C: restante (progressivamente reduzido)
-**MANUTENÇÃO:** P: 1.6-2.0g/kg | G: 0.8-1.0g/kg | C: restante
-**RECOMPOSIÇÃO:** P: 2.2-2.5g/kg | G: 0.7-0.9g/kg | C: moderado, priorizar peri-treino
+**BULKING / HIPERTROFIA / CORPO SLIM:** P: 1.8-2.2g/kg (máx automático 2.4g/kg) | G: 0.7-1.0g/kg (mín 0.7g/kg) | C: restante (alto)
+**CUTTING / EMAGRECIMENTO:** P: 2.0-2.4g/kg (máx automático 2.6g/kg) | G: 0.6-0.9g/kg (mín 0.6g/kg) | C: restante
+**MANUTENÇÃO:** P: 1.6-2.0g/kg (máx automático 2.2g/kg) | G: 0.7-1.0g/kg (mín 0.7g/kg) | C: restante
+**RECOMPOSIÇÃO:** P: 1.8-2.2g/kg (máx automático 2.4g/kg) | G: 0.7-1.0g/kg (mín 0.7g/kg) | C: restante, priorizar peri-treino
 **PRÉ-CONTEST:** P: 2.5-3.0g/kg | G: 0.5-0.7g/kg | C: variável (manipulação nas últimas semanas)
+
+REGRA CRÍTICA DE DISTRIBUIÇÃO DE MACROS:
+1) Use a meta calórica final já calculada pelo sistema. NÃO recalcule calorias.
+2) Proteína deve ser proporcional ao peso corporal e objetivo. Para hipertrofia, corpo slim ou recomposição, manter proteína preferencialmente entre 1.8 e 2.2 g/kg, NUNCA acima de 2.4 g/kg automaticamente.
+3) Gordura deve respeitar o mínimo fisiológico do objetivo.
+4) Carboidratos = (meta_calorica - proteina_g*4 - gordura_g*9) / 4. NÃO use proteína para preencher calorias restantes — calorias restantes vão para CARBOIDRATOS.
+5) Prioridade: 1º proteína na faixa correta → 2º gordura no mínimo/padrão → 3º carboidratos com o restante.
 
 1g P = 4 kcal | 1g C = 4 kcal | 1g G = 9 kcal
 

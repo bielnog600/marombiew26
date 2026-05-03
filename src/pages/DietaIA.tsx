@@ -427,12 +427,28 @@ const DietaIA = () => {
       const consumo = get * (1 + strategyPct / 100);
 
       // Macros based on phase
-      let protPerKg = 2.0, fatPerKg = 0.9;
-      if (suggestedStrategy.includes('deficit')) { protPerKg = 2.4; fatPerKg = 0.7; }
-      if (suggestedStrategy.includes('superavit')) { protPerKg = 1.8; fatPerKg = 1.0; }
-      if (latestQuestionnaire?.usa_hormonios && latestQuestionnaire.usa_hormonios !== 'Não') {
-        protPerKg = Math.min(protPerKg + 0.3, 3.0);
+      let protPerKg: number, fatPerKg: number, protMax: number;
+      const objLower = (sp?.objetivo || '').toLowerCase();
+      const isSlim = objLower.includes('slim') || objLower.includes('recomp');
+      const isEmagrecimento = suggestedStrategy.includes('deficit');
+      const isManutencao = suggestedPhase === 'manutencao' && !isEmagrecimento;
+
+      if (isEmagrecimento) {
+        protPerKg = 2.2; fatPerKg = 0.8; protMax = 2.6;
+      } else if (isManutencao) {
+        protPerKg = 1.8; fatPerKg = 0.9; protMax = 2.2;
+      } else {
+        // Hipertrofia, corpo slim, recomposição, bulking
+        protPerKg = 2.0; fatPerKg = 0.9; protMax = 2.4;
       }
+
+      // Hormones: small bump but capped at objective max
+      if (latestQuestionnaire?.usa_hormonios && latestQuestionnaire.usa_hormonios !== 'Não') {
+        protPerKg = Math.min(protPerKg + 0.2, protMax);
+      }
+
+      // Enforce ceiling
+      protPerKg = Math.min(protPerKg, protMax);
 
       const protGrams = Math.round(protPerKg * peso);
       const fatGrams = Math.round(fatPerKg * peso);
@@ -570,12 +586,23 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
 
       // Recalculate macros based on current phase/strategy
       const peso = studentCtx.peso || 70;
-      let protPerKg = 2.0, fatPerKg = 0.9;
-      if (strategy.includes('deficit')) { protPerKg = 2.4; fatPerKg = 0.7; }
-      if (strategy.includes('superavit')) { protPerKg = 1.8; fatPerKg = 1.0; }
-      if (phase === 'pre_contest') { protPerKg = 2.8; fatPerKg = 0.6; }
-      if (phase === 'recomposicao') { protPerKg = 2.3; fatPerKg = 0.8; }
-      if (usesHormones) { protPerKg = Math.min(protPerKg + 0.3, 3.0); }
+      let protPerKg: number, fatPerKg: number, protMax: number;
+      const isDeficit = strategy.includes('deficit');
+      const isMaint = phase === 'manutencao' && !isDeficit;
+
+      if (phase === 'pre_contest') {
+        protPerKg = 2.5; fatPerKg = 0.6; protMax = 3.0;
+      } else if (isDeficit) {
+        protPerKg = 2.2; fatPerKg = 0.8; protMax = 2.6;
+      } else if (isMaint) {
+        protPerKg = 1.8; fatPerKg = 0.9; protMax = 2.2;
+      } else {
+        // Hipertrofia, recomposição, corpo slim, bulking
+        protPerKg = 2.0; fatPerKg = 0.9; protMax = 2.4;
+      }
+
+      if (usesHormones) { protPerKg = Math.min(protPerKg + 0.2, protMax); }
+      protPerKg = Math.min(protPerKg, protMax);
 
       const protGrams = Math.round(protPerKg * peso);
       const fatGrams = Math.round(fatPerKg * peso);
