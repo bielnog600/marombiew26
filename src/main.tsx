@@ -1,4 +1,5 @@
 import { createRoot } from "react-dom/client";
+import { registerSW } from "virtual:pwa-register";
 import App from "./App.tsx";
 import "./index.css";
 
@@ -28,7 +29,86 @@ const cleanupServiceWorkers = async () => {
   );
 };
 
-void cleanupServiceWorkers();
+const showBootUpdateStatus = () => {
+  document.documentElement.dataset.pwaUpdating = "true";
+
+  const boot = document.getElementById("boot-splash");
+  if (!boot) return;
+
+  let status = boot.querySelector<HTMLElement>("[data-splash-update-status]");
+  if (!status) {
+    status = document.createElement("p");
+    status.dataset.splashUpdateStatus = "true";
+    status.textContent = "Atualizando o app...";
+    status.style.position = "absolute";
+    status.style.left = "24px";
+    status.style.right = "24px";
+    status.style.top = "calc(50% + 118px)";
+    status.style.margin = "0";
+    status.style.textAlign = "center";
+    status.style.fontFamily = "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    status.style.fontSize = "12px";
+    status.style.fontWeight = "600";
+    status.style.letterSpacing = "0";
+    status.style.color = "hsl(var(--primary, 45 100% 50%))";
+    status.style.opacity = "0.92";
+    boot.appendChild(status);
+  }
+};
+
+const startPwaAutoUpdate = () => {
+  if (!("serviceWorker" in navigator) || isPreviewHost || isInIframe) return;
+
+  let updateServiceWorker: ((reloadPage?: boolean) => Promise<void>) | undefined;
+  let applyingUpdate = false;
+
+  const applyUpdate = async () => {
+    if (applyingUpdate) return;
+    applyingUpdate = true;
+    showBootUpdateStatus();
+    await updateServiceWorker?.(true);
+    window.location.reload();
+  };
+
+  updateServiceWorker = registerSW({
+    immediate: true,
+    onRegisteredSW(_swUrl, registration) {
+      if (!registration) return;
+
+      const checkForUpdate = async () => {
+        if (!navigator.onLine || applyingUpdate) return;
+        if (registration.waiting) {
+          await applyUpdate().catch(() => window.location.reload());
+          return;
+        }
+        await registration.update().catch(() => undefined);
+        if (registration.waiting) await applyUpdate().catch(() => window.location.reload());
+      };
+
+      void checkForUpdate();
+      const interval = window.setInterval(checkForUpdate, 30 * 1000);
+      const onVisible = () => {
+        if (document.visibilityState === "visible") void checkForUpdate();
+      };
+
+      document.addEventListener("visibilitychange", onVisible);
+      window.addEventListener("focus", onVisible);
+      window.addEventListener("pageshow", onVisible);
+
+      window.addEventListener("beforeunload", () => {
+        window.clearInterval(interval);
+        document.removeEventListener("visibilitychange", onVisible);
+        window.removeEventListener("focus", onVisible);
+        window.removeEventListener("pageshow", onVisible);
+      }, { once: true });
+    },
+    onNeedRefresh() {
+      void applyUpdate().catch(() => window.location.reload());
+    },
+  });
+};
+
+void cleanupServiceWorkers().then(startPwaAutoUpdate);
 
 // Force portrait behavior as much as the browser allows.
 // Native lock works mainly in installed PWAs/Android; CSS class below covers iOS/browser fallback.
