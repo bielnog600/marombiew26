@@ -70,7 +70,7 @@ const App = () => {
         <Toaster />
         <Sonner />
         {showSplash && <SplashScreen onFinish={handleSplashFinish} />}
-        <PWAUpdater />
+        {!showSplash && <PWAUpdater />}
         <OfflineIndicator />
         <InstallBanner />
         <BrowserRouter>
