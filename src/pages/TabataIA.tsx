@@ -94,6 +94,7 @@ const TabataIA = () => {
   const [multiResults, setMultiResults] = useState<{ dayLabel: string; content: string }[]>([]);
   const [currentGenDay, setCurrentGenDay] = useState(0);
   const [savingAll, setSavingAll] = useState(false);
+  const [editDay, setEditDay] = useState('');
 
   useEffect(() => {
     if (studentId) loadStudentData();
@@ -111,7 +112,12 @@ const TabataIA = () => {
 
   const loadEditPlan = async () => {
     const { data } = await supabase.from('ai_plans').select('*').eq('id', editPlanId!).maybeSingle();
-    if (data) setResult(data.conteudo);
+    if (data) {
+      setResult(data.conteudo);
+      // Try to extract day from titulo like "Segunda — TABATA..."
+      const dayMatch = data.titulo?.match(new RegExp(`^(${WEEKDAYS.join('|')})`, 'i'));
+      setEditDay(dayMatch ? dayMatch[1] : '');
+    }
   };
 
   const loadStudentData = async () => {
