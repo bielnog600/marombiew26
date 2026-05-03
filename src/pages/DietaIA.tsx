@@ -11,6 +11,7 @@ import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
 import { generateDietPDF } from '@/lib/generateDietPDF';
 import AiWizard from '@/components/AiWizard';
+import { formatDietMacroLine, validateDietMacros, type DietMacroTargets, type DietMacroValidationReport, type FoodMacroRecord } from '@/lib/dietMacroValidation';
 
 type StudentCtx = Record<string, any>;
 
@@ -189,6 +190,7 @@ const DietaIA = () => {
   // Result
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState('');
+  const [macroReport, setMacroReport] = useState<DietMacroValidationReport | null>(null);
   const [saving, setSaving] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
 
@@ -533,10 +535,85 @@ const DietaIA = () => {
 
   const canGenerate = activityLevel && strategy && mealCount && phase;
 
+  const streamDietAgent = async (
+    messages: { role: 'user' | 'assistant'; content: string }[],
+    onChunk?: (content: string) => void,
+  ) => {
+    const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/diet-agent`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      },
+      body: JSON.stringify({ messages, studentContext: studentCtx }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: 'Erro desconhecido' }));
+      throw new Error(err.error || `Erro ${resp.status}`);
+    }
+    if (!resp.body) throw new Error('Sem resposta');
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let textBuffer = '';
+    let accumulated = '';
+    let streamDone = false;
+
+    const consumeLine = (line: string) => {
+      if (line.endsWith('\r')) line = line.slice(0, -1);
+      if (line.startsWith(':') || line.trim() === '' || !line.startsWith('data: ')) return;
+      const jsonStr = line.slice(6).trim();
+      if (jsonStr === '[DONE]') { streamDone = true; return; }
+      const parsed = JSON.parse(jsonStr);
+      const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+      if (content) {
+        accumulated += content;
+        onChunk?.(accumulated);
+      }
+    };
+
+    while (!streamDone) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      textBuffer += decoder.decode(value, { stream: true });
+      let idx: number;
+      while ((idx = textBuffer.indexOf('\n')) !== -1) {
+        const line = textBuffer.slice(0, idx);
+        textBuffer = textBuffer.slice(idx + 1);
+        try { consumeLine(line); } catch { textBuffer = line + '\n' + textBuffer; break; }
+      }
+    }
+
+    for (const raw of textBuffer.split('\n')) {
+      if (!raw || raw.startsWith(':') || raw.trim() === '' || !raw.startsWith('data: ')) continue;
+      try { consumeLine(raw); } catch { /* ignore trailing partial chunks */ }
+    }
+
+    return accumulated;
+  };
+
+  const loadFoodMacroRecords = async (): Promise<FoodMacroRecord[]> => {
+    const { data, error } = await supabase
+      .from('foods')
+      .select('name, calories, protein, carbs, fats, portion_size')
+      .order('name');
+    if (error) throw new Error('Erro ao carregar base alimentar: ' + error.message);
+    return (data || []).map((food) => ({
+      name: food.name,
+      calories: Number(food.calories) || 0,
+      protein: Number(food.protein) || 0,
+      carbs: Number(food.carbs) || 0,
+      fats: Number(food.fats) || 0,
+      portion_size: Number(food.portion_size) || 100,
+    }));
+  };
+
   const generatePlan = async () => {
     if (!canGenerate || !studentCtx) return;
     setGenerating(true);
     setResult('');
+    setMacroReport(null);
 
     const selectedStrategy = STRATEGIES.find(s => s.value === strategy);
     const selectedActivity = ACTIVITY_LEVELS.find(a => a.value === activityLevel);
@@ -591,6 +668,7 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
 
     // Recalculate recommendation using CURRENT wizard selections (not the initial suggestion)
     let recText = '';
+    let currentTargets: DietMacroTargets | null = null;
     const baseRec = studentCtx.recomendacao_ia;
     if (baseRec) {
       const currentFA = parseFloat(activityLevel);
@@ -606,6 +684,12 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
         phaseValue: phase,
         hormoneUse: hasHormoneUse(usesHormones),
       });
+      currentTargets = {
+        calories: currentCalories,
+        protein: macros.proteinGrams,
+        carbs: macros.carbGrams,
+        fats: macros.fatGrams,
+      };
 
       recText = `
 === RECOMENDAÇÃO CALCULADA (VALORES OBRIGATÓRIOS — NÃO RECALCULE) ===
@@ -619,6 +703,7 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
 - Gordura EXATA: ${macros.fatGrams}g (${macros.fatPerKg}g/kg)
 ⚠️ OBRIGATÓRIO: O TOTAL DIÁRIO da tabela DEVE ser EXATAMENTE ${currentCalories} kcal (tolerância ±50 kcal). Proteína total = ${macros.proteinGrams}g, Carboidrato total = ${macros.carbGrams}g, Gordura total = ${macros.fatGrams}g. NÃO use outros valores. NÃO recalcule a TMB. Estes valores já são definitivos.
 ⚠️ REGRA DE CORREÇÃO: Se faltar caloria para bater a meta, ajuste CARBOIDRATO. NÃO aumente proteína acima de ${macros.proteinGrams}g para completar calorias.
+⚠️ VALIDAÇÃO FINAL: Antes de responder, some alimento por alimento. A dieta só é aceitável se ficar entre ${currentCalories - 50} e ${currentCalories + 50} kcal, proteína entre ${macros.proteinGrams - 10} e ${macros.proteinGrams + 10}g, carboidrato entre ${macros.carbGrams - 15} e ${macros.carbGrams + 15}g e gordura entre ${macros.fatGrams - 8} e ${macros.fatGrams + 8}g.
 `;
     }
 
@@ -734,69 +819,49 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
 17) Mensagens prontas para WhatsApp`;
 
     try {
-      const resp = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/diet-agent`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({
-            messages: [{ role: 'user', content: prompt }],
-            studentContext: studentCtx,
-          }),
-        }
-      );
+      const foodRecords = await loadFoodMacroRecords();
+      const generated = await streamDietAgent([{ role: 'user', content: prompt }]);
+      let finalPlan = generated;
 
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({ error: 'Erro desconhecido' }));
-        throw new Error(err.error || `Erro ${resp.status}`);
-      }
-      if (!resp.body) throw new Error('Sem resposta');
+      if (currentTargets) {
+        let report = validateDietMacros(generated, currentTargets, foodRecords);
 
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let textBuffer = '';
-      let accumulated = '';
-      let streamDone = false;
+        if (!report.valid) {
+          toast.error('Dieta gerada fora da meta. Ajustando automaticamente...');
+          const correctionPrompt = `A dieta abaixo foi REPROVADA na validação real do sistema. Reescreva o plano inteiro corrigindo SOMENTE as porções/alimentos da tabela para bater a meta.
 
-      while (!streamDone) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        textBuffer += decoder.decode(value, { stream: true });
-        let idx: number;
-        while ((idx = textBuffer.indexOf('\n')) !== -1) {
-          let line = textBuffer.slice(0, idx);
-          textBuffer = textBuffer.slice(idx + 1);
-          if (line.endsWith('\r')) line = line.slice(0, -1);
-          if (line.startsWith(':') || line.trim() === '') continue;
-          if (!line.startsWith('data: ')) continue;
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === '[DONE]') { streamDone = true; break; }
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-            if (content) { accumulated += content; setResult(accumulated); }
-          } catch {
-            textBuffer = line + '\n' + textBuffer;
-            break;
-          }
+META OBRIGATÓRIA: ${formatDietMacroLine(report.target)}
+GERADO REAL: ${formatDietMacroLine(report.generated)}
+DIFERENÇA: ${formatDietMacroLine(report.difference)}
+MOTIVOS: ${report.reasons.join(' ')}
+
+REGRAS DE AJUSTE OBRIGATÓRIAS:
+- Se proteína estiver acima da meta, reduza whey, claras, frango, peixe, carne, ovos e laticínios proteicos primeiro.
+- Se carboidrato estiver abaixo da meta, aumente arroz, massa, batata, batata-doce, aveia, pão, tapioca, frutas, mel, cereais ou quinoa.
+- Se gordura estiver acima da meta, reduza salmão, abacate, amêndoas, castanhas, azeite, manteiga de amendoim, ovos inteiros e iogurtes gordos.
+- Se calorias estiverem abaixo, complete preferencialmente com carboidratos de baixa gordura.
+- Não use proteína para completar calorias.
+- Distribua a proteína de forma equilibrada entre as ${mealCount} refeições.
+- Use valores da base por gramas: valor_porção = valor_base * quantidade_g / porção_base.
+
+DIETA REPROVADA:
+${generated}`;
+
+          const adjusted = await streamDietAgent([{ role: 'user', content: correctionPrompt }]);
+          finalPlan = adjusted;
+          report = validateDietMacros(adjusted, currentTargets, foodRecords);
         }
-      }
-      if (textBuffer.trim()) {
-        for (let raw of textBuffer.split('\n')) {
-          if (!raw || raw.startsWith(':') || raw.trim() === '') continue;
-          if (raw.endsWith('\r')) raw = raw.slice(0, -1);
-          if (!raw.startsWith('data: ')) continue;
-          const jsonStr = raw.slice(6).trim();
-          if (jsonStr === '[DONE]') continue;
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-            if (content) { accumulated += content; setResult(accumulated); }
-          } catch { /* ignore */ }
+
+        setMacroReport(report);
+        if (!report.valid) {
+          setResult('');
+          toast.error(`Dieta ainda fora da meta: ${report.reasons.join(' ')}`);
+          return;
         }
+        setResult(finalPlan);
+        toast.success('Dieta validada dentro da meta.');
+      } else {
+        setResult(generated);
       }
     } catch (e: any) {
       console.error(e);
@@ -808,6 +873,10 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
 
   const savePlan = async () => {
     if (!result) return;
+    if (macroReport && !macroReport.valid) {
+      toast.error('Dieta gerada fora da meta. Ajustando automaticamente...');
+      return;
+    }
     setSaving(true);
     if (editPlanId) {
       const { error } = await supabase.from('ai_plans').update({
@@ -1316,11 +1385,29 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
                 <Button variant="outline" size="sm" onClick={() => generateDietPDF(result, studentName)}>
                   <FileDown className="h-3 w-3 mr-1" /> PDF
                 </Button>
-                <Button size="sm" onClick={savePlan} disabled={saving}>
+                <Button size="sm" onClick={savePlan} disabled={saving || macroReport?.valid === false}>
                   <Save className="h-3 w-3 mr-1" /> {editPlanId ? 'Atualizar' : 'Salvar'}
                 </Button>
               </div>
             </div>
+            {macroReport && (
+              <Card className={`border ${macroReport.valid ? 'border-primary/30 bg-primary/5' : 'border-destructive/40 bg-destructive/10'}`}>
+                <CardContent className="space-y-2 p-4 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-bold text-sm">Validação real dos macros</span>
+                    <span className={`rounded-full px-2 py-1 font-semibold ${macroReport.valid ? 'bg-primary/15 text-primary' : 'bg-destructive/15 text-destructive'}`}>
+                      {macroReport.valid ? 'Status: válido' : 'Status: inválido'}
+                    </span>
+                  </div>
+                  <div className="grid gap-1 text-muted-foreground sm:grid-cols-3">
+                    <span>Meta: <strong className="text-foreground">{formatDietMacroLine(macroReport.target)}</strong></span>
+                    <span>Gerado: <strong className="text-foreground">{formatDietMacroLine(macroReport.generated)}</strong></span>
+                    <span>Diferença: <strong className="text-foreground">{formatDietMacroLine(macroReport.difference)}</strong></span>
+                  </div>
+                  {!macroReport.valid && <p className="text-destructive">{macroReport.reasons.join(' ')}</p>}
+                </CardContent>
+              </Card>
+            )}
             <DietResultCards markdown={result} />
           </div>
         )}
