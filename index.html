@@ -92,6 +92,7 @@
 
   <body>
     <div id="boot-splash">
+      <script>if(sessionStorage.getItem('_splashDone')){document.getElementById('boot-splash').style.display='none'}</script>
       <div class="boot-logo-wrap">
         <svg width="170" height="170" viewBox="0 0 170 170" aria-hidden="true">
           <circle cx="85" cy="85" r="83" stroke="#171A21" stroke-width="4" fill="none" opacity="0.45" />
