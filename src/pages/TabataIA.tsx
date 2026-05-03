@@ -440,6 +440,7 @@ const TabataIA = () => {
               currentStep={currentStep}
               onStepChange={setCurrentStep}
               stepValid={stepValid}
+              autoAdvanceDelay={0}
               canGenerate={!!intensity}
               generating={generating}
               onGenerate={generateTabata}
