@@ -11,6 +11,11 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
+import { Slider } from '@/components/ui/slider';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
@@ -20,6 +25,7 @@ import { formatDietMacroLine, validateDietMacros, type DietMacroTargets, type Di
 import { parseSections } from '@/lib/dietResultParser';
 import { scaleMealsToTarget, replaceMealTableInMarkdown } from '@/lib/dietMarkdownSerializer';
 import type { ParsedMeal } from '@/lib/dietResultParser';
+import { Percent } from 'lucide-react';
 
 type StudentCtx = Record<string, any>;
 
@@ -203,6 +209,8 @@ const DietaIA = () => {
   const [saving, setSaving] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
+  const [showMacroModal, setShowMacroModal] = useState(false);
+  const [macroPct, setMacroPct] = useState({ protein: 20, carbs: 50, fat: 30 });
 
   useEffect(() => {
     if (studentId) loadStudentData();
@@ -1433,7 +1441,12 @@ ${generated}`;
                 {macroReport && !macroReport.valid && (
                   <Button variant="outline" size="sm" onClick={adjustMacros} disabled={adjusting}>
                     {adjusting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <SlidersHorizontal className="h-3 w-3 mr-1" />}
-                    Ajustar porções
+                    Ajustar automático
+                  </Button>
+                )}
+                {macroReport && !macroReport.valid && (
+                  <Button variant="outline" size="sm" onClick={() => setShowMacroModal(true)}>
+                    <Percent className="h-3 w-3 mr-1" /> Ajustar macros
                   </Button>
                 )}
                 <Button size="sm" onClick={() => {
@@ -1471,7 +1484,10 @@ ${generated}`;
                       <div className="flex flex-wrap gap-2 pt-1">
                         <Button variant="outline" size="sm" onClick={adjustMacros} disabled={adjusting}>
                           {adjusting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <SlidersHorizontal className="h-3 w-3 mr-1" />}
-                          Ajustar porções
+                          Ajustar automático
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setShowMacroModal(true)}>
+                          <Percent className="h-3 w-3 mr-1" /> Ajustar macros
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan(); }}>
                           <RefreshCw className="h-3 w-3 mr-1" /> Regenerar dieta
@@ -1507,6 +1523,85 @@ ${generated}`;
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Modal Ajustar Macros por % */}
+        <Dialog open={showMacroModal} onOpenChange={setShowMacroModal}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Ajustar macros por %</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-5 py-2">
+              {([
+                { key: 'protein' as const, label: 'Proteína' },
+                { key: 'carbs' as const, label: 'Carboidrato' },
+                { key: 'fat' as const, label: 'Gordura' },
+              ]).map(({ key, label }) => {
+                const kcalTotal = macroReport?.target.calories ?? 2000;
+                const kcalFromMacro = key === 'fat'
+                  ? (kcalTotal * macroPct[key]) / 100
+                  : (kcalTotal * macroPct[key]) / 100;
+                const grams = key === 'fat' ? kcalFromMacro / 9 : kcalFromMacro / 4;
+                return (
+                  <div key={key} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">{label}</Label>
+                      <span className="text-sm font-bold text-primary">{macroPct[key]}% — {Math.round(grams)}g</span>
+                    </div>
+                    <Slider
+                      value={[macroPct[key]]}
+                      onValueChange={([v]) => setMacroPct(prev => ({ ...prev, [key]: v }))}
+                      min={5}
+                      max={70}
+                      step={5}
+                    />
+                  </div>
+                );
+              })}
+              <div className="text-xs text-muted-foreground text-center">
+                Total: <strong className={macroPct.protein + macroPct.carbs + macroPct.fat === 100 ? 'text-green-500' : 'text-red-500'}>
+                  {macroPct.protein + macroPct.carbs + macroPct.fat}%
+                </strong> (deve ser 100%)
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                disabled={macroPct.protein + macroPct.carbs + macroPct.fat !== 100 || adjusting}
+                onClick={async () => {
+                  if (!macroReport || !result) return;
+                  setAdjusting(true);
+                  try {
+                    const kcal = macroReport.target.calories;
+                    const newTarget: DietMacroTargets = {
+                      calories: kcal,
+                      protein: Math.round((kcal * macroPct.protein / 100) / 4),
+                      carbs: Math.round((kcal * macroPct.carbs / 100) / 4),
+                      fats: Math.round((kcal * macroPct.fat / 100) / 9),
+                    };
+                    const sections = parseSections(result);
+                    const meals: ParsedMeal[] = sections.flatMap(s => s.type === 'meal' ? (s.meals || []) : []);
+                    if (meals.length === 0) { toast.error('Nenhuma refeição encontrada.'); return; }
+                    const scaled = scaleMealsToTarget(meals, newTarget.calories);
+                    const adjusted = replaceMealTableInMarkdown(result, scaled);
+                    const foodRecords = await loadFoodMacroRecords();
+                    const report = validateDietMacros(adjusted, newTarget, foodRecords);
+                    setMacroReport(report);
+                    setResult(adjusted);
+                    setShowMacroModal(false);
+                    if (report.valid) toast.success('Macros ajustados com sucesso!');
+                    else toast('Macros ajustados. Revise os valores.', { icon: '⚠️' });
+                  } catch (e: any) {
+                    toast.error(e.message || 'Erro ao ajustar');
+                  } finally {
+                    setAdjusting(false);
+                  }
+                }}
+              >
+                {adjusting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Percent className="h-4 w-4 mr-1" />}
+                Aplicar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );
