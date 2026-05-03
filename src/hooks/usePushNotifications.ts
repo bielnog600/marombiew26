@@ -7,6 +7,9 @@ const ONESIGNAL_APP_ID = "59537140-b7f1-435a-b57d-c8380b0d3276";
 type PushStatus = "idle" | "initializing" | "ready" | "enabled" | "blocked" | "unsupported" | "preview" | "error";
 
 interface OneSignalSdk {
+  Debug?: {
+    setLogLevel: (level: "trace" | "debug" | "info" | "warn" | "error") => void;
+  };
   init: (options: {
     appId: string;
     language?: string;
@@ -21,7 +24,6 @@ interface OneSignalSdk {
   login: (externalId: string) => Promise<void>;
   Notifications: {
     permission: boolean;
-    requestPermission: () => Promise<boolean | void>;
     addEventListener?: (event: "permissionChange", callback: () => void | Promise<void>) => void;
     removeEventListener?: (event: "permissionChange", callback: () => void | Promise<void>) => void;
   };
@@ -66,17 +68,10 @@ const isStandalonePWA = () =>
 
 const getNotificationPermission = (): NotificationPermission => Notification.permission;
 
-const requestNativePermission = async (): Promise<NotificationPermission> => {
-  if (Notification.permission !== "default") return Notification.permission;
+const hasPushPermission = (OneSignal: OneSignalSdk) =>
+  OneSignal.Notifications.permission === true || Notification.permission === "granted";
 
-  try {
-    const permission = await Notification.requestPermission();
-    return permission || Notification.permission;
-  } catch (err) {
-    console.warn("[Push] native permission failed:", err);
-    return Notification.permission;
-  }
-};
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let oneSignalPromise: Promise<OneSignalSdk> | null = null;
 
