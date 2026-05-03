@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -79,6 +79,16 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   const [saving, setSaving] = useState<string | null>(null);
   const [macroModalPlanId, setMacroModalPlanId] = useState<string | null>(null);
   const [macroPct, setMacroPct] = useState({ protein: 30, carbs: 50, fat: 20 });
+
+  // Compute kcal target for the modal plan to show live gram preview
+  const modalPlanKcal = useMemo(() => {
+    if (!macroModalPlanId) return 0;
+    const plan = plans.find(p => p.id === macroModalPlanId);
+    if (!plan) return 0;
+    const sections = parseSections(plan.conteudo);
+    const targets = extractTargetsFromSections(sections);
+    return targets?.calories ?? 0;
+  }, [macroModalPlanId, plans]);
 
   const handleDelete = async (planId: string) => {
     const { error } = await supabase.from('ai_plans').delete().eq('id', planId);
@@ -314,11 +324,13 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
           <div className="space-y-5 py-2">
             {(['protein', 'carbs', 'fat'] as const).map((key) => {
               const labels = { protein: 'Proteína', carbs: 'Carboidrato', fat: 'Gordura' };
+              const divisor = key === 'fat' ? 9 : 4;
+              const grams = modalPlanKcal > 0 ? Math.round((modalPlanKcal * macroPct[key] / 100) / divisor) : 0;
               return (
                 <div key={key} className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <Label>{labels[key]}</Label>
-                    <span className="font-bold">{macroPct[key]}%</span>
+                    <span className="font-bold">{macroPct[key]}% — <span className="text-primary">{grams} g</span></span>
                   </div>
                   <Slider
                     min={5} max={70} step={1}
