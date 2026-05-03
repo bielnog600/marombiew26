@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
@@ -6,7 +6,7 @@ import { VitePWA } from "vite-plugin-pwa";
 
 const appVersion = Date.now().toString();
 
-const appVersionPlugin = () => ({
+const appVersionPlugin = (): Plugin => ({
   name: "app-version",
   generateBundle() {
     this.emitFile({
