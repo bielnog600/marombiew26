@@ -11,6 +11,13 @@ const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
     const boot = document.getElementById('boot-splash');
     let cancelled = false;
 
+    // If splash already shown this session, skip immediately
+    if (sessionStorage.getItem('_splashDone')) {
+      boot?.remove();
+      onFinish();
+      return;
+    }
+
     const finishSplash = () => {
       if (cancelled) return;
       if (boot) {
@@ -18,9 +25,11 @@ const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
         setTimeout(() => {
           if (cancelled) return;
           boot.remove();
+          sessionStorage.setItem('_splashDone', '1');
           onFinish();
         }, 340);
       } else {
+        sessionStorage.setItem('_splashDone', '1');
         onFinish();
       }
     };
