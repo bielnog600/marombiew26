@@ -1,12 +1,15 @@
 import React from 'react';
+import { useState } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Play, Target, Repeat, Timer, Activity, Dumbbell } from 'lucide-react';
+import { ArrowLeft, Play, Target, Repeat, Timer, Activity, Dumbbell, BarChart3 } from 'lucide-react';
 import type { ParsedExercise } from '@/lib/trainingResultParser';
 import { buildSetPlan, buildPlanSummary } from '@/lib/setPlanBuilder';
 import type { TrainingPhase } from '@/lib/trainingPhase';
+import { ExerciseLoadHistorySheet } from '@/components/training/ExerciseLoadHistorySheet';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ExerciseMediaInfo {
   id?: string;
@@ -27,6 +30,8 @@ const TreinoPreview = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state as LocationState | null;
+  const { user } = useAuth();
+  const [historyExercise, setHistoryExercise] = useState<string | null>(null);
 
   if (!state || !state.exercises) {
     return (
@@ -107,6 +112,15 @@ const TreinoPreview = () => {
                   <p className="text-sm font-semibold">{totalSets}</p>
                 </div>
               </div>
+                      {/* Botão de histórico de cargas */}
+                      <button
+                        type="button"
+                        onClick={() => setHistoryExercise(ex.exercise)}
+                        className="shrink-0 self-start mt-0.5 p-1.5 rounded-md hover:bg-muted/50 transition-colors"
+                        aria-label="Ver histórico de cargas"
+                      >
+                        <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                      </button>
             </div>
           </CardContent>
         </Card>
@@ -192,6 +206,16 @@ const TreinoPreview = () => {
           </Button>
         </div>
       </div>
+
+      {/* Sheet de histórico de cargas */}
+      {user && (
+        <ExerciseLoadHistorySheet
+          open={!!historyExercise}
+          onOpenChange={(v) => { if (!v) setHistoryExercise(null); }}
+          studentId={user.id}
+          exerciseName={historyExercise || ''}
+        />
+      )}
     </AppLayout>
   );
 };
