@@ -638,12 +638,27 @@ As 3 opções devem ser alimentos DIFERENTES entre si e diferentes do alimento p
 ${substitutions.length > 0 ? `Use PREFERENCIALMENTE os alimentos abaixo como opções de substituição:\n${substitutions.map(s => `- ${s.food}: ${s.portion}`).join('\n')}` : ''}
 ${modelDiet.trim() ? `
 === DIETA MODELO (REFERÊNCIA) ===
-O nutricionista colou uma dieta modelo abaixo. Use esta dieta como BASE/REFERÊNCIA: mantenha a estrutura, os alimentos e horários semelhantes, mas AJUSTE as quantidades (gramas) para que os macronutrientes e calorias totais batam com os valores calculados para este aluno.
+O nutricionista colou uma dieta modelo abaixo. Use esta dieta como BASE/REFERÊNCIA: mantenha a estrutura e horários semelhantes, mas AJUSTE as quantidades (gramas) para que os macronutrientes e calorias totais batam com os valores calculados para este aluno.
+IMPORTANTE: Se a dieta modelo contiver algum alimento que o aluno NÃO PODE comer (por restrição alimentar, alergia ou intolerância) ou que NÃO ESTÁ na lista de preferências alimentares do aluno, você DEVE substituir esse alimento por outro da lista de preferências/alimentos permitidos do aluno que tenha perfil nutricional semelhante, mantendo os macros equivalentes.
 Dieta modelo:
 ${modelDiet.trim()}
 ` : ''}
-${studentCtx.questionario_dieta?.preferencias_alimentares ? `Considere as preferências do aluno: ${studentCtx.questionario_dieta.preferencias_alimentares}` : ''}
-${studentCtx.questionario_dieta?.restricoes_alimentares ? `Respeite as restrições: ${studentCtx.questionario_dieta.restricoes_alimentares}` : ''}
+${studentCtx.questionario_dieta?.preferencias_alimentares ? `
+=== PREFERÊNCIAS ALIMENTARES DO ALUNO ===
+Estes são os alimentos que o aluno GOSTA e PODE comer. Ao usar dieta modelo, substitua qualquer alimento que não esteja nesta lista por um equivalente desta lista:
+${studentCtx.questionario_dieta.preferencias_alimentares}` : ''}
+${studentCtx.questionario_dieta?.restricoes_alimentares ? `
+=== RESTRIÇÕES ALIMENTARES DO ALUNO ===
+O aluno NÃO PODE comer os alimentos/grupos abaixo. Se aparecerem na dieta modelo, SUBSTITUA obrigatoriamente por alternativas permitidas:
+${studentCtx.questionario_dieta.restricoes_alimentares}` : ''}
+${preferences.length > 0 ? `
+=== ALIMENTOS PREFERIDOS (selecionados pelo nutricionista) ===
+Priorize estes alimentos ao montar o plano ou ao substituir itens da dieta modelo:
+${preferences.join(', ')}` : ''}
+${restrictions.length > 0 ? `
+=== RESTRIÇÕES (selecionadas pelo nutricionista) ===
+O aluno possui estas restrições. Nunca inclua alimentos incompatíveis:
+${restrictions.join(', ')}` : ''}
 Use também a base de alimentos disponível do sistema para escolher substituições adequadas.
 
 === ESTRUTURA OBRIGATÓRIA DA TABELA ===
