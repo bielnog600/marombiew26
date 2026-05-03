@@ -144,31 +144,6 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     );
   }
 
-  const handleAdjustAuto = (planId: string) => {
-    const plan = plans.find(p => p.id === planId);
-    if (!plan) return;
-    try {
-      setAdjustingId(planId);
-      const sections = parseSections(plan.conteudo);
-      const targets = extractTargetsFromSections(sections);
-      if (!targets || targets.calories <= 0) {
-        toast.error('Não foi possível detectar a meta calórica na dieta.');
-        return;
-      }
-      const meals = sections.flatMap(s => s.type === 'meal' && s.meals ? s.meals : []);
-      if (!meals.length) { toast.error('Nenhuma refeição encontrada.'); return; }
-      const scaled = scaleMealsToTarget(meals, targets.calories);
-      const newContent = replaceMealTableInMarkdown(plan.conteudo, scaled);
-      setPlans(prev => prev.map(p => p.id === planId ? { ...p, conteudo: newContent } : p));
-      setEditedMeals(prev => { const c = { ...prev }; delete c[planId]; return c; });
-      toast.success('Porções ajustadas automaticamente!');
-    } catch (e: any) {
-      toast.error(e.message || 'Erro ao ajustar');
-    } finally {
-      setAdjustingId(null);
-    }
-  };
-
   const handleApplyMacroPct = (planId: string) => {
     const plan = plans.find(p => p.id === planId);
     if (!plan) return;
