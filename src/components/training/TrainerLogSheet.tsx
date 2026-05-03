@@ -197,7 +197,7 @@ const HistoryPopover: React.FC<{
       .eq('student_id', studentId)
       .ilike('exercise_name', exerciseName)
       .order('performed_at', { ascending: false })
-      .limit(40);
+      .limit(200);
     setRows((data as HistoryRow[]) || []);
     setLoading(false);
   };
@@ -476,13 +476,13 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
         </SheetHeader>
 
         {days.length > 1 && (
-          <div className="flex flex-wrap gap-1.5 p-2 mt-3 rounded-lg bg-secondary/40 border border-border/40">
+          <div className="flex gap-1.5 p-2 mt-3 rounded-lg bg-secondary/40 border border-border/40 overflow-x-auto scrollbar-hide">
             {days.map((d, i) => (
               <Button
                 key={`${d.day}-${i}`}
                 size="sm"
                 variant={activeDayIdx === i ? 'default' : 'ghost'}
-                className="h-7 px-3 text-xs"
+                className="h-7 px-3 text-xs shrink-0 whitespace-nowrap"
                 onClick={() => setActiveDayIdx(i)}
               >
                 {d.day}
