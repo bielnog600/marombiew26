@@ -22,7 +22,7 @@ const PushNotificationsInit = () => {
     const enabled = await enableNotifications();
     if (enabled) toast.success("Notificações ativadas!");
     else if (Notification.permission === "denied") toast.error("Permissão bloqueada nas configurações do iPhone.");
-    else toast.error("Não foi possível ativar agora. Tente tocar novamente.");
+    else toast.error("Aguarde alguns segundos e tente novamente. Se persistir, reabra o app.");
   };
 
   return (
