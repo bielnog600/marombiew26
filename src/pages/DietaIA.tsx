@@ -651,14 +651,14 @@ ${studentCtx.questionario_dieta?.restricoes_alimentares ? `
 === RESTRIÇÕES ALIMENTARES DO ALUNO ===
 O aluno NÃO PODE comer os alimentos/grupos abaixo. Se aparecerem na dieta modelo, SUBSTITUA obrigatoriamente por alternativas permitidas:
 ${studentCtx.questionario_dieta.restricoes_alimentares}` : ''}
-${preferences.length > 0 ? `
+${selectedPreferences.length > 0 ? `
 === ALIMENTOS PREFERIDOS (selecionados pelo nutricionista) ===
 Priorize estes alimentos ao montar o plano ou ao substituir itens da dieta modelo:
-${preferences.join(', ')}` : ''}
-${restrictions.length > 0 ? `
+${selectedPreferences.join(', ')}` : ''}
+${selectedRestrictions.length > 0 ? `
 === RESTRIÇÕES (selecionadas pelo nutricionista) ===
 O aluno possui estas restrições. Nunca inclua alimentos incompatíveis:
-${restrictions.join(', ')}` : ''}
+${selectedRestrictions.join(', ')}` : ''}
 Use também a base de alimentos disponível do sistema para escolher substituições adequadas.
 
 === ESTRUTURA OBRIGATÓRIA DA TABELA ===
