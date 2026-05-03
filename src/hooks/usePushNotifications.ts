@@ -169,7 +169,11 @@ const saveSubscription = async (OneSignal: OneSignalSdk, userId: string) => {
 };
 
 const activatePushSubscription = async (OneSignal: OneSignalSdk) => {
-  if (Notification.permission === "default" || OneSignal.User.PushSubscription.optedIn !== true) {
+  if (Notification.permission === "default") {
+    await OneSignal.Slidedown.promptPush({ force: true });
+  }
+
+  if (Notification.permission !== "denied" && OneSignal.User.PushSubscription.optedIn !== true) {
     await OneSignal.User.PushSubscription.optIn();
   }
 };
