@@ -43,11 +43,19 @@ const showUpdateText = (boot: HTMLElement | null) => {
 const checkAndApplyServiceWorkerUpdate = async (boot: HTMLElement | null) => {
   if (!('serviceWorker' in navigator) || !navigator.onLine || isPreviewOrIframe()) return false;
 
+  // Prevent reload loops: if we already reloaded for an update this session, skip
+  const RELOAD_KEY = 'sw-update-reload';
+  if (sessionStorage.getItem(RELOAD_KEY)) {
+    sessionStorage.removeItem(RELOAD_KEY);
+    return false;
+  }
+
   const registration = await navigator.serviceWorker.getRegistration('/');
   if (!registration || !registration.active?.scriptURL.endsWith(APP_SW_PATH)) return false;
 
   const activateAndReload = async () => {
     showUpdateText(boot);
+    sessionStorage.setItem(RELOAD_KEY, '1');
     registration.waiting?.postMessage({ type: 'SKIP_WAITING' });
     await new Promise<void>((resolve) => {
       const timeout = window.setTimeout(resolve, 4000);
