@@ -118,3 +118,57 @@ export const scaleMealsToTarget = (meals: ParsedMeal[], targetKcal: number): Par
     }),
   }));
 };
+
+export interface MacroTargets {
+  kcal: number;
+  p: number;
+  c: number;
+  g: number;
+}
+
+/**
+ * Scale every food's macros independently so the day totals match each macro
+ * target (protein, carbs, fats). Each food's quantity is adjusted by a
+ * composite factor weighted by its macro profile.
+ */
+export const scaleMealsToMacroTargets = (meals: ParsedMeal[], target: MacroTargets): ParsedMeal[] => {
+  const totals = computeDayTotals(meals);
+  if (totals.kcal <= 0) return meals;
+
+  const pFactor = totals.p > 0 ? target.p / totals.p : 1;
+  const cFactor = totals.c > 0 ? target.c / totals.c : 1;
+  const gFactor = totals.g > 0 ? target.g / totals.g : 1;
+
+  return meals.map((meal) => ({
+    ...meal,
+    foods: meal.foods.map<ParsedFood>((food) => {
+      const fp = num(food.p);
+      const fc = num(food.c);
+      const fg = num(food.g);
+      const totalMacroKcal = fp * 4 + fc * 4 + fg * 9;
+
+      if (totalMacroKcal <= 0) return food;
+
+      // Weighted composite factor based on each macro's caloric contribution
+      const pWeight = (fp * 4) / totalMacroKcal;
+      const cWeight = (fc * 4) / totalMacroKcal;
+      const gWeight = (fg * 9) / totalMacroKcal;
+      const compositeFactor = pWeight * pFactor + cWeight * cFactor + gWeight * gFactor;
+
+      const qtyN = num(stripG(food.qty));
+      const newP = fp * pFactor;
+      const newC = fc * cFactor;
+      const newG = fg * gFactor;
+      const newKcal = newP * 4 + newC * 4 + newG * 9;
+
+      return {
+        ...food,
+        qty: qtyN > 0 ? `${fmt(qtyN * compositeFactor)} g` : food.qty,
+        kcal: fmt(newKcal),
+        p: fmt(newP),
+        c: fmt(newC),
+        g: fmt(newG),
+      };
+    }),
+  }));
+};
