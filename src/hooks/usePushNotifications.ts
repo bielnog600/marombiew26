@@ -64,6 +64,8 @@ const isStandalonePWA = () =>
   window.matchMedia("(display-mode: standalone)").matches ||
   (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
+const getNotificationPermission = (): NotificationPermission => Notification.permission;
+
 let oneSignalPromise: Promise<OneSignalSdk> | null = null;
 
 const ensureOneSignalScript = (onError: () => void) => {
@@ -323,10 +325,11 @@ export const usePushNotifications = () => {
         await OneSignal.User.PushSubscription.optIn().catch((err) => console.warn("[Push] optIn initial failed:", err));
       }
 
-      if (!OneSignal.Notifications.permission && Notification.permission !== "granted") {
+      if (!OneSignal.Notifications.permission && getNotificationPermission() !== "granted") {
         const granted = await OneSignal.Notifications.requestPermission();
-        if (granted === false || Notification.permission === "denied") {
-          setStatus(Notification.permission === "denied" ? "blocked" : "ready");
+        const permission = getNotificationPermission();
+        if (granted === false || permission === "denied") {
+          setStatus(permission === "denied" ? "blocked" : "ready");
           return false;
         }
       }
@@ -349,7 +352,7 @@ export const usePushNotifications = () => {
       return nextStatus === "enabled";
     } catch (err) {
       console.warn("[Push] enable failed:", err);
-      setStatus(Notification.permission === "denied" ? "blocked" : "error");
+      setStatus(getNotificationPermission() === "denied" ? "blocked" : "error");
       return false;
     }
   }, [user]);
