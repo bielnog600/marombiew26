@@ -3,10 +3,10 @@ import { registerSW } from "virtual:pwa-register";
 import App from "./App.tsx";
 import "./index.css";
 
+declare const __APP_VERSION__: string;
+
 const APP_SW_PATH = "/app-sw.js";
 const APP_VERSION = __APP_VERSION__;
-
-declare const __APP_VERSION__: string;
 
 // Guard: unregister SW in preview/iframe contexts and remove old app workers
 const isInIframe = (() => {
@@ -108,6 +108,7 @@ const startPwaAutoUpdate = () => {
 
       const checkForUpdate = async () => {
         if (!navigator.onLine || applyingUpdate) return;
+        await checkHtmlVersionUpdate();
         if (registration.waiting) {
           await applyUpdate().catch(() => window.location.reload());
           return;
