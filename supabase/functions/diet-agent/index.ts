@@ -90,7 +90,7 @@ MACRONUTRIENTES POR FASE
 **CUTTING / EMAGRECIMENTO:** P: 2.0-2.4g/kg (máx automático 2.6g/kg) | G: 0.6-0.9g/kg (mín 0.6g/kg) | C: restante
 **MANUTENÇÃO:** P: 1.6-2.0g/kg (máx automático 2.2g/kg) | G: 0.7-1.0g/kg (mín 0.7g/kg) | C: restante
 **RECOMPOSIÇÃO:** P: 1.8-2.2g/kg (máx automático 2.4g/kg) | G: 0.7-1.0g/kg (mín 0.7g/kg) | C: restante, priorizar peri-treino
-**PRÉ-CONTEST:** P: 2.5-3.0g/kg | G: 0.5-0.7g/kg | C: variável (manipulação nas últimas semanas)
+**PRÉ-CONTEST / CUTTING AVANÇADO:** P: 2.0-2.4g/kg (máx automático 2.6g/kg) | G: 0.6-0.9g/kg | C: restante
 
 REGRA CRÍTICA DE DISTRIBUIÇÃO DE MACROS:
 1) Use a meta calórica final já calculada pelo sistema. NÃO recalcule calorias.
@@ -162,10 +162,10 @@ ANTES de escrever a resposta final, execute MENTALMENTE estes passos:
 
 1) Para CADA alimento, calcule: Kcal = (kcal_por_porção / porção_base) × quantidade_usada. Faça o mesmo para P, C e G.
 2) Some TODOS os alimentos de TODAS as refeições de cada cardápio.
-3) Compare os totais com as METAS definidas (calorias alvo, P, C, G).
+3) Compare os totais com as METAS definidas pelo app (calorias alvo, P, C, G). Essas metas são obrigatórias e substituem qualquer faixa genérica deste prompt.
 4) Se a diferença em QUALQUER macro for > 3g ou em calorias > 30 kcal:
    → AJUSTE as quantidades em gramas dos alimentos até que os totais batam.
-   → Aumente ou diminua porções de carboidratos/proteínas/gorduras conforme necessário.
+   → Para corrigir calorias faltantes, aumente carboidratos; NÃO aumente proteína acima da meta definida pelo app.
 5) Confirme que P×4 + C×4 + G×9 ≈ Kcal total (tolerância ±30 kcal).
 6) A linha "Total" da tabela DEVE refletir EXATAMENTE a soma dos alimentos acima dela.
 7) Os valores do "Resumo Nutricional" DEVEM ser IDÊNTICOS aos totais da tabela.
