@@ -1,14 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { UtensilsCrossed, ChevronDown, ChevronUp, Pencil, Save, Loader2, Eye, Trash2 } from 'lucide-react';
+import { UtensilsCrossed, ChevronDown, ChevronUp, Pencil, Save, Loader2, Eye, Trash2, SlidersHorizontal, Percent } from 'lucide-react';
 import { toast } from 'sonner';
 import DietResultCards from '@/components/DietResultCards';
 import DietPlanEditor from '@/components/diet/DietPlanEditor';
 import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
-import { replaceMealTableInMarkdown } from '@/lib/dietMarkdownSerializer';
+import { replaceMealTableInMarkdown, scaleMealsToTarget, scaleMealsToMacroTargets, computeDayTotals } from '@/lib/dietMarkdownSerializer';
 import type { ParsedMeal } from '@/lib/dietResultParser';
+import { parseSections } from '@/lib/dietResultParser';
+import { extractTargetsFromSections } from '@/lib/dietTargets';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Slider } from '@/components/ui/slider';
+import { Label } from '@/components/ui/label';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
@@ -72,6 +77,9 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   const [aiNotes, setAiNotes] = useState<Record<string, string[]>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
+  const [adjustingId, setAdjustingId] = useState<string | null>(null);
+  const [macroModalPlanId, setMacroModalPlanId] = useState<string | null>(null);
+  const [macroPct, setMacroPct] = useState({ protein: 30, carbs: 50, fat: 20 });
 
   const handleDelete = async (planId: string) => {
     const { error } = await supabase.from('ai_plans').delete().eq('id', planId);
@@ -137,7 +145,65 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     );
   }
 
+  const handleAdjustAuto = (planId: string) => {
+    const plan = plans.find(p => p.id === planId);
+    if (!plan) return;
+    try {
+      setAdjustingId(planId);
+      const sections = parseSections(plan.conteudo);
+      const targets = extractTargetsFromSections(sections);
+      if (!targets || targets.calories <= 0) {
+        toast.error('Não foi possível detectar a meta calórica na dieta.');
+        return;
+      }
+      const meals = sections.flatMap(s => s.type === 'meal' && s.meals ? s.meals : []);
+      if (!meals.length) { toast.error('Nenhuma refeição encontrada.'); return; }
+      const scaled = scaleMealsToTarget(meals, targets.calories);
+      const newContent = replaceMealTableInMarkdown(plan.conteudo, scaled);
+      setPlans(prev => prev.map(p => p.id === planId ? { ...p, conteudo: newContent } : p));
+      setEditedMeals(prev => { const c = { ...prev }; delete c[planId]; return c; });
+      toast.success('Porções ajustadas automaticamente!');
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao ajustar');
+    } finally {
+      setAdjustingId(null);
+    }
+  };
+
+  const handleApplyMacroPct = (planId: string) => {
+    const plan = plans.find(p => p.id === planId);
+    if (!plan) return;
+    try {
+      const sections = parseSections(plan.conteudo);
+      const targets = extractTargetsFromSections(sections);
+      if (!targets || targets.calories <= 0) {
+        toast.error('Não foi possível detectar a meta calórica na dieta.');
+        return;
+      }
+      const kcal = targets.calories;
+      const newTarget = {
+        kcal,
+        p: Math.round((kcal * macroPct.protein / 100) / 4),
+        c: Math.round((kcal * macroPct.carbs / 100) / 4),
+        g: Math.round((kcal * macroPct.fat / 100) / 9),
+      };
+      const meals = sections.flatMap(s => s.type === 'meal' && s.meals ? s.meals : []);
+      if (!meals.length) { toast.error('Nenhuma refeição encontrada.'); return; }
+      const scaled = scaleMealsToMacroTargets(meals, newTarget);
+      const newContent = replaceMealTableInMarkdown(plan.conteudo, scaled);
+      setPlans(prev => prev.map(p => p.id === planId ? { ...p, conteudo: newContent } : p));
+      setEditedMeals(prev => { const c = { ...prev }; delete c[planId]; return c; });
+      setMacroModalPlanId(null);
+      toast.success('Macros ajustados por %!');
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao ajustar macros');
+    }
+  };
+
+  const pctSum = macroPct.protein + macroPct.carbs + macroPct.fat;
+
   return (
+    <>
     <div className="space-y-3">
       {plans.map(plan => {
         const isExpanded = expandedId === plan.id;
@@ -180,6 +246,31 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                       {isEditing ? <Eye className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
                       {isEditing ? 'Visualizar' : 'Editar'}
                     </Button>
+                  )}
+                  {isExpanded && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 gap-1 px-2 text-xs"
+                        title="Ajustar porções automaticamente"
+                        disabled={adjustingId === plan.id}
+                        onClick={(e) => { e.stopPropagation(); handleAdjustAuto(plan.id); }}
+                      >
+                        <SlidersHorizontal className="h-3 w-3" />
+                        Ajustar automático
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 gap-1 px-2 text-xs"
+                        title="Ajustar macros por %"
+                        onClick={(e) => { e.stopPropagation(); setMacroModalPlanId(plan.id); }}
+                      >
+                        <Percent className="h-3 w-3" />
+                        Ajustar macros
+                      </Button>
+                    </>
                   )}
                   <WhatsAppNotifyPlanButton
                     plan={plan}
@@ -252,6 +343,43 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
         );
       })}
     </div>
+
+    <Dialog open={!!macroModalPlanId} onOpenChange={(o) => !o && setMacroModalPlanId(null)}>
+        <DialogContent className="sm:max-w-md" onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>Ajustar macros por %</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5 py-2">
+            {(['protein', 'carbs', 'fat'] as const).map((key) => {
+              const labels = { protein: 'Proteína', carbs: 'Carboidrato', fat: 'Gordura' };
+              return (
+                <div key={key} className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <Label>{labels[key]}</Label>
+                    <span className="font-bold">{macroPct[key]}%</span>
+                  </div>
+                  <Slider
+                    min={5} max={70} step={1}
+                    value={[macroPct[key]]}
+                    onValueChange={([v]) => setMacroPct(prev => ({ ...prev, [key]: v }))}
+                  />
+                </div>
+              );
+            })}
+            <p className={`text-xs text-center ${pctSum !== 100 ? 'text-destructive font-bold' : 'text-muted-foreground'}`}>
+              Total: {pctSum}% {pctSum !== 100 && '(deve somar 100%)'}
+            </p>
+            <Button
+              className="w-full"
+              disabled={pctSum !== 100}
+              onClick={() => macroModalPlanId && handleApplyMacroPct(macroModalPlanId)}
+            >
+              Aplicar
+            </Button>
+          </div>
+        </DialogContent>
+    </Dialog>
+    </>
   );
 };
 
