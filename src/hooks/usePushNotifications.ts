@@ -237,7 +237,10 @@ export const usePushNotifications = () => {
       let cancelled = false;
 
       void getOneSignal()
-        .then((OneSignal) => OneSignal.login(user.id))
+        .then(async (OneSignal) => {
+          await OneSignal.login(user.id);
+          if (!cancelled) setStatus(resolveStatus(OneSignal));
+        })
         .catch((err) => console.warn("[Push] OneSignal preload failed:", err))
         .finally(() => {
           if (!cancelled) setStatus("ready");
@@ -269,7 +272,7 @@ export const usePushNotifications = () => {
 
         const refresh = async () => {
           if (!OneSignal.User.PushSubscription.id && OneSignal.User.PushSubscription.optedIn !== true) {
-            await OneSignal.User.PushSubscription.optIn().catch((err) => console.warn("[Push] optIn refresh failed:", err));
+            await activatePushSubscription(OneSignal).catch((err) => console.warn("[Push] optIn refresh failed:", err));
           }
           await waitForPlayerId(OneSignal);
           await saveSubscription(OneSignal, user.id);
@@ -319,17 +322,18 @@ export const usePushNotifications = () => {
     try {
       setStatus("initializing");
 
-      const nativePermission = await requestNativePermission();
-      if (nativePermission !== "granted") {
-        setStatus(nativePermission === "denied" ? "blocked" : "ready");
+      const OneSignal = await getOneSignal();
+      await OneSignal.login(user.id);
+      await activatePushSubscription(OneSignal);
+
+      if (getNotificationPermission() === "denied") {
+        setStatus("blocked");
         return false;
       }
 
-      const OneSignal = await getOneSignal();
-      await OneSignal.login(user.id);
-
-      if (OneSignal.User.PushSubscription.optedIn !== true || !OneSignal.User.PushSubscription.id) {
-        await OneSignal.User.PushSubscription.optIn().catch((err) => console.warn("[Push] optIn after permission failed:", err));
+      if (!hasPushPermission(OneSignal)) {
+        setStatus("ready");
+        return false;
       }
 
       const playerId = await waitForPlayerId(OneSignal);
@@ -341,7 +345,7 @@ export const usePushNotifications = () => {
       await saveSubscription(OneSignal, user.id);
       const nextStatus = resolveStatus(OneSignal);
       setStatus(nextStatus);
-      return nextStatus === "enabled";
+      return hasPushPermission(OneSignal);
     } catch (err) {
       console.warn("[Push] enable failed:", err);
       setStatus(getNotificationPermission() === "denied" ? "blocked" : "error");
