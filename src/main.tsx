@@ -3,7 +3,10 @@ import { registerSW } from "virtual:pwa-register";
 import App from "./App.tsx";
 import "./index.css";
 
+declare const __APP_VERSION__: string;
+
 const APP_SW_PATH = "/app-sw.js";
+const APP_VERSION = __APP_VERSION__;
 
 // Guard: unregister SW in preview/iframe contexts and remove old app workers
 const isInIframe = (() => {
@@ -56,6 +59,33 @@ const showBootUpdateStatus = () => {
   }
 };
 
+const clearAppCaches = async () => {
+  if (!("caches" in window)) return;
+  const names = await caches.keys();
+  await Promise.all(names.map((name) => caches.delete(name)));
+};
+
+const checkHtmlVersionUpdate = async () => {
+  if (isPreviewHost || isInIframe || !navigator.onLine) return;
+
+  try {
+    const response = await fetch(`/?app-version-check=${Date.now()}`, {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache" },
+    });
+    const html = await response.text();
+    const remoteVersion = html.match(/<meta\s+name=["']app-version["']\s+content=["']([^"']+)["']/i)?.[1];
+
+    if (remoteVersion && remoteVersion !== APP_VERSION) {
+      showBootUpdateStatus();
+      await clearAppCaches().catch(() => undefined);
+      window.location.replace(`/?updated=${remoteVersion}`);
+    }
+  } catch {
+    return;
+  }
+};
+
 const startPwaAutoUpdate = () => {
   if (!("serviceWorker" in navigator) || isPreviewHost || isInIframe) return;
 
@@ -66,6 +96,7 @@ const startPwaAutoUpdate = () => {
     if (applyingUpdate) return;
     applyingUpdate = true;
     showBootUpdateStatus();
+    await clearAppCaches().catch(() => undefined);
     await updateServiceWorker?.(true);
     window.location.reload();
   };
@@ -77,6 +108,7 @@ const startPwaAutoUpdate = () => {
 
       const checkForUpdate = async () => {
         if (!navigator.onLine || applyingUpdate) return;
+        await checkHtmlVersionUpdate();
         if (registration.waiting) {
           await applyUpdate().catch(() => window.location.reload());
           return;
@@ -109,6 +141,7 @@ const startPwaAutoUpdate = () => {
 };
 
 void cleanupServiceWorkers().then(startPwaAutoUpdate);
+void checkHtmlVersionUpdate();
 
 // Force portrait behavior as much as the browser allows.
 // Native lock works mainly in installed PWAs/Android; CSS class below covers iOS/browser fallback.

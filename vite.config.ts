@@ -1,11 +1,30 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 
+const appVersion = Date.now().toString();
+
+const appVersionPlugin = (): Plugin => ({
+  name: "app-version",
+  generateBundle() {
+    this.emitFile({
+      type: "asset",
+      fileName: "app-version.json",
+      source: JSON.stringify({ version: appVersion }),
+    });
+  },
+  transformIndexHtml(html: string) {
+    return html.replace("</head>", `    <meta name="app-version" content="${appVersion}">\n</head>`);
+  },
+});
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   server: {
     host: "::",
     port: 8080,
@@ -15,6 +34,7 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
+    appVersionPlugin(),
     mode === "development" && componentTagger(),
     VitePWA({
       filename: "app-sw.js",
@@ -30,13 +50,14 @@ export default defineConfig(({ mode }) => ({
         cleanupOutdatedCaches: true,
         skipWaiting: true,
         clientsClaim: true,
+        navigationPreload: true,
         runtimeCaching: [
           {
             urlPattern: ({ request }) => request.mode === "navigate",
             handler: "NetworkFirst",
             options: {
               cacheName: "html-cache",
-              networkTimeoutSeconds: 3,
+              networkTimeoutSeconds: 10,
               expiration: { maxEntries: 10, maxAgeSeconds: 60 * 5 },
               cacheableResponse: { statuses: [0, 200] },
             },
