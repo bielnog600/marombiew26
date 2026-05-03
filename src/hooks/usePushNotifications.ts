@@ -164,17 +164,22 @@ const saveSubscription = async (OneSignal: OneSignalSdk, userId: string) => {
   return true;
 };
 
-const waitForPlayerId = async (OneSignal: OneSignalSdk) => {
-  for (let i = 0; i < 24; i++) {
-    const playerId = OneSignal.User.PushSubscription.id;
-    const hasPermission = OneSignal.Notifications.permission === true || Notification.permission === "granted";
-    if (hasPermission && playerId && OneSignal.User.PushSubscription.optedIn !== false) return playerId;
+const activatePushSubscription = async (OneSignal: OneSignalSdk) => {
+  if (Notification.permission === "default" || OneSignal.User.PushSubscription.optedIn !== true) {
+    await OneSignal.User.PushSubscription.optIn();
+  }
+};
 
-    if (hasPermission && i === 4 && OneSignal.User.PushSubscription.optedIn !== true) {
-      await OneSignal.User.PushSubscription.optIn().catch((err) => console.warn("[Push] optIn retry failed:", err));
+const waitForPlayerId = async (OneSignal: OneSignalSdk) => {
+  for (let i = 0; i < 30; i++) {
+    const playerId = OneSignal.User.PushSubscription.id;
+    if (hasPushPermission(OneSignal) && playerId && OneSignal.User.PushSubscription.optedIn !== false) return playerId;
+
+    if (hasPushPermission(OneSignal) && i === 4 && OneSignal.User.PushSubscription.optedIn !== true) {
+      await activatePushSubscription(OneSignal).catch((err) => console.warn("[Push] optIn retry failed:", err));
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await delay(400);
   }
 
   return undefined;
@@ -182,9 +187,8 @@ const waitForPlayerId = async (OneSignal: OneSignalSdk) => {
 
 const resolveStatus = (OneSignal: OneSignalSdk): PushStatus => {
   if (Notification.permission === "denied") return "blocked";
-  const hasPermission = OneSignal.Notifications.permission === true || Notification.permission === "granted";
   const optedIn = OneSignal.User.PushSubscription.optedIn !== false;
-  return hasPermission && optedIn ? "enabled" : "ready";
+  return hasPushPermission(OneSignal) && optedIn ? "enabled" : "ready";
 };
 
 /**
