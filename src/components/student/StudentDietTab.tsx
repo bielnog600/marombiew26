@@ -2,12 +2,12 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { UtensilsCrossed, ChevronDown, ChevronUp, Pencil, Save, Loader2, Eye, Trash2, SlidersHorizontal, Percent } from 'lucide-react';
+import { UtensilsCrossed, ChevronDown, ChevronUp, Pencil, Save, Loader2, Eye, Trash2, Percent } from 'lucide-react';
 import { toast } from 'sonner';
 import DietResultCards from '@/components/DietResultCards';
 import DietPlanEditor from '@/components/diet/DietPlanEditor';
 import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
-import { replaceMealTableInMarkdown, scaleMealsToTarget, scaleMealsToMacroTargets, computeDayTotals } from '@/lib/dietMarkdownSerializer';
+import { replaceMealTableInMarkdown, scaleMealsToMacroTargets } from '@/lib/dietMarkdownSerializer';
 import type { ParsedMeal } from '@/lib/dietResultParser';
 import { parseSections } from '@/lib/dietResultParser';
 import { extractTargetsFromSections } from '@/lib/dietTargets';
@@ -77,7 +77,6 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   const [aiNotes, setAiNotes] = useState<Record<string, string[]>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
-  const [adjustingId, setAdjustingId] = useState<string | null>(null);
   const [macroModalPlanId, setMacroModalPlanId] = useState<string | null>(null);
   const [macroPct, setMacroPct] = useState({ protein: 30, carbs: 50, fat: 20 });
 
@@ -144,31 +143,6 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
       </Card>
     );
   }
-
-  const handleAdjustAuto = (planId: string) => {
-    const plan = plans.find(p => p.id === planId);
-    if (!plan) return;
-    try {
-      setAdjustingId(planId);
-      const sections = parseSections(plan.conteudo);
-      const targets = extractTargetsFromSections(sections);
-      if (!targets || targets.calories <= 0) {
-        toast.error('Não foi possível detectar a meta calórica na dieta.');
-        return;
-      }
-      const meals = sections.flatMap(s => s.type === 'meal' && s.meals ? s.meals : []);
-      if (!meals.length) { toast.error('Nenhuma refeição encontrada.'); return; }
-      const scaled = scaleMealsToTarget(meals, targets.calories);
-      const newContent = replaceMealTableInMarkdown(plan.conteudo, scaled);
-      setPlans(prev => prev.map(p => p.id === planId ? { ...p, conteudo: newContent } : p));
-      setEditedMeals(prev => { const c = { ...prev }; delete c[planId]; return c; });
-      toast.success('Porções ajustadas automaticamente!');
-    } catch (e: any) {
-      toast.error(e.message || 'Erro ao ajustar');
-    } finally {
-      setAdjustingId(null);
-    }
-  };
 
   const handleApplyMacroPct = (planId: string) => {
     const plan = plans.find(p => p.id === planId);
@@ -249,16 +223,6 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                   )}
                   {isExpanded && (
                     <>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        title="Ajustar porções automaticamente"
-                        disabled={adjustingId === plan.id}
-                        onClick={(e) => { e.stopPropagation(); handleAdjustAuto(plan.id); }}
-                      >
-                        <SlidersHorizontal className="h-3.5 w-3.5" />
-                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
