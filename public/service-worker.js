@@ -1,18 +1,8 @@
-self.addEventListener('install', (event) => {
-  event.waitUntil(self.skipWaiting());
-});
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil((async () => {
-    await self.clients.claim();
-    const names = await caches.keys();
-    await Promise.all(names.map((name) => caches.delete(name)));
-    const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    await Promise.all(clients.map((client) => {
-      const url = new URL(client.url);
-      url.searchParams.set('sw-cleanup', Date.now().toString());
-      return client.navigate(url.toString());
-    }));
-    await self.registration.unregister();
-  })());
-});
+// Passive kill-switch: clears caches and unregisters itself without reloading pages
+self.addEventListener('install', (e) => e.waitUntil(self.skipWaiting()));
+self.addEventListener('activate', (e) => e.waitUntil((async () => {
+  await self.clients.claim();
+  const keys = await caches.keys();
+  await Promise.all(keys.map((k) => caches.delete(k)));
+  await self.registration.unregister();
+})()));
