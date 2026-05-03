@@ -463,36 +463,13 @@ const DietaIA = () => {
       const get = bestTmb * suggestedFA;
       const consumo = get * (1 + strategyPct / 100);
 
-      // Macros based on phase
-      let protPerKg: number, fatPerKg: number, protMax: number;
-      const objLower = (sp?.objetivo || '').toLowerCase();
-      const isSlim = objLower.includes('slim') || objLower.includes('recomp');
-      const isEmagrecimento = suggestedStrategy.includes('deficit');
-      const isManutencao = suggestedPhase === 'manutencao' && !isEmagrecimento;
-
-      if (isEmagrecimento) {
-        protPerKg = 2.2; fatPerKg = 0.8; protMax = 2.6;
-      } else if (isManutencao) {
-        protPerKg = 1.8; fatPerKg = 0.9; protMax = 2.2;
-      } else {
-        // Hipertrofia, corpo slim, recomposição, bulking
-        protPerKg = 2.0; fatPerKg = 0.9; protMax = 2.4;
-      }
-
-      // Hormones: small bump but capped at objective max
-      if (latestQuestionnaire?.usa_hormonios && latestQuestionnaire.usa_hormonios !== 'Não') {
-        protPerKg = Math.min(protPerKg + 0.2, protMax);
-      }
-
-      // Enforce ceiling
-      protPerKg = Math.min(protPerKg, protMax);
-
-      const protGrams = Math.round(protPerKg * peso);
-      const fatGrams = Math.round(fatPerKg * peso);
-      const protCal = protGrams * 4;
-      const fatCal = fatGrams * 9;
-      const carbCal = Math.max(consumo - protCal - fatCal, 0);
-      const carbGrams = Math.round(carbCal / 4);
+      const macros = calculateMacroTargets({
+        calories: consumo,
+        weight: peso,
+        strategyValue: suggestedStrategy,
+        phaseValue: suggestedPhase,
+        hormoneUse: hasHormoneUse(latestQuestionnaire?.usa_hormonios),
+      });
 
       ctx.recomendacao_ia = {
         tmb: Math.round(bestTmb),
@@ -501,11 +478,11 @@ const DietaIA = () => {
         get: Math.round(get),
         consumo: Math.round(consumo),
         estrategia: suggestedStrategy,
-        proteina_g: protGrams,
-        carboidrato_g: carbGrams,
-        gordura_g: fatGrams,
-        proteina_kg: protPerKg,
-        gordura_kg: fatPerKg,
+        proteina_g: macros.proteinGrams,
+        carboidrato_g: macros.carbGrams,
+        gordura_g: macros.fatGrams,
+        proteina_kg: macros.proteinPerKg,
+        gordura_kg: macros.fatPerKg,
         calorias_total: Math.round(consumo),
       };
       setStudentCtx({ ...ctx });
