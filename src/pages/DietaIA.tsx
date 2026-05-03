@@ -870,6 +870,10 @@ ${generated}`;
 
   const savePlan = async () => {
     if (!result) return;
+    if (macroReport && !macroReport.valid) {
+      toast.error('Dieta gerada fora da meta. Ajustando automaticamente...');
+      return;
+    }
     setSaving(true);
     if (editPlanId) {
       const { error } = await supabase.from('ai_plans').update({
@@ -1378,11 +1382,29 @@ ${generated}`;
                 <Button variant="outline" size="sm" onClick={() => generateDietPDF(result, studentName)}>
                   <FileDown className="h-3 w-3 mr-1" /> PDF
                 </Button>
-                <Button size="sm" onClick={savePlan} disabled={saving}>
+                <Button size="sm" onClick={savePlan} disabled={saving || macroReport?.valid === false}>
                   <Save className="h-3 w-3 mr-1" /> {editPlanId ? 'Atualizar' : 'Salvar'}
                 </Button>
               </div>
             </div>
+            {macroReport && (
+              <Card className={`border ${macroReport.valid ? 'border-primary/30 bg-primary/5' : 'border-destructive/40 bg-destructive/10'}`}>
+                <CardContent className="space-y-2 p-4 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-bold text-sm">Validação real dos macros</span>
+                    <span className={`rounded-full px-2 py-1 font-semibold ${macroReport.valid ? 'bg-primary/15 text-primary' : 'bg-destructive/15 text-destructive'}`}>
+                      {macroReport.valid ? 'Status: válido' : 'Status: inválido'}
+                    </span>
+                  </div>
+                  <div className="grid gap-1 text-muted-foreground sm:grid-cols-3">
+                    <span>Meta: <strong className="text-foreground">{formatDietMacroLine(macroReport.target)}</strong></span>
+                    <span>Gerado: <strong className="text-foreground">{formatDietMacroLine(macroReport.generated)}</strong></span>
+                    <span>Diferença: <strong className="text-foreground">{formatDietMacroLine(macroReport.difference)}</strong></span>
+                  </div>
+                  {!macroReport.valid && <p className="text-destructive">{macroReport.reasons.join(' ')}</p>}
+                </CardContent>
+              </Card>
+            )}
             <DietResultCards markdown={result} />
           </div>
         )}
