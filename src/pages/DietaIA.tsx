@@ -633,7 +633,7 @@ ${recText}
 
 === ESTILO DE DIETA ===
 - Estilo: ${selectedDietStyle?.label || 'Não definido'} — ${selectedDietStyle?.desc || ''}
-IMPORTANTE: Siga RIGOROSAMENTE o estilo de dieta selecionado. Se Low Carb, mantenha carboidratos abaixo de 100g/dia. Se Cetogênica, abaixo de 30g/dia. Se Flexível, foque nos macros. Se Vegetariana/Vegana, respeite as restrições proteicas.
+IMPORTANTE: Siga o estilo selecionado sem quebrar os macros obrigatórios. Se Low Carb/Cetogênica conflitar com a meta de carboidrato calculada, a meta calculada vence. Se Vegetariana/Vegana, respeite as restrições proteicas sem aumentar a proteína total.
 
 === FASE ATUAL ===
 - Fase: ${selectedPhase?.label} — ${selectedPhase?.desc}
@@ -719,7 +719,7 @@ IMPORTANTE: Considere os sintomas e feedback do aluno ao montar a dieta. Se há 
 2) Escolha da fórmula mais adequada e justificativa
 3) Cálculo do GET e Consumo Energético
 4) Distribuição de macronutrientes (proteína, carboidrato, gordura)
-5) EXATAMENTE 3 opções de cardápio completo e DIVERSIFICADO em tabela com: Refeição | Horário | Alimento | Quantidade (g) | Kcal | P | C | G | Substituição. As 3 opções devem ser SIGNIFICATIVAMENTE diferentes entre si (proteínas, carboidratos e preparações variadas).
+5) EXATAMENTE 1 cardápio completo em tabela com: Refeição | Horário | Alimento | Quantidade (g) | Kcal | P | C | G | Substituição.
 6) Total de cada refeição e do dia
 7) Timing nutricional (pré-treino, intra-treino, pós-treino) baseado no horário de treino informado
 ${selectedAdjustments.includes('carb_cycling') ? '8) Protocolo de Carb Cycling com tabela de dias High/Medium/Low' : ''}
