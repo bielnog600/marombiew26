@@ -624,7 +624,32 @@ const TabataIA = () => {
           );
         })()}
 
-        {/* Result */}
+        {/* Streaming current day */}
+        {/* Edit single plan */}
+        {editPlanId && result && !generating && (
+          <div ref={resultRef} className="space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Edição</h3>
+              <div className="flex gap-2 flex-wrap">
+                {editing ? (
+                  <>
+                    <Button onClick={() => { if (editDraft) { setResult(serializeTabata(editDraft)); toast.success('Edições aplicadas'); } setEditing(false); }} size="sm" className="gap-1"><Check className="h-4 w-4" /> Aplicar</Button>
+                    <Button onClick={() => { setEditing(false); setEditDraft(null); }} size="sm" variant="outline" className="gap-1"><X className="h-4 w-4" /> Cancelar</Button>
+                  </>
+                ) : (
+                  <>
+                    <Button onClick={() => { setEditDraft(parseTabata(result)); setEditing(true); }} size="sm" variant="outline" className="gap-1"><Pencil className="h-4 w-4" /> Editar</Button>
+                    <Button onClick={async () => { setSaving(true); const p = parseTabata(result); const t = p.title || `TABATA`; const { error } = await supabase.from('ai_plans').update({ conteudo: result, titulo: `${t} (editado)` }).eq('id', editPlanId); if (error) toast.error('Erro: ' + error.message); else toast.success('TABATA atualizado!'); setSaving(false); }} disabled={saving} size="sm" className="gap-1">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Salvar</Button>
+                  </>
+                )}
+              </div>
+            </div>
+            {editing && editDraft ? <TabataStructuredEditor value={editDraft} onChange={setEditDraft} /> : (
+              <Card className="glass-card"><CardContent className="p-4 prose prose-sm prose-invert max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]}>{result}</ReactMarkdown></CardContent></Card>
+            )}
+          </div>
+        )}
+
         {/* Streaming current day */}
         {generating && result && (
           <div ref={resultRef} className="space-y-3">
