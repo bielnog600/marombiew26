@@ -11,6 +11,7 @@ import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
 import { generateDietPDF } from '@/lib/generateDietPDF';
 import AiWizard from '@/components/AiWizard';
+import { formatDietMacroLine, validateDietMacros, type DietMacroTargets, type DietMacroValidationReport, type FoodMacroRecord } from '@/lib/dietMacroValidation';
 
 type StudentCtx = Record<string, any>;
 
@@ -189,6 +190,7 @@ const DietaIA = () => {
   // Result
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState('');
+  const [macroReport, setMacroReport] = useState<DietMacroValidationReport | null>(null);
   const [saving, setSaving] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
 
