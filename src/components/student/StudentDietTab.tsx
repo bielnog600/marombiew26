@@ -232,7 +232,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 gap-1 px-2 text-xs"
+                      className="h-7 gap-1 px-2 text-xs sm:px-2 sm:gap-1"
                       title={isEditing ? 'Voltar à pré-visualização' : 'Editar dieta'}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -244,31 +244,29 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                       }}
                     >
                       {isEditing ? <Eye className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
-                      {isEditing ? 'Visualizar' : 'Editar'}
+                      <span className="hidden sm:inline">{isEditing ? 'Visualizar' : 'Editar'}</span>
                     </Button>
                   )}
                   {isExpanded && (
                     <>
                       <Button
                         variant="ghost"
-                        size="sm"
-                        className="h-7 gap-1 px-2 text-xs"
+                        size="icon"
+                        className="h-7 w-7"
                         title="Ajustar porções automaticamente"
                         disabled={adjustingId === plan.id}
                         onClick={(e) => { e.stopPropagation(); handleAdjustAuto(plan.id); }}
                       >
-                        <SlidersHorizontal className="h-3 w-3" />
-                        Ajustar automático
+                        <SlidersHorizontal className="h-3.5 w-3.5" />
                       </Button>
                       <Button
                         variant="ghost"
-                        size="sm"
-                        className="h-7 gap-1 px-2 text-xs"
+                        size="icon"
+                        className="h-7 w-7"
                         title="Ajustar macros por %"
                         onClick={(e) => { e.stopPropagation(); setMacroModalPlanId(plan.id); }}
                       >
-                        <Percent className="h-3 w-3" />
-                        Ajustar macros
+                        <Percent className="h-3.5 w-3.5" />
                       </Button>
                     </>
                   )}
