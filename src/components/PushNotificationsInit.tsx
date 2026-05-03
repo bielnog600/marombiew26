@@ -8,7 +8,7 @@ const PushNotificationsInit = () => {
   const { user, role, loading } = useAuth();
   const { status, enableNotifications, isIOS, isStandalone } = usePushNotifications();
 
-  if (loading || !user || role === "admin" || status === "enabled" || status === "preview") {
+  if (loading || !user || status === "enabled" || status === "preview") {
     return null;
   }
 
