@@ -585,7 +585,7 @@ const DietaIA = () => {
       }
     }
 
-    for (let raw of textBuffer.split('\n')) {
+    for (const raw of textBuffer.split('\n')) {
       if (!raw || raw.startsWith(':') || raw.trim() === '' || !raw.startsWith('data: ')) continue;
       try { consumeLine(raw); } catch { /* ignore trailing partial chunks */ }
     }
