@@ -74,6 +74,7 @@ const hasPushPermission = (OneSignal: OneSignalSdk) =>
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let oneSignalPromise: Promise<OneSignalSdk> | null = null;
+let oneSignalInstance: OneSignalSdk | null = null;
 
 const ensureOneSignalScript = (onError: () => void) => {
   if (document.getElementById("onesignal-sdk")) return;
@@ -122,6 +123,7 @@ const getOneSignal = () => {
           });
           OneSignal.Debug?.setLogLevel("trace");
           console.log("[Push] OneSignal init OK");
+          oneSignalInstance = OneSignal;
           resolve(OneSignal);
         } catch (err) {
           oneSignalPromise = null;
