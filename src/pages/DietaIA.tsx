@@ -613,6 +613,7 @@ const DietaIA = () => {
     if (!canGenerate || !studentCtx) return;
     setGenerating(true);
     setResult('');
+    setMacroReport(null);
 
     const selectedStrategy = STRATEGIES.find(s => s.value === strategy);
     const selectedActivity = ACTIVITY_LEVELS.find(a => a.value === activityLevel);
@@ -667,6 +668,7 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
 
     // Recalculate recommendation using CURRENT wizard selections (not the initial suggestion)
     let recText = '';
+    let currentTargets: DietMacroTargets | null = null;
     const baseRec = studentCtx.recomendacao_ia;
     if (baseRec) {
       const currentFA = parseFloat(activityLevel);
@@ -682,6 +684,12 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
         phaseValue: phase,
         hormoneUse: hasHormoneUse(usesHormones),
       });
+      currentTargets = {
+        calories: currentCalories,
+        protein: macros.proteinGrams,
+        carbs: macros.carbGrams,
+        fats: macros.fatGrams,
+      };
 
       recText = `
 === RECOMENDAÇÃO CALCULADA (VALORES OBRIGATÓRIOS — NÃO RECALCULE) ===
@@ -695,6 +703,7 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
 - Gordura EXATA: ${macros.fatGrams}g (${macros.fatPerKg}g/kg)
 ⚠️ OBRIGATÓRIO: O TOTAL DIÁRIO da tabela DEVE ser EXATAMENTE ${currentCalories} kcal (tolerância ±50 kcal). Proteína total = ${macros.proteinGrams}g, Carboidrato total = ${macros.carbGrams}g, Gordura total = ${macros.fatGrams}g. NÃO use outros valores. NÃO recalcule a TMB. Estes valores já são definitivos.
 ⚠️ REGRA DE CORREÇÃO: Se faltar caloria para bater a meta, ajuste CARBOIDRATO. NÃO aumente proteína acima de ${macros.proteinGrams}g para completar calorias.
+⚠️ VALIDAÇÃO FINAL: Antes de responder, some alimento por alimento. A dieta só é aceitável se ficar entre ${currentCalories - 50} e ${currentCalories + 50} kcal, proteína entre ${macros.proteinGrams - 10} e ${macros.proteinGrams + 10}g, carboidrato entre ${macros.carbGrams - 15} e ${macros.carbGrams + 15}g e gordura entre ${macros.fatGrams - 8} e ${macros.fatGrams + 8}g.
 `;
     }
 
