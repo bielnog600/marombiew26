@@ -649,8 +649,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
             Descanso
           </p>
           <div className="relative w-40 h-40 flex items-center justify-center">
-            <svg className="absolute inset-0 -rotate-90" viewBox="0 0 100 100">
-              <style>{`svg { pointer-events: none; }`}</style>
+            <svg className="absolute inset-0 -rotate-90 pointer-events-none" viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="46" fill="none" stroke="hsl(var(--secondary))" strokeWidth="6" />
               <circle
                 cx="50"
