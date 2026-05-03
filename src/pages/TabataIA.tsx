@@ -95,6 +95,7 @@ const TabataIA = () => {
   const [currentGenDay, setCurrentGenDay] = useState(0);
   const [savingAll, setSavingAll] = useState(false);
   const [editDay, setEditDay] = useState('');
+  // editDay uses 'none' for no day, or a weekday name
 
   useEffect(() => {
     if (studentId) loadStudentData();
@@ -117,6 +118,8 @@ const TabataIA = () => {
       // Try to extract day from titulo like "Segunda — TABATA..."
       const dayMatch = data.titulo?.match(new RegExp(`^(${WEEKDAYS.join('|')})`, 'i'));
       setEditDay(dayMatch ? dayMatch[1] : '');
+      // Normalize empty to 'none' for Select compatibility
+      if (!dayMatch) setEditDay('none');
     }
   };
 
@@ -638,12 +641,12 @@ const TabataIA = () => {
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Edição</h3>
-                <Select value={editDay} onValueChange={setEditDay}>
+              <Select value={editDay || 'none'} onValueChange={setEditDay}>
                   <SelectTrigger className="w-[120px] h-8 text-xs">
                     <SelectValue placeholder="Dia..." />
                   </SelectTrigger>
                   <SelectContent className="bg-popover z-50">
-                    <SelectItem value="">Sem dia</SelectItem>
+                    <SelectItem value="none">Sem dia</SelectItem>
                     {WEEKDAYS.map(w => (
                       <SelectItem key={w} value={w}>{w}</SelectItem>
                     ))}
@@ -659,7 +662,7 @@ const TabataIA = () => {
                 ) : (
                   <>
                     <Button onClick={() => { setEditDraft(parseTabata(result)); setEditing(true); }} size="sm" variant="outline" className="gap-1"><Pencil className="h-4 w-4" /> Editar</Button>
-                    <Button onClick={async () => { setSaving(true); const p = parseTabata(result); const baseName = p.title || 'TABATA'; const titulo = editDay ? `${editDay} — ${baseName} (editado)` : `${baseName} (editado)`; const { error } = await supabase.from('ai_plans').update({ conteudo: result, titulo }).eq('id', editPlanId); if (error) toast.error('Erro: ' + error.message); else toast.success('TABATA atualizado!'); setSaving(false); }} disabled={saving} size="sm" className="gap-1">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Salvar</Button>
+                    <Button onClick={async () => { setSaving(true); const p = parseTabata(result); const baseName = p.title || 'TABATA'; const titulo = editDay && editDay !== 'none' ? `${editDay} — ${baseName} (editado)` : `${baseName} (editado)`; const { error } = await supabase.from('ai_plans').update({ conteudo: result, titulo }).eq('id', editPlanId); if (error) toast.error('Erro: ' + error.message); else toast.success('TABATA atualizado!'); setSaving(false); }} disabled={saving} size="sm" className="gap-1">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Salvar</Button>
                   </>
                 )}
               </div>
