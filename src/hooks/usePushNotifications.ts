@@ -247,7 +247,7 @@ export const usePushNotifications = () => {
         })
         .catch((err) => console.warn("[Push] OneSignal preload failed:", err))
         .finally(() => {
-          if (!cancelled) setStatus("ready");
+          if (!cancelled && getNotificationPermission() === "default") setStatus("ready");
         });
 
       return () => {
