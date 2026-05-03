@@ -535,6 +535,80 @@ const DietaIA = () => {
 
   const canGenerate = activityLevel && strategy && mealCount && phase;
 
+  const streamDietAgent = async (
+    messages: { role: 'user' | 'assistant'; content: string }[],
+    onChunk?: (content: string) => void,
+  ) => {
+    const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/diet-agent`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      },
+      body: JSON.stringify({ messages, studentContext: studentCtx }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: 'Erro desconhecido' }));
+      throw new Error(err.error || `Erro ${resp.status}`);
+    }
+    if (!resp.body) throw new Error('Sem resposta');
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let textBuffer = '';
+    let accumulated = '';
+    let streamDone = false;
+
+    const consumeLine = (line: string) => {
+      if (line.endsWith('\r')) line = line.slice(0, -1);
+      if (line.startsWith(':') || line.trim() === '' || !line.startsWith('data: ')) return;
+      const jsonStr = line.slice(6).trim();
+      if (jsonStr === '[DONE]') { streamDone = true; return; }
+      const parsed = JSON.parse(jsonStr);
+      const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+      if (content) {
+        accumulated += content;
+        onChunk?.(accumulated);
+      }
+    };
+
+    while (!streamDone) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      textBuffer += decoder.decode(value, { stream: true });
+      let idx: number;
+      while ((idx = textBuffer.indexOf('\n')) !== -1) {
+        const line = textBuffer.slice(0, idx);
+        textBuffer = textBuffer.slice(idx + 1);
+        try { consumeLine(line); } catch { textBuffer = line + '\n' + textBuffer; break; }
+      }
+    }
+
+    for (let raw of textBuffer.split('\n')) {
+      if (!raw || raw.startsWith(':') || raw.trim() === '' || !raw.startsWith('data: ')) continue;
+      try { consumeLine(raw); } catch { /* ignore trailing partial chunks */ }
+    }
+
+    return accumulated;
+  };
+
+  const loadFoodMacroRecords = async (): Promise<FoodMacroRecord[]> => {
+    const { data, error } = await supabase
+      .from('foods')
+      .select('name, calories, protein, carbs, fats, portion_size')
+      .order('name');
+    if (error) throw new Error('Erro ao carregar base alimentar: ' + error.message);
+    return (data || []).map((food) => ({
+      name: food.name,
+      calories: Number(food.calories) || 0,
+      protein: Number(food.protein) || 0,
+      carbs: Number(food.carbs) || 0,
+      fats: Number(food.fats) || 0,
+      portion_size: Number(food.portion_size) || 100,
+    }));
+  };
+
   const generatePlan = async () => {
     if (!canGenerate || !studentCtx) return;
     setGenerating(true);
