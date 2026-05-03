@@ -102,7 +102,9 @@ REGRAS FINAIS
 4) Use SEMPRE os nomes EXATOS da Lista Oficial (case-sensitive, com acentos)
 5) Inclua sempre aquecimento e desaquecimento
 6) Mantenha o markdown limpo e bem estruturado para boa visualização
-7) Gere TUDO de uma vez (sem perguntas) — você já tem o contexto completo do aluno`;
+7) Gere TUDO de uma vez (sem perguntas) — você já tem o contexto completo do aluno
+8) NUNCA RECUSE gerar o treino. Mesmo que faltem dados clínicos, gere um TABATA seguro e genérico (nível iniciante/moderado) com exercícios de baixo risco. Você SEMPRE deve retornar um treino completo no formato markdown especificado.
+9) Se não houver informações sobre lesões/restrições, assuma que o aluno é SAUDÁVEL e gere normalmente conforme a intensidade solicitada.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
