@@ -7,6 +7,9 @@ const ONESIGNAL_APP_ID = "59537140-b7f1-435a-b57d-c8380b0d3276";
 type PushStatus = "idle" | "initializing" | "ready" | "enabled" | "blocked" | "unsupported" | "preview" | "error";
 
 interface OneSignalSdk {
+  Debug?: {
+    setLogLevel: (level: "trace" | "debug" | "info" | "warn" | "error") => void;
+  };
   init: (options: {
     appId: string;
     language?: string;
@@ -21,7 +24,6 @@ interface OneSignalSdk {
   login: (externalId: string) => Promise<void>;
   Notifications: {
     permission: boolean;
-    requestPermission: () => Promise<boolean | void>;
     addEventListener?: (event: "permissionChange", callback: () => void | Promise<void>) => void;
     removeEventListener?: (event: "permissionChange", callback: () => void | Promise<void>) => void;
   };
@@ -66,19 +68,13 @@ const isStandalonePWA = () =>
 
 const getNotificationPermission = (): NotificationPermission => Notification.permission;
 
-const requestNativePermission = async (): Promise<NotificationPermission> => {
-  if (Notification.permission !== "default") return Notification.permission;
+const hasPushPermission = (OneSignal: OneSignalSdk) =>
+  OneSignal.Notifications.permission === true || Notification.permission === "granted";
 
-  try {
-    const permission = await Notification.requestPermission();
-    return permission || Notification.permission;
-  } catch (err) {
-    console.warn("[Push] native permission failed:", err);
-    return Notification.permission;
-  }
-};
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let oneSignalPromise: Promise<OneSignalSdk> | null = null;
+let oneSignalInstance: OneSignalSdk | null = null;
 
 const ensureOneSignalScript = (onError: () => void) => {
   if (document.getElementById("onesignal-sdk")) return;
@@ -92,6 +88,8 @@ const ensureOneSignalScript = (onError: () => void) => {
 };
 
 const getOneSignal = () => {
+  if (oneSignalInstance) return Promise.resolve(oneSignalInstance);
+
   window.OneSignalDeferred = window.OneSignalDeferred || [];
 
   if (!oneSignalPromise) {
@@ -105,7 +103,7 @@ const getOneSignal = () => {
             serviceWorkerPath: "onesignal/OneSignalSDKWorker.js",
             serviceWorkerParam: { scope: "/onesignal/" },
             notifyButton: { enable: false },
-            autoResubscribe: false,
+            autoResubscribe: true,
             autoRegister: false,
             promptOptions: {
               slidedown: {
@@ -125,18 +123,9 @@ const getOneSignal = () => {
               native: { enabled: false, autoPrompt: false },
             } as any,
           });
+          OneSignal.Debug?.setLogLevel("trace");
           console.log("[Push] OneSignal init OK");
-          // Trava extra: remove qualquer slidedown injetado pelo OneSignal
-          const removeSlidedown = () => {
-            document
-              .querySelectorAll(
-                "#onesignal-slidedown-container, #onesignal-slidedown-dialog, .onesignal-slidedown-container, #onesignal-popover-container, .onesignal-bell-container"
-              )
-              .forEach((el) => el.remove());
-          };
-          removeSlidedown();
-          const observer = new MutationObserver(removeSlidedown);
-          observer.observe(document.body, { childList: true, subtree: true });
+          oneSignalInstance = OneSignal;
           resolve(OneSignal);
         } catch (err) {
           oneSignalPromise = null;
@@ -179,17 +168,22 @@ const saveSubscription = async (OneSignal: OneSignalSdk, userId: string) => {
   return true;
 };
 
-const waitForPlayerId = async (OneSignal: OneSignalSdk) => {
-  for (let i = 0; i < 24; i++) {
-    const playerId = OneSignal.User.PushSubscription.id;
-    const hasPermission = OneSignal.Notifications.permission === true || Notification.permission === "granted";
-    if (hasPermission && playerId && OneSignal.User.PushSubscription.optedIn !== false) return playerId;
+const activatePushSubscription = async (OneSignal: OneSignalSdk) => {
+  if (Notification.permission !== "denied" && OneSignal.User.PushSubscription.optedIn !== true) {
+    await OneSignal.User.PushSubscription.optIn();
+  }
+};
 
-    if (hasPermission && i === 4 && OneSignal.User.PushSubscription.optedIn !== true) {
-      await OneSignal.User.PushSubscription.optIn().catch((err) => console.warn("[Push] optIn retry failed:", err));
+const waitForPlayerId = async (OneSignal: OneSignalSdk) => {
+  for (let i = 0; i < 30; i++) {
+    const playerId = OneSignal.User.PushSubscription.id;
+    if (hasPushPermission(OneSignal) && playerId && OneSignal.User.PushSubscription.optedIn !== false) return playerId;
+
+    if (hasPushPermission(OneSignal) && i === 4 && OneSignal.User.PushSubscription.optedIn !== true) {
+      await activatePushSubscription(OneSignal).catch((err) => console.warn("[Push] optIn retry failed:", err));
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await delay(400);
   }
 
   return undefined;
@@ -197,9 +191,8 @@ const waitForPlayerId = async (OneSignal: OneSignalSdk) => {
 
 const resolveStatus = (OneSignal: OneSignalSdk): PushStatus => {
   if (Notification.permission === "denied") return "blocked";
-  const hasPermission = OneSignal.Notifications.permission === true || Notification.permission === "granted";
   const optedIn = OneSignal.User.PushSubscription.optedIn !== false;
-  return hasPermission && optedIn ? "enabled" : "ready";
+  return hasPushPermission(OneSignal) && optedIn ? "enabled" : "ready";
 };
 
 /**
@@ -248,10 +241,13 @@ export const usePushNotifications = () => {
       let cancelled = false;
 
       void getOneSignal()
-        .then((OneSignal) => OneSignal.login(user.id))
+        .then(async (OneSignal) => {
+          await OneSignal.login(user.id);
+          if (!cancelled) setStatus(resolveStatus(OneSignal));
+        })
         .catch((err) => console.warn("[Push] OneSignal preload failed:", err))
         .finally(() => {
-          if (!cancelled) setStatus("ready");
+          if (!cancelled && getNotificationPermission() === "default") setStatus("ready");
         });
 
       return () => {
@@ -280,7 +276,7 @@ export const usePushNotifications = () => {
 
         const refresh = async () => {
           if (!OneSignal.User.PushSubscription.id && OneSignal.User.PushSubscription.optedIn !== true) {
-            await OneSignal.User.PushSubscription.optIn().catch((err) => console.warn("[Push] optIn refresh failed:", err));
+            await activatePushSubscription(OneSignal).catch((err) => console.warn("[Push] optIn refresh failed:", err));
           }
           await waitForPlayerId(OneSignal);
           await saveSubscription(OneSignal, user.id);
@@ -330,17 +326,18 @@ export const usePushNotifications = () => {
     try {
       setStatus("initializing");
 
-      const nativePermission = await requestNativePermission();
-      if (nativePermission !== "granted") {
-        setStatus(nativePermission === "denied" ? "blocked" : "ready");
+      const OneSignal = await getOneSignal();
+      await OneSignal.login(user.id);
+      await activatePushSubscription(OneSignal);
+
+      if (getNotificationPermission() === "denied") {
+        setStatus("blocked");
         return false;
       }
 
-      const OneSignal = await getOneSignal();
-      await OneSignal.login(user.id);
-
-      if (OneSignal.User.PushSubscription.optedIn !== true || !OneSignal.User.PushSubscription.id) {
-        await OneSignal.User.PushSubscription.optIn().catch((err) => console.warn("[Push] optIn after permission failed:", err));
+      if (!hasPushPermission(OneSignal)) {
+        setStatus("ready");
+        return false;
       }
 
       const playerId = await waitForPlayerId(OneSignal);
@@ -352,7 +349,7 @@ export const usePushNotifications = () => {
       await saveSubscription(OneSignal, user.id);
       const nextStatus = resolveStatus(OneSignal);
       setStatus(nextStatus);
-      return nextStatus === "enabled";
+      return hasPushPermission(OneSignal);
     } catch (err) {
       console.warn("[Push] enable failed:", err);
       setStatus(getNotificationPermission() === "denied" ? "blocked" : "error");
