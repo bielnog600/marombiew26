@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import DietResultCards from '@/components/DietResultCards';
 import DietPlanEditor from '@/components/diet/DietPlanEditor';
 import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
-import { replaceMealTableInMarkdown, scaleMealsToMacroTargets } from '@/lib/dietMarkdownSerializer';
+import { replaceMealTableInMarkdown, scaleMealsToMacroTargets, computeDayTotals } from '@/lib/dietMarkdownSerializer';
 import type { ParsedMeal } from '@/lib/dietResultParser';
 import { parseSections } from '@/lib/dietResultParser';
 import { extractTargetsFromSections } from '@/lib/dietTargets';
@@ -87,7 +87,14 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     if (!plan) return 0;
     const sections = parseSections(plan.conteudo);
     const targets = extractTargetsFromSections(sections);
-    return targets?.calories ?? 0;
+    if (targets?.calories) return targets.calories;
+    // Fallback: sum kcal from actual meals
+    const meals = sections.flatMap(s => s.type === 'meal' && s.meals ? s.meals : []);
+    if (meals.length) {
+      const totals = computeDayTotals(meals);
+      return Math.round(totals.kcal);
+    }
+    return 0;
   }, [macroModalPlanId, plans]);
 
   const handleDelete = async (planId: string) => {
