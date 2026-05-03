@@ -256,10 +256,8 @@ export const usePushNotifications = () => {
     }
 
     if (Notification.permission === "granted") {
-      setStatus("initializing");
-    } else {
-      setStatus("ready");
-      return;
+      // Permission already granted — show "enabled" immediately, register in background
+      setStatus("enabled");
     }
 
     let mounted = true;
@@ -267,7 +265,6 @@ export const usePushNotifications = () => {
 
     const boot = async () => {
       try {
-        setStatus("initializing");
         console.log("[Push] Initializing OneSignal for user:", user.id);
         const OneSignal = await getOneSignal();
 
