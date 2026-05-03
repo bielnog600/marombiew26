@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Loader2, Save, UtensilsCrossed, RotateCcw, Leaf, Pill, Zap, Clock, Target, SlidersHorizontal, FileDown, FileText, Plus, X } from 'lucide-react';
-import { AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, RefreshCw, Wand2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -198,6 +198,7 @@ const DietaIA = () => {
   const [macroReport, setMacroReport] = useState<DietMacroValidationReport | null>(null);
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [adjusting, setAdjusting] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -899,6 +900,46 @@ ${generated}`;
     setSaving(false);
   };
 
+  const adjustMacros = async () => {
+    if (!result || !macroReport) return;
+    setAdjusting(true);
+    try {
+      const correctionPrompt = `A dieta abaixo foi REPROVADA na validação real do sistema. Reescreva o plano inteiro corrigindo SOMENTE as porções/alimentos da tabela para bater a meta.
+
+META OBRIGATÓRIA: ${formatDietMacroLine(macroReport.target)}
+GERADO REAL: ${formatDietMacroLine(macroReport.generated)}
+DIFERENÇA: ${formatDietMacroLine(macroReport.difference)}
+MOTIVOS: ${macroReport.reasons.join(' ')}
+
+REGRAS DE AJUSTE OBRIGATÓRIAS:
+- Se proteína estiver acima da meta, reduza whey, claras, frango, peixe, carne, ovos e laticínios proteicos primeiro.
+- Se carboidrato estiver abaixo da meta, aumente arroz, massa, batata, batata-doce, aveia, pão, tapioca, frutas, mel, cereais ou quinoa.
+- Se gordura estiver acima da meta, reduza salmão, abacate, amêndoas, castanhas, azeite, manteiga de amendoim, ovos inteiros e iogurtes gordos.
+- Se calorias estiverem abaixo, complete preferencialmente com carboidratos de baixa gordura.
+- Não use proteína para completar calorias.
+- Distribua a proteína de forma equilibrada entre as ${mealCount} refeições.
+- Use valores da base por gramas: valor_porção = valor_base * quantidade_g / porção_base.
+
+DIETA REPROVADA:
+${result}`;
+
+      const adjusted = await streamDietAgent([{ role: 'user', content: correctionPrompt }]);
+      const foodRecords = await loadFoodMacroRecords();
+      const report = validateDietMacros(adjusted, macroReport.target, foodRecords);
+      setMacroReport(report);
+      setResult(adjusted);
+      if (report.valid) {
+        toast.success('Macros ajustados dentro da meta!');
+      } else {
+        toast('Ajuste parcial. Revise os macros.', { icon: '⚠️' });
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao ajustar macros');
+    } finally {
+      setAdjusting(false);
+    }
+  };
+
   const SelectionButton = ({ selected, onClick, children, className = '' }: { selected: boolean; onClick: () => void; children: React.ReactNode; className?: string }) => (
     <button
       onClick={onClick}
@@ -1386,6 +1427,12 @@ ${generated}`;
                 <Button variant="outline" size="sm" onClick={() => generateDietPDF(result, studentName)}>
                   <FileDown className="h-3 w-3 mr-1" /> PDF
                 </Button>
+                {macroReport && !macroReport.valid && (
+                  <Button variant="outline" size="sm" onClick={adjustMacros} disabled={adjusting}>
+                    {adjusting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Wand2 className="h-3 w-3 mr-1" />}
+                    Ajustar macros
+                  </Button>
+                )}
                 <Button size="sm" onClick={() => {
                   if (macroReport && !macroReport.valid) {
                     setShowSaveConfirm(true);
@@ -1419,6 +1466,10 @@ ${generated}`;
                         Fora da meta. Pode ajustar automaticamente, regenerar ou salvar mesmo assim.
                       </p>
                       <div className="flex flex-wrap gap-2 pt-1">
+                        <Button variant="outline" size="sm" onClick={adjustMacros} disabled={adjusting}>
+                          {adjusting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Wand2 className="h-3 w-3 mr-1" />}
+                          Ajustar automaticamente
+                        </Button>
                         <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan(); }}>
                           <RefreshCw className="h-3 w-3 mr-1" /> Regenerar dieta
                         </Button>
