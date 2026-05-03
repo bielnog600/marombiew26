@@ -88,6 +88,8 @@ const ensureOneSignalScript = (onError: () => void) => {
 };
 
 const getOneSignal = () => {
+  if (oneSignalInstance) return Promise.resolve(oneSignalInstance);
+
   window.OneSignalDeferred = window.OneSignalDeferred || [];
 
   if (!oneSignalPromise) {
