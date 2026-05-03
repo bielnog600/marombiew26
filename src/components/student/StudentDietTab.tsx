@@ -176,20 +176,17 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     if (!plan) return;
     try {
       const sections = parseSections(plan.conteudo);
-      const targets = extractTargetsFromSections(sections);
-      if (!targets || targets.calories <= 0) {
-        toast.error('Não foi possível detectar a meta calórica na dieta.');
-        return;
-      }
-      const kcal = targets.calories;
+      const meals = sections.flatMap(s => s.type === 'meal' && s.meals ? s.meals : []);
+      if (!meals.length) { toast.error('Nenhuma refeição encontrada.'); return; }
+      const totals = computeDayTotals(meals);
+      if (totals.kcal <= 0) { toast.error('Não foi possível calcular calorias da dieta.'); return; }
+      const kcal = totals.kcal;
       const newTarget = {
         kcal,
         p: Math.round((kcal * macroPct.protein / 100) / 4),
         c: Math.round((kcal * macroPct.carbs / 100) / 4),
         g: Math.round((kcal * macroPct.fat / 100) / 9),
       };
-      const meals = sections.flatMap(s => s.type === 'meal' && s.meals ? s.meals : []);
-      if (!meals.length) { toast.error('Nenhuma refeição encontrada.'); return; }
       const scaled = scaleMealsToMacroTargets(meals, newTarget);
       const newContent = replaceMealTableInMarkdown(plan.conteudo, scaled);
       setPlans(prev => prev.map(p => p.id === planId ? { ...p, conteudo: newContent } : p));
