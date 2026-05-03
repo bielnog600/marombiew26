@@ -23,7 +23,7 @@ import { generateDietPDF } from '@/lib/generateDietPDF';
 import AiWizard from '@/components/AiWizard';
 import { formatDietMacroLine, validateDietMacros, type DietMacroTargets, type DietMacroValidationReport, type FoodMacroRecord } from '@/lib/dietMacroValidation';
 import { parseSections } from '@/lib/dietResultParser';
-import { scaleMealsToTarget, replaceMealTableInMarkdown } from '@/lib/dietMarkdownSerializer';
+import { scaleMealsToTarget, scaleMealsToMacroTargets, replaceMealTableInMarkdown } from '@/lib/dietMarkdownSerializer';
 import type { ParsedMeal } from '@/lib/dietResultParser';
 import { Percent } from 'lucide-react';
 
@@ -928,7 +928,12 @@ ${generated}`;
       }
 
       // Scale all portions proportionally to match target kcal
-      const scaled = scaleMealsToTarget(meals, macroReport.target.calories);
+      const scaled = scaleMealsToMacroTargets(meals, {
+        kcal: macroReport.target.calories,
+        p: macroReport.target.protein,
+        c: macroReport.target.carbs,
+        g: macroReport.target.fats,
+      });
 
       // Rebuild the markdown with adjusted table
       const adjusted = replaceMealTableInMarkdown(result, scaled);
@@ -1580,7 +1585,12 @@ ${generated}`;
                     const sections = parseSections(result);
                     const meals: ParsedMeal[] = sections.flatMap(s => s.type === 'meal' ? (s.meals || []) : []);
                     if (meals.length === 0) { toast.error('Nenhuma refeição encontrada.'); return; }
-                    const scaled = scaleMealsToTarget(meals, newTarget.calories);
+                    const scaled = scaleMealsToMacroTargets(meals, {
+                      kcal: newTarget.calories,
+                      p: newTarget.protein,
+                      c: newTarget.carbs,
+                      g: newTarget.fats,
+                    });
                     const adjusted = replaceMealTableInMarkdown(result, scaled);
                     const foodRecords = await loadFoodMacroRecords();
                     const report = validateDietMacros(adjusted, newTarget, foodRecords);
