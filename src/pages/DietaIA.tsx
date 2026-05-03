@@ -820,15 +820,14 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
 
     try {
       const foodRecords = await loadFoodMacroRecords();
-      const generated = await streamDietAgent([{ role: 'user', content: prompt }], setResult);
+      const generated = await streamDietAgent([{ role: 'user', content: prompt }]);
+      let finalPlan = generated;
 
       if (currentTargets) {
         let report = validateDietMacros(generated, currentTargets, foodRecords);
 
         if (!report.valid) {
           toast.error('Dieta gerada fora da meta. Ajustando automaticamente...');
-          setResult('');
-
           const correctionPrompt = `A dieta abaixo foi REPROVADA na validação real do sistema. Reescreva o plano inteiro corrigindo SOMENTE as porções/alimentos da tabela para bater a meta.
 
 META OBRIGATÓRIA: ${formatDietMacroLine(report.target)}
@@ -848,7 +847,8 @@ REGRAS DE AJUSTE OBRIGATÓRIAS:
 DIETA REPROVADA:
 ${generated}`;
 
-          const adjusted = await streamDietAgent([{ role: 'user', content: correctionPrompt }], setResult);
+          const adjusted = await streamDietAgent([{ role: 'user', content: correctionPrompt }]);
+          finalPlan = adjusted;
           report = validateDietMacros(adjusted, currentTargets, foodRecords);
         }
 
@@ -858,7 +858,10 @@ ${generated}`;
           toast.error(`Dieta ainda fora da meta: ${report.reasons.join(' ')}`);
           return;
         }
+        setResult(finalPlan);
         toast.success('Dieta validada dentro da meta.');
+      } else {
+        setResult(generated);
       }
     } catch (e: any) {
       console.error(e);
