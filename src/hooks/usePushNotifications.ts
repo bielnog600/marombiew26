@@ -100,7 +100,7 @@ const getOneSignal = () => {
             serviceWorkerPath: "onesignal/OneSignalSDKWorker.js",
             serviceWorkerParam: { scope: "/onesignal/" },
             notifyButton: { enable: false },
-            autoResubscribe: false,
+            autoResubscribe: true,
             autoRegister: false,
             promptOptions: {
               slidedown: {
@@ -120,18 +120,8 @@ const getOneSignal = () => {
               native: { enabled: false, autoPrompt: false },
             } as any,
           });
+          OneSignal.Debug?.setLogLevel("trace");
           console.log("[Push] OneSignal init OK");
-          // Trava extra: remove qualquer slidedown injetado pelo OneSignal
-          const removeSlidedown = () => {
-            document
-              .querySelectorAll(
-                "#onesignal-slidedown-container, #onesignal-slidedown-dialog, .onesignal-slidedown-container, #onesignal-popover-container, .onesignal-bell-container"
-              )
-              .forEach((el) => el.remove());
-          };
-          removeSlidedown();
-          const observer = new MutationObserver(removeSlidedown);
-          observer.observe(document.body, { childList: true, subtree: true });
           resolve(OneSignal);
         } catch (err) {
           oneSignalPromise = null;
