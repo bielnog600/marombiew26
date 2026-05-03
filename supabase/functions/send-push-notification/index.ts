@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    // Resolve targets → player_ids
+    // Resolve targets → OneSignal external_ids (o app faz login no OneSignal com o user.id)
     let targetUserIds: string[] = Array.isArray(user_ids) ? user_ids.filter(Boolean) : [];
 
     if (send_to_admins) {
@@ -48,29 +48,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { data: subs } = await supabase
-      .from("push_subscriptions")
-      .select("player_id, user_id")
-      .in("user_id", targetUserIds)
-      .eq("active", true);
-
-    const playerIds = [...new Set((subs ?? []).map((s) => s.player_id).filter(Boolean))];
-
-    if (playerIds.length === 0) {
-      // Loga sem destinatários push, mas não é erro
-      await supabase.from("push_notification_log").insert({
-        recipient_user_id: targetUserIds[0],
-        title, message, data,
-        status: "no_subscribers",
-      });
-      return new Response(JSON.stringify({ ok: true, delivered: 0, reason: "no_subscribers" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const payload: Record<string, unknown> = {
       app_id: ONESIGNAL_APP_ID,
-      include_player_ids: playerIds,
+      include_aliases: { external_id: [...new Set(targetUserIds)] },
+      target_channel: "push",
       headings: { en: title, pt: title },
       contents: { en: message, pt: message },
       data,
@@ -96,7 +77,7 @@ Deno.serve(async (req) => {
       error: resp.ok ? null : JSON.stringify(result),
     });
 
-    return new Response(JSON.stringify({ ok: resp.ok, delivered: playerIds.length, result }), {
+    return new Response(JSON.stringify({ ok: resp.ok, delivered: targetUserIds.length, result }), {
       status: resp.ok ? 200 : 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
