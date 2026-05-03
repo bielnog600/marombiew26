@@ -200,7 +200,10 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     }
   };
 
+  const pctSum = macroPct.protein + macroPct.carbs + macroPct.fat;
+
   return (
+    <>
     <div className="space-y-3">
       {plans.map(plan => {
         const isExpanded = expandedId === plan.id;
@@ -340,16 +343,8 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
         );
       })}
     </div>
-  );
-};
 
-  const pctSum = macroPct.protein + macroPct.carbs + macroPct.fat;
-
-  return (
-    <>
-      {dietCards}
-
-      <Dialog open={!!macroModalPlanId} onOpenChange={(o) => !o && setMacroModalPlanId(null)}>
+    <Dialog open={!!macroModalPlanId} onOpenChange={(o) => !o && setMacroModalPlanId(null)}>
         <DialogContent className="sm:max-w-md" onClick={(e) => e.stopPropagation()}>
           <DialogHeader>
             <DialogTitle>Ajustar macros por %</DialogTitle>
@@ -383,7 +378,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
             </Button>
           </div>
         </DialogContent>
-      </Dialog>
+    </Dialog>
     </>
   );
 };
