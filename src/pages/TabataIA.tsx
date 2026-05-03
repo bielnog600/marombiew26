@@ -643,7 +643,7 @@ const TabataIA = () => {
                     <SelectValue placeholder="Dia..." />
                   </SelectTrigger>
                   <SelectContent className="bg-popover z-50">
-                    <SelectItem value="">Sem dia</SelectItem>
+                    <SelectItem value="none">Sem dia</SelectItem>
                     {WEEKDAYS.map(w => (
                       <SelectItem key={w} value={w}>{w}</SelectItem>
                     ))}
