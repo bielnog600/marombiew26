@@ -649,7 +649,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
             Descanso
           </p>
           <div className="relative w-40 h-40 flex items-center justify-center">
-            <svg className="absolute inset-0 -rotate-90" viewBox="0 0 100 100">
+            <svg className="absolute inset-0 -rotate-90 pointer-events-none" viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="46" fill="none" stroke="hsl(var(--secondary))" strokeWidth="6" />
               <circle
                 cx="50"
@@ -675,7 +675,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
               <button
                 type="button"
                 onClick={() => setRestTimer((p) => p ? { ...p, remaining: p.total, total: p.total } : p)}
-                className="flex items-center justify-center w-16 h-16 rounded-full bg-primary/20 hover:bg-primary/30 transition-colors"
+                className="relative z-10 flex items-center justify-center w-16 h-16 rounded-full bg-primary/20 hover:bg-primary/30 transition-colors"
                 aria-label="Reiniciar descanso"
               >
                 <Play className="h-8 w-8 text-primary ml-1" />
