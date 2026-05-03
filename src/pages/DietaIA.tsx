@@ -598,32 +598,14 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
       const currentGET = baseRec.tmb * currentFA;
       const currentCalories = Math.round(currentGET * (1 + currentStrategyPct / 100));
 
-      // Recalculate macros based on current phase/strategy
       const peso = studentCtx.peso || 70;
-      let protPerKg: number, fatPerKg: number, protMax: number;
-      const isDeficit = strategy.includes('deficit');
-      const isMaint = phase === 'manutencao' && !isDeficit;
-
-      if (phase === 'pre_contest') {
-        protPerKg = 2.5; fatPerKg = 0.6; protMax = 3.0;
-      } else if (isDeficit) {
-        protPerKg = 2.2; fatPerKg = 0.8; protMax = 2.6;
-      } else if (isMaint) {
-        protPerKg = 1.8; fatPerKg = 0.9; protMax = 2.2;
-      } else {
-        // Hipertrofia, recomposição, corpo slim, bulking
-        protPerKg = 2.0; fatPerKg = 0.9; protMax = 2.4;
-      }
-
-      if (usesHormones) { protPerKg = Math.min(protPerKg + 0.2, protMax); }
-      protPerKg = Math.min(protPerKg, protMax);
-
-      const protGrams = Math.round(protPerKg * peso);
-      const fatGrams = Math.round(fatPerKg * peso);
-      const protCal = protGrams * 4;
-      const fatCal = fatGrams * 9;
-      const carbCal = Math.max(currentCalories - protCal - fatCal, 0);
-      const carbGrams = Math.round(carbCal / 4);
+      const macros = calculateMacroTargets({
+        calories: currentCalories,
+        weight: peso,
+        strategyValue: strategy,
+        phaseValue: phase,
+        hormoneUse: hasHormoneUse(usesHormones),
+      });
 
       recText = `
 === RECOMENDAÇÃO CALCULADA (VALORES OBRIGATÓRIOS — NÃO RECALCULE) ===
@@ -632,10 +614,11 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
 - GET: ${Math.round(currentGET)} kcal
 - Estratégia: ${selectedStrategy?.label} (${currentStrategyPct > 0 ? '+' : ''}${currentStrategyPct}%)
 - Calorias alvo EXATAS: ${currentCalories} kcal
-- Proteína EXATA: ${protGrams}g (${protPerKg}g/kg)
-- Carboidrato EXATO: ${carbGrams}g
-- Gordura EXATA: ${fatGrams}g (${fatPerKg}g/kg)
-⚠️ OBRIGATÓRIO: O TOTAL DIÁRIO da tabela DEVE ser EXATAMENTE ${currentCalories} kcal (tolerância ±50 kcal). Proteína total = ${protGrams}g, Carboidrato total = ${carbGrams}g, Gordura total = ${fatGrams}g. NÃO use outros valores. NÃO recalcule a TMB. Estes valores já são definitivos.
+- Proteína EXATA: ${macros.proteinGrams}g (${macros.proteinPerKg}g/kg)
+- Carboidrato EXATO: ${macros.carbGrams}g
+- Gordura EXATA: ${macros.fatGrams}g (${macros.fatPerKg}g/kg)
+⚠️ OBRIGATÓRIO: O TOTAL DIÁRIO da tabela DEVE ser EXATAMENTE ${currentCalories} kcal (tolerância ±50 kcal). Proteína total = ${macros.proteinGrams}g, Carboidrato total = ${macros.carbGrams}g, Gordura total = ${macros.fatGrams}g. NÃO use outros valores. NÃO recalcule a TMB. Estes valores já são definitivos.
+⚠️ REGRA DE CORREÇÃO: Se faltar caloria para bater a meta, ajuste CARBOIDRATO. NÃO aumente proteína acima de ${macros.proteinGrams}g para completar calorias.
 `;
     }
 
