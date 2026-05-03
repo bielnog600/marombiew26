@@ -80,22 +80,32 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   const [macroModalPlanId, setMacroModalPlanId] = useState<string | null>(null);
   const [macroPct, setMacroPct] = useState({ protein: 30, carbs: 50, fat: 20 });
 
-  // Compute kcal target for the modal plan to show live gram preview
-  const modalPlanKcal = useMemo(() => {
+  // Compute actual macro totals for the modal plan
+  const modalPlanTotals = useMemo(() => {
     if (!macroModalPlanId) return 0;
     const plan = plans.find(p => p.id === macroModalPlanId);
-    if (!plan) return 0;
+    if (!plan) return null;
     const sections = parseSections(plan.conteudo);
-    const targets = extractTargetsFromSections(sections);
-    if (targets?.calories) return targets.calories;
-    // Fallback: sum kcal from actual meals
     const meals = sections.flatMap(s => s.type === 'meal' && s.meals ? s.meals : []);
-    if (meals.length) {
-      const totals = computeDayTotals(meals);
-      return Math.round(totals.kcal);
-    }
-    return 0;
+    if (!meals.length) return null;
+    return computeDayTotals(meals);
   }, [macroModalPlanId, plans]);
+
+  // When opening the modal, set sliders to match current macro distribution
+  const openMacroModal = useCallback((planId: string) => {
+    setMacroModalPlanId(planId);
+    const plan = plans.find(p => p.id === planId);
+    if (!plan) return;
+    const sections = parseSections(plan.conteudo);
+    const meals = sections.flatMap(s => s.type === 'meal' && s.meals ? s.meals : []);
+    if (!meals.length) return;
+    const t = computeDayTotals(meals);
+    if (t.kcal <= 0) return;
+    const pPct = Math.round((t.p * 4 / t.kcal) * 100);
+    const gPct = Math.round((t.g * 9 / t.kcal) * 100);
+    const cPct = 100 - pPct - gPct;
+    setMacroPct({ protein: pPct, carbs: cPct, fat: gPct });
+  }, [plans]);
 
   const handleDelete = async (planId: string) => {
     const { error } = await supabase.from('ai_plans').delete().eq('id', planId);
@@ -245,7 +255,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         size="icon"
                         className="h-7 w-7"
                         title="Ajustar macros por %"
-                        onClick={(e) => { e.stopPropagation(); setMacroModalPlanId(plan.id); }}
+                        onClick={(e) => { e.stopPropagation(); openMacroModal(plan.id); }}
                       >
                         <Percent className="h-3.5 w-3.5" />
                       </Button>
@@ -331,13 +341,17 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
           <div className="space-y-5 py-2">
             {(['protein', 'carbs', 'fat'] as const).map((key) => {
               const labels = { protein: 'Proteína', carbs: 'Carboidrato', fat: 'Gordura' };
+              const totalKcal = modalPlanTotals ? modalPlanTotals.kcal : 0;
               const divisor = key === 'fat' ? 9 : 4;
-              const grams = modalPlanKcal > 0 ? Math.round((modalPlanKcal * macroPct[key] / 100) / divisor) : 0;
+              const grams = totalKcal > 0 ? Math.round((totalKcal * macroPct[key] / 100) / divisor) : 0;
+              const currentGrams = modalPlanTotals
+                ? Math.round(key === 'protein' ? modalPlanTotals.p : key === 'carbs' ? modalPlanTotals.c : modalPlanTotals.g)
+                : 0;
               return (
                 <div key={key} className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <Label>{labels[key]}</Label>
-                    <span className="font-bold">{macroPct[key]}% — <span className="text-primary">{grams} g</span></span>
+                    <Label>{labels[key]} <span className="text-muted-foreground font-normal">(atual: {currentGrams}g)</span></Label>
+                    <span className="font-bold">{macroPct[key]}% — <span className="text-primary">{grams}g</span></span>
                   </div>
                   <Slider
                     min={5} max={70} step={1}
