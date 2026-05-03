@@ -71,6 +71,14 @@ const BottomNav: React.FC = () => {
     setPillRect({ left, width });
   }, [activeIndex, dragProgress, items.length, location.pathname]);
 
+  // Mark initial position set after first paint
+  useLayoutEffect(() => {
+    if (pillRect && !hasInitialPosition.current) {
+      // Use rAF to ensure the first frame renders without animation
+      requestAnimationFrame(() => { hasInitialPosition.current = true; });
+    }
+  }, [pillRect]);
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/login');
