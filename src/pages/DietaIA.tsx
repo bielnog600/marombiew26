@@ -143,6 +143,9 @@ const DietaIA = () => {
   const [newSubFood, setNewSubFood] = useState('');
   const [newSubPortion, setNewSubPortion] = useState('');
 
+  // Model diet
+  const [modelDiet, setModelDiet] = useState('');
+
   // Wizard
   const [currentStep, setCurrentStep] = useState(0);
 
@@ -633,6 +636,12 @@ Formato da coluna Substituição: "1) Alimento X (Xg); 2) Alimento Y (Xg); 3) Al
 Exemplo: "1) Batata-doce (150g); 2) Inhame (140g); 3) Mandioca (120g)"
 As 3 opções devem ser alimentos DIFERENTES entre si e diferentes do alimento principal, respeitando os macros e calorias equivalentes.
 ${substitutions.length > 0 ? `Use PREFERENCIALMENTE os alimentos abaixo como opções de substituição:\n${substitutions.map(s => `- ${s.food}: ${s.portion}`).join('\n')}` : ''}
+${modelDiet.trim() ? `
+=== DIETA MODELO (REFERÊNCIA) ===
+O nutricionista colou uma dieta modelo abaixo. Use esta dieta como BASE/REFERÊNCIA: mantenha a estrutura, os alimentos e horários semelhantes, mas AJUSTE as quantidades (gramas) para que os macronutrientes e calorias totais batam com os valores calculados para este aluno.
+Dieta modelo:
+${modelDiet.trim()}
+` : ''}
 ${studentCtx.questionario_dieta?.preferencias_alimentares ? `Considere as preferências do aluno: ${studentCtx.questionario_dieta.preferencias_alimentares}` : ''}
 ${studentCtx.questionario_dieta?.restricoes_alimentares ? `Respeite as restrições: ${studentCtx.questionario_dieta.restricoes_alimentares}` : ''}
 Use também a base de alimentos disponível do sistema para escolher substituições adequadas.
@@ -1219,6 +1228,20 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
                 ))}
               </div>
             )}
+
+            <div className="pt-3 border-t border-border/50">
+              <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1.5">
+                <FileText className="h-3.5 w-3.5" />
+                Dieta Modelo (opcional) — Cole uma dieta de referência e a IA ajustará as quantidades para os macros do aluno
+              </p>
+              <textarea
+                value={modelDiet}
+                onChange={(e) => setModelDiet(e.target.value)}
+                placeholder="Cole aqui uma dieta modelo completa (ex: tabela de refeições de outro aluno ou plano padrão). A IA usará como base e ajustará as quantidades..."
+                rows={6}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none resize-y min-h-[100px]"
+              />
+            </div>
           </CardContent>
         </Card>
               )}
