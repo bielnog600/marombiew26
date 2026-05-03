@@ -274,7 +274,21 @@ export const usePushNotifications = () => {
         await OneSignal.User.PushSubscription.optIn();
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      // Poll for player_id — OneSignal pode levar alguns segundos após conceder permissão
+      let playerId: string | undefined;
+      for (let i = 0; i < 15; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        playerId = OneSignal.User.PushSubscription.id;
+        if (playerId) break;
+        console.log(`[Push] Aguardando player_id... tentativa ${i + 1}`);
+      }
+
+      if (!playerId) {
+        console.warn("[Push] player_id não disponível após polling");
+        setStatus("ready");
+        return false;
+      }
+
       await saveSubscription(OneSignal, user.id);
       const nextStatus = resolveStatus(OneSignal);
       setStatus(nextStatus);
