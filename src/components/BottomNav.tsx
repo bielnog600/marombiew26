@@ -34,6 +34,7 @@ const BottomNav: React.FC = () => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [pillRect, setPillRect] = useState<{ left: number; width: number } | null>(null);
+  const hasInitialPosition = useRef(false);
 
   const activeIndex = items.findIndex(
     (it) => location.pathname === it.url || location.pathname.startsWith(it.url + '/')
@@ -70,6 +71,14 @@ const BottomNav: React.FC = () => {
     setPillRect({ left, width });
   }, [activeIndex, dragProgress, items.length, location.pathname]);
 
+  // Mark initial position set after first paint
+  useLayoutEffect(() => {
+    if (pillRect && !hasInitialPosition.current) {
+      // Use rAF to ensure the first frame renders without animation
+      requestAnimationFrame(() => { hasInitialPosition.current = true; });
+    }
+  }, [pillRect]);
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/login');
@@ -87,11 +96,14 @@ const BottomNav: React.FC = () => {
             <motion.div
               aria-hidden
               className="absolute top-1/2 -translate-y-1/2 h-12 rounded-2xl bg-primary pointer-events-none"
-              animate={{ left: pillRect.left, width: pillRect.width }}
+              initial={false}
+              animate={{ left: pillRect.left, width: pillRect.width, opacity: 1 }}
               transition={
-                isDragging
-                  ? { type: 'tween', duration: 0 }
-                  : { type: 'spring', stiffness: 500, damping: 35 }
+                !hasInitialPosition.current
+                  ? { duration: 0 }
+                  : isDragging
+                    ? { type: 'tween', duration: 0 }
+                    : { type: 'spring', stiffness: 500, damping: 35 }
               }
             />
           )}
