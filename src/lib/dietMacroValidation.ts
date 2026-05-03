@@ -16,7 +16,7 @@ export interface FoodMacroRecord {
   portion_size?: number | null;
 }
 
-export interface DietMacroTotals extends DietMacroTargets {}
+export type DietMacroTotals = DietMacroTargets;
 
 export interface MealMacroTotal extends DietMacroTotals {
   meal: string;
