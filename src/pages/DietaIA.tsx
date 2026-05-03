@@ -1466,6 +1466,10 @@ ${result}`;
                         Fora da meta. Pode ajustar automaticamente, regenerar ou salvar mesmo assim.
                       </p>
                       <div className="flex flex-wrap gap-2 pt-1">
+                        <Button variant="outline" size="sm" onClick={adjustMacros} disabled={adjusting}>
+                          {adjusting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Wand2 className="h-3 w-3 mr-1" />}
+                          Ajustar automaticamente
+                        </Button>
                         <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan(); }}>
                           <RefreshCw className="h-3 w-3 mr-1" /> Regenerar dieta
                         </Button>
