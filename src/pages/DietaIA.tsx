@@ -98,6 +98,43 @@ const PROTOCOL_ADJUSTMENTS = [
   { id: 'carb_cycling', label: 'Carb Cycling', desc: 'Ciclagem de carboidrato (high/medium/low)', icon: SlidersHorizontal },
 ];
 
+const hasHormoneUse = (value: unknown): boolean => {
+  if (typeof value === 'boolean') return value;
+  if (!value) return false;
+  const normalized = String(value).trim().toLowerCase();
+  return !['não', 'nao', 'natural', 'false', '0', 'n'].includes(normalized);
+};
+
+const calculateMacroTargets = ({
+  calories,
+  weight,
+  strategyValue,
+  phaseValue,
+  hormoneUse,
+}: {
+  calories: number;
+  weight: number;
+  strategyValue: string;
+  phaseValue: string;
+  hormoneUse: boolean;
+}) => {
+  const isDeficit = strategyValue.includes('deficit') || phaseValue === 'cutting' || phaseValue === 'pre_contest';
+  const isMaintenance = (phaseValue === 'manutencao' || strategyValue === 'manutencao') && !isDeficit;
+
+  let proteinPerKg = isDeficit ? 2.2 : isMaintenance ? 1.8 : 2.0;
+  const proteinMax = isDeficit ? 2.6 : isMaintenance ? 2.2 : 2.4;
+  const fatPerKg = isDeficit ? 0.8 : 0.9;
+
+  if (hormoneUse) proteinPerKg = Math.min(proteinPerKg + 0.2, proteinMax);
+  proteinPerKg = Math.min(proteinPerKg, proteinMax);
+
+  const proteinGrams = Math.round(proteinPerKg * weight);
+  const fatGrams = Math.round(fatPerKg * weight);
+  const carbGrams = Math.max(Math.round((calories - proteinGrams * 4 - fatGrams * 9) / 4), 0);
+
+  return { proteinPerKg, proteinGrams, fatPerKg, fatGrams, carbGrams };
+};
+
 const DietaIA = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
@@ -426,36 +463,13 @@ const DietaIA = () => {
       const get = bestTmb * suggestedFA;
       const consumo = get * (1 + strategyPct / 100);
 
-      // Macros based on phase
-      let protPerKg: number, fatPerKg: number, protMax: number;
-      const objLower = (sp?.objetivo || '').toLowerCase();
-      const isSlim = objLower.includes('slim') || objLower.includes('recomp');
-      const isEmagrecimento = suggestedStrategy.includes('deficit');
-      const isManutencao = suggestedPhase === 'manutencao' && !isEmagrecimento;
-
-      if (isEmagrecimento) {
-        protPerKg = 2.2; fatPerKg = 0.8; protMax = 2.6;
-      } else if (isManutencao) {
-        protPerKg = 1.8; fatPerKg = 0.9; protMax = 2.2;
-      } else {
-        // Hipertrofia, corpo slim, recomposição, bulking
-        protPerKg = 2.0; fatPerKg = 0.9; protMax = 2.4;
-      }
-
-      // Hormones: small bump but capped at objective max
-      if (latestQuestionnaire?.usa_hormonios && latestQuestionnaire.usa_hormonios !== 'Não') {
-        protPerKg = Math.min(protPerKg + 0.2, protMax);
-      }
-
-      // Enforce ceiling
-      protPerKg = Math.min(protPerKg, protMax);
-
-      const protGrams = Math.round(protPerKg * peso);
-      const fatGrams = Math.round(fatPerKg * peso);
-      const protCal = protGrams * 4;
-      const fatCal = fatGrams * 9;
-      const carbCal = Math.max(consumo - protCal - fatCal, 0);
-      const carbGrams = Math.round(carbCal / 4);
+      const macros = calculateMacroTargets({
+        calories: consumo,
+        weight: peso,
+        strategyValue: suggestedStrategy,
+        phaseValue: suggestedPhase,
+        hormoneUse: hasHormoneUse(latestQuestionnaire?.usa_hormonios),
+      });
 
       ctx.recomendacao_ia = {
         tmb: Math.round(bestTmb),
@@ -464,11 +478,11 @@ const DietaIA = () => {
         get: Math.round(get),
         consumo: Math.round(consumo),
         estrategia: suggestedStrategy,
-        proteina_g: protGrams,
-        carboidrato_g: carbGrams,
-        gordura_g: fatGrams,
-        proteina_kg: protPerKg,
-        gordura_kg: fatPerKg,
+        proteina_g: macros.proteinGrams,
+        carboidrato_g: macros.carbGrams,
+        gordura_g: macros.fatGrams,
+        proteina_kg: macros.proteinPerKg,
+        gordura_kg: macros.fatPerKg,
         calorias_total: Math.round(consumo),
       };
       setStudentCtx({ ...ctx });
@@ -584,32 +598,14 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
       const currentGET = baseRec.tmb * currentFA;
       const currentCalories = Math.round(currentGET * (1 + currentStrategyPct / 100));
 
-      // Recalculate macros based on current phase/strategy
       const peso = studentCtx.peso || 70;
-      let protPerKg: number, fatPerKg: number, protMax: number;
-      const isDeficit = strategy.includes('deficit');
-      const isMaint = phase === 'manutencao' && !isDeficit;
-
-      if (phase === 'pre_contest') {
-        protPerKg = 2.5; fatPerKg = 0.6; protMax = 3.0;
-      } else if (isDeficit) {
-        protPerKg = 2.2; fatPerKg = 0.8; protMax = 2.6;
-      } else if (isMaint) {
-        protPerKg = 1.8; fatPerKg = 0.9; protMax = 2.2;
-      } else {
-        // Hipertrofia, recomposição, corpo slim, bulking
-        protPerKg = 2.0; fatPerKg = 0.9; protMax = 2.4;
-      }
-
-      if (usesHormones) { protPerKg = Math.min(protPerKg + 0.2, protMax); }
-      protPerKg = Math.min(protPerKg, protMax);
-
-      const protGrams = Math.round(protPerKg * peso);
-      const fatGrams = Math.round(fatPerKg * peso);
-      const protCal = protGrams * 4;
-      const fatCal = fatGrams * 9;
-      const carbCal = Math.max(currentCalories - protCal - fatCal, 0);
-      const carbGrams = Math.round(carbCal / 4);
+      const macros = calculateMacroTargets({
+        calories: currentCalories,
+        weight: peso,
+        strategyValue: strategy,
+        phaseValue: phase,
+        hormoneUse: hasHormoneUse(usesHormones),
+      });
 
       recText = `
 === RECOMENDAÇÃO CALCULADA (VALORES OBRIGATÓRIOS — NÃO RECALCULE) ===
@@ -618,10 +614,11 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
 - GET: ${Math.round(currentGET)} kcal
 - Estratégia: ${selectedStrategy?.label} (${currentStrategyPct > 0 ? '+' : ''}${currentStrategyPct}%)
 - Calorias alvo EXATAS: ${currentCalories} kcal
-- Proteína EXATA: ${protGrams}g (${protPerKg}g/kg)
-- Carboidrato EXATO: ${carbGrams}g
-- Gordura EXATA: ${fatGrams}g (${fatPerKg}g/kg)
-⚠️ OBRIGATÓRIO: O TOTAL DIÁRIO da tabela DEVE ser EXATAMENTE ${currentCalories} kcal (tolerância ±50 kcal). Proteína total = ${protGrams}g, Carboidrato total = ${carbGrams}g, Gordura total = ${fatGrams}g. NÃO use outros valores. NÃO recalcule a TMB. Estes valores já são definitivos.
+- Proteína EXATA: ${macros.proteinGrams}g (${macros.proteinPerKg}g/kg)
+- Carboidrato EXATO: ${macros.carbGrams}g
+- Gordura EXATA: ${macros.fatGrams}g (${macros.fatPerKg}g/kg)
+⚠️ OBRIGATÓRIO: O TOTAL DIÁRIO da tabela DEVE ser EXATAMENTE ${currentCalories} kcal (tolerância ±50 kcal). Proteína total = ${macros.proteinGrams}g, Carboidrato total = ${macros.carbGrams}g, Gordura total = ${macros.fatGrams}g. NÃO use outros valores. NÃO recalcule a TMB. Estes valores já são definitivos.
+⚠️ REGRA DE CORREÇÃO: Se faltar caloria para bater a meta, ajuste CARBOIDRATO. NÃO aumente proteína acima de ${macros.proteinGrams}g para completar calorias.
 `;
     }
 
@@ -636,7 +633,7 @@ ${recText}
 
 === ESTILO DE DIETA ===
 - Estilo: ${selectedDietStyle?.label || 'Não definido'} — ${selectedDietStyle?.desc || ''}
-IMPORTANTE: Siga RIGOROSAMENTE o estilo de dieta selecionado. Se Low Carb, mantenha carboidratos abaixo de 100g/dia. Se Cetogênica, abaixo de 30g/dia. Se Flexível, foque nos macros. Se Vegetariana/Vegana, respeite as restrições proteicas.
+IMPORTANTE: Siga o estilo selecionado sem quebrar os macros obrigatórios. Se Low Carb/Cetogênica conflitar com a meta de carboidrato calculada, a meta calculada vence. Se Vegetariana/Vegana, respeite as restrições proteicas sem aumentar a proteína total.
 
 === FASE ATUAL ===
 - Fase: ${selectedPhase?.label} — ${selectedPhase?.desc}
@@ -722,7 +719,7 @@ IMPORTANTE: Considere os sintomas e feedback do aluno ao montar a dieta. Se há 
 2) Escolha da fórmula mais adequada e justificativa
 3) Cálculo do GET e Consumo Energético
 4) Distribuição de macronutrientes (proteína, carboidrato, gordura)
-5) EXATAMENTE 3 opções de cardápio completo e DIVERSIFICADO em tabela com: Refeição | Horário | Alimento | Quantidade (g) | Kcal | P | C | G | Substituição. As 3 opções devem ser SIGNIFICATIVAMENTE diferentes entre si (proteínas, carboidratos e preparações variadas).
+5) EXATAMENTE 1 cardápio completo em tabela com: Refeição | Horário | Alimento | Quantidade (g) | Kcal | P | C | G | Substituição.
 6) Total de cada refeição e do dia
 7) Timing nutricional (pré-treino, intra-treino, pós-treino) baseado no horário de treino informado
 ${selectedAdjustments.includes('carb_cycling') ? '8) Protocolo de Carb Cycling com tabela de dias High/Medium/Low' : ''}
