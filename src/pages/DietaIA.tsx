@@ -5,7 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Loader2, Save, UtensilsCrossed, RotateCcw, Leaf, Pill, Zap, Clock, Target, SlidersHorizontal, FileDown, FileText, Plus, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
@@ -191,6 +196,7 @@ const DietaIA = () => {
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState('');
   const [macroReport, setMacroReport] = useState<DietMacroValidationReport | null>(null);
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
 
@@ -853,13 +859,12 @@ ${generated}`;
         }
 
         setMacroReport(report);
-        if (!report.valid) {
-          setResult('');
-          toast.error(`Dieta ainda fora da meta: ${report.reasons.join(' ')}`);
-          return;
-        }
         setResult(finalPlan);
-        toast.success('Dieta validada dentro da meta.');
+        if (report.valid) {
+          toast.success('Dieta validada dentro da meta.');
+        } else {
+          toast('Dieta fora da meta. Revise ou ajuste antes de enviar ao aluno.', { icon: '⚠️' });
+        }
       } else {
         setResult(generated);
       }
@@ -873,10 +878,6 @@ ${generated}`;
 
   const savePlan = async () => {
     if (!result) return;
-    if (macroReport && !macroReport.valid) {
-      toast.error('Dieta gerada fora da meta. Ajustando automaticamente...');
-      return;
-    }
     setSaving(true);
     if (editPlanId) {
       const { error } = await supabase.from('ai_plans').update({
@@ -1385,18 +1386,26 @@ ${generated}`;
                 <Button variant="outline" size="sm" onClick={() => generateDietPDF(result, studentName)}>
                   <FileDown className="h-3 w-3 mr-1" /> PDF
                 </Button>
-                <Button size="sm" onClick={savePlan} disabled={saving || macroReport?.valid === false}>
+                <Button size="sm" onClick={() => {
+                  if (macroReport && !macroReport.valid) {
+                    setShowSaveConfirm(true);
+                  } else {
+                    savePlan();
+                  }
+                }} disabled={saving}>
                   <Save className="h-3 w-3 mr-1" /> {editPlanId ? 'Atualizar' : 'Salvar'}
                 </Button>
               </div>
             </div>
             {macroReport && (
-              <Card className={`border ${macroReport.valid ? 'border-primary/30 bg-primary/5' : 'border-destructive/40 bg-destructive/10'}`}>
-                <CardContent className="space-y-2 p-4 text-xs">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-bold text-sm">Validação real dos macros</span>
-                    <span className={`rounded-full px-2 py-1 font-semibold ${macroReport.valid ? 'bg-primary/15 text-primary' : 'bg-destructive/15 text-destructive'}`}>
-                      {macroReport.valid ? 'Status: válido' : 'Status: inválido'}
+              <Card className={`border ${macroReport.valid ? 'border-green-500/30 bg-green-500/5' : 'border-yellow-500/40 bg-yellow-500/5'}`}>
+                <CardContent className="space-y-3 p-4 text-xs">
+                  <div className="flex items-center gap-2">
+                    {macroReport.valid
+                      ? <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                      : <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0" />}
+                    <span className="font-bold text-sm">
+                      {macroReport.valid ? 'Dieta dentro da meta' : 'Dieta fora da meta'}
                     </span>
                   </div>
                   <div className="grid gap-1 text-muted-foreground sm:grid-cols-3">
@@ -1404,13 +1413,46 @@ ${generated}`;
                     <span>Gerado: <strong className="text-foreground">{formatDietMacroLine(macroReport.generated)}</strong></span>
                     <span>Diferença: <strong className="text-foreground">{formatDietMacroLine(macroReport.difference)}</strong></span>
                   </div>
-                  {!macroReport.valid && <p className="text-destructive">{macroReport.reasons.join(' ')}</p>}
+                  {!macroReport.valid && (
+                    <>
+                      <p className="text-yellow-600 dark:text-yellow-400">
+                        Fora da meta. Pode ajustar automaticamente, regenerar ou salvar mesmo assim.
+                      </p>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan(); }}>
+                          <RefreshCw className="h-3 w-3 mr-1" /> Regenerar dieta
+                        </Button>
+                        <Button variant="secondary" size="sm" onClick={() => {
+                          savePlan();
+                        }}>
+                          <Save className="h-3 w-3 mr-1" /> Salvar mesmo assim
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             )}
             <DietResultCards markdown={result} />
           </div>
         )}
+
+        <AlertDialog open={showSaveConfirm} onOpenChange={setShowSaveConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Dieta fora da meta</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta dieta está fora da meta calculada. Deseja salvar mesmo assim?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={() => savePlan()}>
+                Salvar mesmo assim
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppLayout>
   );
