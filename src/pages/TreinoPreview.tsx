@@ -112,15 +112,6 @@ const TreinoPreview = () => {
                   <p className="text-sm font-semibold">{totalSets}</p>
                 </div>
               </div>
-                      {/* Botão de histórico de cargas */}
-                      <button
-                        type="button"
-                        onClick={() => setHistoryExercise(ex.exercise)}
-                        className="shrink-0 self-start mt-0.5 p-1.5 rounded-md hover:bg-muted/50 transition-colors"
-                        aria-label="Ver histórico de cargas"
-                      >
-                        <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                      </button>
             </div>
           </CardContent>
         </Card>
@@ -186,6 +177,16 @@ const TreinoPreview = () => {
                         )}
                       </div>
                     </div>
+
+                    {/* Botão de histórico de cargas */}
+                    <button
+                      type="button"
+                      onClick={() => setHistoryExercise(ex.exercise)}
+                      className="shrink-0 self-start mt-1 p-1.5 rounded-md hover:bg-muted/50 transition-colors"
+                      aria-label="Ver histórico de cargas"
+                    >
+                      <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                    </button>
                   </div>
                 </CardContent>
               </Card>
