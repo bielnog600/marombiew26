@@ -940,10 +940,6 @@ ${result}`;
     }
   };
 
-  const savePlanOriginal = async () => {
-    // unused placeholder
-  };
-
   const SelectionButton = ({ selected, onClick, children, className = '' }: { selected: boolean; onClick: () => void; children: React.ReactNode; className?: string }) => (
     <button
       onClick={onClick}
@@ -1431,6 +1427,12 @@ ${result}`;
                 <Button variant="outline" size="sm" onClick={() => generateDietPDF(result, studentName)}>
                   <FileDown className="h-3 w-3 mr-1" /> PDF
                 </Button>
+                {macroReport && !macroReport.valid && (
+                  <Button variant="outline" size="sm" onClick={adjustMacros} disabled={adjusting}>
+                    {adjusting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Wand2 className="h-3 w-3 mr-1" />}
+                    Ajustar macros
+                  </Button>
+                )}
                 <Button size="sm" onClick={() => {
                   if (macroReport && !macroReport.valid) {
                     setShowSaveConfirm(true);
