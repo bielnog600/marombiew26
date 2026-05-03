@@ -42,7 +42,6 @@ const showBootUpdateStatus = () => {
   if (!status) {
     status = document.createElement("p");
     status.dataset.splashUpdateStatus = "true";
-    status.textContent = "Atualizando o app...";
     status.style.position = "absolute";
     status.style.left = "24px";
     status.style.right = "24px";
@@ -57,6 +56,9 @@ const showBootUpdateStatus = () => {
     status.style.opacity = "0.92";
     boot.appendChild(status);
   }
+
+  status.textContent = "Atualizando o app...";
+  status.style.opacity = "0.92";
 };
 
 const clearAppCaches = async () => {
