@@ -175,15 +175,15 @@ const activatePushSubscription = async (OneSignal: OneSignalSdk) => {
 };
 
 const waitForPlayerId = async (OneSignal: OneSignalSdk) => {
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 15; i++) {
     const playerId = OneSignal.User.PushSubscription.id;
     if (hasPushPermission(OneSignal) && playerId && OneSignal.User.PushSubscription.optedIn !== false) return playerId;
 
-    if (hasPushPermission(OneSignal) && i === 4 && OneSignal.User.PushSubscription.optedIn !== true) {
+    if (hasPushPermission(OneSignal) && i === 3 && OneSignal.User.PushSubscription.optedIn !== true) {
       await activatePushSubscription(OneSignal).catch((err) => console.warn("[Push] optIn retry failed:", err));
     }
 
-    await delay(400);
+    await delay(300);
   }
 
   return undefined;
