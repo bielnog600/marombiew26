@@ -198,15 +198,7 @@ function localNow(tz: string): { hour: number; dateStr: string } {
 }
 
 async function sendPushToUser(userId: string, title: string, message: string, data: Record<string, unknown> = {}) {
-  const { data: subs } = await supabase
-    .from("push_subscriptions")
-    .select("player_id")
-    .eq("user_id", userId)
-    .eq("active", true);
-  const playerIds = [...new Set((subs ?? []).map((s) => s.player_id).filter(Boolean))];
-  if (playerIds.length === 0) return false;
-
-  await fetch("https://onesignal.com/api/v1/notifications", {
+  const response = await fetch("https://onesignal.com/api/v1/notifications", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -214,13 +206,14 @@ async function sendPushToUser(userId: string, title: string, message: string, da
     },
     body: JSON.stringify({
       app_id: ONESIGNAL_APP_ID,
-      include_player_ids: playerIds,
+      include_aliases: { external_id: [userId] },
+      target_channel: "push",
       headings: { en: title, pt: title },
       contents: { en: message, pt: message },
       data,
     }),
   });
-  return true;
+  return response.ok;
 }
 
 async function alreadyRanForUser(reminder_key: string, user_id: string, run_date: string): Promise<boolean> {

@@ -127,14 +127,6 @@ function buildMessage(name: string, muscles: string[], dayLabel: string): { titl
 
 // ---------- Push via OneSignal ----------
 async function sendPush(userId: string, title: string, message: string) {
-  const { data: subs } = await supabase
-    .from('push_subscriptions')
-    .select('player_id')
-    .eq('user_id', userId)
-    .eq('active', true);
-  const playerIds = [...new Set((subs ?? []).map(s => s.player_id).filter(Boolean))];
-  if (playerIds.length === 0) return false;
-
   const res = await fetch('https://onesignal.com/api/v1/notifications', {
     method: 'POST',
     headers: {
@@ -143,7 +135,8 @@ async function sendPush(userId: string, title: string, message: string) {
     },
     body: JSON.stringify({
       app_id: ONESIGNAL_APP_ID,
-      include_player_ids: playerIds,
+      include_aliases: { external_id: [userId] },
+      target_channel: 'push',
       headings: { en: title, pt: title },
       contents: { en: message, pt: message },
       data: { type: 'daily_workout_motivator' },

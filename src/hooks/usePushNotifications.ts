@@ -64,6 +64,8 @@ const isStandalonePWA = () =>
   window.matchMedia("(display-mode: standalone)").matches ||
   (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
+const getNotificationPermission = (): NotificationPermission => Notification.permission;
+
 let oneSignalPromise: Promise<OneSignalSdk> | null = null;
 
 const ensureOneSignalScript = (onError: () => void) => {
@@ -165,6 +167,22 @@ const saveSubscription = async (OneSignal: OneSignalSdk, userId: string) => {
   return true;
 };
 
+const waitForPlayerId = async (OneSignal: OneSignalSdk) => {
+  for (let i = 0; i < 24; i++) {
+    const playerId = OneSignal.User.PushSubscription.id;
+    const hasPermission = OneSignal.Notifications.permission === true || Notification.permission === "granted";
+    if (hasPermission && playerId && OneSignal.User.PushSubscription.optedIn !== false) return playerId;
+
+    if (hasPermission && i === 4 && OneSignal.User.PushSubscription.optedIn !== true) {
+      await OneSignal.User.PushSubscription.optIn().catch((err) => console.warn("[Push] optIn retry failed:", err));
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  return undefined;
+};
+
 const resolveStatus = (OneSignal: OneSignalSdk): PushStatus => {
   if (Notification.permission === "denied") return "blocked";
   const hasPermission = OneSignal.Notifications.permission === true;
@@ -215,6 +233,24 @@ export const usePushNotifications = () => {
     }
 
     if (Notification.permission !== "granted") {
+      setStatus("initializing");
+      let cancelled = false;
+
+      void getOneSignal()
+        .then((OneSignal) => OneSignal.login(user.id))
+        .catch((err) => console.warn("[Push] OneSignal preload failed:", err))
+        .finally(() => {
+          if (!cancelled) setStatus("ready");
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (Notification.permission === "granted") {
+      setStatus("initializing");
+    } else {
       setStatus("ready");
       return;
     }
@@ -232,6 +268,10 @@ export const usePushNotifications = () => {
         console.log("[Push] OneSignal login OK");
 
         const refresh = async () => {
+          if (!OneSignal.User.PushSubscription.id && OneSignal.User.PushSubscription.optedIn !== true) {
+            await OneSignal.User.PushSubscription.optIn().catch((err) => console.warn("[Push] optIn refresh failed:", err));
+          }
+          await waitForPlayerId(OneSignal);
           await saveSubscription(OneSignal, user.id);
           if (mounted) setStatus(resolveStatus(OneSignal));
         };
@@ -261,31 +301,48 @@ export const usePushNotifications = () => {
   const enableNotifications = useCallback(async () => {
     if (!user) return false;
 
+    if (!isPushSupported()) {
+      setStatus("unsupported");
+      return false;
+    }
+
+    if (isIOSDevice() && !isStandalonePWA()) {
+      setStatus("ready");
+      return false;
+    }
+
+    if (Notification.permission === "denied") {
+      setStatus("blocked");
+      return false;
+    }
+
     try {
       setStatus("initializing");
       const OneSignal = await getOneSignal();
       await OneSignal.login(user.id);
 
-      if (!OneSignal.Notifications.permission) {
-        await OneSignal.Notifications.requestPermission();
+      if (OneSignal.User.PushSubscription.optedIn !== true || !OneSignal.User.PushSubscription.id) {
+        await OneSignal.User.PushSubscription.optIn().catch((err) => console.warn("[Push] optIn initial failed:", err));
       }
 
-      if (OneSignal.User.PushSubscription.optedIn === false) {
-        await OneSignal.User.PushSubscription.optIn();
+      if (!OneSignal.Notifications.permission && getNotificationPermission() !== "granted") {
+        const granted = await OneSignal.Notifications.requestPermission();
+        const permission = getNotificationPermission();
+        if (granted === false || permission === "denied") {
+          setStatus(permission === "denied" ? "blocked" : "ready");
+          return false;
+        }
       }
 
-      // Poll for player_id — OneSignal pode levar alguns segundos após conceder permissão
-      let playerId: string | undefined;
-      for (let i = 0; i < 15; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 600));
-        playerId = OneSignal.User.PushSubscription.id;
-        if (playerId) break;
-        console.log(`[Push] Aguardando player_id... tentativa ${i + 1}`);
+      if (OneSignal.User.PushSubscription.optedIn !== true || !OneSignal.User.PushSubscription.id) {
+        await OneSignal.User.PushSubscription.optIn().catch((err) => console.warn("[Push] optIn after permission failed:", err));
       }
+
+      const playerId = await waitForPlayerId(OneSignal);
 
       if (!playerId) {
         console.warn("[Push] player_id não disponível após polling");
-        setStatus("ready");
+        setStatus("error");
         return false;
       }
 
@@ -295,7 +352,7 @@ export const usePushNotifications = () => {
       return nextStatus === "enabled";
     } catch (err) {
       console.warn("[Push] enable failed:", err);
-      setStatus(Notification.permission === "denied" ? "blocked" : "error");
+      setStatus(getNotificationPermission() === "denied" ? "blocked" : "error");
       return false;
     }
   }, [user]);
