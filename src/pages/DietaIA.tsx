@@ -98,6 +98,43 @@ const PROTOCOL_ADJUSTMENTS = [
   { id: 'carb_cycling', label: 'Carb Cycling', desc: 'Ciclagem de carboidrato (high/medium/low)', icon: SlidersHorizontal },
 ];
 
+const hasHormoneUse = (value: unknown): boolean => {
+  if (typeof value === 'boolean') return value;
+  if (!value) return false;
+  const normalized = String(value).trim().toLowerCase();
+  return !['não', 'nao', 'natural', 'false', '0', 'n'].includes(normalized);
+};
+
+const calculateMacroTargets = ({
+  calories,
+  weight,
+  strategyValue,
+  phaseValue,
+  hormoneUse,
+}: {
+  calories: number;
+  weight: number;
+  strategyValue: string;
+  phaseValue: string;
+  hormoneUse: boolean;
+}) => {
+  const isDeficit = strategyValue.includes('deficit') || phaseValue === 'cutting' || phaseValue === 'pre_contest';
+  const isMaintenance = (phaseValue === 'manutencao' || strategyValue === 'manutencao') && !isDeficit;
+
+  let proteinPerKg = isDeficit ? 2.2 : isMaintenance ? 1.8 : 2.0;
+  const proteinMax = isDeficit ? 2.6 : isMaintenance ? 2.2 : 2.4;
+  const fatPerKg = isDeficit ? 0.8 : 0.9;
+
+  if (hormoneUse) proteinPerKg = Math.min(proteinPerKg + 0.2, proteinMax);
+  proteinPerKg = Math.min(proteinPerKg, proteinMax);
+
+  const proteinGrams = Math.round(proteinPerKg * weight);
+  const fatGrams = Math.round(fatPerKg * weight);
+  const carbGrams = Math.max(Math.round((calories - proteinGrams * 4 - fatGrams * 9) / 4), 0);
+
+  return { proteinPerKg, proteinGrams, fatPerKg, fatGrams, carbGrams };
+};
+
 const DietaIA = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
