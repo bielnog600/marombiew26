@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Loader2, Save, History, Dumbbell, Check, ChevronDown, Pencil, Timer, X } from 'lucide-react';
+import { Play } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { supabase } from '@/integrations/supabase/client';
@@ -665,10 +666,21 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                 style={{ transition: 'stroke-dashoffset 1s linear' }}
               />
             </svg>
-            <span className="text-4xl font-bold tabular-nums">
-              {Math.floor(restTimer.remaining / 60)}:
-              {String(restTimer.remaining % 60).padStart(2, '0')}
-            </span>
+            {restTimer.remaining > 0 ? (
+              <span className="text-4xl font-bold tabular-nums">
+                {Math.floor(restTimer.remaining / 60)}:
+                {String(restTimer.remaining % 60).padStart(2, '0')}
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setRestTimer((p) => p ? { ...p, remaining: p.total, total: p.total } : p)}
+                className="flex items-center justify-center w-16 h-16 rounded-full bg-primary/20 hover:bg-primary/30 transition-colors"
+                aria-label="Reiniciar descanso"
+              >
+                <Play className="h-8 w-8 text-primary ml-1" />
+              </button>
+            )}
           </div>
           <div className="mt-4 flex gap-2">
             <Button
