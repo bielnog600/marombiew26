@@ -12,6 +12,11 @@ const PushNotificationsInit = () => {
     return null;
   }
 
+  // If the browser already granted permission, don't show the banner — registration happens in background
+  if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+    return null;
+  }
+
   const isBusy = status === "initializing";
   const isBlocked = status === "blocked";
   const isUnsupported = status === "unsupported";
