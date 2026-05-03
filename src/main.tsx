@@ -70,6 +70,13 @@ const clearAppCaches = async () => {
 const checkHtmlVersionUpdate = async () => {
   if (isPreviewHost || isInIframe || !navigator.onLine) return;
 
+  // Prevent reload loops
+  const RELOAD_KEY = 'html-version-reload';
+  if (sessionStorage.getItem(RELOAD_KEY)) {
+    sessionStorage.removeItem(RELOAD_KEY);
+    return;
+  }
+
   try {
     const response = await fetch(`/?app-version-check=${Date.now()}`, {
       cache: "no-store",
@@ -80,6 +87,7 @@ const checkHtmlVersionUpdate = async () => {
 
     if (remoteVersion && remoteVersion !== APP_VERSION) {
       showBootUpdateStatus();
+      sessionStorage.setItem(RELOAD_KEY, '1');
       await clearAppCaches().catch(() => undefined);
       window.location.replace(`/?updated=${remoteVersion}`);
     }
@@ -97,6 +105,8 @@ const startPwaAutoUpdate = () => {
   const applyUpdate = async () => {
     if (applyingUpdate) return;
     applyingUpdate = true;
+    // Prevent reload loops
+    sessionStorage.setItem('sw-update-reload', '1');
     showBootUpdateStatus();
     await clearAppCaches().catch(() => undefined);
     await updateServiceWorker?.(true);
