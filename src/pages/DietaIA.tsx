@@ -819,69 +819,46 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
 17) Mensagens prontas para WhatsApp`;
 
     try {
-      const resp = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/diet-agent`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({
-            messages: [{ role: 'user', content: prompt }],
-            studentContext: studentCtx,
-          }),
-        }
-      );
+      const foodRecords = await loadFoodMacroRecords();
+      const generated = await streamDietAgent([{ role: 'user', content: prompt }], setResult);
 
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({ error: 'Erro desconhecido' }));
-        throw new Error(err.error || `Erro ${resp.status}`);
-      }
-      if (!resp.body) throw new Error('Sem resposta');
+      if (currentTargets) {
+        let report = validateDietMacros(generated, currentTargets, foodRecords);
 
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let textBuffer = '';
-      let accumulated = '';
-      let streamDone = false;
+        if (!report.valid) {
+          toast.error('Dieta gerada fora da meta. Ajustando automaticamente...');
+          setResult('');
 
-      while (!streamDone) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        textBuffer += decoder.decode(value, { stream: true });
-        let idx: number;
-        while ((idx = textBuffer.indexOf('\n')) !== -1) {
-          let line = textBuffer.slice(0, idx);
-          textBuffer = textBuffer.slice(idx + 1);
-          if (line.endsWith('\r')) line = line.slice(0, -1);
-          if (line.startsWith(':') || line.trim() === '') continue;
-          if (!line.startsWith('data: ')) continue;
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === '[DONE]') { streamDone = true; break; }
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-            if (content) { accumulated += content; setResult(accumulated); }
-          } catch {
-            textBuffer = line + '\n' + textBuffer;
-            break;
-          }
+          const correctionPrompt = `A dieta abaixo foi REPROVADA na validação real do sistema. Reescreva o plano inteiro corrigindo SOMENTE as porções/alimentos da tabela para bater a meta.
+
+META OBRIGATÓRIA: ${formatDietMacroLine(report.target)}
+GERADO REAL: ${formatDietMacroLine(report.generated)}
+DIFERENÇA: ${formatDietMacroLine(report.difference)}
+MOTIVOS: ${report.reasons.join(' ')}
+
+REGRAS DE AJUSTE OBRIGATÓRIAS:
+- Se proteína estiver acima da meta, reduza whey, claras, frango, peixe, carne, ovos e laticínios proteicos primeiro.
+- Se carboidrato estiver abaixo da meta, aumente arroz, massa, batata, batata-doce, aveia, pão, tapioca, frutas, mel, cereais ou quinoa.
+- Se gordura estiver acima da meta, reduza salmão, abacate, amêndoas, castanhas, azeite, manteiga de amendoim, ovos inteiros e iogurtes gordos.
+- Se calorias estiverem abaixo, complete preferencialmente com carboidratos de baixa gordura.
+- Não use proteína para completar calorias.
+- Distribua a proteína de forma equilibrada entre as ${mealCount} refeições.
+- Use valores da base por gramas: valor_porção = valor_base * quantidade_g / porção_base.
+
+DIETA REPROVADA:
+${generated}`;
+
+          const adjusted = await streamDietAgent([{ role: 'user', content: correctionPrompt }], setResult);
+          report = validateDietMacros(adjusted, currentTargets, foodRecords);
         }
-      }
-      if (textBuffer.trim()) {
-        for (let raw of textBuffer.split('\n')) {
-          if (!raw || raw.startsWith(':') || raw.trim() === '') continue;
-          if (raw.endsWith('\r')) raw = raw.slice(0, -1);
-          if (!raw.startsWith('data: ')) continue;
-          const jsonStr = raw.slice(6).trim();
-          if (jsonStr === '[DONE]') continue;
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-            if (content) { accumulated += content; setResult(accumulated); }
-          } catch { /* ignore */ }
+
+        setMacroReport(report);
+        if (!report.valid) {
+          setResult('');
+          toast.error(`Dieta ainda fora da meta: ${report.reasons.join(' ')}`);
+          return;
         }
+        toast.success('Dieta validada dentro da meta.');
       }
     } catch (e: any) {
       console.error(e);
