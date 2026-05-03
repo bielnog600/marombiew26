@@ -267,7 +267,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   const [loading, setLoading] = useState(false);
   const [activeDayIdx, setActiveDayIdx] = useState(0);
   const [exercisesList, setExercisesList] = useState<{ id: string; nome: string; grupo_muscular: string; imagem_url?: string | null }[]>([]);
-  const [restTimer, setRestTimer] = useState<{ total: number; remaining: number } | null>(null);
+  const [restTimer, setRestTimer] = useState<{ total: number; remaining: number; exIdx: number } | null>(null);
 
   // Parse "60s", "1min", "1:30", "90" => seconds
   const parsePauseSeconds = (raw?: string | null): number => {
@@ -554,7 +554,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                         className="h-7 gap-1.5 px-2.5 text-[10px] border-primary/40 text-primary hover:bg-primary/10"
                         onClick={() => {
                           const secs = parsePauseSeconds(ex.pause);
-                          setRestTimer({ total: secs, remaining: secs });
+                          setRestTimer({ total: secs, remaining: secs, exIdx: exIdx });
                         }}
                       >
                         <Timer className="h-3 w-3" />
@@ -647,7 +647,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
           <p className="text-xs uppercase tracking-widest text-muted-foreground mb-6 font-semibold">
             Descanso
           </p>
-          <div className="relative w-48 h-48 flex items-center justify-center">
+          <div className="relative w-40 h-40 flex items-center justify-center">
             <svg className="absolute inset-0 -rotate-90" viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="46" fill="none" stroke="hsl(var(--secondary))" strokeWidth="6" />
               <circle
@@ -665,12 +665,12 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                 style={{ transition: 'stroke-dashoffset 1s linear' }}
               />
             </svg>
-            <span className="text-5xl font-bold tabular-nums">
+            <span className="text-4xl font-bold tabular-nums">
               {Math.floor(restTimer.remaining / 60)}:
               {String(restTimer.remaining % 60).padStart(2, '0')}
             </span>
           </div>
-          <div className="mt-8 flex gap-2">
+          <div className="mt-4 flex gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -689,6 +689,56 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
               Pular
             </Button>
           </div>
+
+          {/* Campos de registro de séries do exercício atual */}
+          {(() => {
+            const timerExIdx = restTimer.exIdx;
+            const timerSt = state[timerExIdx];
+            const timerEx = day?.exercises[timerExIdx];
+            if (!timerSt || !timerEx) return null;
+            return (
+              <div className="mt-6 w-full max-w-sm px-4 space-y-2">
+                <p className="text-[11px] font-semibold text-center text-muted-foreground truncate">
+                  {timerSt.exerciseName || timerEx.exercise}
+                </p>
+                <div className="space-y-1.5 max-h-[30vh] overflow-y-auto">
+                  {timerSt.sets.map((s, setIdx) => {
+                    const p = timerSt.plan?.[setIdx] ?? { kind: 'work' as const, targetReps: '' };
+                    const isRecon = p?.kind === 'recon';
+                    return (
+                      <div key={setIdx} className="grid grid-cols-[60px_1fr_1fr] items-center gap-2">
+                        <span
+                          className={`text-[9px] font-bold text-center px-1 py-0.5 rounded ${
+                            isRecon
+                              ? 'bg-primary/15 text-primary border border-primary/30'
+                              : 'bg-secondary text-foreground'
+                          }`}
+                        >
+                          {isRecon ? `REC #${setIdx + 1}` : `#${setIdx + 1}`}
+                        </span>
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          placeholder="kg"
+                          value={s.weight}
+                          onChange={(e) => updateSet(timerExIdx, setIdx, 'weight', e.target.value)}
+                          className="h-8 text-xs"
+                        />
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          placeholder={p?.targetReps ? `${p.targetReps}` : 'reps'}
+                          value={s.reps}
+                          onChange={(e) => updateSet(timerExIdx, setIdx, 'reps', e.target.value)}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
           </div>
         )}
         </div>
