@@ -66,9 +66,18 @@ const buildSetPlan = (series: string, series2: string, reps: string): SetPlan[] 
 };
 
 // ===== Local draft persistence (offline-safe) =====
-const draftKey = (studentId: string, dayName: string) => {
+const makeDaySignature = (day?: ParsedTrainingDay | null) => {
+  const raw = (day?.exercises || [])
+    .map((ex) => [ex.exercise, ex.series, ex.series2, ex.reps, ex.rir, ex.pause, ex.description, ex.variation].join('§'))
+    .join('¶');
+  let hash = 0;
+  for (let i = 0; i < raw.length; i++) hash = ((hash << 5) - hash + raw.charCodeAt(i)) | 0;
+  return Math.abs(hash).toString(36) || 'empty';
+};
+
+const draftKey = (studentId: string, dayName: string, planSignature: string) => {
   const today = new Date().toISOString().slice(0, 10);
-  return `trainerlog:${studentId}:${dayName}:${today}`;
+  return `trainerlog:${studentId}:${dayName}:${today}:${planSignature}`;
 };
 
 interface DraftShape {
@@ -78,16 +87,16 @@ interface DraftShape {
   exerciseNames?: Record<number, string>;
 }
 
-const loadDraft = (studentId: string, dayName: string): DraftShape | null => {
+const loadDraft = (studentId: string, dayName: string, planSignature: string): DraftShape | null => {
   try {
-    const raw = localStorage.getItem(draftKey(studentId, dayName));
+    const raw = localStorage.getItem(draftKey(studentId, dayName, planSignature));
     return raw ? (JSON.parse(raw) as DraftShape) : null;
   } catch {
     return null;
   }
 };
 
-const saveDraft = (studentId: string, dayName: string, state: Record<number, ExerciseState>) => {
+const saveDraft = (studentId: string, dayName: string, planSignature: string, state: Record<number, ExerciseState>) => {
   try {
     const draft: DraftShape = { sets: {}, notes: {}, savedSets: {}, exerciseNames: {} };
     Object.entries(state).forEach(([k, v]) => {
@@ -97,7 +106,7 @@ const saveDraft = (studentId: string, dayName: string, state: Record<number, Exe
       draft.savedSets[idx] = v.savedSets;
       draft.exerciseNames![idx] = v.exerciseName;
     });
-    localStorage.setItem(draftKey(studentId, dayName), JSON.stringify(draft));
+    localStorage.setItem(draftKey(studentId, dayName, planSignature), JSON.stringify(draft));
   } catch {
     // ignore quota errors
   }
