@@ -21,6 +21,9 @@ import { SessionRpeDialog } from '@/components/training/SessionRpeDialog';
 import { Settings2, Info, BarChart3, Timer } from 'lucide-react';
 import { fetchWithCache } from '@/lib/offlineCache';
 
+
+const normalizeExName = (name: string) => name.trim().replace(/\s+/g, ' ').toUpperCase();
+
 const VARIATION_PREF_KEY = 'mw_exercise_variation_pref';
 const VARIATION_PREF_FIELD = '__preferred_variation';
 
@@ -631,7 +634,7 @@ const TreinoExecucao = () => {
         .from('exercise_set_logs')
         .select('session_id, performed_at')
         .eq('student_id', user.id)
-        .ilike('exercise_name', exName)
+        .ilike('exercise_name', normalizeExName(exName))
         .order('performed_at', { ascending: false })
         .limit(1);
 
@@ -645,7 +648,7 @@ const TreinoExecucao = () => {
         .from('exercise_set_logs')
         .select('set_number, reps, weight_kg, rpe')
         .eq('student_id', user.id)
-        .ilike('exercise_name', exName)
+        .ilike('exercise_name', normalizeExName(exName))
         .eq('session_id', sessionId)
         .order('set_number', { ascending: true });
 
@@ -1043,7 +1046,7 @@ const TreinoExecucao = () => {
                 totalVolumeKg += reps * weight;
                 setLogRows.push({
                   student_id: user.id,
-                  exercise_name: exName,
+                  exercise_name: normalizeExName(exName),
                   muscle_group: muscle,
                   set_number: i + 1,
                   reps: reps || null,
