@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -48,6 +48,17 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   const [transferring, setTransferring] = useState(false);
   const [trainPlan, setTrainPlan] = useState<any | null>(null);
   const [aiAllDaysOpen, setAiAllDaysOpen] = useState<string | null>(null);
+  const editedMarkdownsRef = useRef<Record<string, string>>({});
+
+  const getEffectivePlan = (plan: any) => {
+    const hasEditedMarkdown = Object.prototype.hasOwnProperty.call(editedMarkdownsRef.current, plan.id);
+    return {
+      ...plan,
+      conteudo: hasEditedMarkdown ? editedMarkdownsRef.current[plan.id] : plan.conteudo,
+      fase: editedPhases[plan.id] ?? plan.fase,
+      fase_inicio_data: editedStartDates[plan.id] ?? plan.fase_inicio_data,
+    };
+  };
 
   const handleDelete = async (planId: string) => {
     const { error } = await supabase.from('ai_plans').delete().eq('id', planId);
@@ -118,6 +129,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   };
 
   const handleMarkdownChange = (planId: string, newMarkdown: string) => {
+    editedMarkdownsRef.current = { ...editedMarkdownsRef.current, [planId]: newMarkdown };
     setEditedMarkdowns(prev => ({ ...prev, [planId]: newMarkdown }));
   };
 
@@ -146,6 +158,9 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
     } else {
       toast.success('Treino salvo com sucesso!');
       setPlans(prev => prev.map(p => p.id === planId ? { ...p, ...updates } : p));
+      const nextEditedRef = { ...editedMarkdownsRef.current };
+      delete nextEditedRef[planId];
+      editedMarkdownsRef.current = nextEditedRef;
       setEditedMarkdowns(prev => { const c = { ...prev }; delete c[planId]; return c; });
       setEditedPhases(prev => { const c = { ...prev }; delete c[planId]; return c; });
       setEditedStartDates(prev => { const c = { ...prev }; delete c[planId]; return c; });
@@ -171,10 +186,10 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
         const currentPhase = (editedPhases[plan.id] ?? plan.fase ?? 'semana_1') as TrainingPhase;
         const currentStartDate = editedStartDates[plan.id] ?? plan.fase_inicio_data ?? '';
         const hasChanges =
-          !!editedMarkdowns[plan.id] ||
+          editedMarkdowns[plan.id] !== undefined ||
           editedPhases[plan.id] !== undefined ||
           editedStartDates[plan.id] !== undefined;
-        const currentMarkdown = editedMarkdowns[plan.id] || plan.conteudo;
+        const currentMarkdown = editedMarkdowns[plan.id] !== undefined ? editedMarkdowns[plan.id] : plan.conteudo;
 
         return (
           <Card key={plan.id} className="glass-card">
@@ -205,8 +220,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                     title="Treinar aluno (registrar carga e reps)"
                     onClick={(e) => {
                       e.stopPropagation();
-                      const md = editedMarkdowns[plan.id];
-                      setTrainPlan(md !== undefined ? { ...plan, conteudo: md } : plan);
+                      setTrainPlan(getEffectivePlan(plan));
                     }}
                   >
                     <ClipboardList className="h-3 w-3" /> Treinar
