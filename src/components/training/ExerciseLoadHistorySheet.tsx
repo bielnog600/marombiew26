@@ -3,6 +3,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { supabase } from '@/integrations/supabase/client';
 import { TrendingUp, TrendingDown, Minus, Dumbbell } from 'lucide-react';
 import { format } from 'date-fns';
+
+const normalizeExName = (name: string) => name.trim().replace(/\s+/g, ' ').toUpperCase();
 import { ptBR } from 'date-fns/locale';
 
 interface SetLog {
@@ -44,7 +46,7 @@ export const ExerciseLoadHistorySheet: React.FC<Props> = ({ open, onOpenChange, 
         .from('exercise_set_logs')
         .select('id, performed_at, session_id, set_number, reps, weight_kg, rpe, phase')
         .eq('student_id', studentId)
-        .ilike('exercise_name', exerciseName)
+        .ilike('exercise_name', normalizeExName(exerciseName))
         .order('performed_at', { ascending: false })
         .limit(200);
 

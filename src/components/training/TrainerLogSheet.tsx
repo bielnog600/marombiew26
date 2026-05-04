@@ -15,6 +15,9 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 
+// Normalize exercise name for consistent DB lookups
+const normalizeExName = (name: string) => name.trim().replace(/\s+/g, ' ').toUpperCase();
+
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -205,7 +208,7 @@ const HistoryPopover: React.FC<{
       .from('exercise_set_logs')
       .select('performed_at, set_number, weight_kg, reps')
       .eq('student_id', studentId)
-      .ilike('exercise_name', exerciseName)
+      .ilike('exercise_name', normalizeExName(exerciseName))
       .order('performed_at', { ascending: false })
       .limit(200);
     setRows((data as HistoryRow[]) || []);
@@ -376,7 +379,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
             .from('exercise_set_logs')
             .select('weight_kg, reps, performed_at')
             .eq('student_id', studentId)
-            .ilike('exercise_name', ex.exercise)
+            .ilike('exercise_name', normalizeExName(ex.exercise))
             .order('performed_at', { ascending: false })
             .limit(1);
           if (data && data[0]) {
@@ -436,7 +439,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
 
     const rows = validSets.map((s) => ({
       student_id: studentId,
-      exercise_name: exerciseName,
+      exercise_name: normalizeExName(exerciseName),
       set_number: s.idx + 1,
       weight_kg: Number.isNaN(s.weight) ? null : s.weight,
       reps: Number.isNaN(s.reps) ? null : s.reps,
@@ -475,6 +478,15 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+        {/* Explicit close button for mobile */}
+        <button
+          type="button"
+          onClick={() => onOpenChange(false)}
+          className="absolute right-4 top-4 z-50 p-2 rounded-full bg-secondary/80 hover:bg-secondary active:scale-95 transition-transform"
+          aria-label="Fechar"
+        >
+          <X className="h-5 w-5" />
+        </button>
         <div className="relative min-h-full">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
