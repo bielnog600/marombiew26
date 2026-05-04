@@ -308,6 +308,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   }, [open]);
 
   const day = days[activeDayIdx] || null;
+  const daySignature = makeDaySignature(day);
 
   // Load exercises catalog once when sheet opens
   useEffect(() => {
@@ -352,7 +353,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
         };
       });
       // Hydrate from local draft (offline-safe)
-      const draft = loadDraft(studentId, day.day);
+      const draft = loadDraft(studentId, day.day, daySignature);
       if (draft) {
         Object.keys(initial).forEach((k) => {
           const idx = Number(k);
@@ -388,7 +389,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       setState(initial);
       setLoading(false);
     })();
-  }, [open, day?.day, studentId]);
+  }, [open, day?.day, daySignature, studentId]);
 
   if (!day) return null;
 
@@ -399,7 +400,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       ex.sets = [...ex.sets];
       ex.sets[setIdx] = { ...ex.sets[setIdx], [field]: value };
       copy[exIdx] = ex;
-      if (day) saveDraft(studentId, day.day, copy);
+      if (day) saveDraft(studentId, day.day, daySignature, copy);
       return copy;
     });
   };
@@ -407,7 +408,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   const updateNotes = (exIdx: number, value: string) => {
     setState((prev) => {
       const next = { ...prev, [exIdx]: { ...prev[exIdx], notes: value } };
-      if (day) saveDraft(studentId, day.day, next);
+      if (day) saveDraft(studentId, day.day, daySignature, next);
       return next;
     });
   };
@@ -460,7 +461,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
         ...prev,
         [exIdx]: { ...cur, saving: false, sets: nextSets, savedSets: nextSavedSets },
       };
-      if (day) saveDraft(studentId, day.day, next);
+      if (day) saveDraft(studentId, day.day, daySignature, next);
       return next;
     });
 
@@ -539,7 +540,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                           onChange={(name) => {
                             setState((prev) => {
                               const next = { ...prev, [exIdx]: { ...prev[exIdx], exerciseName: name } };
-                              if (day) saveDraft(studentId, day.day, next);
+                              if (day) saveDraft(studentId, day.day, daySignature, next);
                               return next;
                             });
                           }}
