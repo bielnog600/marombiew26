@@ -66,9 +66,18 @@ const buildSetPlan = (series: string, series2: string, reps: string): SetPlan[] 
 };
 
 // ===== Local draft persistence (offline-safe) =====
-const draftKey = (studentId: string, dayName: string) => {
+const makeDaySignature = (day?: ParsedTrainingDay | null) => {
+  const raw = (day?.exercises || [])
+    .map((ex) => [ex.exercise, ex.series, ex.series2, ex.reps, ex.rir, ex.pause, ex.description, ex.variation].join('§'))
+    .join('¶');
+  let hash = 0;
+  for (let i = 0; i < raw.length; i++) hash = ((hash << 5) - hash + raw.charCodeAt(i)) | 0;
+  return Math.abs(hash).toString(36) || 'empty';
+};
+
+const draftKey = (studentId: string, dayName: string, planSignature: string) => {
   const today = new Date().toISOString().slice(0, 10);
-  return `trainerlog:${studentId}:${dayName}:${today}`;
+  return `trainerlog:${studentId}:${dayName}:${today}:${planSignature}`;
 };
 
 interface DraftShape {
@@ -78,16 +87,16 @@ interface DraftShape {
   exerciseNames?: Record<number, string>;
 }
 
-const loadDraft = (studentId: string, dayName: string): DraftShape | null => {
+const loadDraft = (studentId: string, dayName: string, planSignature: string): DraftShape | null => {
   try {
-    const raw = localStorage.getItem(draftKey(studentId, dayName));
+    const raw = localStorage.getItem(draftKey(studentId, dayName, planSignature));
     return raw ? (JSON.parse(raw) as DraftShape) : null;
   } catch {
     return null;
   }
 };
 
-const saveDraft = (studentId: string, dayName: string, state: Record<number, ExerciseState>) => {
+const saveDraft = (studentId: string, dayName: string, planSignature: string, state: Record<number, ExerciseState>) => {
   try {
     const draft: DraftShape = { sets: {}, notes: {}, savedSets: {}, exerciseNames: {} };
     Object.entries(state).forEach(([k, v]) => {
@@ -97,7 +106,7 @@ const saveDraft = (studentId: string, dayName: string, state: Record<number, Exe
       draft.savedSets[idx] = v.savedSets;
       draft.exerciseNames![idx] = v.exerciseName;
     });
-    localStorage.setItem(draftKey(studentId, dayName), JSON.stringify(draft));
+    localStorage.setItem(draftKey(studentId, dayName, planSignature), JSON.stringify(draft));
   } catch {
     // ignore quota errors
   }
@@ -299,6 +308,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   }, [open]);
 
   const day = days[activeDayIdx] || null;
+  const daySignature = makeDaySignature(day);
 
   // Load exercises catalog once when sheet opens
   useEffect(() => {
@@ -343,7 +353,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
         };
       });
       // Hydrate from local draft (offline-safe)
-      const draft = loadDraft(studentId, day.day);
+      const draft = loadDraft(studentId, day.day, daySignature);
       if (draft) {
         Object.keys(initial).forEach((k) => {
           const idx = Number(k);
@@ -379,7 +389,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       setState(initial);
       setLoading(false);
     })();
-  }, [open, day?.day, studentId]);
+  }, [open, day?.day, daySignature, studentId]);
 
   if (!day) return null;
 
@@ -390,7 +400,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       ex.sets = [...ex.sets];
       ex.sets[setIdx] = { ...ex.sets[setIdx], [field]: value };
       copy[exIdx] = ex;
-      if (day) saveDraft(studentId, day.day, copy);
+      if (day) saveDraft(studentId, day.day, daySignature, copy);
       return copy;
     });
   };
@@ -398,7 +408,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   const updateNotes = (exIdx: number, value: string) => {
     setState((prev) => {
       const next = { ...prev, [exIdx]: { ...prev[exIdx], notes: value } };
-      if (day) saveDraft(studentId, day.day, next);
+      if (day) saveDraft(studentId, day.day, daySignature, next);
       return next;
     });
   };
@@ -451,7 +461,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
         ...prev,
         [exIdx]: { ...cur, saving: false, sets: nextSets, savedSets: nextSavedSets },
       };
-      if (day) saveDraft(studentId, day.day, next);
+      if (day) saveDraft(studentId, day.day, daySignature, next);
       return next;
     });
 
@@ -530,7 +540,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                           onChange={(name) => {
                             setState((prev) => {
                               const next = { ...prev, [exIdx]: { ...prev[exIdx], exerciseName: name } };
-                              if (day) saveDraft(studentId, day.day, next);
+                              if (day) saveDraft(studentId, day.day, daySignature, next);
                               return next;
                             });
                           }}
