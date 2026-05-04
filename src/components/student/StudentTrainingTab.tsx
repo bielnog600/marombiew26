@@ -203,7 +203,11 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                     size="sm"
                     className="h-7 gap-1 px-2 text-xs"
                     title="Treinar aluno (registrar carga e reps)"
-                    onClick={(e) => { e.stopPropagation(); setTrainPlan(plan); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const md = editedMarkdowns[plan.id];
+                      setTrainPlan(md !== undefined ? { ...plan, conteudo: md } : plan);
+                    }}
                   >
                     <ClipboardList className="h-3 w-3" /> Treinar
                   </Button>
