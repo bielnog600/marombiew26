@@ -35,6 +35,12 @@ interface StudentTrainingTabProps {
   studentId: string;
 }
 
+const makePlanSignature = (content: string) => {
+  let hash = 0;
+  for (let i = 0; i < content.length; i++) hash = ((hash << 5) - hash + content.charCodeAt(i)) | 0;
+  return Math.abs(hash).toString(36) || 'empty';
+};
+
 const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) => {
   const [plans, setPlans] = useState<any[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -158,6 +164,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
     } else {
       toast.success('Treino salvo com sucesso!');
       setPlans(prev => prev.map(p => p.id === planId ? { ...p, ...updates } : p));
+      setTrainPlan(prev => prev?.id === planId ? { ...prev, ...updates } : prev);
       const nextEditedRef = { ...editedMarkdownsRef.current };
       delete nextEditedRef[planId];
       editedMarkdownsRef.current = nextEditedRef;
@@ -443,6 +450,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
     </Dialog>
 
     <TrainerLogSheet
+      key={trainPlan ? `${trainPlan.id}-${makePlanSignature(trainPlan.conteudo || '')}` : 'trainer-log'}
       open={!!trainPlan}
       onOpenChange={(open) => { if (!open) setTrainPlan(null); }}
       studentId={studentId}
