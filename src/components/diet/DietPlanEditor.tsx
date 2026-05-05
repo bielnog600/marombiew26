@@ -53,6 +53,27 @@ const MEAL_OPTIONS = [
   'Lanche Noturno',
 ];
 
+/** Default times for each meal — used when renaming to update the time */
+const MEAL_DEFAULT_TIMES: Record<string, string> = {
+  'café da manhã': '07:00',
+  'lanche da manhã': '09:30',
+  'almoço': '12:00',
+  'lanche da tarde': '15:30',
+  'pré-treino': '17:00',
+  'pós-treino': '19:00',
+  'jantar': '19:30',
+  'ceia': '21:00',
+  'lanche noturno': '22:00',
+};
+
+const getDefaultTime = (name: string): string | undefined => {
+  const key = normMealKey(name);
+  for (const [mealKey, time] of Object.entries(MEAL_DEFAULT_TIMES)) {
+    if (key.includes(normMealKey(mealKey)) || normMealKey(mealKey).includes(key)) return time;
+  }
+  return undefined;
+};
+
 const normMealKey = (name: string) =>
   name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
@@ -118,10 +139,12 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
 
       if (existingIdx >= 0) {
         // Swap names
-        updated[existingIdx] = { ...updated[existingIdx], name: oldName };
-        updated[mealIdx] = { ...updated[mealIdx], name: newName };
+        const oldTime = updated[mealIdx].time;
+        const existingTime = updated[existingIdx].time;
+        updated[existingIdx] = { ...updated[existingIdx], name: oldName, time: oldTime || getDefaultTime(oldName) };
+        updated[mealIdx] = { ...updated[mealIdx], name: newName, time: existingTime || getDefaultTime(newName) };
       } else {
-        updated[mealIdx] = { ...updated[mealIdx], name: newName };
+        updated[mealIdx] = { ...updated[mealIdx], name: newName, time: getDefaultTime(newName) };
       }
 
       // Re-sort by canonical meal order
