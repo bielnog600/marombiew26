@@ -332,7 +332,7 @@ export const usePushNotifications = () => {
       await activatePushSubscription(OneSignal);
       console.log("[Push] activatePushSubscription done, permission:", Notification.permission, "optedIn:", OneSignal.User.PushSubscription.optedIn);
 
-      if (Notification.permission === "denied") {
+      if (getNotificationPermission() === "denied") {
         setStatus("blocked");
         return false;
       }
