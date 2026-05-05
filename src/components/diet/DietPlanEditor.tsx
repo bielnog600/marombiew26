@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Trash2, Sliders, AlertTriangle, Clock, UtensilsCrossed } from 'lucide-react';
 import { Sparkles } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
@@ -26,6 +27,40 @@ const num = (v?: string) => {
   return Number.isFinite(n) ? n : 0;
 };
 const fmt = (v: number) => Number.isInteger(v) ? String(v) : (Math.round(v * 10) / 10).toFixed(1);
+
+/** Canonical meal order for resorting after a rename/swap */
+const MEAL_ORDER = [
+  'café da manhã',
+  'lanche da manhã',
+  'almoço',
+  'lanche da tarde',
+  'pré-treino',
+  'pós-treino',
+  'jantar',
+  'ceia',
+  'lanche noturno',
+];
+
+const MEAL_OPTIONS = [
+  'Café da Manhã',
+  'Lanche da Manhã',
+  'Almoço',
+  'Lanche da Tarde',
+  'Pré-Treino',
+  'Pós-Treino',
+  'Jantar',
+  'Ceia',
+  'Lanche Noturno',
+];
+
+const normMealKey = (name: string) =>
+  name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+const mealSortIndex = (name: string) => {
+  const key = normMealKey(name);
+  const idx = MEAL_ORDER.findIndex((m) => key.includes(normMealKey(m)) || normMealKey(m).includes(key));
+  return idx >= 0 ? idx : 999;
+};
 
 /**
  * Extract meals from the markdown. If the diet has multiple "Cardápio/Opção"
@@ -69,6 +104,32 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
   const updateMeals = useCallback((updater: (prev: ParsedMeal[]) => ParsedMeal[]) => {
     setMeals((prev) => updater(prev));
   }, []);
+
+  const handleRenameMeal = useCallback((mealIdx: number, newName: string) => {
+    updateMeals((prev) => {
+      const updated = [...prev];
+      const oldName = updated[mealIdx].name;
+      if (normMealKey(oldName) === normMealKey(newName)) return prev;
+
+      // Check if another meal already has this name → swap
+      const existingIdx = updated.findIndex(
+        (m, i) => i !== mealIdx && normMealKey(m.name) === normMealKey(newName)
+      );
+
+      if (existingIdx >= 0) {
+        // Swap names
+        updated[existingIdx] = { ...updated[existingIdx], name: oldName };
+        updated[mealIdx] = { ...updated[mealIdx], name: newName };
+      } else {
+        updated[mealIdx] = { ...updated[mealIdx], name: newName };
+      }
+
+      // Re-sort by canonical meal order
+      updated.sort((a, b) => mealSortIndex(a.name) - mealSortIndex(b.name));
+      return updated;
+    });
+    toast.success(`Refeição alterada para ${newName}`);
+  }, [updateMeals]);
 
   const removeFood = (mealIdx: number, foodIdx: number) => {
     updateMeals((prev) => prev.map((m, mi) => mi !== mealIdx ? m : { ...m, foods: m.foods.filter((_, fi) => fi !== foodIdx) }));
@@ -178,7 +239,21 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
             <div className="flex items-center justify-between gap-2 border-b border-border/60 px-3 py-2">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <UtensilsCrossed className="h-4 w-4 text-primary" />
-                {meal.name}
+                <Select
+                  value={meal.name}
+                  onValueChange={(val) => handleRenameMeal(mealIdx, val)}
+                >
+                  <SelectTrigger className="h-7 w-auto min-w-[140px] border-none bg-transparent px-1 text-sm font-semibold shadow-none focus:ring-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MEAL_OPTIONS.map((opt) => (
+                      <SelectItem key={opt} value={opt}>
+                        {opt}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {meal.time && (
                   <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-normal">
                     <Clock className="h-3 w-3" /> {meal.time}
