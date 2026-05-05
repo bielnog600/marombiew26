@@ -175,17 +175,20 @@ const activatePushSubscription = async (OneSignal: OneSignalSdk) => {
 };
 
 const waitForPlayerId = async (OneSignal: OneSignalSdk) => {
-  for (let i = 0; i < 15; i++) {
+  for (let i = 0; i < 30; i++) {
     const playerId = OneSignal.User.PushSubscription.id;
-    if (hasPushPermission(OneSignal) && playerId && OneSignal.User.PushSubscription.optedIn !== false) return playerId;
+    const optedIn = OneSignal.User.PushSubscription.optedIn;
+    console.log(`[Push] waitForPlayerId attempt ${i}: playerId=${playerId}, optedIn=${optedIn}, permission=${Notification.permission}`);
+    if (hasPushPermission(OneSignal) && playerId && optedIn !== false) return playerId;
 
-    if (hasPushPermission(OneSignal) && i === 3 && OneSignal.User.PushSubscription.optedIn !== true) {
+    if (hasPushPermission(OneSignal) && i === 5 && optedIn !== true) {
       await activatePushSubscription(OneSignal).catch((err) => console.warn("[Push] optIn retry failed:", err));
     }
 
-    await delay(300);
+    await delay(500);
   }
 
+  console.warn("[Push] waitForPlayerId timeout after 30 attempts");
   return undefined;
 };
 
@@ -325,7 +328,9 @@ export const usePushNotifications = () => {
 
       const OneSignal = await getOneSignal();
       await OneSignal.login(user.id);
+      console.log("[Push] calling activatePushSubscription...");
       await activatePushSubscription(OneSignal);
+      console.log("[Push] activatePushSubscription done, permission:", Notification.permission, "optedIn:", OneSignal.User.PushSubscription.optedIn);
 
       if (getNotificationPermission() === "denied") {
         setStatus("blocked");
@@ -340,7 +345,12 @@ export const usePushNotifications = () => {
       const playerId = await waitForPlayerId(OneSignal);
 
       if (!playerId) {
-        console.warn("[Push] player_id ainda não disponível; usuário já permitido e vinculado por external_id");
+        console.warn("[Push] player_id não disponível após timeout. permission:", Notification.permission, "optedIn:", OneSignal.User.PushSubscription.optedIn);
+        // Even without player_id, if permission was granted we should report success
+        if (hasPushPermission(OneSignal)) {
+          setStatus("enabled");
+          return true;
+        }
       }
 
       await saveSubscription(OneSignal, user.id);
