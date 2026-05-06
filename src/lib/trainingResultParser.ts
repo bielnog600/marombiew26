@@ -212,13 +212,14 @@ export const rebuildTrainingMarkdown = (
   const sections = parseTrainingSections(originalMarkdown);
   const lines: string[] = [];
   let trainingEmitted = false;
+  // Day name patterns to strip orphan headings that referred to individual day tables
+  const dayNamePattern = /^#+\s*(segunda|ter[çc]a|quarta|quinta|sexta|s[áa]bado|domingo)/i;
 
   for (const section of sections) {
     if (section.type === 'training' && section.days) {
       // Only emit one training table with ALL days (avoid duplication)
       if (trainingEmitted) continue;
       trainingEmitted = true;
-      if (section.title) lines.push(`## ${section.title}`);
       lines.push('| TREINO DO DIA | EXERCÍCIO | SÉRIE | SÉRIE 2 | REPETIÇÕES | RIR | PAUSA | DESCRIÇÃO | VARIAÇÃO |');
       lines.push('|---|---|---|---|---|---|---|---|---|');
       for (const day of updatedDays) {
@@ -228,6 +229,9 @@ export const rebuildTrainingMarkdown = (
       }
       lines.push('');
     } else {
+      // Skip orphan day-name headings (they become misleading after merge)
+      const trimmed = section.content.trim();
+      if (section.type === 'text' && dayNamePattern.test(trimmed)) continue;
       lines.push(section.content);
       lines.push('');
     }
