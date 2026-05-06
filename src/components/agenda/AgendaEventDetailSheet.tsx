@@ -3,6 +3,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CalendarEvent, EVENT_TYPE_LABELS, EVENT_STATUS_LABELS, STATUS_COLORS, updateCalendarEvent, deleteCalendarEvent } from '@/hooks/useCalendarEvents';
+import { getStudentActivePackage, ClassPackage } from '@/hooks/useFinancial';
+import ClassDeductionDialog from '@/components/financial/ClassDeductionDialog';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Edit, Trash2, CheckCircle, XCircle, UserCheck, MapPin, Clock, Users, RefreshCw, MessageSquare } from 'lucide-react';
@@ -18,6 +20,28 @@ interface Props {
 
 export default function AgendaEventDetailSheet({ event, open, onClose, onRefresh }: Props) {
   const [showEdit, setShowEdit] = useState(false);
+  const [deductionTarget, setDeductionTarget] = useState<{ studentId: string; studentName: string; pkg: ClassPackage } | null>(null);
+
+  const handleConcluido = async () => {
+    try {
+      await updateCalendarEvent(event.id, { status: 'concluido' as any });
+      toast.success('Marcado como concluído');
+      // Check if any student has active package to offer deduction
+      if (event.students && event.students.length > 0) {
+        for (const s of event.students) {
+          const pkg = await getStudentActivePackage(s.student_id);
+          if (pkg && pkg.remaining_classes > 0) {
+            setDeductionTarget({ studentId: s.student_id, studentName: s.student_name || 'Aluno', pkg });
+            return; // Handle one at a time
+          }
+        }
+      }
+      onRefresh();
+      onClose();
+    } catch {
+      toast.error('Erro ao atualizar status');
+    }
+  };
 
   const handleStatusChange = async (newStatus: string) => {
     try {
@@ -124,7 +148,7 @@ export default function AgendaEventDetailSheet({ event, open, onClose, onRefresh
               <Button variant="outline" size="sm" onClick={() => setShowEdit(true)} className="gap-1">
                 <Edit className="h-3.5 w-3.5" /> Editar
               </Button>
-              <Button variant="outline" size="sm" onClick={() => handleStatusChange('concluido')} className="gap-1 text-green-400 border-green-500/30">
+              <Button variant="outline" size="sm" onClick={handleConcluido} className="gap-1 text-green-400 border-green-500/30">
                 <CheckCircle className="h-3.5 w-3.5" /> Concluído
               </Button>
               <Button variant="outline" size="sm" onClick={() => handleStatusChange('falta')} className="gap-1 text-red-400 border-red-500/30">
@@ -148,6 +172,18 @@ export default function AgendaEventDetailSheet({ event, open, onClose, onRefresh
           onClose={() => setShowEdit(false)}
           onSaved={() => { onRefresh(); onClose(); }}
           editEvent={event}
+        />
+      )}
+
+      {deductionTarget && (
+        <ClassDeductionDialog
+          open={!!deductionTarget}
+          onOpenChange={v => { if (!v) setDeductionTarget(null); }}
+          onSuccess={() => { onRefresh(); onClose(); }}
+          studentId={deductionTarget.studentId}
+          studentName={deductionTarget.studentName}
+          pkg={deductionTarget.pkg}
+          calendarEventId={event.id}
         />
       )}
     </>
