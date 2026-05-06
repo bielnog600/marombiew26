@@ -198,6 +198,29 @@ export default function AgendaEventDialog({ open, onClose, onSaved, editEvent }:
             </div>
           </div>
 
+          {/* Package alerts for presencial events */}
+          {['personal_presencial', 'aula_fixa_semanal', 'aula_avulsa', 'atendimento_ginasio'].includes(eventType) && selectedStudentIds.length > 0 && (
+            <div className="space-y-1">
+              {selectedStudentIds.map(sid => {
+                const pkg = packageAlerts[sid];
+                const name = students.find(s => s.user_id === sid)?.nome || 'Aluno';
+                if (pkg === undefined) return null;
+                if (pkg) {
+                  return (
+                    <div key={sid} className="text-xs bg-green-500/10 text-green-400 rounded-md p-2">
+                      ✅ {name}: Saldo disponível — {pkg.remaining_classes} aulas
+                    </div>
+                  );
+                }
+                return (
+                  <div key={sid} className="text-xs bg-yellow-500/10 text-yellow-400 rounded-md p-2 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" /> {name}: Sem pacote ativo ou sem saldo de aulas
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* Event type */}
           <div>
             <Label className="text-xs text-muted-foreground">Tipo de Evento</Label>
