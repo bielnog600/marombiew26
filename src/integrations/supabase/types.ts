@@ -538,6 +538,118 @@ export type Database = {
         }
         Relationships: []
       }
+      class_credits_log: {
+        Row: {
+          action_type: Database["public"]["Enums"]["credit_action_type"]
+          balance_after: number
+          balance_before: number
+          calendar_event_id: string | null
+          created_at: string
+          created_by: string
+          id: string
+          package_id: string
+          quantity: number
+          reason: string | null
+          student_id: string
+        }
+        Insert: {
+          action_type: Database["public"]["Enums"]["credit_action_type"]
+          balance_after?: number
+          balance_before?: number
+          calendar_event_id?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          package_id: string
+          quantity?: number
+          reason?: string | null
+          student_id: string
+        }
+        Update: {
+          action_type?: Database["public"]["Enums"]["credit_action_type"]
+          balance_after?: number
+          balance_before?: number
+          calendar_event_id?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          package_id?: string
+          quantity?: number
+          reason?: string | null
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_credits_log_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "class_packages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      class_packages: {
+        Row: {
+          admin_id: string
+          created_at: string
+          expiry_date: string | null
+          id: string
+          notes: string | null
+          package_name: string
+          payment_id: string | null
+          remaining_classes: number
+          start_date: string
+          status: Database["public"]["Enums"]["package_status"]
+          student_id: string
+          total_amount: number
+          total_classes: number
+          updated_at: string
+          used_classes: number
+        }
+        Insert: {
+          admin_id: string
+          created_at?: string
+          expiry_date?: string | null
+          id?: string
+          notes?: string | null
+          package_name?: string
+          payment_id?: string | null
+          remaining_classes?: number
+          start_date?: string
+          status?: Database["public"]["Enums"]["package_status"]
+          student_id: string
+          total_amount?: number
+          total_classes?: number
+          updated_at?: string
+          used_classes?: number
+        }
+        Update: {
+          admin_id?: string
+          created_at?: string
+          expiry_date?: string | null
+          id?: string
+          notes?: string | null
+          package_name?: string
+          payment_id?: string | null
+          remaining_classes?: number
+          start_date?: string
+          status?: Database["public"]["Enums"]["package_status"]
+          student_id?: string
+          total_amount?: number
+          total_classes?: number
+          updated_at?: string
+          used_classes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_packages_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       composition: {
         Row: {
           assessment_id: string
@@ -947,6 +1059,45 @@ export type Database = {
         }
         Relationships: []
       }
+      financial_alerts: {
+        Row: {
+          admin_id: string
+          alert_type: Database["public"]["Enums"]["financial_alert_type"]
+          created_at: string
+          due_date: string | null
+          id: string
+          message: string | null
+          resolved_at: string | null
+          status: string
+          student_id: string
+          title: string
+        }
+        Insert: {
+          admin_id: string
+          alert_type: Database["public"]["Enums"]["financial_alert_type"]
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          message?: string | null
+          resolved_at?: string | null
+          status?: string
+          student_id: string
+          title?: string
+        }
+        Update: {
+          admin_id?: string
+          alert_type?: Database["public"]["Enums"]["financial_alert_type"]
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          message?: string | null
+          resolved_at?: string | null
+          status?: string
+          student_id?: string
+          title?: string
+        }
+        Relationships: []
+      }
       foods: {
         Row: {
           calories: number
@@ -1052,6 +1203,60 @@ export type Database = {
           student_id?: string
           updated_at?: string
           zonas_karvonen?: Json
+        }
+        Relationships: []
+      }
+      payments: {
+        Row: {
+          admin_id: string
+          amount: number
+          created_at: string
+          currency: string
+          description: string | null
+          due_date: string | null
+          id: string
+          notes: string | null
+          paid_at: string | null
+          payment_method: Database["public"]["Enums"]["payment_method"]
+          receipt_url: string | null
+          status: Database["public"]["Enums"]["payment_status"]
+          student_id: string
+          type: Database["public"]["Enums"]["payment_type"]
+          updated_at: string
+        }
+        Insert: {
+          admin_id: string
+          amount?: number
+          created_at?: string
+          currency?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          notes?: string | null
+          paid_at?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"]
+          receipt_url?: string | null
+          status?: Database["public"]["Enums"]["payment_status"]
+          student_id: string
+          type?: Database["public"]["Enums"]["payment_type"]
+          updated_at?: string
+        }
+        Update: {
+          admin_id?: string
+          amount?: number
+          created_at?: string
+          currency?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          notes?: string | null
+          paid_at?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"]
+          receipt_url?: string | null
+          status?: Database["public"]["Enums"]["payment_status"]
+          student_id?: string
+          type?: Database["public"]["Enums"]["payment_type"]
+          updated_at?: string
         }
         Relationships: []
       }
@@ -1906,6 +2111,48 @@ export type Database = {
         | "student_confirmed"
         | "student_cancelled"
         | "student_late"
+      credit_action_type:
+        | "add_credit"
+        | "use_credit"
+        | "refund_credit"
+        | "manual_adjustment"
+        | "expire_credit"
+      financial_alert_type:
+        | "pagamento_vencido"
+        | "pagamento_pendente"
+        | "1_aula_restante"
+        | "2_aulas_restantes"
+        | "sem_pacote_ativo"
+        | "pacote_vencido"
+        | "mensalidade_vencer_3d"
+        | "mensalidade_vencida"
+      package_status:
+        | "ativo"
+        | "expirado"
+        | "cancelado"
+        | "renovado"
+        | "pausado"
+      payment_method:
+        | "mbway"
+        | "transferencia"
+        | "dinheiro"
+        | "cartao"
+        | "stripe"
+        | "outro"
+      payment_status:
+        | "pago"
+        | "pendente"
+        | "vencido"
+        | "parcial"
+        | "cancelado"
+        | "reembolsado"
+      payment_type:
+        | "consultoria_online"
+        | "pacote_aulas"
+        | "aula_avulsa"
+        | "avaliacao_fisica"
+        | "plano_hibrido"
+        | "outro"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2071,6 +2318,48 @@ export const Constants = {
         "student_confirmed",
         "student_cancelled",
         "student_late",
+      ],
+      credit_action_type: [
+        "add_credit",
+        "use_credit",
+        "refund_credit",
+        "manual_adjustment",
+        "expire_credit",
+      ],
+      financial_alert_type: [
+        "pagamento_vencido",
+        "pagamento_pendente",
+        "1_aula_restante",
+        "2_aulas_restantes",
+        "sem_pacote_ativo",
+        "pacote_vencido",
+        "mensalidade_vencer_3d",
+        "mensalidade_vencida",
+      ],
+      package_status: ["ativo", "expirado", "cancelado", "renovado", "pausado"],
+      payment_method: [
+        "mbway",
+        "transferencia",
+        "dinheiro",
+        "cartao",
+        "stripe",
+        "outro",
+      ],
+      payment_status: [
+        "pago",
+        "pendente",
+        "vencido",
+        "parcial",
+        "cancelado",
+        "reembolsado",
+      ],
+      payment_type: [
+        "consultoria_online",
+        "pacote_aulas",
+        "aula_avulsa",
+        "avaliacao_fisica",
+        "plano_hibrido",
+        "outro",
       ],
     },
   },
