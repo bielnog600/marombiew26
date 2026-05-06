@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   usePayments, useClassPackages,
   PAYMENT_TYPE_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS,
-  PAYMENT_METHOD_LABELS, PACKAGE_STATUS_LABELS, PACKAGE_STATUS_COLORS, PAYMENT_STATUS_COLORS as PSC,
+  PAYMENT_METHOD_LABELS, PACKAGE_STATUS_LABELS, PACKAGE_STATUS_COLORS,
   Payment, ClassPackage, updatePayment, deductClassCredit,
 } from '@/hooks/useFinancial';
 import { supabase } from '@/integrations/supabase/client';
