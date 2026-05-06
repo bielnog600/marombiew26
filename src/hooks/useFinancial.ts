@@ -32,8 +32,12 @@ export type ClassPackage = {
   used_classes: number;
   remaining_classes: number;
   total_amount: number;
+  price_per_class: number;
   start_date: string;
   expiry_date: string | null;
+  payment_date: string;
+  payment_method: string;
+  payment_status: string;
   status: string;
   notes: string;
   created_at: string;
@@ -97,6 +101,7 @@ export const PACKAGE_STATUS_LABELS: Record<string, string> = {
   cancelado: 'Cancelado',
   renovado: 'Renovado',
   pausado: 'Pausado',
+  esgotado: 'Esgotado',
 };
 
 export const PACKAGE_STATUS_COLORS: Record<string, string> = {
@@ -105,6 +110,7 @@ export const PACKAGE_STATUS_COLORS: Record<string, string> = {
   cancelado: 'bg-muted text-muted-foreground border-muted',
   renovado: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
   pausado: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+  esgotado: 'bg-red-500/20 text-red-400 border-red-500/30',
 };
 
 export function usePayments(studentId?: string) {
@@ -186,6 +192,11 @@ export function useFinancialSummary() {
     packagesEnding: 0,
     studentsOverdue: 0,
     expectedTotal: 0,
+    totalClassesSold: 0,
+    totalClassesUsed: 0,
+    avgPricePerClass: 0,
+    activePackagesCount: 0,
+    exhaustedPackages: 0,
   });
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
@@ -208,16 +219,24 @@ export function useFinancialSummary() {
         .filter(p => p.status === 'pago' && p.paid_at && p.paid_at >= monthStart && p.paid_at <= monthEnd)
         .reduce((sum, p) => sum + Number(p.amount), 0);
 
-      const toReceive = payments
-        .filter(p => p.status === 'pendente')
-        .reduce((sum, p) => sum + Number(p.amount), 0);
+      const pkgReceivedThisMonth = packages
+        .filter((p: any) => p.payment_status === 'pago' && p.payment_date && p.payment_date >= monthStart.slice(0, 10) && p.payment_date <= monthEnd.slice(0, 10))
+        .reduce((sum: number, p: any) => sum + Number(p.total_amount), 0);
+      const totalReceivedThisMonth = receivedThisMonth + pkgReceivedThisMonth;
 
-      const overdue = payments
-        .filter(p => p.status === 'vencido')
-        .reduce((sum, p) => sum + Number(p.amount), 0);
+      const toReceive = payments.filter(p => p.status === 'pendente').reduce((sum, p) => sum + Number(p.amount), 0)
+        + packages.filter((p: any) => p.payment_status === 'pendente').reduce((sum: number, p: any) => sum + Number(p.total_amount), 0);
+
+      const overdue = payments.filter(p => p.status === 'vencido').reduce((sum, p) => sum + Number(p.amount), 0)
+        + packages.filter((p: any) => p.payment_status === 'vencido').reduce((sum: number, p: any) => sum + Number(p.total_amount), 0);
 
       const activePackages = packages.filter(p => p.status === 'ativo');
       const remainingClasses = activePackages.reduce((sum, p) => sum + p.remaining_classes, 0);
+      const totalClassesSold = packages.filter((p: any) => p.payment_status === 'pago').reduce((sum: number, p: any) => sum + p.total_classes, 0);
+      const totalClassesUsed = packages.reduce((sum: number, p: any) => sum + p.used_classes, 0);
+      const totalPaidAmount = packages.filter((p: any) => p.payment_status === 'pago').reduce((sum: number, p: any) => sum + Number(p.total_amount), 0);
+      const avgPricePerClass = totalClassesSold > 0 ? totalPaidAmount / totalClassesSold : 0;
+      const exhaustedPackages = packages.filter(p => p.status === 'esgotado').length;
 
       // Classes done this month via credits log
       const { data: creditsThisMonth } = await supabase
@@ -233,10 +252,10 @@ export function useFinancialSummary() {
 
       const overdueStudentIds = new Set(payments.filter(p => p.status === 'vencido').map(p => p.student_id));
 
-      const expectedTotal = receivedThisMonth + toReceive;
+      const expectedTotal = totalReceivedThisMonth + toReceive;
 
       setSummary({
-        receivedThisMonth,
+        receivedThisMonth: totalReceivedThisMonth,
         toReceive,
         overdue,
         remainingClasses,
@@ -244,6 +263,11 @@ export function useFinancialSummary() {
         packagesEnding,
         studentsOverdue: overdueStudentIds.size,
         expectedTotal,
+        totalClassesSold,
+        totalClassesUsed,
+        avgPricePerClass,
+        activePackagesCount: activePackages.length,
+        exhaustedPackages,
       });
     } catch (err) {
       console.error('Error fetching financial summary:', err);
@@ -295,6 +319,9 @@ export async function createClassPackage(data: {
   start_date?: string;
   expiry_date?: string | null;
   notes?: string;
+  payment_date?: string;
+  payment_method?: string;
+  payment_status?: string;
 }) {
   const payload = {
     ...data,
@@ -308,6 +335,20 @@ export async function createClassPackage(data: {
     .select()
     .single();
   if (error) throw error;
+
+  // Log package creation
+  if (result) {
+    await supabase.from('class_credits_log').insert({
+      student_id: data.student_id,
+      package_id: (result as any).id,
+      action_type: 'package_created',
+      quantity: data.total_classes,
+      reason: `Pacote criado: ${data.package_name} — ${data.total_classes} aulas — €${data.total_amount}`,
+      balance_before: 0,
+      balance_after: data.total_classes,
+      created_by: data.admin_id,
+    } as any);
+  }
   return result;
 }
 
@@ -341,7 +382,7 @@ export async function deductClassCredit(params: {
   if (actionType === 'use_credit') {
     balanceAfter = Math.max(0, balanceBefore - qty);
     usedDelta = qty;
-  } else if (actionType === 'add_credit' || actionType === 'refund_credit') {
+  } else if (actionType === 'add_credit' || actionType === 'refund_credit' || actionType === 'class_refunded') {
     balanceAfter = balanceBefore + qty;
     usedDelta = -qty;
   } else if (actionType === 'manual_adjustment') {
@@ -363,10 +404,14 @@ export async function deductClassCredit(params: {
   } as any);
 
   // Update package
-  await supabase.from('class_packages').update({
+  const pkgUpdate: any = {
     remaining_classes: balanceAfter,
     used_classes: pkg.used_classes + usedDelta,
-  } as any).eq('id', params.package_id);
+  };
+  if (balanceAfter <= 0 && (actionType === 'use_credit' || actionType === 'class_used')) {
+    pkgUpdate.status = 'esgotado';
+  }
+  await supabase.from('class_packages').update(pkgUpdate).eq('id', params.package_id);
 }
 
 export async function getStudentActivePackage(studentId: string): Promise<ClassPackage | null> {
