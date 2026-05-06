@@ -211,22 +211,21 @@ export const rebuildTrainingMarkdown = (
 ): string => {
   const sections = parseTrainingSections(originalMarkdown);
   const lines: string[] = [];
-  let dayOffset = 0;
+  let trainingEmitted = false;
 
   for (const section of sections) {
     if (section.type === 'training' && section.days) {
+      // Only emit one training table with ALL days (avoid duplication)
+      if (trainingEmitted) continue;
+      trainingEmitted = true;
       if (section.title) lines.push(`## ${section.title}`);
       lines.push('| TREINO DO DIA | EXERCÍCIO | SÉRIE | SÉRIE 2 | REPETIÇÕES | RIR | PAUSA | DESCRIÇÃO | VARIAÇÃO |');
       lines.push('|---|---|---|---|---|---|---|---|---|');
-      const count = Math.max(section.days.length, updatedDays.length - dayOffset);
-      for (let i = 0; i < count; i++) {
-        const day = updatedDays[dayOffset + i] || section.days[i];
-        if (!day) break;
+      for (const day of updatedDays) {
         for (const ex of day.exercises) {
           lines.push(`| ${day.day} | ${ex.exercise} | ${ex.series || '-'} | ${ex.series2 || '-'} | ${ex.reps || '-'} | ${ex.rir || '-'} | ${ex.pause || '-'} | ${ex.description || '-'} | ${ex.variation || '-'} |`);
         }
       }
-      dayOffset += section.days.length;
       lines.push('');
     } else {
       lines.push(section.content);
