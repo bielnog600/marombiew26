@@ -11,6 +11,7 @@ import { X, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { createCalendarEvent, generateRecurringEvents, checkConflicts, updateCalendarEvent, EVENT_TYPE_LABELS, CalendarEvent } from '@/hooks/useCalendarEvents';
+import { getStudentActivePackage, ClassPackage } from '@/hooks/useFinancial';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
@@ -53,6 +54,7 @@ export default function AgendaEventDialog({ open, onClose, onSaved, editEvent }:
   const [saving, setSaving] = useState(false);
   const [conflicts, setConflicts] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [packageAlerts, setPackageAlerts] = useState<Record<string, ClassPackage | null>>({});
 
   useEffect(() => {
     supabase.from('profiles').select('user_id, nome')
@@ -84,6 +86,17 @@ export default function AgendaEventDialog({ open, onClose, onSaved, editEvent }:
   const toggleStudent = (id: string) => {
     setSelectedStudentIds(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]);
   };
+
+  // Check packages for selected students (presencial types)
+  useEffect(() => {
+    const presencialTypes = ['personal_presencial', 'aula_fixa_semanal', 'aula_avulsa', 'atendimento_ginasio'];
+    if (!presencialTypes.includes(eventType)) return;
+    selectedStudentIds.forEach(async (sid) => {
+      if (packageAlerts[sid] !== undefined) return;
+      const pkg = await getStudentActivePackage(sid);
+      setPackageAlerts(prev => ({ ...prev, [sid]: pkg }));
+    });
+  }, [selectedStudentIds, eventType]);
 
   const toggleDay = (d: string) => {
     setRecurringDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
