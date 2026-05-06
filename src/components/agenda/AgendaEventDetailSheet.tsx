@@ -3,7 +3,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CalendarEvent, EVENT_TYPE_LABELS, EVENT_STATUS_LABELS, STATUS_COLORS, updateCalendarEvent, deleteCalendarEvent } from '@/hooks/useCalendarEvents';
-import { getStudentActivePackage, ClassPackage } from '@/hooks/useFinancial';
+import { ClassPackage } from '@/hooks/useFinancial';
+import { supabase } from '@/integrations/supabase/client';
 import ClassDeductionDialog from '@/components/financial/ClassDeductionDialog';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -20,7 +21,7 @@ interface Props {
 
 export default function AgendaEventDetailSheet({ event, open, onClose, onRefresh }: Props) {
   const [showEdit, setShowEdit] = useState(false);
-  const [deductionTarget, setDeductionTarget] = useState<{ studentId: string; studentName: string; pkg: ClassPackage } | null>(null);
+  const [deductionTarget, setDeductionTarget] = useState<{ studentId: string; studentName: string; pkg: ClassPackage | null; allPackages?: ClassPackage[] } | null>(null);
 
   const handleConcluido = async () => {
     try {
@@ -29,11 +30,20 @@ export default function AgendaEventDetailSheet({ event, open, onClose, onRefresh
       // Check if any student has active package to offer deduction
       if (event.students && event.students.length > 0) {
         for (const s of event.students) {
-          const pkg = await getStudentActivePackage(s.student_id);
-          if (pkg && pkg.remaining_classes > 0) {
-            setDeductionTarget({ studentId: s.student_id, studentName: s.student_name || 'Aluno', pkg });
-            return; // Handle one at a time
-          }
+          const { data: pkgs } = await supabase
+            .from('class_packages')
+            .select('*')
+            .eq('student_id', s.student_id)
+            .eq('status', 'ativo')
+            .order('created_at', { ascending: false });
+          const activePkgs = (pkgs || []) as ClassPackage[];
+          setDeductionTarget({
+            studentId: s.student_id,
+            studentName: s.student_name || 'Aluno',
+            pkg: activePkgs[0] || null,
+            allPackages: activePkgs,
+          });
+          return;
         }
       }
       onRefresh();
@@ -183,6 +193,7 @@ export default function AgendaEventDetailSheet({ event, open, onClose, onRefresh
           studentId={deductionTarget.studentId}
           studentName={deductionTarget.studentName}
           pkg={deductionTarget.pkg}
+          allPackages={deductionTarget.allPackages}
           calendarEventId={event.id}
         />
       )}

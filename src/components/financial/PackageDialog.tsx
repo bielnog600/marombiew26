@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { createClassPackage, updateClassPackage, ClassPackage } from '@/hooks/useFinancial';
+import { createClassPackage, updateClassPackage, ClassPackage, PAYMENT_METHOD_LABELS } from '@/hooks/useFinancial';
 import { toast } from 'sonner';
 
 type Props = {
@@ -29,8 +29,18 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
     start_date: new Date().toISOString().slice(0, 10),
     expiry_date: '',
     notes: '',
+    payment_date: new Date().toISOString().slice(0, 10),
+    payment_method: 'mbway',
+    payment_status: 'pago',
   });
   const [saving, setSaving] = useState(false);
+
+  const pricePerClass = useMemo(() => {
+    const total = Number(form.total_amount);
+    const classes = Number(form.total_classes);
+    if (classes > 0 && total > 0) return (total / classes).toFixed(2);
+    return '0.00';
+  }, [form.total_amount, form.total_classes]);
 
   useEffect(() => {
     supabase.from('profiles').select('user_id, nome').then(({ data }) => setStudents(data || []));
@@ -46,6 +56,9 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
         start_date: pkg.start_date,
         expiry_date: pkg.expiry_date || '',
         notes: pkg.notes || '',
+        payment_date: pkg.payment_date || new Date().toISOString().slice(0, 10),
+        payment_method: pkg.payment_method || 'outro',
+        payment_status: pkg.payment_status || 'pago',
       });
     } else {
       setForm(f => ({ ...f, student_id: preselectedStudentId || f.student_id }));
@@ -65,6 +78,8 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
           total_amount: Number(form.total_amount),
           expiry_date: form.expiry_date || null,
           notes: form.notes,
+          payment_method: form.payment_method,
+          payment_status: form.payment_status,
         } as any);
         toast.success('Pacote atualizado');
       } else {
@@ -77,6 +92,9 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
           start_date: form.start_date,
           expiry_date: form.expiry_date || null,
           notes: form.notes,
+          payment_date: form.payment_date,
+          payment_method: form.payment_method,
+          payment_status: form.payment_status,
         });
         toast.success('Pacote criado');
       }
@@ -119,14 +137,42 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
               <Input type="number" step="0.01" value={form.total_amount} onChange={e => setForm(f => ({ ...f, total_amount: e.target.value }))} />
             </div>
           </div>
+          <div>
+            <Label>Valor por Aula</Label>
+            <Input value={`€${pricePerClass}`} disabled className="bg-muted" />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Data Início</Label>
-              <Input type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} disabled={!!pkg} />
+              <Label>Data de Pagamento</Label>
+              <Input type="date" value={form.payment_date} onChange={e => setForm(f => ({ ...f, payment_date: e.target.value }))} />
             </div>
             <div>
               <Label>Validade</Label>
               <Input type="date" value={form.expiry_date} onChange={e => setForm(f => ({ ...f, expiry_date: e.target.value }))} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Método de Pagamento</Label>
+              <Select value={form.payment_method} onValueChange={v => setForm(f => ({ ...f, payment_method: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(PAYMENT_METHOD_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Status do Pagamento</Label>
+              <Select value={form.payment_status} onValueChange={v => setForm(f => ({ ...f, payment_status: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pago">Pago</SelectItem>
+                  <SelectItem value="pendente">Pendente</SelectItem>
+                  <SelectItem value="parcial">Parcial</SelectItem>
+                  <SelectItem value="vencido">Vencido</SelectItem>
+                  <SelectItem value="cancelado">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div>
