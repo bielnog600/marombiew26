@@ -596,7 +596,11 @@ export type Database = {
           id: string
           notes: string | null
           package_name: string
+          payment_date: string | null
           payment_id: string | null
+          payment_method: string | null
+          payment_status: string | null
+          price_per_class: number | null
           remaining_classes: number
           start_date: string
           status: Database["public"]["Enums"]["package_status"]
@@ -613,7 +617,11 @@ export type Database = {
           id?: string
           notes?: string | null
           package_name?: string
+          payment_date?: string | null
           payment_id?: string | null
+          payment_method?: string | null
+          payment_status?: string | null
+          price_per_class?: number | null
           remaining_classes?: number
           start_date?: string
           status?: Database["public"]["Enums"]["package_status"]
@@ -630,7 +638,11 @@ export type Database = {
           id?: string
           notes?: string | null
           package_name?: string
+          payment_date?: string | null
           payment_id?: string | null
+          payment_method?: string | null
+          payment_status?: string | null
+          price_per_class?: number | null
           remaining_classes?: number
           start_date?: string
           status?: Database["public"]["Enums"]["package_status"]
@@ -2117,6 +2129,11 @@ export type Database = {
         | "refund_credit"
         | "manual_adjustment"
         | "expire_credit"
+        | "package_created"
+        | "class_used"
+        | "class_refunded"
+        | "package_expired"
+        | "package_renewed"
       financial_alert_type:
         | "pagamento_vencido"
         | "pagamento_pendente"
@@ -2132,6 +2149,7 @@ export type Database = {
         | "cancelado"
         | "renovado"
         | "pausado"
+        | "esgotado"
       payment_method:
         | "mbway"
         | "transferencia"
@@ -2325,6 +2343,11 @@ export const Constants = {
         "refund_credit",
         "manual_adjustment",
         "expire_credit",
+        "package_created",
+        "class_used",
+        "class_refunded",
+        "package_expired",
+        "package_renewed",
       ],
       financial_alert_type: [
         "pagamento_vencido",
@@ -2336,7 +2359,14 @@ export const Constants = {
         "mensalidade_vencer_3d",
         "mensalidade_vencida",
       ],
-      package_status: ["ativo", "expirado", "cancelado", "renovado", "pausado"],
+      package_status: [
+        "ativo",
+        "expirado",
+        "cancelado",
+        "renovado",
+        "pausado",
+        "esgotado",
+      ],
       payment_method: [
         "mbway",
         "transferencia",
