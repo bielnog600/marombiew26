@@ -119,8 +119,8 @@ export const parseTrainingTable = (tableLines: string[]): ParsedTrainingDay[] =>
   for (const day of days) {
     const key = day.day.toUpperCase();
     if (seen.has(key)) {
-      // keep the first occurrence only, ignore duplicates
-      // (duplicates are data corruption from prior rebuild bugs)
+      // Keep the LAST occurrence (later rows contain user edits)
+      merged[seen.get(key)!] = day;
     } else {
       seen.set(key, merged.length);
       merged.push(day);
