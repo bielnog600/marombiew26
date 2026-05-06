@@ -113,7 +113,20 @@ export const parseTrainingTable = (tableLines: string[]): ParsedTrainingDay[] =>
     days.push(currentDay);
   }
 
-  return days;
+  // Merge days with the same name (dedup from corrupted data)
+  const merged: ParsedTrainingDay[] = [];
+  const seen = new Map<string, number>();
+  for (const day of days) {
+    const key = day.day.toUpperCase();
+    if (seen.has(key)) {
+      // keep the first occurrence only, ignore duplicates
+      // (duplicates are data corruption from prior rebuild bugs)
+    } else {
+      seen.set(key, merged.length);
+      merged.push(day);
+    }
+  }
+  return merged;
 };
 
 export const parseTrainingSections = (markdown: string): ParsedTrainingSection[] => {
