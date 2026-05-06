@@ -386,6 +386,158 @@ export type Database = {
         }
         Relationships: []
       }
+      calendar_event_students: {
+        Row: {
+          attendance_status: Database["public"]["Enums"]["calendar_attendance_status"]
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          confirmed_at: string | null
+          created_at: string
+          event_id: string
+          id: string
+          student_id: string
+        }
+        Insert: {
+          attendance_status?: Database["public"]["Enums"]["calendar_attendance_status"]
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          confirmed_at?: string | null
+          created_at?: string
+          event_id: string
+          id?: string
+          student_id: string
+        }
+        Update: {
+          attendance_status?: Database["public"]["Enums"]["calendar_attendance_status"]
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          confirmed_at?: string | null
+          created_at?: string
+          event_id?: string
+          id?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_event_students_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calendar_events: {
+        Row: {
+          admin_id: string
+          created_at: string
+          end_datetime: string
+          event_type: Database["public"]["Enums"]["calendar_event_type"]
+          id: string
+          is_recurring: boolean
+          location: string | null
+          notes: string | null
+          recurrence_group_id: string | null
+          recurrence_rule: string | null
+          start_datetime: string
+          status: Database["public"]["Enums"]["calendar_event_status"]
+          timezone: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          admin_id: string
+          created_at?: string
+          end_datetime: string
+          event_type?: Database["public"]["Enums"]["calendar_event_type"]
+          id?: string
+          is_recurring?: boolean
+          location?: string | null
+          notes?: string | null
+          recurrence_group_id?: string | null
+          recurrence_rule?: string | null
+          start_datetime: string
+          status?: Database["public"]["Enums"]["calendar_event_status"]
+          timezone?: string
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          admin_id?: string
+          created_at?: string
+          end_datetime?: string
+          event_type?: Database["public"]["Enums"]["calendar_event_type"]
+          id?: string
+          is_recurring?: boolean
+          location?: string | null
+          notes?: string | null
+          recurrence_group_id?: string | null
+          recurrence_rule?: string | null
+          start_datetime?: string
+          status?: Database["public"]["Enums"]["calendar_event_status"]
+          timezone?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      calendar_notification_settings: {
+        Row: {
+          admin_id: string
+          created_at: string
+          custom_admin_15min_message: string | null
+          custom_admin_day_before_message: string | null
+          custom_student_15min_message: string | null
+          custom_student_day_before_message: string | null
+          day_before_time: string
+          enable_15min_before_admin: boolean
+          enable_15min_before_student: boolean
+          enable_day_before_admin: boolean
+          enable_day_before_student: boolean
+          enable_schedule_notifications: boolean
+          id: string
+          notify_on_student_cancel: boolean
+          notify_on_student_confirm: boolean
+          updated_at: string
+        }
+        Insert: {
+          admin_id: string
+          created_at?: string
+          custom_admin_15min_message?: string | null
+          custom_admin_day_before_message?: string | null
+          custom_student_15min_message?: string | null
+          custom_student_day_before_message?: string | null
+          day_before_time?: string
+          enable_15min_before_admin?: boolean
+          enable_15min_before_student?: boolean
+          enable_day_before_admin?: boolean
+          enable_day_before_student?: boolean
+          enable_schedule_notifications?: boolean
+          id?: string
+          notify_on_student_cancel?: boolean
+          notify_on_student_confirm?: boolean
+          updated_at?: string
+        }
+        Update: {
+          admin_id?: string
+          created_at?: string
+          custom_admin_15min_message?: string | null
+          custom_admin_day_before_message?: string | null
+          custom_student_15min_message?: string | null
+          custom_student_day_before_message?: string | null
+          day_before_time?: string
+          enable_15min_before_admin?: boolean
+          enable_15min_before_student?: boolean
+          enable_day_before_admin?: boolean
+          enable_day_before_student?: boolean
+          enable_schedule_notifications?: boolean
+          id?: string
+          notify_on_student_cancel?: boolean
+          notify_on_student_confirm?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       composition: {
         Row: {
           assessment_id: string
@@ -1218,6 +1370,53 @@ export type Database = {
         }
         Relationships: []
       }
+      scheduled_notifications: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          event_id: string
+          id: string
+          notification_type: Database["public"]["Enums"]["calendar_notification_type"]
+          recipient_type: string
+          recipient_user_id: string
+          scheduled_for: string
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          event_id: string
+          id?: string
+          notification_type: Database["public"]["Enums"]["calendar_notification_type"]
+          recipient_type?: string
+          recipient_user_id: string
+          scheduled_for: string
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          event_id?: string
+          id?: string
+          notification_type?: Database["public"]["Enums"]["calendar_notification_type"]
+          recipient_type?: string
+          recipient_user_id?: string
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_notifications_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       skinfolds: {
         Row: {
           abdominal: number | null
@@ -1673,6 +1872,40 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "aluno"
+      calendar_attendance_status:
+        | "pendente"
+        | "confirmado"
+        | "cancelado"
+        | "falta"
+        | "falta_justificada"
+        | "presente"
+        | "atrasado"
+      calendar_event_status:
+        | "confirmado"
+        | "pendente"
+        | "cancelado"
+        | "reagendado"
+        | "concluido"
+        | "falta"
+        | "falta_justificada"
+      calendar_event_type:
+        | "personal_presencial"
+        | "aula_fixa_semanal"
+        | "aula_avulsa"
+        | "atendimento_ginasio"
+        | "avaliacao_fisica"
+        | "checkin"
+        | "consultoria_online"
+        | "aula_grupo"
+        | "outro"
+      calendar_notification_type:
+        | "student_day_before"
+        | "student_15min_before"
+        | "admin_day_before"
+        | "admin_15min_before"
+        | "student_confirmed"
+        | "student_cancelled"
+        | "student_late"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1801,6 +2034,44 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "aluno"],
+      calendar_attendance_status: [
+        "pendente",
+        "confirmado",
+        "cancelado",
+        "falta",
+        "falta_justificada",
+        "presente",
+        "atrasado",
+      ],
+      calendar_event_status: [
+        "confirmado",
+        "pendente",
+        "cancelado",
+        "reagendado",
+        "concluido",
+        "falta",
+        "falta_justificada",
+      ],
+      calendar_event_type: [
+        "personal_presencial",
+        "aula_fixa_semanal",
+        "aula_avulsa",
+        "atendimento_ginasio",
+        "avaliacao_fisica",
+        "checkin",
+        "consultoria_online",
+        "aula_grupo",
+        "outro",
+      ],
+      calendar_notification_type: [
+        "student_day_before",
+        "student_15min_before",
+        "admin_day_before",
+        "admin_15min_before",
+        "student_confirmed",
+        "student_cancelled",
+        "student_late",
+      ],
     },
   },
 } as const

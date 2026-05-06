@@ -41,6 +41,8 @@ import Evolucao from "./pages/Evolucao";
 import MeuProgresso from "./pages/MeuProgresso";
 
 import NotFound from "./pages/NotFound";
+import Agenda from "./pages/Agenda";
+import MinhaAgenda from "./pages/MinhaAgenda";
 
 const queryClient = new QueryClient();
 
@@ -98,6 +100,7 @@ const App = () => {
               <Route path="/questionario-dieta" element={<DietQuestionnaire />} />
               <Route path="/notificacoes" element={<Navigate to="/consultoria" replace />} />
               <Route path="/consultoria" element={<ProtectedRoute requiredRole="admin"><Consultoria /></ProtectedRoute>} />
+              <Route path="/agenda" element={<ProtectedRoute requiredRole="admin"><Agenda /></ProtectedRoute>} />
               
               <Route path="/minha-area" element={<ProtectedRoute requiredRole="aluno"><MinhaArea /></ProtectedRoute>} />
               <Route path="/meus-treinos" element={<ProtectedRoute requiredRole="aluno"><MeusTreinos /></ProtectedRoute>} />
@@ -108,6 +111,7 @@ const App = () => {
               <Route path="/minhas-dietas" element={<ProtectedRoute requiredRole="aluno"><MinhasDietas /></ProtectedRoute>} />
               <Route path="/evolucao" element={<ProtectedRoute requiredRole="aluno"><Evolucao /></ProtectedRoute>} />
               <Route path="/meu-progresso" element={<ProtectedRoute requiredRole="aluno"><MeuProgresso /></ProtectedRoute>} />
+              <Route path="/minha-agenda" element={<ProtectedRoute requiredRole="aluno"><MinhaAgenda /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             </TabSwipeProvider>

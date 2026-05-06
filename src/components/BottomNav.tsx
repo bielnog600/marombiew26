@@ -6,14 +6,15 @@ import { useTabSwipe } from '@/contexts/TabSwipeContext';
 import {
   LayoutDashboard, Users, ClipboardList, User, Briefcase, LogOut,
   Home, Dumbbell, UtensilsCrossed, Apple, Settings2,
+  CalendarDays,
 } from 'lucide-react';
 
 const adminItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
   { title: 'Alunos', url: '/alunos', icon: Users },
   { title: 'Consultoria', url: '/consultoria', icon: Briefcase },
+  { title: 'Agenda', url: '/agenda', icon: CalendarDays },
   { title: 'Alimentos', url: '/alimentos', icon: Apple },
-  { title: 'Exercícios', url: '/exercicios', icon: Settings2 },
 ];
 
 const alunoItems = [
@@ -21,6 +22,7 @@ const alunoItems = [
   { title: 'Treinos', url: '/meus-treinos', icon: Dumbbell },
   { title: 'Dieta', url: '/minhas-dietas', icon: UtensilsCrossed },
   { title: 'Avaliações', url: '/minhas-avaliacoes', icon: ClipboardList },
+  { title: 'Agenda', url: '/minha-agenda', icon: CalendarDays },
   { title: 'Perfil', url: '/perfil', icon: User },
 ];
 
