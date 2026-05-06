@@ -98,8 +98,12 @@ const Financeiro: React.FC = () => {
               <SummaryCard icon={Clock} label="A receber" value={fmt(summary.toReceive)} color="bg-yellow-500/20 text-yellow-400" />
               <SummaryCard icon={AlertTriangle} label="Vencidos" value={fmt(summary.overdue)} color="bg-red-500/20 text-red-400" />
               <SummaryCard icon={TrendingUp} label="Total previsto" value={fmt(summary.expectedTotal)} color="bg-blue-500/20 text-blue-400" />
-              <SummaryCard icon={CalendarDays} label="Aulas restantes" value={String(summary.remainingClasses)} />
-              <SummaryCard icon={Check} label="Aulas no mês" value={String(summary.classesThisMonth)} />
+              <SummaryCard icon={CalendarDays} label="Aulas vendidas" value={String(summary.totalClassesSold)} />
+              <SummaryCard icon={Check} label="Aulas realizadas" value={String(summary.totalClassesUsed)} sub={`${summary.classesThisMonth} este mês`} />
+              <SummaryCard icon={CalendarDays} label="Aulas restantes" value={String(summary.remainingClasses)} color="bg-blue-500/20 text-blue-400" />
+              <SummaryCard icon={DollarSign} label="Valor médio/aula" value={fmt(summary.avgPricePerClass)} />
+              <SummaryCard icon={Package} label="Pacotes ativos" value={String(summary.activePackagesCount)} color="bg-green-500/20 text-green-400" />
+              <SummaryCard icon={Package} label="Pacotes esgotados" value={String(summary.exhaustedPackages)} color="bg-red-500/20 text-red-400" />
               <SummaryCard icon={Package} label="Pacotes acabando" value={String(summary.packagesEnding)} color="bg-orange-500/20 text-orange-400" />
               <SummaryCard icon={Users} label="Alunos em atraso" value={String(summary.studentsOverdue)} color="bg-red-500/20 text-red-300" />
             </>
@@ -181,28 +185,36 @@ const Financeiro: React.FC = () => {
 
           {/* REMAINING CLASSES TAB */}
           <TabsContent value="aulas" className="space-y-2">
-            {packagesLoading ? <Skeleton className="h-40" /> : activePackages.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">Nenhum pacote ativo</p>
+            {packagesLoading ? <Skeleton className="h-40" /> : packages.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">Nenhum pacote encontrado</p>
             ) : (
-              activePackages.sort((a, b) => a.remaining_classes - b.remaining_classes).map(pkg => (
-                <Card key={pkg.id} className={`glass-card ${pkg.remaining_classes <= 2 ? 'border-orange-500/30' : ''}`}>
+              [...packages].sort((a, b) => {
+                const order: Record<string, number> = { ativo: 0, esgotado: 1, expirado: 2, pausado: 3, cancelado: 4, renovado: 5 };
+                return (order[a.status] ?? 9) - (order[b.status] ?? 9) || a.remaining_classes - b.remaining_classes;
+              }).map(pkg => (
+                <Card key={pkg.id} className={`glass-card ${pkg.remaining_classes <= 2 && pkg.status === 'ativo' ? 'border-orange-500/30' : ''}`} onClick={() => { setEditPackage(pkg); setShowPackageDialog(true); }}>
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{pkg.student_name}</span>
                           <Badge variant="outline" className={PACKAGE_STATUS_COLORS[pkg.status]}>{PACKAGE_STATUS_LABELS[pkg.status]}</Badge>
+                          {pkg.payment_status === 'pendente' && (
+                            <Badge variant="outline" className="text-xs bg-yellow-500/20 text-yellow-400 border-yellow-500/30">Pgto Pendente</Badge>
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground">{pkg.package_name}</p>
-                        <p className="text-xs text-muted-foreground">{pkg.used_classes}/{pkg.total_classes} realizadas</p>
+                        <p className="text-xs text-muted-foreground">
+                          {pkg.used_classes}/{pkg.total_classes} realizadas • €{Number(pkg.total_amount).toFixed(2)} • €{Number(pkg.price_per_class).toFixed(2)}/aula
+                        </p>
                       </div>
                       <div className="text-right shrink-0">
                         <p className={`text-2xl font-bold ${pkg.remaining_classes === 0 ? 'text-red-400' : pkg.remaining_classes <= 2 ? 'text-orange-400' : 'text-green-400'}`}>
                           {pkg.remaining_classes}
                         </p>
                         <p className="text-xs text-muted-foreground">restantes</p>
-                        {pkg.remaining_classes <= 2 && (
-                          <Button size="sm" variant="ghost" className="h-7 text-xs mt-1" onClick={() => handleWhatsAppRenewal(pkg.student_name || '', pkg.remaining_classes)}>
+                        {pkg.remaining_classes <= 2 && pkg.status === 'ativo' && (
+                          <Button size="sm" variant="ghost" className="h-7 text-xs mt-1" onClick={e => { e.stopPropagation(); handleWhatsAppRenewal(pkg.student_name || '', pkg.remaining_classes); }}>
                             <MessageCircle className="h-3 w-3 mr-1" /> Renovar
                           </Button>
                         )}
@@ -218,15 +230,18 @@ const Financeiro: React.FC = () => {
           <TabsContent value="relatorio" className="space-y-4">
             <Card className="glass-card">
               <CardContent className="p-6 space-y-4">
-                <h3 className="font-semibold text-lg">Resumo do Mês</h3>
+                <h3 className="font-semibold text-lg">Resumo Geral</h3>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div><span className="text-muted-foreground">Total recebido:</span> <span className="font-medium">{fmt(summary.receivedThisMonth)}</span></div>
                   <div><span className="text-muted-foreground">Total pendente:</span> <span className="font-medium">{fmt(summary.toReceive)}</span></div>
                   <div><span className="text-muted-foreground">Total vencido:</span> <span className="font-medium text-red-400">{fmt(summary.overdue)}</span></div>
                   <div><span className="text-muted-foreground">Total previsto:</span> <span className="font-medium">{fmt(summary.expectedTotal)}</span></div>
-                  <div><span className="text-muted-foreground">Aulas vendidas:</span> <span className="font-medium">{activePackages.reduce((s, p) => s + p.total_classes, 0)}</span></div>
-                  <div><span className="text-muted-foreground">Aulas realizadas:</span> <span className="font-medium">{summary.classesThisMonth}</span></div>
+                  <div><span className="text-muted-foreground">Aulas vendidas:</span> <span className="font-medium">{summary.totalClassesSold}</span></div>
+                  <div><span className="text-muted-foreground">Aulas realizadas:</span> <span className="font-medium">{summary.totalClassesUsed}</span></div>
                   <div><span className="text-muted-foreground">Aulas restantes:</span> <span className="font-medium">{summary.remainingClasses}</span></div>
+                  <div><span className="text-muted-foreground">Valor médio/aula:</span> <span className="font-medium">{fmt(summary.avgPricePerClass)}</span></div>
+                  <div><span className="text-muted-foreground">Pacotes ativos:</span> <span className="font-medium">{summary.activePackagesCount}</span></div>
+                  <div><span className="text-muted-foreground">Pacotes esgotados:</span> <span className="font-medium">{summary.exhaustedPackages}</span></div>
                   <div><span className="text-muted-foreground">Alunos em atraso:</span> <span className="font-medium text-red-400">{summary.studentsOverdue}</span></div>
                 </div>
 
