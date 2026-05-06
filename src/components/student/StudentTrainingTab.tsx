@@ -130,6 +130,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
       .select('*')
       .eq('student_id', studentId)
       .eq('tipo', 'treino')
+      .eq('is_draft', false)
       .order('created_at', { ascending: false });
     setPlans(data ?? []);
   };
