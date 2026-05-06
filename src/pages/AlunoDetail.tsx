@@ -434,6 +434,10 @@ const AlunoDetail = () => {
           <TabsContent value="fichas">
             <DietQuestionnairesList studentId={id!} studentPhone={profile?.telefone} studentName={profile?.nome} />
           </TabsContent>
+
+          <TabsContent value="financeiro">
+            <StudentFinancialTab studentId={id!} studentName={profile?.nome || 'Aluno'} />
+          </TabsContent>
         </Tabs>
       </div>
     </AppLayout>
