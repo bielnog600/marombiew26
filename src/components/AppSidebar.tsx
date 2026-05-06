@@ -7,6 +7,7 @@ import {
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, useSidebar,
 } from '@/components/ui/sidebar';
 import { LayoutDashboard, Users, ClipboardList, User, LogOut, Dumbbell, Target, Clock, ScanLine, Bot, Apple, Bell, Briefcase, Home, UtensilsCrossed, Settings2 } from 'lucide-react';
+import { CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const adminItems = [
@@ -15,6 +16,7 @@ const adminItems = [
   { title: 'Alimentos', url: '/alimentos', icon: Apple },
   { title: 'Exercícios', url: '/exercicios', icon: Settings2 },
   { title: 'Consultoria', url: '/consultoria', icon: Briefcase },
+  { title: 'Agenda', url: '/agenda', icon: CalendarDays },
 ];
 
 const alunoItems = [
@@ -22,6 +24,7 @@ const alunoItems = [
   { title: 'Treinos', url: '/meus-treinos', icon: Dumbbell },
   { title: 'Dieta', url: '/minhas-dietas', icon: UtensilsCrossed },
   { title: 'Minhas Avaliações', url: '/minhas-avaliacoes', icon: ClipboardList },
+  { title: 'Agenda', url: '/minha-agenda', icon: CalendarDays },
   { title: 'Perfil', url: '/perfil', icon: User },
 ];
 
