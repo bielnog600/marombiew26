@@ -5,13 +5,13 @@ import { Badge } from '@/components/ui/badge';
 import {
   usePayments, useClassPackages,
   PAYMENT_TYPE_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS,
-  PAYMENT_METHOD_LABELS, PACKAGE_STATUS_LABELS, PACKAGE_STATUS_COLORS,
+  PAYMENT_METHOD_LABELS, PACKAGE_STATUS_LABELS, PACKAGE_STATUS_COLORS, PAYMENT_STATUS_COLORS as PSC,
   Payment, ClassPackage, updatePayment, deductClassCredit,
 } from '@/hooks/useFinancial';
 import { supabase } from '@/integrations/supabase/client';
 import PaymentDialog from '@/components/financial/PaymentDialog';
 import PackageDialog from '@/components/financial/PackageDialog';
-import { Plus, Package, Check, MessageCircle, Minus, RefreshCw } from 'lucide-react';
+import { Plus, Package, Check, MessageCircle, Minus, RefreshCw, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { ClassCreditLog } from '@/hooks/useFinancial';
@@ -74,7 +74,13 @@ const StudentFinancialTab: React.FC<Props> = ({ studentId, studentName }) => {
               <h3 className="font-semibold">{activePackage.package_name}</h3>
               <Badge variant="outline" className={PACKAGE_STATUS_COLORS[activePackage.status]}>{PACKAGE_STATUS_LABELS[activePackage.status]}</Badge>
             </div>
-            <div className="grid grid-cols-3 gap-4 text-center">
+            {activePackage.payment_status === 'pendente' && (
+              <div className="flex items-center gap-2 mb-3 text-yellow-400 text-sm">
+                <AlertTriangle className="h-4 w-4" />
+                Pagamento pendente
+              </div>
+            )}
+            <div className="grid grid-cols-4 gap-3 text-center">
               <div>
                 <p className="text-2xl font-bold text-primary">{activePackage.remaining_classes}</p>
                 <p className="text-xs text-muted-foreground">Restantes</p>
@@ -87,6 +93,16 @@ const StudentFinancialTab: React.FC<Props> = ({ studentId, studentName }) => {
                 <p className="text-2xl font-bold text-muted-foreground">{activePackage.total_classes}</p>
                 <p className="text-xs text-muted-foreground">Total</p>
               </div>
+              <div>
+                <p className="text-2xl font-bold text-muted-foreground">€{Number(activePackage.price_per_class).toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground">Por aula</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-3 text-xs text-muted-foreground">
+              <p>Valor: €{Number(activePackage.total_amount).toFixed(2)}</p>
+              <p>Pagamento: {activePackage.payment_date}</p>
+              <p>Método: {PAYMENT_METHOD_LABELS[activePackage.payment_method] || activePackage.payment_method}</p>
+              {activePackage.expiry_date && <p>Validade: {activePackage.expiry_date}</p>}
             </div>
             <div className="flex gap-2 mt-4">
               <Button size="sm" variant="outline" onClick={() => handleAdjustCredits(activePackage, 1)}>
