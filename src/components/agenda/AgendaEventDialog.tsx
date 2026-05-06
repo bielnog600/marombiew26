@@ -11,6 +11,7 @@ import { X, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { createCalendarEvent, generateRecurringEvents, checkConflicts, updateCalendarEvent, EVENT_TYPE_LABELS, CalendarEvent } from '@/hooks/useCalendarEvents';
+import { getStudentActivePackage, ClassPackage } from '@/hooks/useFinancial';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
@@ -53,6 +54,7 @@ export default function AgendaEventDialog({ open, onClose, onSaved, editEvent }:
   const [saving, setSaving] = useState(false);
   const [conflicts, setConflicts] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [packageAlerts, setPackageAlerts] = useState<Record<string, ClassPackage | null>>({});
 
   useEffect(() => {
     supabase.from('profiles').select('user_id, nome')
@@ -84,6 +86,17 @@ export default function AgendaEventDialog({ open, onClose, onSaved, editEvent }:
   const toggleStudent = (id: string) => {
     setSelectedStudentIds(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]);
   };
+
+  // Check packages for selected students (presencial types)
+  useEffect(() => {
+    const presencialTypes = ['personal_presencial', 'aula_fixa_semanal', 'aula_avulsa', 'atendimento_ginasio'];
+    if (!presencialTypes.includes(eventType)) return;
+    selectedStudentIds.forEach(async (sid) => {
+      if (packageAlerts[sid] !== undefined) return;
+      const pkg = await getStudentActivePackage(sid);
+      setPackageAlerts(prev => ({ ...prev, [sid]: pkg }));
+    });
+  }, [selectedStudentIds, eventType]);
 
   const toggleDay = (d: string) => {
     setRecurringDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
@@ -184,6 +197,29 @@ export default function AgendaEventDialog({ open, onClose, onSaved, editEvent }:
               ))}
             </div>
           </div>
+
+          {/* Package alerts for presencial events */}
+          {['personal_presencial', 'aula_fixa_semanal', 'aula_avulsa', 'atendimento_ginasio'].includes(eventType) && selectedStudentIds.length > 0 && (
+            <div className="space-y-1">
+              {selectedStudentIds.map(sid => {
+                const pkg = packageAlerts[sid];
+                const name = students.find(s => s.user_id === sid)?.nome || 'Aluno';
+                if (pkg === undefined) return null;
+                if (pkg) {
+                  return (
+                    <div key={sid} className="text-xs bg-green-500/10 text-green-400 rounded-md p-2">
+                      ✅ {name}: Saldo disponível — {pkg.remaining_classes} aulas
+                    </div>
+                  );
+                }
+                return (
+                  <div key={sid} className="text-xs bg-yellow-500/10 text-yellow-400 rounded-md p-2 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" /> {name}: Sem pacote ativo ou sem saldo de aulas
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Event type */}
           <div>

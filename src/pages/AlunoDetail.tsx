@@ -19,6 +19,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Sparkles } from 'lucide-react';
 import KarvonenZones from '@/components/KarvonenZones';
+import StudentFinancialTab from '@/components/financial/StudentFinancialTab';
+import { Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -191,6 +193,7 @@ const AlunoDetail = () => {
               <TabsTrigger value="cardio" className="text-xs sm:text-sm"><HeartPulse className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Cardio</span><span className="sm:hidden">Cardio</span></TabsTrigger>
               <TabsTrigger value="dietas" className="text-xs sm:text-sm"><UtensilsCrossed className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Dietas</span><span className="sm:hidden">Dieta</span></TabsTrigger>
               <TabsTrigger value="fichas" className="text-xs sm:text-sm"><FileQuestion className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Fichas</span><span className="sm:hidden">Fichas</span></TabsTrigger>
+              <TabsTrigger value="financeiro" className="text-xs sm:text-sm"><Wallet className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Financeiro</span><span className="sm:hidden">Fin.</span></TabsTrigger>
             </TabsList>
           </div>
 
@@ -430,6 +433,10 @@ const AlunoDetail = () => {
 
           <TabsContent value="fichas">
             <DietQuestionnairesList studentId={id!} studentPhone={profile?.telefone} studentName={profile?.nome} />
+          </TabsContent>
+
+          <TabsContent value="financeiro">
+            <StudentFinancialTab studentId={id!} studentName={profile?.nome || 'Aluno'} />
           </TabsContent>
         </Tabs>
       </div>
