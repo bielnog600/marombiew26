@@ -360,7 +360,7 @@ const TreinoIA = () => {
       ? 'IA DEVE ESCOLHER a melhor divisão (Full Body, Upper/Lower, Push/Pull/Legs ou ABCDE) com base no nível, dias por semana, objetivo e condições de saúde do aluno. Justifique brevemente a escolha no Resumo do protocolo.'
       : selectedSplit?.label}
 - Semana do ciclo: ${week} de 4
-- Equipamento: ${selectedEquip?.label}
+ - Equipamento: ${selectedEquip?.label}${selectedMachines.length > 0 ? ` (RESTRIÇÃO: USE APENAS OS SEGUINTES EQUIPAMENTOS: ${selectedMachines.map(id => AVAILABLE_MACHINES.find(m => m.id === id)?.label).join(', ')})` : ''}
 ${notes ? `- Observações adicionais (complementares — NÃO substituem as regras estruturadas acima): ${notes}` : ''}${customSplitBlock}${structuredSafetyBlock}${healthBlock}
 ${treinoReferencia ? `\n\nREFERÊNCIA DE TREINO FORNECIDA PELO PROFESSOR (${marombiewEnabled ? 'USE APENAS COMO APOIO SECUNDÁRIO, NÃO SOBRESCREVA REGRAS RÍGIDAS' : 'USE COMO BASE EXATA para estruturar o treino, exercícios, divisão, volume e faixas de repetição'}):\n---\n${treinoReferencia}\n---\n${marombiewEnabled ? 'Considere este treino apenas como uma referência de estilo ou preferência do professor, mas priorize as regras estruturadas e condições de saúde.' : 'Siga essa estrutura o mais fielmente possível, adaptando apenas para as condições de saúde e equipamento informados.'}` : ''}
 ${marombiewEnabled ? `\n\nMODO AGENTE MAROMBIEW ATIVADO: Use uma lógica avançada e estruturada de geração. Considere TODO o contexto do aluno (histórico, anamnese, testes de performance, posturas, lesões, restrições e objetivos) para criar um planejamento de treino inteligente, seguro e periodizado.
