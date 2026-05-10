@@ -120,6 +120,7 @@ const TreinoIA = () => {
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState('');
   const [saving, setSaving] = useState(false);
+  const [marombiewEnabled, setMarombiewEnabled] = useState(false);
   const [configCollapsed, setConfigCollapsed] = useState(!!editPlanId);
   const [currentStep, setCurrentStep] = useState(0);
   const resultRef = useRef<HTMLDivElement>(null);
@@ -322,7 +323,16 @@ const TreinoIA = () => {
 - Semana do ciclo: ${week} de 4
 - Equipamento: ${selectedEquip?.label}
 ${notes ? `- Observações adicionais (complementares — NÃO substituem as regras estruturadas acima): ${notes}` : ''}${customSplitBlock}${structuredSafetyBlock}${healthBlock}
-${treinoReferencia ? `\n\nREFERÊNCIA DE TREINO FORNECIDA PELO PROFESSOR (USE COMO BASE EXATA para estruturar o treino, exercícios, divisão, volume e faixas de repetição):\n---\n${treinoReferencia}\n---\nSiga essa estrutura o mais fielmente possível, adaptando apenas para as condições de saúde e equipamento informados.` : ''}
+${treinoReferencia ? `\n\nREFERÊNCIA DE TREINO FORNECIDA PELO PROFESSOR (${marombiewEnabled ? 'USE APENAS COMO APOIO SECUNDÁRIO, NÃO SOBRESCREVA REGRAS RÍGIDAS' : 'USE COMO BASE EXATA para estruturar o treino, exercícios, divisão, volume e faixas de repetição'}):\n---\n${treinoReferencia}\n---\n${marombiewEnabled ? 'Considere este treino apenas como uma referência de estilo ou preferência do professor, mas priorize as regras estruturadas e condições de saúde.' : 'Siga essa estrutura o mais fielmente possível, adaptando apenas para as condições de saúde e equipamento informados.'}` : ''}
+${marombiewEnabled ? `\n\nMODO AGENTE MAROMBIEW ATIVADO: Use uma lógica avançada e estruturada de geração. Considere TODO o contexto do aluno (histórico, anamnese, testes de performance, posturas, lesões, restrições e objetivos) para criar um planejamento de treino inteligente, seguro e periodizado.
+PRIORIDADE DE PROCESSAMENTO (ORDEM DE IMPORTÂNCIA):
+1. Regras rígidas de segurança (bloqueios absolutos)
+2. Condições de saúde, lesões e restrições
+3. Objetivos e prioridades musculares do aluno
+4. Periodização (semana do ciclo) e Equipamento disponível
+5. Histórico de treino e logbook (se disponíveis no contexto)
+6. Treino de referência (se fornecido)
+7. Observações gerais` : ''}
 
 GERE TUDO DE UMA VEZ:
 1) Resumo do protocolo e foco da semana
