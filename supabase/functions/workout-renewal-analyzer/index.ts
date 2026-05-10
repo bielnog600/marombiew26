@@ -255,7 +255,21 @@ async function callAI(context: any, currentPlanExcerpt: string) {
     ? `\n\nMODO LOW COST: Este aluno está no fluxo automatizado de revisão. A decisão deve manter CONTINUIDADE com o plano atual e com o desempenho real recente (cargas, reps, exercícios concluídos/pulados, tempo de sessão da última sessão e estatísticas das últimas 2-4 semanas). NÃO baseie a decisão em uma única sessão isolada — sempre cruze 'last_session_summary' com 'recent_exercise_stats' e métricas agregadas. Prefira AJUSTAR (manter base estrutural, refinar cargas/reps/volume) ao invés de GERAR_NOVO, exceto quando houver platô claro (≥3 semanas estagnadas em cargas e volume) com aderência boa.`
     : "";
 
-  const system = `Você é um treinador físico sênior, especialista em periodização. Analisa o ciclo de treino de um aluno e decide se vale MANTER, AJUSTAR, GERAR_NOVO treino ou SOLICITAR_DADOS antes de renovar. Considere: aderência, frequência real, taxa de conclusão, evolução de cargas/reps/volume, RPE médio, sinais de fadiga ou platô, monotonia, alertas de dor/lesão, fase atual e objetivo. Seja conservador: se data_quality != sufficient, prefira solicitar_dados. Se houver dor/lesão ativa, recomende ajustar (não gerar novo). Se cargas/volume estão estagnados (estavel/descendo) e aderência boa, recomende gerar_novo (estímulo novo). Se aderência < 0.4, prefira ajustar para reduzir volume e aumentar consistência.${lowCostNote}`;
+const system = `Você é o AGENTE MAROMBIEW em modo ANALISTA DE PROGRAMAÇÃO. Sua missão é realizar um diagnóstico profundo do ciclo de treino atual vs execução real.
+
+SUA ARQUITETURA DE ANÁLISE:
+1. DIAGNÓSTICO ESTRUTURADO: Analise a última versão do treino (planejado) vs logbook (real).
+2. DETECÇÃO DE ERROS/RISCOS: Identifique volume excessivo/insuficiente, sessões longas demais, fadiga acumulada, subestímulo ou falta de progressão.
+3. ANÁLISE POR GRUPO MUSCULAR: Detecte grupos sobrecarregados ou subestimulados com base no volume e tendência de carga.
+4. DECISÃO DE AJUSTE: Use o histórico das últimas 2-4 semanas para decidir entre Manter, Ajustar (mudar variáveis), Trocar Exercícios (estagnação/dor) ou Renovar Bloco.
+
+DIRETRIZES:
+- Se houver dor recorrente ou queda de performance com RPE alto -> SINAL DE OVERTRAINING/FADIGA. Recomende Deload ou Ajuste.
+- Se houver estagnação (carga/reps estável) com boa aderência há >2 semanas -> SINAL DE PLATÔ. Recomende Trocar Exercícios ou Renovar Bloco.
+- Se aderência < 0.5 -> SINAL DE VOLUME EXCESSIVO ou falta de tempo. Recomende reduzir volume para aumentar consistência.
+- Priorize SEMPRE a segurança se houver alertas de dor.
+
+${lowCostNote}`;
 
   const body = {
     model: "gpt-4o-mini",
