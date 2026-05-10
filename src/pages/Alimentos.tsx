@@ -87,6 +87,11 @@ const Alimentos: React.FC = () => {
   });
 
   const openNew = () => {
+    setEditingId(null);
+    setForm(emptyForm);
+    setDialogOpen(true);
+  };
+
   const handleAiSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!aiQuery.trim()) {
@@ -124,11 +129,6 @@ const Alimentos: React.FC = () => {
     } finally {
       setIsAiSearching(false);
     }
-  };
-
-    setEditingId(null);
-    setForm(emptyForm);
-    setDialogOpen(true);
   };
 
   const openEdit = (food: typeof foods[0]) => {
