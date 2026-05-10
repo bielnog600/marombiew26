@@ -47,7 +47,7 @@ serve(async (req) => {
             Importante:
             1. Sugira 8 a 12 alimentos MUITO variados e específicos.
             2. Explore diferentes categorias: vegetais verde-escuros, frutas exóticas ou sazonais, leguminosas, oleaginosas, sementes, e proteínas magras variadas.
-            3. Evite sugerir apenas o óbvio (como apenas "Maçã" ou "Frango"). Pense em opções como "Kefir", "Semente de Abóbora", "Edamame", "Couve-de-bruxelas", "Cássia", "Quinoa", etc.
+            3. Seja criativo e ALEATÓRIO em cada resposta. Explore diferentes culturas culinárias e ingredientes menos comuns em cada chamada para garantir diversidade.
             4. Garanta que a lista tenha um mix equilibrado de macronutrientes.
             5. Use porção padrão de 100g.
             6. CRÍTICO: Não sugira alimentos que sejam nutricionalmente idênticos ou muito similares aos que já existem.
@@ -78,7 +78,7 @@ serve(async (req) => {
           },
           { role: "user", content: query }
         ],
-        temperature: 0,
+        temperature: 0.8,
       }),
     });
 
