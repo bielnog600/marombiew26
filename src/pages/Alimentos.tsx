@@ -104,11 +104,11 @@ const Alimentos: React.FC = () => {
 
       if (error) throw error;
 
-      if (Array.isArray(data)) {
+      if (data && Array.isArray(data)) {
         setSuggestions(data);
-        if (data.length === 0) {
-          toast.info('Não foram encontradas novas sugestões no momento.');
-        }
+        toast.success(`${data.length} sugestões encontradas!`);
+      } else {
+        toast.info('Não foram encontradas novas sugestões no momento.');
       }
     } catch (error) {
       console.error('Erro ao buscar sugestões:', error);
@@ -226,7 +226,10 @@ const Alimentos: React.FC = () => {
             </Button>
           </div>
       {/* AI Search Dialog */}
-      <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
+      <Dialog open={aiDialogOpen} onOpenChange={(open) => {
+        setAiDialogOpen(open);
+        if (!open) setSuggestions([]);
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
