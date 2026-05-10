@@ -923,6 +923,34 @@ GERE TUDO DE UMA VEZ:
               rows={8}
               className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none resize-y min-h-[100px]"
             />
+
+            <div className="mt-6 border-t border-border pt-6">
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
+                <div className="flex items-center justify-between gap-4 mb-2">
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-bold flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      Agente Marombiew
+                    </h4>
+                    <p className="text-xs text-muted-foreground">
+                      Ativar lógica avançada de geração (Agente de treino)
+                    </p>
+                  </div>
+                  <Switch 
+                    checked={marombiewEnabled} 
+                    onCheckedChange={setMarombiewEnabled}
+                  />
+                </div>
+                
+                {marombiewEnabled && (
+                  <div className="bg-background/50 rounded-lg p-3 mt-3 animate-in fade-in slide-in-from-top-1 duration-300">
+                    <p className="text-xs text-primary leading-relaxed">
+                      “O Agente Marombiew irá usar todas as informações preenchidas nas etapas anteriores para gerar um treino mais estruturado, seguro e progressivo.”
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
           </CardContent>
         </Card>
               )}
