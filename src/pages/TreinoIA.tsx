@@ -705,15 +705,42 @@ GERE TUDO DE UMA VEZ:
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-2">Equipamento disponível</p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {EQUIPMENT.map(e => (
-                  <button key={e.value} onClick={() => setEquipment(e.value)}
-                    className={`rounded-xl border-2 p-3 text-left transition-all ${equipment === e.value ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
-                    <span className="font-semibold text-sm block">{e.label}</span>
-                    <span className="text-xs text-muted-foreground">{e.desc}</span>
-                  </button>
-                ))}
-              </div>
+               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                 {EQUIPMENT.map(e => (
+                   <button key={e.value} 
+                     onClick={() => {
+                       setEquipment(e.value);
+                       if (e.value === 'limitado' || e.value === 'casa') {
+                         setShowEquipmentModal(true);
+                       } else {
+                         setSelectedMachines([]);
+                       }
+                     }}
+                     className={`rounded-xl border-2 p-3 text-left transition-all ${equipment === e.value ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
+                     <div className="flex justify-between items-start">
+                       <div>
+                         <span className="font-semibold text-sm block">{e.label}</span>
+                         <span className="text-xs text-muted-foreground">{e.desc}</span>
+                       </div>
+                       {(e.value === 'limitado' || e.value === 'casa') && selectedMachines.length > 0 && equipment === e.value && (
+                         <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full">
+                           {selectedMachines.length}
+                         </span>
+                       )}
+                     </div>
+                   </button>
+                 ))}
+               </div>
+               {(equipment === 'limitado' || equipment === 'casa') && (
+                 <Button 
+                   variant="outline" 
+                   size="sm" 
+                   className="mt-2 w-full text-xs"
+                   onClick={() => setShowEquipmentModal(true)}
+                 >
+                   {selectedMachines.length > 0 ? 'Editar equipamentos selecionados' : 'Selecionar equipamentos disponíveis'}
+                 </Button>
+               )}
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-2">Observações adicionais (opcional)</p>
