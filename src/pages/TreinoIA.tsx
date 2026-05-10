@@ -5,8 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Loader2, Save, Dumbbell, RotateCcw, AlertTriangle, ChevronDown, ChevronUp, Settings2, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
+ import { Switch } from '@/components/ui/switch';
+ import { Label } from '@/components/ui/label';
+ import {
+   Dialog,
+   DialogContent,
+   DialogHeader,
+   DialogTitle,
+   DialogFooter,
+ } from "@/components/ui/dialog";
+ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 import TrainingResultCards from '@/components/TrainingResultCards';
@@ -46,8 +54,37 @@ const WEEKS = [
 const EQUIPMENT = [
   { value: 'completa', label: 'Academia Completa', desc: 'Todos os equipamentos' },
   { value: 'limitado', label: 'Equipamento Limitado', desc: 'Halteres, barras e poucos aparelhos' },
-  { value: 'casa', label: 'Home Gym', desc: 'Treino em casa com básico' },
-];
+   { value: 'casa', label: 'Home Gym', desc: 'Treino em casa com básico' },
+ ];
+ 
+ const AVAILABLE_MACHINES = [
+   { id: 'halteres', label: 'Halteres', category: 'Pesos Livres' },
+   { id: 'barras_anilhas', label: 'Barras e Anilhas', category: 'Pesos Livres' },
+   { id: 'banco_regulavel', label: 'Banco Regulável', category: 'Pesos Livres' },
+   { id: 'kettlebells', label: 'Kettlebells', category: 'Pesos Livres' },
+   { id: 'polia_crossover', label: 'Polia / Cross Over', category: 'Máquinas Superiores' },
+   { id: 'puxador_alto', label: 'Puxador (Lat Pulldown)', category: 'Máquinas Superiores' },
+   { id: 'remada_baixa', label: 'Remada Baixa', category: 'Máquinas Superiores' },
+   { id: 'supino_maquina', label: 'Supino Máquina', category: 'Máquinas Superiores' },
+   { id: 'peck_deck', label: 'Peck Deck / Voador', category: 'Máquinas Superiores' },
+   { id: 'gravitron', label: 'Gravitron', category: 'Máquinas Superiores' },
+   { id: 'leg_press', label: 'Leg Press', category: 'Máquinas Inferiores' },
+   { id: 'extensora', label: 'Cadeira Extensora', category: 'Máquinas Inferiores' },
+   { id: 'flexora', label: 'Mesa Flexora', category: 'Máquinas Inferiores' },
+   { id: 'abdutora_adutora', label: 'Cadeira Abdutora/Adutora', category: 'Máquinas Inferiores' },
+   { id: 'hack_squat', label: 'Hack Squat', category: 'Máquinas Inferiores' },
+   { id: 'smith', label: 'Smith Machine', category: 'Máquinas Inferiores' },
+   { id: 'barra_fixa', label: 'Barra Fixa', category: 'Calistenia/Outros' },
+   { id: 'paralelas', label: 'Paralelas', category: 'Calistenia/Outros' },
+   { id: 'elasticos', label: 'Elásticos / Mini-bands', category: 'Calistenia/Outros' },
+   { id: 'trx', label: 'TRX / Suspensão', category: 'Calistenia/Outros' },
+   { id: 'esteira', label: 'Esteira', category: 'Cardio' },
+   { id: 'bike', label: 'Bicicleta Ergométrica', category: 'Cardio' },
+   { id: 'eliptico', label: 'Elíptico', category: 'Cardio' },
+   { id: 'escada', label: 'Escada', category: 'Cardio' },
+ ];
+ 
+ const MACHINE_CATEGORIES = Array.from(new Set(AVAILABLE_MACHINES.map(m => m.category)));
 
 const FORBIDDEN_PATTERNS = [
   { id: 'sobrecarga_axial', label: 'Sobrecarga axial', desc: 'Agachamento livre, smith, afundo c/ barra' },
