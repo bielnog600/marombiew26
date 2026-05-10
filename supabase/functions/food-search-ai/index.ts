@@ -45,10 +45,13 @@ serve(async (req) => {
               }
             ]
             Importante:
-            1. Sugira 5 a 8 alimentos variados (proteínas, carboidratos complexos, gorduras boas).
-            2. Use porção padrão de 100g.
-            3. Não inclua nenhum alimento que já esteja na lista: ${existingFoods?.join(', ') || 'nenhum'}.
-            4. Responda apenas o JSON, sem texto adicional.`
+            1. Sugira 8 a 12 alimentos MUITO variados e específicos.
+            2. Explore diferentes categorias: vegetais verde-escuros, frutas exóticas ou sazonais, leguminosas, oleaginosas, sementes, e proteínas magras variadas.
+            3. Evite sugerir apenas o óbvio (como apenas "Maçã" ou "Frango"). Pense em opções como "Kefir", "Semente de Abóbora", "Edamame", "Couve-de-bruxelas", "Cássia", "Quinoa", etc.
+            4. Garanta que a lista tenha um mix equilibrado de macronutrientes.
+            5. Use porção padrão de 100g.
+            6. CRÍTICO: Não inclua nenhum alimento que já esteja nesta lista: ${existingFoods?.join(', ') || 'nenhum'}.
+            7. Responda apenas o JSON, sem texto adicional.`
           },
           { role: "user", content: "Sugira alimentos saudáveis ausentes na lista." }
         ] : [
