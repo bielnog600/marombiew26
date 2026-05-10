@@ -1091,9 +1091,53 @@ GERE TUDO DE UMA VEZ:
             </div>
             <TrainingResultCards markdown={result} editable={!!editPlanId} onMarkdownChange={setResult} />
           </div>
-        )}
-      </div>
-    </AppLayout>
+         )}
+ 
+         <Dialog open={showEquipmentModal} onOpenChange={setShowEquipmentModal}>
+           <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+             <DialogHeader>
+               <DialogTitle>Equipamentos Disponíveis</DialogTitle>
+               <p className="text-xs text-muted-foreground">Selecione apenas os equipamentos que o aluno possui acesso. A IA usará apenas estes na montagem do treino.</p>
+             </DialogHeader>
+             <div className="space-y-6 my-4">
+               {MACHINE_CATEGORIES.map(category => (
+                 <div key={category} className="space-y-3">
+                   <h4 className="text-sm font-bold border-b pb-1 text-primary">{category}</h4>
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                     {AVAILABLE_MACHINES.filter(m => m.category === category).map(machine => (
+                       <div key={machine.id} className="flex items-center space-x-2">
+                         <Checkbox 
+                           id={machine.id} 
+                           checked={selectedMachines.includes(machine.id)}
+                           onCheckedChange={(checked) => {
+                             if (checked) {
+                               setSelectedMachines(prev => [...prev, machine.id]);
+                             } else {
+                               setSelectedMachines(prev => prev.filter(id => id !== machine.id));
+                             }
+                           }}
+                         />
+                         <Label 
+                           htmlFor={machine.id} 
+                           className="text-sm font-normal cursor-pointer flex-1 py-1"
+                         >
+                           {machine.label}
+                         </Label>
+                       </div>
+                     ))}
+                   </div>
+                 </div>
+               ))}
+             </div>
+             <DialogFooter>
+               <Button onClick={() => setShowEquipmentModal(false)} className="w-full">
+                 Confirmar Seleção ({selectedMachines.length})
+               </Button>
+             </DialogFooter>
+           </DialogContent>
+         </Dialog>
+       </div>
+     </AppLayout>
   );
 };
 
