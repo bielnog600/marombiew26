@@ -122,9 +122,11 @@ const TreinoIA = () => {
   const [level, setLevel] = useState('');
   const [daysPerWeek, setDaysPerWeek] = useState('');
   const [split, setSplit] = useState('');
-  const [week, setWeek] = useState('');
-  const [equipment, setEquipment] = useState('');
-  const [notes, setNotes] = useState('');
+   const [week, setWeek] = useState('');
+   const [equipment, setEquipment] = useState('');
+   const [selectedMachines, setSelectedMachines] = useState<string[]>([]);
+   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
+   const [notes, setNotes] = useState('');
   const [treinoReferencia, setTreinoReferencia] = useState('');
   // Custom split: muscle groups per day (optional)
   const [customSplit, setCustomSplit] = useState<Record<number, string[]>>({});
