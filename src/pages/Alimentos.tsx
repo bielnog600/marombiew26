@@ -97,7 +97,10 @@ const Alimentos: React.FC = () => {
   const handleSuggest = async () => {
     setIsSuggesting(true);
     try {
-      const existingNames = foods.map(f => f.name);
+      // Get the most up-to-date list of names from the query client
+      const currentFoods = queryClient.getQueryData<any[]>(['foods']) || foods;
+      const existingNames = currentFoods.map(f => f.name);
+      
       const { data, error } = await supabase.functions.invoke('food-search-ai', {
         body: { mode: 'suggest', existingFoods: existingNames },
       });
