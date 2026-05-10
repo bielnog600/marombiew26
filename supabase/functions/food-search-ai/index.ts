@@ -50,9 +50,9 @@ serve(async (req) => {
             3. Seja criativo e ALEATÓRIO em cada resposta. Explore diferentes culturas culinárias e ingredientes menos comuns em cada chamada para garantir diversidade.
             4. Garanta que a lista tenha um mix equilibrado de macronutrientes.
             5. Use porção padrão de 100g.
-            6. CRÍTICO: Não sugira alimentos que sejam nutricionalmente idênticos ou muito similares aos que já existem.
-            Analise esta lista de alimentos já cadastrados: ${existingFoods?.join(', ') || 'nenhum'}.
-            Se a lista contiver "Batata doce roxa", não sugira "Batata doce roxa cozida" ou variações com macros quase iguais. Busque alimentos com perfis nutricionais diferentes ou nomes claramente distintos.
+            6. CRÍTICO: Não sugira alimentos que já existam na lista ou que sejam variações diretas (ex: se "Nabo cozido" existe, NÃO sugira "Nabo").
+            7. Analise SEMANTICAMENTE a lista de alimentos cadastrados: ${existingFoods?.join(', ') || 'nenhum'}.
+            8. Se o radical do nome for o mesmo (ex: Nabo, Batata, Frango) e o perfil nutricional for similar, considere como duplicata e não sugira.
             7. Responda apenas o JSON, sem texto adicional.`
           },
           { role: "user", content: "Sugira alimentos saudáveis ausentes na lista." }
