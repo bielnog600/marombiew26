@@ -45,15 +45,13 @@ serve(async (req) => {
               }
             ]
             Importante:
-            1. Sugira 8 a 12 alimentos MUITO variados e específicos.
-            2. Explore diferentes categorias: vegetais verde-escuros, frutas exóticas ou sazonais, leguminosas, oleaginosas, sementes, e proteínas magras variadas.
-            3. Seja criativo e ALEATÓRIO em cada resposta. Explore diferentes culturas culinárias e ingredientes menos comuns em cada chamada para garantir diversidade.
-            4. Garanta que a lista tenha um mix equilibrado de macronutrientes.
-            5. Use porção padrão de 100g.
-            6. CRÍTICO: Não sugira alimentos que já existam na lista ou que sejam variações diretas (ex: se "Nabo cozido" existe, NÃO sugira "Nabo").
-            7. Analise SEMANTICAMENTE a lista de alimentos cadastrados: ${existingFoods?.join(', ') || 'nenhum'}.
-            8. Se o radical do nome for o mesmo (ex: Nabo, Batata, Frango) e o perfil nutricional for similar, considere como duplicata e não sugira.
-            7. Responda apenas o JSON, sem texto adicional.`
+            1. Sugira 10 a 15 alimentos extremamente variados.
+            2. VARIEDADE RADICAL: Cada resposta deve ser totalmente imprevisível. Alterne entre frutas exóticas, tipos de peixes, cortes de carne magra, sementes, raízes e grãos integrais.
+            3. EVITE O ÓBVIO: Não sugira alimentos comuns que já costumam estar em qualquer banco de dados (como frango, ovo, maçã, banana).
+            4. BLOQUEIO SEMÂNTICO: Verifique rigorosamente os alimentos já cadastrados: ${existingFoods?.join(', ') || 'nenhum'}. Se o usuário já tem qualquer variação de um alimento (ex: se tem "Nabo cozido"), NÃO sugira nada que contenha a palavra "Nabo".
+            5. CATEGORIAS: Tente incluir pelo menos um item de cada: Fruta, Vegetal, Proteína Animal, Proteína Vegetal, Gordura Boa, Grão/Cereal.
+            6. Porção: 100g.
+            7. Responda APENAS o JSON.`
           },
           { role: "user", content: "Sugira alimentos saudáveis ausentes na lista." }
         ] : [
@@ -78,7 +76,7 @@ serve(async (req) => {
           },
           { role: "user", content: query }
         ],
-        temperature: 0.8,
+        temperature: 1.0,
       }),
     });
 
