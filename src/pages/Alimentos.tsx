@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Pencil, Trash2, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface FoodForm {
@@ -38,6 +38,9 @@ const Alimentos: React.FC = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [aiQuery, setAiQuery] = useState('');
+  const [isAiSearching, setIsAiSearching] = useState(false);
   const [form, setForm] = useState<FoodForm>(emptyForm);
 
   const { data: foods = [], isLoading } = useQuery({
@@ -84,6 +87,45 @@ const Alimentos: React.FC = () => {
   });
 
   const openNew = () => {
+  const handleAiSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aiQuery.trim()) {
+      toast.error('Digite o nome do alimento');
+      return;
+    }
+
+    setIsAiSearching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('food-search-ai', {
+        body: { query: aiQuery },
+      });
+
+      if (error) throw error;
+
+      if (data) {
+        setForm({
+          name: data.name,
+          portion: data.portion || 'gramas',
+          portion_size: data.portion_size || 100,
+          calories: data.calories || 0,
+          protein: data.protein || 0,
+          carbs: data.carbs || 0,
+          fats: data.fats || 0,
+        });
+        setAiDialogOpen(false);
+        setAiQuery('');
+        setEditingId(null);
+        setDialogOpen(true);
+        toast.success('Dados nutricionais encontrados!');
+      }
+    } catch (error) {
+      console.error('Erro na busca IA:', error);
+      toast.error('Não foi possível encontrar os dados nutricionais');
+    } finally {
+      setIsAiSearching(false);
+    }
+  };
+
     setEditingId(null);
     setForm(emptyForm);
     setDialogOpen(true);
@@ -139,10 +181,49 @@ const Alimentos: React.FC = () => {
               className="pl-9"
             />
           </div>
-          <Button onClick={openNew} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Adicionar
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => setAiDialogOpen(true)} variant="outline" className="gap-2 border-primary/20 hover:border-primary/50 text-primary">
+              <Sparkles className="h-4 w-4" />
+              Busca IA
+            </Button>
+            <Button onClick={openNew} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Adicionar
+            </Button>
+          </div>
+      {/* AI Search Dialog */}
+      <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Busca Nutricional com IA
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleAiSearch} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="aiQuery">O que você quer buscar?</Label>
+              <Input 
+                id="aiQuery" 
+                value={aiQuery} 
+                onChange={(e) => setAiQuery(e.target.value)} 
+                placeholder="Ex: Frango grelhado ou 1 banana prata" 
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">
+                A IA buscará informações em bases como FatSecret e MyFitnessPal.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setAiDialogOpen(false)}>Cancelar</Button>
+              <Button type="submit" disabled={isAiSearching}>
+                {isAiSearching ? 'Buscando...' : 'Buscar Alimento'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
         </div>
 
         <Card>
