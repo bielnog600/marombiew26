@@ -50,7 +50,9 @@ serve(async (req) => {
             3. Evite sugerir apenas o óbvio (como apenas "Maçã" ou "Frango"). Pense em opções como "Kefir", "Semente de Abóbora", "Edamame", "Couve-de-bruxelas", "Cássia", "Quinoa", etc.
             4. Garanta que a lista tenha um mix equilibrado de macronutrientes.
             5. Use porção padrão de 100g.
-            6. CRÍTICO: Não inclua nenhum alimento que já esteja nesta lista: ${existingFoods?.join(', ') || 'nenhum'}.
+            6. CRÍTICO: Não sugira alimentos que sejam nutricionalmente idênticos ou muito similares aos que já existem.
+            Analise esta lista de alimentos já cadastrados: ${existingFoods?.join(', ') || 'nenhum'}.
+            Se a lista contiver "Batata doce roxa", não sugira "Batata doce roxa cozida" ou variações com macros quase iguais. Busque alimentos com perfis nutricionais diferentes ou nomes claramente distintos.
             7. Responda apenas o JSON, sem texto adicional.`
           },
           { role: "user", content: "Sugira alimentos saudáveis ausentes na lista." }
