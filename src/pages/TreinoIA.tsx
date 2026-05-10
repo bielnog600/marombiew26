@@ -5,8 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Loader2, Save, Dumbbell, RotateCcw, AlertTriangle, ChevronDown, ChevronUp, Settings2, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
+ import { Switch } from '@/components/ui/switch';
+ import { Label } from '@/components/ui/label';
+ import {
+   Dialog,
+   DialogContent,
+   DialogHeader,
+   DialogTitle,
+   DialogFooter,
+ } from "@/components/ui/dialog";
+ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 import TrainingResultCards from '@/components/TrainingResultCards';
@@ -46,8 +54,37 @@ const WEEKS = [
 const EQUIPMENT = [
   { value: 'completa', label: 'Academia Completa', desc: 'Todos os equipamentos' },
   { value: 'limitado', label: 'Equipamento Limitado', desc: 'Halteres, barras e poucos aparelhos' },
-  { value: 'casa', label: 'Home Gym', desc: 'Treino em casa com básico' },
-];
+   { value: 'casa', label: 'Home Gym', desc: 'Treino em casa com básico' },
+ ];
+ 
+ const AVAILABLE_MACHINES = [
+   { id: 'halteres', label: 'Halteres', category: 'Pesos Livres' },
+   { id: 'barras_anilhas', label: 'Barras e Anilhas', category: 'Pesos Livres' },
+   { id: 'banco_regulavel', label: 'Banco Regulável', category: 'Pesos Livres' },
+   { id: 'kettlebells', label: 'Kettlebells', category: 'Pesos Livres' },
+   { id: 'polia_crossover', label: 'Polia / Cross Over', category: 'Máquinas Superiores' },
+   { id: 'puxador_alto', label: 'Puxador (Lat Pulldown)', category: 'Máquinas Superiores' },
+   { id: 'remada_baixa', label: 'Remada Baixa', category: 'Máquinas Superiores' },
+   { id: 'supino_maquina', label: 'Supino Máquina', category: 'Máquinas Superiores' },
+   { id: 'peck_deck', label: 'Peck Deck / Voador', category: 'Máquinas Superiores' },
+   { id: 'gravitron', label: 'Gravitron', category: 'Máquinas Superiores' },
+   { id: 'leg_press', label: 'Leg Press', category: 'Máquinas Inferiores' },
+   { id: 'extensora', label: 'Cadeira Extensora', category: 'Máquinas Inferiores' },
+   { id: 'flexora', label: 'Mesa Flexora', category: 'Máquinas Inferiores' },
+   { id: 'abdutora_adutora', label: 'Cadeira Abdutora/Adutora', category: 'Máquinas Inferiores' },
+   { id: 'hack_squat', label: 'Hack Squat', category: 'Máquinas Inferiores' },
+   { id: 'smith', label: 'Smith Machine', category: 'Máquinas Inferiores' },
+   { id: 'barra_fixa', label: 'Barra Fixa', category: 'Calistenia/Outros' },
+   { id: 'paralelas', label: 'Paralelas', category: 'Calistenia/Outros' },
+   { id: 'elasticos', label: 'Elásticos / Mini-bands', category: 'Calistenia/Outros' },
+   { id: 'trx', label: 'TRX / Suspensão', category: 'Calistenia/Outros' },
+   { id: 'esteira', label: 'Esteira', category: 'Cardio' },
+   { id: 'bike', label: 'Bicicleta Ergométrica', category: 'Cardio' },
+   { id: 'eliptico', label: 'Elíptico', category: 'Cardio' },
+   { id: 'escada', label: 'Escada', category: 'Cardio' },
+ ];
+ 
+ const MACHINE_CATEGORIES = Array.from(new Set(AVAILABLE_MACHINES.map(m => m.category)));
 
 const FORBIDDEN_PATTERNS = [
   { id: 'sobrecarga_axial', label: 'Sobrecarga axial', desc: 'Agachamento livre, smith, afundo c/ barra' },
@@ -85,9 +122,11 @@ const TreinoIA = () => {
   const [level, setLevel] = useState('');
   const [daysPerWeek, setDaysPerWeek] = useState('');
   const [split, setSplit] = useState('');
-  const [week, setWeek] = useState('');
-  const [equipment, setEquipment] = useState('');
-  const [notes, setNotes] = useState('');
+   const [week, setWeek] = useState('');
+   const [equipment, setEquipment] = useState('');
+   const [selectedMachines, setSelectedMachines] = useState<string[]>([]);
+   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
+   const [notes, setNotes] = useState('');
   const [treinoReferencia, setTreinoReferencia] = useState('');
   // Custom split: muscle groups per day (optional)
   const [customSplit, setCustomSplit] = useState<Record<number, string[]>>({});
@@ -321,7 +360,7 @@ const TreinoIA = () => {
       ? 'IA DEVE ESCOLHER a melhor divisão (Full Body, Upper/Lower, Push/Pull/Legs ou ABCDE) com base no nível, dias por semana, objetivo e condições de saúde do aluno. Justifique brevemente a escolha no Resumo do protocolo.'
       : selectedSplit?.label}
 - Semana do ciclo: ${week} de 4
-- Equipamento: ${selectedEquip?.label}
+ - Equipamento: ${selectedEquip?.label}${selectedMachines.length > 0 ? ` (RESTRIÇÃO: USE APENAS OS SEGUINTES EQUIPAMENTOS: ${selectedMachines.map(id => AVAILABLE_MACHINES.find(m => m.id === id)?.label).join(', ')})` : ''}
 ${notes ? `- Observações adicionais (complementares — NÃO substituem as regras estruturadas acima): ${notes}` : ''}${customSplitBlock}${structuredSafetyBlock}${healthBlock}
 ${treinoReferencia ? `\n\nREFERÊNCIA DE TREINO FORNECIDA PELO PROFESSOR (${marombiewEnabled ? 'USE APENAS COMO APOIO SECUNDÁRIO, NÃO SOBRESCREVA REGRAS RÍGIDAS' : 'USE COMO BASE EXATA para estruturar o treino, exercícios, divisão, volume e faixas de repetição'}):\n---\n${treinoReferencia}\n---\n${marombiewEnabled ? 'Considere este treino apenas como uma referência de estilo ou preferência do professor, mas priorize as regras estruturadas e condições de saúde.' : 'Siga essa estrutura o mais fielmente possível, adaptando apenas para as condições de saúde e equipamento informados.'}` : ''}
 ${marombiewEnabled ? `\n\nMODO AGENTE MAROMBIEW ATIVADO: Use uma lógica avançada e estruturada de geração. Considere TODO o contexto do aluno (histórico, anamnese, testes de performance, posturas, lesões, restrições e objetivos) para criar um planejamento de treino inteligente, seguro e periodizado.
@@ -666,15 +705,42 @@ GERE TUDO DE UMA VEZ:
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-2">Equipamento disponível</p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {EQUIPMENT.map(e => (
-                  <button key={e.value} onClick={() => setEquipment(e.value)}
-                    className={`rounded-xl border-2 p-3 text-left transition-all ${equipment === e.value ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
-                    <span className="font-semibold text-sm block">{e.label}</span>
-                    <span className="text-xs text-muted-foreground">{e.desc}</span>
-                  </button>
-                ))}
-              </div>
+               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                 {EQUIPMENT.map(e => (
+                   <button key={e.value} 
+                     onClick={() => {
+                       setEquipment(e.value);
+                       if (e.value === 'limitado' || e.value === 'casa') {
+                         setShowEquipmentModal(true);
+                       } else {
+                         setSelectedMachines([]);
+                       }
+                     }}
+                     className={`rounded-xl border-2 p-3 text-left transition-all ${equipment === e.value ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
+                     <div className="flex justify-between items-start">
+                       <div>
+                         <span className="font-semibold text-sm block">{e.label}</span>
+                         <span className="text-xs text-muted-foreground">{e.desc}</span>
+                       </div>
+                       {(e.value === 'limitado' || e.value === 'casa') && selectedMachines.length > 0 && equipment === e.value && (
+                         <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full">
+                           {selectedMachines.length}
+                         </span>
+                       )}
+                     </div>
+                   </button>
+                 ))}
+               </div>
+               {(equipment === 'limitado' || equipment === 'casa') && (
+                 <Button 
+                   variant="outline" 
+                   size="sm" 
+                   className="mt-2 w-full text-xs"
+                   onClick={() => setShowEquipmentModal(true)}
+                 >
+                   {selectedMachines.length > 0 ? 'Editar equipamentos selecionados' : 'Selecionar equipamentos disponíveis'}
+                 </Button>
+               )}
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-2">Observações adicionais (opcional)</p>
@@ -1025,9 +1091,53 @@ GERE TUDO DE UMA VEZ:
             </div>
             <TrainingResultCards markdown={result} editable={!!editPlanId} onMarkdownChange={setResult} />
           </div>
-        )}
-      </div>
-    </AppLayout>
+         )}
+ 
+         <Dialog open={showEquipmentModal} onOpenChange={setShowEquipmentModal}>
+           <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+             <DialogHeader>
+               <DialogTitle>Equipamentos Disponíveis</DialogTitle>
+               <p className="text-xs text-muted-foreground">Selecione apenas os equipamentos que o aluno possui acesso. A IA usará apenas estes na montagem do treino.</p>
+             </DialogHeader>
+             <div className="space-y-6 my-4">
+               {MACHINE_CATEGORIES.map(category => (
+                 <div key={category} className="space-y-3">
+                   <h4 className="text-sm font-bold border-b pb-1 text-primary">{category}</h4>
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                     {AVAILABLE_MACHINES.filter(m => m.category === category).map(machine => (
+                       <div key={machine.id} className="flex items-center space-x-2">
+                         <Checkbox 
+                           id={machine.id} 
+                           checked={selectedMachines.includes(machine.id)}
+                           onCheckedChange={(checked) => {
+                             if (checked) {
+                               setSelectedMachines(prev => [...prev, machine.id]);
+                             } else {
+                               setSelectedMachines(prev => prev.filter(id => id !== machine.id));
+                             }
+                           }}
+                         />
+                         <Label 
+                           htmlFor={machine.id} 
+                           className="text-sm font-normal cursor-pointer flex-1 py-1"
+                         >
+                           {machine.label}
+                         </Label>
+                       </div>
+                     ))}
+                   </div>
+                 </div>
+               ))}
+             </div>
+             <DialogFooter>
+               <Button onClick={() => setShowEquipmentModal(false)} className="w-full">
+                 Confirmar Seleção ({selectedMachines.length})
+               </Button>
+             </DialogFooter>
+           </DialogContent>
+         </Dialog>
+       </div>
+     </AppLayout>
   );
 };
 
