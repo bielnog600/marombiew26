@@ -41,6 +41,8 @@ const Alimentos: React.FC = () => {
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const [aiQuery, setAiQuery] = useState('');
   const [isAiSearching, setIsAiSearching] = useState(false);
+  const [suggestions, setSuggestions] = useState<FoodForm[]>([]);
+  const [isSuggesting, setIsSuggesting] = useState(false);
   const [form, setForm] = useState<FoodForm>(emptyForm);
 
   const { data: foods = [], isLoading } = useQuery({
@@ -89,6 +91,38 @@ const Alimentos: React.FC = () => {
   const openNew = () => {
     setEditingId(null);
     setForm(emptyForm);
+    setDialogOpen(true);
+  };
+
+  const handleSuggest = async () => {
+    setIsSuggesting(true);
+    try {
+      const existingNames = foods.map(f => f.name);
+      const { data, error } = await supabase.functions.invoke('food-search-ai', {
+        body: { mode: 'suggest', existingFoods: existingNames },
+      });
+
+      if (error) throw error;
+
+      if (data && Array.isArray(data)) {
+        setSuggestions(data);
+        toast.success(`${data.length} sugestões encontradas!`);
+      } else {
+        toast.info('Não foram encontradas novas sugestões no momento.');
+      }
+    } catch (error) {
+      console.error('Erro ao buscar sugestões:', error);
+      toast.error('Erro ao buscar sugestões de alimentos');
+    } finally {
+      setIsSuggesting(false);
+    }
+  };
+
+  const addSuggestedFood = (food: FoodForm) => {
+    setForm(food);
+    setAiDialogOpen(false);
+    setSuggestions([]);
+    setEditingId(null);
     setDialogOpen(true);
   };
 
@@ -192,7 +226,10 @@ const Alimentos: React.FC = () => {
             </Button>
           </div>
       {/* AI Search Dialog */}
-      <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
+      <Dialog open={aiDialogOpen} onOpenChange={(open) => {
+        setAiDialogOpen(open);
+        if (!open) setSuggestions([]);
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -214,13 +251,64 @@ const Alimentos: React.FC = () => {
                 A IA buscará informações em bases como FatSecret e MyFitnessPal.
               </p>
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setAiDialogOpen(false)}>Cancelar</Button>
-              <Button type="submit" disabled={isAiSearching}>
-                {isAiSearching ? 'Buscando...' : 'Buscar Alimento'}
+            <div className="flex flex-col gap-3">
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => {
+                  setAiDialogOpen(false);
+                  setSuggestions([]);
+                }}>Cancelar</Button>
+                <Button type="submit" disabled={isAiSearching || isSuggesting}>
+                  {isAiSearching ? 'Buscando...' : 'Buscar Alimento'}
+                </Button>
+              </DialogFooter>
+
+              <div className="relative py-2">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">Ou</span>
+                </div>
+              </div>
+
+              <Button 
+                type="button" 
+                variant="secondary" 
+                className="w-full gap-2" 
+                onClick={handleSuggest}
+                disabled={isSuggesting || isAiSearching}
+              >
+                <Sparkles className="h-4 w-4" />
+                {isSuggesting ? 'Gerando sugestões...' : 'Sugerir Alimentos Saudáveis'}
               </Button>
-            </DialogFooter>
+            </div>
           </form>
+
+          {suggestions.length > 0 && (
+            <div className="mt-4 space-y-3 max-h-[300px] overflow-y-auto pr-1">
+              <Label className="text-sm font-semibold">Sugestões da IA:</Label>
+              <div className="grid gap-2">
+                {suggestions.map((s, i) => (
+                  <div key={i} className="flex items-center justify-between p-2 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">{s.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {s.calories}kcal | P: {s.protein}g | C: {s.carbs}g | G: {s.fats}g
+                      </span>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      className="h-8 w-8 p-0" 
+                      onClick={() => addSuggestedFood(s)}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { query } = await req.json();
+    const { query, mode, existingFoods } = await req.json();
     const apiKey = Deno.env.get("OPENAI_API_KEY");
 
     if (!apiKey) {
@@ -28,7 +28,30 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
-        messages: [
+        messages: mode === 'suggest' ? [
+          {
+            role: "system",
+            content: `Você é um especialista em nutrição. Sua tarefa é sugerir alimentos saudáveis, ideais para dietas equilibradas, que NÃO estejam na lista fornecida pelo usuário.
+            Retorne APENAS um array de objetos JSON no seguinte formato:
+            [
+              {
+                "name": "Nome do Alimento",
+                "portion": "gramas",
+                "portion_size": 100,
+                "calories": 0,
+                "protein": 0,
+                "carbs": 0,
+                "fats": 0
+              }
+            ]
+            Importante:
+            1. Sugira 5 a 8 alimentos variados (proteínas, carboidratos complexos, gorduras boas).
+            2. Use porção padrão de 100g.
+            3. Não inclua nenhum alimento que já esteja na lista: ${existingFoods?.join(', ') || 'nenhum'}.
+            4. Responda apenas o JSON, sem texto adicional.`
+          },
+          { role: "user", content: "Sugira alimentos saudáveis ausentes na lista." }
+        ] : [
           {
             role: "system",
             content: `Você é um especialista em nutrição. O usuário fornecerá o nome de um alimento e você deve retornar os dados nutricionais baseados em fontes confiáveis como FatSecret ou MyFitnessPal.
