@@ -118,12 +118,20 @@ const Alimentos: React.FC = () => {
     }
   };
 
-  const addSuggestedFood = (food: FoodForm) => {
-    setForm(food);
-    setAiDialogOpen(false);
-    setSuggestions([]);
-    setEditingId(null);
-    setDialogOpen(true);
+  const addSuggestedFood = async (food: FoodForm) => {
+    try {
+      const { error } = await supabase.from('foods').insert(food);
+      if (error) throw error;
+      
+      queryClient.invalidateQueries({ queryKey: ['foods'] });
+      toast.success(`${food.name} adicionado com sucesso!`);
+      
+      // Remove from suggestions list so it doesn't stay there
+      setSuggestions(prev => prev.filter(s => s.name !== food.name));
+    } catch (error) {
+      console.error('Erro ao adicionar sugestão:', error);
+      toast.error('Erro ao adicionar alimento sugerido');
+    }
   };
 
   const handleAiSearch = async (e: React.FormEvent) => {
