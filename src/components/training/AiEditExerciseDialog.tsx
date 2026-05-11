@@ -107,9 +107,11 @@ const AiEditExerciseDialog: React.FC<Props> = ({
         return;
       }
 
-      onApply(actions);
-      toast.success((data as any)?.summary || `${actions.length} alteração(ões) aplicada(s).`);
-      setInstruction('');
+       onApply(actions);
+       toast.success((data as any)?.summary || `${actions.length} alteração(ões) aplicada(s).`);
+       setInstruction('');
+       setSelectedOptions([]);
+       onOpenChange(false);
       onOpenChange(false);
     } catch (e: any) {
       console.error(e);
@@ -137,20 +139,23 @@ const AiEditExerciseDialog: React.FC<Props> = ({
           {GROUPS.map(group => (
             <div key={group} className="space-y-1.5">
               <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{group}</p>
-              <div className="flex flex-wrap gap-1.5">
-                {QUICK_OPTIONS.filter(o => o.group === group).map(opt => (
-                  <Button
-                    key={opt.label}
-                    variant="outline"
-                    size="sm"
-                    disabled={loading}
-                    className="h-7 text-xs"
-                    onClick={() => runWithInstruction(opt.instruction)}
-                  >
-                    {opt.label}
-                  </Button>
-                ))}
-              </div>
+               <div className="flex flex-wrap gap-1.5">
+                 {QUICK_OPTIONS.filter(o => o.group === group).map(opt => {
+                   const isSelected = selectedOptions.includes(opt.instruction);
+                   return (
+                     <Button
+                       key={opt.label}
+                       variant={isSelected ? "default" : "outline"}
+                       size="sm"
+                       disabled={loading}
+                       className={`h-7 text-xs transition-all rounded-full ${isSelected ? 'shadow-sm' : 'hover:bg-primary/5'}`}
+                       onClick={() => toggleOption(opt.instruction)}
+                     >
+                       {opt.label}
+                     </Button>
+                   );
+                 })}
+               </div>
             </div>
           ))}
 
@@ -175,7 +180,10 @@ const AiEditExerciseDialog: React.FC<Props> = ({
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancelar
           </Button>
-          <Button onClick={() => runWithInstruction(instruction)} disabled={loading || !instruction.trim()}>
+           <Button 
+             onClick={() => runWithInstruction()} 
+             disabled={loading || (selectedOptions.length === 0 && !instruction.trim())}
+           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
             Aplicar com IA
           </Button>
