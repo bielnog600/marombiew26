@@ -27,12 +27,17 @@ interface Props {
    { label: '+ Core', instruction: 'Adicione 1-2 exercícios de core/abdômen ao final de cada dia de treino, variando entre supra, infra e estabilização.', category: 'Adicionar' },
    { label: '+ Mobilidade', instruction: 'Adicione 1-2 exercícios de mobilidade/ativação no início de cada dia, específicos para o grupo muscular daquele dia.', category: 'Adicionar' },
    { label: '+ Reconhecimento', instruction: 'Adicione 1 série de reconhecimento (12 reps carga leve) antes das séries de trabalho nos 2 principais compostos de cada dia.', category: 'Adicionar' },
-   { label: '↑ Intensidade', instruction: 'Aumente a intensidade de todos os dias: reduza RIR para 0-1 nos compostos, adicione drop-set ou rest-pause em 1 exercício de cada dia.', category: 'Intensidade' },
-   { label: '↓ Volume', instruction: 'Reduza o volume de todos os dias: remova 1 exercício acessório por dia.', category: 'Intensidade' },
+   { label: '+ Drop-set', instruction: 'Adicione drop-set na última série de 1 exercício isolador em cada dia.', category: 'Adicionar' },
+   { label: '+ Rest-pause', instruction: 'Adicione a técnica rest-pause no último exercício de cada dia.', category: 'Adicionar' },
+   { label: '↑ Intensidade', instruction: 'Aumente a intensidade de todos os dias: reduza RIR para 0-1 nos compostos, adicione drop-set ou rest-pause em 1 exercício de cada dia.', category: 'Ajustar' },
+   { label: '↓ Volume', instruction: 'Reduza o volume de todos os dias: remova 1 exercício acessório por dia.', category: 'Ajustar' },
    { label: '↓ Pausa menor', instruction: 'Reduza o tempo de pausa para 45s nos isoladores e 60s nos compostos em todos os dias.', category: 'Tempo' },
+   { label: '↑ Pausa maior', instruction: 'Aumente o tempo de pausa para 90-120s em todos os exercícios para priorizar recuperação total.', category: 'Tempo' },
    { label: 'Foco Hipertrofia', instruction: 'Ajuste as repetições para 8-12 e o descanso para 90-120s em todos os exercícios focando em hipertrofia.', category: 'Objetivo' },
    { label: 'Foco Força', instruction: 'Ajuste as repetições para 3-6 e o descanso para 3-5min nos exercícios multiarticulares.', category: 'Objetivo' },
    { label: 'Foco Definição', instruction: 'Ajuste as repetições para 15-20 e reduza o descanso para 30-45s em todos os exercícios.', category: 'Objetivo' },
+   { label: 'Iniciante', instruction: 'Simplifique o treino para nível iniciante: foco em execução, repetições entre 12-15, sem técnicas avançadas.', category: 'Perfil' },
+   { label: 'Avançado', instruction: 'Torne o treino mais desafiador para nível avançado: adicione técnicas de intensidade e reduza o RIR.', category: 'Perfil' },
  ];
 
 const AiEditAllDaysDialog: React.FC<Props> = ({
