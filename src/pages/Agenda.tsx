@@ -62,27 +62,53 @@ type ViewMode = 'week' | 'day' | 'month';
      const { active, over } = event;
      setActiveDragId(null);
  
-     if (over && active.id !== over.id) {
+     if (over) {
        const activeEvent = events.find(e => e.id === active.id);
-       const overEvent = events.find(e => e.id === over.id);
+       const overId = over.id as string;
  
-       if (activeEvent && overEvent) {
+       if (activeEvent && overId.startsWith('slot-')) {
+         const [_, hour, minute] = overId.split('-');
          try {
-           // Ao arrastar um evento sobre outro, trocamos os horários de início
-           // Mantendo a duração original de cada evento
-           const newStartTime = overEvent.start_datetime;
-           const duration = differenceInMinutes(new Date(activeEvent.end_datetime), new Date(activeEvent.start_datetime));
-           const newEndTime = addMinutes(new Date(newStartTime), duration).toISOString();
+           const newStart = new Date(currentDate);
+           newStart.setHours(parseInt(hour), parseInt(minute), 0, 0);
+           
+           const duration = differenceInMinutes(
+             new Date(activeEvent.end_datetime),
+             new Date(activeEvent.start_datetime)
+           );
+           const newEnd = addMinutes(newStart, duration);
  
            await updateCalendarEvent(activeEvent.id, {
-             start_datetime: newStartTime,
-             end_datetime: newEndTime,
+             start_datetime: newStart.toISOString(),
+             end_datetime: newEnd.toISOString(),
            });
  
            toast.success('Horário atualizado com sucesso');
            refetch();
          } catch (error) {
            toast.error('Erro ao atualizar horário');
+         }
+       } else if (overId !== active.id) {
+         const overEvent = events.find(e => e.id === overId);
+         if (overEvent) {
+           try {
+             const newStartTime = overEvent.start_datetime;
+             const duration = differenceInMinutes(
+               new Date(activeEvent.end_datetime),
+               new Date(activeEvent.start_datetime)
+             );
+             const newEndTime = addMinutes(new Date(newStartTime), duration).toISOString();
+ 
+             await updateCalendarEvent(activeEvent.id, {
+               start_datetime: newStartTime,
+               end_datetime: newEndTime,
+             });
+ 
+             toast.success('Horário atualizado com sucesso');
+             refetch();
+           } catch (error) {
+             toast.error('Erro ao atualizar horário');
+           }
          }
        }
      }
