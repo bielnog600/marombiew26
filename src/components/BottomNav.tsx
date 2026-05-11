@@ -6,7 +6,7 @@ import { useTabSwipe } from '@/contexts/TabSwipeContext';
 import {
   LayoutDashboard, Users, ClipboardList, User, Briefcase, LogOut,
   Home, Dumbbell, UtensilsCrossed, Apple, Settings2,
-  CalendarDays,
+  CalendarDays, Wallet,
 } from 'lucide-react';
 
 const adminItems = [
@@ -14,6 +14,7 @@ const adminItems = [
   { title: 'Alunos', url: '/alunos', icon: Users },
   { title: 'Consultoria', url: '/consultoria', icon: Briefcase },
   { title: 'Agenda', url: '/agenda', icon: CalendarDays },
+  { title: 'Financeiro', url: '/financeiro', icon: Wallet },
   { title: 'Alimentos', url: '/alimentos', icon: Apple },
 ];
 
