@@ -113,10 +113,11 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
         return;
       }
 
-      onApply(updatedDays);
-      toast.success(`${totalActions} alteração(ões) em ${allDays.length} dias. ${lastSummary}`);
-      setInstruction('');
-      onOpenChange(false);
+       onApply(updatedDays);
+       toast.success(`${totalActions} alteração(ões) em ${allDays.length} dias. ${lastSummary}`);
+       setInstruction('');
+       setSelectedOptions([]);
+       onOpenChange(false);
     } catch (e: any) {
       console.error(e);
       toast.error('Erro: ' + (e?.message || 'falha ao chamar IA'));
@@ -141,21 +142,23 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
         <div className="space-y-4">
           <div className="space-y-1.5">
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Opções rápidas</p>
-            <div className="flex flex-wrap gap-1.5">
-              {QUICK_OPTIONS.map(opt => (
-                <Button
-                  key={opt.label}
-                  variant="outline"
-                  size="sm"
-                  disabled={loading}
-                  className="h-7 text-xs"
-                  onClick={() => runWithInstruction(opt.instruction)}
-                >
-                  {loading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                  {opt.label}
-                </Button>
-              ))}
-            </div>
+             <div className="flex flex-wrap gap-1.5">
+               {QUICK_OPTIONS.map(opt => {
+                 const isSelected = selectedOptions.includes(opt.instruction);
+                 return (
+                   <Button
+                     key={opt.label}
+                     variant={isSelected ? "default" : "outline"}
+                     size="sm"
+                     disabled={loading}
+                     className={`h-7 text-xs transition-all ${isSelected ? 'ring-1 ring-primary ring-offset-1' : ''}`}
+                     onClick={() => toggleOption(opt.instruction)}
+                   >
+                     {opt.label}
+                   </Button>
+                 );
+               })}
+             </div>
           </div>
 
           <div className="space-y-1.5 pt-2 border-t border-border/60">
@@ -178,7 +181,10 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancelar
           </Button>
-          <Button onClick={() => runWithInstruction(instruction)} disabled={loading || !instruction.trim()}>
+           <Button 
+             onClick={() => runWithInstruction()} 
+             disabled={loading || (selectedOptions.length === 0 && !instruction.trim())}
+           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
             Aplicar em todos os dias
           </Button>
