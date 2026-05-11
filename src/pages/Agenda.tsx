@@ -14,9 +14,9 @@ import AgendaNotificationSettings from '@/components/agenda/AgendaNotificationSe
 
 type ViewMode = 'week' | 'day' | 'month';
 
-const Agenda: React.FC = () => {
-  const [viewMode, setViewMode] = useState<ViewMode>('week');
-  const [currentDate, setCurrentDate] = useState(new Date());
+ const Agenda: React.FC = () => {
+   const [viewMode, setViewMode] = useState<ViewMode>('day');
+   const [currentDate, setCurrentDate] = useState(new Date());
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [showSettings, setShowSettings] = useState(false);
