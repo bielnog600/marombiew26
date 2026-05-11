@@ -23,14 +23,17 @@ interface Props {
   onApply: (updatedDays: ParsedTrainingDay[]) => void;
 }
 
-const QUICK_OPTIONS: { label: string; instruction: string }[] = [
-  { label: '+ Core em todos os dias', instruction: 'Adicione 1-2 exercícios de core/abdômen ao final de cada dia de treino, variando entre supra, infra e estabilização.' },
-  { label: '↑ Intensidade geral', instruction: 'Aumente a intensidade de todos os dias: reduza RIR para 0-1 nos compostos, adicione drop-set ou rest-pause em 1 exercício de cada dia.' },
-  { label: '↓ Volume geral', instruction: 'Reduza o volume de todos os dias: remova 1 exercício acessório por dia.' },
-  { label: '↓ Pausa menor', instruction: 'Reduza o tempo de pausa para 45s nos isoladores e 60s nos compostos em todos os dias.' },
-  { label: '+ Mobilidade no início', instruction: 'Adicione 1-2 exercícios de mobilidade/ativação no início de cada dia, específicos para o grupo muscular daquele dia.' },
-  { label: '+ Reconhecimento', instruction: 'Adicione 1 série de reconhecimento (12 reps carga leve) antes das séries de trabalho nos 2 principais compostos de cada dia.' },
-];
+ const QUICK_OPTIONS: { label: string; instruction: string; category?: string }[] = [
+   { label: '+ Core', instruction: 'Adicione 1-2 exercícios de core/abdômen ao final de cada dia de treino, variando entre supra, infra e estabilização.', category: 'Adicionar' },
+   { label: '+ Mobilidade', instruction: 'Adicione 1-2 exercícios de mobilidade/ativação no início de cada dia, específicos para o grupo muscular daquele dia.', category: 'Adicionar' },
+   { label: '+ Reconhecimento', instruction: 'Adicione 1 série de reconhecimento (12 reps carga leve) antes das séries de trabalho nos 2 principais compostos de cada dia.', category: 'Adicionar' },
+   { label: '↑ Intensidade', instruction: 'Aumente a intensidade de todos os dias: reduza RIR para 0-1 nos compostos, adicione drop-set ou rest-pause em 1 exercício de cada dia.', category: 'Intensidade' },
+   { label: '↓ Volume', instruction: 'Reduza o volume de todos os dias: remova 1 exercício acessório por dia.', category: 'Intensidade' },
+   { label: '↓ Pausa menor', instruction: 'Reduza o tempo de pausa para 45s nos isoladores e 60s nos compostos em todos os dias.', category: 'Tempo' },
+   { label: 'Foco Hipertrofia', instruction: 'Ajuste as repetições para 8-12 e o descanso para 90-120s em todos os exercícios focando em hipertrofia.', category: 'Objetivo' },
+   { label: 'Foco Força', instruction: 'Ajuste as repetições para 3-6 e o descanso para 3-5min nos exercícios multiarticulares.', category: 'Objetivo' },
+   { label: 'Foco Definição', instruction: 'Ajuste as repetições para 15-20 e reduza o descanso para 30-45s em todos os exercícios.', category: 'Objetivo' },
+ ];
 
 const AiEditAllDaysDialog: React.FC<Props> = ({
   open, onOpenChange, allDays, studentId, onApply,
