@@ -652,13 +652,6 @@ const TreinoExecucao = () => {
     })();
   }, [currentIndex, totalSeries, exercise, user, lastLogsByExercise, loadedLogsForIndex]);
 
-  useEffect(() => {
-    if (exercise?.pause) {
-      const match = exercise.pause.match(/(\d+)/);
-      if (match) setRestDuration(parseInt(match[1], 10));
-    }
-  }, [exercise]);
-
   const updateSet = (setIndex: number, field: 'reps' | 'weight', value: string) => {
     setSets((prev) => {
       const current = [...(prev[currentIndex] || [])];
@@ -672,6 +665,13 @@ const TreinoExecucao = () => {
     });
   };
   const toggleSetComplete = (setIndex: number) => {
+    const parsePauseSeconds = (raw?: string | null): number => {
+      if (!raw) return 60;
+      const s = String(raw).trim().toLowerCase();
+      const match = s.match(/(\d+)/);
+      return match ? parseInt(match[1], 10) : 60;
+    };
+
     setSets((prev) => {
       const current = [...(prev[currentIndex] || [])];
       current[setIndex] = { ...current[setIndex], completed: !current[setIndex].completed };
@@ -688,6 +688,7 @@ const TreinoExecucao = () => {
       }
       return next;
     });
+    const secs = parsePauseSeconds(exercise?.pause);
     startRestTimer(secs, currentIndex);
   };
 
