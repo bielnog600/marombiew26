@@ -199,22 +199,14 @@ const CardioExecucao: React.FC = () => {
   useEffect(() => {
     if (paused || phase === 'idle' || phase === 'done') return;
     
-    const tick = () => {
-      const elapsed = Math.floor((Date.now() - anchorRef.current) / 1000);
-      // We use anchorRef.current and current phase's expected duration
-      // However, CardioExecucao uses secondsLeft as state that changes.
-      // To fix this without refactoring the whole component, we ensure that
-      // every time we setSecondsLeft, we also set anchorRef.current = Date.now().
-      // And here we just decrement by real elapsed time.
-      // But a better way is to store the "phaseTotalSeconds" and "phaseStartTime".
-    };
-
     const id = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        setSecondsLeft(s => (s <= 1 ? 0 : s - 1));
-        anchorRef.current = Date.now();
+      const now = Date.now();
+      const elapsed = Math.floor((now - anchorRef.current) / 1000);
+      if (elapsed >= 1) {
+        setSecondsLeft(prev => Math.max(0, prev - elapsed));
+        anchorRef.current = now;
       }
-    }, 1000);
+    }, 500); // Check more frequently but only decrement when 1s passed
     return () => clearInterval(id);
   }, [paused, phase]);
 
