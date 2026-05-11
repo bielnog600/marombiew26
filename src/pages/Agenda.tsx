@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
- import { Plus, CalendarDays, ChevronLeft, ChevronRight, Settings, RefreshCw, Users, MapPin, Clock, GripVertical } from 'lucide-react';
+ import { Plus, CalendarDays, ChevronLeft, ChevronRight, Settings, RefreshCw, Users, MapPin, Clock, GripVertical, Info } from 'lucide-react';
  import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay, addDays, addWeeks, addMonths, subWeeks, subMonths, isSameDay, isToday, eachDayOfInterval, addMinutes, differenceInMinutes } from 'date-fns';
  import { toast } from 'sonner';
  import {
@@ -26,6 +26,7 @@ import { Skeleton } from '@/components/ui/skeleton';
    sortableKeyboardCoordinates,
    verticalListSortingStrategy,
    useSortable,
+   useDroppable,
  } from '@dnd-kit/sortable';
  import { CSS } from '@dnd-kit/utilities';
  import { updateCalendarEvent } from '@/hooks/useCalendarEvents';
@@ -292,16 +293,63 @@ type ViewMode = 'week' | 'day' | 'month';
      [events, date]
    );
  
-   if (dayEvents.length === 0) return <p className="text-center text-muted-foreground py-8">Nenhum evento neste dia</p>;
-   
+   const timeSlots = useMemo(() => {
+     const slots = [];
+     for (let hour = 5; hour <= 23; hour++) {
+       slots.push({ hour, minute: 0 });
+       slots.push({ hour, minute: 30 });
+     }
+     return slots;
+   }, []);
+ 
    return (
-     <SortableContext items={dayEvents.map(e => e.id)} strategy={verticalListSortingStrategy}>
-       <div className="space-y-2">
-         {dayEvents.map(ev => (
-           <SortableEventCard key={ev.id} event={ev} onEventClick={onEventClick} />
-         ))}
+     <div className="space-y-0 relative border border-border/50 rounded-xl overflow-hidden bg-card/30">
+       <div className="p-2 bg-secondary/30 flex items-center gap-2 text-[10px] text-muted-foreground border-b border-border/50">
+         <Info className="h-3 w-3" /> Arraste as aulas para os horários desejados
        </div>
-     </SortableContext>
+       <SortableContext items={dayEvents.map(e => e.id)} strategy={verticalListSortingStrategy}>
+         {timeSlots.map(({ hour, minute }) => {
+           const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+           const slotId = `slot-${hour}-${minute}`;
+           const eventsInSlot = dayEvents.filter(e => {
+             const d = new Date(e.start_datetime);
+             return d.getHours() === hour && d.getMinutes() === minute;
+           });
+ 
+           return (
+             <TimeSlot 
+               key={slotId} 
+               id={slotId} 
+               time={timeStr}
+             >
+               {eventsInSlot.map(ev => (
+                 <SortableEventCard key={ev.id} event={ev} onEventClick={onEventClick} />
+               ))}
+             </TimeSlot>
+           );
+         })}
+       </SortableContext>
+     </div>
+   );
+ }
+ 
+ function TimeSlot({ id, time, children }: { id: string; time: string; children?: React.ReactNode }) {
+   const { setNodeRef, isOver } = useDroppable({ id });
+ 
+   return (
+     <div 
+       ref={setNodeRef}
+       className={`flex min-h-[48px] border-b border-border/30 last:border-0 transition-colors ${
+         isOver ? 'bg-primary/10' : ''
+       }`}
+     >
+       <div className="w-16 flex items-start justify-center pt-3 border-r border-border/30 bg-secondary/10 shrink-0">
+         <span className="text-[10px] font-medium text-muted-foreground">{time}</span>
+       </div>
+       <div className="flex-1 p-1 space-y-1">
+         {children}
+       </div>
+     </div>
    );
  }
  
