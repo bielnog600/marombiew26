@@ -11,6 +11,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { ParsedTrainingDay } from '@/lib/trainingResultParser';
+import { useRestTimer } from '@/hooks/useRestTimer';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
@@ -280,7 +281,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   const [loading, setLoading] = useState(false);
   const [activeDayIdx, setActiveDayIdx] = useState(0);
   const [exercisesList, setExercisesList] = useState<{ id: string; nome: string; grupo_muscular: string; imagem_url?: string | null }[]>([]);
-  const [restTimer, setRestTimer] = useState<{ total: number; remaining: number; exIdx: number } | null>(null);
+  const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer } = useRestTimer();
 
   // Parse "60s", "1min", "1:30", "90" => seconds
   const parsePauseSeconds = (raw?: string | null): number => {
@@ -296,18 +297,9 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     return isFinite(n) && n > 0 ? n : 60;
   };
 
-  useEffect(() => {
-    if (!restTimer) return;
-    if (restTimer.remaining <= 0) return;
-    const id = setInterval(() => {
-      setRestTimer((prev) => (prev ? { ...prev, remaining: Math.max(0, prev.remaining - 1) } : prev));
-    }, 1000);
-    return () => clearInterval(id);
-  }, [restTimer]);
-
   // Reset rest timer when sheet closes so it doesn't cover the modal on reopen
   useEffect(() => {
-    if (!open) setRestTimer(null);
+    if (!open) stopTimer();
   }, [open]);
 
   const day = days[activeDayIdx] || null;
@@ -577,7 +569,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                         className="h-7 gap-1.5 px-2.5 text-[10px] border-primary/40 text-primary hover:bg-primary/10"
                         onClick={() => {
                           const secs = parsePauseSeconds(ex.pause);
-                          setRestTimer({ total: secs, remaining: secs, exIdx: exIdx });
+                          setRestTimer(secs, exIdx);
                         }}
                       >
                         <Timer className="h-3 w-3" />
@@ -661,7 +653,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
           >
           <button
             type="button"
-            onClick={() => setRestTimer(null)}
+            onClick={() => stopTimer()}
             className="absolute top-4 right-4 p-2 rounded-full bg-secondary hover:bg-secondary/80"
             aria-label="Fechar"
           >
@@ -696,7 +688,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
             ) : (
               <button
                 type="button"
-                onClick={() => setRestTimer((p) => p ? { ...p, remaining: p.total, total: p.total } : p)}
+                onClick={() => setRestTimer(restTimer.total, restTimer.exIdx)}
                 className="relative z-10 flex items-center justify-center w-16 h-16 rounded-full bg-primary/20 hover:bg-primary/30 transition-colors"
                 aria-label="Reiniciar descanso"
               >
@@ -708,18 +700,18 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setRestTimer((p) => (p ? { ...p, remaining: Math.max(0, p.remaining - 15) } : p))}
+              onClick={() => adjustTimer(-15)}
             >
               -15s
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setRestTimer((p) => (p ? { ...p, remaining: p.remaining + 15, total: p.total + 15 } : p))}
+              onClick={() => adjustTimer(15)}
             >
               +15s
             </Button>
-            <Button size="sm" onClick={() => setRestTimer(null)}>
+            <Button size="sm" onClick={() => stopTimer()}>
               Pular
             </Button>
           </div>
