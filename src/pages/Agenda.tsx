@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
- import { Plus, CalendarDays, ChevronLeft, ChevronRight, Settings, RefreshCw, Users, MapPin, Clock, GripVertical } from 'lucide-react';
+ import { Plus, CalendarDays, ChevronLeft, ChevronRight, Settings, RefreshCw, Users, MapPin, Clock, GripVertical, Info } from 'lucide-react';
  import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay, addDays, addWeeks, addMonths, subWeeks, subMonths, isSameDay, isToday, eachDayOfInterval, addMinutes, differenceInMinutes } from 'date-fns';
  import { toast } from 'sonner';
  import {
@@ -27,6 +27,7 @@ import { Skeleton } from '@/components/ui/skeleton';
    verticalListSortingStrategy,
    useSortable,
  } from '@dnd-kit/sortable';
+ import { useDroppable } from '@dnd-kit/core';
  import { CSS } from '@dnd-kit/utilities';
  import { updateCalendarEvent } from '@/hooks/useCalendarEvents';
 import { ptBR } from 'date-fns/locale';
@@ -62,27 +63,53 @@ type ViewMode = 'week' | 'day' | 'month';
      const { active, over } = event;
      setActiveDragId(null);
  
-     if (over && active.id !== over.id) {
+     if (over) {
        const activeEvent = events.find(e => e.id === active.id);
-       const overEvent = events.find(e => e.id === over.id);
+       const overId = over.id as string;
  
-       if (activeEvent && overEvent) {
+       if (activeEvent && overId.startsWith('slot-')) {
+         const [_, hour, minute] = overId.split('-');
          try {
-           // Ao arrastar um evento sobre outro, trocamos os horários de início
-           // Mantendo a duração original de cada evento
-           const newStartTime = overEvent.start_datetime;
-           const duration = differenceInMinutes(new Date(activeEvent.end_datetime), new Date(activeEvent.start_datetime));
-           const newEndTime = addMinutes(new Date(newStartTime), duration).toISOString();
+           const newStart = new Date(currentDate);
+           newStart.setHours(parseInt(hour), parseInt(minute), 0, 0);
+           
+           const duration = differenceInMinutes(
+             new Date(activeEvent.end_datetime),
+             new Date(activeEvent.start_datetime)
+           );
+           const newEnd = addMinutes(newStart, duration);
  
            await updateCalendarEvent(activeEvent.id, {
-             start_datetime: newStartTime,
-             end_datetime: newEndTime,
+             start_datetime: newStart.toISOString(),
+             end_datetime: newEnd.toISOString(),
            });
  
            toast.success('Horário atualizado com sucesso');
            refetch();
          } catch (error) {
            toast.error('Erro ao atualizar horário');
+         }
+       } else if (overId !== active.id) {
+         const overEvent = events.find(e => e.id === overId);
+         if (overEvent) {
+           try {
+             const newStartTime = overEvent.start_datetime;
+             const duration = differenceInMinutes(
+               new Date(activeEvent.end_datetime),
+               new Date(activeEvent.start_datetime)
+             );
+             const newEndTime = addMinutes(new Date(newStartTime), duration).toISOString();
+ 
+             await updateCalendarEvent(activeEvent.id, {
+               start_datetime: newStartTime,
+               end_datetime: newEndTime,
+             });
+ 
+             toast.success('Horário atualizado com sucesso');
+             refetch();
+           } catch (error) {
+             toast.error('Erro ao atualizar horário');
+           }
          }
        }
      }
@@ -266,16 +293,63 @@ type ViewMode = 'week' | 'day' | 'month';
      [events, date]
    );
  
-   if (dayEvents.length === 0) return <p className="text-center text-muted-foreground py-8">Nenhum evento neste dia</p>;
-   
+   const timeSlots = useMemo(() => {
+     const slots = [];
+     for (let hour = 5; hour <= 23; hour++) {
+       slots.push({ hour, minute: 0 });
+       slots.push({ hour, minute: 30 });
+     }
+     return slots;
+   }, []);
+ 
    return (
-     <SortableContext items={dayEvents.map(e => e.id)} strategy={verticalListSortingStrategy}>
-       <div className="space-y-2">
-         {dayEvents.map(ev => (
-           <SortableEventCard key={ev.id} event={ev} onEventClick={onEventClick} />
-         ))}
+     <div className="space-y-0 relative border border-border/50 rounded-xl overflow-hidden bg-card/30">
+       <div className="p-2 bg-secondary/30 flex items-center gap-2 text-[10px] text-muted-foreground border-b border-border/50">
+         <Info className="h-3 w-3" /> Arraste as aulas para os horários desejados
        </div>
-     </SortableContext>
+       <SortableContext items={dayEvents.map(e => e.id)} strategy={verticalListSortingStrategy}>
+         {timeSlots.map(({ hour, minute }) => {
+           const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+           const slotId = `slot-${hour}-${minute}`;
+           const eventsInSlot = dayEvents.filter(e => {
+             const d = new Date(e.start_datetime);
+             return d.getHours() === hour && d.getMinutes() === minute;
+           });
+ 
+           return (
+             <TimeSlot 
+               key={slotId} 
+               id={slotId} 
+               time={timeStr}
+             >
+               {eventsInSlot.map(ev => (
+                 <SortableEventCard key={ev.id} event={ev} onEventClick={onEventClick} />
+               ))}
+             </TimeSlot>
+           );
+         })}
+       </SortableContext>
+     </div>
+   );
+ }
+ 
+ function TimeSlot({ id, time, children }: { id: string; time: string; children?: React.ReactNode }) {
+   const { setNodeRef, isOver } = useDroppable({ id });
+ 
+   return (
+     <div 
+       ref={setNodeRef}
+       className={`flex min-h-[48px] border-b border-border/30 last:border-0 transition-colors ${
+         isOver ? 'bg-primary/10' : ''
+       }`}
+     >
+       <div className="w-16 flex items-start justify-center pt-3 border-r border-border/30 bg-secondary/10 shrink-0">
+         <span className="text-[10px] font-medium text-muted-foreground">{time}</span>
+       </div>
+       <div className="flex-1 p-1 space-y-1">
+         {children}
+       </div>
+     </div>
    );
  }
  
