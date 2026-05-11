@@ -38,14 +38,30 @@ interface Props {
 const AiEditAllDaysDialog: React.FC<Props> = ({
   open, onOpenChange, allDays, studentId, onApply,
 }) => {
-  const [instruction, setInstruction] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const runWithInstruction = async (text: string) => {
-    if (!text.trim()) {
-      toast.error('Escreva uma instrução.');
-      return;
-    }
+   const [instruction, setInstruction] = useState('');
+   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+   const [loading, setLoading] = useState(false);
+ 
+   const toggleOption = (optInstruction: string) => {
+     setSelectedOptions(prev => 
+       prev.includes(optInstruction) 
+         ? prev.filter(i => i !== optInstruction) 
+         : [...prev, optInstruction]
+     );
+   };
+ 
+   const runWithInstruction = async () => {
+     const combinedInstruction = [
+       ...selectedOptions,
+       instruction.trim()
+     ].filter(Boolean).join('. ');
+ 
+     if (!combinedInstruction) {
+       toast.error('Selecione uma opção ou escreva uma instrução.');
+       return;
+     }
+ 
+     const text = combinedInstruction;
     setLoading(true);
     try {
       let studentContext: any = undefined;
