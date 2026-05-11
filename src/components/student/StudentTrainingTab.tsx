@@ -80,7 +80,18 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
     for (const s of sections) {
       if (s.type === 'training' && s.days) days.push(...s.days);
     }
-    return days;
+    
+    // Dedup dias por nome (caso o markdown tenha tabelas duplicadas)
+    const merged: ParsedTrainingDay[] = [];
+    const seen = new Set<string>();
+    for (const d of days) {
+      const key = d.day.toUpperCase().trim();
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(d);
+      }
+    }
+    return merged;
   }, [trainPlan]);
 
   const openTransfer = async (plan: any) => {

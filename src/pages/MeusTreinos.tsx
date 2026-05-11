@@ -149,12 +149,25 @@ const MeusTreinos = () => {
     [plans],
   );
 
-  // Dias da fase ativa
+  // Dias da fase ativa - Pega apenas o plano mais recente para esta fase
   const trainingDays = useMemo(() => {
-    const phasePlans = plans.filter(p => p.fase === activePhase);
-    const md = phasePlans.map(p => p.conteudo).join('\n');
-    const sections = parseTrainingSections(md);
-    return sections.flatMap(s => s.days ?? []);
+    const mostRecentPlan = plans.find(p => p.fase === activePhase);
+    if (!mostRecentPlan) return [];
+    
+    const sections = parseTrainingSections(mostRecentPlan.conteudo);
+    const days = sections.flatMap(s => s.days ?? []);
+    
+    // Dedup dias por nome (caso o markdown tenha tabelas duplicadas)
+    const merged: ParsedTrainingDay[] = [];
+    const seen = new Set<string>();
+    for (const d of days) {
+      const key = d.day.toUpperCase().trim();
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(d);
+      }
+    }
+    return merged;
   }, [plans, activePhase]);
 
   const todayIndex = useMemo(() => {
