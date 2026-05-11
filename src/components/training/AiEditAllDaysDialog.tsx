@@ -37,7 +37,12 @@ interface Props {
    { label: 'Foco Força', instruction: 'Ajuste as repetições para 3-6 e o descanso para 3-5min nos exercícios multiarticulares.', category: 'Objetivo' },
    { label: 'Foco Definição', instruction: 'Ajuste as repetições para 15-20 e reduza o descanso para 30-45s em todos os exercícios.', category: 'Objetivo' },
    { label: 'Iniciante', instruction: 'Simplifique o treino para nível iniciante: foco em execução, repetições entre 12-15, sem técnicas avançadas.', category: 'Perfil' },
-   { label: 'Avançado', instruction: 'Torne o treino mais desafiador para nível avançado: adicione técnicas de intensidade e reduza o RIR.', category: 'Perfil' },
+   { label: 'Intermediário', instruction: 'Ajuste para nível intermediário: adicione 1 técnica de intensidade por dia e RIR 1-2.', category: 'Perfil' },
+   { label: 'Avançado', instruction: 'Torne o treino mais desafiador para nível avançado: adicione técnicas de intensidade e reduza o RIR para 0-1.', category: 'Perfil' },
+   { label: 'Cardio HIIT', instruction: 'Adicione um protocolo de HIIT (ex: 20min sendo 1min forte / 1min leve) ao final de cada dia de treino.', category: 'Adicionar' },
+   { label: 'Cardio LISS', instruction: 'Adicione um cardio de baixa intensidade (LISS) de 30-40min ao final de cada dia.', category: 'Adicionar' },
+   { label: 'Antagonista', instruction: 'Reorganize o treino para usar o método Agonista-Antagonista (super-set entre músculos opostos) onde possível.', category: 'Método' },
+   { label: 'Circuito', instruction: 'Transforme o treino de cada dia em um circuito: realize todos os exercícios em sequência com descanso apenas ao final da volta.', category: 'Método' },
  ];
 
 const AiEditAllDaysDialog: React.FC<Props> = ({
