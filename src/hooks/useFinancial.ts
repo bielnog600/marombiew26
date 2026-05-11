@@ -352,10 +352,22 @@ export async function createClassPackage(data: {
   return result;
 }
 
-export async function updateClassPackage(id: string, updates: Partial<ClassPackage>) {
-  const { error } = await supabase.from('class_packages').update(updates as any).eq('id', id);
-  if (error) throw error;
-}
+ export async function updateClassPackage(id: string, updates: Partial<ClassPackage>) {
+   const { error } = await supabase.from('class_packages').update(updates as any).eq('id', id);
+   if (error) throw error;
+ }
+ 
+ export async function deletePayment(id: string) {
+   const { error } = await supabase.from('payments').delete().eq('id', id);
+   if (error) throw error;
+ }
+ 
+ export async function deleteClassPackage(id: string) {
+   // Delete associated credit logs first to avoid foreign key issues if any (though usually not restricted)
+   await supabase.from('class_credits_log').delete().eq('package_id', id);
+   const { error } = await supabase.from('class_packages').delete().eq('id', id);
+   if (error) throw error;
+ }
 
 export async function deductClassCredit(params: {
   student_id: string;
