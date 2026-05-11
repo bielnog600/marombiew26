@@ -126,6 +126,26 @@ const ExerciseCombobox: React.FC<{
   onChange: (val: string) => void;
 }> = ({ value, options, onChange }) => {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filteredOptions = React.useMemo(() => {
+    const searchLower = search.toLowerCase().trim();
+    if (!searchLower) return options;
+
+    // Check if the search term matches any muscle group exactly
+    const isGroupSearch = options.some(opt => opt.grupo_muscular.toLowerCase() === searchLower);
+    
+    if (isGroupSearch) {
+      // If it's a group search, return ONLY exercises from that group
+      return options.filter(opt => opt.grupo_muscular.toLowerCase() === searchLower);
+    }
+
+    // Otherwise, search by exercise name or partial muscle group name
+    return options.filter(opt => 
+      opt.nome.toLowerCase().includes(searchLower) || 
+      opt.grupo_muscular.toLowerCase().includes(searchLower)
+    );
+  }, [options, search]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -141,18 +161,24 @@ const ExerciseCombobox: React.FC<{
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[260px] p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Buscar exercício..." className="h-8 text-xs" />
+        <Command shouldFilter={false}>
+          <CommandInput 
+            placeholder="Buscar exercício ou grupo muscular..." 
+            className="h-8 text-xs" 
+            value={search}
+            onValueChange={setSearch}
+          />
           <CommandList>
             <CommandEmpty className="py-2 text-center text-xs">Nenhum encontrado</CommandEmpty>
             <CommandGroup className="max-h-[200px] overflow-y-auto">
-              {options.map((opt) => (
+              {filteredOptions.map((opt) => (
                 <CommandItem
                   key={opt.nome}
                   value={opt.nome}
                   onSelect={() => {
                     onChange(opt.nome);
                     setOpen(false);
+                    setSearch("");
                   }}
                   className="text-xs gap-2"
                 >
