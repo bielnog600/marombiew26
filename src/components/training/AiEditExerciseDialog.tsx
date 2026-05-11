@@ -46,19 +46,35 @@ const QUICK_OPTIONS: { label: string; instruction: string; group: string }[] = [
    { group: 'Ajustar', label: 'Cadência 4020', instruction: 'Ajuste a cadência de todos os exercícios para 4020 (4s na descida, 0s embaixo, 2s na subida, 0s em cima).' },
 ];
 
-const GROUPS = ['Adicionar', 'Intensidade', 'Ajustar'];
+ const GROUPS = ['Adicionar', 'Intensidade', 'Tempo', 'Ajustar'];
 
 const AiEditExerciseDialog: React.FC<Props> = ({
   open, onOpenChange, dayName, currentExercises, exerciseCatalog, studentId, onApply,
 }) => {
-  const [instruction, setInstruction] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const runWithInstruction = async (text: string) => {
-    if (!text.trim()) {
-      toast.error('Escreva uma instrução ou escolha uma opção rápida.');
-      return;
-    }
+   const [instruction, setInstruction] = useState('');
+   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+   const [loading, setLoading] = useState(false);
+ 
+   const toggleOption = (optInstruction: string) => {
+     setSelectedOptions(prev => 
+       prev.includes(optInstruction) 
+         ? prev.filter(i => i !== optInstruction) 
+         : [...prev, optInstruction]
+     );
+   };
+ 
+   const runWithInstruction = async () => {
+     const combinedInstruction = [
+       ...selectedOptions,
+       instruction.trim()
+     ].filter(Boolean).join('. ');
+ 
+     if (!combinedInstruction) {
+       toast.error('Selecione uma opção ou escreva uma instrução.');
+       return;
+     }
+ 
+     const text = combinedInstruction;
     setLoading(true);
     try {
       // Optional student context for safety
