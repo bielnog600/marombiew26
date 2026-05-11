@@ -1088,6 +1088,7 @@ ${generated}`;
               currentStep={currentStep}
               onStepChange={setCurrentStep}
               stepValid={stepValid}
+              autoAdvanceDelay={0}
               canGenerate={!!canGenerate}
               generating={generating}
               onGenerate={generatePlan}
