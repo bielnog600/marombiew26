@@ -376,7 +376,8 @@ PRIORIDADE DE PROCESSAMENTO (ORDEM DE IMPORTÂNCIA):
 GERE TUDO DE UMA VEZ:
 1) Resumo do protocolo e foco da semana
 2) Tabela completa do treino com TODAS as colunas: TREINO DO DIA | EXERCÍCIO | SÉRIE | SÉRIE 2 | REPETIÇÕES | RIR | PAUSA | DESCRIÇÃO | VARIAÇÃO
-3) Inclua mobilidade no início de cada dia
+3) Inclua obrigatoriamente de 2 a 3 exercícios de MOBILIDADE ou ESTABILIDADE no início de cada dia, específicos para os grupos musculares que serão trabalhados na sessão.
+   - REGRA PARA MOBILIDADE/ESTABILIDADE: Sempre apenas 1 série, duração de 10 a 20 segundos e descanso sempre de 10 segundos.
 4) Use técnicas avançadas conforme o nível
 5) Mensagens prontas para WhatsApp explicando o protocolo`;
 
