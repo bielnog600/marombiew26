@@ -23,26 +23,50 @@ interface Props {
   onApply: (updatedDays: ParsedTrainingDay[]) => void;
 }
 
-const QUICK_OPTIONS: { label: string; instruction: string }[] = [
-  { label: '+ Core em todos os dias', instruction: 'Adicione 1-2 exercícios de core/abdômen ao final de cada dia de treino, variando entre supra, infra e estabilização.' },
-  { label: '↑ Intensidade geral', instruction: 'Aumente a intensidade de todos os dias: reduza RIR para 0-1 nos compostos, adicione drop-set ou rest-pause em 1 exercício de cada dia.' },
-  { label: '↓ Volume geral', instruction: 'Reduza o volume de todos os dias: remova 1 exercício acessório por dia.' },
-  { label: '↓ Pausa menor', instruction: 'Reduza o tempo de pausa para 45s nos isoladores e 60s nos compostos em todos os dias.' },
-  { label: '+ Mobilidade no início', instruction: 'Adicione 1-2 exercícios de mobilidade/ativação no início de cada dia, específicos para o grupo muscular daquele dia.' },
-  { label: '+ Reconhecimento', instruction: 'Adicione 1 série de reconhecimento (12 reps carga leve) antes das séries de trabalho nos 2 principais compostos de cada dia.' },
-];
+ const QUICK_OPTIONS: { label: string; instruction: string; category?: string }[] = [
+   { label: '+ Core', instruction: 'Adicione 1-2 exercícios de core/abdômen ao final de cada dia de treino, variando entre supra, infra e estabilização.', category: 'Adicionar' },
+   { label: '+ Mobilidade', instruction: 'Adicione 1-2 exercícios de mobilidade/ativação no início de cada dia, específicos para o grupo muscular daquele dia.', category: 'Adicionar' },
+   { label: '+ Reconhecimento', instruction: 'Adicione 1 série de reconhecimento (12 reps carga leve) antes das séries de trabalho nos 2 principais compostos de cada dia.', category: 'Adicionar' },
+   { label: '+ Drop-set', instruction: 'Adicione drop-set na última série de 1 exercício isolador em cada dia.', category: 'Adicionar' },
+   { label: '+ Rest-pause', instruction: 'Adicione a técnica rest-pause no último exercício de cada dia.', category: 'Adicionar' },
+   { label: '↑ Intensidade', instruction: 'Aumente a intensidade de todos os dias: reduza RIR para 0-1 nos compostos, adicione drop-set ou rest-pause em 1 exercício de cada dia.', category: 'Ajustar' },
+   { label: '↓ Volume', instruction: 'Reduza o volume de todos os dias: remova 1 exercício acessório por dia.', category: 'Ajustar' },
+   { label: '↓ Pausa menor', instruction: 'Reduza o tempo de pausa para 45s nos isoladores e 60s nos compostos em todos os dias.', category: 'Tempo' },
+   { label: '↑ Pausa maior', instruction: 'Aumente o tempo de pausa para 90-120s em todos os exercícios para priorizar recuperação total.', category: 'Tempo' },
+   { label: 'Foco Hipertrofia', instruction: 'Ajuste as repetições para 8-12 e o descanso para 90-120s em todos os exercícios focando em hipertrofia.', category: 'Objetivo' },
+   { label: 'Foco Força', instruction: 'Ajuste as repetições para 3-6 e o descanso para 3-5min nos exercícios multiarticulares.', category: 'Objetivo' },
+   { label: 'Foco Definição', instruction: 'Ajuste as repetições para 15-20 e reduza o descanso para 30-45s em todos os exercícios.', category: 'Objetivo' },
+   { label: 'Iniciante', instruction: 'Simplifique o treino para nível iniciante: foco em execução, repetições entre 12-15, sem técnicas avançadas.', category: 'Perfil' },
+   { label: 'Avançado', instruction: 'Torne o treino mais desafiador para nível avançado: adicione técnicas de intensidade e reduza o RIR.', category: 'Perfil' },
+ ];
 
 const AiEditAllDaysDialog: React.FC<Props> = ({
   open, onOpenChange, allDays, studentId, onApply,
 }) => {
-  const [instruction, setInstruction] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const runWithInstruction = async (text: string) => {
-    if (!text.trim()) {
-      toast.error('Escreva uma instrução.');
-      return;
-    }
+   const [instruction, setInstruction] = useState('');
+   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+   const [loading, setLoading] = useState(false);
+ 
+   const toggleOption = (optInstruction: string) => {
+     setSelectedOptions(prev => 
+       prev.includes(optInstruction) 
+         ? prev.filter(i => i !== optInstruction) 
+         : [...prev, optInstruction]
+     );
+   };
+ 
+   const runWithInstruction = async () => {
+     const combinedInstruction = [
+       ...selectedOptions,
+       instruction.trim()
+     ].filter(Boolean).join('. ');
+ 
+     if (!combinedInstruction) {
+       toast.error('Selecione uma opção ou escreva uma instrução.');
+       return;
+     }
+ 
+     const text = combinedInstruction;
     setLoading(true);
     try {
       let studentContext: any = undefined;
@@ -94,10 +118,11 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
         return;
       }
 
-      onApply(updatedDays);
-      toast.success(`${totalActions} alteração(ões) em ${allDays.length} dias. ${lastSummary}`);
-      setInstruction('');
-      onOpenChange(false);
+       onApply(updatedDays);
+       toast.success(`${totalActions} alteração(ões) em ${allDays.length} dias. ${lastSummary}`);
+       setInstruction('');
+       setSelectedOptions([]);
+       onOpenChange(false);
     } catch (e: any) {
       console.error(e);
       toast.error('Erro: ' + (e?.message || 'falha ao chamar IA'));
@@ -120,24 +145,30 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="space-y-1.5">
-            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Opções rápidas</p>
-            <div className="flex flex-wrap gap-1.5">
-              {QUICK_OPTIONS.map(opt => (
-                <Button
-                  key={opt.label}
-                  variant="outline"
-                  size="sm"
-                  disabled={loading}
-                  className="h-7 text-xs"
-                  onClick={() => runWithInstruction(opt.instruction)}
-                >
-                  {loading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                  {opt.label}
-                </Button>
-              ))}
-            </div>
-          </div>
+           <div className="space-y-3">
+             {Array.from(new Set(QUICK_OPTIONS.map(o => o.category))).map(cat => (
+               <div key={cat} className="space-y-1.5">
+                 <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">{cat}</p>
+                 <div className="flex flex-wrap gap-1.5">
+                   {QUICK_OPTIONS.filter(o => o.category === cat).map(opt => {
+                     const isSelected = selectedOptions.includes(opt.instruction);
+                     return (
+                       <Button
+                         key={opt.label}
+                         variant={isSelected ? "default" : "outline"}
+                         size="sm"
+                         disabled={loading}
+                         className={`h-7 text-xs transition-all rounded-full ${isSelected ? 'shadow-sm' : 'hover:bg-primary/5'}`}
+                         onClick={() => toggleOption(opt.instruction)}
+                       >
+                         {opt.label}
+                       </Button>
+                     );
+                   })}
+                 </div>
+               </div>
+             ))}
+           </div>
 
           <div className="space-y-1.5 pt-2 border-t border-border/60">
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
@@ -159,7 +190,10 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancelar
           </Button>
-          <Button onClick={() => runWithInstruction(instruction)} disabled={loading || !instruction.trim()}>
+           <Button 
+             onClick={() => runWithInstruction()} 
+             disabled={loading || (selectedOptions.length === 0 && !instruction.trim())}
+           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
             Aplicar em todos os dias
           </Button>
