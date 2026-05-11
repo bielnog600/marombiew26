@@ -613,6 +613,16 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
                           />
                         </div>
                       </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Descrição / Instruções</label>
+                        <Textarea
+                          value={ex.description || ''}
+                          onChange={(e) => handleFieldChange(exIndex, 'description', e.target.value)}
+                          placeholder="Instruções específicas para o aluno..."
+                          className="text-xs min-h-[60px] resize-none"
+                        />
+                      </div>
                     </SortableExerciseItem>
                   );
                 })}
