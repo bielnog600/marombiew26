@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { createClassPackage, updateClassPackage, ClassPackage, PAYMENT_METHOD_LABELS } from '@/hooks/useFinancial';
+ import { createClassPackage, updateClassPackage, deleteClassPackage, ClassPackage, PAYMENT_METHOD_LABELS } from '@/hooks/useFinancial';
 import { toast } from 'sonner';
 
 type Props = {
@@ -33,7 +33,8 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
     payment_method: 'mbway',
     payment_status: 'pago',
   });
-  const [saving, setSaving] = useState(false);
+   const [saving, setSaving] = useState(false);
+   const [deleting, setDeleting] = useState(false);
 
   const pricePerClass = useMemo(() => {
     const total = Number(form.total_amount);
@@ -101,11 +102,28 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
       onSuccess();
       onOpenChange(false);
     } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
+       toast.error(err.message);
+     } finally {
+       setSaving(false);
+     }
+   };
+ 
+   const handleDelete = async () => {
+     if (!pkg) return;
+     if (!confirm('Tem certeza que deseja apagar este pacote? Isso também removerá o histórico de créditos associado.')) return;
+     
+     setDeleting(true);
+     try {
+       await deleteClassPackage(pkg.id);
+       toast.success('Pacote apagado com sucesso');
+       onSuccess();
+       onOpenChange(false);
+     } catch (err: any) {
+       toast.error(err.message);
+     } finally {
+       setDeleting(false);
+     }
+   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -179,9 +197,18 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
             <Label>Observações</Label>
             <Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
           </div>
-          <Button onClick={handleSave} disabled={saving} className="w-full">{saving ? 'Salvando...' : 'Salvar'}</Button>
-        </div>
-      </DialogContent>
+           <div className="flex gap-2 pt-2">
+             {pkg && (
+               <Button variant="destructive" onClick={handleDelete} disabled={saving || deleting} className="flex-1">
+                 {deleting ? 'Apagando...' : 'Apagar'}
+               </Button>
+             )}
+             <Button onClick={handleSave} disabled={saving || deleting} className={pkg ? 'flex-[2]' : 'w-full'}>
+               {saving ? 'Salvando...' : 'Salvar'}
+             </Button>
+           </div>
+         </div>
+       </DialogContent>
     </Dialog>
   );
 };

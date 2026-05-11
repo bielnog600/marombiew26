@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { createPayment, updatePayment, PAYMENT_TYPE_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_STATUS_LABELS, Payment } from '@/hooks/useFinancial';
+ import { createPayment, updatePayment, deletePayment, PAYMENT_TYPE_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_STATUS_LABELS, Payment } from '@/hooks/useFinancial';
 import { toast } from 'sonner';
 
 type Props = {
@@ -33,7 +33,8 @@ const PaymentDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, payment
     due_date: '',
     notes: '',
   });
-  const [saving, setSaving] = useState(false);
+   const [saving, setSaving] = useState(false);
+   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     supabase.from('profiles').select('user_id, nome').then(({ data }) => setStudents(data || []));
@@ -94,11 +95,28 @@ const PaymentDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, payment
       onSuccess();
       onOpenChange(false);
     } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
+       toast.error(err.message);
+     } finally {
+       setSaving(false);
+     }
+   };
+ 
+   const handleDelete = async () => {
+     if (!payment) return;
+     if (!confirm('Tem certeza que deseja apagar este pagamento? Esta ação não pode ser desfeita.')) return;
+     
+     setDeleting(true);
+     try {
+       await deletePayment(payment.id);
+       toast.success('Pagamento apagado com sucesso');
+       onSuccess();
+       onOpenChange(false);
+     } catch (err: any) {
+       toast.error(err.message);
+     } finally {
+       setDeleting(false);
+     }
+   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -175,9 +193,18 @@ const PaymentDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, payment
             <Label>Observações</Label>
             <Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
           </div>
-          <Button onClick={handleSave} disabled={saving} className="w-full">{saving ? 'Salvando...' : 'Salvar'}</Button>
-        </div>
-      </DialogContent>
+           <div className="flex gap-2 pt-2">
+             {payment && (
+               <Button variant="destructive" onClick={handleDelete} disabled={saving || deleting} className="flex-1">
+                 {deleting ? 'Apagando...' : 'Apagar'}
+               </Button>
+             )}
+             <Button onClick={handleSave} disabled={saving || deleting} className={payment ? 'flex-[2]' : 'w-full'}>
+               {saving ? 'Salvando...' : 'Salvar'}
+             </Button>
+           </div>
+         </div>
+       </DialogContent>
     </Dialog>
   );
 };
