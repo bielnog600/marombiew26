@@ -26,24 +26,24 @@ interface Props {
 
 const QUICK_OPTIONS: { label: string; instruction: string; group: string }[] = [
   // Adicionar grupos
-  { group: 'Adicionar', label: '+ Core / Abdômen', instruction: 'Adicione 2 exercícios de core/abdômen do banco, variando supra, infra e estabilização (prancha).' },
-  { group: 'Adicionar', label: '+ Mobilidade', instruction: 'Adicione 2 exercícios de mobilidade/ativação no início, específicos para o grupo muscular do dia.' },
-  { group: 'Adicionar', label: '+ Panturrilha', instruction: 'Adicione 2 exercícios de panturrilha (gastrocnêmio) ao final do treino.' },
-  { group: 'Adicionar', label: '+ Cardio finalizador', instruction: 'Adicione 1 exercício de cardio curto e intenso ao final (HIIT, intervalado ou bike).' },
-  { group: 'Adicionar', label: '+ Glúteos', instruction: 'Adicione 2 exercícios específicos para glúteos.' },
-  { group: 'Adicionar', label: '+ Alongamento final', instruction: 'Adicione 1-2 alongamentos relacionados ao grupo muscular trabalhado, ao final do treino.' },
-
-  // Intensidade
-  { group: 'Intensidade', label: '↑ Mais intensidade', instruction: 'Aumente a intensidade do treino: reduza repetições, diminua RIR para 0-1 nos compostos, e adicione técnicas avançadas (drop-set ou rest-pause) em 2 exercícios principais.' },
-  { group: 'Intensidade', label: '↓ Reduzir volume', instruction: 'Reduza o volume total: remova 1-2 exercícios menos prioritários ou reduza séries dos acessórios.' },
-  { group: 'Intensidade', label: '+ Drop-set', instruction: 'Aplique técnica drop-set no último exercício do treino. Adicione na descrição: "Última série em drop-set: até a falha, reduza 30% da carga e continue até nova falha".' },
-  { group: 'Intensidade', label: '+ Rest-pause', instruction: 'Aplique técnica rest-pause em 1 exercício composto. Adicione na descrição: "Última série rest-pause: chegue à falha, descanse 15s, mais reps até falha (repita 2x)".' },
-  { group: 'Intensidade', label: '↓ Pausa menor', instruction: 'Reduza o tempo de pausa para 45s nos exercícios isoladores e 60s nos compostos.' },
-
-  // Reorganizar
-  { group: 'Ajustar', label: '↑ Reps maiores', instruction: 'Aumente a faixa de repetições para 12-15 em todos os exercícios (foco em resistência/definição).' },
-  { group: 'Ajustar', label: '↓ Reps menores', instruction: 'Reduza para faixa de 6-8 repetições nos compostos principais (foco em força/hipertrofia).' },
-  { group: 'Ajustar', label: '+ Reconhecimento', instruction: 'Adicione 1 série de reconhecimento (12 reps com carga leve) antes das séries de trabalho nos 2 principais compostos.' },
+   { group: 'Adicionar', label: '+ Core / Abdômen', instruction: 'Adicione 2 exercícios de core/abdômen do banco, variando supra, infra e estabilização (prancha).' },
+   { group: 'Adicionar', label: '+ Mobilidade', instruction: 'Adicione 2 exercícios de mobilidade/ativação no início, específicos para o grupo muscular do dia.' },
+   { group: 'Adicionar', label: '+ Panturrilha', instruction: 'Adicione 2 exercícios de panturrilha (gastrocnêmio) ao final do treino.' },
+   { group: 'Adicionar', label: '+ Cardio finalizador', instruction: 'Adicione 1 exercício de cardio curto e intenso ao final (HIIT, intervalado ou bike).' },
+   { group: 'Adicionar', label: '+ Glúteos', instruction: 'Adicione 2 exercícios específicos para glúteos.' },
+   { group: 'Adicionar', label: '+ Antebraço', instruction: 'Adicione 1-2 exercícios para antebraço ao final do treino.' },
+   { group: 'Adicionar', label: '+ Alongamento final', instruction: 'Adicione 1-2 alongamentos relacionados ao grupo muscular trabalhado, ao final do treino.' },
+   { group: 'Intensidade', label: '↑ Mais intensidade', instruction: 'Aumente a intensidade do treino: reduza repetições, diminua RIR para 0-1 nos compostos, e adicione técnicas avançadas (drop-set ou rest-pause) em 2 exercícios principais.' },
+   { group: 'Intensidade', label: '↓ Reduzir volume', instruction: 'Reduza o volume total: remova 1-2 exercícios menos prioritários ou reduza séries dos acessórios.' },
+   { group: 'Intensidade', label: '+ Drop-set', instruction: 'Aplique técnica drop-set no último exercício do treino. Adicione na descrição: "Última série em drop-set: até a falha, reduza 30% da carga e continue até nova falha".' },
+   { group: 'Intensidade', label: '+ Rest-pause', instruction: 'Aplique técnica rest-pause em 1 exercício composto. Adicione na descrição: "Última série rest-pause: chegue à falha, descanse 15s, mais reps até falha (repita 2x)".' },
+   { group: 'Intensidade', label: '+ Cluster-set', instruction: 'Aplique técnica cluster-set em um exercício multiarticular: realize 2-3 reps, descanse 10-15s, repita até completar a série total.' },
+   { group: 'Tempo', label: '↓ Pausa menor', instruction: 'Reduza o tempo de pausa para 45s nos exercícios isoladores e 60s nos compostos.' },
+   { group: 'Tempo', label: '↑ Pausa maior', instruction: 'Aumente o tempo de pausa para 90-120s em todos os exercícios focando em recuperação.' },
+   { group: 'Ajustar', label: '↑ Reps maiores', instruction: 'Aumente a faixa de repetições para 12-15 em todos os exercícios (foco em resistência/definição).' },
+   { group: 'Ajustar', label: '↓ Reps menores', instruction: 'Reduza para faixa de 6-8 repetições nos compostos principais (foco em força/hipertrofia).' },
+   { group: 'Ajustar', label: '+ Reconhecimento', instruction: 'Adicione 1 série de reconhecimento (12 reps com carga leve) antes das séries de trabalho nos 2 principais compostos.' },
+   { group: 'Ajustar', label: 'Cadência 4020', instruction: 'Ajuste a cadência de todos os exercícios para 4020 (4s na descida, 0s embaixo, 2s na subida, 0s em cima).' },
 ];
 
 const GROUPS = ['Adicionar', 'Intensidade', 'Ajustar'];
