@@ -26,8 +26,8 @@ import { Skeleton } from '@/components/ui/skeleton';
    sortableKeyboardCoordinates,
    verticalListSortingStrategy,
    useSortable,
-   useDroppable,
  } from '@dnd-kit/sortable';
+ import { useDroppable } from '@dnd-kit/core';
  import { CSS } from '@dnd-kit/utilities';
  import { updateCalendarEvent } from '@/hooks/useCalendarEvents';
 import { ptBR } from 'date-fns/locale';
