@@ -145,26 +145,30 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="space-y-1.5">
-            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Opções rápidas</p>
-             <div className="flex flex-wrap gap-1.5">
-               {QUICK_OPTIONS.map(opt => {
-                 const isSelected = selectedOptions.includes(opt.instruction);
-                 return (
-                   <Button
-                     key={opt.label}
-                     variant={isSelected ? "default" : "outline"}
-                     size="sm"
-                     disabled={loading}
-                     className={`h-7 text-xs transition-all ${isSelected ? 'ring-1 ring-primary ring-offset-1' : ''}`}
-                     onClick={() => toggleOption(opt.instruction)}
-                   >
-                     {opt.label}
-                   </Button>
-                 );
-               })}
-             </div>
-          </div>
+           <div className="space-y-3">
+             {Array.from(new Set(QUICK_OPTIONS.map(o => o.category))).map(cat => (
+               <div key={cat} className="space-y-1.5">
+                 <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">{cat}</p>
+                 <div className="flex flex-wrap gap-1.5">
+                   {QUICK_OPTIONS.filter(o => o.category === cat).map(opt => {
+                     const isSelected = selectedOptions.includes(opt.instruction);
+                     return (
+                       <Button
+                         key={opt.label}
+                         variant={isSelected ? "default" : "outline"}
+                         size="sm"
+                         disabled={loading}
+                         className={`h-7 text-xs transition-all rounded-full ${isSelected ? 'shadow-sm' : 'hover:bg-primary/5'}`}
+                         onClick={() => toggleOption(opt.instruction)}
+                       >
+                         {opt.label}
+                       </Button>
+                     );
+                   })}
+                 </div>
+               </div>
+             ))}
+           </div>
 
           <div className="space-y-1.5 pt-2 border-t border-border/60">
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
