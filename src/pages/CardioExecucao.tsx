@@ -195,10 +195,18 @@ const CardioExecucao: React.FC = () => {
     };
   }, []);
 
-  // Tick
+  // Tick based on wall-clock time
   useEffect(() => {
     if (paused || phase === 'idle' || phase === 'done') return;
-    const id = setInterval(() => setSecondsLeft(s => (s <= 1 ? 0 : s - 1)), 1000);
+    
+    const id = setInterval(() => {
+      const now = Date.now();
+      const elapsed = Math.floor((now - anchorRef.current) / 1000);
+      if (elapsed >= 1) {
+        setSecondsLeft(prev => Math.max(0, prev - elapsed));
+        anchorRef.current = now;
+      }
+    }, 500); // Check more frequently but only decrement when 1s passed
     return () => clearInterval(id);
   }, [paused, phase]);
 
