@@ -20,6 +20,7 @@ import { ExerciseLoadHistorySheet } from '@/components/training/ExerciseLoadHist
 import { SessionRpeDialog } from '@/components/training/SessionRpeDialog';
 import { Settings2, Info, BarChart3, Timer } from 'lucide-react';
 import { fetchWithCache } from '@/lib/offlineCache';
+import { useRestTimer } from '@/hooks/useRestTimer';
 
 
 const normalizeExName = (name: string) => name.trim().replace(/\s+/g, ' ').toUpperCase();
@@ -95,16 +96,7 @@ const extractStreamVideoId = (embed: string | null | undefined): string | null =
   return null;
 };
 
-const RestTimerOverlay = ({ totalSeconds, onClose }: { totalSeconds: number; onClose: () => void }) => {
-  const [timeLeft, setTimeLeft] = useState(totalSeconds);
-  const [isRunning, setIsRunning] = useState(true);
-
-  useEffect(() => {
-    if (!isRunning) return;
-    const id = setInterval(() => setTimeLeft((t) => t - 1), 1000);
-    return () => clearInterval(id);
-  }, [isRunning]);
-
+const RestTimerOverlay = ({ timeLeft, totalSeconds, onClose }: { timeLeft: number; totalSeconds: number; onClose: () => void }) => {
   useEffect(() => {
     if (timeLeft === 0 && navigator.vibrate) navigator.vibrate([200, 100, 200]);
   }, [timeLeft]);
@@ -149,9 +141,6 @@ const RestTimerOverlay = ({ totalSeconds, onClose }: { totalSeconds: number; onC
       </div>
 
       <div className="flex items-center gap-4 mt-10">
-        <Button size="lg" variant="outline" className="rounded-full h-14 w-14" onClick={() => setIsRunning(!isRunning)}>
-          {isRunning ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
-        </Button>
         <Button size="lg" className="rounded-full h-14 px-8 bg-primary text-primary-foreground font-bold" onClick={onClose}>
           Continuar
         </Button>
@@ -188,8 +177,7 @@ const TreinoExecucao = () => {
   const [lastLogsByExercise, setLastLogsByExercise] = useState<Record<string, ExerciseSet[]>>({});
   const [loadedLogsForIndex, setLoadedLogsForIndex] = useState<Set<number>>(new Set());
   const [exerciseDB, setExerciseDB] = useState<ExerciseDBData[]>([]);
-  const [showRestTimer, setShowRestTimer] = useState(false);
-  const [restDuration, setRestDuration] = useState(60);
+  const { restTimer, startTimer: startRestTimer, stopTimer: stopRestTimer } = useRestTimer();
   const [showPlayFallback, setShowPlayFallback] = useState(false);
   const [showingVariation, setShowingVariation] = useState(false);
   const [variationPrefs, setVariationPrefs] = useState<Record<string, boolean>>({});
@@ -700,7 +688,7 @@ const TreinoExecucao = () => {
       }
       return next;
     });
-    setShowRestTimer(true);
+    startRestTimer(secs, currentIndex);
   };
 
   const currentSets = sets[currentIndex] || [];
@@ -778,7 +766,13 @@ const TreinoExecucao = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {showRestTimer && <RestTimerOverlay totalSeconds={restDuration} onClose={() => setShowRestTimer(false)} />}
+      {restTimer && (
+        <RestTimerOverlay 
+          timeLeft={restTimer.remaining} 
+          totalSeconds={restTimer.total} 
+          onClose={stopRestTimer} 
+        />
+      )}
       <PhaseInfoSheet open={showPhaseInfo} onOpenChange={setShowPhaseInfo} phase={currentPhase} />
       {matchedExercise?.id && user && (
         <MachineAdjustSheet
