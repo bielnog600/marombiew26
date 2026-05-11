@@ -58,6 +58,8 @@ const TabataExecucao: React.FC = () => {
   const [phase, setPhase] = useState<Phase>('idle');
   const [stepIndex, setStepIndex] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState(PREP_SECONDS);
+  const [phaseStartTime, setPhaseStartTime] = useState<number>(Date.now());
+  const [phaseTotalSeconds, setPhaseTotalSeconds] = useState<number>(PREP_SECONDS);
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
   const [mediaMap, setMediaMap] = useState<Record<string, { videoEmbed?: string | null; imageUrl?: string | null }>>({});
@@ -233,26 +235,48 @@ const TabataExecucao: React.FC = () => {
     };
   }, []);
 
-  // Tick
+  // Tick based on wall-clock time
   useEffect(() => {
     if (paused || phase === 'idle' || phase === 'done') return;
-    const id = setInterval(() => {
-      setSecondsLeft(s => {
-        if (s <= 1) return 0;
-        return s - 1;
-      });
-    }, 1000);
+    
+    const tick = () => {
+      const elapsed = Math.floor((Date.now() - phaseStartTime) / 1000);
+      const remaining = Math.max(0, phaseTotalSeconds - elapsed);
+      setSecondsLeft(remaining);
+    };
+
+    tick();
+    const id = setInterval(tick, 500);
     return () => clearInterval(id);
-  }, [paused, phase]);
+  }, [paused, phase, phaseStartTime, phaseTotalSeconds]);
+
+  // Sync when coming back to visibility
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && !paused && phase !== 'idle' && phase !== 'done') {
+        const elapsed = Math.floor((Date.now() - phaseStartTime) / 1000);
+        const remaining = Math.max(0, phaseTotalSeconds - elapsed);
+        setSecondsLeft(remaining);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [paused, phase, phaseStartTime, phaseTotalSeconds]);
 
   // Phase transitions when seconds hit 0
   useEffect(() => {
     if (phase === 'idle' || phase === 'done' || secondsLeft > 0) return;
 
+    const startPhase = (newPhase: Phase, secs: number) => {
+      setPhase(newPhase);
+      setPhaseTotalSeconds(secs);
+      setSecondsLeft(secs);
+      setPhaseStartTime(Date.now());
+    };
+
     if (phase === 'prep') {
       beep(880, 0.3);
-      setPhase('work');
-      setSecondsLeft(currentStep.exercise.workSeconds);
+      startPhase('work', currentStep.exercise.workSeconds);
       return;
     }
 
@@ -262,18 +286,16 @@ const TabataExecucao: React.FC = () => {
 
       if (isLastStep) {
         beep(1320, 0.6);
-        setPhase('done');
+        startPhase('done', 0);
         return;
       }
 
       if (isLastInBlock) {
         beep(660, 0.5);
-        setPhase('block_rest');
-        setSecondsLeft(currentStep.block.restAfterBlock);
+        startPhase('block_rest', currentStep.block.restAfterBlock);
       } else {
         beep(440, 0.3);
-        setPhase('rest');
-        setSecondsLeft(currentStep.exercise.restSeconds);
+        startPhase('rest', currentStep.exercise.restSeconds);
       }
       return;
     }
@@ -282,8 +304,7 @@ const TabataExecucao: React.FC = () => {
       beep(880, 0.3);
       const nextIndex = stepIndex + 1;
       setStepIndex(nextIndex);
-      setPhase('work');
-      setSecondsLeft(steps[nextIndex].exercise.workSeconds);
+      startPhase('work', steps[nextIndex].exercise.workSeconds);
       return;
     }
   }, [secondsLeft, phase]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -322,7 +343,9 @@ const TabataExecucao: React.FC = () => {
     unlockAudio();
     setStepIndex(0);
     setPhase('prep');
+    setPhaseTotalSeconds(PREP_SECONDS);
     setSecondsLeft(PREP_SECONDS);
+    setPhaseStartTime(Date.now());
     setPaused(false);
   };
 
@@ -335,6 +358,8 @@ const TabataExecucao: React.FC = () => {
     setPhase('idle');
     setStepIndex(0);
     setSecondsLeft(PREP_SECONDS);
+    setPhaseTotalSeconds(PREP_SECONDS);
+    setPhaseStartTime(Date.now());
     setPaused(false);
   };
 
