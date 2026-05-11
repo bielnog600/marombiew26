@@ -44,6 +44,12 @@ const QUICK_OPTIONS: { label: string; instruction: string; group: string }[] = [
    { group: 'Ajustar', label: '↓ Reps menores', instruction: 'Reduza para faixa de 6-8 repetições nos compostos principais (foco em força/hipertrofia).' },
    { group: 'Ajustar', label: '+ Reconhecimento', instruction: 'Adicione 1 série de reconhecimento (12 reps com carga leve) antes das séries de trabalho nos 2 principais compostos.' },
    { group: 'Ajustar', label: 'Cadência 4020', instruction: 'Ajuste a cadência de todos os exercícios para 4020 (4s na descida, 0s embaixo, 2s na subida, 0s em cima).' },
+   { group: 'Ajustar', label: 'Pico de contração', instruction: 'Adicione "Pico de contração de 2s" em todos os exercícios isoladores do treino.', category: 'Técnica' },
+   { group: 'Intensidade', label: '+ Bi-set', instruction: 'Combine o 1º e 2º exercícios e o 3º e 4º exercícios em Bi-sets (sem descanso entre eles).', category: 'Técnica' },
+   { group: 'Intensidade', label: '+ GVT (10x10)', instruction: 'Escolha o primeiro exercício composto e aplique o método GVT (10 séries de 10 repetições com 60s de descanso).', category: 'Técnica' },
+   { group: 'Adicionar', label: '+ Manguito', instruction: 'Adicione 2 exercícios de rotação interna/externa de manguito rotador no início como aquecimento.', category: 'Adicionar' },
+   { group: 'Adicionar', label: '+ Pescoço', instruction: 'Adicione 1 exercício de flexão/extensão de pescoço (foco em fortalecimento cervical).', category: 'Adicionar' },
+   { group: 'Tempo', label: 'Treino Express', instruction: 'Reduza o volume e as pausas para que o treino dure no máximo 40 minutos.', category: 'Tempo' },
 ];
 
  const GROUPS = ['Adicionar', 'Intensidade', 'Tempo', 'Ajustar'];
