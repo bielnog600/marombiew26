@@ -312,10 +312,10 @@ type ViewMode = 'week' | 'day' | 'month';
    const [now, setNow] = React.useState(new Date());
    const containerRef = React.useRef<HTMLDivElement>(null);
  
-   React.useEffect(() => {
-     const timer = setInterval(() => setNow(new Date()), 60000);
-     return () => clearInterval(timer);
-   }, []);
+    React.useEffect(() => {
+      const timer = setInterval(() => setNow(new Date()), 1000);
+      return () => clearInterval(timer);
+    }, []);
  
    // Scroll to current time on mount
    React.useEffect(() => {
