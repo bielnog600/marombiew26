@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { parseSections, type ParsedFood, type ParsedMeal } from '@/lib/dietResultParser';
-import { computeDayTotals, scaleMealsToTarget } from '@/lib/dietMarkdownSerializer';
+ import { computeDayTotals, scaleMealsToTarget, stripG } from '@/lib/dietMarkdownSerializer';
 import FoodSubstitutionDialog from './FoodSubstitutionDialog';
 import AiEditDietDialog from './AiEditDietDialog';
 
@@ -173,10 +173,38 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
     setAddingForMeal(null);
   };
 
-  const handleAdjustPortions = () => {
-    setMeals((prev) => scaleMealsToTarget(prev, target));
-    toast.success(`Porções ajustadas para ${target} kcal`);
-  };
+   const handleAdjustPortions = useCallback(() => {
+     setMeals((prev) => scaleMealsToTarget(prev, target));
+     toast.success(`Porções ajustadas para ${target} kcal`);
+   }, [target]);
+
+   const handlePortionChange = (mealIdx: number, foodIdx: number, newQtyStr: string) => {
+     const newQty = num(newQtyStr);
+     if (newQty <= 0) return;
+
+     updateMeals((prev) => {
+       const updated = [...prev];
+       const meal = { ...updated[mealIdx] };
+       const foods = [...meal.foods];
+       const food = { ...foods[foodIdx] };
+
+       const oldQty = num(stripG(food.qty));
+       if (oldQty <= 0) return prev;
+
+       const factor = newQty / oldQty;
+
+       food.qty = `${newQty} g`;
+       food.kcal = fmt(num(food.kcal) * factor);
+       food.p = fmt(num(food.p) * factor);
+       food.c = fmt(num(food.c) * factor);
+       food.g = fmt(num(food.g) * factor);
+
+       foods[foodIdx] = food;
+       meal.foods = foods;
+       updated[mealIdx] = meal;
+       return updated;
+     });
+   };
 
   if (meals.length === 0) {
     return (
