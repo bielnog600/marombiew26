@@ -529,7 +529,11 @@ function MonthView({ events, currentDate, onEventClick, onDayClick }: { events: 
        onClick={onClick}
      >
        <CardContent className="p-3 flex items-center gap-3">
-         <div {...dragHandleProps} className="cursor-grab active:cursor-grabbing p-1 -ml-1 hover:bg-secondary rounded">
+         <div 
+           {...dragHandleProps} 
+           className="cursor-grab active:cursor-grabbing p-2 -m-1 hover:bg-secondary rounded-lg touch-none"
+           style={{ touchAction: 'none' }}
+         >
            <GripVertical className="h-4 w-4 text-muted-foreground" />
          </div>
          <div className="text-center min-w-[48px]">
