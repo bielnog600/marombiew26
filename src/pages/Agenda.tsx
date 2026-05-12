@@ -309,33 +309,83 @@ type ViewMode = 'week' | 'day' | 'month';
      return slots;
    }, []);
  
+   const [now, setNow] = React.useState(new Date());
+   const containerRef = React.useRef<HTMLDivElement>(null);
+ 
+   React.useEffect(() => {
+     const timer = setInterval(() => setNow(new Date()), 60000);
+     return () => clearInterval(timer);
+   }, []);
+ 
+   // Scroll to current time on mount
+   React.useEffect(() => {
+     if (isToday(date) && containerRef.current) {
+       const currentHour = now.getHours();
+       // Slots start at 5:00. Each slot is 48px. 2 slots per hour.
+       const slotHeight = 48;
+       const hoursFromStart = currentHour - 5;
+       if (hoursFromStart >= 0) {
+         const scrollPos = hoursFromStart * 2 * slotHeight;
+         containerRef.current.scrollTop = scrollPos - 100; // Center it a bit
+       }
+     }
+   }, [date]);
+ 
+   const currentTimePosition = useMemo(() => {
+     if (!isToday(date)) return null;
+     const hour = now.getHours();
+     const minute = now.getMinutes();
+     if (hour < 5 || hour > 23) return null;
+     
+     const minutesFromStart = (hour - 5) * 60 + minute;
+     const pixelsPerMinute = 48 / 30; // 48px per 30 min
+     return minutesFromStart * pixelsPerMinute;
+   }, [now, date]);
+ 
    return (
-     <div className="space-y-0 relative border border-border/50 rounded-xl overflow-hidden bg-card/30">
-       <div className="p-2 bg-secondary/30 flex items-center gap-2 text-[10px] text-muted-foreground border-b border-border/50">
+     <div className="space-y-0 relative border border-border/50 rounded-xl bg-card/30 flex flex-col h-[600px]">
+       <div className="p-2 bg-secondary/30 flex items-center gap-2 text-[10px] text-muted-foreground border-b border-border/50 shrink-0">
          <Info className="h-3 w-3" /> Arraste as aulas para os horários desejados
        </div>
-       <SortableContext items={dayEvents.map(e => e.id)} strategy={verticalListSortingStrategy}>
-         {timeSlots.map(({ hour, minute }) => {
-           const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-           const slotId = `slot-${hour}-${minute}`;
-           const eventsInSlot = dayEvents.filter(e => {
-             const d = new Date(e.start_datetime);
-             return d.getHours() === hour && d.getMinutes() === minute;
-           });
+       <div ref={containerRef} className="flex-1 overflow-y-auto relative scroll-smooth">
+         {currentTimePosition !== null && (
+           <div 
+             className="absolute left-0 right-0 z-10 flex items-center pointer-events-none"
+             style={{ top: `${currentTimePosition}px` }}
+           >
+             <div className="w-16 flex justify-end pr-1">
+               <span className="text-[9px] font-bold text-red-500 bg-background px-1 rounded shadow-sm border border-red-200">
+                 {format(now, 'HH:mm')}
+               </span>
+             </div>
+             <div className="flex-1 h-0.5 bg-red-500 relative">
+               <div className="absolute left-0 -top-1 w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm" />
+             </div>
+           </div>
+         )}
+         <SortableContext items={dayEvents.map(e => e.id)} strategy={verticalListSortingStrategy}>
+           {timeSlots.map(({ hour, minute }) => {
+             const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+             const slotId = `slot-${hour}-${minute}`;
+             const eventsInSlot = dayEvents.filter(e => {
+               const d = new Date(e.start_datetime);
+               return d.getHours() === hour && d.getMinutes() === minute;
+             });
  
-           return (
-             <TimeSlot 
-               key={slotId} 
-               id={slotId} 
-               time={timeStr}
-             >
-               {eventsInSlot.map(ev => (
-                 <SortableEventCard key={ev.id} event={ev} onEventClick={onEventClick} />
-               ))}
-             </TimeSlot>
-           );
-         })}
-       </SortableContext>
+             return (
+               <TimeSlot 
+                 key={slotId} 
+                 id={slotId} 
+                 time={timeStr}
+               >
+                 {eventsInSlot.map(ev => (
+                   <SortableEventCard key={ev.id} event={ev} onEventClick={onEventClick} />
+                 ))}
+               </TimeSlot>
+             );
+           })}
+         </SortableContext>
+       </div>
      </div>
    );
  }
