@@ -302,7 +302,7 @@ type ViewMode = 'week' | 'day' | 'month';
  
    const timeSlots = useMemo(() => {
      const slots = [];
-     for (let hour = 5; hour <= 23; hour++) {
+     for (let hour = 0; hour <= 23; hour++) {
        slots.push({ hour, minute: 0 });
        slots.push({ hour, minute: 30 });
      }
@@ -323,7 +323,7 @@ type ViewMode = 'week' | 'day' | 'month';
        const currentHour = now.getHours();
        // Slots start at 5:00. Each slot is 48px. 2 slots per hour.
        const slotHeight = 48;
-       const hoursFromStart = currentHour - 5;
+       const hoursFromStart = currentHour;
        if (hoursFromStart >= 0) {
          const scrollPos = hoursFromStart * 2 * slotHeight;
          containerRef.current.scrollTop = scrollPos - 100; // Center it a bit
@@ -337,7 +337,7 @@ type ViewMode = 'week' | 'day' | 'month';
      const minute = now.getMinutes();
      if (hour < 5 || hour > 23) return null;
      
-     const minutesFromStart = (hour - 5) * 60 + minute;
+     const minutesFromStart = hour * 60 + minute;
      const pixelsPerMinute = 48 / 30; // 48px per 30 min
      return minutesFromStart * pixelsPerMinute;
    }, [now, date]);
