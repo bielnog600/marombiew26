@@ -339,7 +339,14 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
                       >
                         {food.food}
                       </TableCell>
-                      <TableCell className="px-2 py-1.5 text-muted-foreground">{food.qty || '—'}</TableCell>
+                       <TableCell className="px-2 py-1.5 text-muted-foreground">
+                         <Input
+                           type="text"
+                           value={food.qty || ''}
+                           onChange={(e) => handlePortionChange(mealIdx, foodIdx, e.target.value)}
+                           className="h-7 w-20 text-xs px-1 bg-transparent border-dashed border-muted-foreground/30 focus:border-primary transition-all"
+                         />
+                       </TableCell>
                       <TableCell className="px-2 py-1.5 text-right">{food.kcal || '—'}</TableCell>
                       <TableCell className="px-2 py-1.5 text-right">{food.p || '—'}</TableCell>
                       <TableCell className="px-2 py-1.5 text-right">{food.c || '—'}</TableCell>
