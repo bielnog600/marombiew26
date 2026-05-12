@@ -12,7 +12,7 @@ const fmt = (v: number) => {
   return Number.isInteger(r) ? String(r) : r.toFixed(1);
 };
 
-const stripG = (qty: string) => String(qty || '').replace(/\s*g\s*$/i, '').trim();
+ export const stripG = (qty: string) => String(qty || '').replace(/\s*g\s*$/i, '').trim();
 
 /**
  * Build a single combined markdown table containing all meals.
