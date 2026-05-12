@@ -342,11 +342,11 @@ type ViewMode = 'week' | 'day' | 'month';
    }, [now, date]);
  
    return (
-     <div className="space-y-0 relative border border-border/50 rounded-xl bg-card/30 flex flex-col h-[600px]">
+     <div className="space-y-0 relative border border-border/50 rounded-xl bg-card/30 flex flex-col h-[70vh] max-h-[600px] overflow-hidden">
        <div className="p-2 bg-secondary/30 flex items-center gap-2 text-[10px] text-muted-foreground border-b border-border/50 shrink-0">
          <Info className="h-3 w-3" /> Arraste as aulas para os horários desejados
        </div>
-       <div ref={containerRef} className="flex-1 overflow-y-auto relative scroll-smooth">
+       <div ref={containerRef} className="flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth">
          {currentTimePosition !== null && (
            <div 
              className="absolute left-0 right-0 z-10 flex items-center pointer-events-none"
@@ -395,14 +395,14 @@ type ViewMode = 'week' | 'day' | 'month';
    return (
      <div 
        ref={setNodeRef}
-       className={`flex min-h-[48px] border-b border-border/30 last:border-0 transition-colors ${
+       className={`flex min-h-[44px] border-b border-border/30 last:border-0 transition-colors w-full overflow-hidden ${
          isOver ? 'bg-primary/10' : ''
        }`}
      >
-       <div className="w-16 flex items-start justify-center pt-3 border-r border-border/30 bg-secondary/10 shrink-0">
-         <span className="text-[10px] font-medium text-muted-foreground">{time}</span>
+       <div className="w-12 flex items-start justify-center pt-3 border-r border-border/30 bg-secondary/5 shrink-0">
+         <span className="text-[9px] font-bold text-muted-foreground">{time}</span>
        </div>
-       <div className="flex-1 p-1 space-y-1">
+       <div className="flex-1 p-0.5 space-y-0.5 min-w-0 overflow-hidden">
          {children}
        </div>
      </div>
@@ -527,41 +527,41 @@ function MonthView({ events, currentDate, onEventClick, onDayClick }: { events: 
        className={`bg-card border-border/50 cursor-pointer hover:border-primary/40 transition-colors ${isOverlay ? 'shadow-2xl border-primary/50' : ''}`}
        onClick={onClick}
      >
-       <CardContent className="p-3 flex items-center gap-3">
-         <div 
-           {...dragHandleProps} 
-           className="cursor-grab active:cursor-grabbing p-2 -m-1 hover:bg-secondary rounded-lg touch-none"
-           style={{ touchAction: 'none' }}
-         >
-           <GripVertical className="h-4 w-4 text-muted-foreground" />
-         </div>
-         <div className="text-center min-w-[48px]">
-           <p className="text-lg font-bold text-primary leading-none">
-             {format(new Date(event.start_datetime), 'HH:mm')}
-           </p>
-           <p className="text-[10px] text-muted-foreground">
-             {format(new Date(event.end_datetime), 'HH:mm')}
-           </p>
-         </div>
-         <div className="flex-1 min-w-0">
-           <div className="flex items-center gap-2 mb-1">
-             <p className="text-sm font-semibold text-foreground truncate">{displayName || event.title || 'Evento'}</p>
-             {event.is_recurring && <RefreshCw className="h-3 w-3 text-muted-foreground shrink-0" />}
-           </div>
-           <div className="flex flex-wrap gap-1 items-center text-xs text-muted-foreground">
-             <span>{EVENT_TYPE_LABELS[event.event_type] || event.event_type}</span>
-             {event.location && (
-               <>
-                 <span>·</span>
-                 <span className="flex items-center gap-0.5"><MapPin className="h-3 w-3" />{event.location}</span>
-               </>
-             )}
-           </div>
-         </div>
-         <Badge className={`shrink-0 text-[10px] h-5 ${STATUS_COLORS[event.status] || ''}`}>
-           {EVENT_STATUS_LABELS[event.status] || event.status}
-         </Badge>
-       </CardContent>
+        <CardContent className="p-1.5 flex items-center gap-2 overflow-hidden">
+          <div 
+            {...dragHandleProps} 
+            className="cursor-grab active:cursor-grabbing p-1.5 -m-1 hover:bg-secondary rounded-lg touch-none shrink-0"
+            style={{ touchAction: 'none' }}
+          >
+            <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+          </div>
+          <div className="text-center min-w-[38px] shrink-0 border-r border-border/30 pr-2">
+            <p className="text-xs font-bold text-primary leading-none">
+              {format(new Date(event.start_datetime), 'HH:mm')}
+            </p>
+            <p className="text-[9px] text-muted-foreground mt-0.5">
+              {format(new Date(event.end_datetime), 'HH:mm')}
+            </p>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <p className="text-[11px] font-bold text-foreground truncate leading-tight">{displayName || event.title || 'Evento'}</p>
+              {event.is_recurring && <RefreshCw className="h-2.5 w-2.5 text-muted-foreground shrink-0" />}
+            </div>
+            <div className="flex items-center gap-1 text-[9px] text-muted-foreground truncate">
+              <span className="truncate">{EVENT_TYPE_LABELS[event.event_type] || event.event_type}</span>
+              {event.location && (
+                <>
+                  <span className="shrink-0">·</span>
+                  <span className="flex items-center gap-0.5 truncate"><MapPin className="h-2.5 w-2.5 shrink-0" />{event.location}</span>
+                </>
+              )}
+            </div>
+          </div>
+          <Badge className={`shrink-0 text-[8px] px-1 h-3.5 leading-none font-normal ${STATUS_COLORS[event.status] || ''}`}>
+            {EVENT_STATUS_LABELS[event.status] || event.status}
+          </Badge>
+        </CardContent>
      </Card>
    );
  }
