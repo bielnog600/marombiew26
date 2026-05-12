@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { parseSections, type ParsedFood, type ParsedMeal } from '@/lib/dietResultParser';
-import { computeDayTotals, scaleMealsToTarget } from '@/lib/dietMarkdownSerializer';
+ import { computeDayTotals, scaleMealsToTarget, stripG } from '@/lib/dietMarkdownSerializer';
 import FoodSubstitutionDialog from './FoodSubstitutionDialog';
 import AiEditDietDialog from './AiEditDietDialog';
 
