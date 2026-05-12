@@ -242,7 +242,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     intentionalSignOut.current = true;
     cacheSession(null);
     localStorage.removeItem(ROLE_CACHE_KEY);
-    await supabase.auth.signOut();
+    // Use scope: 'local' to ensure signout only affects the current device
+    await supabase.auth.signOut({ scope: 'local' });
   };
 
   return (
