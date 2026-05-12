@@ -342,11 +342,11 @@ type ViewMode = 'week' | 'day' | 'month';
    }, [now, date]);
  
    return (
-     <div className="space-y-0 relative border border-border/50 rounded-xl bg-card/30 flex flex-col h-[600px]">
+     <div className="space-y-0 relative border border-border/50 rounded-xl bg-card/30 flex flex-col h-[70vh] max-h-[600px] overflow-hidden">
        <div className="p-2 bg-secondary/30 flex items-center gap-2 text-[10px] text-muted-foreground border-b border-border/50 shrink-0">
          <Info className="h-3 w-3" /> Arraste as aulas para os horários desejados
        </div>
-       <div ref={containerRef} className="flex-1 overflow-y-auto relative scroll-smooth">
+       <div ref={containerRef} className="flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth">
          {currentTimePosition !== null && (
            <div 
              className="absolute left-0 right-0 z-10 flex items-center pointer-events-none"
@@ -395,14 +395,14 @@ type ViewMode = 'week' | 'day' | 'month';
    return (
      <div 
        ref={setNodeRef}
-       className={`flex min-h-[48px] border-b border-border/30 last:border-0 transition-colors ${
+       className={`flex min-h-[44px] border-b border-border/30 last:border-0 transition-colors w-full overflow-hidden ${
          isOver ? 'bg-primary/10' : ''
        }`}
      >
-       <div className="w-16 flex items-start justify-center pt-3 border-r border-border/30 bg-secondary/10 shrink-0">
-         <span className="text-[10px] font-medium text-muted-foreground">{time}</span>
+       <div className="w-12 flex items-start justify-center pt-3 border-r border-border/30 bg-secondary/5 shrink-0">
+         <span className="text-[9px] font-bold text-muted-foreground">{time}</span>
        </div>
-       <div className="flex-1 p-1 space-y-1">
+       <div className="flex-1 p-0.5 space-y-0.5 min-w-0 overflow-hidden">
          {children}
        </div>
      </div>
