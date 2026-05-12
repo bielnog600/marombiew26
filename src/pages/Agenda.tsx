@@ -43,7 +43,8 @@ type ViewMode = 'week' | 'day' | 'month';
    const [currentDate, setCurrentDate] = useState(new Date());
   const [showCreateDialog, setShowCreateDialog] = useState(false);
    const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
-   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+    const [activeDragId, setActiveDragId] = useState<string | null>(null);
+    const [optimisticEvents, setOptimisticEvents] = useState<CalendarEvent[] | null>(null);
  
    const sensors = useSensors(
      useSensor(PointerSensor, {
@@ -135,7 +136,15 @@ type ViewMode = 'week' | 'day' | 'month';
     return endOfMonth(currentDate);
   }, [viewMode, currentDate]);
 
-  const { events, loading, refetch } = useCalendarEvents(rangeStart, rangeEnd);
+   const { events: serverEvents, loading, refetch } = useCalendarEvents(rangeStart, rangeEnd);
+
+   // Use optimistic events if available, otherwise server events
+   const events = useMemo(() => optimisticEvents || serverEvents, [optimisticEvents, serverEvents]);
+
+   // Reset optimistic events when server events change
+   React.useEffect(() => {
+     setOptimisticEvents(null);
+   }, [serverEvents]);
 
   const navigate = (dir: number) => {
     if (viewMode === 'day') setCurrentDate(prev => addDays(prev, dir));
