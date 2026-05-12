@@ -201,38 +201,33 @@ type ViewMode = 'week' | 'day' | 'month';
         </div>
 
         {/* Navigation */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex gap-1 w-full sm:w-auto justify-center sm:justify-start">
+        <div className="flex flex-col gap-3">
+          <div className="flex gap-1 w-full">
             {(['day', 'week', 'month'] as ViewMode[]).map(m => (
               <Button
                 key={m}
                 size="sm"
                 variant={viewMode === m ? 'default' : 'ghost'}
                 onClick={() => setViewMode(m)}
-                className="text-[10px] sm:text-xs capitalize flex-1 sm:flex-none h-8 px-2"
+                className="text-[10px] sm:text-xs capitalize flex-1 h-8 px-1"
               >
                 {m === 'day' ? 'Dia' : m === 'week' ? 'Semana' : 'Mês'}
               </Button>
             ))}
           </div>
-          <div className="flex items-center justify-between sm:justify-end gap-1 w-full sm:w-auto">
-            <div className="flex items-center gap-1">
-              <Button size="icon" variant="ghost" onClick={() => navigate(-1)} className="h-8 w-8">
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-xs sm:text-sm font-medium text-foreground min-w-[100px] sm:min-w-[120px] text-center">
-                {viewMode === 'day'
-                  ? format(currentDate, "dd 'de' MMMM", { locale: ptBR })
-                  : viewMode === 'week'
-                  ? `${format(rangeStart, 'dd/MM')} - ${format(rangeEnd, 'dd/MM')}`
-                  : format(currentDate, "MMMM yyyy", { locale: ptBR })}
-              </span>
-              <Button size="icon" variant="ghost" onClick={() => navigate(1)} className="h-8 w-8">
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-            <Button size="icon" variant="ghost" onClick={() => setCurrentDate(new Date())} className="h-8 w-8 ml-auto sm:ml-0">
-              <CalendarDays className="h-4 w-4" />
+          <div className="flex items-center justify-between gap-1 w-full bg-secondary/20 rounded-lg p-1">
+            <Button size="icon" variant="ghost" onClick={() => navigate(-1)} className="h-8 w-8 shrink-0">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-[11px] sm:text-sm font-bold text-foreground text-center truncate px-1">
+              {viewMode === 'day'
+                ? format(currentDate, "dd 'de' MMMM", { locale: ptBR })
+                : viewMode === 'week'
+                ? `${format(rangeStart, 'dd/MM')} - ${format(rangeEnd, 'dd/MM')}`
+                : format(currentDate, "MMMM yyyy", { locale: ptBR })}
+            </span>
+            <Button size="icon" variant="ghost" onClick={() => navigate(1)} className="h-8 w-8 shrink-0">
+              <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
