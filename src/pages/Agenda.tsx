@@ -67,61 +67,62 @@ type ViewMode = 'week' | 'day' | 'month';
      setActiveDragId(event.active.id as string);
    };
  
-   const handleDragEnd = async (event: DragEndEvent) => {
-     const { active, over } = event;
-     setActiveDragId(null);
- 
-     if (over) {
-       const activeEvent = events.find(e => e.id === active.id);
-       const overId = over.id as string;
- 
-       if (activeEvent && overId.startsWith('slot-')) {
-         const [_, hour, minute] = overId.split('-');
-         try {
-           const newStart = new Date(currentDate);
-           newStart.setHours(parseInt(hour), parseInt(minute), 0, 0);
-           
-           const duration = differenceInMinutes(
-             new Date(activeEvent.end_datetime),
-             new Date(activeEvent.start_datetime)
-           );
-           const newEnd = addMinutes(newStart, duration);
- 
-           await updateCalendarEvent(activeEvent.id, {
-             start_datetime: newStart.toISOString(),
-             end_datetime: newEnd.toISOString(),
-           });
- 
-           toast.success('Horário atualizado com sucesso');
-           refetch();
-         } catch (error) {
-           toast.error('Erro ao atualizar horário');
-         }
-       } else if (overId !== active.id) {
-         const overEvent = events.find(e => e.id === overId);
-         if (overEvent) {
-           try {
-             const newStartTime = overEvent.start_datetime;
-             const duration = differenceInMinutes(
-               new Date(activeEvent.end_datetime),
-               new Date(activeEvent.start_datetime)
-             );
-             const newEndTime = addMinutes(new Date(newStartTime), duration).toISOString();
- 
-             await updateCalendarEvent(activeEvent.id, {
-               start_datetime: newStartTime,
-               end_datetime: newEndTime,
-             });
- 
-             toast.success('Horário atualizado com sucesso');
-             refetch();
-           } catch (error) {
-             toast.error('Erro ao atualizar horário');
-           }
-         }
-       }
-     }
-   };
+    const handleDragEnd = async (event: DragEndEvent) => {
+      const { active, over } = event;
+      setActiveDragId(null);
+  
+      if (over) {
+        const activeEvent = events.find(e => e.id === active.id);
+        const overId = over.id as string;
+  
+        if (activeEvent && (overId.startsWith('slot-') || overId !== active.id)) {
+          let newStartTime: string;
+          let newEndTime: string;
+
+          if (overId.startsWith('slot-')) {
+            const [_, hour, minute] = overId.split('-');
+            const newStart = new Date(currentDate);
+            newStart.setHours(parseInt(hour), parseInt(minute), 0, 0);
+            const duration = differenceInMinutes(
+              new Date(activeEvent.end_datetime),
+              new Date(activeEvent.start_datetime)
+            );
+            const newEnd = addMinutes(newStart, duration);
+            newStartTime = newStart.toISOString();
+            newEndTime = newEnd.toISOString();
+          } else {
+            const overEvent = events.find(e => e.id === overId);
+            if (!overEvent) return;
+            newStartTime = overEvent.start_datetime;
+            const duration = differenceInMinutes(
+              new Date(activeEvent.end_datetime),
+              new Date(activeEvent.start_datetime)
+            );
+            newEndTime = addMinutes(new Date(newStartTime), duration).toISOString();
+          }
+
+          // Apply optimistic update immediately
+          const updatedEvents = events.map(e => 
+            e.id === activeEvent.id 
+              ? { ...e, start_datetime: newStartTime, end_datetime: newEndTime } 
+              : e
+          );
+          setOptimisticEvents(updatedEvents);
+
+          try {
+            await updateCalendarEvent(activeEvent.id, {
+              start_datetime: newStartTime,
+              end_datetime: newEndTime,
+            });
+            toast.success('Horário atualizado com sucesso');
+            refetch();
+          } catch (error) {
+            setOptimisticEvents(null);
+            toast.error('Erro ao atualizar horário');
+          }
+        }
+      }
+    };
   const [showSettings, setShowSettings] = useState(false);
 
   const rangeStart = useMemo(() => {
