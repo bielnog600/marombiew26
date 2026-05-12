@@ -80,16 +80,20 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   const [macroModalPlanId, setMacroModalPlanId] = useState<string | null>(null);
   const [macroPct, setMacroPct] = useState({ protein: 30, carbs: 50, fat: 20 });
 
-  // Compute actual macro totals for the modal plan
-  const modalPlanTotals = useMemo(() => {
-    if (!macroModalPlanId) return 0;
-    const plan = plans.find(p => p.id === macroModalPlanId);
-    if (!plan) return null;
-    const sections = parseSections(plan.conteudo);
-    const meals = sections.flatMap(s => s.type === 'meal' && s.meals ? s.meals : []);
-    if (!meals.length) return null;
-    return computeDayTotals(meals);
-  }, [macroModalPlanId, plans]);
+   // Compute actual macro totals for any plan (used for summary in the list and modal)
+   const getPlanTotals = useCallback((markdown: string) => {
+     const sections = parseSections(markdown);
+     const meals = sections.flatMap(s => s.type === 'meal' && s.meals ? s.meals : []);
+     if (!meals.length) return null;
+     return computeDayTotals(meals);
+   }, []);
+ 
+   const modalPlanTotals = useMemo(() => {
+     if (!macroModalPlanId) return null;
+     const plan = plans.find(p => p.id === macroModalPlanId);
+     if (!plan) return null;
+     return getPlanTotals(plan.conteudo);
+   }, [macroModalPlanId, plans, getPlanTotals]);
 
   // When opening the modal, set sliders to match current macro distribution
   const openMacroModal = useCallback((planId: string) => {
@@ -209,22 +213,43 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
         const isEditing = editingId === plan.id;
         const cleanedMarkdown = stripDietPreamble(plan.conteudo);
 
-        return (
-          <Card key={plan.id} className="glass-card">
-            <CardContent className="p-4">
-              <div
-                className="flex items-center justify-between cursor-pointer"
-                onClick={() => setExpandedId(isExpanded ? null : plan.id)}
-              >
-                <div className="flex items-center gap-3">
-                  <UtensilsCrossed className="h-5 w-5 text-green-500 shrink-0" />
-                  <div>
-                    <p className="font-medium text-sm">{plan.titulo}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(plan.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                    </p>
-                  </div>
-                </div>
+         return (
+           <Card key={plan.id} className="glass-card">
+             <CardContent className="p-4">
+               <div
+                 className="flex items-center justify-between cursor-pointer"
+                 onClick={() => setExpandedId(isExpanded ? null : plan.id)}
+               >
+                 <div className="flex items-center gap-3">
+                   <UtensilsCrossed className="h-5 w-5 text-green-500 shrink-0" />
+                   <div className="flex-1 min-w-0">
+                     <p className="font-medium text-sm truncate">{plan.titulo}</p>
+                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                       <p className="text-xs text-muted-foreground">
+                         {new Date(plan.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                       </p>
+                       {!isExpanded && (
+                         <>
+                           <span className="text-[10px] text-muted-foreground hidden xs:inline">•</span>
+                           {(() => {
+                             const t = getPlanTotals(plan.conteudo);
+                             if (!t || t.kcal <= 0) return null;
+                             return (
+                               <div className="flex items-center gap-2 text-[10px] font-medium text-primary">
+                                 <span>{Math.round(t.kcal)} kcal</span>
+                                 <div className="flex gap-1.5 text-muted-foreground">
+                                   <span>P: {Math.round(t.p)}g</span>
+                                   <span>C: {Math.round(t.c)}g</span>
+                                   <span>G: {Math.round(t.g)}g</span>
+                                 </div>
+                               </div>
+                             );
+                           })()}
+                         </>
+                       )}
+                     </div>
+                   </div>
+                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {isExpanded && (
                     <Button
