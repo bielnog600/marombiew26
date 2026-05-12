@@ -333,9 +333,8 @@ type ViewMode = 'week' | 'day' | 'month';
  
    const currentTimePosition = useMemo(() => {
      if (!isToday(date)) return null;
-     const hour = now.getHours();
-     const minute = now.getMinutes();
-     if (hour < 5 || hour > 23) return null;
+      const hour = now.getHours();
+      const minute = now.getMinutes();
      
      const minutesFromStart = hour * 60 + minute;
      const pixelsPerMinute = 48 / 30; // 48px per 30 min
