@@ -128,15 +128,15 @@ export function useCalendarEvents(rangeStart: Date, rangeEnd: Date) {
 
   useEffect(() => { fetchEvents(); }, [fetchEvents]);
 
-  // Realtime subscription
-  useEffect(() => {
-    const channel = supabase
-      .channel('calendar-events-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events' }, () => fetchEvents())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_event_students' }, () => fetchEvents())
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [fetchEvents]);
+   // Realtime subscription disabled to prevent flashing during drag & drop updates
+   // useEffect(() => {
+   //   const channel = supabase
+   //     .channel('calendar-events-changes')
+   //     .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events' }, () => fetchEvents())
+   //     .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_event_students' }, () => fetchEvents())
+   //     .subscribe();
+   //   return () => { supabase.removeChannel(channel); };
+   // }, [fetchEvents]);
 
   return { events, loading, refetch: fetchEvents };
 }
