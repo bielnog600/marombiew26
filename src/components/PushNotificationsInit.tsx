@@ -70,11 +70,21 @@ const PushNotificationsInit = () => {
                   : "Toque aqui para permitir avisos no iPhone."}
           </p>
         </div>
-        {canAskPermission && (
-          <Button size="sm" onClick={handleEnable} disabled={isBusy} className="shrink-0 font-semibold">
-            {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Permitir"}
-          </Button>
-        )}
+         <div className="flex items-center gap-1 shrink-0">
+           {canAskPermission && (
+             <Button size="sm" onClick={handleEnable} disabled={isBusy} className="font-semibold h-8 px-3">
+               {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Permitir"}
+             </Button>
+           )}
+           <Button
+             variant="ghost"
+             size="icon"
+             className="h-8 w-8 rounded-full text-muted-foreground hover:bg-muted"
+             onClick={handleDismiss}
+           >
+             <X className="h-4 w-4" />
+           </Button>
+         </div>
       </div>
     </div>
   );
