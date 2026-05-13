@@ -47,7 +47,13 @@ const WhatsAppNotifyPlanButton: React.FC<Props> = ({ plan, studentId, onNotified
     return () => { cancelled = true; };
   }, [studentId]);
 
-  if (plan.whatsapp_notified_at) return null;
+   const [notified, setNotified] = useState(!!plan.whatsapp_notified_at);
+ 
+   useEffect(() => {
+     setNotified(!!plan.whatsapp_notified_at);
+   }, [plan.whatsapp_notified_at]);
+ 
+   if (notified) return null;
 
    const handleClick = async (e: React.MouseEvent) => {
      e.stopPropagation();
@@ -120,19 +126,22 @@ const WhatsAppNotifyPlanButton: React.FC<Props> = ({ plan, studentId, onNotified
      const now = new Date().toISOString();
      const newCount = (freshPlan.whatsapp_notified_count ?? 0) + 1;
      
-     // We execute the update asynchronously so the user doesn't wait for the DB
-     // before the WhatsApp tab opens, but we should handle errors.
-     supabase
+     // Update local state first for immediate UI feedback
+     setNotified(true);
+ 
+     // Persist to database
+     const { error } = await supabase
        .from('ai_plans')
        .update({ whatsapp_notified_at: now, whatsapp_notified_count: newCount })
-       .eq('id', plan.id)
-       .then(({ error }) => {
-         if (error) {
-           console.error('Erro ao registrar notificação WhatsApp:', error);
-         } else {
-           onNotified?.(plan.id, now, newCount);
-         }
-       });
+       .eq('id', plan.id);
+ 
+     if (error) {
+       setNotified(false);
+       toast.error('Erro ao registrar envio.');
+       return;
+     }
+ 
+     onNotified?.(plan.id, now, newCount);
   };
 
   const isAdjust = (plan.whatsapp_notified_count ?? 0) > 0;
