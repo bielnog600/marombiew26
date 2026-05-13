@@ -66,12 +66,30 @@ const WhatsAppNotifyPlanButton: React.FC<Props> = ({ plan, studentId, onNotified
  
      const isAdjust = (freshPlan.whatsapp_notified_count ?? 0) > 0;
      const firstName = (name || 'aluno').split(' ')[0];
-     const noun =
-       freshPlan.tipo === 'treino' ? 'treino'
-       : freshPlan.tipo === 'tabata' ? 'protocolo de Tabata'
-       : freshPlan.tipo === 'cardio' ? 'protocolo de cardio'
-       : 'dieta';
-     const verb = isAdjust ? 'foi ajustado(a) e já está disponível' : 'já está liberado(a) no app';
+ 
+     let noun = '';
+     let gender = 'm'; // default masculine
+     
+     if (freshPlan.tipo === 'treino') {
+       noun = 'treino';
+       gender = 'm';
+     } else if (freshPlan.tipo === 'tabata') {
+       noun = 'protocolo de Tabata';
+       gender = 'm';
+     } else if (freshPlan.tipo === 'cardio') {
+       noun = 'protocolo de cardio';
+       gender = 'm';
+     } else if (freshPlan.tipo === 'dieta') {
+       noun = 'dieta';
+       gender = 'f';
+     } else {
+       noun = 'plano';
+       gender = 'm';
+     }
+ 
+     const verb = isAdjust 
+       ? (gender === 'm' ? 'foi ajustado e já está disponível' : 'foi ajustada e já está disponível')
+       : (gender === 'm' ? 'já está liberado no app' : 'já está liberada no app');
  
      let macroInfo = '';
      if (freshPlan.tipo === 'dieta' && freshPlan.conteudo) {
