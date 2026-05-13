@@ -2,13 +2,9 @@ import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { buildSetPlan, buildPlanSummary } from '@/lib/setPlanBuilder';
+import { Repeat, Timer, Activity, BarChart3, ArrowLeft } from 'lucide-react';
+import { ExerciseLoadHistorySheet } from '@/components/training/ExerciseLoadHistorySheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
