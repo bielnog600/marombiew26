@@ -157,7 +157,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
       toast.error('Erro ao salvar: ' + error.message);
     } else {
       toast.success('Dieta salva com sucesso!');
-      setPlans(prev => prev.map(p => p.id === planId ? { ...p, conteudo: newContent } : p));
+       setPlans(prev => prev.map(p => p.id === planId ? { ...p, conteudo: newContent, whatsapp_notified_at: null } : p));
       setEditedMeals(prev => { const c = { ...prev }; delete c[planId]; return c; });
       setAiNotes(prev => { const c = { ...prev }; delete c[planId]; return c; });
       setEditingId(null);
