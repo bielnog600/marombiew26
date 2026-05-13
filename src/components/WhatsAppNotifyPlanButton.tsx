@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { MessageCircle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+ import { supabase } from '@/integrations/supabase/client';
+ import { toast } from 'sonner';
+ import { parseSections } from '@/lib/dietResultParser';
+ import { computeDayTotals } from '@/lib/dietMarkdownSerializer';
 
 interface Props {
   plan: {
@@ -47,20 +49,45 @@ const WhatsAppNotifyPlanButton: React.FC<Props> = ({ plan, studentId, onNotified
 
   if (plan.whatsapp_notified_at) return null;
 
-  const handleClick = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const isAdjust = (plan.whatsapp_notified_count ?? 0) > 0;
-    const firstName = (name || 'aluno').split(' ')[0];
-    const noun =
-      plan.tipo === 'treino' ? 'treino'
-      : plan.tipo === 'tabata' ? 'protocolo de Tabata'
-      : plan.tipo === 'cardio' ? 'protocolo de cardio'
-      : 'dieta';
-    const verb = isAdjust ? 'foi ajustado(a) e já está disponível' : 'já está liberado(a) no app';
-
-    const msg = isAdjust
-      ? `Oi ${firstName}! 💪\n\nFiz alguns ajustes no seu *${noun}* ("${plan.titulo}") e ${verb}. Pode abrir o app pra conferir as novidades.\n\nQualquer dúvida me chama por aqui! 🙌`
-      : `Oi ${firstName}! 🚀\n\nSeu novo *${noun}* ("${plan.titulo}") ${verb}. É só abrir o app pra começar!\n\nBons treinos e qualquer dúvida me chama por aqui. 🙌`;
+   const handleClick = async (e: React.MouseEvent) => {
+     e.stopPropagation();
+     
+     // Fetch fresh plan data to get full content for macro extraction if it's a diet
+     const { data: freshPlan, error: fetchError } = await supabase
+       .from('ai_plans')
+       .select('conteudo, tipo, titulo, whatsapp_notified_count')
+       .eq('id', plan.id)
+       .maybeSingle();
+ 
+     if (fetchError || !freshPlan) {
+       toast.error('Erro ao carregar dados do plano.');
+       return;
+     }
+ 
+     const isAdjust = (freshPlan.whatsapp_notified_count ?? 0) > 0;
+     const firstName = (name || 'aluno').split(' ')[0];
+     const noun =
+       freshPlan.tipo === 'treino' ? 'treino'
+       : freshPlan.tipo === 'tabata' ? 'protocolo de Tabata'
+       : freshPlan.tipo === 'cardio' ? 'protocolo de cardio'
+       : 'dieta';
+     const verb = isAdjust ? 'foi ajustado(a) e já está disponível' : 'já está liberado(a) no app';
+ 
+     let macroInfo = '';
+     if (freshPlan.tipo === 'dieta' && freshPlan.conteudo) {
+       const sections = parseSections(freshPlan.conteudo);
+       const meals = sections.flatMap(s => s.type === 'meal' && s.meals ? s.meals : []);
+       if (meals.length > 0) {
+         const t = computeDayTotals(meals);
+         if (t.kcal > 0) {
+           macroInfo = `\n\n📊 *Meta diária:*\n🔥 ${Math.round(t.kcal)} kcal\n🥩 ${Math.round(t.p)}g Proteína\n🍞 ${Math.round(t.c)}g Carbo\n🥑 ${Math.round(t.g)}g Gordura`;
+         }
+       }
+     }
+ 
+     const msg = isAdjust
+       ? `Oi ${firstName}! 💪\n\nFiz alguns ajustes na sua *${noun}* ("${freshPlan.titulo}") e ${verb}.${macroInfo}\n\nPode abrir o app pra conferir as novidades. Qualquer dúvida me chama por aqui! 🙌`
+       : `Oi ${firstName}! 🚀\n\nSua nova *${noun}* ("${freshPlan.titulo}") ${verb}.${macroInfo}\n\nÉ só abrir o app pra começar! Bons treinos e qualquer dúvida me chama por aqui. 🙌`;
 
     const cleaned = (phone ?? '').replace(/\D/g, '');
     const withDdi = cleaned.length === 10 || cleaned.length === 11 ? `55${cleaned}` : cleaned;
