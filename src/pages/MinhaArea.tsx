@@ -47,6 +47,7 @@ const MinhaArea = () => {
   const { trackEvent } = useEventTracking();
   const { session: activeSession, clear: clearActiveSession } = useActiveWorkoutSession();
   const [showExercises, setShowExercises] = useState(false);
+  const [historyExercise, setHistoryExercise] = useState<string | null>(null);
 
   const handleCancelActiveSession = async (e: React.MouseEvent) => {
     e.stopPropagation();
