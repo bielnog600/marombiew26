@@ -114,18 +114,25 @@ const WhatsAppNotifyPlanButton: React.FC<Props> = ({ plan, studentId, onNotified
       : `https://wa.me/?text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank', 'noopener,noreferrer');
 
-    const now = new Date().toISOString();
-    const newCount = (plan.whatsapp_notified_count ?? 0) + 1;
-    const { error } = await supabase
-      .from('ai_plans')
-      .update({ whatsapp_notified_at: now, whatsapp_notified_count: newCount })
-      .eq('id', plan.id);
-
-    if (error) {
-      toast.error('Não foi possível registrar o envio.');
-      return;
-    }
-    onNotified?.(plan.id, now, newCount);
+     // The state update is handled by the parent component re-loading data 
+     // or the local state in this component, but to ensure it updates immediately
+     // in the UI without waiting for a full refetch if possible.
+     const now = new Date().toISOString();
+     const newCount = (freshPlan.whatsapp_notified_count ?? 0) + 1;
+     
+     // We execute the update asynchronously so the user doesn't wait for the DB
+     // before the WhatsApp tab opens, but we should handle errors.
+     supabase
+       .from('ai_plans')
+       .update({ whatsapp_notified_at: now, whatsapp_notified_count: newCount })
+       .eq('id', plan.id)
+       .then(({ error }) => {
+         if (error) {
+           console.error('Erro ao registrar notificação WhatsApp:', error);
+         } else {
+           onNotified?.(plan.id, now, newCount);
+         }
+       });
   };
 
   const isAdjust = (plan.whatsapp_notified_count ?? 0) > 0;
