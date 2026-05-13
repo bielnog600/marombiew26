@@ -77,15 +77,15 @@ const TreinoPreview = () => {
         <Card className="glass-card overflow-hidden">
           <CardContent className="p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="-ml-2 gap-1 text-muted-foreground"
-                onClick={() => navigate('/meus-treinos')}
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Voltar
-              </Button>
+               <Button
+                 variant="ghost"
+                 size="sm"
+                 className="-ml-2 gap-1 text-muted-foreground"
+                 onClick={() => navigate(-1)}
+               >
+                 <ArrowLeft className="h-4 w-4" />
+                 Voltar
+               </Button>
             </div>
             <div>
               <p className="text-[10px] uppercase tracking-widest text-primary font-semibold">
