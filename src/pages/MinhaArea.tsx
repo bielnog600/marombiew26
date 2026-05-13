@@ -46,7 +46,6 @@ const MinhaArea = () => {
   const [exerciseMedia, setExerciseMedia] = useState<Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }>>({});
   const { trackEvent } = useEventTracking();
   const { session: activeSession, clear: clearActiveSession } = useActiveWorkoutSession();
-  const [showExercises, setShowExercises] = useState(false);
   const [historyExercise, setHistoryExercise] = useState<string | null>(null);
 
   const handleCancelActiveSession = async (e: React.MouseEvent) => {
@@ -304,151 +303,28 @@ const MinhaArea = () => {
         {/* Today's Training */}
         {todayTraining && (
           <div className="space-y-4">
-            {showExercises ? (
-              <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
-                <Card className="glass-card overflow-hidden">
-                  <CardContent className="p-4 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="-ml-2 gap-1 text-muted-foreground"
-                        onClick={() => setShowExercises(false)}
-                      >
-                        <ArrowLeft className="h-4 w-4" />
-                        Voltar
-                      </Button>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-widest text-primary font-semibold">
-                        {todayTraining.day}
-                      </p>
-                      <h3 className="text-lg font-bold text-foreground mt-0.5 uppercase">Exercícios de Hoje</h3>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="rounded-lg bg-muted/30 p-3 flex items-center gap-2">
-                        <Dumbbell className="h-4 w-4 text-primary" />
-                        <div>
-                          <p className="text-[10px] uppercase text-muted-foreground tracking-wider">Exercícios</p>
-                          <p className="text-sm font-semibold">{todayTraining.exercises.length}</p>
-                        </div>
-                      </div>
-                      <div className="rounded-lg bg-muted/30 p-3 flex items-center gap-2">
-                        <Target className="h-4 w-4 text-primary" />
-                        <div>
-                          <p className="text-[10px] uppercase text-muted-foreground tracking-wider">Músculos</p>
-                          <p className="text-sm font-semibold truncate max-w-[80px]">
-                            {todayMuscleGroups.split(' • ')[0] || 'Vários'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <div className="space-y-2">
-                  {todayTraining.exercises.map((ex, i) => {
-                    const key = ex.exercise.toUpperCase().trim();
-                    const media = exerciseMedia[key];
-                    const plan = buildSetPlan(ex.series, ex.series2, ex.reps);
-                    const summary = buildPlanSummary(plan);
-
-                    return (
-                      <Card key={ex.exercise + i} className="glass-card overflow-hidden">
-                        <CardContent className="p-3">
-                          <div className="flex gap-3">
-                            <div className="shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-muted/30 flex items-center justify-center">
-                              {media?.imageUrl ? (
-                                <img src={media.imageUrl} alt={ex.exercise} className="w-full h-full object-cover" />
-                              ) : (
-                                <Dumbbell className="h-6 w-6 text-muted-foreground" />
-                              )}
-                            </div>
-
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start gap-2">
-                                <span className="text-[10px] font-bold text-primary mt-0.5">
-                                  {String(i + 1).padStart(2, '0')}
-                                </span>
-                                <p className="text-sm font-semibold leading-tight flex-1">
-                                  {ex.exercise}
-                                </p>
-                              </div>
-                              {media?.muscleGroup && (
-                                <p className="text-[11px] text-muted-foreground mt-0.5 ml-5">
-                                  {media.muscleGroup}
-                                </p>
-                              )}
-                              <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 ml-5 text-[11px] text-muted-foreground">
-                                {summary && (
-                                  <span className="flex items-center gap-1">
-                                    <Repeat className="h-3 w-3" />
-                                    {summary}
-                                  </span>
-                                )}
-                                {ex.rir && ex.rir !== '-' && (
-                                  <span className="flex items-center gap-1">
-                                    <Activity className="h-3 w-3" />
-                                    RIR {ex.rir}
-                                  </span>
-                                )}
-                                {ex.pause && ex.pause !== '-' && (
-                                  <span className="flex items-center gap-1">
-                                    <Timer className="h-3 w-3" />
-                                    {ex.pause}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => setHistoryExercise(ex.exercise)}
-                              className="shrink-0 self-start mt-1 p-1.5 rounded-md hover:bg-muted/50 transition-colors"
-                            >
-                              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                            </button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-
-                <div className="pt-2">
-                  <Button
-                    size="lg"
-                    className="w-full gap-2 h-12 text-base font-bold shadow-lg shadow-primary/20"
-                    onClick={() => navigate('/treino-execucao', {
-                      state: {
-                        exercises: todayTraining.exercises,
-                        dayName: todayTraining.day,
-                        exerciseMedia,
-                      },
-                    })}
-                  >
-                    <Play className="h-5 w-5 fill-current" />
-                    INICIAR TREINO
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Card
-                className={`glass-card overflow-hidden cursor-pointer group ${activeSession ? 'ring-2 ring-primary/60 shadow-lg shadow-primary/10' : ''}`}
-                onClick={() => {
-                  if (activeSession) {
-                    navigate('/treino-execucao', {
-                      state: {
-                        exercises: todayTraining.exercises,
-                        dayName: todayTraining.day,
-                        exerciseMedia,
-                      },
-                    });
-                  } else {
-                    setShowExercises(true);
-                  }
-                }}
-              >
+            <Card
+              className={`glass-card overflow-hidden cursor-pointer group ${activeSession ? 'ring-2 ring-primary/60 shadow-lg shadow-primary/10' : ''}`}
+              onClick={() => {
+                if (activeSession) {
+                  navigate('/treino-execucao', {
+                    state: {
+                      exercises: todayTraining.exercises,
+                      dayName: todayTraining.day,
+                      exerciseMedia,
+                    },
+                  });
+                } else {
+                  navigate('/treino-preview', {
+                    state: {
+                      exercises: todayTraining.exercises,
+                      dayName: todayTraining.day,
+                      exerciseMedia,
+                    },
+                  });
+                }
+              }}
+            >
                 <div className="relative h-40 overflow-hidden">
                   <img
                     src={todayHeroImage}
