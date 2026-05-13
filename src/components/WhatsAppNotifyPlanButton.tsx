@@ -115,13 +115,21 @@ const WhatsAppNotifyPlanButton: React.FC<Props> = ({ plan, studentId, onNotified
 
     const cleaned = (phone ?? '').replace(/\D/g, '');
     const withDdi = cleaned.length === 10 || cleaned.length === 11 ? `55${cleaned}` : cleaned;
-    const url = withDdi
-      ? `https://wa.me/${withDdi}?text=${encodeURIComponent(msg)}`
-      : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    const url = withDdi 
+      ? `whatsapp://send?phone=${withDdi}&text=${encodeURIComponent(msg)}`
+      : `whatsapp://send?text=${encodeURIComponent(msg)}`;
     
-    // Open WhatsApp BEFORE updating state to prevent button from disappearing 
-    // and causing issues with the window.open call on some browsers/mobile.
-    window.open(url, '_blank', 'noopener,noreferrer');
+    // On mobile/iPhone, directly setting location.href is often more reliable than window.open
+    // for custom protocols like whatsapp://
+    try {
+      window.location.href = url;
+    } catch (err) {
+      // Fallback to web link if protocol fails
+      const webUrl = withDdi
+        ? `https://wa.me/${withDdi}?text=${encodeURIComponent(msg)}`
+        : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+      window.open(webUrl, '_blank', 'noopener,noreferrer');
+    }
 
     // Now update state and database
     const now = new Date().toISOString();
