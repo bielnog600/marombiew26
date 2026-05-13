@@ -373,11 +373,10 @@ const MinhaArea = () => {
                       </div>
                     </div>
                   </div>
-                </div>
-              </Card>
-            )}
-          </div>
-        )}
+               </div>
+             </Card>
+           </div>
+         )}
 
         {/* Rest day card - when student has a training plan but today is not a scheduled training day */}
         {!todayTraining && trainingDays.length > 0 && (
