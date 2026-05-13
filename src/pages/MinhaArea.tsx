@@ -1,10 +1,18 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Dumbbell, ClipboardList, ChevronRight, Play, X } from 'lucide-react';
+import { Dumbbell, ClipboardList, ChevronRight, Play, X, List } from 'lucide-react';
 import { toast } from 'sonner';
 import WeeklyRoutineCard from '@/components/home/WeeklyRoutineCard';
 import WaterIntakeCard from '@/components/home/WaterIntakeCard';
@@ -42,6 +50,7 @@ const MinhaArea = () => {
   const [exerciseMedia, setExerciseMedia] = useState<Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }>>({});
   const { trackEvent } = useEventTracking();
   const { session: activeSession, clear: clearActiveSession } = useActiveWorkoutSession();
+  const [showExercises, setShowExercises] = useState(false);
 
   const handleCancelActiveSession = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -297,66 +306,134 @@ const MinhaArea = () => {
 
         {/* Today's Training */}
         {todayTraining && (
-          <Card
-            className={`glass-card overflow-hidden cursor-pointer group ${activeSession ? 'ring-2 ring-primary/60 shadow-lg shadow-primary/10' : ''}`}
-            onClick={() => navigate('/treino-execucao', {
-              state: {
-                exercises: todayTraining.exercises,
-                dayName: todayTraining.day,
-                exerciseMedia,
-              },
-            })}
-          >
-            <div className="relative h-40 overflow-hidden">
-              <img
-                src={todayHeroImage}
-                alt="Treino do dia"
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-card via-card/60 to-transparent" />
-              {activeSession && (
-                <>
-                  <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-primary/90 backdrop-blur rounded-full px-2.5 py-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary-foreground animate-pulse" />
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-primary-foreground">Em andamento</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleCancelActiveSession}
-                    aria-label="Cancelar treino em andamento"
-                    className="absolute top-3 right-3 z-10 h-8 w-8 rounded-full bg-background/80 backdrop-blur flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground transition-colors"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </>
-              )}
-              <div className="absolute bottom-0 left-0 right-0 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-widest text-primary font-semibold">{todayTraining.day}</p>
-                    <h3 className="text-base font-bold text-foreground mt-0.5 uppercase">
-                      {activeSession ? 'Continuar Treino' : 'Treino de Hoje'}
-                    </h3>
-                    {activeSession ? (
-                      <p className="text-xs text-primary font-mono font-bold mt-0.5 tabular-nums">
-                        ⏱ {formatActiveElapsed(activeElapsed)}
-                      </p>
-                    ) : (
-                      <>
-                        {todayMuscleGroups && (
-                          <p className="text-[10px] text-primary/80 font-medium mt-0.5">{todayMuscleGroups}</p>
-                        )}
-                        <p className="text-xs text-muted-foreground mt-0.5">{todayTraining.exercises.length} exercícios</p>
-                      </>
-                    )}
-                  </div>
-                  <div className="h-12 w-12 rounded-full bg-primary flex items-center justify-center shadow-lg">
-                    <Play className="h-5 w-5 text-primary-foreground ml-0.5" />
+          <>
+            <Card
+              className={`glass-card overflow-hidden cursor-pointer group ${activeSession ? 'ring-2 ring-primary/60 shadow-lg shadow-primary/10' : ''}`}
+              onClick={() => {
+                if (activeSession) {
+                  navigate('/treino-execucao', {
+                    state: {
+                      exercises: todayTraining.exercises,
+                      dayName: todayTraining.day,
+                      exerciseMedia,
+                    },
+                  });
+                } else {
+                  setShowExercises(true);
+                }
+              }}
+            >
+              <div className="relative h-40 overflow-hidden">
+                <img
+                  src={todayHeroImage}
+                  alt="Treino do dia"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-card via-card/60 to-transparent" />
+                {activeSession && (
+                  <>
+                    <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-primary/90 backdrop-blur rounded-full px-2.5 py-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary-foreground animate-pulse" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-primary-foreground">Em andamento</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCancelActiveSession}
+                      aria-label="Cancelar treino em andamento"
+                      className="absolute top-3 right-3 z-10 h-8 w-8 rounded-full bg-background/80 backdrop-blur flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </>
+                )}
+                <div className="absolute bottom-0 left-0 right-0 p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-primary font-semibold">{todayTraining.day}</p>
+                      <h3 className="text-base font-bold text-foreground mt-0.5 uppercase">
+                        {activeSession ? 'Continuar Treino' : 'Treino de Hoje'}
+                      </h3>
+                      {activeSession ? (
+                        <p className="text-xs text-primary font-mono font-bold mt-0.5 tabular-nums">
+                          ⏱ {formatActiveElapsed(activeElapsed)}
+                        </p>
+                      ) : (
+                        <>
+                          {todayMuscleGroups && (
+                            <p className="text-[10px] text-primary/80 font-medium mt-0.5">{todayMuscleGroups}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-0.5">{todayTraining.exercises.length} exercícios</p>
+                        </>
+                      )}
+                    </div>
+                    <div className="h-12 w-12 rounded-full bg-primary flex items-center justify-center shadow-lg">
+                      <Play className="h-5 w-5 text-primary-foreground ml-0.5" />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+
+            <Dialog open={showExercises} onOpenChange={setShowExercises}>
+              <DialogContent className="sm:max-w-[425px] p-0 overflow-hidden border-none max-h-[90vh] flex flex-col">
+                <DialogHeader className="p-6 pb-0">
+                  <DialogTitle className="flex items-center gap-2">
+                    <List className="h-5 w-5 text-primary" />
+                    Exercícios de Hoje
+                  </DialogTitle>
+                  <DialogDescription>
+                    {todayTraining.day} • {todayTraining.exercises.length} exercícios
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                  {todayTraining.exercises.map((ex, idx) => {
+                    const key = ex.exercise.toUpperCase().trim();
+                    const imgUrl = exerciseImages[key];
+                    return (
+                      <div key={idx} className="flex gap-4 p-3 rounded-lg bg-muted/30 border border-border/50 items-center">
+                        <div className="h-16 w-16 rounded-md overflow-hidden bg-muted shrink-0">
+                          {imgUrl ? (
+                            <img src={imgUrl} alt={ex.exercise} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Dumbbell className="h-6 w-6 text-muted-foreground/40" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-bold text-sm text-foreground leading-tight truncate">{ex.exercise}</h4>
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
+                            <span className="text-[10px] text-muted-foreground font-medium">Séries: <span className="text-foreground">{ex.series}</span></span>
+                            <span className="text-[10px] text-muted-foreground font-medium">Reps: <span className="text-foreground">{ex.reps}</span></span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="p-6 bg-muted/30 border-t border-border mt-auto">
+                  <Button 
+                    className="w-full gap-2 h-12 text-base font-bold"
+                    onClick={() => {
+                      setShowExercises(false);
+                      navigate('/treino-execucao', {
+                        state: {
+                          exercises: todayTraining.exercises,
+                          dayName: todayTraining.day,
+                          exerciseMedia,
+                        },
+                      });
+                    }}
+                  >
+                    <Play className="h-5 w-5 fill-current" />
+                    INICIAR TREINO
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </>
         )}
 
         {/* Rest day card - when student has a training plan but today is not a scheduled training day */}
