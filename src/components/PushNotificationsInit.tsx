@@ -1,14 +1,28 @@
-import { usePushNotifications } from "@/hooks/usePushNotifications";
-import { useAuth } from "@/contexts/AuthContext";
+ import { useState, useEffect } from "react";
+ import { usePushNotifications } from "@/hooks/usePushNotifications";
+ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { BellRing, Loader2, ShieldAlert } from "lucide-react";
+ import { BellRing, Loader2, ShieldAlert, X } from "lucide-react";
 import { toast } from "sonner";
 
 const PushNotificationsInit = () => {
   const { user, role, loading } = useAuth();
   const { status, enableNotifications, isIOS, isStandalone } = usePushNotifications();
+   const [dismissed, setDismissed] = useState(false);
+ 
+   useEffect(() => {
+     const isDismissed = localStorage.getItem("push-notifications-banner-dismissed");
+     if (isDismissed === "true") {
+       setDismissed(true);
+     }
+   }, []);
+ 
+   const handleDismiss = () => {
+     setDismissed(true);
+     localStorage.setItem("push-notifications-banner-dismissed", "true");
+   };
 
-  if (loading || !user || status === "enabled" || status === "preview") {
+   if (loading || !user || status === "enabled" || status === "preview" || dismissed) {
     return null;
   }
 
@@ -56,11 +70,21 @@ const PushNotificationsInit = () => {
                   : "Toque aqui para permitir avisos no iPhone."}
           </p>
         </div>
-        {canAskPermission && (
-          <Button size="sm" onClick={handleEnable} disabled={isBusy} className="shrink-0 font-semibold">
-            {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Permitir"}
-          </Button>
-        )}
+         <div className="flex items-center gap-1 shrink-0">
+           {canAskPermission && (
+             <Button size="sm" onClick={handleEnable} disabled={isBusy} className="font-semibold h-8 px-3">
+               {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Permitir"}
+             </Button>
+           )}
+           <Button
+             variant="ghost"
+             size="icon"
+             className="h-8 w-8 rounded-full text-muted-foreground hover:bg-muted"
+             onClick={handleDismiss}
+           >
+             <X className="h-4 w-4" />
+           </Button>
+         </div>
       </div>
     </div>
   );
