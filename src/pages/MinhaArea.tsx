@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Dumbbell, ClipboardList, ChevronRight, Play, X } from 'lucide-react';
+import { Dumbbell, ClipboardList, ChevronRight, Play, X, List } from 'lucide-react';
 import { toast } from 'sonner';
 import WeeklyRoutineCard from '@/components/home/WeeklyRoutineCard';
 import WaterIntakeCard from '@/components/home/WaterIntakeCard';
@@ -42,6 +42,7 @@ const MinhaArea = () => {
   const [exerciseMedia, setExerciseMedia] = useState<Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }>>({});
   const { trackEvent } = useEventTracking();
   const { session: activeSession, clear: clearActiveSession } = useActiveWorkoutSession();
+  const [showExercises, setShowExercises] = useState(false);
 
   const handleCancelActiveSession = async (e: React.MouseEvent) => {
     e.stopPropagation();
