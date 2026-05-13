@@ -8,7 +8,7 @@ import { ExerciseLoadHistorySheet } from '@/components/training/ExerciseLoadHist
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Dumbbell, ClipboardList, ChevronRight, Play, X, List } from 'lucide-react';
+import { Dumbbell, ClipboardList, ChevronRight, Play, X, List, Target } from 'lucide-react';
 import { toast } from 'sonner';
 import WeeklyRoutineCard from '@/components/home/WeeklyRoutineCard';
 import WaterIntakeCard from '@/components/home/WaterIntakeCard';
@@ -581,6 +581,15 @@ const MinhaArea = () => {
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </CardContent>
         </Card>
+        {/* Sheet de histórico de cargas */}
+        {user && (
+          <ExerciseLoadHistorySheet
+            open={!!historyExercise}
+            onOpenChange={(v) => { if (!v) setHistoryExercise(null); }}
+            studentId={user.id}
+            exerciseName={historyExercise || ''}
+          />
+        )}
       </div>
     </AppLayout>
   );
