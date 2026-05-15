@@ -262,9 +262,16 @@ const MinhaArea = () => {
     return groups.slice(0, 3).join(' • ');
   }, [todayTraining, exerciseMuscles]);
   const loading = loadingData || loadingTracking;
-  const showSkeleton = loading && !sessionStorage.getItem('_splashDone');
+  const [hasDataLoadedOnce, setHasDataLoadedOnce] = useState(false);
 
-  if (showSkeleton) {
+  useEffect(() => {
+    if (!loading && !hasDataLoadedOnce) {
+      setHasDataLoadedOnce(true);
+    }
+  }, [loading, hasDataLoadedOnce]);
+
+  // Show nothing until data is ready for the first time
+  if (!hasDataLoadedOnce && loading) {
     return (
       <AppLayout>
         <div className="space-y-5">
