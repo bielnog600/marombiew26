@@ -40,7 +40,16 @@ const MinhaArea = () => {
   const [_trainingTitle, setTrainingTitle] = useState('');
   const [_dietTitle, setDietTitle] = useState('');
   const [isTrainingDay, setIsTrainingDay] = useState(false);
-  const { tracking, addWater, removeWater, weeklyWorkouts, waterCurrentMl, waterTargetMl, waterGoalGlasses } = useDailyTracking({ isTrainingDay });
+  const { 
+    tracking, 
+    addWater, 
+    removeWater, 
+    weeklyWorkouts, 
+    waterCurrentMl, 
+    waterTargetMl, 
+    waterGoalGlasses,
+    loading: loadingTracking
+  } = useDailyTracking({ isTrainingDay });
   const [exerciseImages, setExerciseImages] = useState<Record<string, string>>({});
   const [exerciseMuscles, setExerciseMuscles] = useState<Record<string, string>>({});
   const [exerciseMedia, setExerciseMedia] = useState<Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }>>({});
@@ -254,10 +263,6 @@ const MinhaArea = () => {
     return groups.slice(0, 3).join(' • ');
   }, [todayTraining, exerciseMuscles]);
 
-  const { tracking, addWater, removeWater, weeklyWorkouts, waterCurrentMl, waterTargetMl, waterGoalGlasses, loading: loadingTracking } = useDailyTracking({ isTrainingDay });
-
-  const loading = loadingData || loadingTracking;
-  const showSkeleton = loading && !sessionStorage.getItem('_splashDone');
 
   if (showSkeleton) {
     return (
