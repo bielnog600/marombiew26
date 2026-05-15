@@ -30,7 +30,7 @@ const MinhaArea = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(true);
   const [assessmentCount, setAssessmentCount] = useState(0);
   const [trainingDays, setTrainingDays] = useState<ParsedTrainingDay[]>([]);
   const [meals, setMeals] = useState<ParsedMeal[]>([]);
@@ -176,7 +176,7 @@ const MinhaArea = () => {
     });
     if (cardio) setCardioConteudo(cardio.conteudo);
 
-    setLoading(false);
+    setLoadingData(false);
   };
 
   const firstName = profile?.nome?.split(' ')[0] || '';
@@ -254,6 +254,9 @@ const MinhaArea = () => {
     return groups.slice(0, 3).join(' • ');
   }, [todayTraining, exerciseMuscles]);
 
+  const { tracking, addWater, removeWater, weeklyWorkouts, waterCurrentMl, waterTargetMl, waterGoalGlasses, loading: loadingTracking } = useDailyTracking({ isTrainingDay });
+
+  const loading = loadingData || loadingTracking;
   const showSkeleton = loading && !sessionStorage.getItem('_splashDone');
 
   if (showSkeleton) {
