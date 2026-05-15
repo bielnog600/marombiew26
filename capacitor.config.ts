@@ -8,14 +8,17 @@ const config: CapacitorConfig = {
     url: "https://bd351d2c-a0ba-4d95-90f6-81bcd1b438ec.lovableproject.com?forceHideBadge=true",
     cleartext: true,
   },
-  ios: {
-    // Bloqueia rota\u00e7\u00e3o no iOS \u2014 apenas retrato.
-    contentInset: "always",
-  },
-  android: {
-    // Bloqueia rota\u00e7\u00e3o no Android \u2014 apenas retrato.
-    allowMixedContent: true,
-  },
+   ios: {
+     contentInset: "always",
+   },
+   android: {
+     allowMixedContent: true,
+   },
+   plugins: {
+     ScreenOrientation: {
+       orientation: "portrait"
+     }
+   }
 };
 
 export default config;
