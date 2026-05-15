@@ -178,8 +178,8 @@ const MinhaArea = () => {
         setMeals(allMeals);
       }
 
-      setTabataConteudo(tabata || null);
-      setCardioConteudo(cardio || null);
+      setTabataConteudo(tabata?.conteudo || null);
+      setCardioConteudo(cardio?.conteudo || null);
     } catch (error) {
       console.error("Erro ao carregar dados:", error);
     } finally {
