@@ -1,4 +1,6 @@
 import { createRoot } from "react-dom/client";
+import { Capacitor } from "@capacitor/core";
+import { ScreenOrientation } from "@capacitor/screen-orientation";
 import { registerSW } from "virtual:pwa-register";
 import App from "./App.tsx";
 import "./index.css";
@@ -57,25 +59,31 @@ const startPwaAutoUpdate = () => {
 
 void cleanupServiceWorkers().then(startPwaAutoUpdate);
 
- // Forçar orientação retrato em dispositivos móveis (Safari iOS e Chrome Mobile)
- const forcePortraitOrientation = () => {
-   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-   if (!isMobile) return;
- 
-   const setOrientation = () => {
-     try {
-       // Tenta usar a API moderna se disponível (maioria dos navegadores mobile)
-       if (typeof screen !== 'undefined' && screen.orientation && screen.orientation.lock) {
-         screen.orientation.lock('portrait').catch(() => {});
-       }
-     } catch (e) {}
-   };
- 
-   setOrientation();
-   window.addEventListener('orientationchange', setOrientation);
-   window.addEventListener('resize', setOrientation);
- };
- 
- forcePortraitOrientation();
+// Trava orientação retrato no app nativo e tenta aplicar a API web quando disponível.
+const forcePortraitOrientation = () => {
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  if (!isMobile) return;
+
+  const lockPortrait = async () => {
+    try {
+      if (Capacitor.isNativePlatform()) {
+        await ScreenOrientation.lock({ orientation: "portrait" });
+        return;
+      }
+    } catch {}
+
+    try {
+      await screen.orientation?.lock?.("portrait");
+    } catch {}
+  };
+
+  void lockPortrait();
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") void lockPortrait();
+  });
+  window.addEventListener("focus", () => void lockPortrait());
+};
+
+forcePortraitOrientation();
  
 createRoot(document.getElementById("root")!).render(<App />);
