@@ -195,23 +195,27 @@ const TreinoExecucao = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
 
-  // Session timer tick — recalcula sempre a partir de started_at (real)
+  // Combined Session timer tick & visibility sync
   useEffect(() => {
-    const tick = () => setElapsedSeconds(Math.floor((Date.now() - sessionStartAt) / 1000));
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [sessionStartAt]);
+    const sync = () => setElapsedSeconds(Math.floor((Date.now() - sessionStartAt) / 1000));
+    
+    sync();
+    const id = setInterval(sync, 1000);
 
-  // Recalcula tempo quando a aba volta a ficar visível (cronômetro continua mesmo com app fechado)
-  useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState === 'visible') {
-        setElapsedSeconds(Math.floor((Date.now() - sessionStartAt) / 1000));
+        sync();
       }
     };
+
     document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
   }, [sessionStartAt]);
 
   // Cria ou retoma sessão em andamento ao montar (uma vez)
