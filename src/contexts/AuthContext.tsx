@@ -73,6 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
   const intentionalSignOut = useRef(false);
+  const isRefreshing = useRef(false);
 
   const fetchRole = async (userId: string): Promise<UserRole> => {
     // Try cache first
@@ -109,24 +110,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const applySession = async (nextSession: Session | null) => {
       if (!mounted) return;
 
-      // If session is null but we didn't intentionally sign out,
-      // try to recover before clearing state
-      if (!nextSession?.user && !intentionalSignOut.current) {
+      if (!nextSession?.user && !intentionalSignOut.current && !isRefreshing.current) {
         const cachedInfo = getCachedSession();
         if (cachedInfo) {
-          // Don't clear user state yet - might be a transient network issue
-          // Try to refresh the session
           try {
+            isRefreshing.current = true;
             const { data: refreshData } = await supabase.auth.refreshSession();
             if (refreshData?.session) {
               nextSession = refreshData.session;
             }
           } catch {
-            // Offline or network error - keep existing state if we have it
             if (user && role) {
               console.log('Offline: mantendo sessão existente');
               return;
             }
+          } finally {
+            isRefreshing.current = false;
           }
         }
       }
