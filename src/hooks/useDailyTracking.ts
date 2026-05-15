@@ -47,46 +47,57 @@ export function useDailyTracking(opts?: { isTrainingDay?: boolean }) {
 
   const load = useCallback(async () => {
     if (!user) return;
-    const today = todayStr();
-    const { data } = await fetchWithCache(`tracking:${user.id}:${today}`, async () => {
-      const { data } = await supabase.from('daily_tracking').select('*').eq('student_id', user.id).eq('date', today).maybeSingle();
-      return data;
-    });
-
-    if (data) {
-      const mealsCompletedRaw = data.meals_completed;
-      const mealsCompleted = Array.isArray(mealsCompletedRaw)
-        ? mealsCompletedRaw.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item >= 0)
-        : typeof mealsCompletedRaw === 'string'
-        ? JSON.parse(mealsCompletedRaw).map((item: unknown) => Number(item)).filter((item: number) => Number.isInteger(item) && item >= 0)
-        : [];
-
-      setTracking({
-        id: data.id,
-        water_glasses: data.water_glasses,
-        meals_completed: mealsCompleted,
-        workout_completed: data.workout_completed,
+    
+    try {
+      const today = todayStr();
+      const { data } = await fetchWithCache(`tracking:${user.id}:${today}`, async () => {
+        const { data } = await supabase.from('daily_tracking').select('*').eq('student_id', user.id).eq('date', today).maybeSingle();
+        return data;
       });
+
+      if (data) {
+        const mealsCompletedRaw = data.meals_completed;
+        let mealsCompleted: number[] = [];
+        
+        try {
+          mealsCompleted = Array.isArray(mealsCompletedRaw)
+            ? mealsCompletedRaw.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item >= 0)
+            : typeof mealsCompletedRaw === 'string'
+            ? JSON.parse(mealsCompletedRaw).map((item: unknown) => Number(item)).filter((item: number) => Number.isInteger(item) && item >= 0)
+            : [];
+        } catch (parseError) {
+          console.error("Error parsing meals_completed:", parseError);
+        }
+
+        setTracking({
+          id: data.id,
+          water_glasses: data.water_glasses,
+          meals_completed: mealsCompleted,
+          workout_completed: data.workout_completed,
+        });
+      }
+
+      // Count workouts completed this week
+      const { start, end } = getWeekRange();
+      const { data: weekData } = await fetchWithCache(`weekly:${user.id}:${start}`, async () => {
+        const { data } = await supabase.from('daily_tracking').select('id').eq('student_id', user.id).eq('workout_completed', true).gte('date', start).lte('date', end);
+        return data;
+      });
+      setWeeklyWorkouts(weekData?.length ?? 0);
+
+      // Carrega peso da última avaliação para calcular meta de água
+      const { data: weightData } = await fetchWithCache(`weight:${user.id}`, async () => {
+        const { data: assessment } = await supabase.from('assessments').select('id').eq('student_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (!assessment) return null;
+        const { data: anthro } = await supabase.from('anthropometrics').select('peso').eq('assessment_id', assessment.id).maybeSingle();
+        return anthro?.peso ? Number(anthro.peso) : null;
+      });
+      if (weightData != null) setWeightKg(weightData);
+    } catch (error) {
+      console.error("Error loading daily tracking:", error);
+    } finally {
+      setLoading(false);
     }
-
-    // Count workouts completed this week
-    const { start, end } = getWeekRange();
-    const { data: weekData } = await fetchWithCache(`weekly:${user.id}:${start}`, async () => {
-      const { data } = await supabase.from('daily_tracking').select('id').eq('student_id', user.id).eq('workout_completed', true).gte('date', start).lte('date', end);
-      return data;
-    });
-    setWeeklyWorkouts(weekData?.length ?? 0);
-
-    // Carrega peso da última avaliação para calcular meta de água
-    const { data: weightData } = await fetchWithCache(`weight:${user.id}`, async () => {
-      const { data: assessment } = await supabase.from('assessments').select('id').eq('student_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
-      if (!assessment) return null;
-      const { data: anthro } = await supabase.from('anthropometrics').select('peso').eq('assessment_id', assessment.id).maybeSingle();
-      return anthro?.peso ? Number(anthro.peso) : null;
-    });
-    if (weightData != null) setWeightKg(weightData);
-
-    setLoading(false);
   }, [user]);
 
   useEffect(() => { load(); }, [load]);
