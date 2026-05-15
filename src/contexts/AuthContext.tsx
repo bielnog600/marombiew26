@@ -150,11 +150,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
       // Only clear on explicit sign out
-      if (event === 'SIGNED_OUT' && !intentionalSignOut.current) {
+      if (event === 'SIGNED_OUT' && !intentionalSignOut.current && !isRefreshing.current) {
         // This might be an automatic token refresh failure
         // Try to recover silently
         console.log('Sessão perdida inesperadamente, tentando recuperar...');
+        isRefreshing.current = true;
         supabase.auth.refreshSession().then(({ data }) => {
+          isRefreshing.current = false;
           if (data?.session && mounted) {
             applySession(data.session);
           } else if (mounted) {
@@ -165,7 +167,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setLoading(false);
           }
         }).catch(() => {
-          // Offline - keep cached state
+          isRefreshing.current = false;
           if (mounted) setLoading(false);
         });
         return;
