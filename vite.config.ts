@@ -37,7 +37,7 @@ export default defineConfig(({ mode }) => ({
     appVersionPlugin(),
     mode === "development" && componentTagger(),
     VitePWA({
-      filename: "app-sw.js",
+      filename: "sw.js",
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "pwa-192.png", "pwa-512.png"],
       devOptions: {
