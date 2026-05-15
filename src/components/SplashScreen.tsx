@@ -6,7 +6,7 @@ import { useEffect } from 'react';
  * This component just controls the fade-out + onFinish handover, so the logo
  * and spinner stay perfectly fixed (no remount/jump) from boot to app ready.
  */
-const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
+const SplashScreenContainer = ({ onFinish }: { onFinish: () => void }) => {
   useEffect(() => {
     const boot = document.getElementById('boot-splash');
     let cancelled = false;
@@ -45,4 +45,4 @@ const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
   return null;
 };
 
-export default SplashScreen;
+export default SplashScreenContainer;

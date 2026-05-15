@@ -254,11 +254,12 @@ const MinhaArea = () => {
     return groups.slice(0, 3).join(' • ');
   }, [todayTraining, exerciseMuscles]);
 
-  if (loading) {
+  const showSkeleton = loading && !sessionStorage.getItem('_splashDone');
+
+  if (showSkeleton) {
     return (
       <AppLayout>
         <div className="space-y-5">
-          {/* Welcome skeleton */}
           <div className="flex items-center gap-3">
             <Skeleton className="h-12 w-12 rounded-full" />
             <div className="space-y-1.5">
@@ -266,19 +267,15 @@ const MinhaArea = () => {
               <Skeleton className="h-5 w-32" />
             </div>
           </div>
-          {/* Training card skeleton */}
           <Card className="glass-card overflow-hidden">
             <Skeleton className="h-40 w-full rounded-none" />
           </Card>
-          {/* Diet card skeleton */}
           <Skeleton className="h-24 rounded-xl" />
-          {/* Dashboard cards skeleton */}
           <div className="grid grid-cols-3 gap-3">
             <Skeleton className="h-24 rounded-xl" />
             <Skeleton className="h-24 rounded-xl" />
             <Skeleton className="h-24 rounded-xl" />
           </div>
-          {/* Assessments skeleton */}
           <Skeleton className="h-16 rounded-xl" />
         </div>
       </AppLayout>
