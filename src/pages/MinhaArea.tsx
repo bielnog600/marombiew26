@@ -98,94 +98,90 @@ const MinhaArea = () => {
   }, [user, trackEvent]);
 
   const loadData = async () => {
-    // Profile
-    const { data: prof } = await fetchWithCache(`profile:${user!.id}`, async () => {
-      const { data } = await supabase.from('profiles').select('nome').eq('user_id', user!.id).maybeSingle();
-      return data;
-    });
-    setProfile(prof);
+    try {
+      const [
+        { data: prof },
+        { data: avals },
+        { data: treino },
+        { data: dieta },
+        { data: tabata },
+        { data: cardio }
+      ] = await Promise.all([
+        fetchWithCache(`profile:${user!.id}`, async () => {
+          return (await supabase.from('profiles').select('nome').eq('user_id', user!.id).maybeSingle()).data;
+        }),
+        fetchWithCache(`assessments:${user!.id}`, async () => {
+          return (await supabase.from('assessments').select('id, created_at').eq('student_id', user!.id).order('created_at', { ascending: false })).data;
+        }),
+        fetchWithCache(`plan:treino:${user!.id}`, async () => {
+          return (await supabase.from('ai_plans').select('conteudo, titulo').eq('student_id', user!.id).eq('tipo', 'treino').order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
+        }),
+        fetchWithCache(`plan:dieta:${user!.id}`, async () => {
+          return (await supabase.from('ai_plans').select('conteudo, titulo').eq('student_id', user!.id).eq('tipo', 'dieta').order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
+        }),
+        fetchWithCache(`plan:tabata:${user!.id}`, async () => {
+          return (await supabase.from('ai_plans').select('conteudo').eq('student_id', user!.id).eq('tipo', 'tabata').order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
+        }),
+        fetchWithCache(`plan:cardio:${user!.id}`, async () => {
+          return (await supabase.from('ai_plans').select('conteudo').eq('student_id', user!.id).eq('tipo', 'cardio').order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
+        })
+      ]);
 
-    // Latest assessment stats
-    const { data: avals } = await fetchWithCache(`assessments:${user!.id}`, async () => {
-      const { data } = await supabase.from('assessments').select('id, created_at').eq('student_id', user!.id).order('created_at', { ascending: false });
-      return data;
-    });
-    setAssessmentCount(avals?.length ?? 0);
+      setProfile(prof);
+      setAssessmentCount(avals?.length ?? 0);
+      
+      if (treino) {
+        setTrainingTitle(treino.titulo);
+        const sections = parseTrainingSections(treino.conteudo);
+        const allDays = sections.flatMap(s => s.days ?? []);
+        setTrainingDays(allDays);
 
-    // (assessment detail stats removed - no longer displayed on home)
-
-    // Latest training plan
-    const { data: treino } = await fetchWithCache(`plan:treino:${user!.id}`, async () => {
-      const { data } = await supabase.from('ai_plans').select('conteudo, titulo').eq('student_id', user!.id).eq('tipo', 'treino').order('created_at', { ascending: false }).limit(1).maybeSingle();
-      return data;
-    });
-    if (treino) {
-      setTrainingTitle(treino.titulo);
-      const sections = parseTrainingSections(treino.conteudo);
-      const allDays = sections.flatMap(s => s.days ?? []);
-      setTrainingDays(allDays);
-
-      // Fetch exercise images from DB for matching
-      const exerciseNames = allDays.flatMap(d => d.exercises.map(e => e.exercise.toUpperCase().trim()));
-      const uniqueNames = [...new Set(exerciseNames)];
-      if (uniqueNames.length > 0) {
-        const { data: dbExercises } = await fetchWithCache('exercises:all', async () => {
-          const { data } = await supabase.from('exercises').select('id, nome, imagem_url, grupo_muscular, video_embed, ajustes');
-          return data;
-        });
-        if (dbExercises) {
-          const imgMap: Record<string, string> = {};
-          const muscleMap: Record<string, string> = {};
-          const mediaMap: Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }> = {};
-          for (const name of uniqueNames) {
-            const match = findBestExerciseMatch(name, dbExercises);
-            if (match?.imagem_url) imgMap[name] = match.imagem_url;
-            if (match?.grupo_muscular) muscleMap[name] = match.grupo_muscular;
-            if (match) {
-              mediaMap[name] = {
-                id: match.id,
-                imageUrl: match.imagem_url || undefined,
-                videoEmbed: match.video_embed || undefined,
-                muscleGroup: match.grupo_muscular || undefined,
-                ajustes: match.ajustes ?? null,
-              };
+        const exerciseNames = allDays.flatMap(d => d.exercises.map(e => e.exercise.toUpperCase().trim()));
+        const uniqueNames = [...new Set(exerciseNames)];
+        if (uniqueNames.length > 0) {
+          const { data: dbExercises } = await fetchWithCache('exercises:all', async () => {
+            return (await supabase.from('exercises').select('id, nome, imagem_url, grupo_muscular, video_embed, ajustes')).data;
+          });
+          if (dbExercises) {
+            const imgMap: Record<string, string> = {};
+            const muscleMap: Record<string, string> = {};
+            const mediaMap: Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }> = {};
+            for (const name of uniqueNames) {
+              const match = findBestExerciseMatch(name, dbExercises);
+              if (match?.imagem_url) imgMap[name] = match.imagem_url;
+              if (match?.grupo_muscular) muscleMap[name] = match.grupo_muscular;
+              if (match) {
+                mediaMap[name] = {
+                  id: match.id,
+                  imageUrl: match.imagem_url || undefined,
+                  videoEmbed: match.video_embed || undefined,
+                  muscleGroup: match.grupo_muscular || undefined,
+                  ajustes: match.ajustes ?? null,
+                };
+              }
             }
+            setExerciseImages(imgMap);
+            setExerciseMuscles(muscleMap);
+            setExerciseMedia(mediaMap);
           }
-          setExerciseImages(imgMap);
-          setExerciseMuscles(muscleMap);
-          setExerciseMedia(mediaMap);
         }
       }
+
+      if (dieta) {
+        setDietTitle(dieta.titulo);
+        const sections = parseSections(dieta.conteudo);
+        setDietSections(sections);
+        const allMeals = sections.flatMap(s => s.meals ?? []);
+        setMeals(allMeals);
+      }
+
+      if (tabata) setTabataConteudo(tabata.conteudo);
+      if (cardio) setCardioConteudo(cardio.conteudo);
+    } catch (error) {
+      console.error("Erro ao carregar dados:", error);
+    } finally {
+      setLoadingData(false);
     }
-
-    // Latest diet plan
-    const { data: dieta } = await fetchWithCache(`plan:dieta:${user!.id}`, async () => {
-      const { data } = await supabase.from('ai_plans').select('conteudo, titulo').eq('student_id', user!.id).eq('tipo', 'dieta').order('created_at', { ascending: false }).limit(1).maybeSingle();
-      return data;
-    });
-    if (dieta) {
-      setDietTitle(dieta.titulo);
-      const sections = parseSections(dieta.conteudo);
-      setDietSections(sections);
-      const allMeals = sections.flatMap(s => s.meals ?? []);
-      setMeals(allMeals);
-    }
-
-    // Latest TABATA plan
-    const { data: tabata } = await fetchWithCache(`plan:tabata:${user!.id}`, async () => {
-      const { data } = await supabase.from('ai_plans').select('conteudo').eq('student_id', user!.id).eq('tipo', 'tabata').order('created_at', { ascending: false }).limit(1).maybeSingle();
-      return data;
-    });
-    if (tabata) setTabataConteudo(tabata.conteudo);
-
-    // Latest CARDIO plan
-    const { data: cardio } = await fetchWithCache(`plan:cardio:${user!.id}`, async () => {
-      const { data } = await supabase.from('ai_plans').select('conteudo').eq('student_id', user!.id).eq('tipo', 'cardio').order('created_at', { ascending: false }).limit(1).maybeSingle();
-      return data;
-    });
-    if (cardio) setCardioConteudo(cardio.conteudo);
-
-    setLoadingData(false);
   };
 
   const firstName = profile?.nome?.split(' ')[0] || '';
