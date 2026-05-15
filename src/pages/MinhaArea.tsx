@@ -93,20 +93,6 @@ const MinhaArea = () => {
 
   const loadDataRef = React.useRef(false);
 
-  useEffect(() => {
-    if (user && !loadDataRef.current) {
-      loadDataRef.current = true;
-      
-      // Garante que o skeleton apareça por pelo menos 2.2 segundos para evitar "piscar" e duplo carregamento
-      const timer = setTimeout(() => setMinLoadingDone(true), 2200);
-      
-      loadData();
-      trackEvent('app_opened');
-      
-      return () => clearTimeout(timer);
-    }
-  }, [user, trackEvent, loadData]);
-
   const loadData = React.useCallback(async () => {
     try {
       const [
@@ -193,6 +179,20 @@ const MinhaArea = () => {
       setLoadingData(false);
     }
   }, [user, trackEvent]);
+
+  useEffect(() => {
+    if (user && !loadDataRef.current) {
+      loadDataRef.current = true;
+      
+      // Garante que o skeleton apareça por pelo menos 2.2 segundos para evitar "piscar" e duplo carregamento
+      const timer = setTimeout(() => setMinLoadingDone(true), 2200);
+      
+      loadData();
+      trackEvent('app_opened');
+      
+      return () => clearTimeout(timer);
+    }
+  }, [user, trackEvent, loadData]);
 
   const firstName = profile?.nome?.split(' ')[0] || '';
   const greeting = (() => {
