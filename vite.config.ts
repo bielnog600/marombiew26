@@ -37,7 +37,7 @@ export default defineConfig(({ mode }) => ({
     appVersionPlugin(),
     mode === "development" && componentTagger(),
     VitePWA({
-      filename: "app-sw.js",
+      filename: "sw.js",
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "pwa-192.png", "pwa-512.png"],
       devOptions: {
@@ -58,7 +58,7 @@ export default defineConfig(({ mode }) => ({
             options: {
               cacheName: "html-cache",
               networkTimeoutSeconds: 3,
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 5 },
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 30 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },

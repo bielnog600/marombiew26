@@ -5,7 +5,7 @@ import { registerSW } from "virtual:pwa-register";
 import App from "./App.tsx";
 import "./index.css";
 
-// Guard: unregister SW in preview/iframe contexts and remove old app workers
+// Guard: unregister service workers only in Lovable preview/iframe contexts.
 const isInIframe = (() => {
   try { return window.self !== window.top; } catch { return true; }
 })();
@@ -20,9 +20,7 @@ const cleanupServiceWorkers = async () => {
   const regs = await navigator.serviceWorker.getRegistrations();
   await Promise.all(
     regs.map(async (reg) => {
-      const url = reg.active?.scriptURL || reg.waiting?.scriptURL || reg.installing?.scriptURL || "";
-      const isOldAppWorker = url.endsWith("/sw.js") || url.endsWith("/service-worker.js");
-      if (isPreviewHost || isInIframe || isOldAppWorker) {
+      if (isPreviewHost || isInIframe) {
         await reg.unregister();
       }
     })
