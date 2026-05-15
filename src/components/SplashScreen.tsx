@@ -45,4 +45,4 @@ const SplashScreenContainer = ({ onFinish }: { onFinish: () => void }) => {
   return null;
 };
 
-export default SplashScreen;
+export default SplashScreenContainer;
