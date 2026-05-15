@@ -235,32 +235,35 @@ const TabataExecucao: React.FC = () => {
     };
   }, []);
 
-  // Tick based on wall-clock time
+  // Unified Tick & Sync based on wall-clock time
   useEffect(() => {
-    if (paused || phase === 'idle' || phase === 'done') return;
+    if (paused || phase === 'idle' || phase === 'done') {
+      return;
+    }
     
-    const tick = () => {
+    const sync = () => {
       const elapsed = Math.floor((Date.now() - phaseStartTime) / 1000);
       const remaining = Math.max(0, phaseTotalSeconds - elapsed);
       setSecondsLeft(remaining);
     };
 
-    tick();
-    const id = setInterval(tick, 500);
-    return () => clearInterval(id);
-  }, [paused, phase, phaseStartTime, phaseTotalSeconds]);
+    sync();
+    const id = setInterval(sync, 200); // More frequent for smoother UI
 
-  // Sync when coming back to visibility
-  useEffect(() => {
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && !paused && phase !== 'idle' && phase !== 'done') {
-        const elapsed = Math.floor((Date.now() - phaseStartTime) / 1000);
-        const remaining = Math.max(0, phaseTotalSeconds - elapsed);
-        setSecondsLeft(remaining);
+      if (document.visibilityState === 'visible') {
+        sync();
       }
     };
+
     document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleVisibility);
+    
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleVisibility);
+    };
   }, [paused, phase, phaseStartTime, phaseTotalSeconds]);
 
   // Phase transitions when seconds hit 0
