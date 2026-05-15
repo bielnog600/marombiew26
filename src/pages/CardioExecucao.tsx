@@ -195,19 +195,44 @@ const CardioExecucao: React.FC = () => {
     };
   }, []);
 
-  // Tick based on wall-clock time
+  // Combined Tick & Sync based on wall-clock time
   useEffect(() => {
     if (paused || phase === 'idle' || phase === 'done') return;
     
-    const id = setInterval(() => {
+    // Calculate start time based on current secondsLeft and anchor
+    const startTime = anchorRef.current - (0); // actually we should use a consistent startTime
+    // For Cardio, we use anchorMs as the point where secondsLeft was set.
+    // Better to use a fixed startTime for the current block/phase.
+    
+    const sync = () => {
       const now = Date.now();
-      const elapsed = Math.floor((now - anchorRef.current) / 1000);
-      if (elapsed >= 1) {
-        setSecondsLeft(prev => Math.max(0, prev - elapsed));
-        anchorRef.current = now;
+      const elapsedSinceAnchor = Math.floor((now - anchorRef.current) / 1000);
+      if (elapsedSinceAnchor >= 1) {
+        setSecondsLeft(prev => {
+          const next = Math.max(0, prev - elapsedSinceAnchor);
+          if (next !== prev) anchorRef.current = now;
+          return next;
+        });
       }
-    }, 500); // Check more frequently but only decrement when 1s passed
-    return () => clearInterval(id);
+    };
+
+    sync();
+    const id = setInterval(sync, 200);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        sync();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleVisibility);
+
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleVisibility);
+    };
   }, [paused, phase]);
 
   // Phase transitions
