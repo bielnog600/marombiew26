@@ -38,7 +38,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title }) => {
               <NotificationBell />
             </header>
           )}
-          <main className={`flex-1 overflow-auto ${isMobile ? 'p-4 pb-4' : 'p-4 md:p-6'}`} style={isMobile ? { paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' } : undefined}>
+           <main className={`flex-1 overflow-auto w-full ${isMobile ? 'p-4 pb-4' : 'p-4 md:p-6'}`} style={isMobile ? { paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' } : undefined}>
             {children}
           </main>
         </div>
