@@ -30,7 +30,7 @@ const MinhaArea = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(true);
   const [assessmentCount, setAssessmentCount] = useState(0);
   const [trainingDays, setTrainingDays] = useState<ParsedTrainingDay[]>([]);
   const [meals, setMeals] = useState<ParsedMeal[]>([]);
@@ -40,7 +40,16 @@ const MinhaArea = () => {
   const [_trainingTitle, setTrainingTitle] = useState('');
   const [_dietTitle, setDietTitle] = useState('');
   const [isTrainingDay, setIsTrainingDay] = useState(false);
-  const { tracking, addWater, removeWater, weeklyWorkouts, waterCurrentMl, waterTargetMl, waterGoalGlasses } = useDailyTracking({ isTrainingDay });
+  const { 
+    tracking, 
+    addWater, 
+    removeWater, 
+    weeklyWorkouts, 
+    waterCurrentMl, 
+    waterTargetMl, 
+    waterGoalGlasses,
+    loading: loadingTracking
+  } = useDailyTracking({ isTrainingDay });
   const [exerciseImages, setExerciseImages] = useState<Record<string, string>>({});
   const [exerciseMuscles, setExerciseMuscles] = useState<Record<string, string>>({});
   const [exerciseMedia, setExerciseMedia] = useState<Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }>>({});
@@ -176,7 +185,7 @@ const MinhaArea = () => {
     });
     if (cardio) setCardioConteudo(cardio.conteudo);
 
-    setLoading(false);
+    setLoadingData(false);
   };
 
   const firstName = profile?.nome?.split(' ')[0] || '';
@@ -253,7 +262,7 @@ const MinhaArea = () => {
     }
     return groups.slice(0, 3).join(' • ');
   }, [todayTraining, exerciseMuscles]);
-
+  const loading = loadingData || loadingTracking;
   const showSkeleton = loading && !sessionStorage.getItem('_splashDone');
 
   if (showSkeleton) {
