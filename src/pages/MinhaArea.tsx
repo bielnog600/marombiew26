@@ -184,8 +184,8 @@ const MinhaArea = () => {
     if (user && !loadDataRef.current) {
       loadDataRef.current = true;
       
-      // Garante que o skeleton apareça por pelo menos 2.2 segundos para evitar "piscar" e duplo carregamento
-      const timer = setTimeout(() => setMinLoadingDone(true), 2200);
+      // Garante que o skeleton apareça por pelo menos 1.2 segundos para evitar "piscar", mas sem demorar demais
+      const timer = setTimeout(() => setMinLoadingDone(true), 1200);
       
       loadData();
       trackEvent('app_opened');
