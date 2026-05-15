@@ -90,12 +90,15 @@ const MinhaArea = () => {
     return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
   };
 
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
+
   useEffect(() => {
-    if (user) {
+    if (user && isFirstLoad) {
       loadData();
       trackEvent('app_opened');
+      setIsFirstLoad(false);
     }
-  }, [user, trackEvent]);
+  }, [user, trackEvent, isFirstLoad]);
 
   const loadData = async () => {
     try {
