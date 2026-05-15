@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef, useState } from 'react';
+ import React, { useLayoutEffect, useRef, useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -36,43 +36,56 @@ const BottomNav: React.FC = () => {
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const [pillRect, setPillRect] = useState<{ left: number; width: number } | null>(null);
+   const [pillRect, setPillRect] = useState<{ left: number; width: number; key: number } | null>(null);
+   const [resizeKey, setResizeKey] = useState(0);
   const hasInitialPosition = useRef(false);
 
   const activeIndex = items.findIndex(
     (it) => location.pathname === it.url || location.pathname.startsWith(it.url + '/')
   );
 
-  // Mede posição do tab ativo e do vizinho na direção do drag para interpolar o pill
-  useLayoutEffect(() => {
-    if (activeIndex === -1) { setPillRect(null); return; }
-    const container = containerRef.current;
-    const activeBtn = itemRefs.current[activeIndex];
-    if (!container || !activeBtn) return;
-    const cRect = container.getBoundingClientRect();
-    const aRect = activeBtn.getBoundingClientRect();
-    const activeLeft = aRect.left - cRect.left;
-    const activeWidth = aRect.width;
+   // Update pill on resize/orientation change
+   useEffect(() => {
+     const handleResize = () => setResizeKey(prev => prev + 1);
+     window.addEventListener('resize', handleResize);
+     window.addEventListener('orientationchange', handleResize);
+     return () => {
+       window.removeEventListener('resize', handleResize);
+       window.removeEventListener('orientationchange', handleResize);
+     };
+   }, []);
 
-    // dragProgress: <0 indo p/ próximo; >0 indo p/ anterior
-    let neighborIdx = activeIndex;
-    if (dragProgress < 0) neighborIdx = Math.min(items.length - 1, activeIndex + 1);
-    else if (dragProgress > 0) neighborIdx = Math.max(0, activeIndex - 1);
+   // Mede posição do tab ativo e do vizinho na direção do drag para interpolar o pill
+   useLayoutEffect(() => {
+     if (activeIndex === -1) { setPillRect(null); return; }
+     const container = containerRef.current;
+     const activeBtn = itemRefs.current[activeIndex];
+     if (!container || !activeBtn) return;
+     const cRect = container.getBoundingClientRect();
+     const aRect = activeBtn.getBoundingClientRect();
+     const activeLeft = aRect.left - cRect.left;
+     const activeWidth = aRect.width;
 
-    const neighborBtn = itemRefs.current[neighborIdx];
-    if (!neighborBtn || neighborIdx === activeIndex || dragProgress === 0) {
-      setPillRect({ left: activeLeft, width: activeWidth });
-      return;
-    }
-    const nRect = neighborBtn.getBoundingClientRect();
-    const neighborLeft = nRect.left - cRect.left;
-    const neighborWidth = nRect.width;
+     // dragProgress: <0 indo p/ próximo; >0 indo p/ anterior
+     let neighborIdx = activeIndex;
+     if (dragProgress < 0) neighborIdx = Math.min(items.length - 1, activeIndex + 1);
+     else if (dragProgress > 0) neighborIdx = Math.max(0, activeIndex - 1);
 
-    const t = Math.min(1, Math.abs(dragProgress) / 0.5); // chega ao vizinho a 50% da tela
-    const left = activeLeft + (neighborLeft - activeLeft) * t;
-    const width = activeWidth + (neighborWidth - activeWidth) * t;
-    setPillRect({ left, width });
-  }, [activeIndex, dragProgress, items.length, location.pathname]);
+     const neighborBtn = itemRefs.current[neighborIdx];
+     if (!neighborBtn || neighborIdx === activeIndex || dragProgress === 0) {
+       setPillRect({ left: activeLeft, width: activeWidth, key: resizeKey });
+       return;
+     }
+     const nRect = neighborBtn.getBoundingClientRect();
+     const neighborLeft = nRect.left - cRect.left;
+     const neighborWidth = nRect.width;
+
+     const t = Math.min(1, Math.abs(dragProgress) / 0.5); // chega ao vizinho a 50% da tela
+     const left = activeLeft + (neighborLeft - activeLeft) * t;
+     const width = activeWidth + (neighborWidth - activeWidth) * t;
+     setPillRect({ left, width, key: resizeKey });
+   }, [activeIndex, dragProgress, items.length, location.pathname, resizeKey]);
+
 
   // Mark initial position set after first paint
   useLayoutEffect(() => {
