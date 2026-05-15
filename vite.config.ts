@@ -58,7 +58,7 @@ export default defineConfig(({ mode }) => ({
             options: {
               cacheName: "html-cache",
               networkTimeoutSeconds: 3,
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 5 },
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 30 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },
