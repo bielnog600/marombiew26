@@ -39,13 +39,29 @@ const MeusTreinos = () => {
 
   useEffect(() => {
     if (!activeSession) return;
-    const update = () => {
+    
+    const sync = () => {
       const ms = Date.now() - new Date(activeSession.started_at).getTime();
       setActiveElapsed(Math.max(0, Math.floor(ms / 1000)));
     };
-    update();
-    const id = setInterval(update, 1000);
-    return () => clearInterval(id);
+
+    sync();
+    const id = setInterval(sync, 1000);
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        sync();
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
   }, [activeSession]);
 
   const formatElapsed = (totalSec: number) => {
