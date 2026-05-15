@@ -90,17 +90,17 @@ const MinhaArea = () => {
     return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
   };
 
-  const [isFirstLoad, setIsFirstLoad] = useState(true);
+  const loadDataRef = React.useRef(false);
 
   useEffect(() => {
-    if (user && isFirstLoad) {
+    if (user && !loadDataRef.current) {
+      loadDataRef.current = true;
       loadData();
       trackEvent('app_opened');
-      setIsFirstLoad(false);
     }
-  }, [user, trackEvent, isFirstLoad]);
+  }, [user, trackEvent]);
 
-  const loadData = async () => {
+  const loadData = React.useCallback(async () => {
     try {
       const [
         { data: prof },
@@ -178,14 +178,14 @@ const MinhaArea = () => {
         setMeals(allMeals);
       }
 
-      if (tabata) setTabataConteudo(tabata.conteudo);
-      if (cardio) setCardioConteudo(cardio.conteudo);
+      setTabataConteudo(tabata?.conteudo || null);
+      setCardioConteudo(cardio?.conteudo || null);
     } catch (error) {
       console.error("Erro ao carregar dados:", error);
     } finally {
       setLoadingData(false);
     }
-  };
+  }, [user, trackEvent]);
 
   const firstName = profile?.nome?.split(' ')[0] || '';
   const greeting = (() => {
