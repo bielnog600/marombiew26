@@ -90,23 +90,33 @@ export async function fetchWithCache<T>(
 ): Promise<{ data: T | null; fromCache: boolean }> {
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
-  // Always try to get cached data first for immediate display
   const cached = await getCached<T>(key);
 
   if (!isOnline) {
     return { data: cached, fromCache: true };
   }
 
-  // If online, fetch fresh data and update cache
-  try {
-    const data = await fetcher();
-    if (data != null) {
-      await setCache(key, data);
-    }
-    return { data, fromCache: false };
-  } catch (err) {
-    // If network fails but we have cache, use it
-    if (cached != null) return { data: cached, fromCache: true };
-    throw err;
-  }
+  // Se estiver online, tentamos o fetch mas com um timeout curto para não travar o app se a rede estiver ruim
+  return new Promise((resolve) => {
+    const timeoutId = setTimeout(() => {
+      if (cached != null) {
+        console.log(`[Cache] Network slow for ${key}, falling back to cache`);
+        resolve({ data: cached, fromCache: true });
+      }
+    }, 2500); // 2.5s timeout para o fetch individual
+
+    fetcher()
+      .then(async (data) => {
+        clearTimeout(timeoutId);
+        if (data != null) {
+          await setCache(key, data);
+        }
+        resolve({ data, fromCache: false });
+      })
+      .catch((err) => {
+        clearTimeout(timeoutId);
+        console.error(`[Cache] Fetch failed for ${key}:`, err);
+        resolve({ data: cached, fromCache: true });
+      });
+  });
 }
