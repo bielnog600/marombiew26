@@ -57,41 +57,25 @@ const startPwaAutoUpdate = () => {
 
 void cleanupServiceWorkers().then(startPwaAutoUpdate);
 
-// Force portrait behavior as much as the browser allows.
-// Native lock works mainly in installed PWAs/Android; CSS class below covers iOS/browser fallback.
-const applyPortraitLock = () => {
-  const viewport = window.visualViewport;
-  const width = viewport?.width ?? window.innerWidth;
-  const height = viewport?.height ?? window.innerHeight;
-  const isTouchDevice = window.matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
-  const isMobileSized = Math.min(width, height) <= 540 && Math.max(width, height) <= 1024;
-  const shouldForcePortrait = isTouchDevice && isMobileSized && width > height;
-
-  document.documentElement.style.setProperty("--app-vw", `${width}px`);
-  document.documentElement.style.setProperty("--app-vh", `${height}px`);
-  document.documentElement.classList.toggle("force-portrait-landscape", shouldForcePortrait);
-
-  try {
-    const orientation = screen.orientation as ScreenOrientation & {
-      lock?: (orientation: OrientationLockType) => Promise<void>;
-    };
-    if (orientation && typeof orientation.lock === "function") {
-      void orientation.lock("portrait-primary").catch(() => {
-        void orientation.lock("portrait").catch(() => {});
-      });
-    }
-  } catch {
-    return;
-  }
-};
-
-applyPortraitLock();
-window.addEventListener("resize", applyPortraitLock, { passive: true });
-window.addEventListener("orientationchange", applyPortraitLock, { passive: true });
-window.addEventListener("pageshow", applyPortraitLock, { passive: true });
-document.addEventListener("visibilitychange", applyPortraitLock, { passive: true });
-document.addEventListener("touchstart", applyPortraitLock, { passive: true });
-document.addEventListener("pointerdown", applyPortraitLock, { passive: true });
-window.visualViewport?.addEventListener("resize", applyPortraitLock, { passive: true });
-
+ // Forçar orientação retrato em dispositivos móveis (Safari iOS e Chrome Mobile)
+ const forcePortraitOrientation = () => {
+   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+   if (!isMobile) return;
+ 
+   const setOrientation = () => {
+     try {
+       // Tenta usar a API moderna se disponível (maioria dos navegadores mobile)
+       if (typeof screen !== 'undefined' && screen.orientation && screen.orientation.lock) {
+         screen.orientation.lock('portrait').catch(() => {});
+       }
+     } catch (e) {}
+   };
+ 
+   setOrientation();
+   window.addEventListener('orientationchange', setOrientation);
+   window.addEventListener('resize', setOrientation);
+ };
+ 
+ forcePortraitOrientation();
+ 
 createRoot(document.getElementById("root")!).render(<App />);
