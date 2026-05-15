@@ -1,25 +1,24 @@
  
- /* Bloqueio visual agressivo para rotação no iOS/Safari */
- @media screen and (min-aspect-ratio: 1/1) and (max-width: 1024px) {
-   html::before {
-     content: "Por favor, utilize o app em modo retrato (vertical).";
+ 
+ /* Forçar layout vertical mesmo em rotação horizontal no iOS/Safari */
+ @media screen and (orientation: landscape) and (max-width: 1024px) {
+   html, body {
      position: fixed;
-     inset: 0;
-     z-index: 999999;
-     background: #0F1115;
-     color: #FFC400;
-     display: flex;
-     align-items: center;
-     justify-content: center;
-     text-align: center;
-     padding: 2rem;
-     font-family: sans-serif;
-     font-weight: bold;
-     font-size: 1.2rem;
+     overflow: hidden;
+     width: 100vw;
+     height: 100vh;
    }
-   body {
-     overflow: hidden !important;
-     height: 100vh !important;
+ 
+   #root {
+     position: fixed;
+     top: 50%;
+     left: 50%;
+     width: 100vh;
+     height: 100vw;
+     transform: translate(-50%, -50%) rotate(-90deg);
+     transform-origin: center center;
+     overflow-y: auto;
+     -webkit-overflow-scrolling: touch;
    }
  }
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
