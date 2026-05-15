@@ -57,4 +57,25 @@ const startPwaAutoUpdate = () => {
 
 void cleanupServiceWorkers().then(startPwaAutoUpdate);
 
+ // Forçar orientação retrato em dispositivos móveis (Safari iOS e Chrome Mobile)
+ const forcePortraitOrientation = () => {
+   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+   if (!isMobile) return;
+ 
+   const setOrientation = () => {
+     try {
+       // Tenta usar a API moderna se disponível (maioria dos navegadores mobile)
+       if (typeof screen !== 'undefined' && screen.orientation && screen.orientation.lock) {
+         screen.orientation.lock('portrait').catch(() => {});
+       }
+     } catch (e) {}
+   };
+ 
+   setOrientation();
+   window.addEventListener('orientationchange', setOrientation);
+   window.addEventListener('resize', setOrientation);
+ };
+ 
+ forcePortraitOrientation();
+ 
 createRoot(document.getElementById("root")!).render(<App />);

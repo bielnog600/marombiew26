@@ -1,3 +1,27 @@
+ 
+ /* Bloqueio visual agressivo para rotação no iOS/Safari */
+ @media screen and (min-aspect-ratio: 1/1) and (max-width: 1024px) {
+   html::before {
+     content: "Por favor, utilize o app em modo retrato (vertical).";
+     position: fixed;
+     inset: 0;
+     z-index: 999999;
+     background: #0F1115;
+     color: #FFC400;
+     display: flex;
+     align-items: center;
+     justify-content: center;
+     text-align: center;
+     padding: 2rem;
+     font-family: sans-serif;
+     font-weight: bold;
+     font-size: 1.2rem;
+   }
+   body {
+     overflow: hidden !important;
+     height: 100vh !important;
+   }
+ }
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 #lovable-badge {
