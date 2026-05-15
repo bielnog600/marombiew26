@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
@@ -11,13 +11,20 @@ interface ProtectedRouteProps {
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole }) => {
   const { user, role, loading } = useAuth();
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (!loading) {
+      const boot = document.getElementById('boot-splash');
+      if (boot) {
+        boot.classList.add('boot-leaving');
+        setTimeout(() => {
+          boot.remove();
+          sessionStorage.setItem('_splashDone', '1');
+        }, 340);
+      }
+    }
+  }, [loading]);
+
+  if (loading) return null;
 
   if (!user) {
     return <Navigate to="/login" replace />;

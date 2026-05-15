@@ -7,7 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { TabSwipeProvider } from "@/contexts/TabSwipeContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import SplashScreen from "@/components/SplashScreen";
+import SplashScreenContainer from "@/components/SplashScreen";
 import InstallBanner from "@/components/InstallBanner";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import ScrollToTop from "@/components/ScrollToTop";
@@ -71,7 +71,7 @@ const App = () => {
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        {showSplash && <SplashScreen onFinish={handleSplashFinish} />}
+        {showSplash && <SplashScreenContainer onFinish={handleSplashFinish} />}
         <OfflineIndicator />
         <InstallBanner />
         <BrowserRouter>
