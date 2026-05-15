@@ -180,17 +180,27 @@ const MinhaArea = () => {
     }
   }, [user, trackEvent]);
 
+  // Efeito para o tempo mínimo do skeleton (Garante que apareça por pelo menos 1.2s para evitar "piscar")
+  useEffect(() => {
+    const timer = setTimeout(() => setMinLoadingDone(true), 1200);
+    
+    // Segurança: se em 6 segundos ainda estiver no skeleton, força a saída
+    const safetyTimer = setTimeout(() => {
+      setLoadingData(false);
+      setMinLoadingDone(true);
+    }, 6000);
+
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(safetyTimer);
+    };
+  }, []);
+
   useEffect(() => {
     if (user && !loadDataRef.current) {
       loadDataRef.current = true;
-      
-      // Garante que o skeleton apareça por pelo menos 1.2 segundos para evitar "piscar", mas sem demorar demais
-      const timer = setTimeout(() => setMinLoadingDone(true), 1200);
-      
       loadData();
       trackEvent('app_opened');
-      
-      return () => clearTimeout(timer);
     }
   }, [user, trackEvent, loadData]);
 
