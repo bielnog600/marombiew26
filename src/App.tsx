@@ -58,7 +58,14 @@ const App = () => {
   const [showSplash, setShowSplash] = useState(true);
   const handleSplashFinish = useCallback(() => setShowSplash(false), []);
 
-  useEffect(() => {
+   useEffect(() => {
+     // Bloquear orientação se suportado pelo navegador (Screen Orientation API)
+     if (typeof screen !== 'undefined' && screen.orientation && screen.orientation.lock) {
+       screen.orientation.lock('portrait').catch(() => {
+         // Ignora erros se o navegador não permitir o bloqueio (ex: não está em fullscreen)
+       });
+     }
+
     const backgroundToken = getComputedStyle(document.documentElement).getPropertyValue('--background').trim();
 
     document
