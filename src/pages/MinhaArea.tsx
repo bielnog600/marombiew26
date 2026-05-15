@@ -31,6 +31,7 @@ const MinhaArea = () => {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<any>(null);
   const [loadingData, setLoadingData] = useState(true);
+  const [minLoadingDone, setMinLoadingDone] = useState(false);
   const [assessmentCount, setAssessmentCount] = useState(0);
   const [trainingDays, setTrainingDays] = useState<ParsedTrainingDay[]>([]);
   const [meals, setMeals] = useState<ParsedMeal[]>([]);
@@ -91,14 +92,6 @@ const MinhaArea = () => {
   };
 
   const loadDataRef = React.useRef(false);
-
-  useEffect(() => {
-    if (user && !loadDataRef.current) {
-      loadDataRef.current = true;
-      loadData();
-      trackEvent('app_opened');
-    }
-  }, [user, trackEvent]);
 
   const loadData = React.useCallback(async () => {
     try {
@@ -187,6 +180,20 @@ const MinhaArea = () => {
     }
   }, [user, trackEvent]);
 
+  useEffect(() => {
+    if (user && !loadDataRef.current) {
+      loadDataRef.current = true;
+      
+      // Garante que o skeleton apareça por pelo menos 2.2 segundos para evitar "piscar" e duplo carregamento
+      const timer = setTimeout(() => setMinLoadingDone(true), 2200);
+      
+      loadData();
+      trackEvent('app_opened');
+      
+      return () => clearTimeout(timer);
+    }
+  }, [user, trackEvent, loadData]);
+
   const firstName = profile?.nome?.split(' ')[0] || '';
   const greeting = (() => {
     const h = new Date().getHours();
@@ -261,8 +268,9 @@ const MinhaArea = () => {
     }
     return groups.slice(0, 3).join(' • ');
   }, [todayTraining, exerciseMuscles]);
-  const loading = loadingData || loadingTracking;
-  const showSkeleton = loading && !sessionStorage.getItem('_splashDone');
+  // O skeleton agora aparece se os dados ainda estiverem carregando OU se o tempo mínimo não passou
+  // E removemos o sessionStorage para que apareça sempre que voltar à home
+  const showSkeleton = loadingData || loadingTracking || !minLoadingDone;
 
   if (showSkeleton) {
     return (
