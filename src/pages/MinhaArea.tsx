@@ -262,7 +262,8 @@ const MinhaArea = () => {
     }
     return groups.slice(0, 3).join(' • ');
   }, [todayTraining, exerciseMuscles]);
-
+  const loading = loadingData || loadingTracking;
+  const showSkeleton = loading && !sessionStorage.getItem('_splashDone');
 
   if (showSkeleton) {
     return (
