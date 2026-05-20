@@ -222,7 +222,18 @@ const DietaIA = () => {
 
   const loadEditPlan = async () => {
     const { data } = await supabase.from('ai_plans').select('*').eq('id', editPlanId!).maybeSingle();
-    if (data) setResult(data.conteudo);
+    if (data) {
+      setResult(data.conteudo);
+      const p = (data as any).protocols;
+      if (p && typeof p === 'object') {
+        if (Array.isArray(p.adjustments)) setSelectedAdjustments(p.adjustments);
+        if (p.extras) {
+          setEnableFitoterapia(!!p.extras.fitoterapia);
+          setEnableSuplementos(!!p.extras.suplementos);
+          setEnableEmagrecimentoRapido(!!p.extras.emagrecimento_rapido);
+        }
+      }
+    }
   };
 
   useEffect(() => {
@@ -891,10 +902,19 @@ ${generated}`;
   const savePlan = async () => {
     if (!result) return;
     setSaving(true);
+    const protocols = {
+      adjustments: selectedAdjustments,
+      extras: {
+        fitoterapia: enableFitoterapia,
+        suplementos: enableSuplementos,
+        emagrecimento_rapido: enableEmagrecimentoRapido,
+      },
+    };
     if (editPlanId) {
       const { error } = await supabase.from('ai_plans').update({
         conteudo: result,
         titulo: `Dieta - ${new Date().toLocaleDateString('pt-BR')} (editada)`,
+        protocols,
       }).eq('id', editPlanId);
       if (error) toast.error('Erro: ' + error.message);
       else toast.success('Dieta atualizada!');
@@ -904,6 +924,7 @@ ${generated}`;
         tipo: 'dieta',
         titulo: `Dieta - ${new Date().toLocaleDateString('pt-BR')}`,
         conteudo: result,
+        protocols,
       });
       if (error) toast.error('Erro: ' + error.message);
       else toast.success('Dieta salva!');

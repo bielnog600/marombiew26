@@ -1,0 +1,1 @@
+ALTER TABLE public.ai_plans ADD COLUMN IF NOT EXISTS protocols jsonb;

@@ -68,6 +68,7 @@ export type Database = {
           low_cost_next_review_at: string | null
           low_cost_review_interval_days: number
           parent_plan_id: string | null
+          protocols: Json | null
           renewal_mode: string
           student_id: string
           tipo: string
@@ -93,6 +94,7 @@ export type Database = {
           low_cost_next_review_at?: string | null
           low_cost_review_interval_days?: number
           parent_plan_id?: string | null
+          protocols?: Json | null
           renewal_mode?: string
           student_id: string
           tipo?: string
@@ -118,6 +120,7 @@ export type Database = {
           low_cost_next_review_at?: string | null
           low_cost_review_interval_days?: number
           parent_plan_id?: string | null
+          protocols?: Json | null
           renewal_mode?: string
           student_id?: string
           tipo?: string
