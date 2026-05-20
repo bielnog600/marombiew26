@@ -891,10 +891,19 @@ ${generated}`;
   const savePlan = async () => {
     if (!result) return;
     setSaving(true);
+    const protocols = {
+      adjustments: selectedAdjustments,
+      extras: {
+        fitoterapia: enableFitoterapia,
+        suplementos: enableSuplementos,
+        emagrecimento_rapido: enableEmagrecimentoRapido,
+      },
+    };
     if (editPlanId) {
       const { error } = await supabase.from('ai_plans').update({
         conteudo: result,
         titulo: `Dieta - ${new Date().toLocaleDateString('pt-BR')} (editada)`,
+        protocols,
       }).eq('id', editPlanId);
       if (error) toast.error('Erro: ' + error.message);
       else toast.success('Dieta atualizada!');
@@ -904,6 +913,7 @@ ${generated}`;
         tipo: 'dieta',
         titulo: `Dieta - ${new Date().toLocaleDateString('pt-BR')}`,
         conteudo: result,
+        protocols,
       });
       if (error) toast.error('Erro: ' + error.message);
       else toast.success('Dieta salva!');
