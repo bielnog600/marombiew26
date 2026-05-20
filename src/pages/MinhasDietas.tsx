@@ -392,16 +392,32 @@ const MinhasDietas = () => {
   return (
     <AppLayout title="Plano Alimentar">
       <div className="space-y-4 animate-fade-in">
-        {/* Back button */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-muted-foreground -ml-2"
-          onClick={() => navigate('/minha-area')}
-        >
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Voltar
-        </Button>
+        {/* Back + Protocolos */}
+        <div className="flex items-center justify-between gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground -ml-2"
+            onClick={() => navigate('/minha-area')}
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Voltar
+          </Button>
+          {protocolKeys.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
+              onClick={() => setShowProtocols(true)}
+            >
+              <ListChecks className="h-4 w-4" />
+              Protocolos
+              <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
+                {protocolKeys.length}
+              </span>
+            </Button>
+          )}
+        </div>
 
         {/* Option/day selector */}
         {hasMultipleGroups && (
@@ -587,6 +603,13 @@ const MinhasDietas = () => {
           </div>
         )}
       </div>
+
+      <ProtocolsDialog
+        open={showProtocols}
+        onOpenChange={setShowProtocols}
+        keys={protocolKeys}
+        markdown={dietMarkdown}
+      />
     </AppLayout>
   );
 };
