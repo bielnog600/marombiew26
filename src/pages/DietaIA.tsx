@@ -222,7 +222,18 @@ const DietaIA = () => {
 
   const loadEditPlan = async () => {
     const { data } = await supabase.from('ai_plans').select('*').eq('id', editPlanId!).maybeSingle();
-    if (data) setResult(data.conteudo);
+    if (data) {
+      setResult(data.conteudo);
+      const p = (data as any).protocols;
+      if (p && typeof p === 'object') {
+        if (Array.isArray(p.adjustments)) setSelectedAdjustments(p.adjustments);
+        if (p.extras) {
+          setEnableFitoterapia(!!p.extras.fitoterapia);
+          setEnableSuplementos(!!p.extras.suplementos);
+          setEnableEmagrecimentoRapido(!!p.extras.emagrecimento_rapido);
+        }
+      }
+    }
   };
 
   useEffect(() => {
