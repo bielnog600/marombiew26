@@ -17,6 +17,9 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { fetchWithCache } from '@/lib/offlineCache';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import ProtocolsDialog from '@/components/diet/ProtocolsDialog';
+import { protocolsToKeys, type SavedProtocols, type ProtocolKey } from '@/lib/dietProtocols';
+import { ListChecks } from 'lucide-react';
 
 const WEEKDAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const OPTION_TITLE_REGEX = /(op[cç][aã]o|card[aá]pio)/i;
@@ -74,6 +77,9 @@ const MinhasDietas = () => {
   const [isTrainingDay, setIsTrainingDay] = useState(false);
   const [substitutions, setSubstitutions] = useState<Record<string, any[]>>({});
   const [planVersion, setPlanVersion] = useState<string | null>(null);
+  const [dietMarkdown, setDietMarkdown] = useState<string>('');
+  const [protocolKeys, setProtocolKeys] = useState<ProtocolKey[]>([]);
+  const [showProtocols, setShowProtocols] = useState(false);
   const { tracking, addWater, removeWater, toggleMeal, waterCurrentMl, waterTargetMl, waterGoalGlasses } = useDailyTracking({ isTrainingDay });
 
   // Key local substitutions per plan version so admin edits invalidate stale subs
@@ -146,11 +152,14 @@ const MinhasDietas = () => {
 
   const loadDiet = async () => {
     const { data: dieta } = await fetchWithCache(`plan:dieta:full:${user!.id}`, async () => {
-      const { data } = await supabase.from('ai_plans').select('id, conteudo, created_at').eq('student_id', user!.id).eq('tipo', 'dieta').order('created_at', { ascending: false }).limit(1).maybeSingle();
+      const { data } = await supabase.from('ai_plans').select('id, conteudo, created_at, protocols').eq('student_id', user!.id).eq('tipo', 'dieta').order('created_at', { ascending: false }).limit(1).maybeSingle();
       return data;
     });
     if (dieta) {
       setSections(parseSections(dieta.conteudo));
+      setDietMarkdown(dieta.conteudo);
+      const saved = (dieta as any).protocols as SavedProtocols | null | undefined;
+      setProtocolKeys(protocolsToKeys(saved));
       // Version key combines plan id + created_at so any admin edit (which
       // bumps created_at via re-insert OR keeps it via update) is detected.
       // We hash the content length as a tiebreaker for in-place updates.
