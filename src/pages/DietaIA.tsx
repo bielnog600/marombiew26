@@ -21,6 +21,7 @@ import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
 import { generateDietPDF } from '@/lib/generateDietPDF';
 import AiWizard from '@/components/AiWizard';
+import DietDraftComparisonDialog from '@/components/consultoria/DietDraftComparisonDialog';
 import { formatDietMacroLine, validateDietMacros, type DietMacroTargets, type DietMacroValidationReport, type FoodMacroRecord } from '@/lib/dietMacroValidation';
 import { parseSections } from '@/lib/dietResultParser';
 import { scaleMealsToTarget, scaleMealsToMacroTargets, replaceMealTableInMarkdown } from '@/lib/dietMarkdownSerializer';
