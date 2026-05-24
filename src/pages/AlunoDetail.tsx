@@ -185,15 +185,15 @@ const AlunoDetail = () => {
         <Tabs defaultValue={initialTab} data-no-swipe>
           <div className="overflow-x-auto -mx-4 px-4 pb-2">
             <TabsList className="bg-secondary w-max min-w-full">
-              <TabsTrigger value="perfil" className="text-xs sm:text-sm"><User className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Perfil</span><span className="sm:hidden">Perfil</span></TabsTrigger>
+              <TabsTrigger value="perfil" className="text-xs sm:text-sm"><User className="mr-1 h-4 w-4 shrink-0" /> Perfil</TabsTrigger>
               <TabsTrigger value="comportamento" className="text-xs sm:text-sm"><Activity className="mr-1 h-4 w-4 shrink-0" /> 360°</TabsTrigger>
-              <TabsTrigger value="avaliacoes" className="text-xs sm:text-sm"><ClipboardList className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Avaliações</span><span className="sm:hidden">Aval.</span></TabsTrigger>
-              <TabsTrigger value="comparar" className="text-xs sm:text-sm"><BarChart3 className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Comparar</span><span className="sm:hidden">Comp.</span></TabsTrigger>
-              <TabsTrigger value="treinos" className="text-xs sm:text-sm"><Dumbbell className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Treinos</span><span className="sm:hidden">Treino</span></TabsTrigger>
-              <TabsTrigger value="cardio" className="text-xs sm:text-sm"><HeartPulse className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Cardio</span><span className="sm:hidden">Cardio</span></TabsTrigger>
-              <TabsTrigger value="dietas" className="text-xs sm:text-sm"><UtensilsCrossed className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Dietas</span><span className="sm:hidden">Dieta</span></TabsTrigger>
-              <TabsTrigger value="fichas" className="text-xs sm:text-sm"><FileQuestion className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Fichas</span><span className="sm:hidden">Fichas</span></TabsTrigger>
-              <TabsTrigger value="financeiro" className="text-xs sm:text-sm"><Wallet className="mr-1 h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Financeiro</span><span className="sm:hidden">Fin.</span></TabsTrigger>
+              <TabsTrigger value="avaliacoes" className="text-xs sm:text-sm"><ClipboardList className="mr-1 h-4 w-4 shrink-0" /> Avaliações</TabsTrigger>
+              <TabsTrigger value="comparar" className="text-xs sm:text-sm"><BarChart3 className="mr-1 h-4 w-4 shrink-0" /> Comparar</TabsTrigger>
+              <TabsTrigger value="treinos" className="text-xs sm:text-sm"><Dumbbell className="mr-1 h-4 w-4 shrink-0" /> Treinos</TabsTrigger>
+              <TabsTrigger value="cardio" className="text-xs sm:text-sm"><HeartPulse className="mr-1 h-4 w-4 shrink-0" /> Cardio</TabsTrigger>
+              <TabsTrigger value="dietas" className="text-xs sm:text-sm"><UtensilsCrossed className="mr-1 h-4 w-4 shrink-0" /> Dietas</TabsTrigger>
+              <TabsTrigger value="fichas" className="text-xs sm:text-sm"><FileQuestion className="mr-1 h-4 w-4 shrink-0" /> Fichas</TabsTrigger>
+              <TabsTrigger value="financeiro" className="text-xs sm:text-sm"><Wallet className="mr-1 h-4 w-4 shrink-0" /> Financeiro</TabsTrigger>
             </TabsList>
           </div>
 
