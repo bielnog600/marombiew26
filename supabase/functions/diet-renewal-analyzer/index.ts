@@ -128,6 +128,8 @@ async function callAI(context: any, currentPlanExcerpt: string) {
                 enum: ["manter", "ajustar", "gerar_nova", "solicitar_dados"],
               },
               rationale: { type: "string", description: "Justificativa em 2-4 frases, em português, tom técnico." },
+              summary_reason: { type: "string", description: "Motivo resumido em 3-5 palavras (ex: 'sem peso recente', 'baixa aderência', 'progresso travado')." },
+              confidence_score: { type: "number", description: "Score de 0 a 1 indicando confiança na recomendação baseada nos dados." },
               monotony_risk: { type: "string", enum: ["baixo", "medio", "alto"] },
               priority: { type: "string", enum: ["baixa", "media", "alta"] },
               suggested_adjustments: {
