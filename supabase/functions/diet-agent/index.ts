@@ -210,10 +210,14 @@ Antes de gerar o cardápio, decida internamente entre uma destas 4 ações e dec
 
 REGRAS DE PRESERVAÇÃO:
 - Se a estrutura da última dieta cabe nas novas metas (±10% kcal/macros), reaproveite refeições e alimentos principais. Não troque tudo só para parecer "novo".
+- Quando a decisão for AJUSTAR: PRESERVE pelo menos 70% dos alimentos principais da dieta anterior. Mude apenas o necessário (porções, 1-2 trocas pontuais, refeição mais falhada). NÃO refaça o cardápio inteiro.
+- Quando a decisão for MANTER: mantenha o mesmo cardápio, apenas recalibre porções para bater a meta exata.
+- Pondere os fatores: aderência baixa, sintomas negativos e tendência contrária aumentam o peso da mudança; última dieta com aderência alta + sem sintomas reduz a urgência de mudar.
 - Se a aderência registrada está baixa (<60%), simplifique antes de aumentar complexidade — e sinalize isso na justificativa.
 - Se o aluno relatou fome excessiva no último reajuste, evite reduzir mais kcal sem comentar.
 - Se relatou insônia, não concentre carbs/cafeína à noite.
 - Se a tendência de peso contradiz a meta (ex: meta cutting mas peso já caindo rápido), recomende moderar — não acelere o déficit.
+- Se a "DECISÃO RECOMENDADA" do sistema vier no contexto, considere-a como input forte. Você pode discordar, mas justifique no bloco final.
 
 ========================================
 SAÍDA OBRIGATÓRIA — SEÇÕES FINAIS
@@ -222,17 +226,17 @@ SAÍDA OBRIGATÓRIA — SEÇÕES FINAIS
 Ao final da resposta, SEMPRE inclua DUAS seções extras (após a tabela e mensagens WhatsApp):
 
 ## Justificativa Técnica
-Em 5-10 bullets curtos, explique:
-- Decisão escolhida (Manter / Ajustar / Nova / Pedir dados) e por quê
-- Por que manteve ou alterou as kcal vs dieta anterior
-- Por que manteve ou alterou os macros
-- Por que manteve ou alterou estrutura de refeições
-- Quais alimentos foram preservados/trocados e motivo
-- Como a tendência de peso e a aderência influenciaram a decisão
-- Como sintomas do último reajuste foram considerados
+Use EXATAMENTE este formato em blocos curtos (não escreva texto solto):
+
+- **Decisão:** Manter | Ajustar | Nova | Pedir dados
+- **Motivos principais:**
+  - (3 a 5 bullets curtos: aderência, tendência de peso com velocidade, sintomas, mudança de fase, etc.)
+- **Mudança principal:** (1 frase descrevendo a alteração de maior impacto: ex. "redução de 150 kcal nos carbos do jantar" ou "estrutura preservada, apenas recalibração de porções")
+- **Estrutura preservada:** (% aproximado de alimentos mantidos da dieta anterior — ex: "~80% preservados" ou "n/a — primeira dieta")
+- **Nível de confiança:** X/100
 
 ## Confiança da Geração
-Mostre o score de confiança (0-100) recebido no contexto e liste os motivos (ex: "dieta anterior disponível, aderência parcial"). Se score < 60, alerte que o nutricionista deve revisar antes de enviar.
+Mostre o score de confiança (0-100) recebido no contexto e liste os FATORES recebidos (positivos com ✓, negativos com ✗, neutros com ·). Se score < 60, alerte que o nutricionista deve revisar antes de enviar.
 `;
 
 serve(async (req) => {
@@ -387,7 +391,7 @@ serve(async (req) => {
         if (hp.tendencia_peso) {
           const t = hp.tendencia_peso;
           contextMessage += `\n--- TENDÊNCIA DE PESO/COMPOSIÇÃO ---\n`;
-          contextMessage += `Peso atual: ${t.peso_atual ?? '?'}kg | Variação: ${t.variacao_kg > 0 ? '+' : ''}${t.variacao_kg}kg | Direção: ${t.direcao}\n`;
+          contextMessage += `Peso atual: ${t.peso_atual ?? '?'}kg | Variação: ${t.variacao_kg > 0 ? '+' : ''}${t.variacao_kg}kg em ${t.intervalo_dias ?? '?'} dias | Direção: ${t.direcao} | Velocidade: ${t.velocidade_kg_semana ?? 0}kg/sem | Relevância: ${t.relevancia ?? '?'}\n`;
           if (Array.isArray(t.historico) && t.historico.length > 0) {
             contextMessage += `Histórico (mais recente primeiro):\n`;
             t.historico.forEach((h: any) => {
@@ -404,9 +408,12 @@ serve(async (req) => {
         if (hp.aderencia_recente) {
           const a = hp.aderencia_recente;
           contextMessage += `\n--- ADERÊNCIA (últimos 14 dias) ---\n`;
-          contextMessage += `Dias com registro: ${a.dias_com_registro}/${a.dias_total}\n`;
+          contextMessage += `Dias com registro: ${a.dias_com_registro}/${a.dias_total} (${a.dias_com_registro_pct ?? '?'}%)\n`;
           contextMessage += `Refeições marcadas: ${a.refeicoes_marcadas}/${a.refeicoes_esperadas} (${a.percentual_aderencia}%)\n`;
           contextMessage += `Água média: ${a.agua_media_copos_dia} copos/dia\n`;
+          if (Array.isArray(a.refeicoes_mais_falhadas) && a.refeicoes_mais_falhadas.length > 0) {
+            contextMessage += `Refeições mais falhadas (índice → falhadas): ${a.refeicoes_mais_falhadas.map((r: any) => `#${r.indice}: ${r.falhadas}/${a.dias_com_registro}`).join(' | ')}\n`;
+          }
           if (a.percentual_aderencia < 60) {
             contextMessage += `⚠️ ADERÊNCIA BAIXA — simplifique a dieta e sinalize na justificativa.\n`;
           }
@@ -430,8 +437,25 @@ serve(async (req) => {
           const c = hp.confianca_geracao;
           contextMessage += `\n--- SCORE DE CONFIANÇA DA GERAÇÃO ---\n`;
           contextMessage += `Score: ${c.score}/100\n`;
-          contextMessage += `Motivos: ${(c.motivos || []).join(', ') || 'dados limitados'}\n`;
+          if (Array.isArray(c.factors) && c.factors.length > 0) {
+            contextMessage += `Fatores:\n`;
+            for (const f of c.factors) {
+              const sym = f.status === 'positive' ? '✓' : f.status === 'negative' ? '✗' : '·';
+              contextMessage += `  ${sym} ${f.label} (peso ${f.weight})\n`;
+            }
+          } else {
+            contextMessage += `Motivos: ${(c.motivos || []).join(', ') || 'dados limitados'}\n`;
+          }
           contextMessage += `Use este score na seção final "Confiança da Geração".\n`;
+        }
+
+        if (hp.decisao_recomendada) {
+          contextMessage += `\n--- DECISÃO RECOMENDADA PELO SISTEMA (heurística) ---\n`;
+          contextMessage += `Sugestão: ${String(hp.decisao_recomendada).toUpperCase()}\n`;
+          if (Array.isArray(hp.motivos_decisao) && hp.motivos_decisao.length > 0) {
+            contextMessage += `Motivos:\n${hp.motivos_decisao.map((m: string) => `  - ${m}`).join('\n')}\n`;
+          }
+          contextMessage += `Você pode discordar, mas precisa justificar explicitamente na "Justificativa Técnica".\n`;
         }
       }
 
