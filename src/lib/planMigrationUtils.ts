@@ -14,6 +14,23 @@ export interface WorkoutDataJSON {
   days: ParsedTrainingDay[];
 }
 
+export interface DietDataJSON {
+  version: string;
+  type: 'diet';
+  metadata: {
+    strategy?: string;
+    style?: string;
+    totalKcal?: number;
+    totalP?: number;
+    totalC?: number;
+    totalG?: number;
+    decision?: 'manter' | 'ajustar' | 'nova' | 'pedir_dados';
+    rationale?: string;
+    confidence?: number;
+  };
+  meals: any[]; // ParsedMeal structure
+}
+
 export interface PlanData {
   id: string;
   conteudo: string;
