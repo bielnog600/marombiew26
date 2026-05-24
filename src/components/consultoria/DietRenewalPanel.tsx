@@ -98,7 +98,7 @@ const DietRenewalPanel: React.FC = () => {
     const planList = (planRows ?? []) as PlanRow[];
 
     // 2. Filter to those near renewal (<=15 days remaining) OR with non-default status
-    const focus = planList.filter((p) => daysRemaining(p) <= 15 || p.cycle_status !== 'em_dia');
+    const focus = planList.filter((p) => (daysRemaining(p) <= 15 || p.cycle_status !== 'em_dia') && p.cycle_status !== 'renovado');
 
     // 3. Fetch student names
     const studentIds = Array.from(new Set(focus.map((p) => p.student_id)));

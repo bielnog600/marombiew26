@@ -161,6 +161,7 @@ const TreinoIA = () => {
   const [saving, setSaving] = useState(false);
   const [marombiewEnabled, setMarombiewEnabled] = useState(false);
   const [configCollapsed, setConfigCollapsed] = useState(!!editPlanId);
+  const [lastWorkoutPlan, setLastWorkoutPlan] = useState<any>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const resultRef = useRef<HTMLDivElement>(null);
 
@@ -250,6 +251,17 @@ const TreinoIA = () => {
       fotos_avaliacao: photos.length > 0 ? photos.map(p => ({ tipo: p.tipo, url: p.url })) : null,
       fotos_perfil: sp?.fotos ?? null,
     };
+
+    const { data: lastWorkoutRes } = await supabase
+      .from('ai_plans')
+      .select('id, titulo, conteudo, created_at')
+      .eq('student_id', studentId!)
+      .eq('tipo', 'treino')
+      .eq('is_draft', false)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    
+    setLastWorkoutPlan(lastWorkoutRes?.[0] || null);
 
     setStudentCtx(ctx);
     setStudentName(profile?.nome || 'Aluno');
@@ -470,9 +482,18 @@ GERE TUDO DE UMA VEZ:
         tipo: 'treino',
         titulo: `Treino - ${new Date().toLocaleDateString('pt-BR')}`,
         conteudo: result,
+        cycle_status: 'em_dia'
       });
-      if (error) toast.error('Erro: ' + error.message);
-      else toast.success('Treino salvo!');
+      if (error) {
+        toast.error('Erro: ' + error.message);
+      } else {
+        if (lastWorkoutPlan?.id) {
+          await supabase.from('ai_plans').update({
+            cycle_status: 'renovado'
+          }).eq('id', lastWorkoutPlan.id);
+        }
+        toast.success('Treino salvo e ciclo atualizado!');
+      }
     }
     setSaving(false);
   };

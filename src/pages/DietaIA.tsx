@@ -1158,9 +1158,19 @@ ${generated}`;
         titulo: `Dieta - ${new Date().toLocaleDateString('pt-BR')}`,
         conteudo: result,
         protocols,
+        cycle_status: 'em_dia'
       });
-      if (error) toast.error('Erro: ' + error.message);
-      else toast.success('Dieta salva!');
+      if (error) {
+        toast.error('Erro: ' + error.message);
+      } else {
+        // If we have a lastDietPlan, mark it as 'renovado'
+        if (lastDietPlan?.id) {
+          await supabase.from('ai_plans').update({
+            cycle_status: 'renovado'
+          }).eq('id', lastDietPlan.id);
+        }
+        toast.success('Dieta salva e ciclo atualizado!');
+      }
     }
     setSaving(false);
   };
