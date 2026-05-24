@@ -492,6 +492,14 @@ const DietaIA = () => {
         tabagismo: anamnese.tabagismo, alcool: anamnese.alcool,
       } : null,
       fotos_avaliacao: photos.length > 0 ? photos.map(p => ({ tipo: p.tipo, url: p.url })) : null,
+      // ── HISTÓRICO LONGITUDINAL ──
+      historico_processo: {
+        ultima_dieta,
+        tendencia_peso,
+        aderencia_recente,
+        ultimo_reajuste,
+        confianca_geracao: confianca,
+      },
       questionario_dieta: latestQuestionnaire ? {
         estilo_dieta: latestQuestionnaire.estilo_dieta,
         fase_atual: latestQuestionnaire.fase_atual,
