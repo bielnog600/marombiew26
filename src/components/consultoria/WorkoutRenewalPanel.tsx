@@ -60,6 +60,10 @@ interface AnalysisRow {
   fatigue_signal: string | null;
   monotony_risk: string | null;
   data_quality: string;
+  registration_quality?: 'boa' | 'incompleta' | 'insuficiente';
+  sessions_started?: number;
+  sessions_finished?: number;
+  total_logs_count?: number;
   suggested_action: SuggestedAction;
   decision_type?: DecisionType;
   priority?: 'baixa' | 'media' | 'alta';
