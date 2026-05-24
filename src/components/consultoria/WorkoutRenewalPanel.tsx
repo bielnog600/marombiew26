@@ -437,7 +437,8 @@ const WorkoutRenewalPanel: React.FC = () => {
                               <Metric label="Aderência" value={analysis.adherence_score != null ? `${Math.round(analysis.adherence_score * 100)}%` : '—'} trend={analysis.adherence_score && analysis.adherence_score > 0.7 ? 'up' : 'down'} />
                               <Metric label="Frequência" value={analysis.session_frequency != null ? `${analysis.session_frequency.toFixed(1)}/sem` : '—'} />
                               <Metric label="Conclusão" value={analysis.completion_rate != null ? `${Math.round(analysis.completion_rate * 100)}%` : '—'} />
-                              <Metric label="RPE Médio" value={analysis.avg_rpe != null ? String(analysis.avg_rpe) : '—'} />
+                               <Metric label="RPE Médio" value={analysis.avg_rpe != null ? String(analysis.avg_rpe) : '—'} />
+                               <Metric label="Duração Média" value={analysis.volume_analysis?.avg_duration != null ? `${analysis.volume_analysis.avg_duration}m` : '—'} trend={analysis.volume_analysis?.has_long_sessions ? 'down' : undefined} />
                             </div>
 
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
