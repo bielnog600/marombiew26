@@ -102,12 +102,13 @@ const MinhaArea = () => {
   const loadData = React.useCallback(async () => {
     try {
       const [
-        { data: prof },
-        { data: avals },
-        { data: treino },
-        { data: dieta },
-        { data: tabata },
-        { data: cardio }
+        profRes,
+        avalsRes,
+        treinoRes,
+        dietaRes,
+        tabataRes,
+        cardioRes,
+        checkinRes
       ] = await Promise.all([
         fetchWithCache(`profile:${user!.id}`, async () => {
           return (await supabase.from('profiles').select('nome').eq('user_id', user!.id).maybeSingle()).data;
@@ -130,8 +131,13 @@ const MinhaArea = () => {
         supabase.from('ai_plans').select('*').eq('student_id', user!.id).eq('tipo', 'treino').eq('pending_checkin', true).order('created_at', { ascending: false }).limit(1).maybeSingle()
       ]);
 
-      setProfile(prof);
-      setAssessmentCount(avals?.length ?? 0);
+      const prof = profRes;
+      const avals = avalsRes;
+      const treino = treinoRes;
+      const dieta = dietaRes;
+      const tabata = tabataRes;
+      const cardio = cardioRes;
+
       
       if (treino) {
         // ... (existing logic)
@@ -141,10 +147,11 @@ const MinhaArea = () => {
         // ...
       }
 
-      if (arguments[6]?.data) {
-        setPendingWorkoutCheckin(arguments[6].data);
+      if (checkinRes?.data) {
+        setPendingWorkoutCheckin(checkinRes.data);
         setShowCheckinModal(true);
       }
+
 
       
       if (treino) {
