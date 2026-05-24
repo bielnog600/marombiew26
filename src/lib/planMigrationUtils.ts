@@ -82,6 +82,7 @@ export const validateWorkoutJSON = (content: string | object): { success: boolea
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : "Erro desconhecido na validação" };
   }
+};
 
 /**
  * Telemetry helper for monitoring migration health

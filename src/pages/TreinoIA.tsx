@@ -471,19 +471,27 @@ GERE TUDO DE UMA VEZ:
     if (!result) return;
     setSaving(true);
     if (editPlanId) {
+      const validation = validateWorkoutJSON(result);
       const { error } = await supabase.from('ai_plans').update({
         conteudo: result,
         titulo: `Treino - ${new Date().toLocaleDateString('pt-BR')} (editado)`,
+        conteudo_json: validation.success ? (validation.data as any) : null,
+        migration_status: (validation.success ? 'completed' : 'failed') as any,
+        migration_error: validation.error || null,
       }).eq('id', editPlanId);
       if (error) toast.error('Erro: ' + error.message);
       else toast.success('Treino atualizado!');
     } else {
+      const validation = validateWorkoutJSON(result);
       const { error } = await supabase.from('ai_plans').insert({
         student_id: studentId!,
         tipo: 'treino',
         titulo: `Treino - ${new Date().toLocaleDateString('pt-BR')}`,
         conteudo: result,
-        cycle_status: 'em_dia'
+        cycle_status: 'em_dia',
+        conteudo_json: validation.success ? (validation.data as any) : null,
+        migration_status: (validation.success ? 'completed' : 'failed') as any,
+        migration_error: validation.error || null,
       });
       if (error) {
         toast.error('Erro: ' + error.message);
