@@ -746,6 +746,43 @@ const Consultoria = () => {
         {/* Tab content */}
         {tab === 'dashboard' && (
           <div className="space-y-4">
+            <EngagementOverviewCards totals={totals} />
+            
+            {/* Telemetria de Migração Estrutural */}
+            <Card className="glass-card">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-primary" />
+                  Status da Migração Estrutural (Treinos)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase text-muted-foreground">JSON Ativo</p>
+                    <p className="text-xl font-bold text-emerald-500">{(totals as any).migration.completed}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase text-muted-foreground">MD Fallback</p>
+                    <p className="text-xl font-bold text-orange-500">{(totals as any).migration.pending}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase text-muted-foreground">Falhas</p>
+                    <p className="text-xl font-bold text-destructive">{(totals as any).migration.failed}</p>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <Progress 
+                    value={((totals as any).migration.completed / (Math.max(1, (totals as any).migration.completed + (totals as any).migration.pending + (totals as any).migration.failed))) * 100} 
+                    className="h-1.5"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-2">
+                    A IA prioriza JSON estruturado. Planos antigos ou em fallback usam Markdown.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* KPIs principais */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {dashboardCards.map(stat => (

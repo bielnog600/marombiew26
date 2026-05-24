@@ -18,7 +18,7 @@ export interface PlanData {
   id: string;
   conteudo: string;
   conteudo_json: Json | null;
-  migration_status: MigrationStatus;
+  migration_status: MigrationStatus | string;
   fase: string | null;
   fase_inicio_data: string | null;
   tipo: string;
@@ -28,8 +28,9 @@ export interface PlanData {
  * Hook logic or utility for safe plan reading with fallback
  */
 export const getSafeWorkoutDays = (plan: PlanData): { days: ParsedTrainingDay[], isFromJSON: boolean } => {
+  const status = plan.migration_status as string;
   // 1. Try JSON if status is 'completed'
-  if (plan.migration_status === 'completed' && plan.conteudo_json) {
+  if (status === 'completed' && plan.conteudo_json) {
     try {
       const data = plan.conteudo_json as unknown as WorkoutDataJSON;
       if (data && data.type === 'workout' && Array.isArray(data.days)) {
