@@ -572,7 +572,6 @@ const DietRenewalPanel: React.FC = () => {
                         </div>
                       </div>
                     )}
-                    )}
                   </CardContent>
                 </Card>
               );
