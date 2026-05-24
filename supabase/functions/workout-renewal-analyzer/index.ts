@@ -323,7 +323,7 @@ ${lowCostNote}`;
                 description: "Lista curta de ajustes concretos (máx 5).",
               },
             },
-            required: ["suggested_action", "rationale", "monotony_risk", "fatigue_signal", "priority"],
+            required: ["suggested_action", "rationale", "summary_reason", "confidence_score", "monotony_risk", "fatigue_signal", "priority"],
             additionalProperties: false,
           },
         },
