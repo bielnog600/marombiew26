@@ -294,31 +294,56 @@ const WorkoutRenewalPanel: React.FC = () => {
     }
   };
 
+  const buildCheckinWhatsAppUrl = (plan: PlanRow) => {
+    const firstName = (plan.student_name || 'aluno').split(' ')[0];
+    const msg = `Oi ${firstName}! 💪\n\nTe enviei no app um check-in rápido sobre o último protocolo de treino. Quando puder, abre o app e responde — leva 1 minutinho e me ajuda a ajustar seu plano com mais precisão. 🙌`;
+    const cleaned = (plan.student_phone ?? '').replace(/\D/g, '');
+    const withDdi = cleaned.length === 10 || cleaned.length === 11 ? `55${cleaned}` : cleaned;
+    return withDdi
+      ? `https://wa.me/${withDdi}?text=${encodeURIComponent(msg)}`
+      : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  };
+
   const handleRequestAppCheckin = async (plan: PlanRow, openWhatsApp: boolean = false) => {
+    // Abrir o WhatsApp ANTES do await evita bloqueio de popup pelo navegador
+    let waWindow: Window | null = null;
+    if (openWhatsApp) {
+      waWindow = window.open(buildCheckinWhatsAppUrl(plan), '_blank', 'noopener,noreferrer');
+    }
+
     setRequestingCheckin(plan.id);
     try {
       const { error } = await supabase
         .from('ai_plans')
         .update({ pending_checkin: true })
         .eq('id', plan.id);
-      
+
       if (error) throw error;
-      
-      toast.success(`Check-in solicitado via App para ${plan.student_name}`);
-      
-      if (openWhatsApp) {
-        const msg = `Olá! Te enviei no app um check-in rápido sobre o último protocolo de treino. Quando puder, abre o app e responde para eu analisar e ajustar seu plano com mais precisão.`;
-        const url = `https://wa.me/${plan.student_phone?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`;
-        window.open(url, '_blank');
-      }
-      
+
+      toast.success(
+        openWhatsApp
+          ? `Check-in enviado no app e WhatsApp aberto para ${plan.student_name}`
+          : `Check-in solicitado via App para ${plan.student_name}`
+      );
+
       setCheckinConfirmId(null);
       await load();
     } catch (e: any) {
+      // Se a atualização falhar e já tínhamos aberto a aba, fecha
+      if (waWindow) try { waWindow.close(); } catch {}
       toast.error('Erro ao solicitar check-in: ' + e.message);
     } finally {
       setRequestingCheckin(null);
     }
+  };
+
+  const handleRemindCheckinWhatsApp = (plan: PlanRow) => {
+    if (!plan.student_phone) {
+      toast.error('Aluno sem telefone cadastrado.');
+      return;
+    }
+    window.open(buildCheckinWhatsAppUrl(plan), '_blank', 'noopener,noreferrer');
+    toast.success('WhatsApp aberto com lembrete do check-in.');
   };
 
   const handleWhatsAppRequest = (plan: PlanRow) => {
