@@ -401,11 +401,16 @@ const DietRenewalPanel: React.FC = () => {
                         <div className="flex items-center gap-2 mt-1">
                           <p className="text-xs text-muted-foreground truncate max-w-[200px]">{plan.titulo}</p>
                           {analysis?.summary_reason && (
-                            <span className="text-[10px] bg-primary/5 text-primary px-1.5 py-0.5 rounded border border-primary/20 italic">
-                              "{analysis.summary_reason}"
-                            </span>
-                          )}
-                        </div>
+                              <span className="text-[10px] bg-primary/5 text-primary px-1.5 py-0.5 rounded border border-primary/20 italic">
+                                "{analysis.summary_reason}"
+                              </span>
+                            )}
+                            {checkins[plan.student_id] && (
+                              <Badge variant="secondary" className="text-[9px] bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
+                                Feedback: {checkins[plan.student_id].fome} / {checkins[plan.student_id].energia}
+                              </Badge>
+                            )}
+                          </div>
 
                         <div className="flex flex-wrap items-center gap-3 mt-3 text-[10px] sm:text-xs">
                           <div className="flex items-center gap-1">
