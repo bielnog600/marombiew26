@@ -54,6 +54,10 @@ interface AnalysisRow {
   weight_trend: string | null;
   data_quality: string;
   suggested_action: SuggestedAction;
+  decision_type?: DecisionType;
+  priority?: 'baixa' | 'media' | 'alta';
+  confidence_score?: number;
+  summary_reason?: string;
   rationale: string;
   created_at: string;
 }
