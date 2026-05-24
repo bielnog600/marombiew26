@@ -479,36 +479,6 @@ const WorkoutRenewalPanel: React.FC = () => {
                         </div>
                       </div>
                     )}
-                            size="sm"
-                            variant="outline"
-                            className="text-emerald-500 border-emerald-500/30"
-                            disabled={busy === plan.id}
-                            onClick={() => handleKeep(plan.id)}
-                          >
-                            <Check className="h-3 w-3" />
-                            Manter treino
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={busy === plan.id}
-                            onClick={() => toast.info('Use a aba Treino IA para ajustar e salve para versionar.')}
-                          >
-                            <FileEdit className="h-3 w-3" />
-                            Ajustar treino
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={busy === plan.id || !!draft}
-                            onClick={() => handleGenerateDraft(plan.id)}
-                          >
-                            {busy === plan.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
-                            {draft ? 'Rascunho gerado' : 'Gerar rascunho'}
-                          </Button>
-                        </div>
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               );
