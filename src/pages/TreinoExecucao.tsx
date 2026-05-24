@@ -379,7 +379,7 @@ const TreinoExecucao = () => {
     const loadPlan = async () => {
       const { data: treino } = await supabase
         .from('ai_plans')
-        .select('id, conteudo, conteudo_json, migration_status, fase')
+        .select('id, conteudo, conteudo_json, migration_status, fase, fase_inicio_data')
         .eq('student_id', user.id)
         .eq('tipo', 'treino')
         .order('created_at', { ascending: false })
