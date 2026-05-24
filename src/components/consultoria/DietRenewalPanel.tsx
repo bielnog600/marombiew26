@@ -94,6 +94,7 @@ const DietRenewalPanel: React.FC = () => {
   const [busy, setBusy] = useState<string | null>(null);
   const [compareFor, setCompareFor] = useState<string | null>(null);
   const [weightFor, setWeightFor] = useState<PlanRow | null>(null);
+  const [filter, setFilter] = useState<string>('todos');
 
   const load = async () => {
     setLoading(true);
