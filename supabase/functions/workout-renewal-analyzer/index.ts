@@ -261,6 +261,8 @@ async function gatherContext(supabase: any, plan: any) {
     reps_progression: repsProgression,
     volume_trend: volumeTrend,
     avg_rpe: avgRpe != null ? Number(avgRpe.toFixed(1)) : null,
+    avg_duration: avgDuration != null ? Number(avgDuration.toFixed(1)) : null,
+    has_long_sessions: hasLongSessions,
     distinct_exercises: distinctExercises,
     fatigue_signal: fatigueSignal,
     monotony_risk: monotonyRisk,
