@@ -5,10 +5,10 @@ import { useAuth } from '@/contexts/AuthContext';
 const adminOrder = ['/dashboard', '/alunos', '/consultoria'];
 const alunoOrder = ['/minha-area', '/meus-treinos', '/minhas-dietas', '/minhas-avaliacoes', '/perfil'];
 
-const TRIGGER_RATIO = 0.25;   // fração da largura para confirmar troca
-const MAX_OFF_AXIS = 80;      // ignora se vertical excede isso (rolagem)
-const ACTIVATE_PX = 12;       // distância horizontal para "começar" o drag
-const EDGE_DEAD_ZONE = 45;    // ignora toques nas bordas (evita back swipe nativo do iOS/Android)
+const TRIGGER_RATIO = 0.35;   // fração da largura para confirmar troca (aumentado para evitar trocas acidentais)
+const MAX_OFF_AXIS = 60;      // ignora se vertical excede isso (rolagem) (diminuído para ser mais rigoroso)
+const ACTIVATE_PX = 20;       // distância horizontal para "começar" o drag (aumentado)
+const EDGE_DEAD_ZONE = 60;    // ignora toques nas bordas (evita back swipe nativo do iOS/Android) (aumentado substancialmente)
 const MAX_PROGRESS = 0.5;     // pill chega no vizinho a 50% e para (não pula tabs)
 
 interface TabSwipeState {
