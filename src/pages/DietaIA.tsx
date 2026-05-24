@@ -1740,6 +1740,11 @@ ${generated}`;
                     <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan(); }}>
                       <RefreshCw className="h-3 w-3 mr-1" /> Regenerar dieta
                     </Button>
+                    {lastDietPlan && !editPlanId && (
+                      <Button variant="outline" size="sm" onClick={() => setShowCompare(true)}>
+                        <FileText className="h-3 w-3 mr-1" /> Comparar com última dieta
+                      </Button>
+                    )}
                     {!macroReport.valid && (
                       <Button variant="secondary" size="sm" onClick={() => savePlan()}>
                         <Save className="h-3 w-3 mr-1" /> Salvar mesmo assim
@@ -1748,6 +1753,22 @@ ${generated}`;
                   </div>
                 </CardContent>
               </Card>
+            )}
+            {lastDietPlan && !editPlanId && (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-3.5 w-3.5 text-primary" />
+                  <span>
+                    <strong className="text-foreground">Última dieta salva:</strong>{' '}
+                    <span className="text-muted-foreground">
+                      {lastDietPlan.titulo} · {new Date(lastDietPlan.created_at).toLocaleDateString('pt-BR')}
+                    </span>
+                  </span>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => setShowCompare(true)}>
+                  Comparar antes de salvar
+                </Button>
+              </div>
             )}
             <DietResultCards markdown={result} />
           </div>
