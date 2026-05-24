@@ -529,13 +529,23 @@ const WorkoutRenewalPanel: React.FC = () => {
                                   <X className="h-3 w-3" />
                                 </Button>
                               </div>
+                            ) : plan.pending_checkin && !checkins[plan.student_id] ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-[9px] gap-1 px-2 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-600"
+                                onClick={() => handleRemindCheckinWhatsApp(plan)}
+                                title={plan.student_phone ? 'Enviar lembrete no WhatsApp' : 'Aluno sem telefone cadastrado'}
+                              >
+                                <Phone className="h-3 w-3" />
+                                Lembrar WhatsApp
+                              </Button>
                             ) : (
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
+                              <Button
+                                variant="outline"
+                                size="sm"
                                 className="h-7 text-[9px] gap-1 px-2 border-orange-500/30 hover:bg-orange-500/10 text-orange-600"
                                 onClick={() => setCheckinConfirmId(plan.id)}
-                                disabled={plan.pending_checkin}
                               >
                                 <Bell className="h-3 w-3" />
                                 Solicitar Feedback
