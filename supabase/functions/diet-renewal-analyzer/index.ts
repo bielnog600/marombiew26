@@ -247,6 +247,48 @@ async function buildStudentContextForAgent(supabase: any, studentId: string) {
  * Calls the diet-agent (which streams SSE) and accumulates the final markdown.
  */
 async function callDietAgent(prompt: string, studentContext: any): Promise<string> {
+  return await callDietAgentImpl(prompt, studentContext);
+}
+
+/**
+ * Direct OpenAI call as fallback when diet-agent fails. Uses non-streaming mode for reliability.
+ */
+async function callOpenAIDirect(prompt: string, studentContext: any): Promise<string> {
+  const ctxLines: string[] = [];
+  for (const [k, v] of Object.entries(studentContext || {})) {
+    if (v == null) continue;
+    if (typeof v === "object") {
+      try { ctxLines.push(`${k}: ${JSON.stringify(v).slice(0, 800)}`); } catch {}
+    } else {
+      ctxLines.push(`${k}: ${v}`);
+    }
+  }
+  const ctxBlock = ctxLines.length ? `\n\n=== DADOS DO ALUNO ===\n${ctxLines.join("\n")}\n=== FIM ===\n` : "";
+
+  const system = `Você é um nutricionista esportivo experiente. Crie dietas detalhadas em markdown com tabela completa de refeições (Refeição | Horário | Alimento | Quantidade (g) | Kcal | Proteína (g) | Carboidrato (g) | Gordura (g)), totais por refeição e total diário. Mantenha as calorias e macros indicados pelo usuário como âncora exata. NUNCA deixe valores zerados. Use português do Brasil.`;
+
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: prompt + ctxBlock },
+      ],
+      temperature: 0.4,
+      max_tokens: 8000,
+    }),
+  });
+  if (!resp.ok) {
+    const t = await resp.text().catch(() => "");
+    throw new Error(`OpenAI direct error ${resp.status}: ${t.slice(0, 300)}`);
+  }
+  const data = await resp.json();
+  return (data.choices?.[0]?.message?.content ?? "").trim();
+}
+
+async function callDietAgentImpl(prompt: string, studentContext: any): Promise<string> {
   const url = `${SUPABASE_URL}/functions/v1/diet-agent`;
   const resp = await fetch(url, {
     method: "POST",
@@ -272,7 +314,14 @@ async function callDietAgent(prompt: string, studentContext: any): Promise<strin
   let streamDone = false;
 
   while (!streamDone) {
-    const { done, value } = await reader.read();
+    let readResult;
+    try {
+      readResult = await reader.read();
+    } catch (e) {
+      console.error("[callDietAgent] stream read error:", e);
+      break;
+    }
+    const { done, value } = readResult;
     if (done) break;
     textBuffer += decoder.decode(value, { stream: true });
     let idx: number;
@@ -297,6 +346,7 @@ async function callDietAgent(prompt: string, studentContext: any): Promise<strin
     }
   }
 
+  console.log(`[callDietAgent] accumulated length=${accumulated.length}`);
   return accumulated.trim();
 }
 
@@ -439,8 +489,18 @@ ENTREGUE OBRIGATORIAMENTE:
 6) Timing nutricional pré/pós-treino
 7) Mensagens prontas para WhatsApp explicando a nova fase`;
 
-  const draftContent = await callDietAgent(prompt, studentContext);
+  let draftContent = "";
+  try {
+    draftContent = await callDietAgent(prompt, studentContext);
+  } catch (e: any) {
+    console.error("[generateDraft] diet-agent failed:", e?.message);
+  }
+  // Fallback: chama OpenAI diretamente se o diet-agent não retornou conteúdo suficiente
   if (!draftContent || draftContent.length < 200) {
+    console.log("[generateDraft] usando fallback OpenAI direto. tamanho atual:", draftContent.length);
+    draftContent = await callOpenAIDirect(prompt, studentContext);
+  }
+  if (!draftContent || draftContent.length < 100) {
     throw new Error("Conteúdo do rascunho insuficiente — tente novamente");
   }
 
