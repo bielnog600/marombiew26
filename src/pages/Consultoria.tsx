@@ -746,8 +746,6 @@ const Consultoria = () => {
         {/* Tab content */}
         {tab === 'dashboard' && (
           <div className="space-y-4">
-            <EngagementOverviewCards />
-            
             {/* Telemetria de Migração Estrutural */}
             <Card className="glass-card">
               <CardHeader className="pb-2">
