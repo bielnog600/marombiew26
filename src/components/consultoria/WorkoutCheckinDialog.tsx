@@ -16,7 +16,8 @@ interface Props {
   studentName: string;
   workoutPlanId?: string;
   onSuccess?: () => void;
-  mode?: 'consultor' | 'aluno';
+  mode?: 'consultor' | 'aluno' | 'view';
+  checkinData?: any;
 }
 
 const WorkoutCheckinDialog: React.FC<Props> = ({
@@ -26,7 +27,8 @@ const WorkoutCheckinDialog: React.FC<Props> = ({
   studentName,
   workoutPlanId,
   onSuccess,
-  mode = 'consultor'
+  mode = 'consultor',
+  checkinData
 }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -40,6 +42,22 @@ const WorkoutCheckinDialog: React.FC<Props> = ({
     motivacao: 'media',
     observacoes: ''
   });
+
+  useEffect(() => {
+    if (checkinData) {
+      setFormData({
+        intensidade_percebida: checkinData.intensidade_percebida || 'adequado',
+        falta_tempo: checkinData.falta_tempo ? 'sim' : 'nao',
+        recuperacao: checkinData.recuperacao || 'ok',
+        dores: checkinData.dores || 'nao',
+        exercicios_incomodo: checkinData.exercicios_incomodo || '',
+        duracao_percebida: checkinData.duracao_percebida || 'adequado',
+        energia: checkinData.energia || 'normal',
+        motivacao: checkinData.motivacao || 'media',
+        observacoes: checkinData.observacoes || ''
+      });
+    }
+  }, [checkinData]);
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -108,10 +126,12 @@ const WorkoutCheckinDialog: React.FC<Props> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ClipboardCheck className="h-5 w-5 text-blue-500" />
-            Check-in de Treino {mode === 'consultor' ? `- ${studentName}` : ''}
+            {mode === 'view' ? `Feedback de Treino - ${studentName}` : `Check-in de Treino ${mode === 'consultor' ? `- ${studentName}` : ''}`}
           </DialogTitle>
           <DialogDescription>
-            {mode === 'consultor' 
+            {mode === 'view'
+              ? 'Visualize as respostas dadas pelo aluno no check-in do app.'
+              : mode === 'consultor' 
               ? 'Como o aluno sentiu o treino nos últimos dias? (Preenchimento manual pelo consultor)'
               : 'Como você sentiu o seu treino/protocolo atual? Seu feedback é fundamental para nossos ajustes.'}
           </DialogDescription>
@@ -200,15 +220,23 @@ const WorkoutCheckinDialog: React.FC<Props> = ({
         </div>
 
         <DialogFooter>
-          {mode === 'consultor' && (
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-              Cancelar
+          {mode === 'view' ? (
+            <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white" onClick={() => onOpenChange(false)}>
+              Fechar
             </Button>
+          ) : (
+            <>
+              {mode === 'consultor' && (
+                <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+                  Cancelar
+                </Button>
+              )}
+              <Button onClick={handleSubmit} disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ClipboardCheck className="h-4 w-4 mr-2" />}
+                {mode === 'aluno' ? 'Enviar Feedback' : 'Salvar Check-in'}
+              </Button>
+            </>
           )}
-          <Button onClick={handleSubmit} disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ClipboardCheck className="h-4 w-4 mr-2" />}
-            {mode === 'aluno' ? 'Enviar Feedback' : 'Salvar Check-in'}
-          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
