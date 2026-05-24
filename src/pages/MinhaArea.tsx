@@ -131,34 +131,27 @@ const MinhaArea = () => {
         supabase.from('ai_plans').select('*').eq('student_id', user!.id).eq('tipo', 'treino').eq('pending_checkin', true).order('created_at', { ascending: false }).limit(1).maybeSingle()
       ]);
 
-      const prof = profRes;
-      const avals = avalsRes;
-      const treino = treinoRes;
-      const dieta = dietaRes;
-      const tabata = tabataRes;
-      const cardio = cardioRes;
+      const prof = profRes.data;
+      const avals = avalsRes.data;
+      const treino = treinoRes.data;
+      const dieta = dietaRes.data;
+      const tabata = tabataRes.data;
+      const cardio = cardioRes.data;
 
-      
-      if (treino) {
-        // ... (existing logic)
-      }
-      
-      if (cardio) {
-        // ...
-      }
+      setProfile(prof);
+      setAssessmentCount(avals?.length ?? 0);
 
       if (checkinRes?.data) {
         setPendingWorkoutCheckin(checkinRes.data);
         setShowCheckinModal(true);
       }
-
-
       
       if (treino) {
         setTrainingTitle(treino.titulo);
         const sections = parseTrainingSections(treino.conteudo);
         const allDays = sections.flatMap(s => s.days ?? []);
         setTrainingDays(allDays);
+
 
         const exerciseNames = allDays.flatMap(d => d.exercises.map(e => e.exercise.toUpperCase().trim()));
         const uniqueNames = [...new Set(exerciseNames)];
@@ -194,6 +187,7 @@ const MinhaArea = () => {
       if (dieta) {
         setDietTitle(dieta.titulo);
         const sections = parseSections(dieta.conteudo);
+
         setDietSections(sections);
         const allMeals = sections.flatMap(s => s.meals ?? []);
         setMeals(allMeals);
