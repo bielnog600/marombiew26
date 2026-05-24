@@ -75,6 +75,12 @@ interface AnalysisRow {
     avg_rpe: number | null;
     fatigue_signal: string | null;
   };
+  frequency_adjustment_data?: {
+    suggest_reduction: boolean;
+    reason_category: string;
+    justification: string;
+  };
+  alternatives_considered?: string[];
   rationale: string;
   created_at: string;
 }
