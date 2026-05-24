@@ -1,11 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
-import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar, Send, ClipboardList, Plus, Sparkles, Activity } from 'lucide-react';
+import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar, Send, ClipboardList, Plus, Sparkles, Activity, Wand2, Zap, GitCompare, RefreshCw } from 'lucide-react';
 import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import TrainingResultCards from '@/components/TrainingResultCards';
@@ -14,6 +14,8 @@ import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { rebuildTrainingMarkdown } from '@/lib/trainingResultParser';
 import AiEditAllDaysDialog from '@/components/training/AiEditAllDaysDialog';
+import { Badge } from '@/components/ui/badge';
+import { useNavigate } from 'react-router-dom';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -35,13 +37,8 @@ interface StudentTrainingTabProps {
   studentId: string;
 }
 
-const makePlanSignature = (content: string) => {
-  let hash = 0;
-  for (let i = 0; i < content.length; i++) hash = ((hash << 5) - hash + content.charCodeAt(i)) | 0;
-  return Math.abs(hash).toString(36) || 'empty';
-};
-
 const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) => {
+  const navigate = useNavigate();
   const [plans, setPlans] = useState<any[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editedMarkdowns, setEditedMarkdowns] = useState<Record<string, string>>({});
@@ -71,64 +68,6 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
     if (error) { toast.error('Erro ao deletar: ' + error.message); return; }
     toast.success('Treino deletado.');
     setPlans(prev => prev.filter(p => p.id !== planId));
-  };
-
-  const trainDays: ParsedTrainingDay[] = React.useMemo(() => {
-    if (!trainPlan) return [];
-    const sections = parseTrainingSections(trainPlan.conteudo || '');
-    const days: ParsedTrainingDay[] = [];
-    for (const s of sections) {
-      if (s.type === 'training' && s.days) days.push(...s.days);
-    }
-    
-    // Dedup dias por nome (caso o markdown tenha tabelas duplicadas)
-    const merged: ParsedTrainingDay[] = [];
-    const seen = new Set<string>();
-    for (const d of days) {
-      const key = d.day.toUpperCase().trim();
-      if (!seen.has(key)) {
-        seen.add(key);
-        merged.push(d);
-      }
-    }
-    return merged;
-  }, [trainPlan]);
-
-  const openTransfer = async (plan: any) => {
-    setTransferPlan(plan);
-    setTargetStudentId('');
-    if (students.length === 0) {
-      const [{ data: sp }, { data: pr }] = await Promise.all([
-        supabase.from('students_profile').select('user_id').eq('ativo', true),
-        supabase.from('profiles').select('user_id, nome'),
-      ]);
-      const nomeMap = new Map((pr ?? []).map((p: any) => [p.user_id, p.nome]));
-      const list = (sp ?? [])
-        .map((s: any) => ({ user_id: s.user_id, nome: nomeMap.get(s.user_id) || 'Sem nome' }))
-        .filter((s) => s.user_id !== studentId)
-        .sort((a, b) => a.nome.localeCompare(b.nome));
-      setStudents(list);
-    }
-  };
-
-  const handleTransfer = async () => {
-    if (!transferPlan || !targetStudentId) return;
-    setTransferring(true);
-    const { error } = await supabase.from('ai_plans').insert({
-      student_id: targetStudentId,
-      tipo: transferPlan.tipo,
-      titulo: transferPlan.titulo,
-      conteudo: transferPlan.conteudo,
-      fase: transferPlan.fase,
-      fase_inicio_data: transferPlan.fase_inicio_data,
-    });
-    setTransferring(false);
-    if (error) {
-      toast.error('Erro ao transferir: ' + error.message);
-    } else {
-      toast.success('Treino copiado para o outro aluno!');
-      setTransferPlan(null);
-    }
   };
 
   useEffect(() => {
@@ -199,276 +138,244 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
 
   return (
     <>
-    <div className="space-y-3">
-      {plans.map(plan => {
-        const isExpanded = expandedId === plan.id;
-        const currentPhase = (editedPhases[plan.id] ?? plan.fase ?? 'semana_1') as TrainingPhase;
-        const currentStartDate = editedStartDates[plan.id] ?? plan.fase_inicio_data ?? '';
-        const hasChanges =
-          editedMarkdowns[plan.id] !== undefined ||
-          editedPhases[plan.id] !== undefined ||
-          editedStartDates[plan.id] !== undefined;
-        const currentMarkdown = editedMarkdowns[plan.id] !== undefined ? editedMarkdowns[plan.id] : plan.conteudo;
+      <div className="space-y-3">
+        {plans.map(plan => {
+          const isExpanded = expandedId === plan.id;
+          const currentPhase = (editedPhases[plan.id] ?? plan.fase ?? 'semana_1') as TrainingPhase;
+          const currentStartDate = editedStartDates[plan.id] ?? plan.fase_inicio_data ?? '';
+          const hasChanges =
+            editedMarkdowns[plan.id] !== undefined ||
+            editedPhases[plan.id] !== undefined ||
+            editedStartDates[plan.id] !== undefined;
+          const currentMarkdown = editedMarkdowns[plan.id] !== undefined ? editedMarkdowns[plan.id] : plan.conteudo;
 
-        return (
-          <Card key={plan.id} className="glass-card">
-            <CardContent className="p-4">
-              <div
-                className="flex items-center justify-between cursor-pointer"
-                onClick={() => setExpandedId(isExpanded ? null : plan.id)}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <Dumbbell className="h-5 w-5 text-primary shrink-0" />
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm truncate">{plan.titulo}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${PHASE_BADGE_CLASS[currentPhase]}`}>
-                        {PHASE_SHORT_LABELS[currentPhase]}
-                      </span>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(plan.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                      </p>
+          const currentDays: ParsedTrainingDay[] = useMemo(() => {
+            const sections = parseTrainingSections(currentMarkdown || '');
+            return sections.flatMap(s => s.days || []);
+          }, [currentMarkdown]);
+
+          return (
+            <Card key={plan.id} className="glass-card">
+              <CardContent className="p-4">
+                <div
+                  className="flex items-center justify-between cursor-pointer"
+                  onClick={() => setExpandedId(isExpanded ? null : plan.id)}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Dumbbell className="h-5 w-5 text-primary shrink-0" />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm truncate">{plan.titulo}</p>
+                        {plan.migration_status === 'completed' && (
+                          <Badge variant="outline" className="h-4 px-1 text-[8px] uppercase text-emerald-500 border-emerald-500/30">JSON</Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${PHASE_BADGE_CLASS[currentPhase]}`}>
+                          {PHASE_SHORT_LABELS[currentPhase]}
+                        </span>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(plan.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 gap-1 px-2 text-xs"
-                    title="Treinar aluno (registrar carga e reps)"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setTrainPlan(getEffectivePlan(plan));
-                    }}
-                  >
-                    <ClipboardList className="h-3 w-3" /> Treinar
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 gap-1 px-2 text-xs"
-                    title="Transferir para outro aluno"
-                    onClick={(e) => { e.stopPropagation(); openTransfer(plan); }}
-                  >
-                    <Send className="h-3 w-3" />
-                  </Button>
-                  <WhatsAppNotifyPlanButton
-                    plan={plan}
-                    studentId={studentId}
-                    onNotified={(planId, notifiedAt, count) =>
-                      setPlans(prev => prev.map(p =>
-                        p.id === planId ? { ...p, whatsapp_notified_at: notifiedAt, whatsapp_notified_count: count } : p
-                      ))
-                    }
-                  />
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        title="Deletar treino"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Deletar treino?</AlertDialogTitle>
-                        <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => handleDelete(plan.id)}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          Deletar
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                  {hasChanges && (
+                  <div className="flex items-center gap-2 shrink-0">
                     <Button
+                      variant="ghost"
                       size="sm"
-                      className="h-7 gap-1 px-3 text-xs"
-                      disabled={saving === plan.id}
-                      onClick={(e) => { e.stopPropagation(); handleSave(plan.id); }}
-                    >
-                      {saving === plan.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                      Salvar
-                    </Button>
-                  )}
-                  {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                </div>
-              </div>
-
-              {isExpanded && (
-                <div className="mt-4 pt-4 border-t border-border space-y-4">
-                  {/* Periodização */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Fase semanal</Label>
-                      <Select value={currentPhase} onValueChange={(v) => handlePhaseChange(plan.id, v as TrainingPhase)}>
-                        <SelectTrigger className="h-9 text-sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TRAINING_PHASES.map(p => (
-                            <SelectItem key={p} value={p}>
-                              <div className="flex flex-col">
-                                <span className="font-medium">{PHASE_LABELS[p]}</span>
-                                <span className="text-[10px] text-muted-foreground">{PHASE_DESCRIPTIONS[p]}</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        Início do ciclo (auto)
-                      </Label>
-                      <Input
-                        type="date"
-                        value={currentStartDate}
-                        onChange={(e) => handleStartDateChange(plan.id, e.target.value)}
-                        className="h-9 text-sm"
-                      />
-                      {(() => {
-                        const preview = getPhasePreview(currentStartDate);
-                        if (!preview) return null;
-                        return (
-                          <p className="text-[10px] text-muted-foreground">
-                            Hoje: dia {preview.daysIn + 1} do ciclo →{' '}
-                            <span className="text-primary font-semibold">{PHASE_SHORT_LABELS[preview.phase]}</span>
-                          </p>
-                        );
-                      })()}
-                    </div>
-                  </div>
-
-                  <TrainingResultCards
-                    markdown={currentMarkdown}
-                    editable={true}
-                    trainingOnly={true}
-                    onMarkdownChange={(newMd) => handleMarkdownChange(plan.id, newMd)}
-                  />
-
-                  {/* Add day + AI edit all */}
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 gap-1.5 text-xs"
-                      onClick={() => {
-                        const sections = parseTrainingSections(currentMarkdown);
-                        const existingDays: ParsedTrainingDay[] = [];
-                        for (const s of sections) {
-                          if (s.type === 'training' && s.days) existingDays.push(...s.days);
-                        }
-                        const allDayNames = ['SEGUNDA-FEIRA','TERÇA-FEIRA','QUARTA-FEIRA','QUINTA-FEIRA','SEXTA-FEIRA','SÁBADO','DOMINGO'];
-                        const usedDays = existingDays.map(d => d.day.toUpperCase());
-                        const nextDay = allDayNames.find(d => !usedDays.includes(d)) || `TREINO ${String.fromCharCode(65 + existingDays.length)}`;
-                        const newDay: ParsedTrainingDay = {
-                          day: nextDay,
-                          exercises: [{
-                            exercise: 'Novo exercício',
-                            series: '3',
-                            series2: '',
-                            reps: '8-12',
-                            rir: '',
-                            pause: '60s',
-                            description: '',
-                            variation: '',
-                          }],
-                        };
-                        const updatedDays = [...existingDays, newDay];
-                        const newMarkdown = rebuildTrainingMarkdown(currentMarkdown, updatedDays);
-                        handleMarkdownChange(plan.id, newMarkdown);
-                        toast.success(`${nextDay} adicionado ao treino.`);
+                      className="h-7 gap-1 px-2 text-xs"
+                      title="Treinar aluno"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTrainPlan(getEffectivePlan(plan));
                       }}
                     >
-                      <Plus className="h-3.5 w-3.5" /> Adicionar dia
+                      <ClipboardList className="h-3 w-3" /> Treinar
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 gap-1.5 text-xs border-primary/40 text-primary hover:text-primary hover:bg-primary/10"
-                      onClick={() => setAiAllDaysOpen(plan.id)}
-                    >
-                      <Sparkles className="h-3.5 w-3.5" /> IA editar todos os dias
-                    </Button>
+                    <WhatsAppNotifyPlanButton
+                      plan={plan}
+                      studentId={studentId}
+                      onNotified={(planId, notifiedAt, count) =>
+                        setPlans(prev => prev.map(p =>
+                          p.id === planId ? { ...p, whatsapp_notified_at: notifiedAt, whatsapp_notified_count: count } : p
+                        ))
+                      }
+                    />
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Deletar treino?</AlertDialogTitle>
+                          <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleDelete(plan.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Deletar
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                    {hasChanges && (
+                      <Button
+                        size="sm"
+                        className="h-7 gap-1 px-3 text-xs"
+                        disabled={saving === plan.id}
+                        onClick={(e) => { e.stopPropagation(); handleSave(plan.id); }}
+                      >
+                        {saving === plan.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                        Salvar
+                      </Button>
+                    )}
+                    {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                   </div>
-
-                  {aiAllDaysOpen === plan.id && (() => {
-                    const sections = parseTrainingSections(currentMarkdown);
-                    const days: ParsedTrainingDay[] = [];
-                    for (const s of sections) {
-                      if (s.type === 'training' && s.days) days.push(...s.days);
-                    }
-                    return (
-                      <AiEditAllDaysDialog
-                        open={true}
-                        onOpenChange={(o) => { if (!o) setAiAllDaysOpen(null); }}
-                        allDays={days}
-                        studentId={studentId}
-                        onApply={(updatedDays) => {
-                          handleMarkdownChange(plan.id, rebuildTrainingMarkdown(currentMarkdown, updatedDays));
-                        }}
-                      />
-                    );
-                  })()}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
-    </div>
 
-    <Dialog open={!!transferPlan} onOpenChange={(open) => { if (!open) setTransferPlan(null); }}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Transferir treino</DialogTitle>
-          <DialogDescription>
-            Copia este treino para outro aluno (o original permanece intacto).
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-2">
-          <Label className="text-xs">Aluno destino</Label>
-          <Select value={targetStudentId} onValueChange={setTargetStudentId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione um aluno..." />
-            </SelectTrigger>
-            <SelectContent>
-              {students.map(s => (
-                <SelectItem key={s.user_id} value={s.user_id}>{s.nome}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setTransferPlan(null)}>Cancelar</Button>
-          <Button onClick={handleTransfer} disabled={!targetStudentId || transferring}>
-            {transferring ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
-            Transferir
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+                {isExpanded && (
+                  <div className="mt-4 pt-4 border-t border-border space-y-4">
+                    {/* Ações Híbridas - Central de Ação Individual */}
+                    <div className="flex flex-wrap gap-2 pb-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="h-8 gap-1.5 text-xs rounded-xl bg-primary/5 border-primary/20"
+                        onClick={() => navigate(`/treino-ia/${studentId}?edit=${plan.id}`)}
+                      >
+                        <Wand2 className="h-3.5 w-3.5 text-primary" />
+                        Ajustar com IA
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="h-8 gap-1.5 text-xs rounded-xl bg-orange-500/5 border-orange-500/20 text-orange-600"
+                        onClick={() => navigate(`/treino-ia/${studentId}?edit=${plan.id}&mode=adjust`)}
+                      >
+                        <Zap className="h-3.5 w-3.5" />
+                        Ajuste Rápido
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="h-8 gap-1.5 text-xs rounded-xl bg-blue-500/5 border-blue-500/20 text-blue-600"
+                        onClick={() => navigate(`/treino-ia/${studentId}`)}
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Renovar Bloco
+                      </Button>
+                    </div>
 
-    <TrainerLogSheet
-      key={trainPlan ? `${trainPlan.id}-${makePlanSignature(trainPlan.conteudo || '')}` : 'trainer-log'}
-      open={!!trainPlan}
-      onOpenChange={(open) => { if (!open) setTrainPlan(null); }}
-      studentId={studentId}
-      days={trainDays}
-      phase={trainPlan?.fase}
-    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Fase semanal</Label>
+                        <Select value={currentPhase} onValueChange={(v) => handlePhaseChange(plan.id, v as TrainingPhase)}>
+                          <SelectTrigger className="h-9 text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {TRAINING_PHASES.map(p => (
+                              <SelectItem key={p} value={p}>
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{PHASE_LABELS[p]}</span>
+                                  <span className="text-[10px] text-muted-foreground">{PHASE_DESCRIPTIONS[p]}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          Início do ciclo (auto)
+                        </Label>
+                        <Input
+                          type="date"
+                          value={currentStartDate}
+                          onChange={(e) => handleStartDateChange(plan.id, e.target.value)}
+                          className="h-9 text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <TrainingResultCards
+                      markdown={currentMarkdown}
+                      editable={true}
+                      trainingOnly={true}
+                      onMarkdownChange={(newMd) => handleMarkdownChange(plan.id, newMd)}
+                    />
+
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1.5 text-xs rounded-xl"
+                        onClick={() => {
+                          const existingDays = currentDays;
+                          const allDayNames = ['SEGUNDA-FEIRA','TERÇA-FEIRA','QUARTA-FEIRA','QUINTA-FEIRA','SEXTA-FEIRA','SÁBADO','DOMINGO'];
+                          const usedDays = existingDays.map(d => d.day.toUpperCase());
+                          const nextDay = allDayNames.find(d => !usedDays.includes(d)) || `TREINO ${String.fromCharCode(65 + existingDays.length)}`;
+                          const updatedDays = [...existingDays, {
+                            day: nextDay,
+                            exercises: [{ exercise: 'Novo exercício', series: '3', series2: '', reps: '8-12', rir: '', pause: '60s', description: '', variation: '' }],
+                          }];
+                          handleMarkdownChange(plan.id, rebuildTrainingMarkdown(currentMarkdown, updatedDays));
+                          toast.success(`${nextDay} adicionado.`);
+                        }}
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Adicionar dia
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1.5 text-xs rounded-xl bg-violet-500/5 border-violet-500/20 text-violet-600"
+                        onClick={() => setAiAllDaysOpen(plan.id)}
+                      >
+                        <Sparkles className="h-3.5 w-3.5" /> IA: Ajuste Geral
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {trainPlan && (
+        <TrainerLogSheet
+          open={!!trainPlan}
+          onOpenChange={(v) => !v && setTrainPlan(null)}
+          studentId={studentId}
+          days={parseTrainingSections(trainPlan.conteudo || '').flatMap(s => s.days || [])}
+          phase={trainPlan.fase}
+        />
+      )}
+
+      {aiAllDaysOpen && (
+        <AiEditAllDaysDialog
+          open={!!aiAllDaysOpen}
+          onOpenChange={(v) => !v && setAiAllDaysOpen(null)}
+          allDays={parseTrainingSections(plans.find(p => p.id === aiAllDaysOpen)?.conteudo || '').flatMap(s => s.days || [])}
+          studentId={studentId}
+          onApply={(updatedDays) => {
+            handleMarkdownChange(aiAllDaysOpen, rebuildTrainingMarkdown(plans.find(p => p.id === aiAllDaysOpen)?.conteudo || '', updatedDays));
+            setAiAllDaysOpen(null);
+          }}
+        />
+      )}
     </>
   );
 };
