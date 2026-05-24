@@ -733,6 +733,68 @@ export type Database = {
         }
         Relationships: []
       }
+      diet_checkins: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          diet_id: string | null
+          digestao: string | null
+          energia: string | null
+          facilidade: string | null
+          fome: string | null
+          id: string
+          observacoes: string | null
+          requested_at: string
+          saciedade: string | null
+          sono: string | null
+          status: string
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          diet_id?: string | null
+          digestao?: string | null
+          energia?: string | null
+          facilidade?: string | null
+          fome?: string | null
+          id?: string
+          observacoes?: string | null
+          requested_at?: string
+          saciedade?: string | null
+          sono?: string | null
+          status?: string
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          diet_id?: string | null
+          digestao?: string | null
+          energia?: string | null
+          facilidade?: string | null
+          fome?: string | null
+          id?: string
+          observacoes?: string | null
+          requested_at?: string
+          saciedade?: string | null
+          sono?: string | null
+          status?: string
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diet_checkins_diet_id_fkey"
+            columns: ["diet_id"]
+            isOneToOne: false
+            referencedRelation: "ai_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       diet_plan_versions: {
         Row: {
           archived_at: string | null
