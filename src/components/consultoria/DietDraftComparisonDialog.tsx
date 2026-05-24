@@ -159,7 +159,7 @@ const DietDraftComparisonDialog: React.FC<Props> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto pr-2 -mr-2 min-h-0 scrollbar-thin scrollbar-thumb-primary/10 hover:scrollbar-thumb-primary/20 touch-pan-y">
+        <div className="flex-1 overflow-y-auto pr-2 -mr-2 min-h-0 scrollbar-thin scrollbar-thumb-primary/10 hover:scrollbar-thumb-primary/20 touch-pan-y py-2">
           <div className="space-y-6">
             {/* Bloco 1 — Resumo nutricional */}
             <section className="space-y-2">
