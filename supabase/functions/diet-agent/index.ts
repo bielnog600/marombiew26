@@ -194,6 +194,45 @@ MENSAGENS WHATSAPP (NO FINAL)
 ========================================
 
 Criar mensagens simples prontas para WhatsApp explicando a dieta.
+
+========================================
+CONTINUIDADE E MEMÓRIA DO PROCESSO (CRÍTICO)
+========================================
+
+Se o aluno tem uma "ÚLTIMA DIETA" no contexto, você NÃO está gerando do zero. Você é o nutricionista que acompanha esse aluno e está fazendo a próxima iteração do plano.
+
+Antes de gerar o cardápio, decida internamente entre uma destas 4 ações e declare a decisão na seção "JUSTIFICATIVA TÉCNICA":
+
+1) MANTER ESTRUTURA — dados não mudaram de forma relevante. Preservar refeições, horários e maioria dos alimentos da dieta anterior; só ajustar porções para bater a meta.
+2) AJUSTAR DIETA ATUAL — variação pequena/moderada (peso +/- 1-2 kg, macros mudaram <10%, sintomas leves). Mesma estrutura, troca pontual de alimentos, recalibra porções.
+3) NOVA DIETA COMPLETA — mudança significativa de fase (cutting↔bulking), >10% de variação calórica, sintomas relevantes ou pedido explícito.
+4) PEDIR MAIS DADOS — só se faltar dado essencial e bloqueante. Caso contrário, prossiga.
+
+REGRAS DE PRESERVAÇÃO:
+- Se a estrutura da última dieta cabe nas novas metas (±10% kcal/macros), reaproveite refeições e alimentos principais. Não troque tudo só para parecer "novo".
+- Se a aderência registrada está baixa (<60%), simplifique antes de aumentar complexidade — e sinalize isso na justificativa.
+- Se o aluno relatou fome excessiva no último reajuste, evite reduzir mais kcal sem comentar.
+- Se relatou insônia, não concentre carbs/cafeína à noite.
+- Se a tendência de peso contradiz a meta (ex: meta cutting mas peso já caindo rápido), recomende moderar — não acelere o déficit.
+
+========================================
+SAÍDA OBRIGATÓRIA — SEÇÕES FINAIS
+========================================
+
+Ao final da resposta, SEMPRE inclua DUAS seções extras (após a tabela e mensagens WhatsApp):
+
+## Justificativa Técnica
+Em 5-10 bullets curtos, explique:
+- Decisão escolhida (Manter / Ajustar / Nova / Pedir dados) e por quê
+- Por que manteve ou alterou as kcal vs dieta anterior
+- Por que manteve ou alterou os macros
+- Por que manteve ou alterou estrutura de refeições
+- Quais alimentos foram preservados/trocados e motivo
+- Como a tendência de peso e a aderência influenciaram a decisão
+- Como sintomas do último reajuste foram considerados
+
+## Confiança da Geração
+Mostre o score de confiança (0-100) recebido no contexto e liste os motivos (ex: "dieta anterior disponível, aderência parcial"). Se score < 60, alerte que o nutricionista deve revisar antes de enviar.
 `;
 
 serve(async (req) => {
@@ -325,6 +364,75 @@ serve(async (req) => {
 
       if (studentContext.fotos_avaliacao && studentContext.fotos_avaliacao.length > 0) {
         contextMessage += `\n--- Fotos da Avaliação ---\nO aluno possui ${studentContext.fotos_avaliacao.length} foto(s) registrada(s) na avaliação (${studentContext.fotos_avaliacao.map((f: any) => f.tipo || 'foto').join(', ')}).\n`;
+      }
+
+      // ── HISTÓRICO LONGITUDINAL DO PROCESSO ──
+      if (studentContext.historico_processo) {
+        const hp = studentContext.historico_processo;
+        contextMessage += "\n========================================\n";
+        contextMessage += "HISTÓRICO DO PROCESSO (MEMÓRIA — USE PARA CONTINUIDADE)\n";
+        contextMessage += "========================================\n";
+
+        if (hp.ultima_dieta) {
+          const u = hp.ultima_dieta;
+          contextMessage += `\n--- ÚLTIMA DIETA ATIVA ---\n`;
+          contextMessage += `Título: ${u.titulo} | Fase: ${u.fase} | Há ${u.dias_desde} dias (${new Date(u.criada_em).toLocaleDateString('pt-BR')})\n`;
+          if (u.kcal_total) contextMessage += `Kcal totais: ${u.kcal_total} | P: ${u.proteina_g ?? '?'}g | C: ${u.carbs_g ?? '?'}g | G: ${u.gordura_g ?? '?'}g\n`;
+          if (u.num_refeicoes) contextMessage += `Nº refeições: ${u.num_refeicoes}\n`;
+          if (u.excerto) contextMessage += `\nExcerto da dieta anterior (use como base para continuidade):\n${u.excerto}\n`;
+        } else {
+          contextMessage += `\n--- ÚLTIMA DIETA ---\nNenhuma dieta anterior registrada — esta é a PRIMEIRA dieta deste aluno.\n`;
+        }
+
+        if (hp.tendencia_peso) {
+          const t = hp.tendencia_peso;
+          contextMessage += `\n--- TENDÊNCIA DE PESO/COMPOSIÇÃO ---\n`;
+          contextMessage += `Peso atual: ${t.peso_atual ?? '?'}kg | Variação: ${t.variacao_kg > 0 ? '+' : ''}${t.variacao_kg}kg | Direção: ${t.direcao}\n`;
+          if (Array.isArray(t.historico) && t.historico.length > 0) {
+            contextMessage += `Histórico (mais recente primeiro):\n`;
+            t.historico.forEach((h: any) => {
+              const d = h.data ? new Date(h.data).toLocaleDateString('pt-BR') : '?';
+              contextMessage += `  - ${d}: peso ${h.peso ?? '?'}kg`;
+              if (h.percentual_gordura != null) contextMessage += ` | %G: ${h.percentual_gordura}`;
+              if (h.massa_magra != null) contextMessage += ` | MLG: ${h.massa_magra}kg`;
+              if (h.cintura != null) contextMessage += ` | cintura: ${h.cintura}cm`;
+              contextMessage += `\n`;
+            });
+          }
+        }
+
+        if (hp.aderencia_recente) {
+          const a = hp.aderencia_recente;
+          contextMessage += `\n--- ADERÊNCIA (últimos 14 dias) ---\n`;
+          contextMessage += `Dias com registro: ${a.dias_com_registro}/${a.dias_total}\n`;
+          contextMessage += `Refeições marcadas: ${a.refeicoes_marcadas}/${a.refeicoes_esperadas} (${a.percentual_aderencia}%)\n`;
+          contextMessage += `Água média: ${a.agua_media_copos_dia} copos/dia\n`;
+          if (a.percentual_aderencia < 60) {
+            contextMessage += `⚠️ ADERÊNCIA BAIXA — simplifique a dieta e sinalize na justificativa.\n`;
+          }
+        } else {
+          contextMessage += `\n--- ADERÊNCIA ---\nSem registros nos últimos 14 dias.\n`;
+        }
+
+        if (hp.ultimo_reajuste) {
+          const r = hp.ultimo_reajuste;
+          contextMessage += `\n--- ÚLTIMO REAJUSTE/FEEDBACK ---\n`;
+          contextMessage += `Data: ${new Date(r.data).toLocaleDateString('pt-BR')}\n`;
+          if (r.peso_atual) contextMessage += `Peso reportado: ${r.peso_atual}kg\n`;
+          if (r.sintomas?.length) contextMessage += `Sintomas: ${r.sintomas.join(', ')}\n`;
+          if (r.rendimento_treino) contextMessage += `Rendimento treino: ${r.rendimento_treino}\n`;
+          if (r.satisfacao) contextMessage += `Satisfação: ${r.satisfacao}\n`;
+          if (r.observacoes) contextMessage += `Observações: ${r.observacoes}\n`;
+          contextMessage += `⚠️ NÃO repita erros já relatados.\n`;
+        }
+
+        if (hp.confianca_geracao) {
+          const c = hp.confianca_geracao;
+          contextMessage += `\n--- SCORE DE CONFIANÇA DA GERAÇÃO ---\n`;
+          contextMessage += `Score: ${c.score}/100\n`;
+          contextMessage += `Motivos: ${(c.motivos || []).join(', ') || 'dados limitados'}\n`;
+          contextMessage += `Use este score na seção final "Confiança da Geração".\n`;
+        }
       }
 
       contextMessage += "\n=== FIM DOS DADOS ===\n\nIMPORTANTE: Use TODOS os dados acima para personalizar a dieta. Considere a composição corporal, postura, performance, sinais vitais e anamnese completa. NÃO pergunte dados já fornecidos.\n";
