@@ -911,6 +911,7 @@ const WorkoutRenewalPanel: React.FC = () => {
           mode="view"
           checkinData={checkins[viewCheckinFor.student_id]}
         />
+      )}
     </Card>
   );
 };
