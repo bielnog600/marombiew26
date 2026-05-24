@@ -132,6 +132,15 @@ async function gatherContext(supabase: any, plan: any) {
     .filter((n: number) => !Number.isNaN(n) && n > 0);
   const avgRpe = rpes.length ? rpes.reduce((a: number, b: number) => a + b, 0) / rpes.length : null;
 
+  // Average session duration and long session detection
+  const durations = completedSessions
+    .map((s: any) => Number(s.duration_minutes))
+    .filter((n: number) => !Number.isNaN(n) && n > 0);
+  const avgDuration = durations.length 
+    ? durations.reduce((a: number, b: number) => a + b, 0) / durations.length
+    : null;
+  const hasLongSessions = durations.some(d => d > 75);
+
   // Fatigue / monotony heuristics
   let fatigueSignal: "baixa" | "media" | "alta" = "baixa";
   if (avgRpe != null && avgRpe >= 9) fatigueSignal = "alta";
