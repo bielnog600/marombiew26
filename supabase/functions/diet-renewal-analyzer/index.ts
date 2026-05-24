@@ -29,7 +29,7 @@ async function gatherContext(supabase: any, plan: any) {
   since.setDate(since.getDate() - 14);
   const sinceStr = since.toISOString().slice(0, 10);
 
-  const [{ data: tracking }, { data: weights }, { data: lastAssessment }, { data: profile }, { data: readjustments }] =
+  const [{ data: tracking }, { data: weights }, { data: lastAssessment }, { data: profile }, { data: readjustments }, { data: checkins }] =
     await Promise.all([
       supabase
         .from("daily_tracking")
