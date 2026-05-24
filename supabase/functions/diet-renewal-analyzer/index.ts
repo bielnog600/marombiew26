@@ -458,6 +458,8 @@ ENTREGUE OBRIGATORIAMENTE:
       fase: plan.fase,
       cycle_days: plan.cycle_days,
       cycle_status: "rascunho_gerado",
+      metadata: plan.metadata, // Propagar metadata para manter macros/tmb calculados
+
       renewal_mode: plan.renewal_mode,
       parent_plan_id: plan.id,
       version: (plan.version ?? 1) + 1,
