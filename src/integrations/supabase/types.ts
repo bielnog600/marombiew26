@@ -68,6 +68,7 @@ export type Database = {
           low_cost_next_review_at: string | null
           low_cost_review_interval_days: number
           parent_plan_id: string | null
+          pending_checkin: boolean | null
           protocols: Json | null
           renewal_mode: string
           student_id: string
@@ -94,6 +95,7 @@ export type Database = {
           low_cost_next_review_at?: string | null
           low_cost_review_interval_days?: number
           parent_plan_id?: string | null
+          pending_checkin?: boolean | null
           protocols?: Json | null
           renewal_mode?: string
           student_id: string
@@ -120,6 +122,7 @@ export type Database = {
           low_cost_next_review_at?: string | null
           low_cost_review_interval_days?: number
           parent_plan_id?: string | null
+          pending_checkin?: boolean | null
           protocols?: Json | null
           renewal_mode?: string
           student_id?: string
@@ -740,6 +743,7 @@ export type Database = {
           diet_id: string | null
           digestao: string | null
           energia: string | null
+          expires_at: string | null
           facilidade: string | null
           fome: string | null
           id: string
@@ -749,6 +753,7 @@ export type Database = {
           sono: string | null
           status: string
           student_id: string
+          trigger_source: string | null
           updated_at: string
         }
         Insert: {
@@ -757,6 +762,7 @@ export type Database = {
           diet_id?: string | null
           digestao?: string | null
           energia?: string | null
+          expires_at?: string | null
           facilidade?: string | null
           fome?: string | null
           id?: string
@@ -766,6 +772,7 @@ export type Database = {
           sono?: string | null
           status?: string
           student_id: string
+          trigger_source?: string | null
           updated_at?: string
         }
         Update: {
@@ -774,6 +781,7 @@ export type Database = {
           diet_id?: string | null
           digestao?: string | null
           energia?: string | null
+          expires_at?: string | null
           facilidade?: string | null
           fome?: string | null
           id?: string
@@ -783,6 +791,7 @@ export type Database = {
           sono?: string | null
           status?: string
           student_id?: string
+          trigger_source?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1965,6 +1974,7 @@ export type Database = {
           duracao_percebida: string | null
           energia: string | null
           exercicios_incomodo: string | null
+          expires_at: string | null
           falta_tempo: boolean | null
           id: string
           intensidade_percebida: string | null
@@ -1974,6 +1984,7 @@ export type Database = {
           requested_at: string
           status: string
           student_id: string
+          trigger_source: string | null
           updated_at: string
           workout_plan_id: string | null
         }
@@ -1984,6 +1995,7 @@ export type Database = {
           duracao_percebida?: string | null
           energia?: string | null
           exercicios_incomodo?: string | null
+          expires_at?: string | null
           falta_tempo?: boolean | null
           id?: string
           intensidade_percebida?: string | null
@@ -1993,6 +2005,7 @@ export type Database = {
           requested_at?: string
           status?: string
           student_id: string
+          trigger_source?: string | null
           updated_at?: string
           workout_plan_id?: string | null
         }
@@ -2003,6 +2016,7 @@ export type Database = {
           duracao_percebida?: string | null
           energia?: string | null
           exercicios_incomodo?: string | null
+          expires_at?: string | null
           falta_tempo?: boolean | null
           id?: string
           intensidade_percebida?: string | null
@@ -2012,6 +2026,7 @@ export type Database = {
           requested_at?: string
           status?: string
           student_id?: string
+          trigger_source?: string | null
           updated_at?: string
           workout_plan_id?: string | null
         }
