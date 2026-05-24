@@ -234,14 +234,6 @@ const MinhasDietas = () => {
   // fitoterápicos, e os ajustes ativados pelo admin (carb cycling,
   // refeed, diet break, sódio, água, mudança de refeições, platô...).
 
-  const getExtraIcon = (s: ParsedSection) => {
-    const text = ((s.title || '') + ' ' + (s.content || '')).toLowerCase();
-    if (text.includes('fitoter') || text.includes('chá') || text.includes('infus')) return Leaf;
-    if (text.includes('suplement')) return Pill;
-    if (text.includes('emagrec') || text.includes('jejum') || text.includes('hiit') || text.includes('termog')) return Zap;
-    if (text.includes('ajuste') || text.includes('refeed') || text.includes('carb cyc') || text.includes('platô') || text.includes('plato') || text.includes('diet break')) return SlidersHorizontal;
-    return Lightbulb;
-  };
 
   const hasMultipleGroups = displayGroups.length > 1;
   const activeGroupIndex = displayGroups[selectedGroupIndex] ? selectedGroupIndex : defaultGroupIndex;
