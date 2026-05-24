@@ -31,10 +31,12 @@ interface PlanRow {
   student_id: string;
   titulo: string;
   conteudo: string;
+  conteudo_json?: any;
+  migration_status?: any;
   created_at: string;
   cycle_days: number;
   cycle_status: CycleStatus;
-  renewal_mode: 'manual' | 'semi_auto' | 'auto';
+  renewal_mode: 'manual' | 'semi_auto' | 'auto_renewal_v2';
   version: number;
   is_draft: boolean;
   parent_plan_id: string | null;
@@ -829,12 +831,22 @@ const WorkoutRenewalPanel: React.FC = () => {
                               <Button
                                 size="sm"
                                 variant="outline"
+                                className="text-orange-600 border-orange-500/30 h-9"
+                                disabled={busy === plan.id}
+                                onClick={() => handleGenerateDraft(plan.id)}
+                              >
+                                <Zap className="h-3.5 w-3.5" />
+                                <span className="ml-1.5">Ajuste Rápido</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
                                 className="text-blue-600 border-blue-500/30 h-9"
                                 disabled={busy === plan.id}
                                 onClick={() => handleGenerateDraft(plan.id)}
                               >
                                 <Wand2 className="h-3.5 w-3.5" />
-                                <span className="ml-1.5">Ajustar/Renovar</span>
+                                <span className="ml-1.5">Renovar Bloco</span>
                               </Button>
                             </>
                           )}

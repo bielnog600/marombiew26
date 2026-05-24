@@ -10,6 +10,7 @@ export interface WorkoutDataJSON {
     goal?: string;
     frequency?: number;
     notes?: string;
+    muscleGroups?: string[];
   };
   days: ParsedTrainingDay[];
 }
@@ -165,3 +166,28 @@ export const trackPlanAccess = (plan: PlanData, isFromJSON: boolean) => {
   console.log(`[PlanAccess] ID: ${plan.id} | Type: ${plan.tipo} | JSON: ${isFromJSON} | Status: ${plan.migration_status}`);
 };
 
+/**
+ * Deep compare two workout JSONs and return structured differences
+ */
+export const compareWorkoutVersions = (v1: WorkoutDataJSON, v2: WorkoutDataJSON) => {
+  const changes = {
+    divisionChanged: v1.days.length !== v2.days.length || v1.days.some((d, i) => d.day !== v2.days[i]?.day),
+    addedExercises: [] as string[],
+    removedExercises: [] as string[],
+    modifiedExercises: [] as { name: string, field: string, old: string, new: string }[],
+    volumeChange: 0 // percentage
+  };
+
+  const v1Ex = new Set(v1.days.flatMap(d => d.exercises.map(e => e.exercise.toUpperCase().trim())));
+  const v2Ex = new Set(v2.days.flatMap(d => d.exercises.map(e => e.exercise.toUpperCase().trim())));
+
+  changes.addedExercises = Array.from(v2Ex).filter(x => !v1Ex.has(x));
+  changes.removedExercises = Array.from(v1Ex).filter(x => !v2Ex.has(x));
+
+  // Volume calc (total sets)
+  const v1Sets = v1.days.reduce((acc, d) => acc + d.exercises.reduce((a, e) => acc + (parseInt(e.series) || 3), 0), 0);
+  const v2Sets = v2.days.reduce((acc, d) => acc + d.exercises.reduce((a, e) => acc + (parseInt(e.series) || 3), 0), 0);
+  changes.volumeChange = v1Sets > 0 ? ((v2Sets - v1Sets) / v1Sets) * 100 : 0;
+
+  return changes;
+};
