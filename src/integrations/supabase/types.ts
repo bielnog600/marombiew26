@@ -53,6 +53,7 @@ export type Database = {
       ai_plans: {
         Row: {
           conteudo: string
+          conteudo_json: Json | null
           created_at: string
           cycle_days: number
           cycle_status: string
@@ -65,9 +66,12 @@ export type Database = {
           id: string
           is_draft: boolean
           last_analysis_at: string | null
+          last_migration_attempt: string | null
           low_cost_last_review_at: string | null
           low_cost_next_review_at: string | null
           low_cost_review_interval_days: number
+          migration_error: string | null
+          migration_status: string | null
           parent_plan_id: string | null
           pending_checkin: boolean | null
           protocols: Json | null
@@ -81,6 +85,7 @@ export type Database = {
         }
         Insert: {
           conteudo?: string
+          conteudo_json?: Json | null
           created_at?: string
           cycle_days?: number
           cycle_status?: string
@@ -93,9 +98,12 @@ export type Database = {
           id?: string
           is_draft?: boolean
           last_analysis_at?: string | null
+          last_migration_attempt?: string | null
           low_cost_last_review_at?: string | null
           low_cost_next_review_at?: string | null
           low_cost_review_interval_days?: number
+          migration_error?: string | null
+          migration_status?: string | null
           parent_plan_id?: string | null
           pending_checkin?: boolean | null
           protocols?: Json | null
@@ -109,6 +117,7 @@ export type Database = {
         }
         Update: {
           conteudo?: string
+          conteudo_json?: Json | null
           created_at?: string
           cycle_days?: number
           cycle_status?: string
@@ -121,9 +130,12 @@ export type Database = {
           id?: string
           is_draft?: boolean
           last_analysis_at?: string | null
+          last_migration_attempt?: string | null
           low_cost_last_review_at?: string | null
           low_cost_next_review_at?: string | null
           low_cost_review_interval_days?: number
+          migration_error?: string | null
+          migration_status?: string | null
           parent_plan_id?: string | null
           pending_checkin?: boolean | null
           protocols?: Json | null
