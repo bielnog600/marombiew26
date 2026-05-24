@@ -252,6 +252,17 @@ const TreinoIA = () => {
       fotos_perfil: sp?.fotos ?? null,
     };
 
+    const { data: lastWorkoutRes } = await supabase
+      .from('ai_plans')
+      .select('id, titulo, conteudo, created_at')
+      .eq('student_id', studentId!)
+      .eq('tipo', 'treino')
+      .eq('is_draft', false)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    
+    setLastWorkoutPlan(lastWorkoutRes?.[0] || null);
+
     setStudentCtx(ctx);
     setStudentName(profile?.nome || 'Aluno');
 
