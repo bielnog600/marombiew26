@@ -482,9 +482,18 @@ GERE TUDO DE UMA VEZ:
         tipo: 'treino',
         titulo: `Treino - ${new Date().toLocaleDateString('pt-BR')}`,
         conteudo: result,
+        cycle_status: 'em_dia'
       });
-      if (error) toast.error('Erro: ' + error.message);
-      else toast.success('Treino salvo!');
+      if (error) {
+        toast.error('Erro: ' + error.message);
+      } else {
+        if (lastWorkoutPlan?.id) {
+          await supabase.from('ai_plans').update({
+            cycle_status: 'renovado'
+          }).eq('id', lastWorkoutPlan.id);
+        }
+        toast.success('Treino salvo e ciclo atualizado!');
+      }
     }
     setSaving(false);
   };
