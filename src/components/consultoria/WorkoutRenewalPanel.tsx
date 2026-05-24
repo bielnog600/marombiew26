@@ -336,72 +336,107 @@ const WorkoutRenewalPanel: React.FC = () => {
                     </div>
 
                     {isExpanded && (
-                      <div className="mt-4 pt-4 border-t border-border/50 space-y-3">
+                      <div className="mt-4 pt-4 border-t border-border/50 space-y-4">
                         {analysis ? (
-                          <div className="space-y-2 text-xs">
+                          <div className="space-y-4">
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                              <Metric label="Aderência" value={analysis.adherence_score != null ? `${Math.round(analysis.adherence_score * 100)}%` : '—'} />
-                              <Metric label="Sessões/sem" value={analysis.session_frequency != null ? analysis.session_frequency.toFixed(1) : '—'} />
+                              <Metric label="Aderência" value={analysis.adherence_score != null ? `${Math.round(analysis.adherence_score * 100)}%` : '—'} trend={analysis.adherence_score && analysis.adherence_score > 0.7 ? 'up' : 'down'} />
+                              <Metric label="Frequência" value={analysis.session_frequency != null ? `${analysis.session_frequency.toFixed(1)}/sem` : '—'} />
                               <Metric label="Conclusão" value={analysis.completion_rate != null ? `${Math.round(analysis.completion_rate * 100)}%` : '—'} />
-                              <Metric label="RPE médio" value={analysis.avg_rpe != null ? String(analysis.avg_rpe) : '—'} />
-                              <Metric label="Carga" value={analysis.load_progression ?? '—'} />
+                              <Metric label="RPE Médio" value={analysis.avg_rpe != null ? String(analysis.avg_rpe) : '—'} />
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                              <Metric label="Carga" value={analysis.load_progression ?? '—'} trend={analysis.load_progression === 'subindo' ? 'up' : analysis.load_progression === 'descendo' ? 'down' : 'stable'} />
                               <Metric label="Reps" value={analysis.reps_progression ?? '—'} />
-                              <Metric label="Volume" value={analysis.volume_trend ?? '—'} />
+                              <Metric label="Volume" value={analysis.volume_trend ?? '—'} trend={analysis.volume_trend === 'subindo' ? 'up' : 'stable'} />
                               <Metric label="Fadiga" value={analysis.fatigue_signal ?? '—'} />
                             </div>
-                            <div className="rounded-md bg-background/40 p-3 border border-border/50">
-                              <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Justificativa da IA</p>
-                              <p className="text-sm text-foreground/90">{analysis.rationale}</p>
+
+                            {analysis.volume_analysis?.muscle_groups && analysis.volume_analysis.muscle_groups.length > 0 && (
+                              <div className="rounded-md border border-border/50 bg-secondary/10 p-3">
+                                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-bold mb-2 flex items-center gap-1">
+                                  <Activity className="h-3 w-3" /> Análise por Grupo Muscular
+                                </p>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                  {analysis.volume_analysis.muscle_groups.map((mg, i) => (
+                                    <div key={i} className="space-y-1">
+                                      <p className="text-[10px] font-medium truncate">{mg.name}</p>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[10px] text-muted-foreground">{mg.avg_sets_per_week} sets/sem</span>
+                                        {mg.load_trend === 'subindo' && <TrendingUp className="h-2.5 w-2.5 text-emerald-500" />}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="rounded-md bg-background/40 p-3 border border-border/50 space-y-2">
+                              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-bold">Diagnóstico & Sugestão</p>
+                              <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">{analysis.rationale}</p>
                             </div>
                           </div>
                         ) : (
                           <div className="rounded-md bg-amber-500/5 border border-amber-500/20 p-3 flex items-start gap-2">
                             <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
                             <p className="text-xs">
-                              Ainda não há análise para este treino. Clique em <strong>Analisar com IA</strong> para gerar.
+                              Ainda não há análise para este treino. Clique em <strong>Analisar com IA</strong> para gerar recomendações baseadas no logbook.
                             </p>
                           </div>
                         )}
 
                         {draft && (
-                          <div className="rounded-md border border-violet-500/30 bg-violet-500/5 p-3 space-y-2">
+                          <div className="rounded-md border border-violet-500/30 bg-violet-500/10 p-4 space-y-3 animate-pulse-subtle">
                             <div className="flex items-center justify-between flex-wrap gap-2">
                               <div className="flex items-center gap-2">
                                 <Wand2 className="h-4 w-4 text-violet-500" />
-                                <p className="text-sm font-medium">Rascunho v{draft.version} pronto</p>
-                                <Badge variant="outline" className="text-[10px] bg-violet-500/10 text-violet-500 border-violet-500/30">
-                                  {draft.draft_source === 'auto' ? 'auto' : 'manual'}
+                                <p className="text-sm font-bold text-violet-700 dark:text-violet-300">Rascunho v{draft.version} Pronto para Revisão</p>
+                                <Badge variant="outline" className="text-[10px] bg-violet-500/10 text-violet-500 border-violet-500/30 uppercase">
+                                  {draft.draft_source === 'auto' ? 'Automático' : 'Manual'}
                                 </Badge>
                               </div>
-                              <span className="text-xs text-muted-foreground">
-                                {format(new Date(draft.created_at), "dd/MM HH:mm", { locale: ptBR })}
+                              <span className="text-[10px] text-muted-foreground">
+                                Gerado em {format(new Date(draft.created_at), "dd/MM HH:mm", { locale: ptBR })}
                               </span>
                             </div>
-                            {draft.draft_reason && (
-                              <p className="text-xs text-muted-foreground line-clamp-2">{draft.draft_reason}</p>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="default"
-                              disabled={busy === plan.id}
-                              onClick={() => setCompareFor(plan.id)}
-                            >
-                              <GitCompare className="h-3 w-3" />
-                              Comparar e publicar
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="bg-violet-600 hover:bg-violet-700 text-white"
+                                disabled={busy === plan.id}
+                                onClick={() => setCompareFor(plan.id)}
+                              >
+                                <GitCompare className="h-3.5 w-3.5 mr-1.5" />
+                                Comparar & Publicar
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-violet-500/30 text-violet-600 hover:bg-violet-500/5"
+                                onClick={() => handleDiscardDraft(plan.id)}
+                                disabled={busy === plan.id}
+                              >
+                                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                                Descartar
+                              </Button>
+                            </div>
                           </div>
                         )}
 
-                        <div className="flex flex-wrap gap-2">
+                        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
                           <Button
                             size="sm"
                             variant="outline"
+                            className="bg-primary/5 border-primary/20 h-9"
                             disabled={busy === plan.id}
                             onClick={() => handleAnalyze(plan.id)}
                           >
-                            {busy === plan.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                            {analysis ? 'Reanalisar' : 'Analisar com IA'}
+                            {busy === plan.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                            <span className="ml-1.5">{analysis ? 'Reanalisar' : 'Analisar com IA'}</span>
                           </Button>
+
                           <WhatsAppDataRequestButton
                             phone={plan.student_phone}
                             studentName={plan.student_name}
@@ -410,13 +445,40 @@ const WorkoutRenewalPanel: React.FC = () => {
                             dataQuality={analysis?.data_quality}
                             suggestedAction={analysis?.suggested_action}
                             missingItems={analysis ? [
-                              analysis.session_frequency == null || (analysis.session_frequency ?? 0) < 2 ? 'Registrar treinos concluídos no app' : null,
-                              analysis.completion_rate == null || (analysis.completion_rate ?? 0) < 0.5 ? 'Marcar séries/exercícios como feitos' : null,
-                              analysis.avg_rpe == null ? 'Informar RPE (esforço percebido) ao final dos treinos' : null,
-                              analysis.load_progression == null || analysis.load_progression === 'sem_dados' ? 'Atualizar cargas usadas em cada exercício' : null,
+                              analysis.session_frequency == null || (analysis.session_frequency ?? 0) < 2 ? 'Frequência de treinos' : null,
+                              analysis.completion_rate == null || (analysis.completion_rate ?? 0) < 0.5 ? 'Marcar exercícios feitos' : null,
+                              analysis.avg_rpe == null ? 'Registrar RPE' : null,
+                              analysis.load_progression == null || analysis.load_progression === 'sem_dados' ? 'Registrar cargas' : null,
                             ].filter(Boolean) as string[] : []}
                           />
-                          <Button
+
+                          {!draft && analysis && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-emerald-600 border-emerald-500/30 h-9"
+                                disabled={busy === plan.id}
+                                onClick={() => handleKeep(plan.id)}
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                                <span className="ml-1.5">Manter</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-blue-600 border-blue-500/30 h-9"
+                                disabled={busy === plan.id}
+                                onClick={() => handleGenerateDraft(plan.id)}
+                              >
+                                <Wand2 className="h-3.5 w-3.5" />
+                                <span className="ml-1.5">Ajustar/Renovar</span>
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
                             size="sm"
                             variant="outline"
                             className="text-emerald-500 border-emerald-500/30"
