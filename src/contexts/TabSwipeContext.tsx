@@ -8,7 +8,7 @@ const alunoOrder = ['/minha-area', '/meus-treinos', '/minhas-dietas', '/minhas-a
 const TRIGGER_RATIO = 0.25;   // fração da largura para confirmar troca
 const MAX_OFF_AXIS = 80;      // ignora se vertical excede isso (rolagem)
 const ACTIVATE_PX = 12;       // distância horizontal para "começar" o drag
-const EDGE_DEAD_ZONE = 24;    // ignora toques nas bordas (evita back swipe nativo do iOS/Android)
+const EDGE_DEAD_ZONE = 45;    // ignora toques nas bordas (evita back swipe nativo do iOS/Android)
 const MAX_PROGRESS = 0.5;     // pill chega no vizinho a 50% e para (não pula tabs)
 
 interface TabSwipeState {
