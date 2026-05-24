@@ -212,6 +212,8 @@ const DietaIA = () => {
   const resultRef = useRef<HTMLDivElement>(null);
   const [showMacroModal, setShowMacroModal] = useState(false);
   const [macroPct, setMacroPct] = useState({ protein: 20, carbs: 50, fat: 30 });
+  const [lastDietPlan, setLastDietPlan] = useState<any>(null);
+  const [showCompare, setShowCompare] = useState(false);
 
   useEffect(() => {
     if (studentId) loadStudentData();
