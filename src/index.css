@@ -85,7 +85,7 @@
     -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
     overscroll-behavior: none;
-    touch-action: manipulation;
+    touch-action: pan-y;
     overflow-x: hidden;
     overflow-y: auto;
     min-height: 100vh;
