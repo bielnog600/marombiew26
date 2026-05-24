@@ -73,6 +73,8 @@ interface AnalysisRow {
       load_trend: string;
     }>;
     avg_rpe: number | null;
+    avg_duration?: number | null;
+    has_long_sessions?: boolean;
     fatigue_signal: string | null;
   };
   frequency_adjustment_data?: {
