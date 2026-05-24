@@ -11,6 +11,8 @@ import { Activity } from 'lucide-react';
 import StudentBehavior360 from '@/components/consultoria/StudentBehavior360';
 import StudentTrainingTab from '@/components/student/StudentTrainingTab';
 import StudentDietTab from '@/components/student/StudentDietTab';
+import StudentCardioTab from '@/components/student/StudentCardioTab';
+import StudentTabataTab from '@/components/student/StudentTabataTab';
 import AssessmentComparison from '@/components/AssessmentComparison';
 import DietQuestionnairesList from '@/components/DietQuestionnairesList';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -388,7 +390,7 @@ const AlunoDetail = () => {
           </TabsContent>
 
           <TabsContent value="cardio">
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Card className="glass-card border-primary/30">
                   <CardContent className="p-6 text-center space-y-3">
@@ -411,7 +413,22 @@ const AlunoDetail = () => {
                   </CardContent>
                 </Card>
               </div>
-              <AiPlansList studentId={id!} tipos={['cardio', 'tabata']} />
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Flame className="h-4 w-4 text-red-500" />
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Planos TABATA</h3>
+                </div>
+                <StudentTabataTab studentId={id!} />
+              </div>
+
+              <div className="space-y-4 pt-4 border-t border-border/50">
+                <div className="flex items-center gap-2">
+                  <HeartPulse className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Protocolos de Cardio</h3>
+                </div>
+                <StudentCardioTab studentId={id!} />
+              </div>
             </div>
           </TabsContent>
 
