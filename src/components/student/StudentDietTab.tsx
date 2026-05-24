@@ -80,7 +80,9 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   const [macroModalPlanId, setMacroModalPlanId] = useState<string | null>(null);
   const [macroPct, setMacroPct] = useState({ protein: 30, carbs: 50, fat: 20 });
 
-   // Compute actual macro totals for any plan (used for summary in the list and modal)
+  const navigate = useNavigate();
+
+  // Compute actual macro totals for any plan (used for summary in the list and modal)
    const getPlanTotals = useCallback((markdown: string) => {
      const sections = parseSections(markdown);
      const meals = sections.flatMap(s => s.type === 'meal' && s.meals ? s.meals : []);
@@ -341,7 +343,46 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
               </div>
 
               {isExpanded && (
-                <div className="mt-4 pt-4 border-t border-border">
+                <div className="mt-4 pt-4 border-t border-border space-y-4">
+                  {/* Ações Híbridas - Central de Ação Individual */}
+                  <div className="flex flex-wrap gap-2 pb-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="h-8 gap-1.5 text-xs rounded-xl bg-primary/5 border-primary/20"
+                      onClick={() => navigate(`/dieta-ia/${studentId}?edit=${plan.id}`)}
+                    >
+                      <Wand2 className="h-3.5 w-3.5 text-primary" />
+                      Ajustar com IA
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="h-8 gap-1.5 text-xs rounded-xl bg-orange-500/5 border-orange-500/20 text-orange-600"
+                      onClick={() => navigate(`/dieta-ia/${studentId}?edit=${plan.id}&mode=adjust`)}
+                    >
+                      <Zap className="h-3.5 w-3.5" />
+                      Ajuste Rápido
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="h-8 gap-1.5 text-xs rounded-xl bg-blue-500/5 border-blue-500/20 text-blue-600"
+                      onClick={() => navigate(`/dieta-ia/${studentId}`)}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      Nova Dieta
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="h-8 gap-1.5 text-xs rounded-xl border-amber-500/30 text-amber-600"
+                      onClick={() => toast.info('Check-in solicitado')}
+                    >
+                      <ClipboardCheck className="h-3.5 w-3.5" />
+                      Feedback
+                    </Button>
+                  </div>
                   {isEditing ? (
                     <DietPlanEditor
                       markdown={plan.conteudo}
