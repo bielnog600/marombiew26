@@ -102,6 +102,61 @@ export const validateWorkoutJSON = (content: string | object): { success: boolea
 };
 
 /**
+ * Validates a diet plan structure and returns a typed object
+ */
+export const validateDietJSON = (content: string | object): { success: boolean, data?: DietDataJSON, error?: string } => {
+  try {
+    let raw: any;
+    // We import dynamically to avoid circular dependencies if any
+    const { parseSections } = require('./dietResultParser');
+
+    if (typeof content === 'string') {
+      const sections = parseSections(content);
+      const meals = sections.flatMap((s: any) => s.meals ?? []);
+      
+      if (meals.length === 0) return { success: false, error: "Nenhuma refeição encontrada no conteúdo" };
+
+      // Try to extract totals from markdown if possible
+      const grab = (re: RegExp) => {
+        const m = content.match(re);
+        return m ? Number(m[1].replace(/[^\d.]/g, '')) || 0 : 0;
+      };
+
+      raw = {
+        version: "1.0",
+        type: "diet",
+        metadata: {
+          totalKcal: grab(/calorias?\s*(?:totais|alvo|consumo)?[:\s]+(\d{3,5})/i),
+          totalP: grab(/prote[íi]na[^\n]*?(\d{2,4})\s*g/i),
+          totalC: grab(/carboidrato[^\n]*?(\d{2,4})\s*g/i),
+          totalG: grab(/gordura[^\n]*?(\d{2,4})\s*g/i),
+          decision: content.toLowerCase().includes('manter') ? 'manter' : 'ajustar',
+          confidence: 0.9,
+          rationale: "Validado a partir de Markdown"
+        },
+        meals: meals
+      };
+    } else {
+      raw = content;
+    }
+
+    if (!raw || raw.type !== 'diet' || !Array.isArray(raw.meals)) {
+      return { success: false, error: "Estrutura JSON inválida para dieta" };
+    }
+
+    // Min validation
+    if (raw.meals.length === 0) return { success: false, error: "Dieta sem refeições válidas" };
+    
+    const hasItems = raw.meals.some((m: any) => m.foods && m.foods.length > 0);
+    if (!hasItems) return { success: false, error: "Refeições sem itens/alimentos" };
+
+    return { success: true, data: raw as DietDataJSON };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Erro desconhecido na validação" };
+  }
+};
+
+/**
  * Telemetry helper for monitoring migration health
  */
 export const trackPlanAccess = (plan: PlanData, isFromJSON: boolean) => {
