@@ -638,6 +638,20 @@ const DietRenewalPanel: React.FC = () => {
           }}
         />
       )}
+
+      {checkinFor && (
+        <DietCheckinDialog
+          open={!!checkinFor}
+          onOpenChange={(v) => !v && setCheckinFor(null)}
+          studentId={checkinFor.student_id}
+          studentName={checkinFor.student_name ?? ''}
+          dietId={checkinFor.id}
+          onSuccess={() => {
+            load();
+            handleAnalyze(checkinFor.id);
+          }}
+        />
+      )}
     </Card>
   );
 };
