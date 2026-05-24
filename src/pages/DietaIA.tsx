@@ -287,6 +287,148 @@ const DietaIA = () => {
       posture = postureRes.data;
     }
 
+    // ── HISTÓRICO LONGITUDINAL: última dieta, tendência, aderência, reajuste ──
+    const since14 = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const [lastDietRes, trendAssessRes, trackingRes, lastReadjustRes] = await Promise.all([
+      supabase
+        .from('ai_plans')
+        .select('id, titulo, fase, conteudo, created_at, protocols')
+        .eq('student_id', studentId!)
+        .eq('tipo', 'dieta')
+        .eq('is_draft', false)
+        .order('created_at', { ascending: false })
+        .limit(1),
+      supabase
+        .from('assessments')
+        .select('id, created_at')
+        .eq('student_id', studentId!)
+        .order('created_at', { ascending: false })
+        .limit(4),
+      supabase
+        .from('daily_tracking')
+        .select('date, meals_completed, water_glasses, workout_completed')
+        .eq('student_id', studentId!)
+        .gte('date', since14)
+        .order('date', { ascending: false }),
+      supabase
+        .from('diet_readjustments')
+        .select('*')
+        .eq('student_id', studentId!)
+        .order('created_at', { ascending: false })
+        .limit(1),
+    ]);
+
+    // Última dieta — extrai resumo
+    const lastDiet = lastDietRes.data?.[0] || null;
+    let ultima_dieta: any = null;
+    if (lastDiet) {
+      const c = lastDiet.conteudo || '';
+      const grab = (re: RegExp) => {
+        const m = c.match(re);
+        return m ? Number(m[1].replace(/[^\d.]/g, '')) || null : null;
+      };
+      const totalKcal =
+        grab(/total\s+di[áa]rio[^\n]*?(\d{3,5})\s*kcal/i) ||
+        grab(/calorias?\s*(?:totais|alvo|consumo)?[:\s]+(\d{3,5})/i);
+      const totalP = grab(/prote[íi]na[^\n]*?(\d{2,4})\s*g/i);
+      const totalC = grab(/carboidrato[^\n]*?(\d{2,4})\s*g/i);
+      const totalG = grab(/gordura[^\n]*?(\d{2,4})\s*g/i);
+      const mealMatches = c.match(/(?:caf[eé]\s+da\s+manh[ãa]|almo[çc]o|jantar|lanche|ceia|p[óo]s[\s-]?treino|pr[eé][\s-]?treino)/gi) || [];
+      const numRef = new Set(mealMatches.map(m => m.toLowerCase())).size;
+      const dias = Math.floor((Date.now() - new Date(lastDiet.created_at).getTime()) / 86400000);
+      ultima_dieta = {
+        titulo: lastDiet.titulo,
+        fase: lastDiet.fase,
+        criada_em: lastDiet.created_at,
+        dias_desde: dias,
+        kcal_total: totalKcal,
+        proteina_g: totalP,
+        carbs_g: totalC,
+        gordura_g: totalG,
+        num_refeicoes: numRef || null,
+        excerto: c.slice(0, 1800),
+      };
+    }
+
+    // Tendência de peso/composição (últimas 3-4 avaliações)
+    let tendencia_peso: any = null;
+    const trendIds = (trendAssessRes.data || []).map(a => a.id);
+    if (trendIds.length >= 1) {
+      const [anthArr, compArr] = await Promise.all([
+        supabase.from('anthropometrics').select('assessment_id, peso, cintura').in('assessment_id', trendIds),
+        supabase.from('composition').select('assessment_id, percentual_gordura, massa_magra').in('assessment_id', trendIds),
+      ]);
+      const byAssId: Record<string, any> = {};
+      (trendAssessRes.data || []).forEach(a => { byAssId[a.id] = { data: a.created_at }; });
+      (anthArr.data || []).forEach(r => { Object.assign(byAssId[r.assessment_id] || {}, { peso: r.peso, cintura: r.cintura }); });
+      (compArr.data || []).forEach(r => { Object.assign(byAssId[r.assessment_id] || {}, { percentual_gordura: r.percentual_gordura, massa_magra: r.massa_magra }); });
+      const historico = trendIds.map(id => byAssId[id]).filter(x => x && x.peso != null);
+      let direcao = 'estavel';
+      let variacao_kg = 0;
+      if (historico.length >= 2) {
+        variacao_kg = Number(historico[0].peso) - Number(historico[historico.length - 1].peso);
+        if (variacao_kg > 0.5) direcao = 'subindo';
+        else if (variacao_kg < -0.5) direcao = 'descendo';
+      }
+      tendencia_peso = {
+        peso_atual: historico[0]?.peso ?? anthro?.peso ?? null,
+        variacao_kg: Number(variacao_kg.toFixed(2)),
+        direcao,
+        historico,
+      };
+    }
+
+    // Aderência 14 dias
+    let aderencia_recente: any = null;
+    const tracking = trackingRes.data || [];
+    if (tracking.length > 0) {
+      const totalRef = tracking.reduce((s, d: any) => s + (Array.isArray(d.meals_completed) ? d.meals_completed.length : 0), 0);
+      const expectedPerDay = lastDiet ? (ultima_dieta?.num_refeicoes || 5) : 5;
+      const expectedTotal = 14 * expectedPerDay;
+      const aguaMedia = tracking.reduce((s, d: any) => s + (d.water_glasses || 0), 0) / tracking.length;
+      aderencia_recente = {
+        dias_com_registro: tracking.length,
+        dias_total: 14,
+        refeicoes_marcadas: totalRef,
+        refeicoes_esperadas: expectedTotal,
+        percentual_aderencia: Math.round((totalRef / expectedTotal) * 100),
+        agua_media_copos_dia: Number(aguaMedia.toFixed(1)),
+      };
+    }
+
+    // Último reajuste
+    let ultimo_reajuste: any = null;
+    const lr = lastReadjustRes.data?.[0];
+    if (lr) {
+      const sintomas: string[] = [];
+      if (lr.fome_excessiva) sintomas.push('fome excessiva');
+      if (lr.insonia) sintomas.push('insônia');
+      if (!lr.energia_ok) sintomas.push('energia baixa');
+      if (!lr.humor_ok) sintomas.push('humor instável');
+      if (!lr.intestino_ok) sintomas.push('desconforto intestinal');
+      if (lr.perdeu_peso) sintomas.push('perdeu peso');
+      if (lr.ganhou_massa) sintomas.push('ganhou massa');
+      ultimo_reajuste = {
+        data: lr.created_at,
+        peso_atual: lr.peso_atual,
+        sintomas,
+        rendimento_treino: lr.rendimento_treino,
+        satisfacao: lr.satisfacao,
+        observacoes: lr.observacoes,
+      };
+    }
+
+    // Score de confiança da geração
+    let score = 0;
+    const motivos: string[] = [];
+    if (ultima_dieta) { score += 25; motivos.push('dieta anterior disponível'); }
+    if (tendencia_peso && tendencia_peso.historico?.length >= 2) { score += 25; motivos.push('tendência de peso real'); }
+    if (aderencia_recente && aderencia_recente.dias_com_registro >= 7) { score += 25; motivos.push('aderência registrada'); }
+    else if (aderencia_recente && aderencia_recente.dias_com_registro >= 3) { score += 10; motivos.push('aderência parcial'); }
+    if (ultimo_reajuste) { score += 15; motivos.push('último reajuste registrado'); }
+    if (latestQuestionnaire) { score += 10; motivos.push('questionário recente'); }
+    const confianca = { score: Math.min(score, 100), motivos };
+
     const ctx: StudentCtx = {
       nome: profile?.nome, sexo: sp?.sexo, data_nascimento: sp?.data_nascimento,
       raca: sp?.raca,
