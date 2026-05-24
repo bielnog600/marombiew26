@@ -31,7 +31,7 @@ const ProtocolsDialog: React.FC<ProtocolsDialogProps> = ({ open, onOpenChange, k
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg p-0 gap-0 max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-lg p-0 gap-0 max-h-[90vh] flex flex-col" data-no-swipe="true">
         <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/50">
           <DialogTitle className="text-base">Protocolos do seu plano</DialogTitle>
           <DialogDescription className="text-xs">
