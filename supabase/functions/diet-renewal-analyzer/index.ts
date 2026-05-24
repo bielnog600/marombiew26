@@ -128,6 +128,8 @@ async function callAI(context: any, currentPlanExcerpt: string) {
                 enum: ["manter", "ajustar", "gerar_nova", "solicitar_dados"],
               },
               rationale: { type: "string", description: "Justificativa em 2-4 frases, em português, tom técnico." },
+              summary_reason: { type: "string", description: "Motivo resumido em 3-5 palavras (ex: 'sem peso recente', 'baixa aderência', 'progresso travado')." },
+              confidence_score: { type: "number", description: "Score de 0 a 1 indicando confiança na recomendação baseada nos dados." },
               monotony_risk: { type: "string", enum: ["baixo", "medio", "alto"] },
               priority: { type: "string", enum: ["baixa", "media", "alta"] },
               suggested_adjustments: {
@@ -136,7 +138,7 @@ async function callAI(context: any, currentPlanExcerpt: string) {
                 description: "Lista curta de ajustes concretos (máx 5).",
               },
             },
-            required: ["suggested_action", "rationale", "monotony_risk", "priority"],
+            required: ["suggested_action", "rationale", "summary_reason", "confidence_score", "monotony_risk", "priority"],
             additionalProperties: false,
           },
         },
@@ -607,7 +609,11 @@ async function analyzePlan(supabase: any, planId: string) {
       weight_trend: ctx.weight_trend,
       data_quality: ctx.data_quality,
       suggested_action: ai.suggested_action,
+      decision_type: ai.suggested_action === 'gerar_nova' ? 'nova_dieta' : ai.suggested_action,
       rationale: ai.rationale,
+      summary_reason: ai.summary_reason,
+      priority: ai.priority,
+      confidence_score: ai.confidence_score,
       context_snapshot: { ...ctx, ai },
     })
     .select()

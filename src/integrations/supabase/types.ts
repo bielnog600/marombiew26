@@ -923,14 +923,17 @@ export type Database = {
           adherence_score: number | null
           applied: boolean
           applied_at: string | null
+          confidence_score: number | null
           context_snapshot: Json
           created_at: string
           data_quality: string
           days_remaining: number
+          decision_type: string | null
           draft_plan_id: string | null
           id: string
           meal_log_frequency: number | null
           plan_id: string
+          priority: string | null
           rationale: string
           student_id: string
           suggested_action: string
@@ -940,14 +943,17 @@ export type Database = {
           adherence_score?: number | null
           applied?: boolean
           applied_at?: string | null
+          confidence_score?: number | null
           context_snapshot?: Json
           created_at?: string
           data_quality?: string
           days_remaining: number
+          decision_type?: string | null
           draft_plan_id?: string | null
           id?: string
           meal_log_frequency?: number | null
           plan_id: string
+          priority?: string | null
           rationale: string
           student_id: string
           suggested_action: string
@@ -957,14 +963,17 @@ export type Database = {
           adherence_score?: number | null
           applied?: boolean
           applied_at?: string | null
+          confidence_score?: number | null
           context_snapshot?: Json
           created_at?: string
           data_quality?: string
           days_remaining?: number
+          decision_type?: string | null
           draft_plan_id?: string | null
           id?: string
           meal_log_frequency?: number | null
           plan_id?: string
+          priority?: string | null
           rationale?: string
           student_id?: string
           suggested_action?: string

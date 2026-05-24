@@ -1,16 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
-import { Sparkles, RefreshCw, Check, FileEdit, FileText, AlertTriangle, ChevronDown, ChevronUp, Loader2, GitCompare, Wand2, Scale } from 'lucide-react';
+import { Sparkles, RefreshCw, Check, FileEdit, FileText, AlertTriangle, ChevronDown, ChevronUp, Loader2, GitCompare, Wand2, Scale, BarChart3, Clock, ArrowUpDown, Filter, Trash2, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import DietDraftComparisonDialog from './DietDraftComparisonDialog';
 import WhatsAppDataRequestButton from './WhatsAppDataRequestButton';
 import QuickWeightLogDialog from './QuickWeightLogDialog';
+import { cn } from '@/lib/utils';
 
 type CycleStatus =
   | 'em_dia'
@@ -18,9 +19,12 @@ type CycleStatus =
   | 'aguardando_dados'
   | 'renovacao_sugerida'
   | 'rascunho_gerado'
-  | 'renovado';
+  | 'pronto_revisar'
+  | 'renovado'
+  | 'vencido';
 
 type SuggestedAction = 'manter' | 'ajustar' | 'gerar_nova' | 'solicitar_dados';
+type DecisionType = 'manter' | 'ajustar' | 'nova_dieta' | 'solicitar_dados';
 
 interface PlanRow {
   id: string;
@@ -50,6 +54,10 @@ interface AnalysisRow {
   weight_trend: string | null;
   data_quality: string;
   suggested_action: SuggestedAction;
+  decision_type?: DecisionType;
+  priority?: 'baixa' | 'media' | 'alta';
+  confidence_score?: number;
+  summary_reason?: string;
   rationale: string;
   created_at: string;
 }
@@ -60,7 +68,9 @@ const statusMeta: Record<CycleStatus, { label: string; cls: string }> = {
   aguardando_dados: { label: 'Aguardando dados', cls: 'bg-orange-500/10 text-orange-500 border-orange-500/30' },
   renovacao_sugerida: { label: 'Renovação sugerida', cls: 'bg-blue-500/10 text-blue-500 border-blue-500/30' },
   rascunho_gerado: { label: 'Rascunho gerado', cls: 'bg-violet-500/10 text-violet-500 border-violet-500/30' },
+  pronto_revisar: { label: 'Pronto para revisar', cls: 'bg-primary/10 text-primary border-primary/30' },
   renovado: { label: 'Renovado', cls: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' },
+  vencido: { label: 'Vencido', cls: 'bg-destructive/10 text-destructive border-destructive/30' },
 };
 
 const actionMeta: Record<SuggestedAction, { label: string; cls: string }> = {
@@ -84,6 +94,7 @@ const DietRenewalPanel: React.FC = () => {
   const [busy, setBusy] = useState<string | null>(null);
   const [compareFor, setCompareFor] = useState<string | null>(null);
   const [weightFor, setWeightFor] = useState<PlanRow | null>(null);
+  const [filter, setFilter] = useState<string>('todos');
 
   const load = async () => {
     setLoading(true);
@@ -256,17 +267,82 @@ const DietRenewalPanel: React.FC = () => {
     }
   };
 
+  const filteredPlans = useMemo(() => {
+    let list = [...plans].map(p => {
+      const remaining = daysRemaining(p);
+      const analysis = analyses[p.id];
+      const draft = drafts[p.id];
+      
+      let effectiveStatus = p.cycle_status;
+      if (remaining <= 0 && p.cycle_status !== 'renovado') {
+        effectiveStatus = 'vencido';
+      } else if (draft && p.cycle_status !== 'renovado') {
+        effectiveStatus = 'pronto_revisar';
+      }
+
+      let priorityScore = 0;
+      if (effectiveStatus === 'vencido') priorityScore += 1000;
+      if (remaining <= 5) priorityScore += 500;
+      if (analysis?.priority === 'alta') priorityScore += 300;
+      if (effectiveStatus === 'pronto_revisar') priorityScore += 200;
+      
+      return { ...p, effectiveStatus, remaining, priorityScore };
+    });
+
+    list.sort((a, b) => b.priorityScore - a.priorityScore);
+
+    if (filter !== 'todos') {
+      return list.filter(p => {
+        const analysis = analyses[p.id];
+        const draft = drafts[p.id];
+        switch(filter) {
+          case 'solicitar_dados': return analysis?.decision_type === 'solicitar_dados';
+          case 'manter': return analysis?.decision_type === 'manter';
+          case 'ajustar': return analysis?.decision_type === 'ajustar';
+          case 'nova_dieta': return analysis?.decision_type === 'nova_dieta';
+          case 'rascunho': return !!draft;
+          case 'vencidos': return p.effectiveStatus === 'vencido';
+          default: return true;
+        }
+      });
+    }
+    return list;
+  }, [plans, analyses, drafts, filter]);
+
   return (
     <Card className="glass-card">
-      <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          Renovação Inteligente de Dietas
-          <Badge variant="outline" className="ml-2 text-[10px]">IA</Badge>
-        </CardTitle>
-        <p className="text-xs text-muted-foreground mt-1">
-          A IA analisa aderência, peso, registros e objetivo para sugerir manter, ajustar ou renovar a dieta quando faltam ≤ 15 dias.
-        </p>
+      <CardHeader className="pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-1">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Renovação Inteligente de Dietas
+              <Badge variant="outline" className="ml-2 text-[10px]">IA</Badge>
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Priorização automática por vencimento, falta de dados e aderência.
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
+            <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
+            {(['todos', 'solicitar_dados', 'rascunho', 'nova_dieta', 'ajustar', 'vencidos'] as const).map(f => (
+              <Button
+                key={f}
+                variant={filter === f ? 'default' : 'outline'}
+                size="sm"
+                className="h-7 text-[10px] px-2 whitespace-nowrap"
+                onClick={() => setFilter(f)}
+              >
+                {f === 'todos' ? 'Todos' : 
+                 f === 'solicitar_dados' ? 'Solicitar Dados' :
+                 f === 'rascunho' ? 'Pronto p/ Revisar' :
+                 f === 'nova_dieta' ? 'Nova Dieta' :
+                 f === 'ajustar' ? 'Ajustar' : 'Vencidos'}
+              </Button>
+            ))}
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         {loading ? (
@@ -274,43 +350,68 @@ const DietRenewalPanel: React.FC = () => {
             <Skeleton className="h-20 w-full" />
             <Skeleton className="h-20 w-full" />
           </div>
-        ) : plans.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhuma dieta na janela de pré-renovação no momento.</p>
+        ) : filteredPlans.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">Nenhuma dieta encontrada com este filtro.</p>
         ) : (
           <div className="space-y-3">
-            {plans.map((plan) => {
-              const remaining = daysRemaining(plan);
-              const status = plan.cycle_status;
-              const meta = statusMeta[status];
+            {filteredPlans.map((plan: any) => {
+              const remaining = plan.remaining;
+              const status = plan.effectiveStatus;
+              const meta = statusMeta[status as CycleStatus];
               const analysis = analyses[plan.id];
               const draft = drafts[plan.id];
               const isExpanded = expanded === plan.id;
+              const priorityColor = analysis?.priority === 'alta' ? 'text-destructive' : analysis?.priority === 'media' ? 'text-amber-500' : 'text-emerald-500';
+
               return (
-                <Card key={plan.id} className="bg-secondary/30 border-border/50">
+                <Card key={plan.id} className={cn("bg-secondary/30 border-border/50 transition-all hover:bg-secondary/40", analysis?.priority === 'alta' && "border-destructive/30")}>
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-semibold text-sm truncate">{plan.student_name}</p>
-                          <Badge variant="outline" className={`text-[10px] ${meta.cls}`}>
+                          <Badge variant="outline" className={cn("text-[9px] font-bold uppercase", meta.cls)}>
                             {meta.label}
                           </Badge>
+                          {analysis?.priority && (
+                            <Badge variant="secondary" className={cn("text-[9px] uppercase font-bold", priorityColor)}>
+                              Prioridade {analysis.priority}
+                            </Badge>
+                          )}
                           <span className="text-xs text-muted-foreground">v{plan.version}</span>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-0.5 truncate">{plan.titulo}</p>
-                        <div className="flex items-center gap-3 mt-2 text-xs">
-                          <span className={remaining <= 0 ? 'text-destructive font-medium' : remaining <= 15 ? 'text-amber-500 font-medium' : 'text-muted-foreground'}>
-                            {remaining > 0 ? `${remaining}d restantes` : `Vencido há ${Math.abs(remaining)}d`}
-                          </span>
-                          {analysis && (
-                            <span className={`font-medium ${actionMeta[analysis.suggested_action].cls}`}>
-                              IA sugere: {actionMeta[analysis.suggested_action].label}
+                        
+                        <div className="flex items-center gap-2 mt-1">
+                          <p className="text-xs text-muted-foreground truncate max-w-[200px]">{plan.titulo}</p>
+                          {analysis?.summary_reason && (
+                            <span className="text-[10px] bg-primary/5 text-primary px-1.5 py-0.5 rounded border border-primary/20 italic">
+                              "{analysis.summary_reason}"
                             </span>
                           )}
-                          {plan.last_analysis_at && (
-                            <span className="text-muted-foreground">
-                              Última análise: {format(new Date(plan.last_analysis_at), "dd/MM HH:mm", { locale: ptBR })}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 mt-3 text-[10px] sm:text-xs">
+                          <div className="flex items-center gap-1">
+                            <Clock className={cn("h-3 w-3", remaining <= 5 ? "text-destructive" : "text-muted-foreground")} />
+                            <span className={remaining <= 0 ? 'text-destructive font-bold' : remaining <= 15 ? 'text-amber-500 font-medium' : 'text-muted-foreground'}>
+                              {remaining > 0 ? `${remaining}d restantes` : `Vencido há ${Math.abs(remaining)}d`}
                             </span>
+                          </div>
+                          
+                          {analysis && (
+                            <div className="flex items-center gap-2 border-l border-border/50 pl-3">
+                              <span className={cn("font-bold flex items-center gap-1", actionMeta[analysis.suggested_action].cls)}>
+                                <Sparkles className="h-3 w-3" />
+                                Sugestão IA: {actionMeta[analysis.suggested_action].label}
+                              </span>
+                              
+                              {analysis.confidence_score !== undefined && (
+                                <div className="flex items-center gap-1 text-muted-foreground">
+                                  <BarChart3 className="h-3 w-3" />
+                                  <span>{Math.round(analysis.confidence_score * 100)}% confiança</span>
+                                </div>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>
@@ -325,79 +426,101 @@ const DietRenewalPanel: React.FC = () => {
                     </div>
 
                     {isExpanded && (
-                      <div className="mt-4 pt-4 border-t border-border/50 space-y-3">
+                      <div className="mt-4 pt-4 border-t border-border/50 space-y-4">
                         {analysis ? (
-                          <div className="space-y-2 text-xs">
+                          <div className="space-y-3">
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                              <Metric label="Aderência" value={analysis.adherence_score != null ? `${Math.round((analysis.adherence_score) * 100)}%` : '—'} />
-                              <Metric label="Registro refeições" value={analysis.meal_log_frequency != null ? `${Math.round((analysis.meal_log_frequency) * 100)}%` : '—'} />
+                              <Metric 
+                                label="Aderência" 
+                                value={analysis.adherence_score != null ? `${Math.round((analysis.adherence_score) * 100)}%` : '—'} 
+                                trend={analysis.adherence_score && analysis.adherence_score > 0.7 ? 'up' : 'down'}
+                              />
+                              <Metric 
+                                label="Registro" 
+                                value={analysis.meal_log_frequency != null ? `${Math.round((analysis.meal_log_frequency) * 100)}%` : '—'} 
+                              />
                               <Metric label="Peso" value={analysis.weight_trend ?? '—'} />
-                              <Metric label="Qualidade dados" value={analysis.data_quality} />
+                              <Metric label="Dados" value={analysis.data_quality} />
                             </div>
-                            <div className="rounded-md bg-background/40 p-3 border border-border/50">
-                              <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Justificativa da IA</p>
-                              <p className="text-sm text-foreground/90">{analysis.rationale}</p>
+
+                            <div className="rounded-md bg-background/40 p-3 border border-border/50 space-y-2">
+                              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-bold">Justificativa & Histórico</p>
+                              <p className="text-sm text-foreground/90 leading-relaxed">{analysis.rationale}</p>
                             </div>
                           </div>
                         ) : (
                           <div className="rounded-md bg-amber-500/5 border border-amber-500/20 p-3 flex items-start gap-2">
                             <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
                             <p className="text-xs">
-                              Ainda não há análise para este plano. Clique em <strong>Analisar com IA</strong> para gerar.
+                              Ainda não há análise para este plano. Clique em <strong>Analisar com IA</strong> para gerar recomendações.
                             </p>
                           </div>
                         )}
 
                         {draft && (
-                          <div className="rounded-md border border-violet-500/30 bg-violet-500/5 p-3 space-y-2">
+                          <div className="rounded-md border border-violet-500/30 bg-violet-500/10 p-4 space-y-3 animate-pulse-subtle">
                             <div className="flex items-center justify-between flex-wrap gap-2">
                               <div className="flex items-center gap-2">
                                 <Wand2 className="h-4 w-4 text-violet-500" />
-                                <p className="text-sm font-medium">Rascunho v{draft.version} pronto</p>
-                                <Badge variant="outline" className="text-[10px] bg-violet-500/10 text-violet-500 border-violet-500/30">
-                                  {draft.draft_source === 'auto' ? 'auto' : 'manual'}
+                                <p className="text-sm font-bold text-violet-700 dark:text-violet-300">Rascunho v{draft.version} Pronto para Revisão</p>
+                                <Badge variant="outline" className="text-[10px] bg-violet-500/10 text-violet-500 border-violet-500/30 uppercase">
+                                  {draft.draft_source === 'auto' ? 'Automático' : 'Manual'}
                                 </Badge>
                               </div>
-                              <span className="text-xs text-muted-foreground">
-                                {format(new Date(draft.created_at), "dd/MM HH:mm", { locale: ptBR })}
+                              <span className="text-[10px] text-muted-foreground">
+                                Gerado em {format(new Date(draft.created_at), "dd/MM HH:mm", { locale: ptBR })}
                               </span>
                             </div>
                             {draft.draft_reason && (
-                              <p className="text-xs text-muted-foreground line-clamp-2">{draft.draft_reason}</p>
+                              <p className="text-xs text-muted-foreground italic line-clamp-2">"{draft.draft_reason}"</p>
                             )}
-                            <Button
-                              size="sm"
-                              variant="default"
-                              disabled={busy === plan.id}
-                              onClick={() => setCompareFor(plan.id)}
-                            >
-                              <GitCompare className="h-3 w-3" />
-                              Comparar e publicar
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="bg-violet-600 hover:bg-violet-700 text-white"
+                                disabled={busy === plan.id}
+                                onClick={() => setCompareFor(plan.id)}
+                              >
+                                <GitCompare className="h-3.5 w-3.5 mr-1.5" />
+                                Comparar & Publicar
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-violet-500/30 text-violet-600 hover:bg-violet-500/5"
+                                onClick={() => handleDiscardDraft(plan.id)}
+                                disabled={busy === plan.id}
+                              >
+                                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                                Descartar
+                              </Button>
+                            </div>
                           </div>
                         )}
 
-                        <div className="flex flex-wrap gap-2">
+                        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
                           <Button
                             size="sm"
                             variant="outline"
-                            className="bg-primary/5 border-primary/20"
+                            className="bg-primary/5 border-primary/20 h-9"
                             disabled={busy === plan.id}
                             onClick={() => handleAnalyze(plan.id)}
                           >
-                            {busy === plan.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                            {analysis ? 'Reanalisar' : 'Analisar com IA'}
+                            {busy === plan.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                            <span className="ml-1.5">{analysis ? 'Reanalisar' : 'Analisar com IA'}</span>
                           </Button>
 
                           <Button
                             size="sm"
                             variant="outline"
-                            className="text-primary border-primary/30"
+                            className="text-primary border-primary/30 h-9"
                             onClick={() => setWeightFor(plan)}
                           >
-                            <Scale className="h-3 w-3" />
-                            + Peso
+                            <Scale className="h-3.5 w-3.5" />
+                            <span className="ml-1.5">Peso</span>
                           </Button>
+
                           <WhatsAppDataRequestButton
                             phone={plan.student_phone}
                             studentName={plan.student_name}
@@ -406,39 +529,46 @@ const DietRenewalPanel: React.FC = () => {
                             dataQuality={analysis?.data_quality}
                             suggestedAction={analysis?.suggested_action}
                             missingItems={analysis ? [
-                              analysis.meal_log_frequency == null || (analysis.meal_log_frequency ?? 0) < 0.4 ? 'Registro das refeições do dia (ao menos 4x/semana)' : null,
-                              analysis.weight_trend == null || analysis.weight_trend === 'sem_dados' ? 'Pesagem semanal atualizada' : null,
-                              analysis.adherence_score == null || (analysis.adherence_score ?? 0) < 0.4 ? 'Marcar refeições concluídas no app' : null,
+                              analysis.meal_log_frequency == null || (analysis.meal_log_frequency ?? 0) < 0.4 ? 'Registro das refeições' : null,
+                              analysis.weight_trend == null || analysis.weight_trend === 'sem_dados' ? 'Peso atualizado' : null,
+                              analysis.adherence_score == null || (analysis.adherence_score ?? 0) < 0.4 ? 'Aderência' : null,
                             ].filter(Boolean) as string[] : []}
                           />
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-emerald-500 border-emerald-500/30"
-                            disabled={busy === plan.id}
-                            onClick={() => handleKeep(plan.id)}
-                          >
-                            <Check className="h-3 w-3" />
-                            Manter plano
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={busy === plan.id}
-                            onClick={() => handleAdjustPlan(plan.id)}
-                          >
-                            {busy === plan.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileEdit className="h-3 w-3" />}
-                            Ajustar plano
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={busy === plan.id || !!draft}
-                            onClick={() => handleGenerateDraft(plan.id)}
-                          >
-                            {busy === plan.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
-                            {draft ? 'Rascunho gerado' : 'Gerar rascunho'}
-                          </Button>
+
+                          {!draft && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-emerald-600 border-emerald-500/30 h-9"
+                                disabled={busy === plan.id}
+                                onClick={() => handleKeep(plan.id)}
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                                <span className="ml-1.5">Manter</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-blue-600 border-blue-500/30 h-9"
+                                disabled={busy === plan.id}
+                                onClick={() => handleAdjustPlan(plan.id)}
+                              >
+                                <FileEdit className="h-3.5 w-3.5" />
+                                <span className="ml-1.5">Ajustar</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-violet-600 border-violet-500/30 h-9"
+                                disabled={busy === plan.id}
+                                onClick={() => handleGenerateDraft(plan.id)}
+                              >
+                                <Wand2 className="h-3.5 w-3.5" />
+                                <span className="ml-1.5">Nova Dieta</span>
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </div>
                     )}
@@ -480,10 +610,15 @@ const DietRenewalPanel: React.FC = () => {
   );
 };
 
-const Metric: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+const Metric: React.FC<{ label: string; value: string; trend?: 'up' | 'down' | 'stable' }> = ({ label, value, trend }) => (
   <div className="rounded-md bg-background/40 p-2 border border-border/50">
     <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
-    <p className="text-sm font-medium">{value}</p>
+    <div className="flex items-center gap-1">
+      <p className="text-sm font-medium">{value}</p>
+      {trend === 'up' && <TrendingUp className="h-3 w-3 text-emerald-500" />}
+      {trend === 'down' && <TrendingDown className="h-3 w-3 text-destructive" />}
+      {trend === 'stable' && <Minus className="h-3 w-3 text-muted-foreground" />}
+    </div>
   </div>
 );
 
