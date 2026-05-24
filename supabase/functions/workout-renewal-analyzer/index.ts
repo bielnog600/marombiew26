@@ -57,6 +57,7 @@ async function gatherContext(supabase: any, plan: any) {
     { data: profile },
     { data: sp },
     { data: alerts },
+    { data: checkins },
   ] = await Promise.all([
     supabase
       .from("workout_sessions")
@@ -87,6 +88,12 @@ async function gatherContext(supabase: any, plan: any) {
       .eq("student_id", studentId)
       .order("created_at", { ascending: false })
       .limit(5),
+    supabase
+      .from("workout_checkins")
+      .select("*")
+      .eq("student_id", studentId)
+      .order("completed_at", { ascending: false })
+      .limit(3),
   ]);
 
   const completedSessions = (sessions ?? []).filter((s: any) => s.status === "completed");
@@ -276,6 +283,7 @@ async function gatherContext(supabase: any, plan: any) {
     data_quality: dataQuality,
     last_session_summary: lastSessionSummary,
     recent_exercise_stats: recentExerciseStats,
+    recent_checkins: checkins ?? [],
   };
 }
 
@@ -290,7 +298,13 @@ SUA ARQUITETURA DE ANÁLISE:
 1. DIAGNÓSTICO ESTRUTURADO: Analise a última versão do treino (planejado) vs logbook (real).
 2. DETECÇÃO DE ERROS/RISCOS: Identifique volume excessivo/insuficiente, sessões longas demais, fadiga acumulada, subestímulo ou falta de progressão.
 3. ANÁLISE POR GRUPO MUSCULAR: Detecte grupos sobrecarregados ou subestimulados com base no volume e tendência de carga.
-4. DECISÃO DE AJUSTE: Use o histórico das últimas 2-4 semanas para decidir entre Manter, Ajustar (mudar variáveis), Trocar Exercícios (estagnação/dor) ou Renovar Bloco.
+4. DECISÃO DE AJUSTE: Use o histórico das últimas 2-4 semanas para decidir entre Manter, Ajustar, Trocar Exercícios ou Renovar Bloco.
+
+DÊ MUITO PESO AOS CHECK-INS SUBJETIVOS:
+- Se 'intensidade_percebida' for 'muito_pesado' ou 'recuperacao' for 'ruim' -> SINAL DE OVERTRAINING. Recomende Deload ou Ajustar (reduzir volume/intensidade).
+- Se 'dores' for moderada/forte -> SINAL DE LESÃO/RESTRIÇÃO. Priorize trocar exercícios ou deload.
+- Se 'duracao_percebida' for 'muito_longo' ou 'falta_tempo' for true -> Recomende simplificar a ficha ou reduzir volume por sessão.
+- Se 'motivacao' for 'baixa' -> Tente trocar variações de exercícios para renovar estímulo psicológico.
 
 DIRETRIZES:
 - Se houver dor recorrente ou queda de performance com RPE alto -> SINAL DE OVERTRAINING/FADIGA. Recomende Deload ou Ajuste.

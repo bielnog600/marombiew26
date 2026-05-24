@@ -1957,6 +1957,74 @@ export type Database = {
         }
         Relationships: []
       }
+      workout_checkins: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          dores: string | null
+          duracao_percebida: string | null
+          energia: string | null
+          exercicios_incomodo: string | null
+          falta_tempo: boolean | null
+          id: string
+          intensidade_percebida: string | null
+          motivacao: string | null
+          observacoes: string | null
+          recuperacao: string | null
+          requested_at: string
+          status: string
+          student_id: string
+          updated_at: string
+          workout_plan_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          dores?: string | null
+          duracao_percebida?: string | null
+          energia?: string | null
+          exercicios_incomodo?: string | null
+          falta_tempo?: boolean | null
+          id?: string
+          intensidade_percebida?: string | null
+          motivacao?: string | null
+          observacoes?: string | null
+          recuperacao?: string | null
+          requested_at?: string
+          status?: string
+          student_id: string
+          updated_at?: string
+          workout_plan_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          dores?: string | null
+          duracao_percebida?: string | null
+          energia?: string | null
+          exercicios_incomodo?: string | null
+          falta_tempo?: boolean | null
+          id?: string
+          intensidade_percebida?: string | null
+          motivacao?: string | null
+          observacoes?: string | null
+          recuperacao?: string | null
+          requested_at?: string
+          status?: string
+          student_id?: string
+          updated_at?: string
+          workout_plan_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workout_checkins_workout_plan_id_fkey"
+            columns: ["workout_plan_id"]
+            isOneToOne: false
+            referencedRelation: "ai_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workout_plan_versions: {
         Row: {
           archived_at: string | null

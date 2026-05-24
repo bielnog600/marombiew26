@@ -4,13 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
-import { Sparkles, RefreshCw, Check, FileEdit, FileText, AlertTriangle, ChevronDown, ChevronUp, Loader2, GitCompare, Wand2, Dumbbell, BarChart3, Clock, Filter, Trash2, TrendingUp, TrendingDown, Minus, Activity, Zap } from 'lucide-react';
+import { Sparkles, RefreshCw, Check, FileEdit, FileText, AlertTriangle, ChevronDown, ChevronUp, Loader2, GitCompare, Wand2, Dumbbell, BarChart3, Clock, Filter, Trash2, TrendingUp, TrendingDown, Minus, Activity, Zap, ClipboardCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import WorkoutDraftComparisonDialog from './WorkoutDraftComparisonDialog';
 import WhatsAppDataRequestButton from './WhatsAppDataRequestButton';
 import { cn } from '@/lib/utils';
+import WorkoutCheckinDialog from './WorkoutCheckinDialog';
 
 type CycleStatus =
   | 'em_dia'
@@ -121,6 +122,8 @@ const WorkoutRenewalPanel: React.FC = () => {
   const [busy, setBusy] = useState<string | null>(null);
   const [compareFor, setCompareFor] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('todos');
+  const [checkinFor, setCheckinFor] = useState<PlanRow | null>(null);
+  const [checkins, setCheckins] = useState<Record<string, any>>({});
 
   const load = async () => {
     setLoading(true);
@@ -181,9 +184,23 @@ const WorkoutRenewalPanel: React.FC = () => {
         if (d.parent_plan_id) draftMap[d.parent_plan_id] = d as PlanRow;
       });
       setDrafts(draftMap);
+
+      // 6. Latest workout checkins
+      const { data: checkinRows } = await supabase
+        .from('workout_checkins')
+        .select('*')
+        .in('student_id', studentIds)
+        .order('completed_at', { ascending: false });
+      
+      const checkinMap: Record<string, any> = {};
+      (checkinRows ?? []).forEach((c: any) => {
+        if (!checkinMap[c.student_id]) checkinMap[c.student_id] = c;
+      });
+      setCheckins(checkinMap);
     } else {
       setAnalyses({});
       setDrafts({});
+      setCheckins({});
     }
 
     setPlans(focus);
@@ -387,6 +404,11 @@ const WorkoutRenewalPanel: React.FC = () => {
                             </Badge>
                           )}
                           <span className="text-xs text-muted-foreground">v{plan.version}</span>
+                          {checkins[plan.student_id] && (
+                            <Badge variant="secondary" className="text-[9px] bg-blue-500/10 text-blue-500 border-blue-500/20">
+                              Feedback: {checkins[plan.student_id].intensidade_percebida.replace('_', ' ')} / {checkins[plan.student_id].motivacao}
+                            </Badge>
+                          )}
                         </div>
                         
                         <div className="flex items-center gap-2 mt-1">
@@ -571,6 +593,16 @@ const WorkoutRenewalPanel: React.FC = () => {
                             <span className="ml-1.5">{analysis ? 'Reanalisar' : 'Analisar com IA'}</span>
                           </Button>
 
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-amber-600 border-amber-500/30 h-9"
+                            onClick={() => setCheckinFor(plan)}
+                          >
+                            <ClipboardCheck className="h-3.5 w-3.5" />
+                            <span className="ml-1.5">Check-in</span>
+                          </Button>
+
                           <WhatsAppDataRequestButton
                             phone={plan.student_phone}
                             studentName={plan.student_name}
@@ -632,6 +664,20 @@ const WorkoutRenewalPanel: React.FC = () => {
         onKeep={() => compareFor && handleKeep(compareFor)}
         onDiscard={() => compareFor && handleDiscardDraft(compareFor)}
       />
+
+      {checkinFor && (
+        <WorkoutCheckinDialog
+          open={!!checkinFor}
+          onOpenChange={(v) => !v && setCheckinFor(null)}
+          studentId={checkinFor.student_id}
+          studentName={checkinFor.student_name ?? ''}
+          workoutPlanId={checkinFor.id}
+          onSuccess={() => {
+            load();
+            handleAnalyze(checkinFor.id);
+          }}
+        />
+      )}
     </Card>
   );
 };
