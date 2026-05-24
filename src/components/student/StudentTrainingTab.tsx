@@ -368,7 +368,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
         <AiEditAllDaysDialog
           open={!!aiAllDaysOpen}
           onOpenChange={(v) => !v && setAiAllDaysOpen(null)}
-          allDays={currentDays}
+          allDays={parseTrainingSections(plans.find(p => p.id === aiAllDaysOpen)?.conteudo || '').flatMap(s => s.days || [])}
           studentId={studentId}
           onApply={(updatedDays) => {
             handleMarkdownChange(aiAllDaysOpen, rebuildTrainingMarkdown(plans.find(p => p.id === aiAllDaysOpen)?.conteudo || '', updatedDays));
