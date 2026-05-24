@@ -580,6 +580,8 @@ const DietaIA = () => {
         aderencia_recente,
         ultimo_reajuste,
         confianca_geracao: confianca,
+        decisao_recomendada,
+        motivos_decisao,
       },
       questionario_dieta: latestQuestionnaire ? {
         estilo_dieta: latestQuestionnaire.estilo_dieta,
