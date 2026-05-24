@@ -59,6 +59,12 @@ async function gatherContext(supabase: any, plan: any) {
         .eq("student_id", studentId)
         .order("created_at", { ascending: false })
         .limit(2),
+      supabase
+        .from("diet_checkins")
+        .select("*")
+        .eq("student_id", studentId)
+        .order("completed_at", { ascending: false })
+        .limit(3),
     ]);
 
   // Adherence: average meals_completed length over period vs expected meals
