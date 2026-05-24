@@ -491,7 +491,10 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
         </SheetHeader>
 
         {days.length > 1 && (
-          <div className="flex gap-1.5 p-2 mt-3 rounded-lg bg-secondary/40 border border-border/40 overflow-x-auto">
+          <div 
+            className="flex gap-1.5 p-2 mt-3 rounded-lg bg-secondary/40 border border-border/40 overflow-x-auto scrollbar-none touch-pan-x"
+            data-no-swipe="true"
+          >
             {days.map((d, i) => (
               <Button
                 key={`${d.day}-${i}`}
