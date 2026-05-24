@@ -129,6 +129,7 @@ const WorkoutRenewalPanel: React.FC = () => {
   const [compareFor, setCompareFor] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('todos');
   const [checkinFor, setCheckinFor] = useState<PlanRow | null>(null);
+  const [viewCheckinFor, setViewCheckinFor] = useState<PlanRow | null>(null);
   const [checkins, setCheckins] = useState<Record<string, any>>({});
   const [requestingCheckin, setRequestingCheckin] = useState<string | null>(null);
   const [checkinConfirmId, setCheckinConfirmId] = useState<string | null>(null);
@@ -803,11 +804,16 @@ const WorkoutRenewalPanel: React.FC = () => {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="text-amber-600 border-amber-500/30 h-9"
-                            onClick={() => setCheckinFor(plan)}
+                            className={cn(
+                              "h-9",
+                              checkins[plan.student_id] 
+                                ? "text-blue-600 border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10" 
+                                : "text-amber-600 border-amber-500/30"
+                            )}
+                            onClick={() => checkins[plan.student_id] ? setViewCheckinFor(plan) : setCheckinFor(plan)}
                           >
                             <ClipboardCheck className="h-3.5 w-3.5" />
-                            <span className="ml-1.5">Check-in</span>
+                            <span className="ml-1.5">{checkins[plan.student_id] ? 'Ver Check-in' : 'Check-in'}</span>
                           </Button>
 
                           <WhatsAppDataRequestButton
@@ -893,6 +899,17 @@ const WorkoutRenewalPanel: React.FC = () => {
             load();
             handleAnalyze(checkinFor.id);
           }}
+        />
+      )}
+      
+      {viewCheckinFor && (
+        <WorkoutCheckinDialog
+          open={!!viewCheckinFor}
+          onOpenChange={(v) => !v && setViewCheckinFor(null)}
+          studentId={viewCheckinFor.student_id}
+          studentName={viewCheckinFor.student_name ?? ''}
+          mode="view"
+          checkinData={checkins[viewCheckinFor.student_id]}
         />
       )}
     </Card>
