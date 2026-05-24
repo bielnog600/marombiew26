@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
-import { Sparkles, RefreshCw, Check, FileEdit, FileText, AlertTriangle, ChevronDown, ChevronUp, Loader2, GitCompare, Wand2, Scale, BarChart3, Clock, ArrowUpDown, Filter, Trash2, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Sparkles, RefreshCw, Check, FileEdit, FileText, AlertTriangle, ChevronDown, ChevronUp, Loader2, GitCompare, Wand2, Scale, BarChart3, Clock, ArrowUpDown, Filter, Trash2, TrendingUp, TrendingDown, Minus, ClipboardCheck, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -12,6 +12,7 @@ import DietDraftComparisonDialog from './DietDraftComparisonDialog';
 import WhatsAppDataRequestButton from './WhatsAppDataRequestButton';
 import QuickWeightLogDialog from './QuickWeightLogDialog';
 import { cn } from '@/lib/utils';
+import DietCheckinDialog from './DietCheckinDialog';
 
 type CycleStatus =
   | 'em_dia'
@@ -95,6 +96,8 @@ const DietRenewalPanel: React.FC = () => {
   const [compareFor, setCompareFor] = useState<string | null>(null);
   const [weightFor, setWeightFor] = useState<PlanRow | null>(null);
   const [filter, setFilter] = useState<string>('todos');
+  const [checkinFor, setCheckinFor] = useState<PlanRow | null>(null);
+  const [checkins, setCheckins] = useState<Record<string, any>>({});
 
   const load = async () => {
     setLoading(true);
@@ -160,9 +163,23 @@ const DietRenewalPanel: React.FC = () => {
         if (d.parent_plan_id) draftMap[d.parent_plan_id] = d as PlanRow;
       });
       setDrafts(draftMap);
+
+      // 6. Latest checkins
+      const { data: checkinRows } = await supabase
+        .from('diet_checkins')
+        .select('*')
+        .in('student_id', studentIds)
+        .order('completed_at', { ascending: false });
+      
+      const checkinMap: Record<string, any> = {};
+      (checkinRows ?? []).forEach((c: any) => {
+        if (!checkinMap[c.student_id]) checkinMap[c.student_id] = c;
+      });
+      setCheckins(checkinMap);
     } else {
       setAnalyses({});
       setDrafts({});
+      setCheckins({});
     }
 
     setPlans(focus);
@@ -384,11 +401,16 @@ const DietRenewalPanel: React.FC = () => {
                         <div className="flex items-center gap-2 mt-1">
                           <p className="text-xs text-muted-foreground truncate max-w-[200px]">{plan.titulo}</p>
                           {analysis?.summary_reason && (
-                            <span className="text-[10px] bg-primary/5 text-primary px-1.5 py-0.5 rounded border border-primary/20 italic">
-                              "{analysis.summary_reason}"
-                            </span>
-                          )}
-                        </div>
+                              <span className="text-[10px] bg-primary/5 text-primary px-1.5 py-0.5 rounded border border-primary/20 italic">
+                                "{analysis.summary_reason}"
+                              </span>
+                            )}
+                            {checkins[plan.student_id] && (
+                              <Badge variant="secondary" className="text-[9px] bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
+                                Feedback: {checkins[plan.student_id].fome} / {checkins[plan.student_id].energia}
+                              </Badge>
+                            )}
+                          </div>
 
                         <div className="flex flex-wrap items-center gap-3 mt-3 text-[10px] sm:text-xs">
                           <div className="flex items-center gap-1">
@@ -521,6 +543,16 @@ const DietRenewalPanel: React.FC = () => {
                             <span className="ml-1.5">Peso</span>
                           </Button>
 
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-amber-600 border-amber-500/30 h-9"
+                            onClick={() => setCheckinFor(plan)}
+                          >
+                            <ClipboardCheck className="h-3.5 w-3.5" />
+                            <span className="ml-1.5">Check-in</span>
+                          </Button>
+
                           <WhatsAppDataRequestButton
                             phone={plan.student_phone}
                             studentName={plan.student_name}
@@ -603,6 +635,20 @@ const DietRenewalPanel: React.FC = () => {
             await load();
             toast.info('Reanalisando com o novo peso...');
             await handleAnalyze(planId);
+          }}
+        />
+      )}
+
+      {checkinFor && (
+        <DietCheckinDialog
+          open={!!checkinFor}
+          onOpenChange={(v) => !v && setCheckinFor(null)}
+          studentId={checkinFor.student_id}
+          studentName={checkinFor.student_name ?? ''}
+          dietId={checkinFor.id}
+          onSuccess={() => {
+            load();
+            handleAnalyze(checkinFor.id);
           }}
         />
       )}

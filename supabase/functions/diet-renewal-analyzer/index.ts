@@ -29,7 +29,7 @@ async function gatherContext(supabase: any, plan: any) {
   since.setDate(since.getDate() - 14);
   const sinceStr = since.toISOString().slice(0, 10);
 
-  const [{ data: tracking }, { data: weights }, { data: lastAssessment }, { data: profile }, { data: readjustments }] =
+  const [{ data: tracking }, { data: weights }, { data: lastAssessment }, { data: profile }, { data: readjustments }, { data: checkins }] =
     await Promise.all([
       supabase
         .from("daily_tracking")
@@ -59,6 +59,12 @@ async function gatherContext(supabase: any, plan: any) {
         .eq("student_id", studentId)
         .order("created_at", { ascending: false })
         .limit(2),
+      supabase
+        .from("diet_checkins")
+        .select("*")
+        .eq("student_id", studentId)
+        .order("completed_at", { ascending: false })
+        .limit(3),
     ]);
 
   // Adherence: average meals_completed length over period vs expected meals
@@ -98,12 +104,21 @@ async function gatherContext(supabase: any, plan: any) {
     observacoes: lastAssessment?.observacoes ?? null,
     restricoes: lastAssessment?.restricoes ?? null,
     last_readjustment: readjustments?.[0] ?? null,
+    recent_checkins: checkins ?? [],
     data_quality: dataQuality,
   };
 }
 
 async function callAI(context: any, currentPlanExcerpt: string) {
-  const system = `Você é um nutricionista esportivo sênior. Analisa o ciclo alimentar de um aluno (45 dias) e decide se vale MANTER, AJUSTAR, GERAR_NOVA dieta ou SOLICITAR_DADOS antes de renovar. Considere aderência, frequência de registro, evolução de peso, objetivo, sinais de monotonia e qualidade dos dados. Seja conservador: NÃO recomende gerar nova se faltam dados (data_quality != sufficient) — prefira solicitar_dados. Se aderência < 0.4, prefira ajustar. Se tendência contraria objetivo, recomende ajustar/gerar_nova.`;
+  const system = `Você é um nutricionista esportivo sênior. Analisa o ciclo alimentar de um aluno (45 dias) e decide se vale MANTER, AJUSTAR, GERAR_NOVA dieta ou SOLICITAR_DADOS antes de renovar. Considere aderência, frequência de registro, evolução de peso, objetivo, sinais de monotonia e qualidade dos dados. 
+  
+  DÊ MUITO PESO AOS CHECK-INS SUBJETIVOS:
+  - Se 'fome' estiver 'alta' -> Ajustar calorias ou saciedade.
+  - Se 'energia' estiver 'baixa' -> Ajustar carbo ou timing.
+  - Se 'saciedade' estiver 'ruim' -> Trocar alimentos por maior volume/fibras.
+  - Se 'facilidade' estiver 'dificil' -> Simplificar preparos ou ajustar palatabilidade.
+  
+  Seja conservador: NÃO recomende gerar nova se faltam dados (data_quality != sufficient) — prefira solicitar_dados. Se aderência < 0.4, prefira ajustar. Se tendência contraria objetivo, recomende ajustar/gerar_nova.`;
 
   const body = {
     model: "gpt-4o-mini",
