@@ -61,6 +61,7 @@ export type Database = {
           draft_source: string | null
           fase: string
           fase_inicio_data: string | null
+          has_new_checkin: boolean | null
           id: string
           is_draft: boolean
           last_analysis_at: string | null
@@ -88,6 +89,7 @@ export type Database = {
           draft_source?: string | null
           fase?: string
           fase_inicio_data?: string | null
+          has_new_checkin?: boolean | null
           id?: string
           is_draft?: boolean
           last_analysis_at?: string | null
@@ -115,6 +117,7 @@ export type Database = {
           draft_source?: string | null
           fase?: string
           fase_inicio_data?: string | null
+          has_new_checkin?: boolean | null
           id?: string
           is_draft?: boolean
           last_analysis_at?: string | null

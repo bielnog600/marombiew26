@@ -62,13 +62,13 @@ const WorkoutCheckinDialog: React.FC<Props> = ({
       if (mode === 'aluno' && workoutPlanId) {
         await supabase
           .from('ai_plans')
-          .update({ pending_checkin: false })
+          .update({ pending_checkin: false, has_new_checkin: true })
           .eq('id', workoutPlanId);
       } else if (mode === 'aluno') {
         // Fallback se não tiver workoutPlanId: limpa todos os pendentes desse aluno
         await supabase
           .from('ai_plans')
-          .update({ pending_checkin: false })
+          .update({ pending_checkin: false, has_new_checkin: true })
           .eq('student_id', studentId)
           .eq('tipo', 'treino');
       }
