@@ -149,6 +149,11 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
             editedStartDates[plan.id] !== undefined;
           const currentMarkdown = editedMarkdowns[plan.id] !== undefined ? editedMarkdowns[plan.id] : plan.conteudo;
 
+          const currentDays: ParsedTrainingDay[] = useMemo(() => {
+            const sections = parseTrainingSections(currentMarkdown || '');
+            return sections.flatMap(s => s.days || []);
+          }, [currentMarkdown]);
+
           return (
             <Card key={plan.id} className="glass-card">
               <CardContent className="p-4">
@@ -318,11 +323,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                         size="sm"
                         className="h-8 gap-1.5 text-xs rounded-xl"
                         onClick={() => {
-                          const sections = parseTrainingSections(currentMarkdown);
-                          const existingDays: ParsedTrainingDay[] = [];
-                          for (const s of sections) {
-                            if (s.type === 'training' && s.days) existingDays.push(...s.days);
-                          }
+                          const existingDays = currentDays;
                           const allDayNames = ['SEGUNDA-FEIRA','TERÇA-FEIRA','QUARTA-FEIRA','QUINTA-FEIRA','SEXTA-FEIRA','SÁBADO','DOMINGO'];
                           const usedDays = existingDays.map(d => d.day.toUpperCase());
                           const nextDay = allDayNames.find(d => !usedDays.includes(d)) || `TREINO ${String.fromCharCode(65 + existingDays.length)}`;
@@ -357,11 +358,9 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
         <TrainerLogSheet
           open={!!trainPlan}
           onOpenChange={(v) => !v && setTrainPlan(null)}
-          planId={trainPlan.id}
           studentId={studentId}
-          studentName=""
-          exercises={parseTrainingSections(trainPlan.conteudo || '').flatMap(s => s.days?.flatMap(d => d.exercises) || [])}
-          dayName=""
+          days={parseTrainingSections(trainPlan.conteudo || '').flatMap(s => s.days || [])}
+          phase={trainPlan.fase}
         />
       )}
 
@@ -369,9 +368,10 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
         <AiEditAllDaysDialog
           open={!!aiAllDaysOpen}
           onOpenChange={(v) => !v && setAiAllDaysOpen(null)}
-          markdown={plans.find(p => p.id === aiAllDaysOpen)?.conteudo || ''}
-          onMarkdownChange={(newMd) => {
-            handleMarkdownChange(aiAllDaysOpen, newMd);
+          allDays={currentDays}
+          studentId={studentId}
+          onApply={(updatedDays) => {
+            handleMarkdownChange(aiAllDaysOpen, rebuildTrainingMarkdown(plans.find(p => p.id === aiAllDaysOpen)?.conteudo || '', updatedDays));
             setAiAllDaysOpen(null);
           }}
         />
