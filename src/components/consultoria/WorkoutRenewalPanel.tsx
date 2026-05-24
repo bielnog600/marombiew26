@@ -11,6 +11,7 @@ import { ptBR } from 'date-fns/locale';
 import WorkoutDraftComparisonDialog from './WorkoutDraftComparisonDialog';
 import WhatsAppDataRequestButton from './WhatsAppDataRequestButton';
 import { cn } from '@/lib/utils';
+import WorkoutCheckinDialog from './WorkoutCheckinDialog';
 
 type CycleStatus =
   | 'em_dia'
