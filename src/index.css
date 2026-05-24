@@ -75,10 +75,9 @@
 
   html {
     overscroll-behavior: none;
-    overflow: hidden;
     height: 100%;
-    position: fixed;
     width: 100%;
+    overflow: hidden;
   }
 
   body {

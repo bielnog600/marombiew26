@@ -102,8 +102,7 @@ const BottomNav: React.FC = () => {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-background"
-      style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 2px)' }}
+      className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-background pb-[env(safe-area-inset-bottom)]"
     >
       <div className="mx-2 rounded-2xl bg-card/95 backdrop-blur-xl border border-border/30 shadow-2xl">
         <div ref={containerRef} className="relative flex items-center justify-around px-2 h-14">
