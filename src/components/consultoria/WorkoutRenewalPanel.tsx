@@ -664,6 +664,20 @@ const WorkoutRenewalPanel: React.FC = () => {
         onKeep={() => compareFor && handleKeep(compareFor)}
         onDiscard={() => compareFor && handleDiscardDraft(compareFor)}
       />
+
+      {checkinFor && (
+        <WorkoutCheckinDialog
+          open={!!checkinFor}
+          onOpenChange={(v) => !v && setCheckinFor(null)}
+          studentId={checkinFor.student_id}
+          studentName={checkinFor.student_name ?? ''}
+          workoutPlanId={checkinFor.id}
+          onSuccess={() => {
+            load();
+            handleAnalyze(checkinFor.id);
+          }}
+        />
+      )}
     </Card>
   );
 };
