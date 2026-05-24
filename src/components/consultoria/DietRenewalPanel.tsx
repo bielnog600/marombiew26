@@ -1,16 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
-import { Sparkles, RefreshCw, Check, FileEdit, FileText, AlertTriangle, ChevronDown, ChevronUp, Loader2, GitCompare, Wand2, Scale } from 'lucide-react';
+import { Sparkles, RefreshCw, Check, FileEdit, FileText, AlertTriangle, ChevronDown, ChevronUp, Loader2, GitCompare, Wand2, Scale, BarChart3, Clock, ArrowUpDown, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import DietDraftComparisonDialog from './DietDraftComparisonDialog';
 import WhatsAppDataRequestButton from './WhatsAppDataRequestButton';
 import QuickWeightLogDialog from './QuickWeightLogDialog';
+import { cn } from '@/lib/utils';
 
 type CycleStatus =
   | 'em_dia'
