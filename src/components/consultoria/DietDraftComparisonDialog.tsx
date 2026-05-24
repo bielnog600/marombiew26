@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 import { ArrowRight, Check, Trash2, FileText, Loader2, Sparkles, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { parseSections, ParsedMeal, ParsedFood } from '@/lib/dietResultParser';
 
@@ -159,7 +159,7 @@ const DietDraftComparisonDialog: React.FC<Props> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 pr-3">
+        <div className="flex-1 overflow-y-auto pr-2 -mr-2 min-h-0 scrollbar-thin scrollbar-thumb-primary/10 hover:scrollbar-thumb-primary/20 touch-pan-y py-2">
           <div className="space-y-6">
             {/* Bloco 1 — Resumo nutricional */}
             <section className="space-y-2">
@@ -301,7 +301,7 @@ const DietDraftComparisonDialog: React.FC<Props> = ({
               </section>
             )}
           </div>
-        </ScrollArea>
+        </div>
 
         <div className="flex flex-wrap gap-2 justify-end pt-3 border-t border-border/50">
           <Button variant="outline" onClick={onDiscard} disabled={busy} className="text-destructive border-destructive/30">
