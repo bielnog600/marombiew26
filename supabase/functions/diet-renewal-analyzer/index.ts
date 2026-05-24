@@ -609,7 +609,11 @@ async function analyzePlan(supabase: any, planId: string) {
       weight_trend: ctx.weight_trend,
       data_quality: ctx.data_quality,
       suggested_action: ai.suggested_action,
+      decision_type: ai.suggested_action === 'gerar_nova' ? 'nova_dieta' : ai.suggested_action,
       rationale: ai.rationale,
+      summary_reason: ai.summary_reason,
+      priority: ai.priority,
+      confidence_score: ai.confidence_score,
       context_snapshot: { ...ctx, ai },
     })
     .select()
