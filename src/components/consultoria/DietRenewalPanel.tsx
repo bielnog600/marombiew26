@@ -381,12 +381,14 @@ const DietRenewalPanel: React.FC = () => {
                           <Button
                             size="sm"
                             variant="outline"
+                            className="bg-primary/5 border-primary/20"
                             disabled={busy === plan.id}
                             onClick={() => handleAnalyze(plan.id)}
                           >
                             {busy === plan.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                             {analysis ? 'Reanalisar' : 'Analisar com IA'}
                           </Button>
+
                           <Button
                             size="sm"
                             variant="outline"

@@ -374,21 +374,34 @@ async function generateDraft(
     : "";
 
   const isAdjust = mode === "adjust";
+  const planMetadata = plan.metadata as any || {};
+  const currentMacros = planMetadata.macros || {};
+  const currentTmb = planMetadata.tmb_total || planMetadata.tmb || {};
 
   const prompt = isAdjust
     ? `Você vai AJUSTAR a dieta atual deste aluno (não é renovação completa de ciclo).${ctxBlock}${fichaBlock}
 
 OBJETIVO DO AJUSTE:
 - Analise a dieta antiga abaixo e proponha uma versão melhorada usando ESTRITAMENTE os alimentos listados na FICHA acima (mantenha as preferências do aluno)
-- Aplique estratégias avançadas para acelerar resultados, mesmo em CUTTING ou BULKING:
+- MANTENHA AS CALORIAS E MACROS ATUAIS ou faça um ajuste fino (máx ±10%) se a tendência de peso estiver inadequada para o objetivo.
+- METAS ATUAIS DO ALUNO (Siga estas como referência):
+  • TMB: ${currentTmb.valor || "Não informado"} kcal
+  • Calorias Alvo: ${currentMacros.kcal || "Não informado"} kcal
+  • Proteína: ${currentMacros.p || "Não informado"}g (${currentMacros.p_kg || ""} g/kg)
+  • Carboidrato: ${currentMacros.c || "Não informado"}g
+  • Gordura: ${currentMacros.g || "Não informado"}g
+
+ESTRATÉGIAS AVANÇADAS PARA ACELERAR RESULTADOS:
+- Aplique estratégias avançadas mesmo em CUTTING ou BULKING:
   • Ciclagem de carboidratos (alto/médio/baixo conforme dia de treino vs descanso)
   • Refeed estratégico se houver platô e adesão for boa
   • Recomposição corporal se peso estável e composição importa mais
   • Timing nutricional: peri-treino, janela anabólica, distribuição de proteína a cada 3–4h
-  • Ajuste fino de calorias (não mais que ±10%) e macros (P 1.8–2.4 g/kg)
   • Sugestão de suplementação básica (whey, creatina, cafeína) quando fizer sentido
 - NÃO repita exatamente as mesmas combinações da dieta antiga — varie preparos e horários
 - Mantenha o objetivo (${studentContext.objetivo ?? "—"}) e respeite restrições/lesões
+- O RESULTADO FINAL DEVE TER OS MACROS E CALORIAS PREENCHIDOS E CALCULADOS.
+
 
 DIETA ATUAL (referência):
 ${previousExcerpt}
@@ -458,6 +471,8 @@ ENTREGUE OBRIGATORIAMENTE:
       fase: plan.fase,
       cycle_days: plan.cycle_days,
       cycle_status: "rascunho_gerado",
+      metadata: plan.metadata, // Propagar metadata para manter macros/tmb calculados
+
       renewal_mode: plan.renewal_mode,
       parent_plan_id: plan.id,
       version: (plan.version ?? 1) + 1,
