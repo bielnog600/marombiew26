@@ -161,6 +161,7 @@ const TreinoIA = () => {
   const [saving, setSaving] = useState(false);
   const [marombiewEnabled, setMarombiewEnabled] = useState(false);
   const [configCollapsed, setConfigCollapsed] = useState(!!editPlanId);
+  const [lastWorkoutPlan, setLastWorkoutPlan] = useState<any>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const resultRef = useRef<HTMLDivElement>(null);
 
