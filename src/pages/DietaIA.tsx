@@ -1698,6 +1698,11 @@ ${generated}`;
                 <Button variant="outline" size="sm" onClick={() => generateDietPDF(result, studentName)}>
                   <FileDown className="h-3 w-3 mr-1" /> PDF
                 </Button>
+                {lastDietPlan && !editPlanId && (
+                  <Button variant="outline" size="sm" onClick={() => setShowCompare(true)}>
+                    <FileText className="h-3 w-3 mr-1" /> Comparar antes de salvar
+                  </Button>
+                )}
                  <Button size="sm" onClick={() => savePlan()} disabled={saving}>
                   <Save className="h-3 w-3 mr-1" /> {editPlanId ? 'Atualizar' : 'Salvar'}
                 </Button>
