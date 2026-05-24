@@ -138,7 +138,7 @@ async function callAI(context: any, currentPlanExcerpt: string) {
                 description: "Lista curta de ajustes concretos (máx 5).",
               },
             },
-            required: ["suggested_action", "rationale", "monotony_risk", "priority"],
+            required: ["suggested_action", "rationale", "summary_reason", "confidence_score", "monotony_risk", "priority"],
             additionalProperties: false,
           },
         },
