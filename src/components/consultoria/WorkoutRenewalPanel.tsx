@@ -473,9 +473,14 @@ const WorkoutRenewalPanel: React.FC = () => {
                               Feedback: {checkins[plan.student_id].intensidade_percebida.replace('_', ' ')} / {checkins[plan.student_id].motivacao}
                             </Badge>
                           )}
-                          {plan.pending_checkin && (
+                          {plan.pending_checkin && !plan.has_new_checkin && (
                             <Badge variant="secondary" className="text-[9px] bg-orange-500/10 text-orange-600 border-orange-500/20 animate-pulse">
                               Check-in Pendente (App)
+                            </Badge>
+                          )}
+                          {plan.has_new_checkin && (
+                            <Badge variant="secondary" className="text-[9px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                              Check-in Respondido
                             </Badge>
                           )}
                         </div>
