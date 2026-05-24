@@ -13,6 +13,7 @@ import { type ParsedExercise, parseTrainingSections } from '@/lib/trainingResult
 import { buildSetPlan, buildPlanSummary, type PlannedSet } from '@/lib/setPlanBuilder';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { PHASE_SHORT_LABELS, getPhaseByMonthDay, type TrainingPhase } from '@/lib/trainingPhase';
+import { getSafeWorkoutDays, trackPlanAccess } from '@/lib/planMigrationUtils';
 import { WorkoutSummaryShare } from '@/components/training/WorkoutSummaryShare';
 import { PhaseInfoSheet } from '@/components/training/PhaseInfoSheet';
 import { MachineAdjustSheet } from '@/components/training/MachineAdjustSheet';
@@ -378,7 +379,7 @@ const TreinoExecucao = () => {
     const loadPlan = async () => {
       const { data: treino } = await supabase
         .from('ai_plans')
-        .select('conteudo, fase')
+        .select('id, conteudo, conteudo_json, migration_status, fase')
         .eq('student_id', user.id)
         .eq('tipo', 'treino')
         .order('created_at', { ascending: false })
@@ -386,8 +387,8 @@ const TreinoExecucao = () => {
         .maybeSingle();
       if (treino) {
         if (treino.fase) setPhase(treino.fase as TrainingPhase);
-        const sections = parseTrainingSections(treino.conteudo);
-        const allDays = sections.flatMap(s => s.days ?? []);
+        const { days: allDays, isFromJSON } = getSafeWorkoutDays({ ...treino, tipo: 'treino' });
+        trackPlanAccess({ ...treino, tipo: 'treino' }, isFromJSON);
         if (allDays.length > 0) {
           const todayIndex = (new Date().getDay() + 6) % 7 % allDays.length;
           const today = allDays[todayIndex];

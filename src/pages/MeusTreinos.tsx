@@ -12,6 +12,7 @@ import { X, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
+import { getSafeWorkoutDays, trackPlanAccess } from '@/lib/planMigrationUtils';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { fetchWithCache } from '@/lib/offlineCache';
 import {
@@ -27,6 +28,8 @@ import {
 interface PlanRow {
   id: string;
   conteudo: string;
+  conteudo_json: any;
+  migration_status: any;
   fase: TrainingPhase;
   fase_inicio_data: string | null;
 }
@@ -107,7 +110,7 @@ const MeusTreinos = () => {
 
   const loadTraining = async () => {
     const { data } = await fetchWithCache(`plans:treino:all:${user!.id}`, async () => {
-      const { data } = await supabase.from('ai_plans').select('id, conteudo, fase, fase_inicio_data').eq('student_id', user!.id).eq('tipo', 'treino').order('created_at', { ascending: false });
+      const { data } = await supabase.from('ai_plans').select('id, conteudo, conteudo_json, migration_status, fase, fase_inicio_data').eq('student_id', user!.id).eq('tipo', 'treino').order('created_at', { ascending: false });
       return data;
     });
 
@@ -170,8 +173,8 @@ const MeusTreinos = () => {
     const mostRecentPlan = plans.find(p => p.fase === activePhase);
     if (!mostRecentPlan) return [];
     
-    const sections = parseTrainingSections(mostRecentPlan.conteudo);
-    const days = sections.flatMap(s => s.days ?? []);
+    const { days, isFromJSON } = getSafeWorkoutDays({ ...mostRecentPlan, tipo: 'treino' });
+    trackPlanAccess({ ...mostRecentPlan, tipo: 'treino' }, isFromJSON);
     
     // Dedup dias por nome (caso o markdown tenha tabelas duplicadas)
     const merged: ParsedTrainingDay[] = [];
