@@ -2128,11 +2128,15 @@ export type Database = {
           plan_id: string
           priority: string | null
           rationale: string
+          registration_quality: string | null
           reps_progression: string | null
           session_frequency: number | null
+          sessions_finished: number | null
+          sessions_started: number | null
           student_id: string
           suggested_action: string
           summary_reason: string | null
+          total_logs_count: number | null
           volume_analysis: Json | null
           volume_trend: string | null
         }
@@ -2158,11 +2162,15 @@ export type Database = {
           plan_id: string
           priority?: string | null
           rationale: string
+          registration_quality?: string | null
           reps_progression?: string | null
           session_frequency?: number | null
+          sessions_finished?: number | null
+          sessions_started?: number | null
           student_id: string
           suggested_action: string
           summary_reason?: string | null
+          total_logs_count?: number | null
           volume_analysis?: Json | null
           volume_trend?: string | null
         }
@@ -2188,11 +2196,15 @@ export type Database = {
           plan_id?: string
           priority?: string | null
           rationale?: string
+          registration_quality?: string | null
           reps_progression?: string | null
           session_frequency?: number | null
+          sessions_finished?: number | null
+          sessions_started?: number | null
           student_id?: string
           suggested_action?: string
           summary_reason?: string | null
+          total_logs_count?: number | null
           volume_analysis?: Json | null
           volume_trend?: string | null
         }
