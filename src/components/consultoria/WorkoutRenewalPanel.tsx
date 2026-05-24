@@ -622,14 +622,46 @@ const WorkoutRenewalPanel: React.FC = () => {
                               <Metric label="Frequência" value={analysis.session_frequency != null ? `${analysis.session_frequency.toFixed(1)}/sem` : '—'} />
                               <Metric label="Conclusão" value={analysis.completion_rate != null ? `${Math.round(analysis.completion_rate * 100)}%` : '—'} />
                                <Metric label="RPE Médio" value={analysis.avg_rpe != null ? String(analysis.avg_rpe) : '—'} />
-                               <Metric label="Duração Média" value={analysis.volume_analysis?.avg_duration != null ? `${analysis.volume_analysis.avg_duration}m` : '—'} trend={analysis.volume_analysis?.has_long_sessions ? 'down' : undefined} />
+                            </div>
+
+                            <div className="rounded-md border border-border/50 bg-secondary/5 p-3 space-y-3">
+                              <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-bold flex items-center gap-1">
+                                <ClipboardCheck className="h-3 w-3" /> Qualidade do Registro & Confiabilidade
+                              </p>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                <Metric 
+                                  label="Treinos Iniciados" 
+                                  value={analysis.sessions_started != null ? String(analysis.sessions_started) : '—'} 
+                                />
+                                <Metric 
+                                  label="Treinos Finalizados" 
+                                  value={analysis.sessions_finished != null ? String(analysis.sessions_finished) : '—'} 
+                                />
+                                <Metric 
+                                  label="Qualidade Registro" 
+                                  value={analysis.registration_quality ? 
+                                    (analysis.registration_quality === 'boa' ? 'Boa' : 
+                                     analysis.registration_quality === 'incompleta' ? 'Incompleto' : 'Insuficiente') : '—'} 
+                                  trend={analysis.registration_quality === 'boa' ? 'up' : analysis.registration_quality === 'incompleta' ? 'stable' : 'down'}
+                                />
+                                <Metric 
+                                  label="Confiabilidade" 
+                                  value={analysis.confidence_score != null ? `${Math.round(analysis.confidence_score * 100)}%` : '—'} 
+                                  trend={analysis.confidence_score && analysis.confidence_score > 0.7 ? 'up' : 'down'}
+                                />
+                              </div>
+                              {analysis.registration_quality === 'incompleta' && (
+                                <p className="text-[10px] text-amber-600 bg-amber-500/5 p-1.5 rounded border border-amber-500/10 italic">
+                                  Nota: Aluno inicia treinos e registra cargas, mas não finaliza a sessão no app. Possível "falsa baixa frequência".
+                                </p>
+                              )}
                             </div>
 
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                              <Metric label="Duração Média" value={analysis.volume_analysis?.avg_duration != null ? `${analysis.volume_analysis.avg_duration}m` : '—'} trend={analysis.volume_analysis?.has_long_sessions ? 'down' : undefined} />
                               <Metric label="Carga" value={analysis.load_progression ?? '—'} trend={analysis.load_progression === 'subindo' ? 'up' : analysis.load_progression === 'descendo' ? 'down' : 'stable'} />
                               <Metric label="Reps" value={analysis.reps_progression ?? '—'} />
                               <Metric label="Volume" value={analysis.volume_trend ?? '—'} trend={analysis.volume_trend === 'subindo' ? 'up' : 'stable'} />
-                              <Metric label="Fadiga" value={analysis.fatigue_signal ?? '—'} />
                             </div>
 
                             {analysis.volume_analysis?.muscle_groups && analysis.volume_analysis.muscle_groups.length > 0 && (
