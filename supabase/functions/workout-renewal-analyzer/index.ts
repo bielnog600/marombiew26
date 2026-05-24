@@ -57,6 +57,7 @@ async function gatherContext(supabase: any, plan: any) {
     { data: profile },
     { data: sp },
     { data: alerts },
+    { data: checkins },
   ] = await Promise.all([
     supabase
       .from("workout_sessions")
@@ -87,6 +88,12 @@ async function gatherContext(supabase: any, plan: any) {
       .eq("student_id", studentId)
       .order("created_at", { ascending: false })
       .limit(5),
+    supabase
+      .from("workout_checkins")
+      .select("*")
+      .eq("student_id", studentId)
+      .order("completed_at", { ascending: false })
+      .limit(3),
   ]);
 
   const completedSessions = (sessions ?? []).filter((s: any) => s.status === "completed");
