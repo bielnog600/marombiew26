@@ -40,8 +40,8 @@ const ProtocolsDialog: React.FC<ProtocolsDialogProps> = ({ open, onOpenChange, k
         </DialogHeader>
 
         <Tabs value={active} onValueChange={setActive} className="flex-1 flex flex-col min-h-0">
-          <ScrollArea className="w-full border-b border-border/50">
-            <TabsList className="inline-flex h-auto w-max bg-transparent p-2 gap-1">
+          <div className="w-full border-b border-border/50 overflow-x-auto scrollbar-none touch-pan-x">
+            <TabsList className="inline-flex h-auto min-w-full bg-transparent p-2 gap-1 flex-nowrap">
               {keys.map((k) => {
                 const info = PROTOCOLS[k];
                 const Icon = info.icon;
@@ -49,7 +49,7 @@ const ProtocolsDialog: React.FC<ProtocolsDialogProps> = ({ open, onOpenChange, k
                   <TabsTrigger
                     key={k}
                     value={k}
-                    className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-full px-3 py-1.5 text-xs gap-1.5"
+                    className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-full px-4 py-2 text-xs gap-1.5 whitespace-nowrap shrink-0 transition-all border border-transparent data-[state=inactive]:hover:bg-secondary/50"
                   >
                     <Icon className="h-3.5 w-3.5" />
                     {info.short}
@@ -57,7 +57,7 @@ const ProtocolsDialog: React.FC<ProtocolsDialogProps> = ({ open, onOpenChange, k
                 );
               })}
             </TabsList>
-          </ScrollArea>
+          </div>
 
           <ScrollArea className="flex-1 px-5 py-4">
             {keys.map((k) => {
