@@ -96,10 +96,29 @@ async function gatherContext(supabase: any, plan: any) {
       .limit(3),
   ]);
 
-  const completedSessions = (sessions ?? []).filter((s: any) => s.status === "completed");
-  const abandonedSessions = (sessions ?? []).filter((s: any) => s.status !== "completed");
+  const sessionsInPeriod = sessions ?? [];
+  const completedSessions = sessionsInPeriod.filter((s: any) => s.status === "completed");
+  const abandonedSessions = sessionsInPeriod.filter((s: any) => s.status !== "completed");
+  
+  const sessionsStarted = sessionsInPeriod.length;
+  const sessionsFinished = completedSessions.length;
+  const totalLogsCount = (setLogs ?? []).length;
+
   const sessionsCount = completedSessions.length;
   const sessionFrequency = sessionsCount / (windowDays / 7); // sessions per week
+
+  // Heurística de qualidade de registro
+  let registrationQuality: "boa" | "incompleta" | "insuficiente" = "insuficiente";
+  if (sessionsStarted > 0) {
+    const logsPerSession = totalLogsCount / sessionsStarted;
+    const completionRatio = sessionsFinished / sessionsStarted;
+    
+    if (completionRatio >= 0.8 && logsPerSession >= 5) {
+      registrationQuality = "boa";
+    } else if (sessionsStarted > 0 && (logsPerSession >= 3 || sessionsFinished > 0)) {
+      registrationQuality = "incompleta";
+    }
+  }
 
   // Completion rate (exercises_completed / total_exercises)
   const compRates = completedSessions
@@ -109,7 +128,7 @@ async function gatherContext(supabase: any, plan: any) {
     ? compRates.reduce((a: number, b: number) => a + b, 0) / compRates.length
     : null;
 
-  // Aderência geral: workout_completed days / 21 + completion mix
+  // Aderência geral: workout_completed days / windowDays + completion mix
   const trackingDays = tracking ?? [];
   const workoutDays = trackingDays.filter((d: any) => d.workout_completed).length;
   const baseAdherence = workoutDays / windowDays;
