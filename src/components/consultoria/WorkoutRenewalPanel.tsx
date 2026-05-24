@@ -265,17 +265,81 @@ const WorkoutRenewalPanel: React.FC = () => {
     }
   };
 
+  const filteredPlans = useMemo(() => {
+    let list = [...plans].map(p => {
+      const remaining = daysRemaining(p);
+      const analysis = analyses[p.id];
+      const draft = drafts[p.id];
+      
+      let effectiveStatus = p.cycle_status;
+      if (remaining <= 0 && p.cycle_status !== 'renovado') {
+        effectiveStatus = 'vencido';
+      } else if (draft && p.cycle_status !== 'renovado') {
+        effectiveStatus = 'pronto_revisar';
+      }
+
+      let priorityScore = 0;
+      if (effectiveStatus === 'vencido') priorityScore += 1000;
+      if (remaining <= 5) priorityScore += 500;
+      if (analysis?.priority === 'alta') priorityScore += 300;
+      if (effectiveStatus === 'pronto_revisar') priorityScore += 200;
+      
+      return { ...p, effectiveStatus, remaining, priorityScore };
+    });
+
+    list.sort((a, b) => b.priorityScore - a.priorityScore);
+
+    if (filter !== 'todos') {
+      return list.filter(p => {
+        const analysis = analyses[p.id];
+        const draft = drafts[p.id];
+        switch(filter) {
+          case 'solicitar_dados': return analysis?.decision_type === 'solicitar_dados';
+          case 'manter': return analysis?.decision_type === 'manter';
+          case 'ajustar': return analysis?.decision_type === 'ajustar';
+          case 'renovar': return analysis?.decision_type === 'renovar_bloco';
+          case 'deload': return analysis?.decision_type === 'deload';
+          case 'vencidos': return p.effectiveStatus === 'vencido';
+          default: return true;
+        }
+      });
+    }
+    return list;
+  }, [plans, analyses, drafts, filter]);
+
   return (
     <Card className="glass-card">
-      <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-blue-500" />
-          Renovação Inteligente de Treinos
-          <Badge variant="outline" className="ml-2 text-[10px]">IA</Badge>
-        </CardTitle>
-        <p className="text-xs text-muted-foreground mt-1">
-          A IA analisa aderência, frequência, progressão de cargas, RPE e fadiga para sugerir manter, ajustar ou renovar o treino quando faltam ≤ 15 dias.
-        </p>
+      <CardHeader className="pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-1">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-blue-500" />
+              Renovação Inteligente de Treinos
+              <Badge variant="outline" className="ml-2 text-[10px]">IA</Badge>
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Priorização automática por vencimento, performance e volume.
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
+            <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
+            {(['todos', 'solicitar_dados', 'renovar', 'deload', 'vencidos'] as const).map(f => (
+              <Button
+                key={f}
+                variant={filter === f ? 'default' : 'outline'}
+                size="sm"
+                className="h-7 text-[10px] px-2 whitespace-nowrap"
+                onClick={() => setFilter(f)}
+              >
+                {f === 'todos' ? 'Todos' : 
+                 f === 'solicitar_dados' ? 'Solicitar Dados' :
+                 f === 'renovar' ? 'Renovar Bloco' :
+                 f === 'deload' ? 'Deload' : 'Vencidos'}
+              </Button>
+            ))}
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         {loading ? (
