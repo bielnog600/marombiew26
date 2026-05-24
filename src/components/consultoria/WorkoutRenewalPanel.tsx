@@ -717,7 +717,7 @@ const WorkoutRenewalPanel: React.FC = () => {
                                     Frequência: {analysis.frequency_adjustment_data.suggest_reduction ? 'Redução Sugerida' : 'Manter Dias Atuais'}
                                   </p>
                                   <Badge variant="outline" className="text-[9px] ml-auto">
-                                    {analysis.frequency_adjustment_data.reason_category.replace('_', ' ')}
+                                    {(analysis.frequency_adjustment_data.reason_category ?? 'sem_categoria').replace('_', ' ')}
                                   </Badge>
                                 </div>
                                 <p className="text-xs text-foreground/80 leading-snug">{analysis.frequency_adjustment_data.justification}</p>
