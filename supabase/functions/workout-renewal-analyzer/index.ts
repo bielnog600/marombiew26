@@ -740,6 +740,8 @@ async function analyzePlan(supabase: any, planId: string) {
       confidence_score: ai.confidence_score,
       priority: ai.priority,
       rationale: ai.rationale,
+      frequency_adjustment_data: ai.frequency_adjustment_data || null,
+      alternatives_considered: ai.alternatives_considered || [],
       volume_analysis: {
         muscle_groups: ctx.muscle_groups,
         avg_rpe: ctx.avg_rpe,
