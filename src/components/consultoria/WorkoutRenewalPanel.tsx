@@ -305,9 +305,10 @@ const WorkoutRenewalPanel: React.FC = () => {
           case 'solicitar_dados': return analysis?.decision_type === 'solicitar_dados';
           case 'manter': return analysis?.decision_type === 'manter';
           case 'ajustar': return analysis?.decision_type === 'ajustar';
-          case 'renovar': return analysis?.decision_type === 'renovar_bloco';
-          case 'deload': return analysis?.decision_type === 'deload';
+          case 'renovar': return analysis?.decision_type === 'renovar_bloco' || analysis?.decision_type === 'trocar_exercicios';
           case 'vencidos': return p.effectiveStatus === 'vencido';
+          case 'rascunho': return !!draft;
+          default: return true;
           default: return true;
         }
       });
