@@ -101,7 +101,7 @@ interface StudentSummary {
 const Consultoria = () => {
   const [students, setStudents] = useState<StudentSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [totals, setTotals] = useState({ dietas: 0, treinos: 0, fichas: 0, fichasPendentes: 0, alunos: 0, dietasVencidas: 0, treinosVencidos: 0 });
+  const [totals, setTotals] = useState({ dietas: 0, treinos: 0, fichas: 0, fichasPendentes: 0, alunos: 0, dietasVencidas: 0, treinosVencidos: 0, migration: { completed: 0, pending: 0, failed: 0 } });
   const [tab, setTab] = useState('dashboard');
   const navigate = useNavigate();
 
@@ -130,7 +130,7 @@ const Consultoria = () => {
 
     const [profilesRes, plansRes, assessmentsRes, questionnairesRes] = await Promise.all([
       supabase.from('profiles').select('*').in('user_id', alunoIds),
-      supabase.from('ai_plans').select('student_id, tipo, created_at').in('student_id', alunoIds).order('created_at', { ascending: false }),
+      supabase.from('ai_plans').select('student_id, tipo, created_at, migration_status').in('student_id', alunoIds).order('created_at', { ascending: false }),
       supabase.from('assessments').select('student_id, created_at').in('student_id', alunoIds),
       supabase.from('diet_questionnaires').select('student_id, status, created_at, responded_at').in('student_id', alunoIds).order('created_at', { ascending: false }),
     ]);
@@ -141,9 +141,18 @@ const Consultoria = () => {
     const questionnaires = questionnairesRes.data ?? [];
 
     let totalDietas = 0, totalTreinos = 0, totalFichas = 0, totalFichasPendentes = 0, dietasVencidas = 0, treinosVencidos = 0;
+    let migrationStats = { completed: 0, pending: 0, failed: 0 };
 
     const summaries: StudentSummary[] = profiles.map(p => {
       const studentPlans = plans.filter(pl => pl.student_id === p.user_id);
+      
+      // Update migration stats based on most recent plans
+      studentPlans.forEach(pl => {
+        if (pl.migration_status === 'completed') migrationStats.completed++;
+        else if (pl.migration_status === 'failed') migrationStats.failed++;
+        else migrationStats.pending++;
+      });
+
       const dietas = studentPlans.filter(pl => pl.tipo === 'dieta');
       const treinos = studentPlans.filter(pl => pl.tipo === 'treino');
       const studentAssessments = assessments.filter(a => a.student_id === p.user_id);
@@ -171,7 +180,7 @@ const Consultoria = () => {
     });
 
     setStudents(summaries.sort((a, b) => a.nome.localeCompare(b.nome)));
-    setTotals({ dietas: totalDietas, treinos: totalTreinos, fichas: totalFichas, fichasPendentes: totalFichasPendentes, alunos: profiles.length, dietasVencidas, treinosVencidos });
+    setTotals({ dietas: totalDietas, treinos: totalTreinos, fichas: totalFichas, fichasPendentes: totalFichasPendentes, alunos: profiles.length, dietasVencidas, treinosVencidos, migration: migrationStats });
     setLoading(false);
   };
 
@@ -737,6 +746,43 @@ const Consultoria = () => {
         {/* Tab content */}
         {tab === 'dashboard' && (
           <div className="space-y-4">
+            <EngagementOverviewCards />
+            
+            {/* Telemetria de Migração Estrutural */}
+            <Card className="glass-card">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-primary" />
+                  Status da Migração Estrutural (Treinos)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase text-muted-foreground">JSON Ativo</p>
+                    <p className="text-xl font-bold text-emerald-500">{(totals as any).migration.completed}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase text-muted-foreground">MD Fallback</p>
+                    <p className="text-xl font-bold text-orange-500">{(totals as any).migration.pending}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase text-muted-foreground">Falhas</p>
+                    <p className="text-xl font-bold text-destructive">{(totals as any).migration.failed}</p>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <Progress 
+                    value={((totals as any).migration.completed / (Math.max(1, (totals as any).migration.completed + (totals as any).migration.pending + (totals as any).migration.failed))) * 100} 
+                    className="h-1.5"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-2">
+                    A IA prioriza JSON estruturado. Planos antigos ou em fallback usam Markdown.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* KPIs principais */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {dashboardCards.map(stat => (
