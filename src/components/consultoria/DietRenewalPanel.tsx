@@ -267,17 +267,82 @@ const DietRenewalPanel: React.FC = () => {
     }
   };
 
+  const filteredPlans = useMemo(() => {
+    let list = [...plans].map(p => {
+      const remaining = daysRemaining(p);
+      const analysis = analyses[p.id];
+      const draft = drafts[p.id];
+      
+      let effectiveStatus = p.cycle_status;
+      if (remaining <= 0 && p.cycle_status !== 'renovado') {
+        effectiveStatus = 'vencido';
+      } else if (draft && p.cycle_status !== 'renovado') {
+        effectiveStatus = 'pronto_revisar';
+      }
+
+      let priorityScore = 0;
+      if (effectiveStatus === 'vencido') priorityScore += 1000;
+      if (remaining <= 5) priorityScore += 500;
+      if (analysis?.priority === 'alta') priorityScore += 300;
+      if (effectiveStatus === 'pronto_revisar') priorityScore += 200;
+      
+      return { ...p, effectiveStatus, remaining, priorityScore };
+    });
+
+    list.sort((a, b) => b.priorityScore - a.priorityScore);
+
+    if (filter !== 'todos') {
+      return list.filter(p => {
+        const analysis = analyses[p.id];
+        const draft = drafts[p.id];
+        switch(filter) {
+          case 'solicitar_dados': return analysis?.decision_type === 'solicitar_dados';
+          case 'manter': return analysis?.decision_type === 'manter';
+          case 'ajustar': return analysis?.decision_type === 'ajustar';
+          case 'nova_dieta': return analysis?.decision_type === 'nova_dieta';
+          case 'rascunho': return !!draft;
+          case 'vencidos': return p.effectiveStatus === 'vencido';
+          default: return true;
+        }
+      });
+    }
+    return list;
+  }, [plans, analyses, drafts, filter]);
+
   return (
     <Card className="glass-card">
-      <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          Renovação Inteligente de Dietas
-          <Badge variant="outline" className="ml-2 text-[10px]">IA</Badge>
-        </CardTitle>
-        <p className="text-xs text-muted-foreground mt-1">
-          A IA analisa aderência, peso, registros e objetivo para sugerir manter, ajustar ou renovar a dieta quando faltam ≤ 15 dias.
-        </p>
+      <CardHeader className="pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-1">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Renovação Inteligente de Dietas
+              <Badge variant="outline" className="ml-2 text-[10px]">IA</Badge>
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Priorização automática por vencimento, falta de dados e aderência.
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
+            <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
+            {(['todos', 'solicitar_dados', 'rascunho', 'nova_dieta', 'ajustar', 'vencidos'] as const).map(f => (
+              <Button
+                key={f}
+                variant={filter === f ? 'default' : 'outline'}
+                size="sm"
+                className="h-7 text-[10px] px-2 whitespace-nowrap"
+                onClick={() => setFilter(f)}
+              >
+                {f === 'todos' ? 'Todos' : 
+                 f === 'solicitar_dados' ? 'Solicitar Dados' :
+                 f === 'rascunho' ? 'Rascunhos' :
+                 f === 'nova_dieta' ? 'Nova Dieta' :
+                 f === 'ajustar' ? 'Ajustar' : 'Vencidos'}
+              </Button>
+            ))}
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         {loading ? (
@@ -285,43 +350,68 @@ const DietRenewalPanel: React.FC = () => {
             <Skeleton className="h-20 w-full" />
             <Skeleton className="h-20 w-full" />
           </div>
-        ) : plans.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhuma dieta na janela de pré-renovação no momento.</p>
+        ) : filteredPlans.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">Nenhuma dieta encontrada com este filtro.</p>
         ) : (
           <div className="space-y-3">
-            {plans.map((plan) => {
-              const remaining = daysRemaining(plan);
-              const status = plan.cycle_status;
-              const meta = statusMeta[status];
+            {filteredPlans.map((plan: any) => {
+              const remaining = plan.remaining;
+              const status = plan.effectiveStatus;
+              const meta = statusMeta[status as CycleStatus];
               const analysis = analyses[plan.id];
               const draft = drafts[plan.id];
               const isExpanded = expanded === plan.id;
+              const priorityColor = analysis?.priority === 'alta' ? 'text-destructive' : analysis?.priority === 'media' ? 'text-amber-500' : 'text-emerald-500';
+
               return (
-                <Card key={plan.id} className="bg-secondary/30 border-border/50">
+                <Card key={plan.id} className={cn("bg-secondary/30 border-border/50 transition-all hover:bg-secondary/40", analysis?.priority === 'alta' && "border-destructive/30")}>
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-semibold text-sm truncate">{plan.student_name}</p>
-                          <Badge variant="outline" className={`text-[10px] ${meta.cls}`}>
+                          <Badge variant="outline" className={cn("text-[9px] font-bold uppercase", meta.cls)}>
                             {meta.label}
                           </Badge>
+                          {analysis?.priority && (
+                            <Badge variant="secondary" className={cn("text-[9px] uppercase font-bold", priorityColor)}>
+                              Prioridade {analysis.priority}
+                            </Badge>
+                          )}
                           <span className="text-xs text-muted-foreground">v{plan.version}</span>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-0.5 truncate">{plan.titulo}</p>
-                        <div className="flex items-center gap-3 mt-2 text-xs">
-                          <span className={remaining <= 0 ? 'text-destructive font-medium' : remaining <= 15 ? 'text-amber-500 font-medium' : 'text-muted-foreground'}>
-                            {remaining > 0 ? `${remaining}d restantes` : `Vencido há ${Math.abs(remaining)}d`}
-                          </span>
-                          {analysis && (
-                            <span className={`font-medium ${actionMeta[analysis.suggested_action].cls}`}>
-                              IA sugere: {actionMeta[analysis.suggested_action].label}
+                        
+                        <div className="flex items-center gap-2 mt-1">
+                          <p className="text-xs text-muted-foreground truncate max-w-[200px]">{plan.titulo}</p>
+                          {analysis?.summary_reason && (
+                            <span className="text-[10px] bg-primary/5 text-primary px-1.5 py-0.5 rounded border border-primary/20 italic">
+                              "{analysis.summary_reason}"
                             </span>
                           )}
-                          {plan.last_analysis_at && (
-                            <span className="text-muted-foreground">
-                              Última análise: {format(new Date(plan.last_analysis_at), "dd/MM HH:mm", { locale: ptBR })}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 mt-3 text-[10px] sm:text-xs">
+                          <div className="flex items-center gap-1">
+                            <Clock className={cn("h-3 w-3", remaining <= 5 ? "text-destructive" : "text-muted-foreground")} />
+                            <span className={remaining <= 0 ? 'text-destructive font-bold' : remaining <= 15 ? 'text-amber-500 font-medium' : 'text-muted-foreground'}>
+                              {remaining > 0 ? `${remaining}d restantes` : `Vencido há ${Math.abs(remaining)}d`}
                             </span>
+                          </div>
+                          
+                          {analysis && (
+                            <div className="flex items-center gap-2 border-l border-border/50 pl-3">
+                              <span className={cn("font-bold flex items-center gap-1", actionMeta[analysis.suggested_action].cls)}>
+                                <Sparkles className="h-3 w-3" />
+                                Sugestão IA: {actionMeta[analysis.suggested_action].label}
+                              </span>
+                              
+                              {analysis.confidence_score !== undefined && (
+                                <div className="flex items-center gap-1 text-muted-foreground">
+                                  <BarChart3 className="h-3 w-3" />
+                                  <span>{Math.round(analysis.confidence_score * 100)}% confiança</span>
+                                </div>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>
