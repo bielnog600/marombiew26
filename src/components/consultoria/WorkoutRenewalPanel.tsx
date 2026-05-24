@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
-import { Sparkles, RefreshCw, Check, FileEdit, FileText, AlertTriangle, ChevronDown, ChevronUp, Loader2, GitCompare, Wand2, Dumbbell, BarChart3, Clock, Filter, Trash2, TrendingUp, TrendingDown, Minus, Activity, Zap, ClipboardCheck, Bell, Phone } from 'lucide-react';
+import { Sparkles, RefreshCw, Check, FileEdit, FileText, AlertTriangle, ChevronDown, ChevronUp, Loader2, GitCompare, Wand2, Dumbbell, BarChart3, Clock, Filter, Trash2, TrendingUp, TrendingDown, Minus, Activity, Zap, ClipboardCheck, Bell, Phone, Send, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
