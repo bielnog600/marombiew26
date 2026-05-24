@@ -387,7 +387,7 @@ serve(async (req) => {
         if (hp.tendencia_peso) {
           const t = hp.tendencia_peso;
           contextMessage += `\n--- TENDÊNCIA DE PESO/COMPOSIÇÃO ---\n`;
-          contextMessage += `Peso atual: ${t.peso_atual ?? '?'}kg | Variação: ${t.variacao_kg > 0 ? '+' : ''}${t.variacao_kg}kg | Direção: ${t.direcao}\n`;
+          contextMessage += `Peso atual: ${t.peso_atual ?? '?'}kg | Variação: ${t.variacao_kg > 0 ? '+' : ''}${t.variacao_kg}kg em ${t.intervalo_dias ?? '?'} dias | Direção: ${t.direcao} | Velocidade: ${t.velocidade_kg_semana ?? 0}kg/sem | Relevância: ${t.relevancia ?? '?'}\n`;
           if (Array.isArray(t.historico) && t.historico.length > 0) {
             contextMessage += `Histórico (mais recente primeiro):\n`;
             t.historico.forEach((h: any) => {
@@ -404,9 +404,12 @@ serve(async (req) => {
         if (hp.aderencia_recente) {
           const a = hp.aderencia_recente;
           contextMessage += `\n--- ADERÊNCIA (últimos 14 dias) ---\n`;
-          contextMessage += `Dias com registro: ${a.dias_com_registro}/${a.dias_total}\n`;
+          contextMessage += `Dias com registro: ${a.dias_com_registro}/${a.dias_total} (${a.dias_com_registro_pct ?? '?'}%)\n`;
           contextMessage += `Refeições marcadas: ${a.refeicoes_marcadas}/${a.refeicoes_esperadas} (${a.percentual_aderencia}%)\n`;
           contextMessage += `Água média: ${a.agua_media_copos_dia} copos/dia\n`;
+          if (Array.isArray(a.refeicoes_mais_falhadas) && a.refeicoes_mais_falhadas.length > 0) {
+            contextMessage += `Refeições mais falhadas (índice → falhadas): ${a.refeicoes_mais_falhadas.map((r: any) => `#${r.indice}: ${r.falhadas}/${a.dias_com_registro}`).join(' | ')}\n`;
+          }
           if (a.percentual_aderencia < 60) {
             contextMessage += `⚠️ ADERÊNCIA BAIXA — simplifique a dieta e sinalize na justificativa.\n`;
           }
@@ -430,8 +433,25 @@ serve(async (req) => {
           const c = hp.confianca_geracao;
           contextMessage += `\n--- SCORE DE CONFIANÇA DA GERAÇÃO ---\n`;
           contextMessage += `Score: ${c.score}/100\n`;
-          contextMessage += `Motivos: ${(c.motivos || []).join(', ') || 'dados limitados'}\n`;
+          if (Array.isArray(c.factors) && c.factors.length > 0) {
+            contextMessage += `Fatores:\n`;
+            for (const f of c.factors) {
+              const sym = f.status === 'positive' ? '✓' : f.status === 'negative' ? '✗' : '·';
+              contextMessage += `  ${sym} ${f.label} (peso ${f.weight})\n`;
+            }
+          } else {
+            contextMessage += `Motivos: ${(c.motivos || []).join(', ') || 'dados limitados'}\n`;
+          }
           contextMessage += `Use este score na seção final "Confiança da Geração".\n`;
+        }
+
+        if (hp.decisao_recomendada) {
+          contextMessage += `\n--- DECISÃO RECOMENDADA PELO SISTEMA (heurística) ---\n`;
+          contextMessage += `Sugestão: ${String(hp.decisao_recomendada).toUpperCase()}\n`;
+          if (Array.isArray(hp.motivos_decisao) && hp.motivos_decisao.length > 0) {
+            contextMessage += `Motivos:\n${hp.motivos_decisao.map((m: string) => `  - ${m}`).join('\n')}\n`;
+          }
+          contextMessage += `Você pode discordar, mas precisa justificar explicitamente na "Justificativa Técnica".\n`;
         }
       }
 
