@@ -12,6 +12,7 @@ import DietDraftComparisonDialog from './DietDraftComparisonDialog';
 import WhatsAppDataRequestButton from './WhatsAppDataRequestButton';
 import QuickWeightLogDialog from './QuickWeightLogDialog';
 import { cn } from '@/lib/utils';
+import DietCheckinDialog from './DietCheckinDialog';
 
 type CycleStatus =
   | 'em_dia'
