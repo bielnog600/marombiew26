@@ -37,8 +37,6 @@ async function gatherContext(supabase: any, plan: any) {
   const elapsed = daysBetween(created, now);
   const remaining = cycleDays - elapsed;
 
-  // Check Low Cost flag — Low Cost flow uses a longer window (last 28 days = 2-4 weeks)
-  // to avoid making decisions based on a single isolated session.
   const { data: spFlag } = await supabase
     .from("students_profile")
     .select("low_cost")
@@ -46,8 +44,8 @@ async function gatherContext(supabase: any, plan: any) {
     .maybeSingle();
   const isLowCost = !!spFlag?.low_cost;
 
-  // Standard window: 21 days. Low Cost: 28 days (last 2-4 weeks).
-  const windowDays = isLowCost ? 28 : 21;
+  // Ampliando a janela para 30 dias para pegar volume e tendências por grupo
+  const windowDays = 30;
   const since = new Date(now);
   since.setDate(since.getDate() - windowDays);
   const sinceIso = since.toISOString();
@@ -219,6 +217,25 @@ async function gatherContext(supabase: any, plan: any) {
       .slice(0, 10);
   }
 
+  // Análise por grupo muscular
+  const muscleGroupStats = new Map<string, { sets: number; volume: number; loadTrends: number[] }>();
+  (setLogs ?? []).forEach((log: any) => {
+    const mg = log.muscle_group || "Outros";
+    if (!muscleGroupStats.has(mg)) muscleGroupStats.set(mg, { sets: 0, volume: 0, loadTrends: [] });
+    const stat = muscleGroupStats.get(mg)!;
+    stat.sets += 1;
+    stat.volume += (Number(log.weight_kg) || 0) * (Number(log.reps) || 0);
+    if (log.weight_kg) stat.loadTrends.push(Number(log.weight_kg));
+  });
+
+  const muscleGroups = Array.from(muscleGroupStats.entries()).map(([name, data]) => ({
+    name,
+    total_sets: data.sets,
+    avg_sets_per_week: Number((data.sets / (windowDays / 7)).toFixed(1)),
+    volume_total: data.volume,
+    load_trend: trend(data.loadTrends),
+  }));
+
   return {
     student_name: profile?.nome ?? "",
     days_elapsed: elapsed,
@@ -238,6 +255,7 @@ async function gatherContext(supabase: any, plan: any) {
     distinct_exercises: distinctExercises,
     fatigue_signal: fatigueSignal,
     monotony_risk: monotonyRisk,
+    muscle_groups: muscleGroups,
     objetivo: sp?.objetivo ?? null,
     observacoes: sp?.observacoes ?? null,
     restricoes: sp?.restricoes ?? null,
@@ -291,8 +309,10 @@ ${lowCostNote}`;
             properties: {
               suggested_action: {
                 type: "string",
-                enum: ["manter", "ajustar", "gerar_novo", "solicitar_dados"],
+                enum: ["manter", "ajustar", "trocar_exercicios", "deload", "renovar_bloco", "solicitar_dados"],
               },
+              summary_reason: { type: "string", description: "Motivo resumido em 3-5 palavras (ex: 'estagnação em membros superiores', 'baixa aderência/falta sessões')." },
+              confidence_score: { type: "number", description: "Score de 0 a 1 indicando a qualidade dos dados para esta análise." },
               rationale: { type: "string", description: "Justificativa em 2-4 frases, em português, tom técnico." },
               monotony_risk: { type: "string", enum: ["baixo", "medio", "alto"] },
               fatigue_signal: { type: "string", enum: ["baixa", "media", "alta"] },
@@ -303,7 +323,7 @@ ${lowCostNote}`;
                 description: "Lista curta de ajustes concretos (máx 5).",
               },
             },
-            required: ["suggested_action", "rationale", "monotony_risk", "fatigue_signal", "priority"],
+            required: ["suggested_action", "rationale", "summary_reason", "confidence_score", "monotony_risk", "fatigue_signal", "priority"],
             additionalProperties: false,
           },
         },
@@ -685,7 +705,17 @@ async function analyzePlan(supabase: any, planId: string) {
       monotony_risk: ai.monotony_risk ?? ctx.monotony_risk,
       data_quality: ctx.data_quality,
       suggested_action: ai.suggested_action,
+      decision_type: ai.suggested_action,
+      summary_reason: ai.summary_reason,
+      confidence_score: ai.confidence_score,
+      priority: ai.priority,
       rationale: ai.rationale,
+      volume_analysis: {
+        muscle_groups: ctx.muscle_groups,
+        avg_rpe: ctx.avg_rpe,
+        fatigue_signal: ai.fatigue_signal,
+        data_quality: ctx.data_quality,
+      },
       context_snapshot: { ...ctx, ai },
     })
     .select()

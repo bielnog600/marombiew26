@@ -1964,21 +1964,26 @@ export type Database = {
           applied_at: string | null
           avg_rpe: number | null
           completion_rate: number | null
+          confidence_score: number | null
           context_snapshot: Json
           created_at: string
           data_quality: string
           days_remaining: number
+          decision_type: string | null
           draft_plan_id: string | null
           fatigue_signal: string | null
           id: string
           load_progression: string | null
           monotony_risk: string | null
           plan_id: string
+          priority: string | null
           rationale: string
           reps_progression: string | null
           session_frequency: number | null
           student_id: string
           suggested_action: string
+          summary_reason: string | null
+          volume_analysis: Json | null
           volume_trend: string | null
         }
         Insert: {
@@ -1987,21 +1992,26 @@ export type Database = {
           applied_at?: string | null
           avg_rpe?: number | null
           completion_rate?: number | null
+          confidence_score?: number | null
           context_snapshot?: Json
           created_at?: string
           data_quality?: string
           days_remaining: number
+          decision_type?: string | null
           draft_plan_id?: string | null
           fatigue_signal?: string | null
           id?: string
           load_progression?: string | null
           monotony_risk?: string | null
           plan_id: string
+          priority?: string | null
           rationale: string
           reps_progression?: string | null
           session_frequency?: number | null
           student_id: string
           suggested_action: string
+          summary_reason?: string | null
+          volume_analysis?: Json | null
           volume_trend?: string | null
         }
         Update: {
@@ -2010,21 +2020,26 @@ export type Database = {
           applied_at?: string | null
           avg_rpe?: number | null
           completion_rate?: number | null
+          confidence_score?: number | null
           context_snapshot?: Json
           created_at?: string
           data_quality?: string
           days_remaining?: number
+          decision_type?: string | null
           draft_plan_id?: string | null
           fatigue_signal?: string | null
           id?: string
           load_progression?: string | null
           monotony_risk?: string | null
           plan_id?: string
+          priority?: string | null
           rationale?: string
           reps_progression?: string | null
           session_frequency?: number | null
           student_id?: string
           suggested_action?: string
+          summary_reason?: string | null
+          volume_analysis?: Json | null
           volume_trend?: string | null
         }
         Relationships: []
