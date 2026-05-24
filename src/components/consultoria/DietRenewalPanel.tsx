@@ -19,9 +19,12 @@ type CycleStatus =
   | 'aguardando_dados'
   | 'renovacao_sugerida'
   | 'rascunho_gerado'
-  | 'renovado';
+  | 'pronto_revisar'
+  | 'renovado'
+  | 'vencido';
 
 type SuggestedAction = 'manter' | 'ajustar' | 'gerar_nova' | 'solicitar_dados';
+type DecisionType = 'manter' | 'ajustar' | 'nova_dieta' | 'solicitar_dados';
 
 interface PlanRow {
   id: string;
