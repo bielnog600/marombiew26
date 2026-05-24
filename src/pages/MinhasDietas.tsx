@@ -542,66 +542,6 @@ const MinhasDietas = () => {
           </Card>
         )}
 
-        {/* Extras: ajustes do protocolo, fitoterapia, suplementação, emagrecimento rápido, dicas */}
-        {extraSections.length > 0 && (
-          <div className="space-y-3 pt-2">
-            {extraSections.map((s, i) => {
-              const Icon = getExtraIcon(s);
-              const body = cleanMarkdownContent(s.content || '').replace(/\n{3,}/g, '\n\n');
-              const parsedTable = extractLooseMarkdownTable(s.content || '');
-              const title = (s.title || '').trim() || (
-                s.type === 'text' ? body.split('\n')[0].slice(0, 80) : 'Informações'
-              );
-              return (
-                <Card key={`extra-${i}`} className="border-accent/30 bg-gradient-to-br from-accent/10 to-secondary/30">
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-2">
-                      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                      <div className="flex-1 min-w-0">
-                        {title && (
-                          <h3 className="text-sm font-bold text-foreground mb-2">{title}</h3>
-                        )}
-                        {parsedTable ? (
-                          <div className="overflow-hidden rounded-lg border border-border/60 bg-background/40">
-                            <Table className="text-xs">
-                              <TableHeader>
-                                <TableRow className="hover:bg-transparent">
-                                  {parsedTable.headers.map((header, headerIndex) => (
-                                    <TableHead key={`${header}-${headerIndex}`} className="h-9 px-3 text-xs font-semibold">
-                                      {header}
-                                    </TableHead>
-                                  ))}
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {parsedTable.rows.map((row, rowIndex) => (
-                                  <TableRow key={`row-${rowIndex}`}>
-                                    {row.map((cell, cellIndex) => (
-                                      <TableCell
-                                        key={`cell-${rowIndex}-${cellIndex}`}
-                                        className={`px-3 py-2 align-top ${cellIndex === 0 ? 'font-medium text-foreground' : 'text-muted-foreground'}`}
-                                      >
-                                        {cell || '—'}
-                                      </TableCell>
-                                    ))}
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </div>
-                        ) : (
-                          <div className="prose prose-sm dark:prose-invert max-w-none text-sm text-muted-foreground [&_strong]:text-foreground [&_strong]:font-semibold [&_table]:text-xs [&_table]:w-full [&_th]:bg-muted [&_th]:p-1.5 [&_td]:p-1.5 [&_td]:border [&_th]:border [&_table]:block [&_table]:overflow-x-auto">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
       </div>
 
       <ProtocolsDialog
