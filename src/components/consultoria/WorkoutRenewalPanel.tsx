@@ -31,10 +31,12 @@ interface PlanRow {
   student_id: string;
   titulo: string;
   conteudo: string;
+  conteudo_json?: any;
+  migration_status?: any;
   created_at: string;
   cycle_days: number;
   cycle_status: CycleStatus;
-  renewal_mode: 'manual' | 'semi_auto' | 'auto';
+  renewal_mode: 'manual' | 'semi_auto' | 'auto_renewal_v2';
   version: number;
   is_draft: boolean;
   parent_plan_id: string | null;
