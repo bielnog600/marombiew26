@@ -37,8 +37,6 @@ async function gatherContext(supabase: any, plan: any) {
   const elapsed = daysBetween(created, now);
   const remaining = cycleDays - elapsed;
 
-  // Check Low Cost flag — Low Cost flow uses a longer window (last 28 days = 2-4 weeks)
-  // to avoid making decisions based on a single isolated session.
   const { data: spFlag } = await supabase
     .from("students_profile")
     .select("low_cost")
@@ -46,8 +44,8 @@ async function gatherContext(supabase: any, plan: any) {
     .maybeSingle();
   const isLowCost = !!spFlag?.low_cost;
 
-  // Standard window: 21 days. Low Cost: 28 days (last 2-4 weeks).
-  const windowDays = isLowCost ? 28 : 21;
+  // Ampliando a janela para 30 dias para pegar volume e tendências por grupo
+  const windowDays = 30;
   const since = new Date(now);
   since.setDate(since.getDate() - windowDays);
   const sinceIso = since.toISOString();
