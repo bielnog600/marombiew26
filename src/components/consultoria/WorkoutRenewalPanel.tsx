@@ -60,6 +60,21 @@ interface AnalysisRow {
   monotony_risk: string | null;
   data_quality: string;
   suggested_action: SuggestedAction;
+  decision_type?: DecisionType;
+  priority?: 'baixa' | 'media' | 'alta';
+  confidence_score?: number;
+  summary_reason?: string;
+  volume_analysis?: {
+    muscle_groups: Array<{
+      name: string;
+      total_sets: number;
+      avg_sets_per_week: number;
+      volume_total: number;
+      load_trend: string;
+    }>;
+    avg_rpe: number | null;
+    fatigue_signal: string | null;
+  };
   rationale: string;
   created_at: string;
 }
