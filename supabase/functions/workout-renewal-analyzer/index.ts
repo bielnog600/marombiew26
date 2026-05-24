@@ -358,6 +358,7 @@ ${lowCostNote}`;
               },
               summary_reason: { type: "string", description: "Motivo resumido em 3-5 palavras (ex: 'estagnação em membros superiores', 'baixa aderência/falta sessões')." },
               confidence_score: { type: "number", description: "Score de 0 a 1 indicando a qualidade dos dados para esta análise." },
+              registration_quality: { type: "string", enum: ["boa", "incompleta", "insuficiente"], description: "Qualidade do registro no app pelo aluno." },
               rationale: { type: "string", description: "Justificativa em 2-4 frases, em português, tom técnico." },
               monotony_risk: { type: "string", enum: ["baixo", "medio", "alto"] },
               fatigue_signal: { type: "string", enum: ["baixa", "media", "alta"] },
@@ -381,7 +382,7 @@ ${lowCostNote}`;
                 description: "Alternativas avaliadas antes de sugerir redução de frequência (ex: 'reduzir volume por sessão', 'trocar split')."
               }
             },
-            required: ["suggested_action", "rationale", "summary_reason", "confidence_score", "monotony_risk", "fatigue_signal", "priority"],
+            required: ["suggested_action", "rationale", "summary_reason", "confidence_score", "registration_quality", "monotony_risk", "fatigue_signal", "priority"],
             additionalProperties: false,
           },
         },
