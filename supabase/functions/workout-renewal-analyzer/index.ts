@@ -705,7 +705,17 @@ async function analyzePlan(supabase: any, planId: string) {
       monotony_risk: ai.monotony_risk ?? ctx.monotony_risk,
       data_quality: ctx.data_quality,
       suggested_action: ai.suggested_action,
+      decision_type: ai.suggested_action,
+      summary_reason: ai.summary_reason,
+      confidence_score: ai.confidence_score,
+      priority: ai.priority,
       rationale: ai.rationale,
+      volume_analysis: {
+        muscle_groups: ctx.muscle_groups,
+        avg_rpe: ctx.avg_rpe,
+        fatigue_signal: ai.fatigue_signal,
+        data_quality: ctx.data_quality,
+      },
       context_snapshot: { ...ctx, ai },
     })
     .select()
