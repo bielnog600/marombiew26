@@ -294,31 +294,56 @@ const WorkoutRenewalPanel: React.FC = () => {
     }
   };
 
+  const buildCheckinWhatsAppUrl = (plan: PlanRow) => {
+    const firstName = (plan.student_name || 'aluno').split(' ')[0];
+    const msg = `Oi ${firstName}! 💪\n\nTe enviei no app um check-in rápido sobre o último protocolo de treino. Quando puder, abre o app e responde — leva 1 minutinho e me ajuda a ajustar seu plano com mais precisão. 🙌`;
+    const cleaned = (plan.student_phone ?? '').replace(/\D/g, '');
+    const withDdi = cleaned.length === 10 || cleaned.length === 11 ? `55${cleaned}` : cleaned;
+    return withDdi
+      ? `https://wa.me/${withDdi}?text=${encodeURIComponent(msg)}`
+      : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  };
+
   const handleRequestAppCheckin = async (plan: PlanRow, openWhatsApp: boolean = false) => {
+    // Abrir o WhatsApp ANTES do await evita bloqueio de popup pelo navegador
+    let waWindow: Window | null = null;
+    if (openWhatsApp) {
+      waWindow = window.open(buildCheckinWhatsAppUrl(plan), '_blank', 'noopener,noreferrer');
+    }
+
     setRequestingCheckin(plan.id);
     try {
       const { error } = await supabase
         .from('ai_plans')
         .update({ pending_checkin: true })
         .eq('id', plan.id);
-      
+
       if (error) throw error;
-      
-      toast.success(`Check-in solicitado via App para ${plan.student_name}`);
-      
-      if (openWhatsApp) {
-        const msg = `Olá! Te enviei no app um check-in rápido sobre o último protocolo de treino. Quando puder, abre o app e responde para eu analisar e ajustar seu plano com mais precisão.`;
-        const url = `https://wa.me/${plan.student_phone?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`;
-        window.open(url, '_blank');
-      }
-      
+
+      toast.success(
+        openWhatsApp
+          ? `Check-in enviado no app e WhatsApp aberto para ${plan.student_name}`
+          : `Check-in solicitado via App para ${plan.student_name}`
+      );
+
       setCheckinConfirmId(null);
       await load();
     } catch (e: any) {
+      // Se a atualização falhar e já tínhamos aberto a aba, fecha
+      if (waWindow) try { waWindow.close(); } catch {}
       toast.error('Erro ao solicitar check-in: ' + e.message);
     } finally {
       setRequestingCheckin(null);
     }
+  };
+
+  const handleRemindCheckinWhatsApp = (plan: PlanRow) => {
+    if (!plan.student_phone) {
+      toast.error('Aluno sem telefone cadastrado.');
+      return;
+    }
+    window.open(buildCheckinWhatsAppUrl(plan), '_blank', 'noopener,noreferrer');
+    toast.success('WhatsApp aberto com lembrete do check-in.');
   };
 
   const handleWhatsAppRequest = (plan: PlanRow) => {
@@ -504,13 +529,23 @@ const WorkoutRenewalPanel: React.FC = () => {
                                   <X className="h-3 w-3" />
                                 </Button>
                               </div>
+                            ) : plan.pending_checkin && !checkins[plan.student_id] ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-[9px] gap-1 px-2 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-600"
+                                onClick={() => handleRemindCheckinWhatsApp(plan)}
+                                title={plan.student_phone ? 'Enviar lembrete no WhatsApp' : 'Aluno sem telefone cadastrado'}
+                              >
+                                <Phone className="h-3 w-3" />
+                                Lembrar WhatsApp
+                              </Button>
                             ) : (
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
+                              <Button
+                                variant="outline"
+                                size="sm"
                                 className="h-7 text-[9px] gap-1 px-2 border-orange-500/30 hover:bg-orange-500/10 text-orange-600"
                                 onClick={() => setCheckinConfirmId(plan.id)}
-                                disabled={plan.pending_checkin}
                               >
                                 <Bell className="h-3 w-3" />
                                 Solicitar Feedback
