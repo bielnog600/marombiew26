@@ -125,6 +125,8 @@ const WorkoutRenewalPanel: React.FC = () => {
   const [checkinFor, setCheckinFor] = useState<PlanRow | null>(null);
   const [checkins, setCheckins] = useState<Record<string, any>>({});
   const [requestingCheckin, setRequestingCheckin] = useState<string | null>(null);
+  const [checkinConfirmId, setCheckinConfirmId] = useState<string | null>(null);
+
 
 
   const load = async () => {
@@ -292,7 +294,7 @@ const WorkoutRenewalPanel: React.FC = () => {
     }
   };
 
-  const handleRequestAppCheckin = async (plan: PlanRow) => {
+  const handleRequestAppCheckin = async (plan: PlanRow, openWhatsApp: boolean = false) => {
     setRequestingCheckin(plan.id);
     try {
       const { error } = await supabase
@@ -303,6 +305,14 @@ const WorkoutRenewalPanel: React.FC = () => {
       if (error) throw error;
       
       toast.success(`Check-in solicitado via App para ${plan.student_name}`);
+      
+      if (openWhatsApp) {
+        const msg = `Olá! Te enviei no app um check-in rápido sobre o último protocolo de treino. Quando puder, abre o app e responde para eu analisar e ajustar seu plano com mais precisão.`;
+        const url = `https://wa.me/${plan.student_phone?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`;
+        window.open(url, '_blank');
+      }
+      
+      setCheckinConfirmId(null);
       await load();
     } catch (e: any) {
       toast.error('Erro ao solicitar check-in: ' + e.message);
@@ -316,6 +326,7 @@ const WorkoutRenewalPanel: React.FC = () => {
     const url = `https://wa.me/${plan.student_phone?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
   };
+
 
   const filteredPlans = useMemo(() => {
 
@@ -462,27 +473,61 @@ const WorkoutRenewalPanel: React.FC = () => {
                           </div>
 
                           <div className="flex gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="h-7 text-[9px] gap-1 px-2 border-orange-500/30 hover:bg-orange-500/10 text-orange-600"
-                              onClick={() => handleRequestAppCheckin(plan)}
-                              disabled={requestingCheckin === plan.id || plan.pending_checkin}
-                            >
-                              {requestingCheckin === plan.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Bell className="h-3 w-3" />}
-                              Solicitar Check-in App
-                            </Button>
+                            {checkinConfirmId === plan.id ? (
+                              <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-300">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="h-7 text-[9px] px-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 border-blue-500/30"
+                                  onClick={() => handleRequestAppCheckin(plan, false)}
+                                  disabled={requestingCheckin === plan.id}
+                                >
+                                  {requestingCheckin === plan.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3 mr-1" />}
+                                  Apenas no App
+                                </Button>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="h-7 text-[9px] px-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 border-emerald-500/30"
+                                  onClick={() => handleRequestAppCheckin(plan, true)}
+                                  disabled={requestingCheckin === plan.id}
+                                >
+                                  {requestingCheckin === plan.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Phone className="h-3 w-3 mr-1" />}
+                                  App + WhatsApp
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-7 w-7 p-0"
+                                  onClick={() => setCheckinConfirmId(null)}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="h-7 text-[9px] gap-1 px-2 border-orange-500/30 hover:bg-orange-500/10 text-orange-600"
+                                onClick={() => setCheckinConfirmId(plan.id)}
+                                disabled={plan.pending_checkin}
+                              >
+                                <Bell className="h-3 w-3" />
+                                Solicitar Feedback
+                              </Button>
+                            )}
 
                             <Button 
                               variant="outline" 
                               size="sm" 
-                              className="h-7 text-[9px] gap-1 px-2 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-600"
+                              className="h-7 text-[9px] gap-1 px-2 border-muted hover:bg-secondary/50"
                               onClick={() => handleWhatsAppRequest(plan)}
                             >
                               <Phone className="h-3 w-3" />
-                              WhatsApp
+                              Ligar/Falar
                             </Button>
                           </div>
+
                           
                           {analysis && (
                             <div className="flex items-center gap-2 border-l border-border/50 pl-3">
