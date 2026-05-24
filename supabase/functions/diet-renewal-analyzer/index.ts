@@ -104,6 +104,7 @@ async function gatherContext(supabase: any, plan: any) {
     observacoes: lastAssessment?.observacoes ?? null,
     restricoes: lastAssessment?.restricoes ?? null,
     last_readjustment: readjustments?.[0] ?? null,
+    recent_checkins: checkins ?? [],
     data_quality: dataQuality,
   };
 }
