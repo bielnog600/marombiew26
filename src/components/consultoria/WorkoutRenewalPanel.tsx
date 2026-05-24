@@ -100,7 +100,19 @@ const WorkoutRenewalPanel: React.FC = () => {
       .order('created_at', { ascending: false });
 
     const planList = (planRows ?? []) as PlanRow[];
-    const focus = planList.filter((p) => (daysRemaining(p) <= 15 || p.cycle_status !== 'em_dia') && p.cycle_status !== 'renovado');
+    
+    // 2. Only show the LATEST plan for each student if it's near renewal or has attention status
+    const studentLatestPlan = new Map<string, PlanRow>();
+    planList.forEach(p => {
+      if (!studentLatestPlan.has(p.student_id)) {
+        studentLatestPlan.set(p.student_id, p);
+      }
+    });
+
+    const focus = Array.from(studentLatestPlan.values()).filter((p) => 
+      (daysRemaining(p) <= 15 || p.cycle_status !== 'em_dia') && 
+      p.cycle_status !== 'renovado'
+    );
 
     const studentIds = Array.from(new Set(focus.map((p) => p.student_id)));
     const { data: profiles } = studentIds.length
