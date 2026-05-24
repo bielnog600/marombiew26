@@ -593,6 +593,16 @@ const WorkoutRenewalPanel: React.FC = () => {
                             <span className="ml-1.5">{analysis ? 'Reanalisar' : 'Analisar com IA'}</span>
                           </Button>
 
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-amber-600 border-amber-500/30 h-9"
+                            onClick={() => setCheckinFor(plan)}
+                          >
+                            <ClipboardCheck className="h-3.5 w-3.5" />
+                            <span className="ml-1.5">Check-in</span>
+                          </Button>
+
                           <WhatsAppDataRequestButton
                             phone={plan.student_phone}
                             studentName={plan.student_name}
