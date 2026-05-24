@@ -309,8 +309,10 @@ ${lowCostNote}`;
             properties: {
               suggested_action: {
                 type: "string",
-                enum: ["manter", "ajustar", "gerar_novo", "solicitar_dados"],
+                enum: ["manter", "ajustar", "trocar_exercicios", "deload", "renovar_bloco", "solicitar_dados"],
               },
+              summary_reason: { type: "string", description: "Motivo resumido em 3-5 palavras (ex: 'estagnação em membros superiores', 'baixa aderência/falta sessões')." },
+              confidence_score: { type: "number", description: "Score de 0 a 1 indicando a qualidade dos dados para esta análise." },
               rationale: { type: "string", description: "Justificativa em 2-4 frases, em português, tom técnico." },
               monotony_risk: { type: "string", enum: ["baixo", "medio", "alto"] },
               fatigue_signal: { type: "string", enum: ["baixa", "media", "alta"] },
