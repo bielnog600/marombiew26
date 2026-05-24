@@ -300,11 +300,14 @@ SUA ARQUITETURA DE ANÁLISE:
 3. ANÁLISE POR GRUPO MUSCULAR: Detecte grupos sobrecarregados ou subestimulados com base no volume e tendência de carga.
 4. DECISÃO DE AJUSTE: Use o histórico das últimas 2-4 semanas para decidir entre Manter, Ajustar, Trocar Exercícios ou Renovar Bloco.
 
-DÊ MUITO PESO AOS CHECK-INS SUBJETIVOS:
+DÊ MUITO PESO AOS CHECK-INS SUBJETIVOS RECENTES:
+- 'recent_checkins' contém os últimos feedbacks diretos do aluno.
 - Se 'intensidade_percebida' for 'muito_pesado' ou 'recuperacao' for 'ruim' -> SINAL DE OVERTRAINING. Recomende Deload ou Ajustar (reduzir volume/intensidade).
 - Se 'dores' for moderada/forte -> SINAL DE LESÃO/RESTRIÇÃO. Priorize trocar exercícios ou deload.
 - Se 'duracao_percebida' for 'muito_longo' ou 'falta_tempo' for true -> Recomende simplificar a ficha ou reduzir volume por sessão.
 - Se 'motivacao' for 'baixa' -> Tente trocar variações de exercícios para renovar estímulo psicológico.
+- Se o aluno relatou que algum exercício específico incomodou ('exercicios_incomodo'), sugira TROCAR esse exercício imediatamente.
+
 
 DIRETRIZES:
 - Se houver dor recorrente ou queda de performance com RPE alto -> SINAL DE OVERTRAINING/FADIGA. Recomende Deload ou Ajuste.
