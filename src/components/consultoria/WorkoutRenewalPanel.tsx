@@ -485,7 +485,7 @@ const WorkoutRenewalPanel: React.FC = () => {
                           <span className="text-xs text-muted-foreground">v{plan.version}</span>
                           {checkins[plan.student_id] && (
                             <Badge variant="secondary" className="text-[9px] bg-blue-500/10 text-blue-500 border-blue-500/20">
-                              Feedback: {checkins[plan.student_id].intensidade_percebida.replace('_', ' ')} / {checkins[plan.student_id].motivacao}
+                              Feedback: {(checkins[plan.student_id].intensidade_percebida ?? '—').replace('_', ' ')} / {checkins[plan.student_id].motivacao ?? '—'}
                             </Badge>
                           )}
                           {plan.pending_checkin && !plan.has_new_checkin && (
