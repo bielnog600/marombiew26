@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
-import { Sparkles, RefreshCw, Check, FileEdit, FileText, AlertTriangle, ChevronDown, ChevronUp, Loader2, GitCompare, Wand2, Dumbbell, BarChart3, Clock, Filter, Trash2, TrendingUp, TrendingDown, Minus, Activity, Zap, ClipboardCheck } from 'lucide-react';
+import { Sparkles, RefreshCw, Check, FileEdit, FileText, AlertTriangle, ChevronDown, ChevronUp, Loader2, GitCompare, Wand2, Dumbbell, BarChart3, Clock, Filter, Trash2, TrendingUp, TrendingDown, Minus, Activity, Zap, ClipboardCheck, Bell, Phone } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -124,6 +124,8 @@ const WorkoutRenewalPanel: React.FC = () => {
   const [filter, setFilter] = useState<string>('todos');
   const [checkinFor, setCheckinFor] = useState<PlanRow | null>(null);
   const [checkins, setCheckins] = useState<Record<string, any>>({});
+  const [requestingCheckin, setRequestingCheckin] = useState<string | null>(null);
+
 
   const load = async () => {
     setLoading(true);
@@ -290,7 +292,33 @@ const WorkoutRenewalPanel: React.FC = () => {
     }
   };
 
+  const handleRequestAppCheckin = async (plan: PlanRow) => {
+    setRequestingCheckin(plan.id);
+    try {
+      const { error } = await supabase
+        .from('ai_plans')
+        .update({ pending_checkin: true })
+        .eq('id', plan.id);
+      
+      if (error) throw error;
+      
+      toast.success(`Check-in solicitado via App para ${plan.student_name}`);
+      await load();
+    } catch (e: any) {
+      toast.error('Erro ao solicitar check-in: ' + e.message);
+    } finally {
+      setRequestingCheckin(null);
+    }
+  };
+
+  const handleWhatsAppRequest = (plan: PlanRow) => {
+    const msg = `Olá ${plan.student_name.split(' ')[0]}! Qual horário posso te ligar para falarmos do seu último protocolo de treino?`;
+    const url = `https://wa.me/${plan.student_phone?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
+  };
+
   const filteredPlans = useMemo(() => {
+
     let list = [...plans].map(p => {
       const remaining = daysRemaining(p);
       const analysis = analyses[p.id];
@@ -409,6 +437,11 @@ const WorkoutRenewalPanel: React.FC = () => {
                               Feedback: {checkins[plan.student_id].intensidade_percebida.replace('_', ' ')} / {checkins[plan.student_id].motivacao}
                             </Badge>
                           )}
+                          {plan.pending_checkin && (
+                            <Badge variant="secondary" className="text-[9px] bg-orange-500/10 text-orange-600 border-orange-500/20 animate-pulse">
+                              Check-in Pendente (App)
+                            </Badge>
+                          )}
                         </div>
                         
                         <div className="flex items-center gap-2 mt-1">
@@ -420,12 +453,35 @@ const WorkoutRenewalPanel: React.FC = () => {
                           )}
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-3 mt-3 text-[10px] sm:text-xs">
-                          <div className="flex items-center gap-1">
+                        <div className="flex flex-wrap items-center gap-2 mt-3 text-[10px] sm:text-xs">
+                          <div className="flex items-center gap-1 mr-2">
                             <Clock className={cn("h-3 w-3", remaining <= 5 ? "text-destructive" : "text-muted-foreground")} />
                             <span className={remaining <= 0 ? 'text-destructive font-bold' : remaining <= 15 ? 'text-amber-500 font-medium' : 'text-muted-foreground'}>
                               {remaining > 0 ? `${remaining}d restantes` : `Vencido há ${Math.abs(remaining)}d`}
                             </span>
+                          </div>
+
+                          <div className="flex gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="h-7 text-[9px] gap-1 px-2 border-orange-500/30 hover:bg-orange-500/10 text-orange-600"
+                              onClick={() => handleRequestAppCheckin(plan)}
+                              disabled={requestingCheckin === plan.id || plan.pending_checkin}
+                            >
+                              {requestingCheckin === plan.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Bell className="h-3 w-3" />}
+                              Solicitar Check-in App
+                            </Button>
+
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="h-7 text-[9px] gap-1 px-2 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-600"
+                              onClick={() => handleWhatsAppRequest(plan)}
+                            >
+                              <Phone className="h-3 w-3" />
+                              WhatsApp
+                            </Button>
                           </div>
                           
                           {analysis && (
@@ -433,6 +489,7 @@ const WorkoutRenewalPanel: React.FC = () => {
                               <span className={cn("font-bold flex items-center gap-1", actionMeta[analysis.suggested_action]?.cls)}>
                                 <Zap className="h-3 w-3" />
                                 Sugestão IA: {actionMeta[analysis.suggested_action]?.label || analysis.suggested_action}
+
                               </span>
                               
                               {analysis.confidence_score !== undefined && (

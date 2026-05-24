@@ -25,12 +25,18 @@ import { useEventTracking } from '@/hooks/useEventTracking';
 import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { fetchWithCache } from '@/lib/offlineCache';
+import WorkoutCheckinDialog from '@/components/consultoria/WorkoutCheckinDialog';
+import { Bell, Phone, Sparkles, Zap, Clock } from 'lucide-react';
+
 
 const MinhaArea = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<any>(null);
+  const [pendingWorkoutCheckin, setPendingWorkoutCheckin] = useState<any>(null);
+  const [showCheckinModal, setShowCheckinModal] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
+
   const [minLoadingDone, setMinLoadingDone] = useState(false);
   const [assessmentCount, setAssessmentCount] = useState(0);
   const [trainingDays, setTrainingDays] = useState<ParsedTrainingDay[]>([]);
@@ -96,12 +102,13 @@ const MinhaArea = () => {
   const loadData = React.useCallback(async () => {
     try {
       const [
-        { data: prof },
-        { data: avals },
-        { data: treino },
-        { data: dieta },
-        { data: tabata },
-        { data: cardio }
+        profRes,
+        avalsRes,
+        treinoRes,
+        dietaRes,
+        tabataRes,
+        cardioRes,
+        checkinRes
       ] = await Promise.all([
         fetchWithCache(`profile:${user!.id}`, async () => {
           return (await supabase.from('profiles').select('nome').eq('user_id', user!.id).maybeSingle()).data;
@@ -120,17 +127,31 @@ const MinhaArea = () => {
         }),
         fetchWithCache(`plan:cardio:${user!.id}`, async () => {
           return (await supabase.from('ai_plans').select('conteudo').eq('student_id', user!.id).eq('tipo', 'cardio').order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
-        })
+        }),
+        supabase.from('ai_plans').select('*').eq('student_id', user!.id).eq('tipo', 'treino').eq('pending_checkin', true).order('created_at', { ascending: false }).limit(1).maybeSingle()
       ]);
+
+      const prof = profRes.data;
+      const avals = avalsRes.data;
+      const treino = treinoRes.data;
+      const dieta = dietaRes.data;
+      const tabata = tabataRes.data;
+      const cardio = cardioRes.data;
 
       setProfile(prof);
       setAssessmentCount(avals?.length ?? 0);
+
+      if (checkinRes?.data) {
+        setPendingWorkoutCheckin(checkinRes.data);
+        setShowCheckinModal(true);
+      }
       
       if (treino) {
         setTrainingTitle(treino.titulo);
         const sections = parseTrainingSections(treino.conteudo);
         const allDays = sections.flatMap(s => s.days ?? []);
         setTrainingDays(allDays);
+
 
         const exerciseNames = allDays.flatMap(d => d.exercises.map(e => e.exercise.toUpperCase().trim()));
         const uniqueNames = [...new Set(exerciseNames)];
@@ -166,6 +187,7 @@ const MinhaArea = () => {
       if (dieta) {
         setDietTitle(dieta.titulo);
         const sections = parseSections(dieta.conteudo);
+
         setDietSections(sections);
         const allMeals = sections.flatMap(s => s.meals ?? []);
         setMeals(allMeals);
@@ -311,7 +333,20 @@ const MinhaArea = () => {
   return (
     <AppLayout>
       <div className="space-y-5 animate-fade-in">
+        {pendingWorkoutCheckin && (
+          <WorkoutCheckinDialog
+            open={showCheckinModal}
+            onOpenChange={setShowCheckinModal}
+            studentId={user!.id}
+            studentName={profile?.nome || ''}
+            workoutPlanId={pendingWorkoutCheckin.id}
+            mode="aluno"
+            onSuccess={() => setPendingWorkoutCheckin(null)}
+          />
+        )}
+
         {/* Welcome Header */}
+
         <div className="flex items-center gap-3">
           <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
             <span className="text-primary font-bold text-lg">{firstName?.[0]?.toUpperCase() || '?'}</span>

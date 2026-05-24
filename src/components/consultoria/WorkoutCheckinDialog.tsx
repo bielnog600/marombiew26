@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -16,6 +16,7 @@ interface Props {
   studentName: string;
   workoutPlanId?: string;
   onSuccess?: () => void;
+  mode?: 'consultor' | 'aluno';
 }
 
 const WorkoutCheckinDialog: React.FC<Props> = ({
@@ -24,7 +25,8 @@ const WorkoutCheckinDialog: React.FC<Props> = ({
   studentId,
   studentName,
   workoutPlanId,
-  onSuccess
+  onSuccess,
+  mode = 'consultor'
 }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -42,6 +44,7 @@ const WorkoutCheckinDialog: React.FC<Props> = ({
   const handleSubmit = async () => {
     setLoading(true);
     try {
+      // 1. Salvar o check-in
       const { error } = await supabase
         .from('workout_checkins')
         .insert({
@@ -55,7 +58,22 @@ const WorkoutCheckinDialog: React.FC<Props> = ({
 
       if (error) throw error;
 
-      toast.success('Check-in de treino registrado!');
+      // 2. Se for o aluno respondendo, limpar a flag de checkin pendente no plano
+      if (mode === 'aluno' && workoutPlanId) {
+        await supabase
+          .from('ai_plans')
+          .update({ pending_checkin: false })
+          .eq('id', workoutPlanId);
+      } else if (mode === 'aluno') {
+        // Fallback se não tiver workoutPlanId: limpa todos os pendentes desse aluno
+        await supabase
+          .from('ai_plans')
+          .update({ pending_checkin: false })
+          .eq('student_id', studentId)
+          .eq('tipo', 'treino');
+      }
+
+      toast.success(mode === 'aluno' ? 'Obrigado pelo seu feedback!' : 'Check-in de treino registrado!');
       onSuccess?.();
       onOpenChange(false);
     } catch (error: any) {
@@ -90,16 +108,18 @@ const WorkoutCheckinDialog: React.FC<Props> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ClipboardCheck className="h-5 w-5 text-blue-500" />
-            Check-in de Treino - {studentName}
+            Check-in de Treino {mode === 'consultor' ? `- ${studentName}` : ''}
           </DialogTitle>
           <DialogDescription>
-            Como o aluno sentiu o treino nos últimos dias? (Preenchimento manual pelo consultor)
+            {mode === 'consultor' 
+              ? 'Como o aluno sentiu o treino nos últimos dias? (Preenchimento manual pelo consultor)'
+              : 'Como você sentiu o seu treino/protocolo atual? Seu feedback é fundamental para nossos ajustes.'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
           <Field
-            label="Intensidade Percebida"
+            label="Como você sentiu o treino atual?"
             id="intensidade"
             value={formData.intensidade_percebida}
             onChange={(v: string) => setFormData(p => ({ ...p, intensidade_percebida: v }))}
@@ -111,7 +131,7 @@ const WorkoutCheckinDialog: React.FC<Props> = ({
           />
 
           <Field
-            label="Faltou tempo para treinar?"
+            label="Faltou tempo para completar?"
             id="tempo"
             value={formData.falta_tempo}
             onChange={(v: string) => setFormData(p => ({ ...p, falta_tempo: v }))}
@@ -122,7 +142,7 @@ const WorkoutCheckinDialog: React.FC<Props> = ({
           />
 
           <Field
-            label="Recuperação entre treinos"
+            label="Como ficou sua recuperação?"
             id="recuperacao"
             value={formData.recuperacao}
             onChange={(v: string) => setFormData(p => ({ ...p, recuperacao: v }))}
@@ -134,7 +154,7 @@ const WorkoutCheckinDialog: React.FC<Props> = ({
           />
 
           <Field
-            label="Dores ou Desconfortos"
+            label="Sentiu dores ou desconfortos?"
             id="dores"
             value={formData.dores}
             onChange={(v: string) => setFormData(p => ({ ...p, dores: v }))}
@@ -147,7 +167,7 @@ const WorkoutCheckinDialog: React.FC<Props> = ({
           />
 
           <div className="space-y-2">
-            <Label htmlFor="exerc_inc" className="text-sm font-semibold">Algum exercício incomodou?</Label>
+            <Label htmlFor="exerc_inc" className="text-sm font-semibold">Algum exercício incomodou ou não fez sentido?</Label>
             <Input
               id="exerc_inc"
               placeholder="Ex: Agachamento dói o joelho"
@@ -155,18 +175,6 @@ const WorkoutCheckinDialog: React.FC<Props> = ({
               onChange={(e) => setFormData(p => ({ ...p, exercicios_incomodo: e.target.value }))}
             />
           </div>
-
-          <Field
-            label="Duração Percebida"
-            id="duracao"
-            value={formData.duracao_percebida}
-            onChange={(v: string) => setFormData(p => ({ ...p, duracao_percebida: v }))}
-            options={[
-              { label: 'Muito Longo', value: 'muito_longo' },
-              { label: 'Adequado', value: 'adequado' },
-              { label: 'Curto demais', value: 'curto_demais' }
-            ]}
-          />
 
           <Field
             label="Energia para Treinar"
@@ -180,23 +188,11 @@ const WorkoutCheckinDialog: React.FC<Props> = ({
             ]}
           />
 
-          <Field
-            label="Motivação"
-            id="motivacao"
-            value={formData.motivacao}
-            onChange={(v: string) => setFormData(p => ({ ...p, motivacao: v }))}
-            options={[
-              { label: 'Baixa', value: 'baixa' },
-              { label: 'Média', value: 'media' },
-              { label: 'Alta', value: 'alta' }
-            ]}
-          />
-
           <div className="space-y-2">
-            <Label htmlFor="obs" className="text-sm font-semibold">Observações importantes</Label>
+            <Label htmlFor="obs" className="text-sm font-semibold">Observação importante</Label>
             <Textarea
               id="obs"
-              placeholder="Ex: Aluno relatou cansaço excessivo no trabalho..."
+              placeholder={mode === 'consultor' ? "Ex: Aluno relatou cansaço excessivo..." : "Conte mais sobre sua experiência..."}
               value={formData.observacoes}
               onChange={(e) => setFormData(p => ({ ...p, observacoes: e.target.value }))}
             />
@@ -204,12 +200,14 @@ const WorkoutCheckinDialog: React.FC<Props> = ({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-            Cancelar
-          </Button>
-          <Button onClick={handleSubmit} disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white">
+          {mode === 'consultor' && (
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+              Cancelar
+            </Button>
+          )}
+          <Button onClick={handleSubmit} disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ClipboardCheck className="h-4 w-4 mr-2" />}
-            Salvar Check-in
+            {mode === 'aluno' ? 'Enviar Feedback' : 'Salvar Check-in'}
           </Button>
         </DialogFooter>
       </DialogContent>
