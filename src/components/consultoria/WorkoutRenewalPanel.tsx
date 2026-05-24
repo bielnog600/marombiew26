@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
-import { Sparkles, RefreshCw, Check, FileEdit, FileText, AlertTriangle, ChevronDown, ChevronUp, Loader2, GitCompare, Wand2, Dumbbell, BarChart3, Clock, Filter, Trash2, TrendingUp, TrendingDown, Minus, Activity, Zap, ClipboardCheck, Bell, Phone, Send, X } from 'lucide-react';
+import { Sparkles, RefreshCw, Check, FileEdit, FileText, AlertTriangle, ChevronDown, ChevronUp, Loader2, GitCompare, Wand2, Dumbbell, BarChart3, Clock, Filter, Trash2, TrendingUp, TrendingDown, Minus, Activity, Zap, ClipboardCheck, Bell, Phone, Send, X, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -535,16 +535,28 @@ const WorkoutRenewalPanel: React.FC = () => {
                                 </Button>
                               </div>
                             ) : plan.pending_checkin && !checkins[plan.student_id] ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-7 text-[9px] gap-1 px-2 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-600"
-                                onClick={() => handleRemindCheckinWhatsApp(plan)}
-                                title={plan.student_phone ? 'Enviar lembrete no WhatsApp' : 'Aluno sem telefone cadastrado'}
-                              >
-                                <Phone className="h-3 w-3" />
-                                Lembrar WhatsApp
-                              </Button>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-[9px] gap-1 px-2 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-600"
+                                  onClick={() => handleRemindCheckinWhatsApp(plan)}
+                                  title={plan.student_phone ? 'Enviar lembrete no WhatsApp' : 'Aluno sem telefone cadastrado'}
+                                >
+                                  <Phone className="h-3 w-3" />
+                                  Lembrar WhatsApp
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-[9px] gap-1 px-2 border-orange-500/30 hover:bg-orange-500/10 text-orange-600"
+                                  onClick={() => setCheckinConfirmId(plan.id)}
+                                  title="Enviar novamente o feedback para o app"
+                                >
+                                  <RotateCcw className="h-3 w-3" />
+                                  Reenviar Feedback
+                                </Button>
+                              </div>
                             ) : (
                               <Button
                                 variant="outline"
