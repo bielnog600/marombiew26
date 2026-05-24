@@ -68,7 +68,9 @@ const statusMeta: Record<CycleStatus, { label: string; cls: string }> = {
   aguardando_dados: { label: 'Aguardando dados', cls: 'bg-orange-500/10 text-orange-500 border-orange-500/30' },
   renovacao_sugerida: { label: 'Renovação sugerida', cls: 'bg-blue-500/10 text-blue-500 border-blue-500/30' },
   rascunho_gerado: { label: 'Rascunho gerado', cls: 'bg-violet-500/10 text-violet-500 border-violet-500/30' },
+  pronto_revisar: { label: 'Pronto para revisar', cls: 'bg-primary/10 text-primary border-primary/30' },
   renovado: { label: 'Renovado', cls: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' },
+  vencido: { label: 'Vencido', cls: 'bg-destructive/10 text-destructive border-destructive/30' },
 };
 
 const actionMeta: Record<SuggestedAction, { label: string; cls: string }> = {
