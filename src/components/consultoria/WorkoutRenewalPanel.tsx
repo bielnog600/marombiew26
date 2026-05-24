@@ -73,8 +73,16 @@ interface AnalysisRow {
       load_trend: string;
     }>;
     avg_rpe: number | null;
+    avg_duration?: number | null;
+    has_long_sessions?: boolean;
     fatigue_signal: string | null;
   };
+  frequency_adjustment_data?: {
+    suggest_reduction: boolean;
+    reason_category: string;
+    justification: string;
+  };
+  alternatives_considered?: string[];
   rationale: string;
   created_at: string;
 }
@@ -297,9 +305,9 @@ const WorkoutRenewalPanel: React.FC = () => {
           case 'solicitar_dados': return analysis?.decision_type === 'solicitar_dados';
           case 'manter': return analysis?.decision_type === 'manter';
           case 'ajustar': return analysis?.decision_type === 'ajustar';
-          case 'renovar': return analysis?.decision_type === 'renovar_bloco';
-          case 'deload': return analysis?.decision_type === 'deload';
+          case 'renovar': return analysis?.decision_type === 'renovar_bloco' || analysis?.decision_type === 'trocar_exercicios';
           case 'vencidos': return p.effectiveStatus === 'vencido';
+          case 'rascunho': return !!draft;
           default: return true;
         }
       });
@@ -324,7 +332,7 @@ const WorkoutRenewalPanel: React.FC = () => {
           
           <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
             <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
-            {(['todos', 'solicitar_dados', 'renovar', 'deload', 'vencidos'] as const).map(f => (
+            {(['todos', 'solicitar_dados', 'manter', 'ajustar', 'renovar', 'vencidos', 'rascunho'] as const).map(f => (
               <Button
                 key={f}
                 variant={filter === f ? 'default' : 'outline'}
@@ -334,8 +342,10 @@ const WorkoutRenewalPanel: React.FC = () => {
               >
                 {f === 'todos' ? 'Todos' : 
                  f === 'solicitar_dados' ? 'Solicitar Dados' :
-                 f === 'renovar' ? 'Renovar Bloco' :
-                 f === 'deload' ? 'Deload' : 'Vencidos'}
+                 f === 'manter' ? 'Manter' :
+                 f === 'ajustar' ? 'Ajustar' :
+                 f === 'renovar' ? 'Renovar' : 
+                 f === 'vencidos' ? 'Vencidos' : 'Rascunho'}
               </Button>
             ))}
           </div>
@@ -431,7 +441,8 @@ const WorkoutRenewalPanel: React.FC = () => {
                               <Metric label="Aderência" value={analysis.adherence_score != null ? `${Math.round(analysis.adherence_score * 100)}%` : '—'} trend={analysis.adherence_score && analysis.adherence_score > 0.7 ? 'up' : 'down'} />
                               <Metric label="Frequência" value={analysis.session_frequency != null ? `${analysis.session_frequency.toFixed(1)}/sem` : '—'} />
                               <Metric label="Conclusão" value={analysis.completion_rate != null ? `${Math.round(analysis.completion_rate * 100)}%` : '—'} />
-                              <Metric label="RPE Médio" value={analysis.avg_rpe != null ? String(analysis.avg_rpe) : '—'} />
+                               <Metric label="RPE Médio" value={analysis.avg_rpe != null ? String(analysis.avg_rpe) : '—'} />
+                               <Metric label="Duração Média" value={analysis.volume_analysis?.avg_duration != null ? `${analysis.volume_analysis.avg_duration}m` : '—'} trend={analysis.volume_analysis?.has_long_sessions ? 'down' : undefined} />
                             </div>
 
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -457,6 +468,41 @@ const WorkoutRenewalPanel: React.FC = () => {
                                     </div>
                                   ))}
                                 </div>
+                              </div>
+                            )}
+
+                            {analysis.frequency_adjustment_data && (
+                              <div className={cn(
+                                "rounded-md border p-3 space-y-2",
+                                analysis.frequency_adjustment_data.suggest_reduction 
+                                  ? "bg-orange-500/5 border-orange-500/20" 
+                                  : "bg-emerald-500/5 border-emerald-500/20"
+                              )}>
+                                <div className="flex items-center gap-2">
+                                  {analysis.frequency_adjustment_data.suggest_reduction ? (
+                                    <TrendingDown className="h-4 w-4 text-orange-500" />
+                                  ) : (
+                                    <Check className="h-4 w-4 text-emerald-500" />
+                                  )}
+                                  <p className="text-xs font-bold uppercase tracking-wider">
+                                    Frequência: {analysis.frequency_adjustment_data.suggest_reduction ? 'Redução Sugerida' : 'Manter Dias Atuais'}
+                                  </p>
+                                  <Badge variant="outline" className="text-[9px] ml-auto">
+                                    {analysis.frequency_adjustment_data.reason_category.replace('_', ' ')}
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-foreground/80 leading-snug">{analysis.frequency_adjustment_data.justification}</p>
+                                
+                                {analysis.alternatives_considered && analysis.alternatives_considered.length > 0 && (
+                                  <div className="pt-2 border-t border-border/20">
+                                    <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Alternativas avaliadas antes de reduzir dias:</p>
+                                    <div className="flex flex-wrap gap-1">
+                                      {analysis.alternatives_considered.map((alt, i) => (
+                                        <Badge key={i} variant="outline" className="text-[9px] py-0 border-border/50">{alt}</Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
 

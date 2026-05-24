@@ -1960,6 +1960,7 @@ export type Database = {
       workout_renewal_analysis: {
         Row: {
           adherence_score: number | null
+          alternatives_considered: string[] | null
           applied: boolean
           applied_at: string | null
           avg_rpe: number | null
@@ -1972,6 +1973,7 @@ export type Database = {
           decision_type: string | null
           draft_plan_id: string | null
           fatigue_signal: string | null
+          frequency_adjustment_data: Json | null
           id: string
           load_progression: string | null
           monotony_risk: string | null
@@ -1988,6 +1990,7 @@ export type Database = {
         }
         Insert: {
           adherence_score?: number | null
+          alternatives_considered?: string[] | null
           applied?: boolean
           applied_at?: string | null
           avg_rpe?: number | null
@@ -2000,6 +2003,7 @@ export type Database = {
           decision_type?: string | null
           draft_plan_id?: string | null
           fatigue_signal?: string | null
+          frequency_adjustment_data?: Json | null
           id?: string
           load_progression?: string | null
           monotony_risk?: string | null
@@ -2016,6 +2020,7 @@ export type Database = {
         }
         Update: {
           adherence_score?: number | null
+          alternatives_considered?: string[] | null
           applied?: boolean
           applied_at?: string | null
           avg_rpe?: number | null
@@ -2028,6 +2033,7 @@ export type Database = {
           decision_type?: string | null
           draft_plan_id?: string | null
           fatigue_signal?: string | null
+          frequency_adjustment_data?: Json | null
           id?: string
           load_progression?: string | null
           monotony_risk?: string | null
