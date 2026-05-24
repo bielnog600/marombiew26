@@ -2,7 +2,6 @@ import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-
 import { Check, Trash2, Loader2, Save, GitCompare } from 'lucide-react';
 
 interface WorkoutPlanLite {
@@ -63,44 +62,46 @@ const WorkoutDraftComparisonDialog: React.FC<Props> = ({ open, onOpenChange, cur
           </DialogDescription>
         </DialogHeader>
 
-        {rationale && (
-          <div className="rounded-md bg-violet-500/5 border border-violet-500/20 p-3 text-sm">
-            <p className="text-[11px] uppercase tracking-wide text-violet-500 font-medium mb-1">Justificativa da IA</p>
-            <p className="text-foreground/90">{rationale}</p>
-          </div>
-        )}
+        <div className="flex-1 overflow-y-auto pr-2 -mr-2 min-h-0 space-y-4 py-2 scrollbar-thin scrollbar-thumb-primary/10 hover:scrollbar-thumb-primary/20 touch-pan-y">
+          {rationale && (
+            <div className="rounded-md bg-violet-500/5 border border-violet-500/20 p-3 text-sm">
+              <p className="text-[11px] uppercase tracking-wide text-violet-500 font-medium mb-1">Justificativa da IA</p>
+              <p className="text-foreground/90">{rationale}</p>
+            </div>
+          )}
 
-        <div className="grid grid-cols-3 gap-2 text-xs">
-          <Stat label="Exercícios atual" value={String(a.distinctExercises)} />
-          <Stat label="Exercícios rascunho" value={String(b.distinctExercises)} />
-          <Stat label="Δ exercícios" value={`${added.length > 0 ? '+' : ''}${b.distinctExercises - a.distinctExercises}`} />
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <Stat label="Exercícios atual" value={String(a.distinctExercises)} />
+            <Stat label="Exercícios rascunho" value={String(b.distinctExercises)} />
+            <Stat label="Δ exercícios" value={`${added.length > 0 ? '+' : ''}${b.distinctExercises - a.distinctExercises}`} />
+          </div>
+
+          {(added.length > 0 || removed.length > 0) && (
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3">
+                <p className="text-[11px] uppercase tracking-wide text-emerald-500 mb-1">Adicionados ({added.length})</p>
+                <p className="text-foreground/90 line-clamp-4">{added.slice(0, 12).join(', ') || '—'}</p>
+              </div>
+              <div className="rounded-md border border-orange-500/30 bg-orange-500/5 p-3">
+                <p className="text-[11px] uppercase tracking-wide text-orange-500 mb-1">Removidos ({removed.length})</p>
+                <p className="text-foreground/90 line-clamp-4">{removed.slice(0, 12).join(', ') || '—'}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="grid md:grid-cols-2 gap-3 min-h-[400px]">
+            <div className="rounded-md border border-border/50 bg-background/40 flex flex-col overflow-hidden min-h-[300px]">
+              <div className="px-3 py-2 border-b border-border/50 text-xs font-medium">Treino atual (v{current.version})</div>
+              <div className="flex-1 p-3 text-xs whitespace-pre-wrap font-mono overflow-y-auto">{current.conteudo}</div>
+            </div>
+            <div className="rounded-md border border-violet-500/30 bg-violet-500/5 flex flex-col overflow-hidden min-h-[300px]">
+              <div className="px-3 py-2 border-b border-violet-500/30 text-xs font-medium">Rascunho v{draft.version}</div>
+              <div className="flex-1 p-3 text-xs whitespace-pre-wrap font-mono overflow-y-auto">{draft.conteudo}</div>
+            </div>
+          </div>
         </div>
 
-        {(added.length > 0 || removed.length > 0) && (
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3">
-              <p className="text-[11px] uppercase tracking-wide text-emerald-500 mb-1">Adicionados ({added.length})</p>
-              <p className="text-foreground/90 line-clamp-4">{added.slice(0, 12).join(', ') || '—'}</p>
-            </div>
-            <div className="rounded-md border border-orange-500/30 bg-orange-500/5 p-3">
-              <p className="text-[11px] uppercase tracking-wide text-orange-500 mb-1">Removidos ({removed.length})</p>
-              <p className="text-foreground/90 line-clamp-4">{removed.slice(0, 12).join(', ') || '—'}</p>
-            </div>
-          </div>
-        )}
-
-        <div className="grid md:grid-cols-2 gap-3 flex-1 overflow-hidden min-h-[300px]">
-          <div className="rounded-md border border-border/50 bg-background/40 flex flex-col overflow-hidden min-h-[300px]">
-            <div className="px-3 py-2 border-b border-border/50 text-xs font-medium">Treino atual (v{current.version})</div>
-            <div className="flex-1 p-3 text-xs whitespace-pre-wrap font-mono overflow-y-auto">{current.conteudo}</div>
-          </div>
-          <div className="rounded-md border border-violet-500/30 bg-violet-500/5 flex flex-col overflow-hidden min-h-[300px]">
-            <div className="px-3 py-2 border-b border-violet-500/30 text-xs font-medium">Rascunho v{draft.version}</div>
-            <div className="flex-1 p-3 text-xs whitespace-pre-wrap font-mono overflow-y-auto">{draft.conteudo}</div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2 justify-end pt-2 border-t border-border/50">
+        <div className="flex flex-wrap gap-2 justify-end pt-3 border-t border-border/50">
           <Button variant="outline" onClick={onDiscard} disabled={busy}>
             {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
             Descartar rascunho
