@@ -447,8 +447,18 @@ ENTREGUE OBRIGATORIAMENTE:
 6) Timing nutricional pré/pós-treino
 7) Mensagens prontas para WhatsApp explicando a nova fase`;
 
-  const draftContent = await callDietAgent(prompt, studentContext);
+  let draftContent = "";
+  try {
+    draftContent = await callDietAgent(prompt, studentContext);
+  } catch (e: any) {
+    console.error("[generateDraft] diet-agent failed:", e?.message);
+  }
+  // Fallback: chama OpenAI diretamente se o diet-agent não retornou conteúdo suficiente
   if (!draftContent || draftContent.length < 200) {
+    console.log("[generateDraft] usando fallback OpenAI direto. tamanho atual:", draftContent.length);
+    draftContent = await callOpenAIDirect(prompt, studentContext);
+  }
+  if (!draftContent || draftContent.length < 100) {
     throw new Error("Conteúdo do rascunho insuficiente — tente novamente");
   }
 
