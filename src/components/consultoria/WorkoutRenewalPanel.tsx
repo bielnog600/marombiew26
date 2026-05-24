@@ -315,7 +315,7 @@ const WorkoutRenewalPanel: React.FC = () => {
     try {
       const { error } = await supabase
         .from('ai_plans')
-        .update({ pending_checkin: true })
+        .update({ pending_checkin: true, has_new_checkin: false })
         .eq('id', plan.id);
 
       if (error) throw error;
