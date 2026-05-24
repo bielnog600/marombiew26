@@ -122,6 +122,8 @@ const WorkoutRenewalPanel: React.FC = () => {
   const [busy, setBusy] = useState<string | null>(null);
   const [compareFor, setCompareFor] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('todos');
+  const [checkinFor, setCheckinFor] = useState<PlanRow | null>(null);
+  const [checkins, setCheckins] = useState<Record<string, any>>({});
 
   const load = async () => {
     setLoading(true);
