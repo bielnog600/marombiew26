@@ -309,7 +309,6 @@ const WorkoutRenewalPanel: React.FC = () => {
           case 'vencidos': return p.effectiveStatus === 'vencido';
           case 'rascunho': return !!draft;
           default: return true;
-          default: return true;
         }
       });
     }
