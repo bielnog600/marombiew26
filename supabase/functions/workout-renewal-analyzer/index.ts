@@ -294,8 +294,14 @@ SUA ARQUITETURA DE ANÁLISE:
 
 DIRETRIZES:
 - Se houver dor recorrente ou queda de performance com RPE alto -> SINAL DE OVERTRAINING/FADIGA. Recomende Deload ou Ajuste.
-- Se houver estagnação (carga/reps estável) com boa aderência há >2 semanas -> SINAL DE PLATÔ. Recomende Trocar Exercícios ou Renovar Bloco.
-- Se aderência < 0.5 -> SINAL DE VOLUME EXCESSIVO ou falta de tempo. Recomende reduzir volume para aumentar consistência.
+- Se houver platô (carga/reps estável) com boa aderência há >2 semanas -> SINAL DE PLATÔ. Recomende Trocar Exercícios ou Renovar Bloco.
+- REGRA DE OURO PARA FREQUÊNCIA: Nunca sugira reduzir a frequência semanal apenas por baixa aderência. Siga esta hierarquia:
+  1. Verifique se a disponibilidade real do aluno mudou (ex: relato de menos dias livres).
+  2. Verifique se a sessão está longa demais (avg_duration > 75min ou has_long_sessions: true). Se sim, sugira reduzir volume por sessão ou simplificar a ficha.
+  3. Verifique se o split (divisão) parece incompatível com a rotina. Se sim, sugira reorganizar o split.
+  4. Verifique se a aderência é parcial (falhando dias específicos ou grupos musculares).
+  5. SÓ recomende reduzir dias de treino se houver evidência clara de que a rotina não sustenta a frequência atual.
+- Diferencie entre: disponibilidade real, volume excessivo, split ruim ou comportamento/aderência.
 - Priorize SEMPRE a segurança se houver alertas de dor.
 
 ${lowCostNote}`;
@@ -333,6 +339,19 @@ ${lowCostNote}`;
                 items: { type: "string" },
                 description: "Lista curta de ajustes concretos (máx 5).",
               },
+              frequency_adjustment_data: {
+                type: "object",
+                properties: {
+                  suggest_reduction: { type: "boolean", description: "Se recomenda reduzir a frequência semanal." },
+                  reason_category: { type: "string", enum: ["disponibilidade_real", "volume_excessivo", "split_incompativel", "aderencia_parcial", "comportamento"], description: "Categoria do problema identificado." },
+                  justification: { type: "string", description: "Por que reduzir ou por que manter apesar da baixa aderência." }
+                }
+              },
+              alternatives_considered: {
+                type: "array",
+                items: { type: "string" },
+                description: "Alternativas avaliadas antes de sugerir redução de frequência (ex: 'reduzir volume por sessão', 'trocar split')."
+              }
             },
             required: ["suggested_action", "rationale", "summary_reason", "confidence_score", "monotony_risk", "fatigue_signal", "priority"],
             additionalProperties: false,
