@@ -149,10 +149,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
             editedStartDates[plan.id] !== undefined;
           const currentMarkdown = editedMarkdowns[plan.id] !== undefined ? editedMarkdowns[plan.id] : plan.conteudo;
 
-          const currentDays: ParsedTrainingDay[] = useMemo(() => {
-            const sections = parseTrainingSections(currentMarkdown || '');
-            return sections.flatMap(s => s.days || []);
-          }, [currentMarkdown]);
+          const currentDays: ParsedTrainingDay[] = parseTrainingSections(currentMarkdown || '').flatMap(s => s.days || []);
 
           return (
             <Card key={plan.id} className="glass-card">
