@@ -85,13 +85,17 @@ const statusMeta: Record<CycleStatus, { label: string; cls: string }> = {
   aguardando_dados: { label: 'Aguardando dados', cls: 'bg-orange-500/10 text-orange-500 border-orange-500/30' },
   renovacao_sugerida: { label: 'Ajuste sugerido', cls: 'bg-blue-500/10 text-blue-500 border-blue-500/30' },
   rascunho_gerado: { label: 'Rascunho gerado', cls: 'bg-violet-500/10 text-violet-500 border-violet-500/30' },
+  pronto_revisar: { label: 'Pronto para revisar', cls: 'bg-primary/10 text-primary border-primary/30' },
   renovado: { label: 'Renovado', cls: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' },
+  vencido: { label: 'Vencido', cls: 'bg-destructive/10 text-destructive border-destructive/30' },
 };
 
 const actionMeta: Record<SuggestedAction, { label: string; cls: string }> = {
   manter: { label: 'Manter treino', cls: 'text-emerald-500' },
   ajustar: { label: 'Ajustar treino', cls: 'text-blue-500' },
-  gerar_novo: { label: 'Gerar novo treino', cls: 'text-violet-500' },
+  trocar_exercicios: { label: 'Trocar exercícios', cls: 'text-orange-500' },
+  deload: { label: 'Aplicar Deload', cls: 'text-amber-500' },
+  renovar_bloco: { label: 'Renovar Bloco', cls: 'text-violet-500' },
   solicitar_dados: { label: 'Solicitar dados', cls: 'text-orange-500' },
 };
 
