@@ -332,7 +332,7 @@ const WorkoutRenewalPanel: React.FC = () => {
           
           <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
             <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
-            {(['todos', 'solicitar_dados', 'renovar', 'deload', 'vencidos'] as const).map(f => (
+            {(['todos', 'solicitar_dados', 'manter', 'ajustar', 'renovar', 'vencidos', 'rascunho'] as const).map(f => (
               <Button
                 key={f}
                 variant={filter === f ? 'default' : 'outline'}
@@ -342,8 +342,10 @@ const WorkoutRenewalPanel: React.FC = () => {
               >
                 {f === 'todos' ? 'Todos' : 
                  f === 'solicitar_dados' ? 'Solicitar Dados' :
-                 f === 'renovar' ? 'Renovar Bloco' :
-                 f === 'deload' ? 'Deload' : 'Vencidos'}
+                 f === 'manter' ? 'Manter' :
+                 f === 'ajustar' ? 'Ajustar' :
+                 f === 'renovar' ? 'Renovar' : 
+                 f === 'vencidos' ? 'Vencidos' : 'Rascunho'}
               </Button>
             ))}
           </div>
