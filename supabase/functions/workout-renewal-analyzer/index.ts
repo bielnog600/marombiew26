@@ -775,7 +775,7 @@ serve(async (req) => {
             titulo: draft.titulo.replace(/\s*\(rascunho v\d+\)\s*$/i, ""),
             conteudo: draft.conteudo,
             version: draft.version,
-            cycle_status: "renovado",
+            cycle_status: "em_dia",
             created_at: new Date().toISOString(),
             is_draft: false,
             draft_source: null,
