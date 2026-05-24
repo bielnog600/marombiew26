@@ -638,6 +638,12 @@ const WorkoutRenewalPanel: React.FC = () => {
                                   value={analysis.sessions_finished != null ? String(analysis.sessions_finished) : '—'} 
                                 />
                                 <Metric 
+                                  label="Taxa Finalização" 
+                                  value={analysis.sessions_started && analysis.sessions_started > 0 ? 
+                                    `${Math.round((analysis.sessions_finished || 0) / analysis.sessions_started * 100)}%` : '—'} 
+                                  trend={analysis.sessions_started && (analysis.sessions_finished || 0) / analysis.sessions_started > 0.7 ? 'up' : 'down'}
+                                />
+                                <Metric 
                                   label="Qualidade Registro" 
                                   value={analysis.registration_quality ? 
                                     (analysis.registration_quality === 'boa' ? 'Boa' : 
