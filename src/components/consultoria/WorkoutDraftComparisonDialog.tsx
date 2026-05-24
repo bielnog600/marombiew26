@@ -205,18 +205,7 @@ const StatCard: React.FC<{ label: string, value: string, sub: string, trend?: 'u
   </div>
 );
 
-const Stat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div className="rounded-md bg-secondary/40 p-2 border border-border/50">
-    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
-    <p className="text-sm font-semibold">{value}</p>
-  </div>
-);
+// Stat already defined above
 
-const Stat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div className="rounded-md bg-secondary/40 p-2 border border-border/50">
-    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
-    <p className="text-sm font-semibold">{value}</p>
-  </div>
-);
 
 export default WorkoutDraftComparisonDialog;
