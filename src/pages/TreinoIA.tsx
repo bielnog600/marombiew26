@@ -16,6 +16,7 @@ import { ArrowLeft, Loader2, Save, Dumbbell, RotateCcw, AlertTriangle, ChevronDo
  } from "@/components/ui/dialog";
  import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
+import { validateWorkoutJSON } from '@/lib/planMigrationUtils';
 import ReactMarkdown from 'react-markdown';
 import TrainingResultCards from '@/components/TrainingResultCards';
 
@@ -1164,3 +1165,4 @@ GERE TUDO DE UMA VEZ:
 };
 
 export default TreinoIA;
+
