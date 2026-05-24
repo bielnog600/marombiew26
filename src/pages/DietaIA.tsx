@@ -17,6 +17,7 @@ import {
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { validateDietJSON } from '@/lib/planMigrationUtils';
 import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
 import { generateDietPDF } from '@/lib/generateDietPDF';
@@ -1144,10 +1145,14 @@ ${generated}`;
       },
     };
     if (editPlanId) {
+      const validation = validateDietJSON(result);
       const { error } = await supabase.from('ai_plans').update({
         conteudo: result,
         titulo: `Dieta - ${new Date().toLocaleDateString('pt-BR')} (editada)`,
         protocols,
+        conteudo_json: validation.success ? (validation.data as any) : null,
+        migration_status: (validation.success ? 'completed' : 'failed') as any,
+        migration_error: validation.error || null,
       }).eq('id', editPlanId);
       if (error) toast.error('Erro: ' + error.message);
       else toast.success('Dieta atualizada!');
