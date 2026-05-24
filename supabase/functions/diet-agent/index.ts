@@ -366,6 +366,75 @@ serve(async (req) => {
         contextMessage += `\n--- Fotos da Avaliação ---\nO aluno possui ${studentContext.fotos_avaliacao.length} foto(s) registrada(s) na avaliação (${studentContext.fotos_avaliacao.map((f: any) => f.tipo || 'foto').join(', ')}).\n`;
       }
 
+      // ── HISTÓRICO LONGITUDINAL DO PROCESSO ──
+      if (studentContext.historico_processo) {
+        const hp = studentContext.historico_processo;
+        contextMessage += "\n========================================\n";
+        contextMessage += "HISTÓRICO DO PROCESSO (MEMÓRIA — USE PARA CONTINUIDADE)\n";
+        contextMessage += "========================================\n";
+
+        if (hp.ultima_dieta) {
+          const u = hp.ultima_dieta;
+          contextMessage += `\n--- ÚLTIMA DIETA ATIVA ---\n`;
+          contextMessage += `Título: ${u.titulo} | Fase: ${u.fase} | Há ${u.dias_desde} dias (${new Date(u.criada_em).toLocaleDateString('pt-BR')})\n`;
+          if (u.kcal_total) contextMessage += `Kcal totais: ${u.kcal_total} | P: ${u.proteina_g ?? '?'}g | C: ${u.carbs_g ?? '?'}g | G: ${u.gordura_g ?? '?'}g\n`;
+          if (u.num_refeicoes) contextMessage += `Nº refeições: ${u.num_refeicoes}\n`;
+          if (u.excerto) contextMessage += `\nExcerto da dieta anterior (use como base para continuidade):\n${u.excerto}\n`;
+        } else {
+          contextMessage += `\n--- ÚLTIMA DIETA ---\nNenhuma dieta anterior registrada — esta é a PRIMEIRA dieta deste aluno.\n`;
+        }
+
+        if (hp.tendencia_peso) {
+          const t = hp.tendencia_peso;
+          contextMessage += `\n--- TENDÊNCIA DE PESO/COMPOSIÇÃO ---\n`;
+          contextMessage += `Peso atual: ${t.peso_atual ?? '?'}kg | Variação: ${t.variacao_kg > 0 ? '+' : ''}${t.variacao_kg}kg | Direção: ${t.direcao}\n`;
+          if (Array.isArray(t.historico) && t.historico.length > 0) {
+            contextMessage += `Histórico (mais recente primeiro):\n`;
+            t.historico.forEach((h: any) => {
+              const d = h.data ? new Date(h.data).toLocaleDateString('pt-BR') : '?';
+              contextMessage += `  - ${d}: peso ${h.peso ?? '?'}kg`;
+              if (h.percentual_gordura != null) contextMessage += ` | %G: ${h.percentual_gordura}`;
+              if (h.massa_magra != null) contextMessage += ` | MLG: ${h.massa_magra}kg`;
+              if (h.cintura != null) contextMessage += ` | cintura: ${h.cintura}cm`;
+              contextMessage += `\n`;
+            });
+          }
+        }
+
+        if (hp.aderencia_recente) {
+          const a = hp.aderencia_recente;
+          contextMessage += `\n--- ADERÊNCIA (últimos 14 dias) ---\n`;
+          contextMessage += `Dias com registro: ${a.dias_com_registro}/${a.dias_total}\n`;
+          contextMessage += `Refeições marcadas: ${a.refeicoes_marcadas}/${a.refeicoes_esperadas} (${a.percentual_aderencia}%)\n`;
+          contextMessage += `Água média: ${a.agua_media_copos_dia} copos/dia\n`;
+          if (a.percentual_aderencia < 60) {
+            contextMessage += `⚠️ ADERÊNCIA BAIXA — simplifique a dieta e sinalize na justificativa.\n`;
+          }
+        } else {
+          contextMessage += `\n--- ADERÊNCIA ---\nSem registros nos últimos 14 dias.\n`;
+        }
+
+        if (hp.ultimo_reajuste) {
+          const r = hp.ultimo_reajuste;
+          contextMessage += `\n--- ÚLTIMO REAJUSTE/FEEDBACK ---\n`;
+          contextMessage += `Data: ${new Date(r.data).toLocaleDateString('pt-BR')}\n`;
+          if (r.peso_atual) contextMessage += `Peso reportado: ${r.peso_atual}kg\n`;
+          if (r.sintomas?.length) contextMessage += `Sintomas: ${r.sintomas.join(', ')}\n`;
+          if (r.rendimento_treino) contextMessage += `Rendimento treino: ${r.rendimento_treino}\n`;
+          if (r.satisfacao) contextMessage += `Satisfação: ${r.satisfacao}\n`;
+          if (r.observacoes) contextMessage += `Observações: ${r.observacoes}\n`;
+          contextMessage += `⚠️ NÃO repita erros já relatados.\n`;
+        }
+
+        if (hp.confianca_geracao) {
+          const c = hp.confianca_geracao;
+          contextMessage += `\n--- SCORE DE CONFIANÇA DA GERAÇÃO ---\n`;
+          contextMessage += `Score: ${c.score}/100\n`;
+          contextMessage += `Motivos: ${(c.motivos || []).join(', ') || 'dados limitados'}\n`;
+          contextMessage += `Use este score na seção final "Confiança da Geração".\n`;
+        }
+      }
+
       contextMessage += "\n=== FIM DOS DADOS ===\n\nIMPORTANTE: Use TODOS os dados acima para personalizar a dieta. Considere a composição corporal, postura, performance, sinais vitais e anamnese completa. NÃO pergunte dados já fornecidos.\n";
     }
 
