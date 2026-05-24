@@ -466,6 +466,41 @@ const WorkoutRenewalPanel: React.FC = () => {
                               </div>
                             )}
 
+                            {analysis.frequency_adjustment_data && (
+                              <div className={cn(
+                                "rounded-md border p-3 space-y-2",
+                                analysis.frequency_adjustment_data.suggest_reduction 
+                                  ? "bg-orange-500/5 border-orange-500/20" 
+                                  : "bg-emerald-500/5 border-emerald-500/20"
+                              )}>
+                                <div className="flex items-center gap-2">
+                                  {analysis.frequency_adjustment_data.suggest_reduction ? (
+                                    <TrendingDown className="h-4 w-4 text-orange-500" />
+                                  ) : (
+                                    <Check className="h-4 w-4 text-emerald-500" />
+                                  )}
+                                  <p className="text-xs font-bold uppercase tracking-wider">
+                                    Frequência: {analysis.frequency_adjustment_data.suggest_reduction ? 'Redução Sugerida' : 'Manter Dias Atuais'}
+                                  </p>
+                                  <Badge variant="outline" className="text-[9px] ml-auto">
+                                    {analysis.frequency_adjustment_data.reason_category.replace('_', ' ')}
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-foreground/80 leading-snug">{analysis.frequency_adjustment_data.justification}</p>
+                                
+                                {analysis.alternatives_considered && analysis.alternatives_considered.length > 0 && (
+                                  <div className="pt-2 border-t border-border/20">
+                                    <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Alternativas avaliadas antes de reduzir dias:</p>
+                                    <div className="flex flex-wrap gap-1">
+                                      {analysis.alternatives_considered.map((alt, i) => (
+                                        <Badge key={i} variant="outline" className="text-[9px] py-0 border-border/50">{alt}</Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
                             <div className="rounded-md bg-background/40 p-3 border border-border/50 space-y-2">
                               <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-bold">Diagnóstico & Sugestão</p>
                               <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">{analysis.rationale}</p>
