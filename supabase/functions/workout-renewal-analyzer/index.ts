@@ -745,6 +745,8 @@ async function analyzePlan(supabase: any, planId: string) {
       volume_analysis: {
         muscle_groups: ctx.muscle_groups,
         avg_rpe: ctx.avg_rpe,
+        avg_duration: ctx.avg_duration,
+        has_long_sessions: ctx.has_long_sessions,
         fatigue_signal: ai.fatigue_signal,
         data_quality: ctx.data_quality,
       },
