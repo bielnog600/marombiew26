@@ -336,7 +336,7 @@ const DietRenewalPanel: React.FC = () => {
               >
                 {f === 'todos' ? 'Todos' : 
                  f === 'solicitar_dados' ? 'Solicitar Dados' :
-                 f === 'rascunho' ? 'Rascunhos' :
+                 f === 'rascunho' ? 'Pronto p/ Revisar' :
                  f === 'nova_dieta' ? 'Nova Dieta' :
                  f === 'ajustar' ? 'Ajustar' : 'Vencidos'}
               </Button>
