@@ -360,46 +360,55 @@ const WorkoutRenewalPanel: React.FC = () => {
 
 
   const filteredPlans = useMemo(() => {
+    try {
+      let list = [...plans].map(p => {
+        try {
+          const remaining = daysRemaining(p);
+          const analysis = analyses[p.id];
+          const draft = drafts[p.id];
+          
+          let effectiveStatus = p.cycle_status;
+          if (remaining <= 0 && p.cycle_status !== 'renovado') {
+            effectiveStatus = 'vencido';
+          } else if (draft && p.cycle_status !== 'renovado') {
+            effectiveStatus = 'pronto_revisar';
+          }
 
-    let list = [...plans].map(p => {
-      const remaining = daysRemaining(p);
-      const analysis = analyses[p.id];
-      const draft = drafts[p.id];
-      
-      let effectiveStatus = p.cycle_status;
-      if (remaining <= 0 && p.cycle_status !== 'renovado') {
-        effectiveStatus = 'vencido';
-      } else if (draft && p.cycle_status !== 'renovado') {
-        effectiveStatus = 'pronto_revisar';
-      }
-
-      let priorityScore = 0;
-      if (effectiveStatus === 'vencido') priorityScore += 1000;
-      if (remaining <= 5) priorityScore += 500;
-      if (analysis?.priority === 'alta') priorityScore += 300;
-      if (effectiveStatus === 'pronto_revisar') priorityScore += 200;
-      
-      return { ...p, effectiveStatus, remaining, priorityScore };
-    });
-
-    list.sort((a, b) => b.priorityScore - a.priorityScore);
-
-    if (filter !== 'todos') {
-      return list.filter(p => {
-        const analysis = analyses[p.id];
-        const draft = drafts[p.id];
-        switch(filter) {
-          case 'solicitar_dados': return analysis?.decision_type === 'solicitar_dados';
-          case 'manter': return analysis?.decision_type === 'manter';
-          case 'ajustar': return analysis?.decision_type === 'ajustar';
-          case 'renovar': return analysis?.decision_type === 'renovar_bloco' || analysis?.decision_type === 'trocar_exercicios';
-          case 'vencidos': return p.effectiveStatus === 'vencido';
-          case 'rascunho': return !!draft;
-          default: return true;
+          let priorityScore = 0;
+          if (effectiveStatus === 'vencido') priorityScore += 1000;
+          if (remaining <= 5) priorityScore += 500;
+          if (analysis?.priority === 'alta') priorityScore += 300;
+          if (effectiveStatus === 'pronto_revisar') priorityScore += 200;
+          
+          return { ...p, effectiveStatus, remaining, priorityScore };
+        } catch (err) {
+          console.error("Error processing plan in useMemo:", p.id, err);
+          return { ...p, effectiveStatus: p.cycle_status, remaining: 0, priorityScore: 0 };
         }
       });
+
+      list.sort((a, b) => (b.priorityScore || 0) - (a.priorityScore || 0));
+
+      if (filter !== 'todos') {
+        return list.filter(p => {
+          const analysis = analyses[p.id];
+          const draft = drafts[p.id];
+          switch(filter) {
+            case 'solicitar_dados': return analysis?.decision_type === 'solicitar_dados';
+            case 'manter': return analysis?.decision_type === 'manter';
+            case 'ajustar': return analysis?.decision_type === 'ajustar';
+            case 'renovar': return analysis?.decision_type === 'renovar_bloco' || analysis?.decision_type === 'trocar_exercicios';
+            case 'vencidos': return p.effectiveStatus === 'vencido';
+            case 'rascunho': return !!draft;
+            default: return true;
+          }
+        });
+      }
+      return list;
+    } catch (globalErr) {
+      console.error("Global error in filteredPlans useMemo:", globalErr);
+      return [];
     }
-    return list;
   }, [plans, analyses, drafts, filter]);
 
   return (

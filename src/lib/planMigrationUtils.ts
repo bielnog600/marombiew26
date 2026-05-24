@@ -185,8 +185,8 @@ export const compareWorkoutVersions = (v1: WorkoutDataJSON, v2: WorkoutDataJSON)
   changes.removedExercises = Array.from(v1Ex).filter(x => !v2Ex.has(x));
 
   // Volume calc (total sets)
-  const v1Sets = v1.days.reduce((acc, d) => acc + d.exercises.reduce((a, e) => acc + (parseInt(e.series) || 3), 0), 0);
-  const v2Sets = v2.days.reduce((acc, d) => acc + d.exercises.reduce((a, e) => acc + (parseInt(e.series) || 3), 0), 0);
+  const v1Sets = v1.days?.reduce((acc, d) => acc + (d.exercises?.reduce((a, e) => a + (parseInt(e.series) || 3), 0) || 0), 0) || 0;
+  const v2Sets = v2.days?.reduce((acc, d) => acc + (d.exercises?.reduce((a, e) => a + (parseInt(e.series) || 3), 0) || 0), 0) || 0;
   changes.volumeChange = v1Sets > 0 ? ((v2Sets - v1Sets) / v1Sets) * 100 : 0;
 
   return changes;

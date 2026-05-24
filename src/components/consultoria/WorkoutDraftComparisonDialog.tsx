@@ -48,22 +48,30 @@ const WorkoutDraftComparisonDialog: React.FC<Props> = ({ open, onOpenChange, cur
   const comparison = useMemo(() => {
     if (!current || !draft) return null;
     
-    // Attempt to get structured data
-    const v1 = current.conteudo_json && current.migration_status === 'completed' 
-      ? (current.conteudo_json as unknown as WorkoutDataJSON)
-      : validateWorkoutJSON(current.conteudo).data;
-      
-    const v2 = draft.conteudo_json && draft.migration_status === 'completed'
-      ? (draft.conteudo_json as unknown as WorkoutDataJSON)
-      : validateWorkoutJSON(draft.conteudo).data;
+    try {
+      // Attempt to get structured data
+      const v1 = current.conteudo_json && current.migration_status === 'completed' 
+        ? (current.conteudo_json as unknown as WorkoutDataJSON)
+        : validateWorkoutJSON(current.conteudo).data;
+        
+      const v2 = draft.conteudo_json && draft.migration_status === 'completed'
+        ? (draft.conteudo_json as unknown as WorkoutDataJSON)
+        : validateWorkoutJSON(draft.conteudo).data;
 
-    if (!v1 || !v2) return null;
+      if (!v1 || !v2 || !Array.isArray(v1.days) || !Array.isArray(v2.days)) {
+        console.warn("Invalid data for workout comparison", { v1, v2 });
+        return null;
+      }
 
-    return {
-      v1,
-      v2,
-      diff: compareWorkoutVersions(v1, v2)
-    };
+      return {
+        v1,
+        v2,
+        diff: compareWorkoutVersions(v1, v2)
+      };
+    } catch (err) {
+      console.error("Error in workout comparison useMemo:", err);
+      return null;
+    }
   }, [current, draft]);
 
   if (!current || !draft) return null;
