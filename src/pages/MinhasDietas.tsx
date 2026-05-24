@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { UtensilsCrossed, Droplets, Plus, Minus, Target, ArrowLeft, Lightbulb, Leaf, Pill, Zap, SlidersHorizontal } from 'lucide-react';
+import { UtensilsCrossed, Droplets, Plus, Minus, Target, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { parseSections, type ParsedSection } from '@/lib/dietResultParser';
 import { parseTrainingSections } from '@/lib/trainingResultParser';
@@ -233,110 +233,7 @@ const MinhasDietas = () => {
   // The student should only see PRACTICAL items: nomes de suplementos,
   // fitoterápicos, e os ajustes ativados pelo admin (carb cycling,
   // refeed, diet break, sódio, água, mudança de refeições, platô...).
-  const extraSections = useMemo(() => {
-    // Keywords that indicate theoretical/calculation content — hide these
-    const HIDE_KEYWORDS = [
-      'tmb', 'taxa metab', 'harris benedict', 'mifflin', 'katch',
-      'get ', 'gasto energ', 'consumo energ', 'fator de atividade',
-      'fórmula', 'formula', 'justificativa', 'escolha da fórmula',
-      'cálculo', 'calculo do get', 'distribuição de macro',
-      'distribuicao de macro', 'macros', 'calorias alvo',
-      'déficit cal', 'deficit cal', 'meta calórica', 'meta calorica',
-      'considerando', 'passos detalhados', 'elaborar um plano',
-      'timing nutricional', 'pré-treino', 'pre-treino', 'pós-treino', 'pos-treino',
-      // Carb cycling é aplicado diretamente nos alimentos/quantidades de cada
-      // dia nas refeições — não exibimos card teórico para o aluno.
-      'carb cycling', 'carb cyc', 'ciclagem de carbo', 'ciclagem de carb',
-      'ciclagem de carboidrato',
-      // Nunca expor menções a IA / observações automáticas para o aluno.
-      'observações da ia', 'observacoes da ia', 'observação da ia', 'observacao da ia',
-      'ia ', ' ia.', ' ia,', ' ia:', '(ia)',
-      'inteligência artificial', 'inteligencia artificial',
-      'ciclo de carbo', 'ciclo de carb', 'ciclo de carboidrato',
-      'low carb:', 'high carb:',
-    ];
-    // Keywords that indicate PRACTICAL content the student SHOULD see
-    const SHOW_KEYWORDS = [
-      'suplement', 'fitoter', 'chá', 'cha ', 'infus', 'erva',
-      'refeed', 'recarga',
-      'diet break', 'pausa',
-      'platô', 'plato', 'estagnaç', 'estagnac',
-      'ajuste de sódio', 'ajuste de sodio', 'protocolo de sódio', 'protocolo de sodio', 'manipulação de sódio',
-      'ajuste de água', 'ajuste de agua', 'ingestão hídrica', 'ingestao hidrica', 'protocolo hídrico',
-      'mudança de refei', 'mudanca de refei', 'distribuição de refei',
-      'emagrec', 'jejum', 'hiit', 'termog',
-      'ajuste do protocolo', 'ajustes do protocolo',
-    ];
-    // HIDE has priority over SHOW so carb cycling never leaks through even if
-    // the heading also matches a generic practical keyword.
-    const isTheoretical = (str: string) => HIDE_KEYWORDS.some((k) => str.includes(k));
-    const isPractical = (str: string) => !isTheoretical(str) && SHOW_KEYWORDS.some((k) => str.includes(k));
 
-    // First pass: merge consecutive text/heading lines + their following table
-    // into a single virtual section so we can decide based on the heading.
-    const merged: ParsedSection[] = [];
-    let buffer: ParsedSection | null = null;
-
-    const flushBuffer = () => {
-      if (buffer && (buffer.content || '').trim()) merged.push(buffer);
-      buffer = null;
-    };
-
-    for (const s of sections) {
-      if (s.type === 'meal' || s.type === 'message' || s.type === 'tip') {
-        flushBuffer();
-        merged.push(s);
-        continue;
-      }
-      if (s.type === 'text') {
-        const line = (s.content || '').trim();
-        const isHeading = /^#{1,6}\s/.test(line) || /^\*\*.+\*\*$/.test(line);
-        if (isHeading) {
-          flushBuffer();
-          buffer = {
-            type: 'text',
-            title: line.replace(/^#+\s*/, '').replace(/\*\*/g, '').trim(),
-            content: '',
-          };
-        } else if (buffer) {
-          buffer.content += (buffer.content ? '\n' : '') + line;
-        } else {
-          // Stray text, skip — these are reasoning fragments
-          continue;
-        }
-        continue;
-      }
-      // summary / table — attach to current buffer or stand alone
-      if (buffer) {
-        buffer.content += (buffer.content ? '\n\n' : '') + (s.content || '');
-        flushBuffer();
-      } else {
-        merged.push(s);
-      }
-    }
-    flushBuffer();
-
-    return merged.filter((s) => {
-      if (s.type === 'meal' || s.type === 'message') return false;
-      const content = (s.content || '').trim();
-      const title = (s.title || '').trim();
-      if (!content && !title) return false;
-      const lower = (title + ' ' + content).toLowerCase();
-      if (isPractical(lower)) return true;
-      if (isTheoretical(lower)) return false;
-      // Default: hide anything that didn't explicitly match practical content
-      return false;
-    });
-  }, [sections]);
-
-  const getExtraIcon = (s: ParsedSection) => {
-    const text = ((s.title || '') + ' ' + (s.content || '')).toLowerCase();
-    if (text.includes('fitoter') || text.includes('chá') || text.includes('infus')) return Leaf;
-    if (text.includes('suplement')) return Pill;
-    if (text.includes('emagrec') || text.includes('jejum') || text.includes('hiit') || text.includes('termog')) return Zap;
-    if (text.includes('ajuste') || text.includes('refeed') || text.includes('carb cyc') || text.includes('platô') || text.includes('plato') || text.includes('diet break')) return SlidersHorizontal;
-    return Lightbulb;
-  };
 
   const hasMultipleGroups = displayGroups.length > 1;
   const activeGroupIndex = displayGroups[selectedGroupIndex] ? selectedGroupIndex : defaultGroupIndex;
@@ -542,66 +439,6 @@ const MinhasDietas = () => {
           </Card>
         )}
 
-        {/* Extras: ajustes do protocolo, fitoterapia, suplementação, emagrecimento rápido, dicas */}
-        {extraSections.length > 0 && (
-          <div className="space-y-3 pt-2">
-            {extraSections.map((s, i) => {
-              const Icon = getExtraIcon(s);
-              const body = cleanMarkdownContent(s.content || '').replace(/\n{3,}/g, '\n\n');
-              const parsedTable = extractLooseMarkdownTable(s.content || '');
-              const title = (s.title || '').trim() || (
-                s.type === 'text' ? body.split('\n')[0].slice(0, 80) : 'Informações'
-              );
-              return (
-                <Card key={`extra-${i}`} className="border-accent/30 bg-gradient-to-br from-accent/10 to-secondary/30">
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-2">
-                      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                      <div className="flex-1 min-w-0">
-                        {title && (
-                          <h3 className="text-sm font-bold text-foreground mb-2">{title}</h3>
-                        )}
-                        {parsedTable ? (
-                          <div className="overflow-hidden rounded-lg border border-border/60 bg-background/40">
-                            <Table className="text-xs">
-                              <TableHeader>
-                                <TableRow className="hover:bg-transparent">
-                                  {parsedTable.headers.map((header, headerIndex) => (
-                                    <TableHead key={`${header}-${headerIndex}`} className="h-9 px-3 text-xs font-semibold">
-                                      {header}
-                                    </TableHead>
-                                  ))}
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {parsedTable.rows.map((row, rowIndex) => (
-                                  <TableRow key={`row-${rowIndex}`}>
-                                    {row.map((cell, cellIndex) => (
-                                      <TableCell
-                                        key={`cell-${rowIndex}-${cellIndex}`}
-                                        className={`px-3 py-2 align-top ${cellIndex === 0 ? 'font-medium text-foreground' : 'text-muted-foreground'}`}
-                                      >
-                                        {cell || '—'}
-                                      </TableCell>
-                                    ))}
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </div>
-                        ) : (
-                          <div className="prose prose-sm dark:prose-invert max-w-none text-sm text-muted-foreground [&_strong]:text-foreground [&_strong]:font-semibold [&_table]:text-xs [&_table]:w-full [&_th]:bg-muted [&_th]:p-1.5 [&_td]:p-1.5 [&_td]:border [&_th]:border [&_table]:block [&_table]:overflow-x-auto">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
       </div>
 
       <ProtocolsDialog
