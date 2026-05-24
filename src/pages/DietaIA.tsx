@@ -1725,29 +1725,27 @@ ${generated}`;
                     <span>Diferença: <strong className="text-foreground">{formatDietMacroLine(macroReport.difference)}</strong></span>
                   </div>
                   {!macroReport.valid && (
-                    <>
-                      <p className="text-yellow-600 dark:text-yellow-400">
-                        Fora da meta. Pode ajustar automaticamente, regenerar ou salvar mesmo assim.
-                      </p>
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        <Button variant="outline" size="sm" onClick={adjustMacros} disabled={adjusting}>
-                          {adjusting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <SlidersHorizontal className="h-3 w-3 mr-1" />}
-                          Ajustar automático
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => setShowMacroModal(true)}>
-                          <Percent className="h-3 w-3 mr-1" /> Ajustar macros
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan(); }}>
-                          <RefreshCw className="h-3 w-3 mr-1" /> Regenerar dieta
-                        </Button>
-                        <Button variant="secondary" size="sm" onClick={() => {
-                          savePlan();
-                        }}>
-                          <Save className="h-3 w-3 mr-1" /> Salvar mesmo assim
-                        </Button>
-                      </div>
-                    </>
+                    <p className="text-yellow-600 dark:text-yellow-400">
+                      Fora da meta. Pode ajustar automaticamente, regenerar ou salvar mesmo assim.
+                    </p>
                   )}
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <Button variant="outline" size="sm" onClick={adjustMacros} disabled={adjusting}>
+                      {adjusting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <SlidersHorizontal className="h-3 w-3 mr-1" />}
+                      Ajuste automático
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setShowMacroModal(true)}>
+                      <Percent className="h-3 w-3 mr-1" /> Ajustar macros
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan(); }}>
+                      <RefreshCw className="h-3 w-3 mr-1" /> Regenerar dieta
+                    </Button>
+                    {!macroReport.valid && (
+                      <Button variant="secondary" size="sm" onClick={() => savePlan()}>
+                        <Save className="h-3 w-3 mr-1" /> Salvar mesmo assim
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             )}
