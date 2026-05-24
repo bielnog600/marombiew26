@@ -272,7 +272,14 @@ async function callDietAgent(prompt: string, studentContext: any): Promise<strin
   let streamDone = false;
 
   while (!streamDone) {
-    const { done, value } = await reader.read();
+    let readResult;
+    try {
+      readResult = await reader.read();
+    } catch (e) {
+      console.error("[callDietAgent] stream read error:", e);
+      break;
+    }
+    const { done, value } = readResult;
     if (done) break;
     textBuffer += decoder.decode(value, { stream: true });
     let idx: number;
@@ -297,6 +304,7 @@ async function callDietAgent(prompt: string, studentContext: any): Promise<strin
     }
   }
 
+  console.log(`[callDietAgent] accumulated length=${accumulated.length}`);
   return accumulated.trim();
 }
 
