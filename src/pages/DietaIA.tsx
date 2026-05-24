@@ -1772,6 +1772,33 @@ ${generated}`;
           </AlertDialogContent>
         </AlertDialog>
 
+        {lastDietPlan && (
+          <DietDraftComparisonDialog
+            open={showCompare}
+            onOpenChange={setShowCompare}
+            current={{
+              id: lastDietPlan.id,
+              titulo: lastDietPlan.titulo,
+              conteudo: lastDietPlan.conteudo,
+              version: 1,
+              created_at: lastDietPlan.created_at,
+            }}
+            draft={{
+              id: 'draft',
+              titulo: `Dieta - ${new Date().toLocaleDateString('pt-BR')}`,
+              conteudo: result,
+              version: 2,
+              created_at: new Date().toISOString(),
+              draft_source: 'manual',
+            }}
+            rationale={studentCtx?.historico_processo?.motivos_decisao?.join(' ')}
+            busy={saving}
+            onPublish={async () => { await savePlan(); setShowCompare(false); }}
+            onKeep={() => setShowCompare(false)}
+            onDiscard={() => { setResult(''); setShowCompare(false); }}
+          />
+        )}
+
         {/* Modal Ajustar Macros por % */}
         <Dialog open={showMacroModal} onOpenChange={setShowMacroModal}>
           <DialogContent className="max-w-sm">
