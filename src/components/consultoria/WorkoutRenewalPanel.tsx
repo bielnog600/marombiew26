@@ -502,10 +502,15 @@ const WorkoutRenewalPanel: React.FC = () => {
   );
 };
 
-const Metric: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+const Metric: React.FC<{ label: string; value: string; trend?: 'up' | 'down' | 'stable' }> = ({ label, value, trend }) => (
   <div className="rounded-md bg-background/40 p-2 border border-border/50">
     <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
-    <p className="text-sm font-medium">{value}</p>
+    <div className="flex items-center gap-1">
+      <p className="text-sm font-medium">{value}</p>
+      {trend === 'up' && <TrendingUp className="h-3 w-3 text-emerald-500" />}
+      {trend === 'down' && <TrendingDown className="h-3 w-3 text-destructive" />}
+      {trend === 'stable' && <Minus className="h-3 w-3 text-muted-foreground" />}
+    </div>
   </div>
 );
 
