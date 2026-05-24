@@ -1,11 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
-import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar, Send, ClipboardList, Plus, Sparkles, Activity } from 'lucide-react';
+import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar, Send, ClipboardList, Plus, Sparkles, Activity, Wand2, Zap, GitCompare, RefreshCw } from 'lucide-react';
 import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import TrainingResultCards from '@/components/TrainingResultCards';
@@ -14,6 +14,8 @@ import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { rebuildTrainingMarkdown } from '@/lib/trainingResultParser';
 import AiEditAllDaysDialog from '@/components/training/AiEditAllDaysDialog';
+import WorkoutDraftComparisonDialog from '@/components/consultoria/WorkoutDraftComparisonDialog';
+import { Badge } from '@/components/ui/badge';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -302,11 +304,38 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                     </Button>
                   )}
                   {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                </div>
-              </div>
-
-              {isExpanded && (
-                <div className="mt-4 pt-4 border-t border-border space-y-4">
+                  {isExpanded && (
+                    <div className="mt-4 pt-4 border-t border-border space-y-4">
+                      {/* Action Bar - Aluno individual hybrid logic */}
+                      <div className="flex flex-wrap gap-2 pb-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="h-8 gap-1.5 text-xs rounded-xl bg-primary/5 border-primary/20"
+                          onClick={(e) => { e.stopPropagation(); navigate(`/treino-ia/${studentId}?edit=${plan.id}`); }}
+                        >
+                          <Wand2 className="h-3.5 w-3.5 text-primary" />
+                          Ajustar com IA
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="h-8 gap-1.5 text-xs rounded-xl bg-orange-500/5 border-orange-500/20 text-orange-600"
+                          onClick={(e) => { e.stopPropagation(); navigate(`/treino-ia/${studentId}?edit=${plan.id}&mode=adjust`); }}
+                        >
+                          <Zap className="h-3.5 w-3.5" />
+                          Ajuste Rápido
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="h-8 gap-1.5 text-xs rounded-xl bg-blue-500/5 border-blue-500/20 text-blue-600"
+                          onClick={(e) => { e.stopPropagation(); navigate(`/treino-ia/${studentId}`); }}
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          Renovar Bloco
+                        </Button>
+                      </div>
                   {/* Periodização */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">

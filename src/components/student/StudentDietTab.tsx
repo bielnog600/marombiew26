@@ -220,14 +220,19 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                  className="flex items-center justify-between cursor-pointer"
                  onClick={() => setExpandedId(isExpanded ? null : plan.id)}
                >
-                 <div className="flex items-center gap-3">
-                   <UtensilsCrossed className="h-5 w-5 text-green-500 shrink-0" />
-                   <div className="flex-1 min-w-0">
-                     <p className="font-medium text-sm truncate">{plan.titulo}</p>
-                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                       <p className="text-xs text-muted-foreground">
-                         {new Date(plan.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                       </p>
+                  <div className="flex items-center gap-3">
+                    <UtensilsCrossed className="h-5 w-5 text-green-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm truncate">{plan.titulo}</p>
+                        {plan.migration_status === 'completed' && (
+                          <Badge variant="outline" className="h-4 px-1 text-[8px] uppercase text-emerald-500 border-emerald-500/30">JSON</Badge>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(plan.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        </p>
                        {!isExpanded && (
                          <>
                            <span className="text-[10px] text-muted-foreground hidden xs:inline">•</span>
