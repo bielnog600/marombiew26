@@ -283,6 +283,7 @@ async function gatherContext(supabase: any, plan: any) {
     data_quality: dataQuality,
     last_session_summary: lastSessionSummary,
     recent_exercise_stats: recentExerciseStats,
+    recent_checkins: checkins ?? [],
   };
 }
 
