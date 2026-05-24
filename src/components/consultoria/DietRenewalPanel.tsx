@@ -163,9 +163,23 @@ const DietRenewalPanel: React.FC = () => {
         if (d.parent_plan_id) draftMap[d.parent_plan_id] = d as PlanRow;
       });
       setDrafts(draftMap);
+
+      // 6. Latest checkins
+      const { data: checkinRows } = await supabase
+        .from('diet_checkins')
+        .select('*')
+        .in('student_id', studentIds)
+        .order('completed_at', { ascending: false });
+      
+      const checkinMap: Record<string, any> = {};
+      (checkinRows ?? []).forEach((c: any) => {
+        if (!checkinMap[c.student_id]) checkinMap[c.student_id] = c;
+      });
+      setCheckins(checkinMap);
     } else {
       setAnalyses({});
       setDrafts({});
+      setCheckins({});
     }
 
     setPlans(focus);
