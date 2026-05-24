@@ -18,9 +18,12 @@ type CycleStatus =
   | 'aguardando_dados'
   | 'renovacao_sugerida'
   | 'rascunho_gerado'
-  | 'renovado';
+  | 'pronto_revisar'
+  | 'renovado'
+  | 'vencido';
 
-type SuggestedAction = 'manter' | 'ajustar' | 'gerar_novo' | 'solicitar_dados';
+type SuggestedAction = 'manter' | 'ajustar' | 'trocar_exercicios' | 'deload' | 'renovar_bloco' | 'solicitar_dados';
+type DecisionType = SuggestedAction;
 
 interface PlanRow {
   id: string;
