@@ -90,13 +90,13 @@ const WorkoutDraftComparisonDialog: React.FC<Props> = ({ open, onOpenChange, cur
         )}
 
         <div className="grid md:grid-cols-2 gap-3 flex-1 overflow-hidden min-h-[300px]">
-          <div className="rounded-md border border-border/50 bg-background/40 flex flex-col overflow-hidden">
+          <div className="rounded-md border border-border/50 bg-background/40 flex flex-col overflow-hidden min-h-[300px]">
             <div className="px-3 py-2 border-b border-border/50 text-xs font-medium">Treino atual (v{current.version})</div>
-            <ScrollArea className="flex-1 p-3 text-xs whitespace-pre-wrap font-mono">{current.conteudo}</ScrollArea>
+            <div className="flex-1 p-3 text-xs whitespace-pre-wrap font-mono overflow-y-auto">{current.conteudo}</div>
           </div>
-          <div className="rounded-md border border-violet-500/30 bg-violet-500/5 flex flex-col overflow-hidden">
+          <div className="rounded-md border border-violet-500/30 bg-violet-500/5 flex flex-col overflow-hidden min-h-[300px]">
             <div className="px-3 py-2 border-b border-violet-500/30 text-xs font-medium">Rascunho v{draft.version}</div>
-            <ScrollArea className="flex-1 p-3 text-xs whitespace-pre-wrap font-mono">{draft.conteudo}</ScrollArea>
+            <div className="flex-1 p-3 text-xs whitespace-pre-wrap font-mono overflow-y-auto">{draft.conteudo}</div>
           </div>
         </div>
 
