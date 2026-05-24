@@ -96,10 +96,29 @@ async function gatherContext(supabase: any, plan: any) {
       .limit(3),
   ]);
 
-  const completedSessions = (sessions ?? []).filter((s: any) => s.status === "completed");
-  const abandonedSessions = (sessions ?? []).filter((s: any) => s.status !== "completed");
+  const sessionsInPeriod = sessions ?? [];
+  const completedSessions = sessionsInPeriod.filter((s: any) => s.status === "completed");
+  const abandonedSessions = sessionsInPeriod.filter((s: any) => s.status !== "completed");
+  
+  const sessionsStarted = sessionsInPeriod.length;
+  const sessionsFinished = completedSessions.length;
+  const totalLogsCount = (setLogs ?? []).length;
+
   const sessionsCount = completedSessions.length;
   const sessionFrequency = sessionsCount / (windowDays / 7); // sessions per week
+
+  // Heurística de qualidade de registro
+  let registrationQuality: "boa" | "incompleta" | "insuficiente" = "insuficiente";
+  if (sessionsStarted > 0) {
+    const logsPerSession = totalLogsCount / sessionsStarted;
+    const completionRatio = sessionsFinished / sessionsStarted;
+    
+    if (completionRatio >= 0.8 && logsPerSession >= 5) {
+      registrationQuality = "boa";
+    } else if (sessionsStarted > 0 && (logsPerSession >= 3 || sessionsFinished > 0)) {
+      registrationQuality = "incompleta";
+    }
+  }
 
   // Completion rate (exercises_completed / total_exercises)
   const compRates = completedSessions
@@ -109,7 +128,7 @@ async function gatherContext(supabase: any, plan: any) {
     ? compRates.reduce((a: number, b: number) => a + b, 0) / compRates.length
     : null;
 
-  // Aderência geral: workout_completed days / 21 + completion mix
+  // Aderência geral: workout_completed days / windowDays + completion mix
   const trackingDays = tracking ?? [];
   const workoutDays = trackingDays.filter((d: any) => d.workout_completed).length;
   const baseAdherence = workoutDays / windowDays;
@@ -259,6 +278,10 @@ async function gatherContext(supabase: any, plan: any) {
     cycle_days: cycleDays,
     window_days: windowDays,
     sessions_in_window: sessionsCount,
+    sessions_started: sessionsStarted,
+    sessions_finished: sessionsFinished,
+    total_logs_count: totalLogsCount,
+    registration_quality: registrationQuality,
     low_cost: isLowCost,
     abandoned_sessions: abandonedSessions.length,
     session_frequency: Number(sessionFrequency.toFixed(2)),
@@ -297,29 +320,17 @@ const system = `Você é o AGENTE MAROMBIEW em modo ANALISTA DE PROGRAMAÇÃO. S
 SUA ARQUITETURA DE ANÁLISE:
 1. DIAGNÓSTICO ESTRUTURADO: Analise a última versão do treino (planejado) vs logbook (real).
 2. DETECÇÃO DE ERROS/RISCOS: Identifique volume excessivo/insuficiente, sessões longas demais, fadiga acumulada, subestímulo ou falta de progressão.
-3. ANÁLISE POR GRUPO MUSCULAR: Detecte grupos sobrecarregados ou subestimulados com base no volume e tendência de carga.
+3. ANÁLISE DE QUALIDADE DE REGISTRO: Diferencie baixa aderência real de registro incompleto.
+   - Baixa Aderência Real: Poucos treinos iniciados E poucos finalizados.
+   - Registro Incompleto: Muitos treinos iniciados, séries/cargas lançadas, mas baixa taxa de finalização (muitas sessões abandonadas).
+   - Baixa Confiabilidade: Poucos dados válidos para uma conclusão segura.
 4. DECISÃO DE AJUSTE: Use o histórico das últimas 2-4 semanas para decidir entre Manter, Ajustar, Trocar Exercícios ou Renovar Bloco.
 
-DÊ MUITO PESO AOS CHECK-INS SUBJETIVOS RECENTES:
-- 'recent_checkins' contém os últimos feedbacks diretos do aluno.
-- Se 'intensidade_percebida' for 'muito_pesado' ou 'recuperacao' for 'ruim' -> SINAL DE OVERTRAINING. Recomende Deload ou Ajustar (reduzir volume/intensidade).
-- Se 'dores' for moderada/forte -> SINAL DE LESÃO/RESTRIÇÃO. Priorize trocar exercícios ou deload.
-- Se 'duracao_percebida' for 'muito_longo' ou 'falta_tempo' for true -> Recomende simplificar a ficha ou reduzir volume por sessão.
-- Se 'motivacao' for 'baixa' -> Tente trocar variações de exercícios para renovar estímulo psicológico.
-- Se o aluno relatou que algum exercício específico incomodou ('exercicios_incomodo'), sugira TROCAR esse exercício imediatamente.
-
-
-DIRETRIZES:
-- Se houver dor recorrente ou queda de performance com RPE alto -> SINAL DE OVERTRAINING/FADIGA. Recomende Deload ou Ajuste.
-- Se houver platô (carga/reps estável) com boa aderência há >2 semanas -> SINAL DE PLATÔ. Recomende Trocar Exercícios ou Renovar Bloco.
-- REGRA DE OURO PARA FREQUÊNCIA: Nunca sugira reduzir a frequência semanal apenas por baixa aderência. Siga esta hierarquia:
-  1. Verifique se a disponibilidade real do aluno mudou (ex: relato de menos dias livres).
-  2. Verifique se a sessão está longa demais (avg_duration > 75min ou has_long_sessions: true). Se sim, sugira reduzir volume por sessão ou simplificar a ficha.
-  3. Verifique se o split (divisão) parece incompatível com a rotina. Se sim, sugira reorganizar o split.
-  4. Verifique se a aderência é parcial (falhando dias específicos ou grupos musculares).
-  5. SÓ recomende reduzir dias de treino se houver evidência clara de que a rotina não sustenta a frequência atual.
-- Diferencie entre: disponibilidade real, volume excessivo, split ruim ou comportamento/aderência.
-- Priorize SEMPRE a segurança se houver alertas de dor.
+DIRETRIZES DE FREQUÊNCIA E ADERÊNCIA:
+- Se houver evidência de treino iniciado + registros parciais, considere "Registro Incompleto".
+- Em caso de registro incompleto, PRIORIZE: solicitar feedback e orientar uso do app. EVITE ajustes agressivos sem dados confiáveis.
+- Só recomende reduzir dias de treino se houver evidência clara de que a rotina não sustenta a frequência atual (relato do aluno ou fadiga extrema).
+- DÊ MUITO PESO AOS CHECK-INS SUBJETIVOS RECENTES ('recent_checkins').
 
 ${lowCostNote}`;
 
@@ -347,6 +358,7 @@ ${lowCostNote}`;
               },
               summary_reason: { type: "string", description: "Motivo resumido em 3-5 palavras (ex: 'estagnação em membros superiores', 'baixa aderência/falta sessões')." },
               confidence_score: { type: "number", description: "Score de 0 a 1 indicando a qualidade dos dados para esta análise." },
+              registration_quality: { type: "string", enum: ["boa", "incompleta", "insuficiente"], description: "Qualidade do registro no app pelo aluno." },
               rationale: { type: "string", description: "Justificativa em 2-4 frases, em português, tom técnico." },
               monotony_risk: { type: "string", enum: ["baixo", "medio", "alto"] },
               fatigue_signal: { type: "string", enum: ["baixa", "media", "alta"] },
@@ -370,7 +382,7 @@ ${lowCostNote}`;
                 description: "Alternativas avaliadas antes de sugerir redução de frequência (ex: 'reduzir volume por sessão', 'trocar split')."
               }
             },
-            required: ["suggested_action", "rationale", "summary_reason", "confidence_score", "monotony_risk", "fatigue_signal", "priority"],
+            required: ["suggested_action", "rationale", "summary_reason", "confidence_score", "registration_quality", "monotony_risk", "fatigue_signal", "priority"],
             additionalProperties: false,
           },
         },
@@ -743,6 +755,10 @@ async function analyzePlan(supabase: any, planId: string) {
       days_remaining: ctx.days_remaining,
       adherence_score: ctx.adherence_score,
       session_frequency: ctx.session_frequency,
+      sessions_started: ctx.sessions_started,
+      sessions_finished: ctx.sessions_finished,
+      total_logs_count: ctx.total_logs_count,
+      registration_quality: ai.registration_quality || ctx.registration_quality,
       completion_rate: ctx.completion_rate,
       load_progression: ctx.load_progression,
       reps_progression: ctx.reps_progression,
