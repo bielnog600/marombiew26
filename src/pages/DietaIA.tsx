@@ -323,6 +323,7 @@ const DietaIA = () => {
 
     // Última dieta — extrai resumo
     const lastDiet = lastDietRes.data?.[0] || null;
+    setLastDietPlan(lastDiet);
     let ultima_dieta: any = null;
     if (lastDiet) {
       const c = lastDiet.conteudo || '';
@@ -368,8 +369,21 @@ const DietaIA = () => {
       const historico = trendIds.map(id => byAssId[id]).filter(x => x && x.peso != null);
       let direcao = 'estavel';
       let variacao_kg = 0;
+      let intervalo_dias = 0;
+      let velocidade_kg_semana = 0;
+      let relevancia: 'irrelevante' | 'leve' | 'moderada' | 'alta' = 'irrelevante';
       if (historico.length >= 2) {
         variacao_kg = Number(historico[0].peso) - Number(historico[historico.length - 1].peso);
+        const dRecent = new Date(historico[0].data).getTime();
+        const dOldest = new Date(historico[historico.length - 1].data).getTime();
+        intervalo_dias = Math.max(1, Math.round((dRecent - dOldest) / 86400000));
+        velocidade_kg_semana = Number(((variacao_kg / intervalo_dias) * 7).toFixed(2));
+        const pesoBase = Number(historico[historico.length - 1].peso) || 70;
+        const pctVar = Math.abs(variacao_kg) / pesoBase;
+        if (pctVar < 0.005) relevancia = 'irrelevante';
+        else if (pctVar < 0.015) relevancia = 'leve';
+        else if (pctVar < 0.04) relevancia = 'moderada';
+        else relevancia = 'alta';
         if (variacao_kg > 0.5) direcao = 'subindo';
         else if (variacao_kg < -0.5) direcao = 'descendo';
       }
@@ -377,6 +391,9 @@ const DietaIA = () => {
         peso_atual: historico[0]?.peso ?? anthro?.peso ?? null,
         variacao_kg: Number(variacao_kg.toFixed(2)),
         direcao,
+        intervalo_dias,
+        velocidade_kg_semana,
+        relevancia,
         historico,
       };
     }
@@ -389,13 +406,32 @@ const DietaIA = () => {
       const expectedPerDay = lastDiet ? (ultima_dieta?.num_refeicoes || 5) : 5;
       const expectedTotal = 14 * expectedPerDay;
       const aguaMedia = tracking.reduce((s, d: any) => s + (d.water_glasses || 0), 0) / tracking.length;
+      // Consistência por índice de refeição (qual refeição é mais marcada/falhada)
+      const consistencia_por_refeicao: Record<number, number> = {};
+      for (let i = 0; i < expectedPerDay; i++) consistencia_por_refeicao[i] = 0;
+      for (const d of tracking as any[]) {
+        const arr = Array.isArray(d.meals_completed) ? d.meals_completed : [];
+        for (const idx of arr) {
+          const n = Number(idx);
+          if (Number.isInteger(n) && n >= 0 && n < expectedPerDay) {
+            consistencia_por_refeicao[n] = (consistencia_por_refeicao[n] || 0) + 1;
+          }
+        }
+      }
+      const refeicoes_mais_falhadas = Object.entries(consistencia_por_refeicao)
+        .map(([idx, c]) => ({ indice: Number(idx), marcadas: c, falhadas: tracking.length - c }))
+        .sort((a, b) => b.falhadas - a.falhadas)
+        .slice(0, 3);
       aderencia_recente = {
         dias_com_registro: tracking.length,
         dias_total: 14,
+        dias_com_registro_pct: Math.round((tracking.length / 14) * 100),
         refeicoes_marcadas: totalRef,
         refeicoes_esperadas: expectedTotal,
         percentual_aderencia: Math.round((totalRef / expectedTotal) * 100),
         agua_media_copos_dia: Number(aguaMedia.toFixed(1)),
+        consistencia_por_refeicao,
+        refeicoes_mais_falhadas,
       };
     }
 
@@ -421,16 +457,58 @@ const DietaIA = () => {
       };
     }
 
-    // Score de confiança da geração
+    // Score de confiança explicável (com fatores positivos e negativos)
+    type Factor = { key: string; label: string; weight: number; status: 'positive' | 'negative' | 'neutral' };
+    const factors: Factor[] = [];
     let score = 0;
-    const motivos: string[] = [];
-    if (ultima_dieta) { score += 25; motivos.push('dieta anterior disponível'); }
-    if (tendencia_peso && tendencia_peso.historico?.length >= 2) { score += 25; motivos.push('tendência de peso real'); }
-    if (aderencia_recente && aderencia_recente.dias_com_registro >= 7) { score += 25; motivos.push('aderência registrada'); }
-    else if (aderencia_recente && aderencia_recente.dias_com_registro >= 3) { score += 10; motivos.push('aderência parcial'); }
-    if (ultimo_reajuste) { score += 15; motivos.push('último reajuste registrado'); }
-    if (latestQuestionnaire) { score += 10; motivos.push('questionário recente'); }
-    const confianca = { score: Math.min(score, 100), motivos };
+    if (ultima_dieta) { factors.push({ key: 'last_diet', label: 'Dieta anterior encontrada', weight: 25, status: 'positive' }); score += 25; }
+    else factors.push({ key: 'last_diet', label: 'Sem dieta anterior — geração inicial', weight: 0, status: 'neutral' });
+    if (tendencia_peso && tendencia_peso.historico?.length >= 2) {
+      factors.push({ key: 'weight_trend', label: `Tendência de peso disponível (${tendencia_peso.historico.length} avaliações em ${tendencia_peso.intervalo_dias}d)`, weight: 25, status: 'positive' });
+      score += 25;
+    } else {
+      factors.push({ key: 'weight_trend', label: 'Tendência de peso indisponível (avaliações insuficientes)', weight: 0, status: 'negative' });
+    }
+    if (aderencia_recente && aderencia_recente.dias_com_registro >= 7) {
+      factors.push({ key: 'adherence', label: `Aderência recente suficiente (${aderencia_recente.dias_com_registro}/14 dias)`, weight: 25, status: 'positive' });
+      score += 25;
+    } else if (aderencia_recente && aderencia_recente.dias_com_registro >= 3) {
+      factors.push({ key: 'adherence', label: `Aderência parcial (${aderencia_recente.dias_com_registro}/14 dias)`, weight: 10, status: 'neutral' });
+      score += 10;
+    } else {
+      factors.push({ key: 'adherence', label: 'Sem aderência registrada nos últimos 14 dias', weight: 0, status: 'negative' });
+    }
+    if (ultimo_reajuste) { factors.push({ key: 'readjustment', label: 'Último reajuste/feedback encontrado', weight: 15, status: 'positive' }); score += 15; }
+    else factors.push({ key: 'readjustment', label: 'Sem reajuste anterior registrado', weight: 0, status: 'neutral' });
+    if (latestQuestionnaire) { factors.push({ key: 'questionnaire', label: 'Questionário de dieta recente', weight: 10, status: 'positive' }); score += 10; }
+    else factors.push({ key: 'questionnaire', label: 'Sem questionário recente respondido', weight: 0, status: 'negative' });
+
+    // Heurística de decisão recomendada (a IA pode override, mas isso vira input forte)
+    let decisao_recomendada: 'manter' | 'ajustar' | 'nova' | 'pedir_dados' = 'nova';
+    const motivos_decisao: string[] = [];
+    if (!ultima_dieta) {
+      decisao_recomendada = 'nova';
+      motivos_decisao.push('Nenhuma dieta anterior — gerar do zero.');
+    } else {
+      const adesaoBaixa = aderencia_recente && aderencia_recente.percentual_aderencia < 60;
+      const sintomasNeg = !!(ultimo_reajuste?.sintomas?.some((s: string) => /fome|insônia|insonia|energia baixa|humor/i.test(s)));
+      const tendenciaContraria = tendencia_peso?.relevancia === 'alta' || tendencia_peso?.relevancia === 'moderada';
+      const reajusteRecente = ultimo_reajuste && (Date.now() - new Date(ultimo_reajuste.data).getTime()) / 86400000 < 21;
+
+      if (adesaoBaixa) { motivos_decisao.push('Aderência <60% — simplificar.'); decisao_recomendada = 'ajustar'; }
+      if (sintomasNeg) { motivos_decisao.push('Sintomas negativos no último reajuste — revisar.'); decisao_recomendada = 'ajustar'; }
+      if (tendenciaContraria) { motivos_decisao.push(`Tendência ${tendencia_peso.direcao} relevante (${tendencia_peso.velocidade_kg_semana}kg/sem) — calibrar.`); decisao_recomendada = 'ajustar'; }
+      if (!adesaoBaixa && !sintomasNeg && !tendenciaContraria) {
+        decisao_recomendada = 'manter';
+        motivos_decisao.push('Sem variação relevante — preservar estrutura anterior.');
+      }
+      if (reajusteRecente && ultimo_reajuste?.satisfacao && /ruim|insatisf/i.test(String(ultimo_reajuste.satisfacao))) {
+        decisao_recomendada = 'nova';
+        motivos_decisao.push('Aluno insatisfeito no último reajuste — repensar plano.');
+      }
+    }
+
+    const confianca = { score: Math.min(score, 100), factors, motivos: factors.filter(f => f.status === 'positive').map(f => f.label) };
 
     const ctx: StudentCtx = {
       nome: profile?.nome, sexo: sp?.sexo, data_nascimento: sp?.data_nascimento,
