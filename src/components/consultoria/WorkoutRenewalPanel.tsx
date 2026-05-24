@@ -296,7 +296,7 @@ const WorkoutRenewalPanel: React.FC = () => {
 
   const buildCheckinWhatsAppUrl = (plan: PlanRow) => {
     const firstName = (plan.student_name || 'aluno').split(' ')[0];
-    const msg = `Oi ${firstName}! 💪\n\nTe enviei no app um check-in rápido sobre o último protocolo de treino. Quando puder, abre o app e responde — leva 1 minutinho e me ajuda a ajustar seu plano com mais precisão. 🙌`;
+    const msg = `Oi ${firstName}! 💪\n\nTe enviei no app um check-in rápido sobre o último protocolo de treino. Quando puder, abre o app e responde, leva 1 minutinho e me ajuda a ajustar seu plano com mais precisão. 🙌`;
     const cleaned = (plan.student_phone ?? '').replace(/\D/g, '');
     const withDdi = cleaned.length === 10 || cleaned.length === 11 ? `55${cleaned}` : cleaned;
     return withDdi
