@@ -74,7 +74,7 @@
   }
 
   html {
-    overscroll-behavior-y: contain;
+    overscroll-behavior: none;
     overflow: hidden;
     height: 100%;
   }
@@ -85,8 +85,7 @@
     -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
     overscroll-behavior: none;
-    overscroll-behavior-y: contain;
-    touch-action: pan-x pan-y;
+    touch-action: manipulation;
     overflow-x: hidden;
     overflow-y: auto;
     min-height: 100vh;
