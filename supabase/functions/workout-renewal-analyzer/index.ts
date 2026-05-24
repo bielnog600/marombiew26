@@ -217,6 +217,25 @@ async function gatherContext(supabase: any, plan: any) {
       .slice(0, 10);
   }
 
+  // Análise por grupo muscular
+  const muscleGroupStats = new Map<string, { sets: number; volume: number; loadTrends: number[] }>();
+  (setLogs ?? []).forEach((log: any) => {
+    const mg = log.muscle_group || "Outros";
+    if (!muscleGroupStats.has(mg)) muscleGroupStats.set(mg, { sets: 0, volume: 0, loadTrends: [] });
+    const stat = muscleGroupStats.get(mg)!;
+    stat.sets += 1;
+    stat.volume += (Number(log.weight_kg) || 0) * (Number(log.reps) || 0);
+    if (log.weight_kg) stat.loadTrends.push(Number(log.weight_kg));
+  });
+
+  const muscleGroups = Array.from(muscleGroupStats.entries()).map(([name, data]) => ({
+    name,
+    total_sets: data.sets,
+    avg_sets_per_week: Number((data.sets / (windowDays / 7)).toFixed(1)),
+    volume_total: data.volume,
+    load_trend: trend(data.loadTrends),
+  }));
+
   return {
     student_name: profile?.nome ?? "",
     days_elapsed: elapsed,
@@ -236,6 +255,7 @@ async function gatherContext(supabase: any, plan: any) {
     distinct_exercises: distinctExercises,
     fatigue_signal: fatigueSignal,
     monotony_risk: monotonyRisk,
+    muscle_groups: muscleGroups,
     objetivo: sp?.objetivo ?? null,
     observacoes: sp?.observacoes ?? null,
     restricoes: sp?.restricoes ?? null,
