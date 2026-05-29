@@ -70,8 +70,10 @@ export type Database = {
           low_cost_last_review_at: string | null
           low_cost_next_review_at: string | null
           low_cost_review_interval_days: number
+          main_exercises_count: number | null
           migration_error: string | null
           migration_status: string | null
+          mobility_count: number | null
           parent_plan_id: string | null
           pending_checkin: boolean | null
           protocols: Json | null
@@ -102,8 +104,10 @@ export type Database = {
           low_cost_last_review_at?: string | null
           low_cost_next_review_at?: string | null
           low_cost_review_interval_days?: number
+          main_exercises_count?: number | null
           migration_error?: string | null
           migration_status?: string | null
+          mobility_count?: number | null
           parent_plan_id?: string | null
           pending_checkin?: boolean | null
           protocols?: Json | null
@@ -134,8 +138,10 @@ export type Database = {
           low_cost_last_review_at?: string | null
           low_cost_next_review_at?: string | null
           low_cost_review_interval_days?: number
+          main_exercises_count?: number | null
           migration_error?: string | null
           migration_status?: string | null
+          mobility_count?: number | null
           parent_plan_id?: string | null
           pending_checkin?: boolean | null
           protocols?: Json | null
