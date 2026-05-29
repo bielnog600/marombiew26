@@ -81,5 +81,15 @@ export const saveDraft = (studentId: string, dayName: string, planSignature: str
   }
 };
 
-// These will be passed as props or re-exported if components are moved
-export { ExerciseNamePicker, HistoryPopover } from './TrainerLogSheet';
+export const parsePauseSeconds = (raw?: string | null): number => {
+  if (!raw) return 60;
+  const s = String(raw).trim().toLowerCase();
+  const mmss = s.match(/^(\d+):(\d{1,2})$/);
+  if (mmss) return parseInt(mmss[1], 10) * 60 + parseInt(mmss[2], 10);
+  if (/min/.test(s)) {
+    const n = parseFloat(s.replace(/[^\d.,]/g, '').replace(',', '.'));
+    return Math.round((isFinite(n) ? n : 1) * 60);
+  }
+  const n = parseInt(s.replace(/[^\d]/g, ''), 10);
+  return isFinite(n) && n > 0 ? n : 60;
+};

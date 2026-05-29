@@ -16,7 +16,8 @@ import {
   makeDaySignature, 
   loadDraft, 
   saveDraft, 
-  draftKey 
+  draftKey,
+  parsePauseSeconds
 } from './TrainerLogSheetUtils';
 
 interface Props {
@@ -436,7 +437,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                           })}
                           ExerciseNamePicker={ExerciseNamePicker}
                           HistoryPopover={HistoryPopover}
-                          parsePauseSeconds={(p) => 60} // simplified
+                          parsePauseSeconds={parsePauseSeconds}
                         />
                       ))}
                     </div>
