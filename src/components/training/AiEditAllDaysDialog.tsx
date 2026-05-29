@@ -195,10 +195,10 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
                   value={String(mainExercisesCount ?? 'auto')} 
                   onValueChange={(v) => onStructureChange?.(mobilityCount ?? null, v === 'auto' ? null : parseInt(v))}
                 >
-                  <SelectTrigger className="h-9 bg-white text-xs rounded-lg border-violet-200">
+                  <SelectTrigger className="h-9 bg-card text-xs rounded-lg border-violet-500/20 text-foreground">
                     <SelectValue placeholder="Automático" />
                   </SelectTrigger>
-                  <SelectContent className="bg-white border border-border shadow-md z-[100]">
+                  <SelectContent className="bg-card border border-border shadow-xl z-[100] text-foreground">
                     <SelectItem value="auto" className="text-sm">Auto (IA)</SelectItem>
                     <SelectItem value="4" className="text-sm">4 exercícios</SelectItem>
                     <SelectItem value="5" className="text-sm">5 exercícios</SelectItem>
