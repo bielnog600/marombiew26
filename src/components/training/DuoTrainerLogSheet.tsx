@@ -11,6 +11,8 @@ import ExerciseLogCard from './ExerciseLogCard';
 import { 
   ExerciseNamePicker, 
   HistoryPopover, 
+} from './TrainerLogSheet';
+import {
   normalizeExName, 
   buildSetPlan, 
   makeDaySignature, 
