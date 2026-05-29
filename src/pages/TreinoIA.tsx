@@ -155,6 +155,8 @@ const TreinoIA = () => {
   const [padroesProibidos, setPadroesProibidos] = useState<string[]>([]);
   const [exerciciosPermitidos, setExerciciosPermitidos] = useState('');
   const [regrasExecucao, setRegrasExecucao] = useState<string[]>([]);
+  const [mobilityCount, setMobilityCount] = useState<string>('auto');
+  const [mainExercisesCount, setMainExercisesCount] = useState<string>('auto');
 
   // Result
   const [generating, setGenerating] = useState(false);
