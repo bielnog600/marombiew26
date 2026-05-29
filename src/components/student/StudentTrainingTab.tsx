@@ -258,6 +258,60 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
 
                 {isExpanded && (
                   <div className="mt-4 pt-4 border-t border-border space-y-4">
+                    <div className="bg-violet-500/5 border border-violet-500/20 rounded-lg p-3 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Settings2 className="h-4 w-4 text-violet-500" />
+                        <h4 className="font-semibold text-xs text-violet-700 uppercase tracking-wider">Estrutura da Sessão</h4>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-bold text-muted-foreground uppercase">Mobilidade</Label>
+                          <Select 
+                            value={String(plan.mobility_count ?? 'auto')} 
+                            onValueChange={async (v) => {
+                              const val = v === 'auto' ? null : parseInt(v);
+                              await supabase.from('ai_plans').update({ mobility_count: val }).eq('id', plan.id);
+                              loadPlans();
+                            }}
+                          >
+                            <SelectTrigger className="h-8 bg-white text-[10px]">
+                              <SelectValue placeholder="Automático" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="auto">Auto (IA)</SelectItem>
+                              <SelectItem value="0">0 exerc.</SelectItem>
+                              <SelectItem value="1">1 exerc.</SelectItem>
+                              <SelectItem value="2">2 exerc.</SelectItem>
+                              <SelectItem value="3">3 exerc.</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-bold text-muted-foreground uppercase">Principais</Label>
+                          <Select 
+                            value={String(plan.main_exercises_count ?? 'auto')} 
+                            onValueChange={async (v) => {
+                              const val = v === 'auto' ? null : parseInt(v);
+                              await supabase.from('ai_plans').update({ main_exercises_count: val }).eq('id', plan.id);
+                              loadPlans();
+                            }}
+                          >
+                            <SelectTrigger className="h-8 bg-white text-[10px]">
+                              <SelectValue placeholder="Automático" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="auto">Auto (IA)</SelectItem>
+                              <SelectItem value="4">4 exerc.</SelectItem>
+                              <SelectItem value="5">5 exerc.</SelectItem>
+                              <SelectItem value="6">6 exerc.</SelectItem>
+                              <SelectItem value="7">7 exerc.</SelectItem>
+                              <SelectItem value="8">8 exerc.</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Ações Híbridas - Central de Ação Individual */}
                     <div className="flex flex-wrap gap-2 pb-2">
                       <Button 
