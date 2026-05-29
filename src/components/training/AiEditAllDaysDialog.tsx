@@ -184,6 +184,7 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
                     <SelectItem value="1" className="text-sm">1 exercício</SelectItem>
                     <SelectItem value="2" className="text-sm">2 exercícios</SelectItem>
                     <SelectItem value="3" className="text-sm">3 exercícios</SelectItem>
+                    <SelectItem value="4" className="text-sm">4 exercícios</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -205,6 +206,8 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
                     <SelectItem value="6" className="text-sm">6 exercícios</SelectItem>
                     <SelectItem value="7" className="text-sm">7 exercícios</SelectItem>
                     <SelectItem value="8" className="text-sm">8 exercícios</SelectItem>
+                    <SelectItem value="9" className="text-sm">9 exercícios</SelectItem>
+                    <SelectItem value="10" className="text-sm">10 exercícios</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
