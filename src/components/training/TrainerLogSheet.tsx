@@ -13,7 +13,7 @@ import type { ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { useRestTimer } from '@/hooks/useRestTimer';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
+import ExerciseLogCard from './ExerciseLogCard';
 import {
   normalizeExName,
   buildSetPlan,
@@ -472,44 +472,22 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
         {loading ? <div className="flex justify-center py-12"><Loader2 className="animate-spin" /></div> : (
           <div className="space-y-3 mt-4">
             {day.exercises.map((ex, exIdx) => (
-              <Card key={exIdx} className="border-border/60">
-                <CardContent className="p-3 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-start gap-2 min-w-0 flex-1">
-                      {(() => {
-                        const m = state[exIdx]?.exerciseName ? findBestExerciseMatch(state[exIdx].exerciseName, exercisesList as any) : undefined;
-                        const url = (m as any)?.imagem_url;
-                        return url ? <img src={url} className="h-10 w-10 shrink-0 rounded-md object-cover" /> : <div className="h-10 w-10 shrink-0 rounded-md bg-muted flex items-center justify-center"><Dumbbell className="h-4 w-4" /></div>;
-                      })()}
-                      <div className="min-w-0 flex-1">
-                        <ExerciseNamePicker
-                          value={state[exIdx]?.exerciseName || ''}
-                          options={exercisesList}
-                          original={ex.exercise || ''}
-                          onChange={(name) => setState(prev => ({ ...prev, [exIdx]: { ...prev[exIdx], exerciseName: name } }))}
-                        />
-                        <p className="text-[10px] text-muted-foreground">Prescrição: {ex.series} séries × {ex.reps}</p>
-                      </div>
-                    </div>
-                    {state[exIdx]?.exerciseName && <HistoryPopover studentId={studentId} exerciseName={state[exIdx].exerciseName} last={state[exIdx]} />}
-                  </div>
-                  <div className="space-y-1.5">
-                    {state[exIdx]?.sets.map((s, sIdx) => (
-                      <div key={sIdx} className="grid grid-cols-[68px_1fr_1fr] items-center gap-2">
-                        <span className="text-[9px] font-bold text-center bg-secondary rounded py-0.5">#{sIdx + 1}</span>
-                        <Input type="number" placeholder="kg" value={s.weight} onChange={(e) => updateSet(exIdx, sIdx, 'weight', e.target.value)} className="h-8 text-xs" />
-                        <Input type="number" placeholder="reps" value={s.reps} onChange={(e) => updateSet(exIdx, sIdx, 'reps', e.target.value)} className="h-8 text-xs" />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <Button size="sm" className="h-7 text-xs" onClick={() => saveExercise(exIdx)} disabled={state[exIdx]?.saving}>
-                      {state[exIdx]?.saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
-                      Salvar
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <ExerciseLogCard
+                key={exIdx}
+                exIdx={exIdx}
+                ex={ex}
+                st={state[exIdx]}
+                exercisesList={exercisesList}
+                studentId={studentId}
+                onUpdateSet={updateSet}
+                onUpdateNotes={updateNotes}
+                onSaveExercise={saveExercise}
+                onStartRestTimer={setRestTimer}
+                onExerciseNameChange={(name) => setState(prev => ({ ...prev, [exIdx]: { ...prev[exIdx], exerciseName: name } }))}
+                ExerciseNamePicker={ExerciseNamePicker}
+                HistoryPopover={HistoryPopover}
+                parsePauseSeconds={parsePauseSeconds}
+              />
             ))}
             <div className="pt-6 pb-8">
               <Button className="w-full h-12 text-base font-bold" onClick={handleFinishSession} disabled={finishing || Object.values(state).every(ex => ex.savedSets === 0)}>
