@@ -178,12 +178,12 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
                   <SelectTrigger className="h-9 bg-white text-xs rounded-lg border-violet-200">
                     <SelectValue placeholder="Automático" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="auto">Auto (IA)</SelectItem>
-                    <SelectItem value="0">0 exercícios</SelectItem>
-                    <SelectItem value="1">1 exercício</SelectItem>
-                    <SelectItem value="2">2 exercícios</SelectItem>
-                    <SelectItem value="3">3 exercícios</SelectItem>
+                  <SelectContent className="bg-white border border-border shadow-md z-[100]">
+                    <SelectItem value="auto" className="text-sm">Auto (IA)</SelectItem>
+                    <SelectItem value="0" className="text-sm">0 exercícios</SelectItem>
+                    <SelectItem value="1" className="text-sm">1 exercício</SelectItem>
+                    <SelectItem value="2" className="text-sm">2 exercícios</SelectItem>
+                    <SelectItem value="3" className="text-sm">3 exercícios</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -198,13 +198,13 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
                   <SelectTrigger className="h-9 bg-white text-xs rounded-lg border-violet-200">
                     <SelectValue placeholder="Automático" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="auto">Auto (IA)</SelectItem>
-                    <SelectItem value="4">4 exercícios</SelectItem>
-                    <SelectItem value="5">5 exercícios</SelectItem>
-                    <SelectItem value="6">6 exercícios</SelectItem>
-                    <SelectItem value="7">7 exercícios</SelectItem>
-                    <SelectItem value="8">8 exercícios</SelectItem>
+                  <SelectContent className="bg-white border border-border shadow-md z-[100]">
+                    <SelectItem value="auto" className="text-sm">Auto (IA)</SelectItem>
+                    <SelectItem value="4" className="text-sm">4 exercícios</SelectItem>
+                    <SelectItem value="5" className="text-sm">5 exercícios</SelectItem>
+                    <SelectItem value="6" className="text-sm">6 exercícios</SelectItem>
+                    <SelectItem value="7" className="text-sm">7 exercícios</SelectItem>
+                    <SelectItem value="8" className="text-sm">8 exercícios</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
