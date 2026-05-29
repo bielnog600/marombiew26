@@ -281,24 +281,6 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                         <RefreshCw className="h-3.5 w-3.5" />
                         Renovar Bloco
                       </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="h-8 gap-1.5 text-xs rounded-xl bg-primary/5 border-primary/20"
-                        onClick={() => navigate(`/treino-ia/${studentId}?edit=${plan.id}`)}
-                      >
-                        <Wand2 className="h-3.5 w-3.5 text-primary" />
-                        Ajustar com IA
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="h-8 gap-1.5 text-xs rounded-xl bg-orange-500/5 border-orange-500/20 text-orange-600"
-                        onClick={() => navigate(`/treino-ia/${studentId}?edit=${plan.id}&mode=adjust`)}
-                      >
-                        <Zap className="h-3.5 w-3.5" />
-                        Ajuste Rápido
-                      </Button>
                     </div>
 
 
