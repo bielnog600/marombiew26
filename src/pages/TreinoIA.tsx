@@ -1062,6 +1062,8 @@ GERE TUDO DE UMA VEZ:
                       <option value="6">6 exercícios</option>
                       <option value="7">7 exercícios</option>
                       <option value="8">8 exercícios</option>
+                      <option value="9">9 exercícios</option>
+                      <option value="10">10 exercícios</option>
                     </select>
                   </div>
                 </div>
