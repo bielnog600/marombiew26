@@ -258,62 +258,29 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
 
                 {isExpanded && (
                   <div className="mt-4 pt-4 border-t border-border space-y-4">
-                    <div className="bg-violet-500/5 border border-violet-500/20 rounded-lg p-3 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <Settings2 className="h-4 w-4 text-violet-500" />
-                        <h4 className="font-semibold text-xs text-violet-700 uppercase tracking-wider">Estrutura da Sessão</h4>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-bold text-muted-foreground uppercase">Mobilidade</Label>
-                          <Select 
-                            value={String(plan.mobility_count ?? 'auto')} 
-                            onValueChange={async (v) => {
-                              const val = v === 'auto' ? null : parseInt(v);
-                              await supabase.from('ai_plans').update({ mobility_count: val }).eq('id', plan.id);
-                              loadPlans();
-                            }}
-                          >
-                            <SelectTrigger className="h-8 bg-white text-[10px]">
-                              <SelectValue placeholder="Automático" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="auto">Auto (IA)</SelectItem>
-                              <SelectItem value="0">0 exerc.</SelectItem>
-                              <SelectItem value="1">1 exerc.</SelectItem>
-                              <SelectItem value="2">2 exerc.</SelectItem>
-                              <SelectItem value="3">3 exerc.</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-bold text-muted-foreground uppercase">Principais</Label>
-                          <Select 
-                            value={String(plan.main_exercises_count ?? 'auto')} 
-                            onValueChange={async (v) => {
-                              const val = v === 'auto' ? null : parseInt(v);
-                              await supabase.from('ai_plans').update({ main_exercises_count: val }).eq('id', plan.id);
-                              loadPlans();
-                            }}
-                          >
-                            <SelectTrigger className="h-8 bg-white text-[10px]">
-                              <SelectValue placeholder="Automático" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="auto">Auto (IA)</SelectItem>
-                              <SelectItem value="4">4 exerc.</SelectItem>
-                              <SelectItem value="5">5 exerc.</SelectItem>
-                              <SelectItem value="6">6 exerc.</SelectItem>
-                              <SelectItem value="7">7 exerc.</SelectItem>
-                              <SelectItem value="8">8 exerc.</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    </div>
-
                     {/* Ações Híbridas - Central de Ação Individual */}
                     <div className="flex flex-wrap gap-2 pb-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="h-8 gap-1.5 text-xs rounded-xl bg-violet-600/10 border-violet-600/20 text-violet-700 hover:bg-violet-600/20"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setAiAllDaysOpen(plan.id);
+                        }}
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        IA: Ajuste Geral
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="h-8 gap-1.5 text-xs rounded-xl bg-blue-500/5 border-blue-500/20 text-blue-600"
+                        onClick={() => navigate(`/treino-ia/${studentId}`)}
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Renovar Bloco
+                      </Button>
                       <Button 
                         size="sm" 
                         variant="outline" 
@@ -332,16 +299,8 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                         <Zap className="h-3.5 w-3.5" />
                         Ajuste Rápido
                       </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="h-8 gap-1.5 text-xs rounded-xl bg-blue-500/5 border-blue-500/20 text-blue-600"
-                        onClick={() => navigate(`/treino-ia/${studentId}`)}
-                      >
-                        <RefreshCw className="h-3.5 w-3.5" />
-                        Renovar Bloco
-                      </Button>
                     </div>
+
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1.5">
@@ -439,18 +398,37 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
         />
       )}
 
-      {aiAllDaysOpen && (
-        <AiEditAllDaysDialog
-          open={!!aiAllDaysOpen}
-          onOpenChange={(v) => !v && setAiAllDaysOpen(null)}
-          allDays={parseTrainingSections(plans.find(p => p.id === aiAllDaysOpen)?.conteudo || '').flatMap(s => s.days || [])}
-          studentId={studentId}
-          onApply={(updatedDays) => {
-            handleMarkdownChange(aiAllDaysOpen, rebuildTrainingMarkdown(plans.find(p => p.id === aiAllDaysOpen)?.conteudo || '', updatedDays));
-            setAiAllDaysOpen(null);
-          }}
-        />
-      )}
+        {aiAllDaysOpen && (
+          <AiEditAllDaysDialog
+            open={!!aiAllDaysOpen}
+            onOpenChange={(v) => !v && setAiAllDaysOpen(null)}
+            allDays={parseTrainingSections(plans.find(p => p.id === aiAllDaysOpen)?.conteudo || '').flatMap(s => s.days || [])}
+            studentId={studentId}
+            onApply={(updatedDays) => {
+              handleMarkdownChange(aiAllDaysOpen, rebuildTrainingMarkdown(plans.find(p => p.id === aiAllDaysOpen)?.conteudo || '', updatedDays));
+              setAiAllDaysOpen(null);
+            }}
+            mobilityCount={plans.find(p => p.id === aiAllDaysOpen)?.mobility_count}
+            mainExercisesCount={plans.find(p => p.id === aiAllDaysOpen)?.main_exercises_count}
+            onStructureChange={async (mobility, main) => {
+              const { error } = await supabase
+                .from('ai_plans')
+                .update({ 
+                  mobility_count: mobility, 
+                  main_exercises_count: main 
+                })
+                .eq('id', aiAllDaysOpen);
+              
+              if (!error) {
+                setPlans(prev => prev.map(p => 
+                  p.id === aiAllDaysOpen 
+                    ? { ...p, mobility_count: mobility, main_exercises_count: main } 
+                    : p
+                ));
+              }
+            }}
+          />
+        )}
     </>
   );
 };

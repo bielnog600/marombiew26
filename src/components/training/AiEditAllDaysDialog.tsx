@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { Sparkles, Loader2, Wand2 } from 'lucide-react';
+import { Sparkles, Loader2, Wand2, Settings2, Activity, Dumbbell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { ParsedExercise, ParsedTrainingDay } from '@/lib/trainingResultParser';
@@ -21,6 +23,9 @@ interface Props {
   allDays: ParsedTrainingDay[];
   studentId: string;
   onApply: (updatedDays: ParsedTrainingDay[]) => void;
+  mobilityCount?: number | null;
+  mainExercisesCount?: number | null;
+  onStructureChange?: (mobility: number | null, main: number | null) => void;
 }
 
  const QUICK_OPTIONS: { label: string; instruction: string; category?: string }[] = [
@@ -52,6 +57,7 @@ interface Props {
 
 const AiEditAllDaysDialog: React.FC<Props> = ({
   open, onOpenChange, allDays, studentId, onApply,
+  mobilityCount, mainExercisesCount, onStructureChange
 }) => {
    const [instruction, setInstruction] = useState('');
    const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
@@ -155,6 +161,56 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
         </DialogHeader>
 
         <div className="space-y-4">
+          <div className="bg-violet-500/5 border border-violet-500/20 rounded-xl p-4 space-y-4">
+            <div className="flex items-center gap-2">
+              <Settings2 className="h-4 w-4 text-violet-500" />
+              <h4 className="font-bold text-xs text-violet-700 uppercase tracking-widest">Estrutura da Sessão</h4>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+                  <Activity className="h-3 w-3" /> Mobilidade
+                </Label>
+                <Select 
+                  value={String(mobilityCount ?? 'auto')} 
+                  onValueChange={(v) => onStructureChange?.(v === 'auto' ? null : parseInt(v), mainExercisesCount ?? null)}
+                >
+                  <SelectTrigger className="h-9 bg-white text-xs rounded-lg border-violet-200">
+                    <SelectValue placeholder="Automático" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Auto (IA)</SelectItem>
+                    <SelectItem value="0">0 exercícios</SelectItem>
+                    <SelectItem value="1">1 exercício</SelectItem>
+                    <SelectItem value="2">2 exercícios</SelectItem>
+                    <SelectItem value="3">3 exercícios</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+                  <Dumbbell className="h-3 w-3" /> Principais
+                </Label>
+                <Select 
+                  value={String(mainExercisesCount ?? 'auto')} 
+                  onValueChange={(v) => onStructureChange?.(mobilityCount ?? null, v === 'auto' ? null : parseInt(v))}
+                >
+                  <SelectTrigger className="h-9 bg-white text-xs rounded-lg border-violet-200">
+                    <SelectValue placeholder="Automático" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Auto (IA)</SelectItem>
+                    <SelectItem value="4">4 exercícios</SelectItem>
+                    <SelectItem value="5">5 exercícios</SelectItem>
+                    <SelectItem value="6">6 exercícios</SelectItem>
+                    <SelectItem value="7">7 exercícios</SelectItem>
+                    <SelectItem value="8">8 exercícios</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
            <div className="space-y-3">
              {Array.from(new Set(QUICK_OPTIONS.map(o => o.category))).map(cat => (
                <div key={cat} className="space-y-1.5">
