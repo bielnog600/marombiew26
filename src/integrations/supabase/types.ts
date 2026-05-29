@@ -1110,6 +1110,7 @@ export type Database = {
           rpe: number | null
           session_id: string | null
           set_number: number
+          source: string | null
           student_id: string
           weight_kg: number | null
         }
@@ -1125,6 +1126,7 @@ export type Database = {
           rpe?: number | null
           session_id?: string | null
           set_number: number
+          source?: string | null
           student_id: string
           weight_kg?: number | null
         }
@@ -1140,6 +1142,7 @@ export type Database = {
           rpe?: number | null
           session_id?: string | null
           set_number?: number
+          source?: string | null
           student_id?: string
           weight_kg?: number | null
         }
@@ -2235,11 +2238,15 @@ export type Database = {
           created_at: string
           day_name: string | null
           duration_minutes: number
+          executed_by: string | null
           exercises_completed: number
           id: string
+          paired_student_id: string | null
           phase: string | null
           plan_id: string | null
+          session_mode: string | null
           session_state: Json | null
+          source: string | null
           started_at: string | null
           status: string
           student_id: string
@@ -2253,11 +2260,15 @@ export type Database = {
           created_at?: string
           day_name?: string | null
           duration_minutes?: number
+          executed_by?: string | null
           exercises_completed?: number
           id?: string
+          paired_student_id?: string | null
           phase?: string | null
           plan_id?: string | null
+          session_mode?: string | null
           session_state?: Json | null
+          source?: string | null
           started_at?: string | null
           status?: string
           student_id: string
@@ -2271,11 +2282,15 @@ export type Database = {
           created_at?: string
           day_name?: string | null
           duration_minutes?: number
+          executed_by?: string | null
           exercises_completed?: number
           id?: string
+          paired_student_id?: string | null
           phase?: string | null
           plan_id?: string | null
+          session_mode?: string | null
           session_state?: Json | null
+          source?: string | null
           started_at?: string | null
           status?: string
           student_id?: string
@@ -2283,7 +2298,15 @@ export type Database = {
           total_sets?: number | null
           total_volume_kg?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "workout_sessions_paired_student_id_fkey"
+            columns: ["paired_student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
     }
     Views: {
