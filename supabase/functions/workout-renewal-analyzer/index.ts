@@ -901,7 +901,20 @@ serve(async (req) => {
     if (action === "generate_draft") {
       const planId = body.plan_id;
       const source = (body.source as "manual" | "auto") ?? "manual";
+      const mobility_count = body.mobility_count;
+      const main_exercises_count = body.main_exercises_count;
+      
       if (!planId) throw new Error("plan_id required");
+      
+      // Update plan structure if provided
+      if (mobility_count !== undefined || main_exercises_count !== undefined) {
+        const updateData: any = {};
+        if (mobility_count !== undefined) updateData.mobility_count = mobility_count === "auto" ? null : Number(mobility_count);
+        if (main_exercises_count !== undefined) updateData.main_exercises_count = main_exercises_count === "auto" ? null : Number(main_exercises_count);
+        
+        await supabase.from("ai_plans").update(updateData).eq("id", planId);
+      }
+      
       const { draft, reused } = await generateDraft(supabase, planId, source);
       return new Response(JSON.stringify({ ok: true, draft_id: draft.id, reused }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
