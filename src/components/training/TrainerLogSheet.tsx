@@ -44,6 +44,13 @@ interface ExerciseState {
   exerciseName: string; // editable name (can override the prescribed one)
 }
 
+interface SessionState {
+  id: string | null;
+  startedAt: string | null;
+  durationSeconds: number;
+  isPaused: boolean;
+}
+
 const splitComposed = (reps: string): [string, string] => {
   const parts = (reps || '').split('+').map((p) => p.trim());
   return [parts[0] || '', parts[1] || parts[0] || ''];
@@ -282,6 +289,15 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   const [activeDayIdx, setActiveDayIdx] = useState(0);
   const [exercisesList, setExercisesList] = useState<{ id: string; nome: string; grupo_muscular: string; imagem_url?: string | null }[]>([]);
   const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer } = useRestTimer();
+  
+  // Session tracking
+  const [session, setSession] = useState<SessionState>({
+    id: null,
+    startedAt: null,
+    durationSeconds: 0,
+    isPaused: true
+  });
+  const [finishing, setFinishing] = useState(false);
 
   // Parse "60s", "1min", "1:30", "90" => seconds
   const parsePauseSeconds = (raw?: string | null): number => {
@@ -299,8 +315,43 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
 
   // Reset rest timer when sheet closes so it doesn't cover the modal on reopen
   useEffect(() => {
-    if (!open) stopTimer();
+    if (!open) {
+      stopTimer();
+      setSession(prev => ({ ...prev, isPaused: true }));
+    } else {
+      // Auto-start session if not already started
+      if (!session.startedAt) {
+        setSession({
+          id: crypto.randomUUID(), // Temporarily use a local UUID until we decide when to persist
+          startedAt: new Date().toISOString(),
+          durationSeconds: 0,
+          isPaused: false
+        });
+      } else {
+        setSession(prev => ({ ...prev, isPaused: false }));
+      }
+    }
   }, [open]);
+
+  // Session timer ticker
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    if (open && !session.isPaused) {
+      interval = setInterval(() => {
+        setSession(prev => ({ ...prev, durationSeconds: prev.durationSeconds + 1 }));
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [open, session.isPaused]);
+
+  const formatDuration = (seconds: number) => {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return hrs > 0 
+      ? `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+      : `${mins}:${String(secs).padStart(2, '0')}`;
+  };
 
   const day = days[activeDayIdx] || null;
   const daySignature = makeDaySignature(day);
@@ -431,6 +482,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
 
     const rows = validSets.map((s) => ({
       student_id: studentId,
+      session_id: session.id, // Link to the session
       exercise_name: normalizeExName(exerciseName),
       set_number: s.idx + 1,
       weight_kg: Number.isNaN(s.weight) ? null : s.weight,
@@ -438,6 +490,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       day_name: day.day,
       phase: phase || null,
       performed_at: new Date().toISOString(),
+      source: 'admin', // As requested
     }));
 
     const { error } = await supabase.from('exercise_set_logs').insert(rows);
@@ -467,6 +520,55 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     }
   };
 
+  const handleFinishSession = async () => {
+    if (!session.startedAt) return;
+    
+    setFinishing(true);
+    try {
+      // 1. Calculate final duration
+      const durationMinutes = Math.ceil(session.durationSeconds / 60);
+      
+      // 2. Count total exercises completed in this session
+      // We can check how many exercises in 'state' have savedSets > 0
+      const exercisesCompleted = Object.values(state).filter(ex => ex.savedSets > 0).length;
+      
+      // 3. Insert session record
+      const { error: sessionError } = await supabase.from('workout_sessions').insert({
+        id: session.id,
+        student_id: studentId,
+        day_name: day.day,
+        phase: phase || null,
+        started_at: session.startedAt,
+        completed_at: new Date().toISOString(),
+        duration_minutes: durationMinutes,
+        exercises_completed: exercisesCompleted,
+        total_exercises: day.exercises.length,
+        status: 'completed',
+        source: 'admin',
+        executed_by: 'coach',
+        session_mode: 'individual'
+      });
+
+      if (sessionError) throw sessionError;
+
+      toast.success('Treino finalizado e registrado com sucesso!');
+      
+      // 4. Clear local state and close
+      onOpenChange(false);
+      // Optional: clear draft
+      localStorage.removeItem(draftKey(studentId, day.day, daySignature));
+      
+      // Reset session for next time
+      setSession({ id: null, startedAt: null, durationSeconds: 0, isPaused: true });
+
+    } catch (err: any) {
+      console.error('Error finishing session:', err);
+      toast.error('Erro ao finalizar treino: ' + err.message);
+    } finally {
+      setFinishing(false);
+    }
+  };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
@@ -481,9 +583,19 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
         </button>
         <div className="relative min-h-full">
         <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <Dumbbell className="h-5 w-5 text-primary" />
-            Modo Treino
+          <SheetTitle className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Dumbbell className="h-5 w-5 text-primary" />
+              Modo Treino
+            </div>
+            {session.startedAt && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-full border border-primary/20">
+                <Timer className="h-4 w-4 text-primary animate-pulse" />
+                <span className="text-sm font-mono font-bold text-primary">
+                  {formatDuration(session.durationSeconds)}
+                </span>
+              </div>
+            )}
           </SheetTitle>
           <SheetDescription>
             Registre carga, reps e observações de cada exercício enquanto treina o aluno.
@@ -647,6 +759,19 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                 </Card>
               );
             })}
+            <div className="pt-6 pb-8 border-t border-border/50">
+              <Button 
+                className="w-full h-12 text-base font-bold gap-2 rounded-xl shadow-lg shadow-primary/20"
+                onClick={handleFinishSession}
+                disabled={finishing || Object.values(state).every(ex => ex.savedSets === 0)}
+              >
+                {finishing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5" />}
+                Finalizar Sessão
+              </Button>
+              <p className="text-center text-[11px] text-muted-foreground mt-3">
+                O tempo total e o histórico serão registrados para o aluno.
+              </p>
+            </div>
           </div>
         )}
         {restTimer && (
