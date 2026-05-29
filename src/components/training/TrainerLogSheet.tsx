@@ -283,21 +283,34 @@ const HistoryPopover: React.FC<{
   );
 };
 
+interface Props {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  studentId: string;
+  days: ParsedTrainingDay[];
+  phase?: string | null;
+}
+
+export interface ExerciseState {
+  sets: SetEntry[];
+  plan: SetPlan[];
+  notes: string;
+  saving: boolean;
+  lastWeight: number | null;
+  lastReps: number | null;
+  lastDate: string | null;
+  savedSets: number; // how many sets already persisted now
+  exerciseName: string; // editable name (can override the prescribed one)
+}
+
+export interface SessionState {
+  id: string | null;
+  startedAt: string | null;
+  durationSeconds: number;
+  isPaused: boolean;
+}
+
 export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId, days, phase }) => {
-  const [state, setState] = useState<Record<number, ExerciseState>>({});
-  const [loading, setLoading] = useState(false);
-  const [activeDayIdx, setActiveDayIdx] = useState(0);
-  const [exercisesList, setExercisesList] = useState<{ id: string; nome: string; grupo_muscular: string; imagem_url?: string | null }[]>([]);
-  const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer } = useRestTimer();
-  
-  // Session tracking
-  const [session, setSession] = useState<SessionState>({
-    id: null,
-    startedAt: null,
-    durationSeconds: 0,
-    isPaused: true
-  });
-  const [finishing, setFinishing] = useState(false);
 
   // Parse "60s", "1min", "1:30", "90" => seconds
   const parsePauseSeconds = (raw?: string | null): number => {
