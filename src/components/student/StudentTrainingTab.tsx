@@ -5,11 +5,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
-import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar, Send, ClipboardList, Plus, Sparkles, Activity, Wand2, Zap, GitCompare, RefreshCw } from 'lucide-react';
+import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar, Send, ClipboardList, Plus, Sparkles, Activity, Wand2, Zap, GitCompare, RefreshCw, Users } from 'lucide-react';
 import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import TrainingResultCards from '@/components/TrainingResultCards';
 import TrainerLogSheet from '@/components/training/TrainerLogSheet';
+import DuoTrainerLogSheet from '@/components/training/DuoTrainerLogSheet';
 import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { rebuildTrainingMarkdown } from '@/lib/trainingResultParser';
@@ -50,6 +51,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   const [targetStudentId, setTargetStudentId] = useState<string>('');
   const [transferring, setTransferring] = useState(false);
   const [trainPlan, setTrainPlan] = useState<any | null>(null);
+  const [duoTrainOpen, setDuoTrainOpen] = useState(false);
   const [aiAllDaysOpen, setAiAllDaysOpen] = useState<string | null>(null);
   const editedMarkdownsRef = useRef<Record<string, string>>({});
 
@@ -189,6 +191,19 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                       }}
                     >
                       <ClipboardList className="h-3 w-3" /> Treinar
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1 px-2 text-xs text-violet-600 hover:text-violet-700 hover:bg-violet-50"
+                      title="Treino Duo (2 alunos)"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDuoTrainOpen(true);
+                        setTrainPlan(getEffectivePlan(plan));
+                      }}
+                    >
+                      <Users className="h-3 w-3" /> Duo
                     </Button>
                     <WhatsAppNotifyPlanButton
                       plan={plan}
@@ -358,6 +373,15 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
           studentId={studentId}
           days={parseTrainingSections(trainPlan.conteudo || '').flatMap(s => s.days || [])}
           phase={trainPlan.fase}
+        />
+      )}
+
+      {duoTrainOpen && trainPlan && (
+        <DuoTrainerLogSheet
+          open={duoTrainOpen}
+          onOpenChange={setDuoTrainOpen}
+          studentAId={studentId}
+          planA={trainPlan}
         />
       )}
 
