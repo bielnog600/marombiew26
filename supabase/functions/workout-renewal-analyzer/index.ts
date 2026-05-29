@@ -621,8 +621,15 @@ async function generateDraft(supabase: any, planId: string, source: "manual" | "
     ? `\n\n=== MODO LOW COST — CONTINUIDADE ===\nEste aluno está no fluxo automatizado. A nova versão DEVE preservar continuidade:\n- USE o plano atual (abaixo) como BASE ESTRUTURAL (mesma divisão, mesma lógica de fases, mesmo objetivo).\n- USE os últimos registros REAIS do aluno como ponto de partida da progressão (cargas, reps, exercícios concluídos/pulados, tempo de sessão).\n- NÃO troque o treino inteiro. Refine: aumente carga onde houve subida, mantenha onde estável, reduza onde houve fadiga alta ou exercícios pulados recorrentes.\n- Substitua APENAS exercícios claramente estagnados (≥3 semanas sem progressão de carga/reps) ou que o aluno tem pulado consistentemente.\n\nÚLTIMA SESSÃO REAL DO ALUNO:\n${lastSession ? JSON.stringify(lastSession, null, 2) : "— (sem registro)"}\n\nESTATÍSTICAS POR EXERCÍCIO (últimas 2-4 semanas, top 10):\n${recentStats.length ? JSON.stringify(recentStats, null, 2) : "— (sem registros suficientes)"}\n=== FIM MODO LOW COST ===\n`
     : "";
 
+  const structureBlock = (plan.mobility_count !== null || plan.main_exercises_count !== null)
+    ? `\n\n=== ESTRUTURA DA SESSÃO (OBRIGATÓRIO) ===\n` +
+      (plan.mobility_count !== null ? `- Exercícios de Mobilidade: EXATAMENTE ${plan.mobility_count}\n` : "- Exercícios de Mobilidade: Automático pela IA\n") +
+      (plan.main_exercises_count !== null ? `- Exercícios Principais: EXATAMENTE ${plan.main_exercises_count}\n` : "- Exercícios Principais: Automático pela IA\n") +
+      `Respeite rigorosamente estas quantidades na tabela final.\n`
+    : "";
+
   const prompt = isLowCost
-    ? `Você está RENOVANDO o ciclo de treino deste aluno em MODO LOW COST (revisão automatizada a cada 30 dias).${ctxBlock}${lowCostBlock}
+    ? `Você está RENOVANDO o ciclo de treino deste aluno em MODO LOW COST (revisão automatizada a cada 30 dias).${ctxBlock}${lowCostBlock}${structureBlock}
 
 OBJETIVO DA RENOVAÇÃO LOW COST:
 - Manter CONTINUIDADE com o plano atual (mesma estrutura/divisão) e com o último desempenho real registrado.
@@ -639,7 +646,7 @@ ENTREGUE OBRIGATORIAMENTE:
 2) Divisão semanal idêntica à atual (a menos que haja motivo claro para mudar)
 3) Periodização contínua a partir da fase atual (${plan.fase ?? "fase atual"})
 4) Notas curtas de progressão indicando, por exercício mantido, a nova carga sugerida com base na última carga real registrada`
-    : `Você está RENOVANDO o ciclo de treino de 45 dias deste aluno.${ctxBlock}
+    : `Você está RENOVANDO o ciclo de treino de 45 dias deste aluno.${ctxBlock}${structureBlock}
 
 OBJETIVO DA RENOVAÇÃO:
 - Considere a aderência, progressão e fadiga acima
