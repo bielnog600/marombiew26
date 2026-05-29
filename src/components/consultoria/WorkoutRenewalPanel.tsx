@@ -50,7 +50,6 @@ interface PlanRow {
   mobility_count?: number | null;
   main_exercises_count?: number | null;
 }
-}
 
 interface AnalysisRow {
   id: string;
