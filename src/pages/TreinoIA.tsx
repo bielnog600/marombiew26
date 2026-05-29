@@ -155,6 +155,8 @@ const TreinoIA = () => {
   const [padroesProibidos, setPadroesProibidos] = useState<string[]>([]);
   const [exerciciosPermitidos, setExerciciosPermitidos] = useState('');
   const [regrasExecucao, setRegrasExecucao] = useState<string[]>([]);
+  const [mobilityCount, setMobilityCount] = useState<string>('auto');
+  const [mainExercisesCount, setMainExercisesCount] = useState<string>('auto');
 
   // Result
   const [generating, setGenerating] = useState(false);
@@ -389,7 +391,9 @@ PRIORIDADE DE PROCESSAMENTO (ORDEM DE IMPORTÂNCIA):
 GERE TUDO DE UMA VEZ:
 1) Resumo do protocolo e foco da semana
 2) Tabela completa do treino com TODAS as colunas: TREINO DO DIA | EXERCÍCIO | SÉRIE | SÉRIE 2 | REPETIÇÕES | RIR | PAUSA | DESCRIÇÃO | VARIAÇÃO
-3) Inclua obrigatoriamente de 2 a 3 exercícios de MOBILIDADE ou ESTABILIDADE no início de cada dia, específicos para os grupos musculares que serão trabalhados na sessão.
+3) Estrutura da Sessão (REGRAS OBRIGATÓRIAS):
+   - Exercícios de Mobilidade por sessão: ${mobilityCount === 'auto' ? 'IA deve decidir (padrão 2-3)' : `EXATAMENTE ${mobilityCount}`}
+   - Exercícios Principais por sessão: ${mainExercisesCount === 'auto' ? 'IA deve decidir (padrão 6)' : `EXATAMENTE ${mainExercisesCount}`}
    - REGRA PARA MOBILIDADE/ESTABILIDADE: Sempre apenas 1 série, duração de 10 a 20 segundos e descanso sempre de 10 segundos.
 4) Use técnicas avançadas conforme o nível
 5) Mensagens prontas para WhatsApp explicando o protocolo`;
@@ -1022,6 +1026,49 @@ GERE TUDO DE UMA VEZ:
             />
 
             <div className="mt-6 border-t border-border pt-6">
+              <div className="bg-violet-500/5 border border-violet-500/20 rounded-xl p-4 mb-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <Settings2 className="h-4 w-4 text-violet-500" />
+                  <h4 className="font-bold text-sm text-violet-700 uppercase tracking-wider">Estrutura da Sessão</h4>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-bold text-muted-foreground uppercase">Mobilidade</Label>
+                    <select 
+                      value={mobilityCount} 
+                      onChange={(e) => setMobilityCount(e.target.value)}
+                      className="w-full h-9 rounded-lg border border-border bg-white px-3 py-1 text-sm focus:border-primary focus:outline-none"
+                    >
+                      <option value="auto">Automático pela IA</option>
+                      <option value="0">0 exercícios</option>
+                      <option value="1">1 exercício</option>
+                      <option value="2">2 exercícios</option>
+                      <option value="3">3 exercícios</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-bold text-muted-foreground uppercase">Exercícios Principais</Label>
+                    <select 
+                      value={mainExercisesCount} 
+                      onChange={(e) => setMainExercisesCount(e.target.value)}
+                      className="w-full h-9 rounded-lg border border-border bg-white px-3 py-1 text-sm focus:border-primary focus:outline-none"
+                    >
+                      <option value="auto">Automático pela IA</option>
+                      <option value="4">4 exercícios</option>
+                      <option value="5">5 exercícios</option>
+                      <option value="6">6 exercícios</option>
+                      <option value="7">7 exercícios</option>
+                      <option value="8">8 exercícios</option>
+                    </select>
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground italic mt-2">
+                  * A IA respeitará rigorosamente estas quantidades na geração.
+                </p>
+              </div>
+
               <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
                 <div className="flex items-center justify-between gap-4 mb-2">
                   <div className="space-y-1">
