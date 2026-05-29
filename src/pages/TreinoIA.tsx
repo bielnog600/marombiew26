@@ -1045,6 +1045,7 @@ GERE TUDO DE UMA VEZ:
                       <option value="1">1 exercício</option>
                       <option value="2">2 exercícios</option>
                       <option value="3">3 exercícios</option>
+                      <option value="4">4 exercícios</option>
                     </select>
                   </div>
 
