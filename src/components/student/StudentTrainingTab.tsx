@@ -344,14 +344,6 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                       >
                         <Plus className="h-3.5 w-3.5" /> Adicionar dia
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 gap-1.5 text-xs rounded-xl bg-violet-500/5 border-violet-500/20 text-violet-600"
-                        onClick={() => setAiAllDaysOpen(plan.id)}
-                      >
-                        <Sparkles className="h-3.5 w-3.5" /> IA: Ajuste Geral
-                      </Button>
                     </div>
                   </div>
                 )}
