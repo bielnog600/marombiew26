@@ -398,18 +398,37 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
         />
       )}
 
-      {aiAllDaysOpen && (
-        <AiEditAllDaysDialog
-          open={!!aiAllDaysOpen}
-          onOpenChange={(v) => !v && setAiAllDaysOpen(null)}
-          allDays={parseTrainingSections(plans.find(p => p.id === aiAllDaysOpen)?.conteudo || '').flatMap(s => s.days || [])}
-          studentId={studentId}
-          onApply={(updatedDays) => {
-            handleMarkdownChange(aiAllDaysOpen, rebuildTrainingMarkdown(plans.find(p => p.id === aiAllDaysOpen)?.conteudo || '', updatedDays));
-            setAiAllDaysOpen(null);
-          }}
-        />
-      )}
+        {aiAllDaysOpen && (
+          <AiEditAllDaysDialog
+            open={!!aiAllDaysOpen}
+            onOpenChange={(v) => !v && setAiAllDaysOpen(null)}
+            allDays={parseTrainingSections(plans.find(p => p.id === aiAllDaysOpen)?.conteudo || '').flatMap(s => s.days || [])}
+            studentId={studentId}
+            onApply={(updatedDays) => {
+              handleMarkdownChange(aiAllDaysOpen, rebuildTrainingMarkdown(plans.find(p => p.id === aiAllDaysOpen)?.conteudo || '', updatedDays));
+              setAiAllDaysOpen(null);
+            }}
+            mobilityCount={plans.find(p => p.id === aiAllDaysOpen)?.mobility_count}
+            mainExercisesCount={plans.find(p => p.id === aiAllDaysOpen)?.main_exercises_count}
+            onStructureChange={async (mobility, main) => {
+              const { error } = await supabase
+                .from('ai_plans')
+                .update({ 
+                  mobility_count: mobility, 
+                  main_exercises_count: main 
+                })
+                .eq('id', aiAllDaysOpen);
+              
+              if (!error) {
+                setPlans(prev => prev.map(p => 
+                  p.id === aiAllDaysOpen 
+                    ? { ...p, mobility_count: mobility, main_exercises_count: main } 
+                    : p
+                ));
+              }
+            }}
+          />
+        )}
     </>
   );
 };
