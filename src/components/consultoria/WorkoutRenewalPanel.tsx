@@ -4,14 +4,15 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
-import { Sparkles, RefreshCw, Check, FileEdit, FileText, AlertTriangle, ChevronDown, ChevronUp, Loader2, GitCompare, Wand2, Dumbbell, BarChart3, Clock, Filter, Trash2, TrendingUp, TrendingDown, Minus, Activity, Zap, ClipboardCheck, Bell, Phone, Send, X, RotateCcw } from 'lucide-react';
+import { Sparkles, RefreshCw, Check, FileEdit, FileText, AlertTriangle, ChevronDown, ChevronUp, Loader2, GitCompare, Wand2, Dumbbell, BarChart3, Clock, Filter, Trash2, TrendingUp, TrendingDown, Minus, Activity, Zap, ClipboardCheck, Bell, Phone, Send, X, RotateCcw, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import WorkoutDraftComparisonDialog from './WorkoutDraftComparisonDialog';
 import WhatsAppDataRequestButton from './WhatsAppDataRequestButton';
 import { cn } from '@/lib/utils';
-import WorkoutCheckinDialog from './WorkoutCheckinDialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 type CycleStatus =
   | 'em_dia'
@@ -46,6 +47,9 @@ interface PlanRow {
   student_phone?: string | null;
   draft_source?: string | null;
   draft_reason?: string | null;
+  mobility_count?: number | null;
+  main_exercises_count?: number | null;
+}
 }
 
 interface AnalysisRow {
@@ -133,6 +137,7 @@ const WorkoutRenewalPanel: React.FC = () => {
   const [checkins, setCheckins] = useState<Record<string, any>>({});
   const [requestingCheckin, setRequestingCheckin] = useState<string | null>(null);
   const [checkinConfirmId, setCheckinConfirmId] = useState<string | null>(null);
+  const [sessionStructure, setSessionStructure] = useState<Record<string, { mobility: string; main: string }>>({});
 
 
 
@@ -257,8 +262,15 @@ const WorkoutRenewalPanel: React.FC = () => {
 
   const handleGenerateDraft = async (planId: string) => {
     setBusy(planId);
+    const structure = sessionStructure[planId] || { mobility: 'auto', main: 'auto' };
     try {
-      const r = await callRenewal({ action: 'generate_draft', plan_id: planId, source: 'manual' });
+      const r = await callRenewal({ 
+        action: 'generate_draft', 
+        plan_id: planId, 
+        source: 'manual',
+        mobility_count: structure.mobility,
+        main_exercises_count: structure.main
+      });
       toast.success(r?.reused ? 'Rascunho existente carregado.' : 'Rascunho de treino gerado pela IA.');
       await load();
       setCompareFor(planId);
@@ -789,7 +801,65 @@ const WorkoutRenewalPanel: React.FC = () => {
                           </div>
                         )}
 
-                        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+                        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 items-center">
+                          {!draft && analysis && (
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button size="sm" variant="outline" className="h-9 border-violet-500/30 text-violet-600 hover:bg-violet-500/5">
+                                  <Settings2 className="h-3.5 w-3.5 mr-1.5" />
+                                  Estrutura
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-64 p-4 space-y-4" align="start">
+                                <div className="space-y-2">
+                                  <h4 className="font-medium text-sm">Estrutura da Sessão</h4>
+                                  <p className="text-[10px] text-muted-foreground">Defina a quantidade de exercícios para a geração.</p>
+                                </div>
+                                
+                                <div className="space-y-3">
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] uppercase font-bold text-muted-foreground">Mobilidade</label>
+                                    <Select 
+                                      value={sessionStructure[plan.id]?.mobility || (plan.mobility_count === null ? 'auto' : String(plan.mobility_count || 'auto'))} 
+                                      onValueChange={(v) => setSessionStructure(prev => ({ ...prev, [plan.id]: { ...(prev[plan.id] || { main: 'auto' }), mobility: v } }))}
+                                    >
+                                      <SelectTrigger className="h-8 text-xs">
+                                        <SelectValue placeholder="Automático" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="auto">Automático pela IA</SelectItem>
+                                        <SelectItem value="0">0 exercícios</SelectItem>
+                                        <SelectItem value="1">1 exercício</SelectItem>
+                                        <SelectItem value="2">2 exercícios</SelectItem>
+                                        <SelectItem value="3">3 exercícios</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] uppercase font-bold text-muted-foreground">Exercícios Principais</label>
+                                    <Select 
+                                      value={sessionStructure[plan.id]?.main || (plan.main_exercises_count === null ? 'auto' : String(plan.main_exercises_count || 'auto'))} 
+                                      onValueChange={(v) => setSessionStructure(prev => ({ ...prev, [plan.id]: { ...(prev[plan.id] || { mobility: 'auto' }), main: v } }))}
+                                    >
+                                      <SelectTrigger className="h-8 text-xs">
+                                        <SelectValue placeholder="Automático" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="auto">Automático pela IA</SelectItem>
+                                        <SelectItem value="4">4 exercícios</SelectItem>
+                                        <SelectItem value="5">5 exercícios</SelectItem>
+                                        <SelectItem value="6">6 exercícios</SelectItem>
+                                        <SelectItem value="7">7 exercícios</SelectItem>
+                                        <SelectItem value="8">8 exercícios</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          )}
+
                           <Button
                             size="sm"
                             variant="outline"
