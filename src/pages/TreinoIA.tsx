@@ -1053,7 +1053,7 @@ GERE TUDO DE UMA VEZ:
                     <select 
                       value={mainExercisesCount} 
                       onChange={(e) => setMainExercisesCount(e.target.value)}
-                      className="w-full h-9 rounded-lg border border-border bg-white px-3 py-1 text-sm focus:border-primary focus:outline-none"
+                      className="w-full h-9 rounded-lg border border-border bg-card text-foreground px-3 py-1 text-sm focus:border-primary focus:outline-none"
                     >
                       <option value="auto">Automático pela IA</option>
                       <option value="4">4 exercícios</option>
