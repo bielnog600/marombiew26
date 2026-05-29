@@ -1,0 +1,85 @@
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import type { ParsedTrainingDay } from '@/lib/trainingResultParser';
+
+// Normalize exercise name for consistent DB lookups
+export const normalizeExName = (name: string) => name.trim().replace(/\s+/g, ' ').toUpperCase();
+
+export interface SetEntry {
+  weight: string;
+  reps: string;
+}
+
+export interface SetPlan {
+  kind: 'recon' | 'work';
+  targetReps: string;
+}
+
+export const splitComposed = (reps: string): [string, string] => {
+  const parts = (reps || '').split('+').map((p) => p.trim());
+  return [parts[0] || '', parts[1] || parts[0] || ''];
+};
+
+export const buildSetPlan = (series: string, series2: string, reps: string): SetPlan[] => {
+  const s1 = parseInt(String(series ?? '') || '0', 10) || 0;
+  const s2 = parseInt(String(series2 ?? '') || '0', 10) || 0;
+  const [reconReps, workReps] = splitComposed(reps ?? '');
+  const plan: SetPlan[] = [];
+  if (s1 > 0 && s2 > 0) {
+    for (let i = 0; i < s1; i++) plan.push({ kind: 'recon', targetReps: reconReps || reps || '' });
+    for (let i = 0; i < s2; i++) plan.push({ kind: 'work', targetReps: workReps || reps || '' });
+  } else {
+    const total = s2 > 0 ? s2 : (s1 > 0 ? s1 : 3);
+    for (let i = 0; i < total; i++) plan.push({ kind: 'work', targetReps: reps || '' });
+  }
+  return plan;
+};
+
+export const makeDaySignature = (day?: ParsedTrainingDay | null) => {
+  const raw = (day?.exercises || [])
+    .map((ex) => [ex.exercise, ex.series, ex.series2, ex.reps, ex.rir, ex.pause, ex.description, ex.variation].join('§'))
+    .join('¶');
+  let hash = 0;
+  for (let i = 0; i < raw.length; i++) hash = ((hash << 5) - hash + raw.charCodeAt(i)) | 0;
+  return Math.abs(hash).toString(36) || 'empty';
+};
+
+export const draftKey = (studentId: string, dayName: string, planSignature: string) => {
+  const today = new Date().toISOString().slice(0, 10);
+  return `trainerlog:${studentId}:${dayName}:${today}:${planSignature}`;
+};
+
+export interface DraftShape {
+  sets: Record<number, SetEntry[]>;
+  notes: Record<number, string>;
+  savedSets: Record<number, number>;
+  exerciseNames?: Record<number, string>;
+}
+
+export const loadDraft = (studentId: string, dayName: string, planSignature: string): DraftShape | null => {
+  try {
+    const raw = localStorage.getItem(draftKey(studentId, dayName, planSignature));
+    return raw ? (JSON.parse(raw) as DraftShape) : null;
+  } catch {
+    return null;
+  }
+};
+
+export const saveDraft = (studentId: string, dayName: string, planSignature: string, state: Record<number, any>) => {
+  try {
+    const draft: DraftShape = { sets: {}, notes: {}, savedSets: {}, exerciseNames: {} };
+    Object.entries(state).forEach(([k, v]) => {
+      const idx = Number(k);
+      draft.sets[idx] = v.sets;
+      draft.notes[idx] = v.notes;
+      draft.savedSets[idx] = v.savedSets;
+      draft.exerciseNames![idx] = v.exerciseName;
+    });
+    localStorage.setItem(draftKey(studentId, dayName, planSignature), JSON.stringify(draft));
+  } catch {
+    // ignore quota errors
+  }
+};
+
+// These will be passed as props or re-exported if components are moved
+export { ExerciseNamePicker, HistoryPopover } from './TrainerLogSheet';
