@@ -1,4 +1,6 @@
 import type { ParsedFood, ParsedMeal } from './dietResultParser';
+import type { DietPlan } from './dietSchema';
+import { dietPlanToParsedMeals } from './dietPlanAdapter';
 
 const num = (v?: string) => {
   if (!v) return 0;
