@@ -200,6 +200,19 @@ Se o professor definiu um número específico para mobilidade (MOBILITY_COUNT), 
 Exemplo: se o treino do dia é PEITO, usar mobilidade torácica e ombro. Se é INFERIOR, usar mobilidade de quadril e tornozelo.
 Os exercícios de mobilidade/estabilidade NÃO precisam de descrição na coluna DESCRIÇÃO (deixar vazio ou "—").
 
+REGRA CRÍTICA DE DIVERSIFICAÇÃO DE MOBILIDADE (OBRIGATÓRIA — NUNCA QUEBRAR):
+- É PROIBIDO repetir as MESMAS mobilidades em mais de um dia da semana. Cada dia deve ter mobilidades DIFERENTES das demais (ex.: se segunda usar MOBILIDADE DE QUADRIL, terça/quarta NÃO podem usar MOBILIDADE DE QUADRIL — use MOBILIDADE DE QUADRIL 2, 3, 4, 5 ou 6, ou ALONGAMENTO ADUTORES, ALONGAMENTO GLÚTEO, MOBILIDADE TORNOZELO, etc.).
+- Use AO MÁXIMO toda a variedade do banco: o banco tem MOBILIDADE TORÁCICA / TORÁCICA 2 / 3, MOBILIDADE ESCAPULAR, MOBILIDADE OMBRO, MOBILIDADE DE QUADRIL / QUADRIL 2 / 3 / 4 / 5 / 6, MOBILIDADE TORNOZELO, ALONGAMENTO GLÚTEO / 2, ALONGAMENTO ADUTORES, GOOD MORNING, SWING, FACE PULL, CRUCIFIXO INVERSO (SENTADO/BANCO), REAR DELT FLY. ROTACIONE entre TODAS elas — não fique fixado em 2 ou 3 opções.
+- Sempre escolha mobilidades coerentes com o GRUPO MUSCULAR do dia:
+  • INFERIORES / PERNAS / POSTERIOR / GLÚTEO / QUADRÍCEPS → quadril (variações 2/3/4/5/6), tornozelo, lombar, glúteo (alongamentos), adutor (alongamento adutores, cadeira adutora leve), isquio (good morning leve).
+  • SUPERIORES PUXAR / COSTAS / DORSAL → torácica (1/2/3), escapular, latíssimo (face pull, crucifixo inverso, rear delt fly).
+  • SUPERIORES EMPURRAR / PEITO → torácica (1/2/3), ombro, peitoral (cross over leve de aquecimento).
+  • OMBRO → mobilidade ombro, escapular, manguito rotador (face pull, rear delt fly, crucifixo inverso).
+  • BRAÇO → mobilidade ombro/escapular + ativação leve do cotovelo/punho.
+  • FULL BODY → mobilidade global rotacionando torácica + quadril + ombro + tornozelo.
+- Se houver TREINO ANTERIOR no contexto, NÃO repita as mesmas mobilidades da semana passada — escolha variações diferentes para fugir da monotonia.
+- Antes de fechar a semana, REVISE: cada uma das mobilidades escolhidas só pode aparecer no MÁXIMO em 1 dia. Se você usou a mesma mobilidade em 2 dias diferentes, TROQUE uma delas por outra do banco.
+
 ========================================
 REGRA DE VOLUME
 ========================================
