@@ -29,7 +29,12 @@ interface Props {
   currentPlan?: DietPlan | null;
   /** Optional targets used to validate the new plan after edit. */
   targets?: DietTargets | null;
-  onApply: (newMeals: ParsedMeal[], notes: string[], newPlan?: DietPlan) => void;
+  onApply: (
+    newMeals: ParsedMeal[],
+    notes: string[],
+    newPlan?: DietPlan,
+    days?: { label: string; meals: ParsedMeal[] }[],
+  ) => void;
 }
 
 const QUICK: { group: string; label: string; instruction: string }[] = [
@@ -141,7 +146,7 @@ const AiEditDietDialog: React.FC<Props> = ({ open, onOpenChange, currentMeals, s
         return;
       }
 
-      const { meals: newMeals, notes } = applyDietActions(currentMeals, actions);
+      const { meals: newMeals, notes, days } = applyDietActions(currentMeals, actions);
 
       // Rebuild canonical DietPlan when we have one, so persistence stays hybrid
       // (conteudo + conteudo_json) and validation is re-run post-edit.
@@ -165,7 +170,7 @@ const AiEditDietDialog: React.FC<Props> = ({ open, onOpenChange, currentMeals, s
         toast.success((data as any)?.summary || `${actions.length} alteração(ões) aplicada(s).`);
       }
 
-      onApply(newMeals, notes, nextPlan);
+      onApply(newMeals, notes, nextPlan, days);
       setInstruction('');
       setFoodSuggestion('');
       onOpenChange(false);

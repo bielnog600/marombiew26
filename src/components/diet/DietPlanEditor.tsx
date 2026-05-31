@@ -581,8 +581,16 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
         studentId={studentId}
         currentPlan={currentPlan ?? null}
         targets={currentPlan?.targets ?? null}
-        onApply={(newMeals, notes, nextPlan) => {
-          setMeals(newMeals);
+        onApply={(newMeals, notes, nextPlan, daysFromAi) => {
+          if (daysFromAi && daysFromAi.length > 1) {
+            // Carb cycle expanded into 7 weekday variants — replace the
+            // editor's per-day state so each weekday shows its own carbs.
+            setDays(daysFromAi);
+            setActiveDayIdx(0);
+            if (onDaysChange) onDaysChange(daysFromAi);
+          } else {
+            setMeals(newMeals);
+          }
           if (notes.length && onAiNotes) onAiNotes(notes);
           if (nextPlan && onPlanChange) onPlanChange(nextPlan);
         }}

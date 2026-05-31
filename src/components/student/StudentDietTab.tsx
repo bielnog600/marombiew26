@@ -149,12 +149,24 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     }
   };
 
-  const handleAiApply = async (planId: string, newMeals: ParsedMeal[], notes: string[], newPlan?: DietPlan) => {
+  const handleAiApply = async (
+    planId: string,
+    newMeals: ParsedMeal[],
+    notes: string[],
+    newPlan?: DietPlan,
+    days?: { label: string; meals: ParsedMeal[] }[],
+  ) => {
     const plan = plans.find(p => p.id === planId);
     if (!plan) return;
-    let newContent = newPlan
-      ? dietPlanToMarkdown(newPlan)
-      : replaceMealTableInMarkdown(plan.conteudo, newMeals);
+    let newContent: string;
+    if (days && days.length > 1) {
+      // Carb cycle / per-weekday output → write one table per day
+      newContent = replaceMealTablesPerDayInMarkdown(plan.conteudo, days);
+    } else if (newPlan) {
+      newContent = dietPlanToMarkdown(newPlan);
+    } else {
+      newContent = replaceMealTableInMarkdown(plan.conteudo, newMeals);
+    }
     if (notes && notes.length) {
       newContent = `${newContent.trimEnd()}\n\n## 📝 Observações da IA\n\n${notes.join('\n\n')}\n`;
     }
@@ -540,7 +552,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
             studentId={studentId}
             currentPlan={canonical}
             targets={fallbackTargets}
-            onApply={(newMeals, notes, newPlan) => handleAiApply(aiPlan.id, newMeals, notes, newPlan)}
+            onApply={(newMeals, notes, newPlan, days) => handleAiApply(aiPlan.id, newMeals, notes, newPlan, days)}
           />
         );
       })()}
