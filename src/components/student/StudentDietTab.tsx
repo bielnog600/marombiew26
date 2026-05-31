@@ -457,6 +457,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                       <DietPlanEditor
                         markdown={plan.conteudo}
                         onMealsChange={(meals) => handleMealsChange(plan.id, meals)}
+                        onDaysChange={(days) => handleDaysChange(plan.id, days)}
                         studentId={studentId}
                         onAiNotes={(notes) => setAiNotes(prev => ({ ...prev, [plan.id]: [...(prev[plan.id] || []), ...notes] }))}
                         currentPlan={editedPlans[plan.id] ?? parseDietPlanLoose(plan.conteudo_json)}
