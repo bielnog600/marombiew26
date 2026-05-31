@@ -1,4 +1,6 @@
 import type { ParsedFood, ParsedMeal } from './dietResultParser';
+import type { DietPlan } from './dietSchema';
+import { dietPlanToParsedMeals } from './dietPlanAdapter';
 
 const num = (v?: string) => {
   if (!v) return 0;
@@ -171,4 +173,56 @@ export const scaleMealsToMacroTargets = (meals: ParsedMeal[], target: MacroTarge
       };
     }),
   }));
+};
+/**
+ * Render a DietPlan as the legacy markdown format. Used to keep PDF,
+ * student portal and reports working unchanged while the JSON becomes the
+ * source of truth.
+ */
+export const dietPlanToMarkdown = (plan: DietPlan): string => {
+  const t = plan.targets;
+  const meta = plan.meta;
+  const headerParts: string[] = [];
+  if (meta.objective) headerParts.push(`Objetivo: **${meta.objective}**`);
+  if (meta.strategy) headerParts.push(`Estratégia: **${meta.strategy}**`);
+  if (meta.style) headerParts.push(`Estilo: **${meta.style}**`);
+
+  const lines: string[] = [];
+  lines.push('## CARDÁPIO ÚNICO (segue de segunda a domingo)');
+  if (headerParts.length) lines.push(headerParts.join(' · '));
+  lines.push('');
+  lines.push(`**Meta diária:** ${Math.round(t.kcal)} kcal · ${Math.round(t.p)}g P · ${Math.round(t.c)}g C · ${Math.round(t.g)}g G`);
+  lines.push('');
+
+  for (let i = 0; i < plan.days.length; i++) {
+    const day = plan.days[i];
+    if (plan.days.length > 1) lines.push(`### ${day.label}`);
+    const meals = dietPlanToParsedMeals(plan, i);
+    lines.push(buildMealTableMarkdown(meals));
+    lines.push('');
+  }
+
+  if (plan.tips?.length) {
+    lines.push('## Dicas e timing nutricional');
+    for (const tip of plan.tips) lines.push(`- ${tip}`);
+    lines.push('');
+  }
+
+  if (plan.whatsappMessages?.length) {
+    lines.push('## Mensagens WhatsApp');
+    plan.whatsappMessages.forEach((m, idx) => {
+      lines.push(`**Parte ${idx + 1}:**`);
+      lines.push(m);
+      lines.push('');
+    });
+  }
+
+  if (meta.rationale || meta.decision) {
+    lines.push('## Justificativa Técnica');
+    if (meta.decision) lines.push(`- **Decisão:** ${meta.decision}`);
+    if (meta.rationale) lines.push(meta.rationale);
+    if (typeof meta.confidence === 'number') lines.push(`- **Nível de confiança:** ${meta.confidence}/100`);
+  }
+
+  return lines.join('\n').trimEnd() + '\n';
 };
