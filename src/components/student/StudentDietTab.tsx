@@ -13,6 +13,7 @@ import { replaceMealTableInMarkdown, scaleMealsToMacroTargets, computeDayTotals,
 import type { ParsedMeal } from '@/lib/dietResultParser';
 import { parseSections } from '@/lib/dietResultParser';
 import { parseDietPlanLoose, type DietPlan } from '@/lib/dietSchema';
+import DietValidationBadge from '@/components/diet/DietValidationBadge';
 import { extractTargetsFromSections } from '@/lib/dietTargets';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Slider } from '@/components/ui/slider';
@@ -233,6 +234,12 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         <p className="text-xs text-muted-foreground">
                           {new Date(plan.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                         </p>
+                        {(() => {
+                          const parsed = parseDietPlanLoose(plan.conteudo_json);
+                          return parsed?.validation ? (
+                            <DietValidationBadge report={parsed.validation} className="ml-1" />
+                          ) : null;
+                        })()}
                         {!isExpanded && (
                           <>
                             <span className="text-[10px] text-muted-foreground hidden xs:inline">•</span>
