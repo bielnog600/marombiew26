@@ -272,7 +272,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
       <div className="space-y-3">
         {plans.map(plan => {
           const isExpanded = expandedId === plan.id;
-          const hasChanges = editedMeals[plan.id] !== undefined || editedPlans[plan.id] !== undefined || (aiNotes[plan.id]?.length || 0) > 0;
+          const hasChanges = editedMeals[plan.id] !== undefined || editedDays[plan.id] !== undefined || editedPlans[plan.id] !== undefined || (aiNotes[plan.id]?.length || 0) > 0;
           const isEditing = editingId === plan.id;
           const cleanedMarkdown = stripDietPreamble(plan.conteudo);
 
@@ -333,7 +333,10 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         onClick={(e) => {
                           e.stopPropagation();
                           setEditingId(isEditing ? null : plan.id);
-                          if (isEditing) setEditedMeals(prev => { const c = { ...prev }; delete c[plan.id]; return c; });
+                          if (isEditing) {
+                            setEditedMeals(prev => { const c = { ...prev }; delete c[plan.id]; return c; });
+                            setEditedDays(prev => { const c = { ...prev }; delete c[plan.id]; return c; });
+                          }
                         }}
                       >
                         {isEditing ? <Eye className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
