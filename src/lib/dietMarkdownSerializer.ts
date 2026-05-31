@@ -83,6 +83,70 @@ export const replaceMealTableInMarkdown = (markdown: string, meals: ParsedMeal[]
   return [...lines.slice(0, startIdx), newTable, ...lines.slice(endIdx)].join('\n');
 };
 
+/**
+ * Replace ALL meal tables in the markdown with one block per day, each
+ * preceded by a `### <label>` heading. Used to support per-weekday editing.
+ */
+export interface DietDayBlock {
+  label: string;
+  meals: ParsedMeal[];
+}
+
+const isMealTableHeader = (line: string) => {
+  const l = line.trim().toLowerCase();
+  if (!l.startsWith('|')) return false;
+  return l.includes('refei') && (l.includes('alimento') || l.includes('kcal') || l.includes('proteí') || l.includes('quantidade'));
+};
+
+export const replaceMealTablesPerDayInMarkdown = (
+  markdown: string,
+  days: DietDayBlock[],
+): string => {
+  if (!days || days.length === 0) return markdown;
+  const lines = markdown.split('\n');
+
+  // Find all meal-table ranges [start..end)
+  const ranges: { start: number; end: number }[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    if (isMealTableHeader(lines[i])) {
+      let start = i;
+      // expand backwards to consume an immediately preceding `### ...` heading
+      // (the day label) plus blank lines.
+      let k = start - 1;
+      while (k >= 0 && lines[k].trim() === '') k--;
+      if (k >= 0 && /^#{2,4}\s/.test(lines[k].trim())) {
+        start = k;
+      }
+      let end = i;
+      while (end < lines.length && (lines[end].trim().startsWith('|') || lines[end].trim() === '')) {
+        end++;
+      }
+      ranges.push({ start, end });
+      i = end;
+      continue;
+    }
+    i++;
+  }
+
+  const block = days
+    .map((d) => `### ${d.label}\n\n${buildMealTableMarkdown(d.meals)}\n`)
+    .join('\n');
+
+  if (ranges.length === 0) {
+    return `${markdown.trimEnd()}\n\n${block}\n`;
+  }
+
+  // Replace from first range's start to last range's end with the new block
+  const firstStart = ranges[0].start;
+  const lastEnd = ranges[ranges.length - 1].end;
+  return [
+    ...lines.slice(0, firstStart),
+    block,
+    ...lines.slice(lastEnd),
+  ].join('\n');
+};
+
 export const computeDayTotals = (meals: ParsedMeal[]) => {
   let kcal = 0, p = 0, c = 0, g = 0;
   for (const m of meals) {
