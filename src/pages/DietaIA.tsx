@@ -960,6 +960,7 @@ const DietaIA = () => {
     setGenerating(true);
     setResult('');
     setMacroReport(null);
+    setStructuredPlan(null);
 
     const selectedStrategy = STRATEGIES.find(s => s.value === strategy);
     const selectedActivity = ACTIVITY_LEVELS.find(a => a.value === activityLevel);
