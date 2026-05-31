@@ -18,6 +18,8 @@ import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { validateDietJSON } from '@/lib/planMigrationUtils';
+import { markdownToDietPlan } from '@/lib/dietPlanAdapter';
+import { finalizeDietPlan } from '@/lib/dietValidation';
 import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
 import { generateDietPDF } from '@/lib/generateDietPDF';
@@ -1146,24 +1148,50 @@ ${generated}`;
     };
     if (editPlanId) {
       const validation = validateDietJSON(result);
+      let canonicalPlan: any = null;
+      try {
+        if (currentTargets) {
+          const lifted = markdownToDietPlan(result, {
+            kcal: currentTargets.calories,
+            p: currentTargets.protein,
+            c: currentTargets.carbs,
+            g: currentTargets.fats,
+          }, { strategy: (strategy as any) || undefined, style: (dietStyle as any) || undefined, phase });
+          if (lifted) canonicalPlan = finalizeDietPlan(lifted);
+        }
+      } catch (e) { console.error('lift to DietPlan failed', e); }
       const { error } = await supabase.from('ai_plans').update({
         conteudo: result,
         titulo: `Dieta - ${new Date().toLocaleDateString('pt-BR')} (editada)`,
         protocols,
-        conteudo_json: validation.success ? (validation.data as any) : null,
+        conteudo_json: canonicalPlan ?? (validation.success ? (validation.data as any) : null),
         migration_status: (validation.success ? 'completed' : 'failed') as any,
         migration_error: validation.error || null,
       }).eq('id', editPlanId);
       if (error) toast.error('Erro: ' + error.message);
       else toast.success('Dieta atualizada!');
     } else {
+      let canonicalPlan: any = null;
+      try {
+        if (currentTargets) {
+          const lifted = markdownToDietPlan(result, {
+            kcal: currentTargets.calories,
+            p: currentTargets.protein,
+            c: currentTargets.carbs,
+            g: currentTargets.fats,
+          }, { strategy: (strategy as any) || undefined, style: (dietStyle as any) || undefined, phase });
+          if (lifted) canonicalPlan = finalizeDietPlan(lifted);
+        }
+      } catch (e) { console.error('lift to DietPlan failed', e); }
       const { error } = await supabase.from('ai_plans').insert({
         student_id: studentId!,
         tipo: 'dieta',
         titulo: `Dieta - ${new Date().toLocaleDateString('pt-BR')}`,
         conteudo: result,
         protocols,
-        cycle_status: 'em_dia'
+        cycle_status: 'em_dia',
+        conteudo_json: canonicalPlan ?? null,
+        migration_status: canonicalPlan ? 'completed' : 'pending',
       });
       if (error) {
         toast.error('Erro: ' + error.message);
