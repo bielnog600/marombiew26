@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Loader2, Wand2, Apple, CalendarRange } from 'lucide-react';
+import { Sparkles, Loader2, Wand2, Apple, CalendarRange, Shuffle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -55,11 +55,26 @@ const QUICK: { group: string; label: string; instruction: string }[] = [
 
 const GROUPS = ['Calorias', 'Ciclo de Carboidrato', 'Estratégias'];
 
+type CarbDay = 'normal' | 'high' | 'low';
+const WEEK_DAYS: { key: string; label: string }[] = [
+  { key: 'segunda', label: 'Seg' },
+  { key: 'terça', label: 'Ter' },
+  { key: 'quarta', label: 'Qua' },
+  { key: 'quinta', label: 'Qui' },
+  { key: 'sexta', label: 'Sex' },
+  { key: 'sábado', label: 'Sáb' },
+  { key: 'domingo', label: 'Dom' },
+];
+
 const AiEditDietDialog: React.FC<Props> = ({ open, onOpenChange, currentMeals, studentId, currentPlan, targets, onApply }) => {
   const [instruction, setInstruction] = useState('');
   const [targetKcal, setTargetKcal] = useState<string>('');
   const [foodSuggestion, setFoodSuggestion] = useState('');
   const [loading, setLoading] = useState(false);
+  const [cycleDays, setCycleDays] = useState<Record<string, CarbDay>>(() =>
+    Object.fromEntries(WEEK_DAYS.map(d => [d.key, 'normal' as CarbDay]))
+  );
+  const [variationMeal, setVariationMeal] = useState<string>('');
 
   const totals = computeDayTotals(currentMeals);
 
@@ -184,6 +199,36 @@ const AiEditDietDialog: React.FC<Props> = ({ open, onOpenChange, currentMeals, s
     runWithInstruction(`O usuário quer usar APENAS esta dieta para todos os dias da semana (segunda a domingo). NÃO altere refeições nem alimentos. Retorne uma única action carb_cycle com strategy="Esta dieta única deve ser seguida em todos os dias da semana (segunda a domingo). Demais modelos/opções gerados anteriormente devem ser ignorados." e summary explicando isso.`);
   };
 
+  const cycleDay = (key: string) => {
+    setCycleDays(prev => {
+      const order: CarbDay[] = ['normal', 'high', 'low'];
+      const cur = prev[key] ?? 'normal';
+      const next = order[(order.indexOf(cur) + 1) % order.length];
+      return { ...prev, [key]: next };
+    });
+  };
+
+  const applyCustomCarbCycle = () => {
+    const highDays = Object.entries(cycleDays).filter(([, v]) => v === 'high').map(([k]) => k);
+    const lowDays = Object.entries(cycleDays).filter(([, v]) => v === 'low').map(([k]) => k);
+    if (highDays.length === 0 && lowDays.length === 0) {
+      toast.error('Marque ao menos um dia como Alto ou Baixo carbo.');
+      return;
+    }
+    runWithInstruction(
+      `Aplique ciclo de carboidratos PERSONALIZADO. Dias HIGH CARB (+25% carbo): ${highDays.join(', ') || 'nenhum'}. Dias LOW CARB (-40% carbo): ${lowDays.join(', ') || 'nenhum'}. Demais dias: normal. Use a action carb_cycle preenchendo highCarbDays e lowCarbDays exatamente com esses dias e descrevendo a estratégia no campo strategy.`
+    );
+  };
+
+  const applyMealVariations = (mealHint?: string) => {
+    const scope = mealHint?.trim()
+      ? `apenas na refeição "${mealHint.trim()}"`
+      : 'em TODAS as refeições principais';
+    runWithInstruction(
+      `Gere variações alternativas de alimentos ${scope}, mantendo macros (kcal/proteína/carbo/gordura) muito próximos do original (tolerância ±10%). Para cada refeição alvo, sugira 2-3 substituições/variações usando alimentos diferentes do catálogo (ex: trocar arroz por batata-doce/quinoa/mandioca; trocar frango por tilápia/patinho/ovos; trocar pão por tapioca/aveia). Use actions replace para apresentar as variações principais e summary listando as opções alternativas para cada refeição.`
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!loading) onOpenChange(o); }}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -213,6 +258,61 @@ const AiEditDietDialog: React.FC<Props> = ({ open, onOpenChange, currentMeals, s
             >
               Usar SOMENTE esta dieta de segunda a domingo
             </Button>
+          </div>
+
+          {/* Custom carb cycle picker */}
+          <div className="space-y-1.5">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <CalendarRange className="h-3.5 w-3.5" />
+              Ciclo de carbo personalizado
+            </p>
+            <p className="text-[10px] text-muted-foreground">Toque em cada dia para alternar: Normal → Alto → Baixo</p>
+            <div className="grid grid-cols-7 gap-1">
+              {WEEK_DAYS.map(d => {
+                const v = cycleDays[d.key];
+                const color =
+                  v === 'high' ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-600'
+                  : v === 'low' ? 'bg-orange-500/15 border-orange-500/40 text-orange-600'
+                  : 'bg-muted/30 border-border text-muted-foreground';
+                const tag = v === 'high' ? 'Alto' : v === 'low' ? 'Baixo' : 'Normal';
+                return (
+                  <button
+                    key={d.key}
+                    type="button"
+                    disabled={loading}
+                    onClick={() => cycleDay(d.key)}
+                    className={`rounded-md border px-1 py-1.5 text-[10px] font-semibold transition ${color}`}
+                  >
+                    <div>{d.label}</div>
+                    <div className="text-[9px] font-normal opacity-80">{tag}</div>
+                  </button>
+                );
+              })}
+            </div>
+            <Button size="sm" disabled={loading} onClick={applyCustomCarbCycle} className="h-8 text-xs w-full mt-1">
+              Aplicar ciclo personalizado
+            </Button>
+          </div>
+
+          {/* Meal variations */}
+          <div className="space-y-1.5">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Shuffle className="h-3.5 w-3.5" />
+              Variações de refeição
+            </p>
+            <div className="flex gap-2">
+              <Input
+                value={variationMeal}
+                onChange={(e) => setVariationMeal(e.target.value)}
+                placeholder="Ex: almoço (deixe vazio = todas)"
+                className="h-8 text-sm"
+                disabled={loading}
+              />
+              <Button size="sm" disabled={loading} onClick={() => applyMealVariations(variationMeal)} className="h-8 text-xs">
+                Gerar variações
+              </Button>
+            </div>
+            <p className="text-[10px] text-muted-foreground">A IA sugere 2-3 alternativas mantendo os macros próximos.</p>
           </div>
 
           {/* Target kcal quick set */}

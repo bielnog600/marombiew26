@@ -3,13 +3,17 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { UtensilsCrossed, ChevronDown, ChevronUp, Pencil, Save, Loader2, Eye, Trash2, Percent, Wand2, Zap, RefreshCw, ClipboardCheck } from 'lucide-react';
+import { Copy } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import DietResultCards from '@/components/DietResultCards';
 import DietPlanEditor from '@/components/diet/DietPlanEditor';
+import AiEditDietDialog from '@/components/diet/AiEditDietDialog';
 import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
 import { replaceMealTableInMarkdown, scaleMealsToMacroTargets, computeDayTotals, dietPlanToMarkdown } from '@/lib/dietMarkdownSerializer';
+import { parsedMealsToDietPlan } from '@/lib/dietPlanAdapter';
+import { finalizeDietPlan } from '@/lib/dietValidation';
 import type { ParsedMeal } from '@/lib/dietResultParser';
 import { parseSections } from '@/lib/dietResultParser';
 import { parseDietPlanLoose, type DietPlan } from '@/lib/dietSchema';
@@ -77,6 +81,8 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   const [saving, setSaving] = useState<string | null>(null);
   const [macroModalPlanId, setMacroModalPlanId] = useState<string | null>(null);
   const [macroPct, setMacroPct] = useState({ protein: 30, carbs: 50, fat: 20 });
+  const [aiDialogPlanId, setAiDialogPlanId] = useState<string | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
   const getPlanTotals = useCallback((markdown: string) => {
     const sections = parseSections(markdown);
@@ -112,6 +118,53 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     if (error) { toast.error('Erro ao deletar: ' + error.message); return; }
     toast.success('Dieta deletada.');
     setPlans(prev => prev.filter(p => p.id !== planId));
+  };
+
+  const handleDuplicate = async (planId: string) => {
+    const plan = plans.find(p => p.id === planId);
+    if (!plan) return;
+    setDuplicatingId(planId);
+    try {
+      const today = new Date();
+      const dateLabel = today.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const payload: Record<string, unknown> = {
+        student_id: plan.student_id,
+        tipo: 'dieta',
+        titulo: `${plan.titulo || 'Dieta'} (cópia ${dateLabel})`,
+        conteudo: plan.conteudo,
+        conteudo_json: plan.conteudo_json ?? null,
+        migration_status: plan.migration_status ?? null,
+        fase: plan.fase ?? null,
+        is_draft: false,
+      };
+      const { data, error } = await supabase.from('ai_plans').insert(payload as any).select('*').single();
+      if (error) throw error;
+      toast.success('Dieta duplicada!');
+      setPlans(prev => [data, ...prev]);
+    } catch (e: any) {
+      toast.error('Erro ao duplicar: ' + (e?.message || 'falha'));
+    } finally {
+      setDuplicatingId(null);
+    }
+  };
+
+  const handleAiApply = async (planId: string, newMeals: ParsedMeal[], notes: string[], newPlan?: DietPlan) => {
+    const plan = plans.find(p => p.id === planId);
+    if (!plan) return;
+    let newContent = newPlan
+      ? dietPlanToMarkdown(newPlan)
+      : replaceMealTableInMarkdown(plan.conteudo, newMeals);
+    if (notes && notes.length) {
+      newContent = `${newContent.trimEnd()}\n\n## 📝 Observações da IA\n\n${notes.join('\n\n')}\n`;
+    }
+    const updatePayload: Record<string, unknown> = { conteudo: newContent, whatsapp_notified_at: null };
+    if (newPlan) {
+      updatePayload.conteudo_json = newPlan as any;
+      updatePayload.migration_status = 'completed';
+    }
+    const { error } = await supabase.from('ai_plans').update(updatePayload).eq('id', planId);
+    if (error) { toast.error('Erro ao salvar: ' + error.message); return; }
+    setPlans(prev => prev.map(p => p.id === planId ? { ...p, conteudo: newContent, conteudo_json: newPlan ?? p.conteudo_json, whatsapp_notified_at: null } : p));
   };
 
   useEffect(() => {
@@ -347,10 +400,20 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         size="sm" 
                         variant="outline" 
                         className="h-8 gap-1.5 text-xs rounded-xl bg-primary/5 border-primary/20"
-                        onClick={() => navigate(`/dieta-ia/${studentId}?edit=${plan.id}`)}
+                        onClick={() => setAiDialogPlanId(plan.id)}
                       >
                         <Wand2 className="h-3.5 w-3.5 text-primary" />
                         Ajustar com IA
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1.5 text-xs rounded-xl border-border"
+                        disabled={duplicatingId === plan.id}
+                        onClick={() => handleDuplicate(plan.id)}
+                      >
+                        {duplicatingId === plan.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
+                        Duplicar
                       </Button>
                       <Button 
                         size="sm" 
@@ -442,6 +505,32 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {(() => {
+        const aiPlan = aiDialogPlanId ? plans.find(p => p.id === aiDialogPlanId) : null;
+        if (!aiPlan) return null;
+        const sections = parseSections(aiPlan.conteudo);
+        const meals = sections.flatMap(s => s.type === 'meal' && s.meals ? s.meals : []);
+        const canonical = parseDietPlanLoose(aiPlan.conteudo_json);
+        const totals = computeDayTotals(meals);
+        const fallbackTargets: any = canonical?.targets ?? extractTargetsFromSections(sections) ?? {
+          kcal: Math.round(totals.kcal),
+          p: Math.round(totals.p),
+          c: Math.round(totals.c),
+          g: Math.round(totals.g),
+        };
+        return (
+          <AiEditDietDialog
+            open={!!aiDialogPlanId}
+            onOpenChange={(o) => !o && setAiDialogPlanId(null)}
+            currentMeals={meals}
+            studentId={studentId}
+            currentPlan={canonical}
+            targets={fallbackTargets}
+            onApply={(newMeals, notes, newPlan) => handleAiApply(aiPlan.id, newMeals, notes, newPlan)}
+          />
+        );
+      })()}
     </>
   );
 };
