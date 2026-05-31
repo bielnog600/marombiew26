@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar, Send, ClipboardList, Plus, Sparkles, Activity, Wand2, Zap, GitCompare, RefreshCw, Users, Settings2 } from 'lucide-react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Copy, User } from 'lucide-react';
 import { toast } from 'sonner';
 import TrainingResultCards from '@/components/TrainingResultCards';
 import TrainerLogSheet from '@/components/training/TrainerLogSheet';
@@ -52,6 +52,8 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   const [transferring, setTransferring] = useState(false);
   const [trainPlan, setTrainPlan] = useState<any | null>(null);
   const [duoTrainOpen, setDuoTrainOpen] = useState(false);
+  const [trainModeChoice, setTrainModeChoice] = useState<any | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [aiAllDaysOpen, setAiAllDaysOpen] = useState<string | null>(null);
   const editedMarkdownsRef = useRef<Record<string, string>>({});
 
@@ -70,6 +72,35 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
     if (error) { toast.error('Erro ao deletar: ' + error.message); return; }
     toast.success('Treino deletado.');
     setPlans(prev => prev.filter(p => p.id !== planId));
+  };
+
+  const handleDuplicate = async (plan: any) => {
+    setDuplicatingId(plan.id);
+    try {
+      const today = new Date();
+      const todayStr = today.toISOString().slice(0, 10);
+      const todayLabel = today.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const effective = getEffectivePlan(plan);
+      const { id, created_at, updated_at, whatsapp_notified_at, whatsapp_notified_count, ...rest } = effective;
+      const baseTitle = (plan.titulo || 'Treino').replace(/\s*\(c[óo]pia.*\)\s*$/i, '').trim();
+      const newPlan = {
+        ...rest,
+        titulo: `${baseTitle} (cópia ${todayLabel})`,
+        fase_inicio_data: todayStr,
+        is_draft: false,
+        whatsapp_notified_at: null,
+        whatsapp_notified_count: 0,
+      };
+      const { data, error } = await supabase.from('ai_plans').insert(newPlan).select('*').single();
+      if (error) throw error;
+      toast.success('Treino duplicado.');
+      setPlans(prev => [data, ...prev]);
+      setExpandedId(data.id);
+    } catch (e: any) {
+      toast.error('Erro ao duplicar: ' + (e?.message || e));
+    } finally {
+      setDuplicatingId(null);
+    }
   };
 
   useEffect(() => {
@@ -187,23 +218,10 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                       title="Treinar aluno"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setTrainPlan(getEffectivePlan(plan));
+                        setTrainModeChoice(getEffectivePlan(plan));
                       }}
                     >
                       <ClipboardList className="h-3 w-3" /> Treinar
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 gap-1 px-2 text-xs text-violet-600 hover:text-violet-700 hover:bg-violet-50"
-                      title="Treino Duo (2 alunos)"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDuoTrainOpen(true);
-                        setTrainPlan(getEffectivePlan(plan));
-                      }}
-                    >
-                      <Users className="h-3 w-3" /> Duo
                     </Button>
                     <WhatsAppNotifyPlanButton
                       plan={plan}
@@ -280,6 +298,23 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                       >
                         <RefreshCw className="h-3.5 w-3.5" />
                         Renovar Bloco
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1.5 text-xs rounded-xl bg-emerald-500/5 border-emerald-500/20 text-emerald-600"
+                        disabled={duplicatingId === plan.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDuplicate(plan);
+                        }}
+                      >
+                        {duplicatingId === plan.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                        Duplicar
                       </Button>
                     </div>
 
@@ -371,6 +406,52 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
           planA={trainPlan}
         />
       )}
+
+      <Dialog open={!!trainModeChoice} onOpenChange={(v) => !v && setTrainModeChoice(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Como deseja treinar?</DialogTitle>
+            <DialogDescription>Escolha o modo de execução do treino.</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2">
+            <button
+              type="button"
+              className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card hover:bg-accent transition-colors p-5 text-center"
+              onClick={() => {
+                const p = trainModeChoice;
+                setTrainModeChoice(null);
+                setTrainPlan(p);
+              }}
+            >
+              <div className="h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                <User className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm">Sozinho</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Treino individual</p>
+              </div>
+            </button>
+            <button
+              type="button"
+              className="flex flex-col items-center gap-2 rounded-xl border border-violet-500/30 bg-violet-500/5 hover:bg-violet-500/10 transition-colors p-5 text-center"
+              onClick={() => {
+                const p = trainModeChoice;
+                setTrainModeChoice(null);
+                setTrainPlan(p);
+                setDuoTrainOpen(true);
+              }}
+            >
+              <div className="h-12 w-12 rounded-full bg-violet-500/15 text-violet-600 flex items-center justify-center">
+                <Users className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm">Duo</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Treinar com outro aluno</p>
+              </div>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
         {aiAllDaysOpen && (
           <AiEditAllDaysDialog
