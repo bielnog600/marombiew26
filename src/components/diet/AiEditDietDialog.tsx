@@ -16,13 +16,20 @@ import { toast } from 'sonner';
 import type { ParsedMeal } from '@/lib/dietResultParser';
 import { applyDietActions, type DietAiAction } from '@/lib/dietAiActions';
 import { computeDayTotals } from '@/lib/dietMarkdownSerializer';
+import { parsedMealsToDietPlan } from '@/lib/dietPlanAdapter';
+import { finalizeDietPlan } from '@/lib/dietValidation';
+import type { DietPlan, DietTargets } from '@/lib/dietSchema';
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentMeals: ParsedMeal[];
   studentId?: string;
-  onApply: (newMeals: ParsedMeal[], notes: string[]) => void;
+  /** Optional canonical plan — when present, drives hybrid persistence. */
+  currentPlan?: DietPlan | null;
+  /** Optional targets used to validate the new plan after edit. */
+  targets?: DietTargets | null;
+  onApply: (newMeals: ParsedMeal[], notes: string[], newPlan?: DietPlan) => void;
 }
 
 const QUICK: { group: string; label: string; instruction: string }[] = [
@@ -48,7 +55,7 @@ const QUICK: { group: string; label: string; instruction: string }[] = [
 
 const GROUPS = ['Calorias', 'Ciclo de Carboidrato', 'Estratégias'];
 
-const AiEditDietDialog: React.FC<Props> = ({ open, onOpenChange, currentMeals, studentId, onApply }) => {
+const AiEditDietDialog: React.FC<Props> = ({ open, onOpenChange, currentMeals, studentId, currentPlan, targets, onApply }) => {
   const [instruction, setInstruction] = useState('');
   const [targetKcal, setTargetKcal] = useState<string>('');
   const [foodSuggestion, setFoodSuggestion] = useState('');
@@ -100,6 +107,8 @@ const AiEditDietDialog: React.FC<Props> = ({ open, onOpenChange, currentMeals, s
       const { data, error } = await supabase.functions.invoke('diet-edit-agent', {
         body: {
           currentMeals,
+          currentPlan: currentPlan ?? undefined,
+          targets: targets ?? currentPlan?.targets ?? undefined,
           instruction: text,
           foodCatalog: foods || [],
           studentContext,
@@ -118,8 +127,30 @@ const AiEditDietDialog: React.FC<Props> = ({ open, onOpenChange, currentMeals, s
       }
 
       const { meals: newMeals, notes } = applyDietActions(currentMeals, actions);
-      onApply(newMeals, notes);
-      toast.success((data as any)?.summary || `${actions.length} alteração(ões) aplicada(s).`);
+
+      // Rebuild canonical DietPlan when we have one, so persistence stays hybrid
+      // (conteudo + conteudo_json) and validation is re-run post-edit.
+      let nextPlan: DietPlan | undefined;
+      if (currentPlan) {
+        const baseTargets: DietTargets = (targets ?? currentPlan.targets);
+        const rebuilt = parsedMealsToDietPlan(newMeals, baseTargets, {
+          ...currentPlan.meta,
+          generatedAt: new Date().toISOString(),
+        });
+        nextPlan = finalizeDietPlan(rebuilt, baseTargets);
+        const status = nextPlan.validation?.status;
+        if (status === 'invalid') {
+          toast('Edição aplicada, mas dieta ficou fora da meta — revise.', { icon: '⚠️' });
+        } else if (status === 'warning') {
+          toast('Edição aplicada com avisos de validação.', { icon: '⚠️' });
+        } else {
+          toast.success((data as any)?.summary || `${actions.length} alteração(ões) aplicada(s).`);
+        }
+      } else {
+        toast.success((data as any)?.summary || `${actions.length} alteração(ões) aplicada(s).`);
+      }
+
+      onApply(newMeals, notes, nextPlan);
       setInstruction('');
       setFoodSuggestion('');
       onOpenChange(false);

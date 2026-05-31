@@ -13,12 +13,17 @@ import { parseSections, type ParsedFood, type ParsedMeal } from '@/lib/dietResul
  import { computeDayTotals, scaleMealsToTarget, stripG } from '@/lib/dietMarkdownSerializer';
 import FoodSubstitutionDialog from './FoodSubstitutionDialog';
 import AiEditDietDialog from './AiEditDietDialog';
+import type { DietPlan } from '@/lib/dietSchema';
 
 interface DietPlanEditorProps {
   markdown: string;
   onMealsChange: (meals: ParsedMeal[]) => void;
   studentId?: string;
   onAiNotes?: (notes: string[]) => void;
+  /** Canonical plan (when persisted as conteudo_json). */
+  currentPlan?: DietPlan | null;
+  /** Notified when the AI editor produces an updated canonical plan. */
+  onPlanChange?: (plan: DietPlan) => void;
 }
 
 const num = (v?: string) => {
@@ -97,7 +102,7 @@ const extractMeals = (markdown: string): ParsedMeal[] => {
   return [...(mealSections[0].meals || [])];
 };
 
-const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange, studentId, onAiNotes }) => {
+const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange, studentId, onAiNotes, currentPlan, onPlanChange }) => {
   const initialMeals = useMemo(() => extractMeals(markdown), [markdown]);
   const [meals, setMeals] = useState<ParsedMeal[]>(initialMeals);
   const [target, setTarget] = useState<number>(() => Math.round(computeDayTotals(initialMeals).kcal));
@@ -397,9 +402,12 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
         onOpenChange={setAiOpen}
         currentMeals={meals}
         studentId={studentId}
-        onApply={(newMeals, notes) => {
+        currentPlan={currentPlan ?? null}
+        targets={currentPlan?.targets ?? null}
+        onApply={(newMeals, notes, nextPlan) => {
           setMeals(newMeals);
           if (notes.length && onAiNotes) onAiNotes(notes);
+          if (nextPlan && onPlanChange) onPlanChange(nextPlan);
         }}
       />
     </div>

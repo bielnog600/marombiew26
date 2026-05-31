@@ -20,6 +20,10 @@ import { toast } from 'sonner';
 import { validateDietJSON } from '@/lib/planMigrationUtils';
 import { markdownToDietPlan } from '@/lib/dietPlanAdapter';
 import { finalizeDietPlan } from '@/lib/dietValidation';
+import { parseDietPlanStrict, parseDietPlanLoose, type DietPlan } from '@/lib/dietSchema';
+import { dietPlanToMarkdown } from '@/lib/dietMarkdownSerializer';
+import { extractTrainingContext } from '@/lib/trainingContextExtractor';
+import DietValidationBadge from '@/components/diet/DietValidationBadge';
 import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
 import { generateDietPDF } from '@/lib/generateDietPDF';
@@ -217,6 +221,8 @@ const DietaIA = () => {
   const [macroPct, setMacroPct] = useState({ protein: 20, carbs: 50, fat: 30 });
   const [lastDietPlan, setLastDietPlan] = useState<any>(null);
   const [showCompare, setShowCompare] = useState(false);
+  // Canonical structured plan (source of truth when structured generation succeeds).
+  const [structuredPlan, setStructuredPlan] = useState<DietPlan | null>(null);
 
   useEffect(() => {
     if (studentId) loadStudentData();
@@ -858,6 +864,81 @@ const DietaIA = () => {
     return accumulated;
   };
 
+  /**
+   * Structured generation path — JSON canonical DietPlan as primary output.
+   * Returns the validated, totals-recomputed plan or null on failure.
+   * The caller decides whether to fall back to streaming markdown.
+   */
+  const generateStructuredPlan = async (
+    userPrompt: string,
+    dietConfig: { objective?: string; strategy?: string; style?: string },
+    targets: { kcal: number; p: number; c: number; g: number; tmb?: number; get?: number },
+  ): Promise<DietPlan | null> => {
+    // Latest training markdown → structured context
+    let trainingContext: any = undefined;
+    try {
+      const { data: trainPlans } = await supabase
+        .from('ai_plans')
+        .select('conteudo')
+        .eq('student_id', studentId!)
+        .eq('tipo', 'treino')
+        .eq('is_draft', false)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      const md = trainPlans?.[0]?.conteudo as string | undefined;
+      if (md) {
+        trainingContext = extractTrainingContext({
+          trainingMarkdown: md,
+          trainingTime: (['manha', 'tarde', 'noite'] as const).find((t) => trainingTime?.includes(t)) || null,
+        });
+      }
+    } catch (e) {
+      console.warn('structured: failed to load training context', e);
+    }
+
+    const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/diet-agent`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      },
+      body: JSON.stringify({
+        mode: 'structured',
+        messages: [{ role: 'user', content: userPrompt }],
+        studentContext: studentCtx,
+        dietConfig,
+        trainingContext,
+      }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      console.warn('structured diet-agent non-200:', resp.status, err);
+      return null;
+    }
+    const data = await resp.json().catch(() => null);
+    const raw = data?.plan;
+    if (!raw) return null;
+
+    // Inject targets if model didn't echo them
+    if (raw.targets) {
+      raw.targets = { ...targets, ...raw.targets };
+    } else {
+      raw.targets = targets;
+    }
+
+    let parsed = parseDietPlanStrict(raw);
+    if (!parsed.success) {
+      // try a loose parse — tolerates extra/missing optional fields
+      const loose = parseDietPlanLoose(raw);
+      if (!loose) {
+        console.warn('structured: schema rejected plan', parsed.error?.issues?.slice(0, 5));
+        return null;
+      }
+      return finalizeDietPlan(loose, targets as any);
+    }
+    return finalizeDietPlan(parsed.data, targets as any);
+  };
+
   const loadFoodMacroRecords = async (): Promise<FoodMacroRecord[]> => {
     const { data, error } = await supabase
       .from('foods')
@@ -879,6 +960,7 @@ const DietaIA = () => {
     setGenerating(true);
     setResult('');
     setMacroReport(null);
+    setStructuredPlan(null);
 
     const selectedStrategy = STRATEGIES.find(s => s.value === strategy);
     const selectedActivity = ACTIVITY_LEVELS.find(a => a.value === activityLevel);
@@ -1085,6 +1167,48 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
 
     try {
       const foodRecords = await loadFoodMacroRecords();
+
+      // ── 1) STRUCTURED MODE (primary path) ──
+      let structured: DietPlan | null = null;
+      if (currentTargets) {
+        try {
+          structured = await generateStructuredPlan(
+            prompt,
+            {
+              objective: phase || undefined,
+              strategy: strategy || undefined,
+              style: dietStyle || undefined,
+            },
+            {
+              kcal: currentTargets.calories,
+              p: currentTargets.protein,
+              c: currentTargets.carbs,
+              g: currentTargets.fats,
+              tmb: studentCtx.recomendacao_ia?.tmb,
+            },
+          );
+        } catch (e) {
+          console.warn('structured generation threw, falling back to streaming:', e);
+        }
+      }
+
+      if (structured) {
+        const md = dietPlanToMarkdown(structured);
+        setStructuredPlan(structured);
+        setResult(md);
+        if (currentTargets) {
+          const report = validateDietMacros(md, currentTargets, foodRecords);
+          setMacroReport(report);
+        }
+        const status = structured.validation?.status;
+        if (status === 'ok') toast.success('Dieta gerada (JSON canônico).');
+        else if (status === 'warning') toast('Dieta gerada — revisar avisos.', { icon: '⚠️' });
+        else if (status === 'invalid') toast('Dieta fora da meta. Revise antes de enviar.', { icon: '⚠️' });
+        return;
+      }
+
+      // ── 2) FALLBACK: streaming markdown ──
+      console.warn('Structured path unavailable, falling back to markdown stream.');
       const generated = await streamDietAgent([{ role: 'user', content: prompt }]);
       let finalPlan = generated;
 
@@ -1149,8 +1273,12 @@ ${generated}`;
     if (editPlanId) {
       const validation = validateDietJSON(result);
       let canonicalPlan: any = null;
+      // Prefer structured plan from generation; lift markdown only as fallback.
+      if (structuredPlan) {
+        canonicalPlan = structuredPlan;
+      }
       try {
-        if (macroReport?.target) {
+        if (!canonicalPlan && macroReport?.target) {
           const lifted = markdownToDietPlan(result, {
             kcal: macroReport.target.calories,
             p: macroReport.target.protein,
@@ -1172,8 +1300,11 @@ ${generated}`;
       else toast.success('Dieta atualizada!');
     } else {
       let canonicalPlan: any = null;
+      if (structuredPlan) {
+        canonicalPlan = structuredPlan;
+      }
       try {
-        if (macroReport?.target) {
+        if (!canonicalPlan && macroReport?.target) {
           const lifted = markdownToDietPlan(result, {
             kcal: macroReport.target.calories,
             p: macroReport.target.protein,

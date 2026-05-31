@@ -9,9 +9,10 @@ import { useNavigate } from 'react-router-dom';
 import DietResultCards from '@/components/DietResultCards';
 import DietPlanEditor from '@/components/diet/DietPlanEditor';
 import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
-import { replaceMealTableInMarkdown, scaleMealsToMacroTargets, computeDayTotals } from '@/lib/dietMarkdownSerializer';
+import { replaceMealTableInMarkdown, scaleMealsToMacroTargets, computeDayTotals, dietPlanToMarkdown } from '@/lib/dietMarkdownSerializer';
 import type { ParsedMeal } from '@/lib/dietResultParser';
 import { parseSections } from '@/lib/dietResultParser';
+import { parseDietPlanLoose, type DietPlan } from '@/lib/dietSchema';
 import { extractTargetsFromSections } from '@/lib/dietTargets';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Slider } from '@/components/ui/slider';
@@ -70,6 +71,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editedMeals, setEditedMeals] = useState<Record<string, ParsedMeal[]>>({});
   const [aiNotes, setAiNotes] = useState<Record<string, string[]>>({});
+  const [editedPlans, setEditedPlans] = useState<Record<string, DietPlan>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [macroModalPlanId, setMacroModalPlanId] = useState<string | null>(null);
@@ -129,29 +131,44 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     setEditedMeals(prev => ({ ...prev, [planId]: meals }));
   };
 
+  const handlePlanChange = (planId: string, plan: DietPlan) => {
+    setEditedPlans(prev => ({ ...prev, [planId]: plan }));
+  };
+
   const handleSave = async (planId: string) => {
     const meals = editedMeals[planId];
-    if (!meals) return;
+    const updatedPlan = editedPlans[planId];
+    if (!meals && !updatedPlan) return;
     const plan = plans.find(p => p.id === planId);
     if (!plan) return;
-    let newContent = replaceMealTableInMarkdown(plan.conteudo, meals);
+    // When we have a canonical updated plan, derive markdown from it so the
+    // two representations stay in sync; otherwise patch the table only.
+    let newContent = updatedPlan
+      ? dietPlanToMarkdown(updatedPlan)
+      : replaceMealTableInMarkdown(plan.conteudo, meals!);
     const notes = aiNotes[planId];
     if (notes && notes.length) {
       newContent = `${newContent.trimEnd()}\n\n## 📝 Observações da IA\n\n${notes.join('\n\n')}\n`;
     }
 
     setSaving(planId);
+    const updatePayload: Record<string, unknown> = { conteudo: newContent };
+    if (updatedPlan) {
+      updatePayload.conteudo_json = updatedPlan as any;
+      updatePayload.migration_status = 'completed';
+    }
     const { error } = await supabase
       .from('ai_plans')
-      .update({ conteudo: newContent })
+      .update(updatePayload)
       .eq('id', planId);
 
     if (error) {
       toast.error('Erro ao salvar: ' + error.message);
     } else {
       toast.success('Dieta salva com sucesso!');
-      setPlans(prev => prev.map(p => p.id === planId ? { ...p, conteudo: newContent, whatsapp_notified_at: null } : p));
+      setPlans(prev => prev.map(p => p.id === planId ? { ...p, conteudo: newContent, conteudo_json: updatedPlan ?? p.conteudo_json, whatsapp_notified_at: null } : p));
       setEditedMeals(prev => { const c = { ...prev }; delete c[planId]; return c; });
+      setEditedPlans(prev => { const c = { ...prev }; delete c[planId]; return c; });
       setAiNotes(prev => { const c = { ...prev }; delete c[planId]; return c; });
       setEditingId(null);
     }
@@ -192,7 +209,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
       <div className="space-y-3">
         {plans.map(plan => {
           const isExpanded = expandedId === plan.id;
-          const hasChanges = editedMeals[plan.id] !== undefined || (aiNotes[plan.id]?.length || 0) > 0;
+          const hasChanges = editedMeals[plan.id] !== undefined || editedPlans[plan.id] !== undefined || (aiNotes[plan.id]?.length || 0) > 0;
           const isEditing = editingId === plan.id;
           const cleanedMarkdown = stripDietPreamble(plan.conteudo);
 
@@ -363,6 +380,8 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         onMealsChange={(meals) => handleMealsChange(plan.id, meals)}
                         studentId={studentId}
                         onAiNotes={(notes) => setAiNotes(prev => ({ ...prev, [plan.id]: [...(prev[plan.id] || []), ...notes] }))}
+                        currentPlan={editedPlans[plan.id] ?? parseDietPlanLoose(plan.conteudo_json)}
+                        onPlanChange={(p) => handlePlanChange(plan.id, p)}
                       />
                     ) : (
                       <DietResultCards markdown={cleanedMarkdown} />
