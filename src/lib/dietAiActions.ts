@@ -85,11 +85,69 @@ const sanitizeFood = (raw: Partial<ParsedFood>): ParsedFood => ({
 export interface ApplyResult {
   meals: ParsedMeal[];
   notes: string[];
+  /** Present when a carb_cycle action expanded the plan into 7 weekday variants. */
+  days?: { label: string; meals: ParsedMeal[] }[];
 }
+
+const WEEKDAY_ORDER = ['segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo'];
+const WEEKDAY_LABEL: Record<string, string> = {
+  segunda: 'Segunda', 'terça': 'Terça', quarta: 'Quarta', quinta: 'Quinta',
+  sexta: 'Sexta', 'sábado': 'Sábado', domingo: 'Domingo',
+};
+
+/**
+ * Expand a single-day plan into 7 weekday variants, scaling carbohydrate-rich
+ * foods according to a carb cycle (low/high/normal per weekday).
+ */
+const buildCarbCycleDays = (
+  baseMeals: ParsedMeal[],
+  cc: NonNullable<DietAiAction['carbCycle']>,
+): { label: string; meals: ParsedMeal[] }[] => {
+  const normalize = (s: string) => norm(s);
+  const lowSet = new Set((cc.lowCarbDays || []).map(normalize));
+  const highSet = new Set((cc.highCarbDays || []).map(normalize));
+  // Defaults: -40% low, +25% high — match what the dialog tells the AI.
+  const lowF = typeof cc.lowCarbReduction === 'number' && cc.lowCarbReduction > 0
+    ? cc.lowCarbReduction : 0.6;
+  const highF = typeof cc.highCarbIncrease === 'number' && cc.highCarbIncrease > 0
+    ? cc.highCarbIncrease : 1.25;
+
+  return WEEKDAY_ORDER.map((dayKey) => {
+    const isLow = lowSet.has(dayKey);
+    const isHigh = highSet.has(dayKey);
+    const factor = isLow ? lowF : isHigh ? highF : 1;
+
+    const meals: ParsedMeal[] = baseMeals.map((m) => ({
+      ...m,
+      foods: m.foods.map<ParsedFood>((f) => {
+        if (factor === 1) return { ...f };
+        const p = num(f.p), c = num(f.c), g = num(f.g);
+        // Only scale carb-dominant foods (rice, batata, aveia, pão, fruta, etc.)
+        const isCarbDominant = c > 0 && c >= p && c >= g;
+        if (!isCarbDominant) return { ...f };
+        const qtyN = num(String(f.qty).replace(/g/i, ''));
+        const newC = c * factor;
+        const newKcal = (p * 4) + (newC * 4) + (g * 9);
+        return {
+          ...f,
+          qty: qtyN > 0 ? `${fmt(qtyN * factor)} g` : f.qty,
+          c: fmt(newC),
+          kcal: fmt(newKcal),
+        };
+      }),
+    }));
+
+    const label = isLow ? `${WEEKDAY_LABEL[dayKey]} (Low)`
+                  : isHigh ? `${WEEKDAY_LABEL[dayKey]} (High)`
+                  : WEEKDAY_LABEL[dayKey];
+    return { label, meals };
+  });
+};
 
 export const applyDietActions = (meals: ParsedMeal[], actions: DietAiAction[]): ApplyResult => {
   let next = meals.map((m) => ({ ...m, foods: m.foods.map((f) => ({ ...f })) }));
   const notes: string[] = [];
+  let days: { label: string; meals: ParsedMeal[] }[] | undefined;
 
   for (const a of actions) {
     try {
@@ -196,6 +254,11 @@ export const applyDietActions = (meals: ParsedMeal[], actions: DietAiAction[]): 
           if (cc.lowCarbDays?.length) parts.push(`Low Carb: ${cc.lowCarbDays.join(', ')}${cc.lowCarbReduction ? ` (carbo x${cc.lowCarbReduction})` : ''}`);
           if (cc.highCarbDays?.length) parts.push(`High Carb: ${cc.highCarbDays.join(', ')}${cc.highCarbIncrease ? ` (carbo x${cc.highCarbIncrease})` : ''}`);
           notes.push(parts.join('\n'));
+          // Actually generate per-day variants so the editor and student
+          // portal show different carb quantities per weekday.
+          if ((cc.lowCarbDays?.length || 0) > 0 || (cc.highCarbDays?.length || 0) > 0) {
+            days = buildCarbCycleDays(next, cc);
+          }
           break;
         }
       }
@@ -204,5 +267,5 @@ export const applyDietActions = (meals: ParsedMeal[], actions: DietAiAction[]): 
     }
   }
 
-  return { meals: next, notes };
+  return { meals: next, notes, days };
 };
