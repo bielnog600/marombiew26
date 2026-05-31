@@ -1273,8 +1273,12 @@ ${generated}`;
     if (editPlanId) {
       const validation = validateDietJSON(result);
       let canonicalPlan: any = null;
+      // Prefer structured plan from generation; lift markdown only as fallback.
+      if (structuredPlan) {
+        canonicalPlan = structuredPlan;
+      }
       try {
-        if (macroReport?.target) {
+        if (!canonicalPlan && macroReport?.target) {
           const lifted = markdownToDietPlan(result, {
             kcal: macroReport.target.calories,
             p: macroReport.target.protein,
@@ -1296,8 +1300,11 @@ ${generated}`;
       else toast.success('Dieta atualizada!');
     } else {
       let canonicalPlan: any = null;
+      if (structuredPlan) {
+        canonicalPlan = structuredPlan;
+      }
       try {
-        if (macroReport?.target) {
+        if (!canonicalPlan && macroReport?.target) {
           const lifted = markdownToDietPlan(result, {
             kcal: macroReport.target.calories,
             p: macroReport.target.protein,
