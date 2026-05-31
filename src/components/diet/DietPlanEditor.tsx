@@ -14,6 +14,10 @@ import { parseSections, type ParsedFood, type ParsedMeal } from '@/lib/dietResul
 import FoodSubstitutionDialog from './FoodSubstitutionDialog';
 import AiEditDietDialog from './AiEditDietDialog';
 import type { DietPlan } from '@/lib/dietSchema';
+import { parsedMealsToDietPlan } from '@/lib/dietPlanAdapter';
+import { finalizeDietPlan } from '@/lib/dietValidation';
+import DietValidationBadge from './DietValidationBadge';
+import TrainingContextSummary from './TrainingContextSummary';
 
 interface DietPlanEditorProps {
   markdown: string;
@@ -166,10 +170,39 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
   const handleSubstitute = (newFood: ParsedFood) => {
     if (!subTarget) return;
     const { mealIdx, foodIdx } = subTarget;
-    updateMeals((prev) => prev.map((m, mi) => mi !== mealIdx ? m : {
-      ...m,
-      foods: m.foods.map((f, fi) => fi === foodIdx ? { ...newFood, sub: f.sub } : f),
-    }));
+    let nextMeals: ParsedMeal[] = [];
+    updateMeals((prev) => {
+      nextMeals = prev.map((m, mi) => mi !== mealIdx ? m : {
+        ...m,
+        foods: m.foods.map((f, fi) => fi === foodIdx ? { ...newFood, sub: f.sub } : f),
+      });
+      return nextMeals;
+    });
+    // Revalidate against the canonical plan + targets when available.
+    if (currentPlan && onPlanChange) {
+      try {
+        const baseTargets = currentPlan.targets;
+        const rebuilt = parsedMealsToDietPlan(nextMeals, baseTargets, {
+          ...currentPlan.meta,
+          generatedAt: new Date().toISOString(),
+        });
+        // Preserve trainingContext, tips, notes
+        const nextPlan = finalizeDietPlan(
+          { ...rebuilt, trainingContext: currentPlan.trainingContext, tips: currentPlan.tips, notes: currentPlan.notes },
+          baseTargets,
+        );
+        onPlanChange(nextPlan);
+        const prevStatus = currentPlan.validation?.status;
+        const newStatus = nextPlan.validation?.status;
+        if (newStatus === 'invalid' && prevStatus !== 'invalid') {
+          toast.warning('A troca tirou o plano da meta. Ajuste porções.');
+        } else if (newStatus === 'warning' && prevStatus === 'ok') {
+          toast('Troca aplicada com aviso de validação.', { icon: '⚠️' });
+        }
+      } catch (e) {
+        console.warn('post-sub validation failed', e);
+      }
+    }
     setSubTarget(null);
   };
 
@@ -223,8 +256,16 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
 
   return (
     <div className="space-y-3">
+      {/* Training context block */}
+      {currentPlan?.trainingContext && (
+        <TrainingContextSummary context={currentPlan.trainingContext} />
+      )}
+
       {/* AI quick action */}
-      <div className="flex justify-end">
+      <div className="flex justify-end items-center gap-2">
+        {currentPlan?.validation && (
+          <DietValidationBadge report={currentPlan.validation} />
+        )}
         <Button
           size="sm"
           variant="default"
@@ -384,6 +425,16 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
           onOpenChange={(open) => { if (!open) setSubTarget(null); }}
           originalFood={meals[subTarget.mealIdx].foods[subTarget.foodIdx]}
           onSubstitute={handleSubstitute}
+          mealTotals={(() => {
+            const m = meals[subTarget.mealIdx];
+            return {
+              kcal: m.foods.reduce((a, f) => a + num(f.kcal), 0),
+              p: m.foods.reduce((a, f) => a + num(f.p), 0),
+              c: m.foods.reduce((a, f) => a + num(f.c), 0),
+              g: m.foods.reduce((a, f) => a + num(f.g), 0),
+            };
+          })()}
+          targets={currentPlan?.targets ?? null}
         />
       )}
 
