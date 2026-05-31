@@ -1150,12 +1150,12 @@ ${generated}`;
       const validation = validateDietJSON(result);
       let canonicalPlan: any = null;
       try {
-        if (currentTargets) {
+        if (macroReport?.target) {
           const lifted = markdownToDietPlan(result, {
-            kcal: currentTargets.calories,
-            p: currentTargets.protein,
-            c: currentTargets.carbs,
-            g: currentTargets.fats,
+            kcal: macroReport.target.calories,
+            p: macroReport.target.protein,
+            c: macroReport.target.carbs,
+            g: macroReport.target.fats,
           }, { strategy: (strategy as any) || undefined, style: (dietStyle as any) || undefined, phase });
           if (lifted) canonicalPlan = finalizeDietPlan(lifted);
         }
@@ -1173,12 +1173,12 @@ ${generated}`;
     } else {
       let canonicalPlan: any = null;
       try {
-        if (currentTargets) {
+        if (macroReport?.target) {
           const lifted = markdownToDietPlan(result, {
-            kcal: currentTargets.calories,
-            p: currentTargets.protein,
-            c: currentTargets.carbs,
-            g: currentTargets.fats,
+            kcal: macroReport.target.calories,
+            p: macroReport.target.protein,
+            c: macroReport.target.carbs,
+            g: macroReport.target.fats,
           }, { strategy: (strategy as any) || undefined, style: (dietStyle as any) || undefined, phase });
           if (lifted) canonicalPlan = finalizeDietPlan(lifted);
         }
