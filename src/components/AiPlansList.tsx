@@ -14,6 +14,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
 import DietReadjustmentDialog from '@/components/DietReadjustmentDialog';
+import DietValidationBadge from '@/components/diet/DietValidationBadge';
+import { parseDietPlanLoose } from '@/lib/dietSchema';
 
 interface AiPlansListProps {
   studentId: string;
@@ -85,6 +87,14 @@ const AiPlansList = ({ studentId, tipos }: AiPlansListProps) => {
                   <p className="text-xs text-muted-foreground">
                     {new Date(plan.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </p>
+                  {plan.tipo === 'dieta' && plan.conteudo_json && (() => {
+                    const parsed = parseDietPlanLoose(plan.conteudo_json);
+                    return parsed?.validation ? (
+                      <div className="mt-1">
+                        <DietValidationBadge report={parsed.validation} />
+                      </div>
+                    ) : null;
+                  })()}
                 </div>
                 {expandedId === plan.id ? <ChevronUp className="h-4 w-4 ml-auto text-muted-foreground" /> : <ChevronDown className="h-4 w-4 ml-auto text-muted-foreground" />}
               </div>
