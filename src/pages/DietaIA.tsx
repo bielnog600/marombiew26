@@ -1167,6 +1167,48 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
 
     try {
       const foodRecords = await loadFoodMacroRecords();
+
+      // ── 1) STRUCTURED MODE (primary path) ──
+      let structured: DietPlan | null = null;
+      if (currentTargets) {
+        try {
+          structured = await generateStructuredPlan(
+            prompt,
+            {
+              objective: phase || undefined,
+              strategy: strategy || undefined,
+              style: dietStyle || undefined,
+            },
+            {
+              kcal: currentTargets.calories,
+              p: currentTargets.protein,
+              c: currentTargets.carbs,
+              g: currentTargets.fats,
+              tmb: studentCtx.recomendacao_ia?.tmb,
+            },
+          );
+        } catch (e) {
+          console.warn('structured generation threw, falling back to streaming:', e);
+        }
+      }
+
+      if (structured) {
+        const md = dietPlanToMarkdown(structured);
+        setStructuredPlan(structured);
+        setResult(md);
+        if (currentTargets) {
+          const report = validateDietMacros(md, currentTargets, foodRecords);
+          setMacroReport(report);
+        }
+        const status = structured.validation?.status;
+        if (status === 'ok') toast.success('Dieta gerada (JSON canônico).');
+        else if (status === 'warning') toast('Dieta gerada — revisar avisos.', { icon: '⚠️' });
+        else if (status === 'invalid') toast('Dieta fora da meta. Revise antes de enviar.', { icon: '⚠️' });
+        return;
+      }
+
+      // ── 2) FALLBACK: streaming markdown ──
+      console.warn('Structured path unavailable, falling back to markdown stream.');
       const generated = await streamDietAgent([{ role: 'user', content: prompt }]);
       let finalPlan = generated;
 
