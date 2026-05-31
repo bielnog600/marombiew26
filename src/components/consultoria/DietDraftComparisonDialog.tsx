@@ -5,6 +5,9 @@ import { Badge } from '@/components/ui/badge';
 
 import { ArrowRight, Check, Trash2, FileText, Loader2, Sparkles, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { parseSections, ParsedMeal, ParsedFood } from '@/lib/dietResultParser';
+import DietPlanStructuredComparison from './DietPlanStructuredComparison';
+import { parseDietPlanLoose, type DietPlan, type DietTargets } from '@/lib/dietSchema';
+import { markdownToDietPlan } from '@/lib/dietPlanAdapter';
 
 interface PlanLite {
   id: string;
@@ -21,6 +24,9 @@ interface Props {
   onOpenChange: (v: boolean) => void;
   current: PlanLite | null;
   draft: PlanLite | null;
+  /** Optional canonical plans. When both available, render structured diff. */
+  currentPlan?: DietPlan | null;
+  draftPlan?: DietPlan | null;
   rationale?: string | null;
   busy?: boolean;
   onPublish: () => void;
@@ -104,12 +110,33 @@ const DietDraftComparisonDialog: React.FC<Props> = ({
   onOpenChange,
   current,
   draft,
+  currentPlan,
+  draftPlan,
   rationale,
   busy,
   onPublish,
   onKeep,
   onDiscard,
 }) => {
+  // Fallback targets used only when we need to lift markdown -> DietPlan for the diff.
+  const fallbackTargets: DietTargets = { kcal: 0, p: 0, c: 0, g: 0 };
+
+  const structuredCurrent = useMemo<DietPlan | null>(() => {
+    if (currentPlan) return currentPlan;
+    const loose = parseDietPlanLoose((current as any)?.conteudo_json);
+    if (loose) return loose;
+    return markdownToDietPlan(current?.conteudo ?? '', fallbackTargets);
+  }, [currentPlan, current]);
+
+  const structuredDraft = useMemo<DietPlan | null>(() => {
+    if (draftPlan) return draftPlan;
+    const loose = parseDietPlanLoose((draft as any)?.conteudo_json);
+    if (loose) return loose;
+    return markdownToDietPlan(draft?.conteudo ?? '', fallbackTargets);
+  }, [draftPlan, draft]);
+
+  const canRenderStructured = !!structuredCurrent && !!structuredDraft;
+
   const currentMeals = useMemo(() => extractMealsFromMarkdown(current?.conteudo ?? ''), [current]);
   const draftMeals = useMemo(() => extractMealsFromMarkdown(draft?.conteudo ?? ''), [draft]);
   const cTot = useMemo(() => totalsFromMeals(currentMeals), [currentMeals]);
@@ -160,6 +187,21 @@ const DietDraftComparisonDialog: React.FC<Props> = ({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto pr-2 -mr-2 min-h-0 scrollbar-thin scrollbar-thumb-primary/10 hover:scrollbar-thumb-primary/20 touch-pan-y py-2">
+          {canRenderStructured ? (
+            <div className="space-y-6">
+              <DietPlanStructuredComparison current={structuredCurrent!} draft={structuredDraft!} />
+              {(rationale || draft?.draft_reason) && !structuredDraft?.meta.rationale && (
+                <section className="space-y-2">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                    Justificativa da IA
+                  </h3>
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+                    {rationale ?? draft?.draft_reason}
+                  </div>
+                </section>
+              )}
+            </div>
+          ) : (
           <div className="space-y-6">
             {/* Bloco 1 — Resumo nutricional */}
             <section className="space-y-2">
@@ -301,6 +343,7 @@ const DietDraftComparisonDialog: React.FC<Props> = ({
               </section>
             )}
           </div>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2 justify-end pt-3 border-t border-border/50">
