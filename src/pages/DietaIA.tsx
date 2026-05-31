@@ -1978,6 +1978,7 @@ ${generated}`;
               conteudo: lastDietPlan.conteudo,
               version: 1,
               created_at: lastDietPlan.created_at,
+              ...(lastDietPlan.conteudo_json ? { conteudo_json: lastDietPlan.conteudo_json } as any : {}),
             }}
             draft={{
               id: 'draft',
@@ -1987,6 +1988,8 @@ ${generated}`;
               created_at: new Date().toISOString(),
               draft_source: 'manual',
             }}
+            currentPlan={parseDietPlanLoose(lastDietPlan?.conteudo_json) ?? undefined}
+            draftPlan={structuredPlan ?? undefined}
             rationale={studentCtx?.historico_processo?.motivos_decisao?.join(' ')}
             busy={saving}
             onPublish={async () => { await savePlan(); setShowCompare(false); }}
