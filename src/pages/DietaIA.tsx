@@ -864,6 +864,81 @@ const DietaIA = () => {
     return accumulated;
   };
 
+  /**
+   * Structured generation path — JSON canonical DietPlan as primary output.
+   * Returns the validated, totals-recomputed plan or null on failure.
+   * The caller decides whether to fall back to streaming markdown.
+   */
+  const generateStructuredPlan = async (
+    userPrompt: string,
+    dietConfig: { objective?: string; strategy?: string; style?: string },
+    targets: { kcal: number; p: number; c: number; g: number; tmb?: number; get?: number },
+  ): Promise<DietPlan | null> => {
+    // Latest training markdown → structured context
+    let trainingContext: any = undefined;
+    try {
+      const { data: trainPlans } = await supabase
+        .from('ai_plans')
+        .select('conteudo')
+        .eq('student_id', studentId!)
+        .eq('tipo', 'treino')
+        .eq('is_draft', false)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      const md = trainPlans?.[0]?.conteudo as string | undefined;
+      if (md) {
+        trainingContext = extractTrainingContext({
+          trainingMarkdown: md,
+          trainingTime: (['manha', 'tarde', 'noite'] as const).find((t) => trainingTime?.includes(t)) || null,
+        });
+      }
+    } catch (e) {
+      console.warn('structured: failed to load training context', e);
+    }
+
+    const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/diet-agent`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      },
+      body: JSON.stringify({
+        mode: 'structured',
+        messages: [{ role: 'user', content: userPrompt }],
+        studentContext: studentCtx,
+        dietConfig,
+        trainingContext,
+      }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      console.warn('structured diet-agent non-200:', resp.status, err);
+      return null;
+    }
+    const data = await resp.json().catch(() => null);
+    const raw = data?.plan;
+    if (!raw) return null;
+
+    // Inject targets if model didn't echo them
+    if (raw.targets) {
+      raw.targets = { ...targets, ...raw.targets };
+    } else {
+      raw.targets = targets;
+    }
+
+    let parsed = parseDietPlanStrict(raw);
+    if (!parsed.success) {
+      // try a loose parse — tolerates extra/missing optional fields
+      const loose = parseDietPlanLoose(raw);
+      if (!loose) {
+        console.warn('structured: schema rejected plan', parsed.error?.issues?.slice(0, 5));
+        return null;
+      }
+      return finalizeDietPlan(loose, targets as any);
+    }
+    return finalizeDietPlan(parsed.data, targets as any);
+  };
+
   const loadFoodMacroRecords = async (): Promise<FoodMacroRecord[]> => {
     const { data, error } = await supabase
       .from('foods')
