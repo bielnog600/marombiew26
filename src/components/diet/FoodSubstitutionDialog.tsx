@@ -1,16 +1,21 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Search, ArrowRightLeft } from 'lucide-react';
+import { Search, ArrowRightLeft, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import type { ParsedFood } from '@/lib/dietResultParser';
+import type { DietTargets } from '@/lib/dietSchema';
 
 interface FoodSubstitutionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   originalFood: ParsedFood;
   onSubstitute: (newFood: ParsedFood) => void;
+  /** Optional totals of the meal that contains this item (for impact preview). */
+  mealTotals?: { kcal: number; p: number; c: number; g: number };
+  /** Daily kcal target for soft warning when swap pushes meal off-meta. */
+  targets?: DietTargets | null;
 }
 
 const parseNum = (v?: string) => {
@@ -24,6 +29,8 @@ const FoodSubstitutionDialog: React.FC<FoodSubstitutionDialogProps> = ({
   onOpenChange,
   originalFood,
   onSubstitute,
+  mealTotals,
+  targets,
 }) => {
   const [search, setSearch] = useState('');
 
@@ -45,6 +52,9 @@ const FoodSubstitutionDialog: React.FC<FoodSubstitutionDialogProps> = ({
   const origP = parseNum(originalFood.p);
   const origC = parseNum(originalFood.c);
   const origG = parseNum(originalFood.g);
+
+  // Per-day kcal share if we have a target — used to flag swaps that push the meal far off.
+  const dayKcalTarget = targets?.kcal ?? 0;
 
   // Score: lower = closer macros. Compares absolute macro values scaled to equivalent portion.
   const macroScore = useCallback((food: typeof foods[number]) => {
@@ -135,6 +145,14 @@ const FoodSubstitutionDialog: React.FC<FoodSubstitutionDialogProps> = ({
               <span>C:{originalFood.c}</span>
               <span>G:{originalFood.g}</span>
             </div>
+            {mealTotals && (
+              <div className="mt-2 pt-2 border-t border-border/40 text-[10px] text-muted-foreground flex flex-wrap gap-x-3">
+                <span>Refeição: <strong className="text-foreground">{Math.round(mealTotals.kcal)} kcal</strong></span>
+                <span>P:{Math.round(mealTotals.p)}</span>
+                <span>C:{Math.round(mealTotals.c)}</span>
+                <span>G:{Math.round(mealTotals.g)}</span>
+              </div>
+            )}
           </div>
 
           {/* Search */}
@@ -167,6 +185,17 @@ const FoodSubstitutionDialog: React.FC<FoodSubstitutionDialogProps> = ({
                   const scaledC = Math.round(food.carbs * scale * 10) / 10;
                   const scaledG = Math.round(food.fats * scale * 10) / 10;
 
+                  // Impact deltas vs the original item.
+                  const dKcal = scaledKcal - origKcal;
+                  const dP = Math.round((scaledP - origP) * 10) / 10;
+                  const dC = Math.round((scaledC - origC) * 10) / 10;
+                  const dG = Math.round((scaledG - origG) * 10) / 10;
+                  // Flag swap that shifts the day target by >3% (rough proxy).
+                  const heavyShift = dayKcalTarget > 0 && Math.abs(dKcal) / dayKcalTarget > 0.03;
+                  const macroShift =
+                    Math.abs(dP) >= 8 || Math.abs(dC) >= 12 || Math.abs(dG) >= 5;
+                  const showWarn = heavyShift || macroShift;
+
                   return (
                     <button
                       key={food.id}
@@ -174,7 +203,15 @@ const FoodSubstitutionDialog: React.FC<FoodSubstitutionDialogProps> = ({
                       className="w-full flex items-center justify-between rounded-lg px-3 py-2.5 text-left hover:bg-primary/10 transition-colors group"
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{food.name}</p>
+                        <p className="text-sm font-medium truncate flex items-center gap-1.5">
+                          {food.name}
+                          {showWarn && (
+                            <AlertTriangle
+                              className="h-3 w-3 text-yellow-400 shrink-0"
+                              aria-label="Troca pode tirar a refeição da meta"
+                            />
+                          )}
+                        </p>
                         <div className="flex gap-2 text-xs text-muted-foreground mt-0.5">
                           <span className="text-primary font-medium">{newPortion}g</span>
                           <span>≈{scaledKcal} kcal</span>
@@ -182,6 +219,14 @@ const FoodSubstitutionDialog: React.FC<FoodSubstitutionDialogProps> = ({
                           <span>C:{scaledC}</span>
                           <span>G:{scaledG}</span>
                         </div>
+                        {showWarn && (
+                          <div className="mt-0.5 text-[10px] text-yellow-400/90 flex flex-wrap gap-2">
+                            <span>Δ {dKcal > 0 ? '+' : ''}{dKcal} kcal</span>
+                            {Math.abs(dP) >= 0.5 && <span>ΔP {dP > 0 ? '+' : ''}{dP}g</span>}
+                            {Math.abs(dC) >= 0.5 && <span>ΔC {dC > 0 ? '+' : ''}{dC}g</span>}
+                            {Math.abs(dG) >= 0.5 && <span>ΔG {dG > 0 ? '+' : ''}{dG}g</span>}
+                          </div>
+                        )}
                       </div>
                       <ArrowRightLeft className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                     </button>

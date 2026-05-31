@@ -11,6 +11,9 @@ import { toast } from 'sonner';
 import { Loader2, ClipboardCheck, Sparkles, ArrowLeft } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import ReactMarkdown from 'react-markdown';
+import { parseDietPlanLoose, type DietPlan } from '@/lib/dietSchema';
+import { finalizeDietPlan } from '@/lib/dietValidation';
+import DietValidationBadge from '@/components/diet/DietValidationBadge';
 
 interface Props {
   open: boolean;
@@ -38,6 +41,7 @@ const DietReadjustmentDialog = ({ open, onOpenChange, planId, studentId, onSaved
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [validatedPlan, setValidatedPlan] = useState<DietPlan | null>(null);
 
   // AI analysis state
   const [aiAnalysis, setAiAnalysis] = useState('');
@@ -60,6 +64,7 @@ const DietReadjustmentDialog = ({ open, onOpenChange, planId, studentId, onSaved
   useEffect(() => {
     if (open) {
       loadHistory();
+      loadAndValidatePlan();
       setShowForm(false);
       setShowAiResult(false);
       setAiAnalysis('');
@@ -75,6 +80,35 @@ const DietReadjustmentDialog = ({ open, onOpenChange, planId, studentId, onSaved
       .order('created_at', { ascending: false });
     setHistory(data ?? []);
     setLoadingHistory(false);
+  };
+
+  /**
+   * Load the plan's canonical JSON, recompute totals and re-attach validation.
+   * If the DB stores an older plan without validation, we silently update it
+   * so the rest of the app sees a consistent snapshot — without ever editing
+   * the actual meals/items.
+   */
+  const loadAndValidatePlan = async () => {
+    setValidatedPlan(null);
+    const { data } = await supabase
+      .from('ai_plans')
+      .select('conteudo_json')
+      .eq('id', planId)
+      .maybeSingle();
+    const raw = (data as any)?.conteudo_json;
+    if (!raw) return;
+    const plan = parseDietPlanLoose(raw);
+    if (!plan) return;
+    const finalized = finalizeDietPlan(plan, plan.targets);
+    setValidatedPlan(finalized);
+    // Persist back when validation was missing or status changed.
+    const prevStatus = plan.validation?.status;
+    if (!prevStatus || prevStatus !== finalized.validation?.status) {
+      await supabase
+        .from('ai_plans')
+        .update({ conteudo_json: finalized as any })
+        .eq('id', planId);
+    }
   };
 
   const resetForm = () => {
@@ -281,6 +315,12 @@ Seja direto e específico nas recomendações. Use os dados reais da dieta atual
             Reajuste de Dieta
           </DialogTitle>
         </DialogHeader>
+
+        {validatedPlan?.validation && (
+          <div className="px-1 -mt-2">
+            <DietValidationBadge report={validatedPlan.validation} />
+          </div>
+        )}
 
         <ScrollArea className="max-h-[70vh] pr-3">
           {showAiResult ? (
