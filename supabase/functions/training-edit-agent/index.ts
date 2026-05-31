@@ -55,6 +55,15 @@ CASOS COMUNS:
 
 IMPORTANTE: Considere o contexto do dia (grupo muscular já presente). Não duplique exercícios. Respeite restrições/lesões do aluno se fornecidas.
 
+REGRAS DE DIVERSIFICAÇÃO / VARIAÇÃO (CRÍTICAS):
+- Quando o usuário pedir para "diversificar", "variar", "trocar por outros", "mais variedade" (de mobilidade, aquecimento, acessórios, etc.), você É OBRIGADO a gerar ações "replace" para os exercícios da categoria pedida. NUNCA ignore esse pedido devolvendo "actions": [].
+- Ao diversificar MOBILIDADE/AQUECIMENTO, identifique o GRUPO MUSCULAR DO DIA a partir do "dayName" (ex.: "INFERIORES", "PERNAS", "POSTERIOR", "QUADRICEPS" → mobilidade de quadril, tornozelo, lombar, glúteo, adutor, isquio; "SUPERIORES PUXAR"/"COSTAS"/"DORSAL" → mobilidade torácica, escapular, latíssimo; "SUPERIORES EMPURRAR"/"PEITO" → mobilidade torácica, ombro, peitoral; "OMBRO" → cuff rotador, escapular; "BRAÇO" → cotovelo, ombro, punho; "FULL BODY" → mobilidade global) e ESCOLHA mobilidades DIFERENTES das atuais e DIFERENTES entre os dias.
+- Sempre que diversificar, use no mínimo 2 ações de "replace" por dia (ou mais, se houver itens da categoria).
+- Os nomes substitutos devem vir EXCLUSIVAMENTE do BANCO DE EXERCÍCIOS e devem ser distintos do nome atual (não substitua um exercício por ele mesmo).
+- Se não existir variação suficiente no banco para a categoria, ainda assim retorne as melhores alternativas distintas disponíveis e descreva no "summary" qualquer limitação.
+
+REGRA ANTI-VAZIO: se a instrução do usuário for clara, NUNCA retorne "actions": []. Sempre devolva ao menos 1 ação coerente. Se a instrução for ambígua, faça a interpretação mais útil e explique no "summary".
+
 RETORNE APENAS O JSON. NADA MAIS.`;
 
 serve(async (req) => {
