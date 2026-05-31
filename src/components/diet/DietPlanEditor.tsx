@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -147,16 +147,19 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
   const initialDays = useMemo(() => extractDays(markdown), [markdown]);
   const [days, setDays] = useState<{ label: string; meals: ParsedMeal[] }[]>(initialDays);
   const [activeDayIdx, setActiveDayIdx] = useState(0);
+  const activeDayIdxRef = useRef(0);
+  useEffect(() => { activeDayIdxRef.current = activeDayIdx; }, [activeDayIdx]);
   const meals = days[activeDayIdx]?.meals ?? [];
   const setMeals = useCallback((updater: React.SetStateAction<ParsedMeal[]>) => {
     setDays((prev) => {
+      const idx = activeDayIdxRef.current;
       const next = [...prev];
-      const current = next[activeDayIdx]?.meals ?? [];
+      const current = next[idx]?.meals ?? [];
       const newMeals = typeof updater === 'function' ? (updater as (m: ParsedMeal[]) => ParsedMeal[])(current) : updater;
-      if (next[activeDayIdx]) next[activeDayIdx] = { ...next[activeDayIdx], meals: newMeals };
+      if (next[idx]) next[idx] = { ...next[idx], meals: newMeals };
       return next;
     });
-  }, [activeDayIdx]);
+  }, []);
   const [target, setTarget] = useState<number>(() => Math.round(computeDayTotals(initialDays[0]?.meals ?? []).kcal));
   const [subTarget, setSubTarget] = useState<{ mealIdx: number; foodIdx: number } | null>(null);
   const [addingForMeal, setAddingForMeal] = useState<number | null>(null);
