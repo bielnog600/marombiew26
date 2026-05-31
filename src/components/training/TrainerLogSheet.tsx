@@ -499,14 +499,110 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
         )}
 
         {restTimer && (
-          <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center">
-            <Button variant="ghost" className="absolute top-4 right-4" onClick={() => stopTimer()}><X /></Button>
-            <div className="text-4xl font-bold mb-8">{Math.floor(restTimer.remaining / 60)}:{String(restTimer.remaining % 60).padStart(2, '0')}</div>
-            <div className="flex gap-2">
-              <Button onClick={() => adjustTimer(-15)}>-15s</Button>
-              <Button onClick={() => adjustTimer(15)}>+15s</Button>
-              <Button onClick={() => stopTimer()}>Pular</Button>
+          <div
+            className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => stopTimer()}
+              className="absolute top-4 right-4 p-2 rounded-full bg-secondary hover:bg-secondary/80"
+              aria-label="Fechar"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-6 font-semibold">
+              Descanso
+            </p>
+            <div className="relative w-40 h-40 flex items-center justify-center">
+              <svg className="absolute inset-0 -rotate-90 pointer-events-none" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="46" fill="none" stroke="hsl(var(--secondary))" strokeWidth="6" />
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="46"
+                  fill="none"
+                  stroke="hsl(var(--primary))"
+                  strokeWidth="6"
+                  strokeLinecap="round"
+                  strokeDasharray={2 * Math.PI * 46}
+                  strokeDashoffset={
+                    2 * Math.PI * 46 * (1 - (restTimer.total > 0 ? restTimer.remaining / restTimer.total : 0))
+                  }
+                  style={{ transition: 'stroke-dashoffset 1s linear' }}
+                />
+              </svg>
+              {restTimer.remaining > 0 ? (
+                <span className="text-4xl font-bold tabular-nums">
+                  {Math.floor(restTimer.remaining / 60)}:
+                  {String(restTimer.remaining % 60).padStart(2, '0')}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setRestTimer(restTimer.total, restTimer.exIdx)}
+                  className="relative z-10 flex items-center justify-center w-16 h-16 rounded-full bg-primary/20 hover:bg-primary/30 transition-colors"
+                  aria-label="Reiniciar descanso"
+                >
+                  <Play className="h-8 w-8 text-primary ml-1" />
+                </button>
+              )}
             </div>
+            <div className="mt-4 flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => adjustTimer(-15)}>-15s</Button>
+              <Button variant="outline" size="sm" onClick={() => adjustTimer(15)}>+15s</Button>
+              <Button size="sm" onClick={() => stopTimer()}>Pular</Button>
+            </div>
+
+            {/* Campos de registro de séries do exercício atual */}
+            {(() => {
+              const timerExIdx = restTimer.exIdx;
+              const timerSt = state[timerExIdx];
+              const timerEx = day?.exercises[timerExIdx];
+              if (!timerSt || !timerEx) return null;
+              return (
+                <div className="mt-6 w-full max-w-sm px-4 space-y-2">
+                  <p className="text-[11px] font-semibold text-center text-muted-foreground truncate">
+                    {timerSt.exerciseName || timerEx.exercise}
+                  </p>
+                  <div className="space-y-1.5 max-h-[30vh] overflow-y-auto">
+                    {timerSt.sets.map((s, setIdx) => {
+                      const p = timerSt.plan?.[setIdx] ?? { kind: 'work' as const, targetReps: '' };
+                      const isRecon = p?.kind === 'recon';
+                      return (
+                        <div key={setIdx} className="grid grid-cols-[60px_1fr_1fr] items-center gap-2">
+                          <span
+                            className={`text-[9px] font-bold text-center px-1 py-0.5 rounded ${
+                              isRecon
+                                ? 'bg-primary/15 text-primary border border-primary/30'
+                                : 'bg-secondary text-foreground'
+                            }`}
+                          >
+                            {isRecon ? `REC #${setIdx + 1}` : `#${setIdx + 1}`}
+                          </span>
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            placeholder="kg"
+                            value={s.weight}
+                            onChange={(e) => updateSet(timerExIdx, setIdx, 'weight', e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                          <Input
+                            type="number"
+                            inputMode="numeric"
+                            placeholder={p?.targetReps ? `${p.targetReps}` : 'reps'}
+                            value={s.reps}
+                            onChange={(e) => updateSet(timerExIdx, setIdx, 'reps', e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
       </SheetContent>
