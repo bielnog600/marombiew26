@@ -243,7 +243,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages, studentContext } = await req.json();
+    const { messages, studentContext, mode, trainingContext, dietConfig } = await req.json();
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
@@ -460,6 +460,75 @@ serve(async (req) => {
       }
 
       contextMessage += "\n=== FIM DOS DADOS ===\n\nIMPORTANTE: Use TODOS os dados acima para personalizar a dieta. Considere a composição corporal, postura, performance, sinais vitais e anamnese completa. NÃO pergunte dados já fornecidos.\n";
+    }
+
+    // ─── Structured (JSON) generation mode ───
+    if (mode === "structured") {
+      const layeredInstructions = buildLayeredInstructions(dietConfig, trainingContext);
+      const jsonSystem =
+        SYSTEM_PROMPT +
+        contextMessage +
+        layeredInstructions +
+        STRUCTURED_OUTPUT_INSTRUCTIONS;
+
+      const jsonResp = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: jsonSystem },
+            ...messages,
+          ],
+          temperature: 0.3,
+          max_tokens: 16000,
+          response_format: { type: "json_object" },
+        }),
+      });
+
+      if (!jsonResp.ok) {
+        const status = jsonResp.status;
+        const text = await jsonResp.text();
+        console.error("structured diet-agent error:", status, text);
+        return new Response(
+          JSON.stringify({
+            error:
+              status === 429
+                ? "Limite de requisições excedido. Tente novamente em alguns minutos."
+                : status === 402
+                  ? "Créditos insuficientes na conta OpenAI."
+                  : "Erro ao gerar dieta estruturada.",
+          }),
+          { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const completion = await jsonResp.json();
+      const raw = completion?.choices?.[0]?.message?.content;
+      if (!raw) {
+        return new Response(
+          JSON.stringify({ error: "Resposta vazia do modelo." }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      let plan: unknown;
+      try {
+        plan = JSON.parse(raw);
+      } catch (parseErr) {
+        console.error("structured diet-agent: invalid JSON", parseErr, raw.slice(0, 500));
+        return new Response(
+          JSON.stringify({ error: "Modelo retornou JSON inválido.", raw }),
+          { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      return new Response(JSON.stringify({ plan }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
