@@ -1864,6 +1864,9 @@ ${generated}`;
               <h3 className="font-bold text-lg flex items-center gap-2">
                 <UtensilsCrossed className="h-5 w-5 text-primary" />
                 Plano Alimentar
+                {structuredPlan?.validation && (
+                  <DietValidationBadge report={structuredPlan.validation} className="ml-2" />
+                )}
               </h3>
               <div className="flex gap-2 flex-wrap">
                 <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan(); }}>
