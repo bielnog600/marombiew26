@@ -552,7 +552,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
             studentId={studentId}
             currentPlan={canonical}
             targets={fallbackTargets}
-            onApply={(newMeals, notes, newPlan) => handleAiApply(aiPlan.id, newMeals, notes, newPlan)}
+            onApply={(newMeals, notes, newPlan, days) => handleAiApply(aiPlan.id, newMeals, notes, newPlan, days)}
           />
         );
       })()}
