@@ -137,7 +137,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
         fase: plan.fase ?? null,
         is_draft: false,
       };
-      const { data, error } = await supabase.from('ai_plans').insert(payload).select('*').single();
+      const { data, error } = await supabase.from('ai_plans').insert(payload as any).select('*').single();
       if (error) throw error;
       toast.success('Dieta duplicada!');
       setPlans(prev => [data, ...prev]);
@@ -513,7 +513,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
         const meals = sections.flatMap(s => s.type === 'meal' && s.meals ? s.meals : []);
         const canonical = parseDietPlanLoose(aiPlan.conteudo_json);
         const totals = computeDayTotals(meals);
-        const fallbackTargets = canonical?.targets ?? extractTargetsFromSections(sections) ?? {
+        const fallbackTargets: any = canonical?.targets ?? extractTargetsFromSections(sections) ?? {
           kcal: Math.round(totals.kcal),
           p: Math.round(totals.p),
           c: Math.round(totals.c),
