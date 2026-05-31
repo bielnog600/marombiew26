@@ -13,6 +13,7 @@ import WhatsAppDataRequestButton from './WhatsAppDataRequestButton';
 import QuickWeightLogDialog from './QuickWeightLogDialog';
 import { cn } from '@/lib/utils';
 import DietCheckinDialog from './DietCheckinDialog';
+import { parseDietPlanLoose } from '@/lib/dietSchema';
 
 type CycleStatus =
   | 'em_dia'
@@ -32,6 +33,7 @@ interface PlanRow {
   student_id: string;
   titulo: string;
   conteudo: string;
+  conteudo_json?: unknown;
   created_at: string;
   cycle_days: number;
   cycle_status: CycleStatus;
@@ -617,6 +619,16 @@ const DietRenewalPanel: React.FC = () => {
         onOpenChange={(v) => !v && setCompareFor(null)}
         current={compareFor ? plans.find((p) => p.id === compareFor) ?? null : null}
         draft={compareFor ? drafts[compareFor] ?? null : null}
+        currentPlan={
+          compareFor
+            ? parseDietPlanLoose(plans.find((p) => p.id === compareFor)?.conteudo_json) ?? undefined
+            : undefined
+        }
+        draftPlan={
+          compareFor
+            ? parseDietPlanLoose(drafts[compareFor]?.conteudo_json) ?? undefined
+            : undefined
+        }
         rationale={compareFor ? analyses[compareFor]?.rationale ?? null : null}
         busy={busy === compareFor}
         onPublish={() => compareFor && handlePublishDraft(compareFor)}
