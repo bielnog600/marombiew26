@@ -30,6 +30,93 @@ async function loadFoodDatabase(): Promise<string> {
   return `\n========================================\nBANCO DE ALIMENTOS (do sistema)\n========================================\n\nALIMENTOS:\n${lines.join("\n")}\n`;
 }
 
+function buildLayeredInstructions(dietConfig: any, trainingContext: any): string {
+  if (!dietConfig && !trainingContext) return "";
+  const lines: string[] = ["\n\n=== CAMADAS DE DECISÃO (USE COMO ÂNCORA) ===\n"];
+  if (dietConfig?.objective) lines.push(`1) OBJETIVO METABÓLICO: ${dietConfig.objective} — define direção calórica.`);
+  if (dietConfig?.strategy) lines.push(`2) ESTRATÉGIA NUTRICIONAL: ${dietConfig.strategy} — define distribuição entre dias (linear, ciclo de carbo, refeed, low carb, IF...).`);
+  if (dietConfig?.style) lines.push(`3) ESTILO ALIMENTAR: ${dietConfig.style} — define escolha de alimentos.`);
+  if (trainingContext) {
+    lines.push("\n=== CONTEXTO DE TREINO ESTRUTURADO ===");
+    if (trainingContext.summary) lines.push(`Resumo: ${trainingContext.summary}`);
+    if (trainingContext.splitType) lines.push(`Split: ${trainingContext.splitType}`);
+    if (trainingContext.weeklySessions != null) lines.push(`Sessões/semana: ${trainingContext.weeklySessions}`);
+    if (trainingContext.defaultTime) lines.push(`Horário de treino: ${trainingContext.defaultTime}`);
+    if (trainingContext.daysOfWeek) {
+      lines.push("Dias da semana:");
+      for (const [wd, load] of Object.entries(trainingContext.daysOfWeek)) {
+        const l: any = load;
+        lines.push(`  - ${wd.toUpperCase()}: ${l.type}${l.intensity ? ` (${l.intensity})` : ""}`);
+      }
+    }
+    lines.push("Use essa estrutura para concentrar carbos nos dias de maior demanda (treinos pesados/lower/full) e reduzir em dias OFF/cardio leve. Posicione pré e pós-treino conforme o horário declarado.");
+  }
+  return lines.join("\n") + "\n";
+}
+
+const STRUCTURED_OUTPUT_INSTRUCTIONS = `
+
+========================================
+MODO ESTRUTURADO — SAÍDA OBRIGATORIAMENTE JSON
+========================================
+
+Responda APENAS com um objeto JSON válido (sem markdown, sem texto antes ou depois) que siga EXATAMENTE este shape:
+
+{
+  "meta": {
+    "version": "1.0",
+    "objective": "cutting|bulking|recomp|manutencao|performance|precontest",
+    "strategy": "linear|carb_cycle|refeed|diet_break|low_carb|if|custom",
+    "style": "tradicional|mediterranea|low_carb|vegana|vegetariana|flexivel|cetogenica|paleo|outra",
+    "phase": "string opcional",
+    "mealCount": number,
+    "trainingAware": boolean,
+    "decision": "manter|ajustar|nova|pedir_dados",
+    "confidence": number 0-100,
+    "rationale": "string curta"
+  },
+  "targets": { "tmb": number, "get": number, "kcal": number, "p": number, "c": number, "g": number },
+  "trainingContext": { "splitType": "string", "summary": "string" },
+  "days": [
+    {
+      "label": "Padrão" | "Segunda" | "Treino" | "Off",
+      "weekday": "seg|ter|qua|qui|sex|sab|dom" (opcional),
+      "carbBias": "low|normal|high" (opcional),
+      "trainingDay": boolean,
+      "meals": [
+        {
+          "id": "m1",
+          "name": "Café da Manhã",
+          "time": "07:00",
+          "order": 0,
+          "items": [
+            {
+              "name": "Aveia em flocos",
+              "qtyGrams": 60,
+              "portionLabel": "60 g",
+              "substitution": "Tapioca 50g",
+              "macros": { "kcal": 220, "p": 8, "c": 38, "g": 4 }
+            }
+          ],
+          "totals": { "kcal": 220, "p": 8, "c": 38, "g": 4 }
+        }
+      ],
+      "totals": { "kcal": 0, "p": 0, "c": 0, "g": 0 }
+    }
+  ],
+  "tips": ["string"],
+  "whatsappMessages": ["string"]
+}
+
+REGRAS:
+- Calcule totals.kcal de cada item via kcal_base * qty / porção_base; macros idem.
+- meal.totals = soma dos items; day.totals = soma dos meals.
+- O somatório de day.totals deve bater com targets.kcal/p/c/g (tolerância: ±50 kcal e ±10g por macro).
+- Se estratégia = "carb_cycle", gere múltiplos days com carbBias variando (low/normal/high).
+- Caso contrário, gere 1 day único com label "Padrão" (vale para todos os dias da semana).
+- NÃO inclua nada além do JSON.
+`;
+
 const SYSTEM_PROMPT_TEMPLATE = `Você é um nutricionista esportivo com mais de 15 anos de experiência, especializado em fisiculturismo, composição corporal, emagrecimento e hipertrofia. Você cria dietas personalizadas baseadas em evidências científicas para atletas e praticantes de musculação.
 
 ========================================
