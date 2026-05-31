@@ -130,21 +130,40 @@ const ExerciseCombobox: React.FC<{
   const [search, setSearch] = useState("");
 
   const filteredOptions = React.useMemo(() => {
-    const searchLower = search.toLowerCase().trim();
-    if (!searchLower) return options;
+    // Dedupe by normalized name to evitar duplicatas do banco
+    const seen = new Set<string>();
+    const unique = options.filter(opt => {
+      const key = (opt.nome || '').trim().toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 
-    // Check if the search term matches any muscle group exactly
-    const isGroupSearch = options.some(opt => opt.grupo_muscular.toLowerCase() === searchLower);
-    
-    if (isGroupSearch) {
-      // If it's a group search, return ONLY exercises from that group
-      return options.filter(opt => opt.grupo_muscular.toLowerCase() === searchLower);
+    const sortAlpha = (list: ExerciseOption[]) =>
+      [...list].sort((a, b) =>
+        a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })
+      );
+
+    const searchLower = search.toLowerCase().trim();
+    if (!searchLower) return sortAlpha(unique);
+
+    // Detecta se o termo digitado corresponde (parcial ou exato) a algum grupo muscular.
+    // Ex.: "mobilidade", "mobi", "peito", "costas" → filtra apenas exercícios desse grupo.
+    const groupMatches = new Set(
+      unique
+        .map(o => (o.grupo_muscular || '').toLowerCase())
+        .filter(g => g && (g.includes(searchLower) || searchLower.includes(g)))
+    );
+
+    if (groupMatches.size > 0) {
+      return sortAlpha(
+        unique.filter(opt => groupMatches.has((opt.grupo_muscular || '').toLowerCase()))
+      );
     }
 
-    // Otherwise, search by exercise name or partial muscle group name
-    return options.filter(opt => 
-      opt.nome.toLowerCase().includes(searchLower) || 
-      opt.grupo_muscular.toLowerCase().includes(searchLower)
+    // Caso contrário, busca por nome do exercício
+    return sortAlpha(
+      unique.filter(opt => opt.nome.toLowerCase().includes(searchLower))
     );
   }, [options, search]);
 
@@ -169,12 +188,12 @@ const ExerciseCombobox: React.FC<{
             value={search}
             onValueChange={setSearch}
           />
-          <CommandList>
+          <CommandList className="max-h-[260px] overflow-y-auto overscroll-contain">
             <CommandEmpty className="py-2 text-center text-xs">Nenhum encontrado</CommandEmpty>
-            <CommandGroup className="max-h-[200px] overflow-y-auto">
+            <CommandGroup>
               {filteredOptions.map((opt) => (
                 <CommandItem
-                  key={opt.nome}
+                  key={`${opt.grupo_muscular}__${opt.nome}`}
                   value={opt.nome}
                   onSelect={() => {
                     onChange(opt.nome);
