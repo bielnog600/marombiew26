@@ -28,6 +28,12 @@ interface DietPlanEditorProps {
   currentPlan?: DietPlan | null;
   /** Notified when the AI editor produces an updated canonical plan. */
   onPlanChange?: (plan: DietPlan) => void;
+  /**
+   * Notified when per-day editing produces a multi-day structure.
+   * When provided, the parent should serialize via
+   * `replaceMealTablesPerDayInMarkdown`.
+   */
+  onDaysChange?: (days: { label: string; meals: ParsedMeal[] }[]) => void;
 }
 
 const num = (v?: string) => {
@@ -92,6 +98,37 @@ const mealSortIndex = (name: string) => {
   return idx >= 0 ? idx : 999;
 };
 
+const WEEKDAY_LABELS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+
+const OPTION_TITLE_REGEX = /(op[cç][aã]o|card[aá]pio)/i;
+
+/** Extract every meal section as an editable day. */
+const extractDays = (markdown: string): { label: string; meals: ParsedMeal[] }[] => {
+  const sections = parseSections(markdown);
+  const mealSections = sections.filter((s) => s.type === 'meal' && s.meals && s.meals.length > 0);
+  if (mealSections.length === 0) return [];
+
+  // If multiple sections already exist (carb cycling, options, weekday plan),
+  // honor them as-is.
+  if (mealSections.length > 1) {
+    return mealSections.map((s, i) => ({
+      label: (s.title || '').trim() || WEEKDAY_LABELS[i] || `Dia ${i + 1}`,
+      meals: [...(s.meals || [])],
+    }));
+  }
+
+  // Single meal block → expand to 7 weekdays (deep copy each) so admin can
+  // customize per-day (e.g. carb cycling or aluno changes a Friday food).
+  const base = mealSections[0].meals || [];
+  return WEEKDAY_LABELS.map((label) => ({
+    label,
+    meals: base.map((m) => ({
+      ...m,
+      foods: m.foods.map((f) => ({ ...f })),
+    })),
+  }));
+};
+
 /**
  * Extract meals from the markdown. If the diet has multiple "Cardápio/Opção"
  * sections, we only edit the FIRST one — otherwise we'd sum the calories of
@@ -106,24 +143,63 @@ const extractMeals = (markdown: string): ParsedMeal[] => {
   return [...(mealSections[0].meals || [])];
 };
 
-const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange, studentId, onAiNotes, currentPlan, onPlanChange }) => {
-  const initialMeals = useMemo(() => extractMeals(markdown), [markdown]);
-  const [meals, setMeals] = useState<ParsedMeal[]>(initialMeals);
-  const [target, setTarget] = useState<number>(() => Math.round(computeDayTotals(initialMeals).kcal));
+const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange, studentId, onAiNotes, currentPlan, onPlanChange, onDaysChange }) => {
+  const initialDays = useMemo(() => extractDays(markdown), [markdown]);
+  const [days, setDays] = useState<{ label: string; meals: ParsedMeal[] }[]>(initialDays);
+  const [activeDayIdx, setActiveDayIdx] = useState(0);
+  const meals = days[activeDayIdx]?.meals ?? [];
+  const setMeals = useCallback((updater: React.SetStateAction<ParsedMeal[]>) => {
+    setDays((prev) => {
+      const next = [...prev];
+      const current = next[activeDayIdx]?.meals ?? [];
+      const newMeals = typeof updater === 'function' ? (updater as (m: ParsedMeal[]) => ParsedMeal[])(current) : updater;
+      if (next[activeDayIdx]) next[activeDayIdx] = { ...next[activeDayIdx], meals: newMeals };
+      return next;
+    });
+  }, [activeDayIdx]);
+  const [target, setTarget] = useState<number>(() => Math.round(computeDayTotals(initialDays[0]?.meals ?? []).kcal));
   const [subTarget, setSubTarget] = useState<{ mealIdx: number; foodIdx: number } | null>(null);
   const [addingForMeal, setAddingForMeal] = useState<number | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
 
   // Reset when source markdown changes
   useEffect(() => {
-    const fresh = extractMeals(markdown);
-    setMeals(fresh);
-    setTarget(Math.round(computeDayTotals(fresh).kcal));
+    const fresh = extractDays(markdown);
+    setDays(fresh);
+    setActiveDayIdx(0);
+    setTarget(Math.round(computeDayTotals(fresh[0]?.meals ?? []).kcal));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [markdown]);
 
-  // Notify parent
-  useEffect(() => { onMealsChange(meals); }, [meals, onMealsChange]);
+  // Notify parent — keep legacy single-day callback for fallback paths and
+  // emit full per-day structure when supported.
+  useEffect(() => {
+    onMealsChange(days[0]?.meals ?? []);
+    if (onDaysChange) onDaysChange(days);
+  }, [days, onMealsChange, onDaysChange]);
+
+  const hasMultipleDays = days.length > 1;
+  const usesOptions = useMemo(
+    () => days.some((d) => OPTION_TITLE_REGEX.test(d.label)),
+    [days],
+  );
+
+  const renameActiveDay = useCallback((newLabel: string) => {
+    setDays((prev) => prev.map((d, i) => i === activeDayIdx ? { ...d, label: newLabel } : d));
+  }, [activeDayIdx]);
+
+  const copyActiveDayTo = useCallback((targetIdx: number) => {
+    setDays((prev) => {
+      if (!prev[activeDayIdx] || !prev[targetIdx]) return prev;
+      const sourceMeals = prev[activeDayIdx].meals.map((m) => ({
+        ...m, foods: m.foods.map((f) => ({ ...f })),
+      }));
+      const next = [...prev];
+      next[targetIdx] = { ...next[targetIdx], meals: sourceMeals };
+      return next;
+    });
+    toast.success(`Copiado para ${days[targetIdx]?.label || 'dia'}`);
+  }, [activeDayIdx, days]);
 
   const totals = useMemo(() => computeDayTotals(meals), [meals]);
   const diff = totals.kcal - target;
@@ -244,7 +320,7 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
      });
    };
 
-  if (meals.length === 0) {
+  if (days.length === 0) {
     return (
       <Card className="border-dashed">
         <CardContent className="p-6 text-center text-sm text-muted-foreground">
@@ -259,6 +335,53 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
       {/* Training context block */}
       {currentPlan?.trainingContext && (
         <TrainingContextSummary context={currentPlan.trainingContext} />
+      )}
+
+      {/* Day selector (weekdays or cardápio options) */}
+      {hasMultipleDays && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+              {usesOptions ? 'Cardápio / Opção' : 'Dia da semana'}
+            </span>
+            {!usesOptions && (
+              <Select
+                onValueChange={(val) => copyActiveDayTo(Number(val))}
+                value=""
+              >
+                <SelectTrigger className="h-7 w-auto min-w-[150px] text-[11px]">
+                  <SelectValue placeholder="Copiar este dia para..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {days.map((d, i) => i !== activeDayIdx && (
+                    <SelectItem key={i} value={String(i)}>{d.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
+            {days.map((d, i) => {
+              const isActive = i === activeDayIdx;
+              const short = d.label.length > 10 ? d.label.slice(0, 3) : d.label;
+              return (
+                <button
+                  key={`${d.label}-${i}`}
+                  type="button"
+                  onClick={() => setActiveDayIdx(i)}
+                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    isActive
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-secondary/50 text-muted-foreground hover:bg-secondary'
+                  }`}
+                  title={d.label}
+                >
+                  {short}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {/* AI quick action */}
