@@ -20,6 +20,10 @@ import { toast } from 'sonner';
 import { validateDietJSON } from '@/lib/planMigrationUtils';
 import { markdownToDietPlan } from '@/lib/dietPlanAdapter';
 import { finalizeDietPlan } from '@/lib/dietValidation';
+import { parseDietPlanStrict, parseDietPlanLoose, type DietPlan } from '@/lib/dietSchema';
+import { dietPlanToMarkdown } from '@/lib/dietMarkdownSerializer';
+import { extractTrainingContext } from '@/lib/trainingContextExtractor';
+import DietValidationBadge from '@/components/diet/DietValidationBadge';
 import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
 import { generateDietPDF } from '@/lib/generateDietPDF';
@@ -217,6 +221,8 @@ const DietaIA = () => {
   const [macroPct, setMacroPct] = useState({ protein: 20, carbs: 50, fat: 30 });
   const [lastDietPlan, setLastDietPlan] = useState<any>(null);
   const [showCompare, setShowCompare] = useState(false);
+  // Canonical structured plan (source of truth when structured generation succeeds).
+  const [structuredPlan, setStructuredPlan] = useState<DietPlan | null>(null);
 
   useEffect(() => {
     if (studentId) loadStudentData();
