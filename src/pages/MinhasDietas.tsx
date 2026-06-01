@@ -209,15 +209,47 @@ const MinhasDietas = () => {
 
   // When day-based (not options), always show 7 weekday buttons with independent meal copies
   const displayGroups = useMemo(() => {
-    const base = (usesMealOptions || mealGroups.length === 0)
-      ? mealGroups
-      : WEEKDAY_LABELS.map((label, i) => ({
-          label,
-          meals: mealGroups[i % mealGroups.length].meals.map(m => ({
+    let base: { label: string; meals: any[] }[];
+    if (usesMealOptions || mealGroups.length === 0) {
+      base = mealGroups;
+    } else if (mealGroups.length === 1) {
+      // Single meal block → expand to 7 weekdays. If a carb cycle is saved in
+      // the markdown notes, re-apply it so each day shows its real carbs.
+      const cc = extractCarbCycleFromMarkdown(dietMarkdown);
+      const baseMeals = mealGroups[0].meals;
+      if (cc) {
+        const cycled = buildCarbCycleDays(baseMeals as any, cc);
+        base = WEEKDAY_LABELS.map((label, i) => ({
+          label: cycled[i]?.label?.includes('(') ? `${label} ${cycled[i].label.replace(/^[^(]+/, '').trim()}` : label,
+          meals: (cycled[i]?.meals ?? baseMeals).map(m => ({
             ...m,
             foods: m.foods.map(f => ({ ...f })),
           })),
         }));
+      } else {
+        base = WEEKDAY_LABELS.map((label) => ({
+          label,
+          meals: baseMeals.map(m => ({
+            ...m,
+            foods: m.foods.map(f => ({ ...f })),
+          })),
+        }));
+      }
+    } else {
+      // Multiple meal sections already (e.g. per-day from carb cycle save).
+      base = WEEKDAY_LABELS.map((label, i) => {
+        const src = mealGroups[i % mealGroups.length];
+        const srcLabel = (src.label || '').trim();
+        const tag = srcLabel.match(/\(([^)]+)\)/);
+        return {
+          label: tag ? `${label} (${tag[1]})` : label,
+          meals: src.meals.map(m => ({
+            ...m,
+            foods: m.foods.map(f => ({ ...f })),
+          })),
+        };
+      });
+    }
     // Apply persisted substitutions
     return base.map((group, gi) => ({
       ...group,
@@ -226,7 +258,7 @@ const MinhasDietas = () => {
         return saved ? { ...m, foods: saved } : m;
       }),
     }));
-  }, [mealGroups, usesMealOptions, substitutions]);
+  }, [mealGroups, usesMealOptions, substitutions, dietMarkdown]);
 
   const persistFoodsChange = useCallback((groupIdx: number, mealIdx: number, foods: any[]) => {
     setSubstitutions((prev) => {
