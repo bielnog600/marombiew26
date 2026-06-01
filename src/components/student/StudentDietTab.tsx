@@ -546,7 +546,10 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
         const aiPlan = aiDialogPlanId ? plans.find(p => p.id === aiDialogPlanId) : null;
         if (!aiPlan) return null;
         const sections = parseSections(aiPlan.conteudo);
-        const meals = sections.flatMap(s => s.type === 'meal' && s.meals ? s.meals : []);
+        // Use only the FIRST day's meals — otherwise a diet already expanded
+        // into 7 weekdays would feed 7× duplicated meals to the AI editor,
+        // which then expands carb_cycle into a 49× duplicated diet.
+        const meals = extractSingleDayMeals(aiPlan.conteudo);
         const canonical = parseDietPlanLoose(aiPlan.conteudo_json);
         const totals = computeDayTotals(meals);
         const fallbackTargets: any = canonical?.targets ?? extractTargetsFromSections(sections) ?? {
