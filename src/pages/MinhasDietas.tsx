@@ -382,22 +382,30 @@ const MinhasDietas = () => {
         {hasMultipleGroups && (
           <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide justify-center" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             {displayGroups.map((group, i) => {
-              const label = usesMealOptions
+              const rawLabel = usesMealOptions
                 ? (group.label || `Opção ${i + 1}`)
                 : group.label;
+              const tagMatch = rawLabel.match(/\(([^)]+)\)$/);
+              const dayName = tagMatch ? rawLabel.replace(/\s*\([^)]+\)$/, '') : rawLabel;
+              const tag = tagMatch ? tagMatch[1] : '';
               const isActive = activeGroupIndex === i;
               return (
                 <button
-                  key={`${label}-${i}`}
+                  key={`${rawLabel}-${i}`}
                   type="button"
                   onClick={() => setSelectedGroupIndex(i)}
-                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  className={`flex-shrink-0 flex flex-col items-center justify-center px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                     isActive
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-secondary/50 text-muted-foreground hover:bg-secondary'
                   }`}
                 >
-                  {label}
+                  <span>{dayName}</span>
+                  {tag && (
+                    <span className={`text-[10px] leading-none mt-0.5 ${isActive ? 'text-primary-foreground/80' : 'text-muted-foreground/80'}`}>
+                      {tag}
+                    </span>
+                  )}
                 </button>
               );
             })}
