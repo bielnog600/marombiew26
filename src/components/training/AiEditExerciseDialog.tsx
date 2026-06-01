@@ -72,6 +72,10 @@ const AiEditExerciseDialog: React.FC<Props> = ({
    const [aiLoadingIdx, setAiLoadingIdx] = useState<number | null>(null);
    const [selectedForAi, setSelectedForAi] = useState<Record<number, boolean>>({});
    const [batchAiLoading, setBatchAiLoading] = useState(false);
+   // Variation (campo "variation" do exercício) — substituições paralelas
+   const [variationSubs, setVariationSubs] = useState<Record<number, string>>({});
+   const [aiSuggestionsVar, setAiSuggestionsVar] = useState<Record<number, string[]>>({});
+   const [selectedForAiVar, setSelectedForAiVar] = useState<Record<number, boolean>>({});
 
    const normalize = (s: string) =>
      (s || '')
@@ -179,13 +183,20 @@ const AiEditExerciseDialog: React.FC<Props> = ({
    };
 
    const applyVariations = () => {
-     const actions: AiEditAction[] = Object.entries(substitutions)
-       .filter(([, name]) => !!name)
-       .map(([idx, name]) => ({
-         op: 'modify' as const,
-         index: Number(idx),
-         exercise: { exercise: name },
-       }));
+     const merged: Record<number, { exercise?: string; variation?: string }> = {};
+     Object.entries(substitutions).forEach(([idx, name]) => {
+       if (!name) return;
+       merged[Number(idx)] = { ...(merged[Number(idx)] || {}), exercise: name };
+     });
+     Object.entries(variationSubs).forEach(([idx, name]) => {
+       if (!name) return;
+       merged[Number(idx)] = { ...(merged[Number(idx)] || {}), variation: name };
+     });
+     const actions: AiEditAction[] = Object.entries(merged).map(([idx, ex]) => ({
+       op: 'modify' as const,
+       index: Number(idx),
+       exercise: ex,
+     }));
      if (actions.length === 0) {
        toast.error('Selecione ao menos uma substituição.');
        return;
@@ -193,15 +204,19 @@ const AiEditExerciseDialog: React.FC<Props> = ({
      onApply(actions);
      toast.success(`${actions.length} exercício(s) substituído(s).`);
      setSubstitutions({});
+     setVariationSubs({});
      onOpenChange(false);
    };
 
    const runBatchAiSuggest = async () => {
-     const indices = Object.entries(selectedForAi)
-       .filter(([, v]) => v)
-       .map(([k]) => Number(k));
-     if (indices.length === 0) {
-       toast.error('Selecione 1 ou mais exercícios para a IA sugerir substituições.');
+     const mainIdx = Object.entries(selectedForAi).filter(([, v]) => v).map(([k]) => Number(k));
+     const varIdx = Object.entries(selectedForAiVar).filter(([, v]) => v).map(([k]) => Number(k));
+     const targets: Array<{ idx: number; kind: 'main' | 'variation' }> = [
+       ...mainIdx.map((idx) => ({ idx, kind: 'main' as const })),
+       ...varIdx.map((idx) => ({ idx, kind: 'variation' as const })),
+     ];
+     if (targets.length === 0) {
+       toast.error('Selecione 1 ou mais exercícios (principal ou variação) para a IA sugerir substituições.');
        return;
      }
      setBatchAiLoading(true);
@@ -218,23 +233,26 @@ const AiEditExerciseDialog: React.FC<Props> = ({
 
        const usedNorms = new Set<string>();
        currentExercises.forEach((e, i) => {
-         if (!indices.includes(i)) usedNorms.add(normalize(e.exercise));
+         if (!mainIdx.includes(i)) usedNorms.add(normalize(e.exercise));
        });
 
        const newSubs: Record<number, string> = { ...substitutions };
        const newSuggestions: Record<number, string[]> = { ...aiSuggestions };
+       const newVarSubs: Record<number, string> = { ...variationSubs };
+       const newVarSuggestions: Record<number, string[]> = { ...aiSuggestionsVar };
        let success = 0;
 
-       for (const idx of indices) {
+       for (const { idx, kind } of targets) {
          const ex = currentExercises[idx];
-         if (!ex?.exercise) continue;
+         const baseName = kind === 'main' ? ex?.exercise : (ex?.variation || ex?.exercise);
+         if (!baseName) continue;
          setAiLoadingIdx(idx);
          try {
            const { data, error } = await supabase.functions.invoke('training-edit-agent', {
              body: {
                dayName,
                currentExercises,
-               instruction: `Sugira 6 variações/alternativas para o exercício "${ex.exercise}" (posição ${idx}). Todas DEVEM trabalhar o MESMO grupo muscular, vir EXCLUSIVAMENTE do BANCO DE EXERCÍCIOS, e ser DIFERENTES de "${ex.exercise}" e dos outros exercícios já presentes no dia. Para cada candidato, retorne uma ação "replace" no índice ${idx} preenchendo apenas exercise.exercise (em MAIÚSCULAS). Não inclua séries/reps/pause/description. Retorne exatamente 6 ações, cada uma com um nome distinto.`,
+               instruction: `Sugira 6 variações/alternativas para o exercício "${baseName}" (posição ${idx}${kind === 'variation' ? ', campo VARIAÇÃO' : ''}). Todas DEVEM trabalhar o MESMO grupo muscular, vir EXCLUSIVAMENTE do BANCO DE EXERCÍCIOS, e ser DIFERENTES de "${baseName}"${kind === 'variation' && ex?.exercise ? ` e de "${ex.exercise}"` : ''} e dos outros exercícios já presentes no dia. Para cada candidato, retorne uma ação "replace" no índice ${idx} preenchendo apenas exercise.exercise (em MAIÚSCULAS). Não inclua séries/reps/pause/description. Retorne exatamente 6 ações, cada uma com um nome distinto.`,
                exerciseCatalog,
                studentContext,
              },
@@ -247,16 +265,20 @@ const AiEditExerciseDialog: React.FC<Props> = ({
              const n = a?.exercise?.exercise?.trim();
              if (!n) continue;
              const norm = normalize(n);
-             if (!norm || norm === normalize(ex.exercise)) continue;
+             if (!norm || norm === normalize(baseName)) continue;
              if (seen.has(norm)) continue;
              seen.add(norm);
              names.push(n);
            }
            if (names.length) {
-             newSuggestions[idx] = names;
-             // pick first not already used
              const pick = names.find((n) => !usedNorms.has(normalize(n))) || names[0];
-             newSubs[idx] = pick;
+             if (kind === 'main') {
+               newSuggestions[idx] = names;
+               newSubs[idx] = pick;
+             } else {
+               newVarSuggestions[idx] = names;
+               newVarSubs[idx] = pick;
+             }
              usedNorms.add(normalize(pick));
              success++;
            }
@@ -267,12 +289,15 @@ const AiEditExerciseDialog: React.FC<Props> = ({
 
        setAiSuggestions(newSuggestions);
        setSubstitutions(newSubs);
+       setAiSuggestionsVar(newVarSuggestions);
+       setVariationSubs(newVarSubs);
 
        if (success === 0) {
          toast.error('A IA não retornou variações. Tente novamente.');
        } else {
          toast.success(`${success} substituição(ões) sugerida(s) pela IA. Revise e clique em "Aplicar substituições".`);
          setSelectedForAi({});
+         setSelectedForAiVar({});
        }
      } catch (e: any) {
        console.error(e);
