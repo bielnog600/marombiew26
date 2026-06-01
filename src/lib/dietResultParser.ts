@@ -76,14 +76,24 @@ const ensureGrams = (qty: string) => {
 const finalizeMeal = (meal: ParsedMeal | null) => {
   if (!meal || meal.foods.length === 0) return null;
 
-  const totalKcal = meal.foods.reduce((sum, food) => sum + parseNumericValue(food.kcal), 0);
-  const totalP = meal.foods.reduce((sum, food) => sum + parseNumericValue(food.p), 0);
-  const totalC = meal.foods.reduce((sum, food) => sum + parseNumericValue(food.c), 0);
-  const totalG = meal.foods.reduce((sum, food) => sum + parseNumericValue(food.g), 0);
+  const seenFoods = new Set<string>();
+  const foods = meal.foods.filter((food) => {
+    const key = [food.food, food.qty, food.kcal, food.p, food.c, food.g]
+      .map((value) => normalizeMealName(value || ''))
+      .join('__');
+    if (seenFoods.has(key)) return false;
+    seenFoods.add(key);
+    return true;
+  });
+
+  const totalKcal = foods.reduce((sum, food) => sum + parseNumericValue(food.kcal), 0);
+  const totalP = foods.reduce((sum, food) => sum + parseNumericValue(food.p), 0);
+  const totalC = foods.reduce((sum, food) => sum + parseNumericValue(food.c), 0);
+  const totalG = foods.reduce((sum, food) => sum + parseNumericValue(food.g), 0);
 
   return {
     ...meal,
-    foods: meal.foods.map((food) => ({ ...food, qty: ensureGrams(food.qty) })),
+    foods: foods.map((food) => ({ ...food, qty: ensureGrams(food.qty) })),
     totalKcal: formatNumber(totalKcal, ' kcal'),
     totalP: formatNumber(totalP),
     totalC: formatNumber(totalC),
