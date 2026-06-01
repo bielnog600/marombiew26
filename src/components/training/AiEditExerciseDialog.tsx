@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { ParsedExercise } from '@/lib/trainingResultParser';
@@ -69,6 +70,8 @@ const AiEditExerciseDialog: React.FC<Props> = ({
    const [substitutions, setSubstitutions] = useState<Record<number, string>>({});
    const [aiSuggestions, setAiSuggestions] = useState<Record<number, string[]>>({});
    const [aiLoadingIdx, setAiLoadingIdx] = useState<number | null>(null);
+   const [selectedForAi, setSelectedForAi] = useState<Record<number, boolean>>({});
+   const [batchAiLoading, setBatchAiLoading] = useState(false);
 
    const normalize = (s: string) =>
      (s || '')
@@ -191,6 +194,93 @@ const AiEditExerciseDialog: React.FC<Props> = ({
      toast.success(`${actions.length} exercício(s) substituído(s).`);
      setSubstitutions({});
      onOpenChange(false);
+   };
+
+   const runBatchAiSuggest = async () => {
+     const indices = Object.entries(selectedForAi)
+       .filter(([, v]) => v)
+       .map(([k]) => Number(k));
+     if (indices.length === 0) {
+       toast.error('Selecione 1 ou mais exercícios para a IA sugerir substituições.');
+       return;
+     }
+     setBatchAiLoading(true);
+     let studentContext: any = undefined;
+     try {
+       if (studentId) {
+         const { data } = await supabase
+           .from('students_profile')
+           .select('lesoes, restricoes, observacoes, objetivo')
+           .eq('user_id', studentId)
+           .maybeSingle();
+         if (data) studentContext = data;
+       }
+
+       const usedNorms = new Set<string>();
+       currentExercises.forEach((e, i) => {
+         if (!indices.includes(i)) usedNorms.add(normalize(e.exercise));
+       });
+
+       const newSubs: Record<number, string> = { ...substitutions };
+       const newSuggestions: Record<number, string[]> = { ...aiSuggestions };
+       let success = 0;
+
+       for (const idx of indices) {
+         const ex = currentExercises[idx];
+         if (!ex?.exercise) continue;
+         setAiLoadingIdx(idx);
+         try {
+           const { data, error } = await supabase.functions.invoke('training-edit-agent', {
+             body: {
+               dayName,
+               currentExercises,
+               instruction: `Sugira 6 variações/alternativas para o exercício "${ex.exercise}" (posição ${idx}). Todas DEVEM trabalhar o MESMO grupo muscular, vir EXCLUSIVAMENTE do BANCO DE EXERCÍCIOS, e ser DIFERENTES de "${ex.exercise}" e dos outros exercícios já presentes no dia. Para cada candidato, retorne uma ação "replace" no índice ${idx} preenchendo apenas exercise.exercise (em MAIÚSCULAS). Não inclua séries/reps/pause/description. Retorne exatamente 6 ações, cada uma com um nome distinto.`,
+               exerciseCatalog,
+               studentContext,
+             },
+           });
+           if (error) throw error;
+           const actions: AiEditAction[] = Array.isArray((data as any)?.actions) ? (data as any).actions : [];
+           const names: string[] = [];
+           const seen = new Set<string>();
+           for (const a of actions) {
+             const n = a?.exercise?.exercise?.trim();
+             if (!n) continue;
+             const norm = normalize(n);
+             if (!norm || norm === normalize(ex.exercise)) continue;
+             if (seen.has(norm)) continue;
+             seen.add(norm);
+             names.push(n);
+           }
+           if (names.length) {
+             newSuggestions[idx] = names;
+             // pick first not already used
+             const pick = names.find((n) => !usedNorms.has(normalize(n))) || names[0];
+             newSubs[idx] = pick;
+             usedNorms.add(normalize(pick));
+             success++;
+           }
+         } catch (err) {
+           console.error('AI variation failed for idx', idx, err);
+         }
+       }
+
+       setAiSuggestions(newSuggestions);
+       setSubstitutions(newSubs);
+
+       if (success === 0) {
+         toast.error('A IA não retornou variações. Tente novamente.');
+       } else {
+         toast.success(`${success} substituição(ões) sugerida(s) pela IA. Revise e clique em "Aplicar substituições".`);
+         setSelectedForAi({});
+       }
+     } catch (e: any) {
+       console.error(e);
+       toast.error('Erro IA: ' + (e?.message || 'falha'));
+     } finally {
+       setAiLoadingIdx(null);
+       setBatchAiLoading(false);
+     }
    };
  
    const toggleOption = (optInstruction: string) => {
@@ -344,9 +434,41 @@ const AiEditExerciseDialog: React.FC<Props> = ({
 
         {tab === 'variations' && (
           <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Selecione um exercício de substituição para cada item que deseja trocar. Mantém séries, reps e descanso atuais.
-            </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-md border border-border/60 bg-card/40 p-2.5">
+              <div className="text-xs text-muted-foreground">
+                Marque os exercícios que deseja trocar e clique em <strong>IA sugere</strong>. A IA escolherá uma substituição do mesmo grupo muscular automaticamente. Você ainda pode ajustar manualmente cada escolha abaixo.
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs"
+                  disabled={loading || batchAiLoading || currentExercises.length === 0}
+                  onClick={() => {
+                    const allSelected = currentExercises.every((_, i) => selectedForAi[i]);
+                    if (allSelected) setSelectedForAi({});
+                    else {
+                      const next: Record<number, boolean> = {};
+                      currentExercises.forEach((_, i) => { next[i] = true; });
+                      setSelectedForAi(next);
+                    }
+                  }}
+                >
+                  {currentExercises.length > 0 && currentExercises.every((_, i) => selectedForAi[i]) ? 'Limpar' : 'Selecionar todos'}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 gap-1.5"
+                  disabled={loading || batchAiLoading}
+                  onClick={runBatchAiSuggest}
+                >
+                  {batchAiLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  IA sugere
+                </Button>
+              </div>
+            </div>
             {currentExercises.length === 0 && (
               <p className="text-sm text-muted-foreground italic">Nenhum exercício neste dia.</p>
             )}
@@ -359,26 +481,26 @@ const AiEditExerciseDialog: React.FC<Props> = ({
                 const aiOnly = aiNames.filter((n) => !baseNorms.has(normalize(n)));
                 const aiNormSet = new Set(aiNames.map((n) => normalize(n)));
                 const isAiLoading = aiLoadingIdx === idx;
+                const isChecked = !!selectedForAi[idx];
                 return (
-                  <div key={idx} className="rounded-md border border-border/60 p-2.5 space-y-1.5 bg-card/40">
+                  <div key={idx} className={`rounded-md border p-2.5 space-y-1.5 transition-colors ${isChecked ? 'border-primary/60 bg-primary/5' : 'border-border/60 bg-card/40'}`}>
                     <div className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={isChecked}
+                        onCheckedChange={(v) =>
+                          setSelectedForAi((prev) => {
+                            const next = { ...prev };
+                            if (v) next[idx] = true;
+                            else delete next[idx];
+                            return next;
+                          })
+                        }
+                        disabled={loading || batchAiLoading || !ex.exercise}
+                        aria-label={`Selecionar ${ex.exercise} para sugestão da IA`}
+                      />
                       <Thumb name={ex.exercise} />
                       <span className="font-medium truncate flex-1">{ex.exercise || `Exercício ${idx + 1}`}</span>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-7 px-2 text-[11px] gap-1 shrink-0"
-                        disabled={loading || isAiLoading || !ex.exercise}
-                        onClick={() => fetchAiVariations(idx, ex)}
-                      >
-                        {isAiLoading ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Sparkles className="h-3 w-3 text-primary" />
-                        )}
-                        IA sugere
-                      </Button>
+                      {isAiLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />}
                       <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     </div>
                     <Select
