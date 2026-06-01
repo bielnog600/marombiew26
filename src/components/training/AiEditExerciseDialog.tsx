@@ -461,7 +461,7 @@ const AiEditExerciseDialog: React.FC<Props> = ({
           <div className="space-y-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-md border border-border/60 bg-card/40 p-2.5">
               <div className="text-xs text-muted-foreground">
-                Marque os exercícios que deseja trocar e clique em <strong>IA sugere</strong>. A IA escolherá uma substituição do mesmo grupo muscular automaticamente. Você ainda pode ajustar manualmente cada escolha abaixo.
+               Marque os exercícios <strong>principais</strong> e/ou suas <strong>variações</strong> que deseja trocar e clique em <strong>IA sugere</strong>. A IA escolherá uma substituição do mesmo grupo muscular automaticamente. Você ainda pode ajustar manualmente cada escolha abaixo.
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <Button
@@ -471,16 +471,24 @@ const AiEditExerciseDialog: React.FC<Props> = ({
                   className="h-8 text-xs"
                   disabled={loading || batchAiLoading || currentExercises.length === 0}
                   onClick={() => {
-                    const allSelected = currentExercises.every((_, i) => selectedForAi[i]);
-                    if (allSelected) setSelectedForAi({});
-                    else {
-                      const next: Record<number, boolean> = {};
-                      currentExercises.forEach((_, i) => { next[i] = true; });
-                      setSelectedForAi(next);
-                    }
+                   const allMain = currentExercises.every((_, i) => selectedForAi[i]);
+                   const allVar = currentExercises.every((ex, i) => !ex.variation || selectedForAiVar[i]);
+                   if (allMain && allVar) {
+                     setSelectedForAi({});
+                     setSelectedForAiVar({});
+                   } else {
+                     const m: Record<number, boolean> = {};
+                     const v: Record<number, boolean> = {};
+                     currentExercises.forEach((ex, i) => {
+                       m[i] = true;
+                       if (ex.variation) v[i] = true;
+                     });
+                     setSelectedForAi(m);
+                     setSelectedForAiVar(v);
+                   }
                   }}
                 >
-                  {currentExercises.length > 0 && currentExercises.every((_, i) => selectedForAi[i]) ? 'Limpar' : 'Selecionar todos'}
+                 {currentExercises.length > 0 && currentExercises.every((_, i) => selectedForAi[i]) && currentExercises.every((ex, i) => !ex.variation || selectedForAiVar[i]) ? 'Limpar' : 'Selecionar todos'}
                 </Button>
                 <Button
                   type="button"
