@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { ParsedExercise, ParsedTrainingDay } from '@/lib/trainingResultParser';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface AiAllDaysAction {
   day: string;
