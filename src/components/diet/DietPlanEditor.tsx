@@ -18,6 +18,7 @@ import { parsedMealsToDietPlan } from '@/lib/dietPlanAdapter';
 import { finalizeDietPlan } from '@/lib/dietValidation';
 import DietValidationBadge from './DietValidationBadge';
 import TrainingContextSummary from './TrainingContextSummary';
+import { buildCarbCycleDays } from '@/lib/dietAiActions';
 
 interface DietPlanEditorProps {
   markdown: string;
@@ -102,6 +103,33 @@ const WEEKDAY_LABELS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sába
 
 const OPTION_TITLE_REGEX = /(op[cç][aã]o|card[aá]pio)/i;
 
+/**
+ * Try to recover a previously-applied carb cycle from the markdown notes
+ * (saved as "🔄 Ciclo de Carboidratos" + "Low Carb: ..." / "High Carb: ...").
+ * Returns undefined when no cycle is found.
+ */
+const extractCarbCycleFromMarkdown = (
+  markdown: string,
+): { lowCarbDays: string[]; highCarbDays: string[] } | undefined => {
+  if (!markdown) return undefined;
+  const text = markdown.toLowerCase();
+  if (!text.includes('ciclo de carbo')) return undefined;
+  const parseDays = (label: 'low carb' | 'high carb'): string[] => {
+    const re = new RegExp(`${label}\\s*:\\s*([^\\n]+)`, 'i');
+    const m = markdown.match(re);
+    if (!m) return [];
+    return m[1]
+      .split(/[,;/]/)
+      .map((s) => s.trim().toLowerCase().replace(/\(.*$/, '').trim())
+      .filter(Boolean)
+      .map((s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+  };
+  const low = parseDays('low carb');
+  const high = parseDays('high carb');
+  if (low.length === 0 && high.length === 0) return undefined;
+  return { lowCarbDays: low, highCarbDays: high };
+};
+
 /** Extract every meal section as an editable day. */
 const extractDays = (markdown: string): { label: string; meals: ParsedMeal[] }[] => {
   const sections = parseSections(markdown);
@@ -120,6 +148,15 @@ const extractDays = (markdown: string): { label: string; meals: ParsedMeal[] }[]
   // Single meal block → expand to 7 weekdays (deep copy each) so admin can
   // customize per-day (e.g. carb cycling or aluno changes a Friday food).
   const base = mealSections[0].meals || [];
+
+  // If the diet has a previously-applied carb cycle saved in notes, re-apply
+  // it so each weekday shows its true carb quantities (otherwise we'd show
+  // 7 identical days even though the plan is supposed to cycle).
+  const cc = extractCarbCycleFromMarkdown(markdown);
+  if (cc) {
+    return buildCarbCycleDays(base, cc);
+  }
+
   return WEEKDAY_LABELS.map((label) => ({
     label,
     meals: base.map((m) => ({
