@@ -85,12 +85,36 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   const [aiDialogPlanId, setAiDialogPlanId] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
-  const getPlanTotals = useCallback((markdown: string) => {
+  /**
+   * Extract meals for a SINGLE day from the diet markdown. When a diet has
+   * multiple meal tables (carb cycle expanded into 7 weekdays, alternative
+   * "Cardápio/Opção" blocks, etc.), flattening every section would duplicate
+   * each meal N times — inflating totals and, when re-applying carb_cycle,
+   * producing a 49×-duplicated diet. Always take the first meal block only.
+   */
+  const extractSingleDayMeals = useCallback((markdown: string): ParsedMeal[] => {
     const sections = parseSections(markdown);
-    const meals = sections.flatMap(s => s.type === 'meal' && s.meals ? s.meals : []);
+    const mealSections = sections.filter(s => s.type === 'meal' && s.meals && s.meals.length > 0);
+    if (mealSections.length === 0) return [];
+    const firstDay = [...(mealSections[0].meals || [])];
+    // Dedupe by meal name (case-insensitive) — recovers diets previously
+    // corrupted by the old bug that 7×-duplicated meals inside one day.
+    const seen = new Set<string>();
+    const deduped: ParsedMeal[] = [];
+    for (const m of firstDay) {
+      const key = String(m.name || '').trim().toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(m);
+    }
+    return deduped;
+  }, []);
+
+  const getPlanTotals = useCallback((markdown: string) => {
+    const meals = extractSingleDayMeals(markdown);
     if (!meals.length) return null;
     return computeDayTotals(meals);
-  }, []);
+  }, [extractSingleDayMeals]);
 
   const modalPlanTotals = useMemo(() => {
     if (!macroModalPlanId) return null;
@@ -103,8 +127,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     setMacroModalPlanId(planId);
     const plan = plans.find(p => p.id === planId);
     if (!plan) return;
-    const sections = parseSections(plan.conteudo);
-    const meals = sections.flatMap(s => s.type === 'meal' && s.meals ? s.meals : []);
+    const meals = extractSingleDayMeals(plan.conteudo);
     if (!meals.length) return;
     const t = computeDayTotals(meals);
     if (t.kcal <= 0) return;
@@ -112,7 +135,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     const gPct = Math.round((t.g * 9 / t.kcal) * 100);
     const cPct = 100 - pPct - gPct;
     setMacroPct({ protein: pPct, carbs: cPct, fat: gPct });
-  }, [plans]);
+  }, [plans, extractSingleDayMeals]);
 
   const handleDelete = async (planId: string) => {
     const { error } = await supabase.from('ai_plans').delete().eq('id', planId);
@@ -254,8 +277,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     const plan = plans.find(p => p.id === planId);
     if (!plan) return;
     try {
-      const sections = parseSections(plan.conteudo);
-      const meals = sections.flatMap(s => s.type === 'meal' && s.meals ? s.meals : []);
+      const meals = extractSingleDayMeals(plan.conteudo);
       if (!meals.length) { toast.error('Nenhuma refeição encontrada.'); return; }
       const totals = computeDayTotals(meals);
       if (totals.kcal <= 0) { toast.error('Não foi possível calcular calorias da dieta.'); return; }
@@ -535,7 +557,10 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
         const aiPlan = aiDialogPlanId ? plans.find(p => p.id === aiDialogPlanId) : null;
         if (!aiPlan) return null;
         const sections = parseSections(aiPlan.conteudo);
-        const meals = sections.flatMap(s => s.type === 'meal' && s.meals ? s.meals : []);
+        // Use only the FIRST day's meals — otherwise a diet already expanded
+        // into 7 weekdays would feed 7× duplicated meals to the AI editor,
+        // which then expands carb_cycle into a 49× duplicated diet.
+        const meals = extractSingleDayMeals(aiPlan.conteudo);
         const canonical = parseDietPlanLoose(aiPlan.conteudo_json);
         const totals = computeDayTotals(meals);
         const fallbackTargets: any = canonical?.targets ?? extractTargetsFromSections(sections) ?? {
