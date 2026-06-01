@@ -20,9 +20,35 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import ProtocolsDialog from '@/components/diet/ProtocolsDialog';
 import { protocolsToKeys, type SavedProtocols, type ProtocolKey } from '@/lib/dietProtocols';
 import { ListChecks } from 'lucide-react';
+import { buildCarbCycleDays } from '@/lib/dietAiActions';
 
 const WEEKDAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const OPTION_TITLE_REGEX = /(op[cç][aã]o|card[aá]pio)/i;
+
+/**
+ * Recover a previously-applied carb cycle saved in the diet markdown notes
+ * (format: "🔄 Ciclo de Carboidratos" + "Low Carb: ..." / "High Carb: ...").
+ */
+const extractCarbCycleFromMarkdown = (
+  markdown: string,
+): { lowCarbDays: string[]; highCarbDays: string[] } | undefined => {
+  if (!markdown) return undefined;
+  if (!markdown.toLowerCase().includes('ciclo de carbo')) return undefined;
+  const parseDays = (label: 'low carb' | 'high carb'): string[] => {
+    const re = new RegExp(`${label}\\s*:\\s*([^\\n]+)`, 'i');
+    const m = markdown.match(re);
+    if (!m) return [];
+    return m[1]
+      .split(/[,;/]/)
+      .map((s) => s.trim().toLowerCase().replace(/\(.*$/, '').trim())
+      .filter(Boolean)
+      .map((s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+  };
+  const low = parseDays('low carb');
+  const high = parseDays('high carb');
+  if (low.length === 0 && high.length === 0) return undefined;
+  return { lowCarbDays: low, highCarbDays: high };
+};
 
 const parseNum = (v?: string) => {
   if (!v) return 0;
