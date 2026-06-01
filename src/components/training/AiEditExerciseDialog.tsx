@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Loader2, Plus, Wand2, Repeat, ArrowRight } from 'lucide-react';
+import { Sparkles, Loader2, Plus, Wand2, Repeat, ArrowRight, Dumbbell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -20,7 +20,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   dayName: string;
   currentExercises: ParsedExercise[];
-  exerciseCatalog: Array<{ nome: string; grupo_muscular: string }>;
+  exerciseCatalog: Array<{ nome: string; grupo_muscular: string; imagem_url?: string | null }>;
   studentId?: string;
   onApply: (actions: AiEditAction[]) => void;
 }
@@ -103,6 +103,27 @@ const AiEditExerciseDialog: React.FC<Props> = ({
      // sort by nome
      return list.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
    };
+
+  const Thumb: React.FC<{ name: string; size?: 'sm' | 'xs' }> = ({ name, size = 'sm' }) => {
+    const entry = findCatalogEntry(name);
+    const url = entry?.imagem_url || null;
+    const dim = size === 'xs' ? 'h-6 w-6' : 'h-9 w-9';
+    if (!url) {
+      return (
+        <div className={`${dim} shrink-0 rounded-md bg-muted/40 flex items-center justify-center border border-border/40`}>
+          <Dumbbell className="h-3 w-3 text-muted-foreground" />
+        </div>
+      );
+    }
+    return (
+      <img
+        src={url}
+        alt={name}
+        loading="lazy"
+        className={`${dim} shrink-0 rounded-md object-cover border border-border/40 bg-muted/40`}
+      />
+    );
+  };
 
    const fetchAiVariations = async (idx: number, ex: ParsedExercise) => {
      if (!ex.exercise) return;
