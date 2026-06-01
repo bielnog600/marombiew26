@@ -133,7 +133,13 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
 
   const handleSave = async (planId: string) => {
     const updates: Record<string, any> = {};
-    if (editedMarkdowns[planId] !== undefined) updates.conteudo = editedMarkdowns[planId];
+    if (editedMarkdowns[planId] !== undefined) {
+      updates.conteudo = editedMarkdowns[planId];
+      // Invalida o JSON cacheado para que o app do aluno releia do markdown atualizado.
+      // Sem isso, getSafeWorkoutDays prioriza conteudo_json e mostra a versão antiga gerada pela IA.
+      updates.conteudo_json = null;
+      updates.migration_status = 'pending';
+    }
     if (editedPhases[planId] !== undefined) updates.fase = editedPhases[planId];
     if (editedStartDates[planId] !== undefined) {
       updates.fase_inicio_data = editedStartDates[planId] || null;
