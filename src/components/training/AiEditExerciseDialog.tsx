@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Sparkles, Loader2, Plus, Wand2 } from 'lucide-react';
+import { Sparkles, Loader2, Plus, Wand2, Repeat, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { ParsedExercise } from '@/lib/trainingResultParser';
@@ -64,6 +65,60 @@ const AiEditExerciseDialog: React.FC<Props> = ({
    const [instruction, setInstruction] = useState('');
    const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
    const [loading, setLoading] = useState(false);
+   const [tab, setTab] = useState<'ai' | 'variations'>('ai');
+   const [substitutions, setSubstitutions] = useState<Record<number, string>>({});
+
+   const normalize = (s: string) =>
+     (s || '')
+       .toUpperCase()
+       .normalize('NFD')
+       .replace(/[\u0300-\u036f]/g, '')
+       .replace(/[^A-Z0-9 ]/g, ' ')
+       .replace(/\s+/g, ' ')
+       .trim();
+
+   const findCatalogEntry = (name: string) => {
+     const n = normalize(name);
+     if (!n) return undefined;
+     let m = exerciseCatalog.find((c) => normalize(c.nome) === n);
+     if (m) return m;
+     m = exerciseCatalog.find((c) => {
+       const cn = normalize(c.nome);
+       return cn.includes(n) || n.includes(cn);
+     });
+     return m;
+   };
+
+   const getVariationsFor = (name: string) => {
+     const entry = findCatalogEntry(name);
+     const targetGroup = entry?.grupo_muscular ? normalize(entry.grupo_muscular) : '';
+     const targetName = normalize(name);
+     const list = exerciseCatalog.filter((c) => {
+       if (normalize(c.nome) === targetName) return false;
+       if (!targetGroup) return true;
+       return normalize(c.grupo_muscular || '') === targetGroup;
+     });
+     // sort by nome
+     return list.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+   };
+
+   const applyVariations = () => {
+     const actions: AiEditAction[] = Object.entries(substitutions)
+       .filter(([, name]) => !!name)
+       .map(([idx, name]) => ({
+         op: 'modify' as const,
+         index: Number(idx),
+         exercise: { exercise: name },
+       }));
+     if (actions.length === 0) {
+       toast.error('Selecione ao menos uma substituição.');
+       return;
+     }
+     onApply(actions);
+     toast.success(`${actions.length} exercício(s) substituído(s).`);
+     setSubstitutions({});
+     onOpenChange(false);
+   };
  
    const toggleOption = (optInstruction: string) => {
      setSelectedOptions(prev => 
@@ -140,10 +195,37 @@ const AiEditExerciseDialog: React.FC<Props> = ({
             Editar treino com IA — {dayName}
           </DialogTitle>
           <DialogDescription>
-            Escolha uma opção rápida ou descreva o que quer modificar (exercícios, séries, reps, descanso, técnicas...).
+            Use a IA para ajustes inteligentes ou substitua exercícios manualmente em "Variações".
           </DialogDescription>
         </DialogHeader>
 
+        {/* Tabs */}
+        <div className="flex gap-2 border-b border-border/60 pb-2">
+          <Button
+            type="button"
+            variant={tab === 'ai' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setTab('ai')}
+            disabled={loading}
+            className="gap-1.5"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            Edição com IA
+          </Button>
+          <Button
+            type="button"
+            variant={tab === 'variations' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setTab('variations')}
+            disabled={loading}
+            className="gap-1.5"
+          >
+            <Repeat className="h-3.5 w-3.5" />
+            Variações
+          </Button>
+        </div>
+
+        {tab === 'ai' && (
         <div className="space-y-4">
           {/* Quick options */}
           {GROUPS.map(group => (
@@ -185,18 +267,78 @@ const AiEditExerciseDialog: React.FC<Props> = ({
             />
           </div>
         </div>
+        )}
+
+        {tab === 'variations' && (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Selecione um exercício de substituição para cada item que deseja trocar. Mantém séries, reps e descanso atuais.
+            </p>
+            {currentExercises.length === 0 && (
+              <p className="text-sm text-muted-foreground italic">Nenhum exercício neste dia.</p>
+            )}
+            <div className="space-y-2 max-h-[55vh] overflow-y-auto pr-1">
+              {currentExercises.map((ex, idx) => {
+                const variations = getVariationsFor(ex.exercise);
+                const selected = substitutions[idx] || '';
+                return (
+                  <div key={idx} className="rounded-md border border-border/60 p-2.5 space-y-1.5 bg-card/40">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="font-medium truncate flex-1">{ex.exercise || `Exercício ${idx + 1}`}</span>
+                      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    </div>
+                    <Select
+                      value={selected}
+                      onValueChange={(v) =>
+                        setSubstitutions((prev) => {
+                          const next = { ...prev };
+                          if (!v || v === '__none__') delete next[idx];
+                          else next[idx] = v;
+                          return next;
+                        })
+                      }
+                      disabled={loading}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder={variations.length ? 'Escolher substituição...' : 'Sem variações no catálogo'} />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        <SelectItem value="__none__">— Manter exercício atual —</SelectItem>
+                        {variations.map((v) => (
+                          <SelectItem key={v.nome} value={v.nome}>
+                            {v.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <DialogFooter className="gap-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancelar
           </Button>
-           <Button 
-             onClick={() => runWithInstruction()} 
-             disabled={loading || (selectedOptions.length === 0 && !instruction.trim())}
-           >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
-            Aplicar com IA
-          </Button>
+           {tab === 'ai' ? (
+             <Button
+               onClick={() => runWithInstruction()}
+               disabled={loading || (selectedOptions.length === 0 && !instruction.trim())}
+             >
+               {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
+               Aplicar com IA
+             </Button>
+           ) : (
+             <Button
+               onClick={applyVariations}
+               disabled={loading || Object.values(substitutions).filter(Boolean).length === 0}
+             >
+               <Repeat className="h-4 w-4 mr-1" />
+               Aplicar substituições
+             </Button>
+           )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
