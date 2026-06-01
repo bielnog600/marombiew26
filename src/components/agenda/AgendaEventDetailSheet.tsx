@@ -8,9 +8,13 @@ import { supabase } from '@/integrations/supabase/client';
 import ClassDeductionDialog from '@/components/financial/ClassDeductionDialog';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Edit, Trash2, CheckCircle, XCircle, UserCheck, MapPin, Clock, Users, RefreshCw, MessageSquare } from 'lucide-react';
+import { Edit, Trash2, CheckCircle, XCircle, MapPin, Clock, Users, RefreshCw, MessageSquare, CalendarClock, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import AgendaEventDialog from './AgendaEventDialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Props {
   event: CalendarEvent;
@@ -21,12 +25,50 @@ interface Props {
 
 export default function AgendaEventDetailSheet({ event, open, onClose, onRefresh }: Props) {
   const [showEdit, setShowEdit] = useState(false);
+  const [showReschedule, setShowReschedule] = useState(false);
   const [deductionTarget, setDeductionTarget] = useState<{ studentId: string; studentName: string; pkg: ClassPackage | null; allPackages?: ClassPackage[] } | null>(null);
+  const { user } = useAuth();
 
-  const handleConcluido = async () => {
+  // Defaults para reagendamento: mesmo horário no dia seguinte
+  const origStart = new Date(event.start_datetime);
+  const origEnd = new Date(event.end_datetime);
+  const durationMs = origEnd.getTime() - origStart.getTime();
+  const tomorrow = new Date(origStart.getTime() + 24 * 60 * 60 * 1000);
+  const toLocalInput = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  const [newStart, setNewStart] = useState<string>(toLocalInput(tomorrow));
+
+  /**
+   * Marca a aula como realizada (concluído) e abre o diálogo para
+   * descontar 1 crédito do pacote do aluno.
+   */
+  const handleRealizada = async () => {
     try {
       await updateCalendarEvent(event.id, { status: 'concluido' as any });
-      toast.success('Marcado como concluído');
+      toast.success('Aula marcada como realizada');
+      await openDeductionForFirstStudent();
+    } catch {
+      toast.error('Erro ao atualizar status');
+    }
+  };
+
+  /**
+   * Marca como falta sem aviso e abre o diálogo de desconto de crédito.
+   * Falta com aviso e cancelamento NÃO descontam crédito.
+   */
+  const handleFaltaSemAviso = async () => {
+    try {
+      await updateCalendarEvent(event.id, { status: 'falta' as any });
+      toast.success('Marcado como falta sem aviso');
+      await openDeductionForFirstStudent();
+    } catch {
+      toast.error('Erro ao atualizar status');
+    }
+  };
+
+  const openDeductionForFirstStudent = async () => {
       // Check if any student has active package to offer deduction
       if (event.students && event.students.length > 0) {
         for (const s of event.students) {
@@ -48,9 +90,6 @@ export default function AgendaEventDetailSheet({ event, open, onClose, onRefresh
       }
       onRefresh();
       onClose();
-    } catch {
-      toast.error('Erro ao atualizar status');
-    }
   };
 
   const handleStatusChange = async (newStatus: string) => {
@@ -61,6 +100,64 @@ export default function AgendaEventDetailSheet({ event, open, onClose, onRefresh
       onClose();
     } catch {
       toast.error('Erro ao atualizar status');
+    }
+  };
+
+  /**
+   * Reagendamento: o evento original NÃO consome crédito.
+   * Ele recebe status "reagendado" e referenciamos o novo evento nas
+   * observações. Em seguida criamos um novo evento na data/hora escolhida
+   * com os mesmos alunos. O crédito só será descontado quando o novo
+   * evento for marcado como realizado.
+   */
+  const handleReschedule = async () => {
+    if (!newStart) { toast.error('Escolha a nova data/horário'); return; }
+    try {
+      const startDt = new Date(newStart);
+      const endDt = new Date(startDt.getTime() + (durationMs > 0 ? durationMs : 60 * 60 * 1000));
+
+      // Cria novo evento
+      const { data: created, error: cErr } = await supabase
+        .from('calendar_events')
+        .insert({
+          admin_id: event.admin_id || user?.id,
+          title: event.title || 'Treino (reagendado)',
+          event_type: event.event_type as any,
+          start_datetime: startDt.toISOString(),
+          end_datetime: endDt.toISOString(),
+          location: event.location || '',
+          status: 'confirmado',
+          notes: `Reagendado de ${format(origStart, "dd/MM 'às' HH:mm", { locale: ptBR })}.${event.notes ? `\n${event.notes}` : ''}`,
+        } as any)
+        .select('id')
+        .single();
+      if (cErr || !created) throw cErr || new Error('Falha ao criar novo evento');
+
+      // Replica alunos
+      if (event.students && event.students.length > 0) {
+        await supabase.from('calendar_event_students').insert(
+          event.students.map(s => ({
+            event_id: created.id,
+            student_id: s.student_id,
+            attendance_status: 'pendente',
+          })) as any
+        );
+      }
+
+      // Marca original como reagendado (sem desconto de crédito)
+      const reNote = `Reagendado para ${format(startDt, "dd/MM 'às' HH:mm", { locale: ptBR })}.`;
+      await updateCalendarEvent(event.id, {
+        status: 'reagendado' as any,
+        notes: event.notes ? `${event.notes}\n${reNote}` : reNote,
+      });
+
+      toast.success('Aula reagendada — nenhum crédito foi descontado');
+      setShowReschedule(false);
+      onRefresh();
+      onClose();
+    } catch (e) {
+      console.error(e);
+      toast.error('Erro ao reagendar');
     }
   };
 
@@ -158,16 +255,27 @@ export default function AgendaEventDetailSheet({ event, open, onClose, onRefresh
               <Button variant="outline" size="sm" onClick={() => setShowEdit(true)} className="gap-1">
                 <Edit className="h-3.5 w-3.5" /> Editar
               </Button>
-              <Button variant="outline" size="sm" onClick={handleConcluido} className="gap-1 text-green-400 border-green-500/30">
-                <CheckCircle className="h-3.5 w-3.5" /> Concluído
+              <Button variant="outline" size="sm" onClick={handleRealizada} className="gap-1 text-green-400 border-green-500/30">
+                <CheckCircle className="h-3.5 w-3.5" /> Realizada
               </Button>
-              <Button variant="outline" size="sm" onClick={() => handleStatusChange('falta')} className="gap-1 text-red-400 border-red-500/30">
-                <XCircle className="h-3.5 w-3.5" /> Falta
+              <Button variant="outline" size="sm" onClick={() => setShowReschedule(true)} className="gap-1 text-blue-400 border-blue-500/30">
+                <CalendarClock className="h-3.5 w-3.5" /> Reagendar
               </Button>
-              <Button variant="outline" size="sm" onClick={() => handleStatusChange('cancelado')} className="gap-1 text-orange-400 border-orange-500/30">
-                <XCircle className="h-3.5 w-3.5" /> Cancelar
+              <Button variant="outline" size="sm" onClick={handleFaltaSemAviso} className="gap-1 text-red-400 border-red-500/30">
+                <XCircle className="h-3.5 w-3.5" /> Falta s/ aviso
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => handleStatusChange('falta_justificada')} className="gap-1 text-orange-400 border-orange-500/30">
+                <AlertCircle className="h-3.5 w-3.5" /> Falta c/ aviso
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => handleStatusChange('cancelado')} className="gap-1 text-muted-foreground col-span-2">
+                <XCircle className="h-3.5 w-3.5" /> Cancelar (sem desconto)
               </Button>
             </div>
+
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              💡 Crédito do pacote é descontado apenas em <b>Realizada</b> ou <b>Falta sem aviso</b>.
+              <br />Reagendar, Cancelar e Falta com aviso <b>não</b> consomem aula.
+            </p>
 
             <Button variant="destructive" size="sm" onClick={handleDelete} className="w-full gap-1">
               <Trash2 className="h-3.5 w-3.5" /> Excluir Evento
@@ -184,6 +292,38 @@ export default function AgendaEventDetailSheet({ event, open, onClose, onRefresh
           editEvent={event}
         />
       )}
+
+      <Dialog open={showReschedule} onOpenChange={setShowReschedule}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarClock className="h-4 w-4 text-blue-400" /> Reagendar aula
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-xs text-muted-foreground">
+              Original: {format(origStart, "EEEE, dd/MM 'às' HH:mm", { locale: ptBR })}.
+              <br />A aula original ficará marcada como <b>reagendada</b> e não consumirá crédito.
+              O crédito só será descontado quando a nova aula for marcada como realizada.
+            </p>
+            <div className="space-y-1">
+              <Label htmlFor="new-start" className="text-xs">Nova data e horário</Label>
+              <Input
+                id="new-start"
+                type="datetime-local"
+                value={newStart}
+                onChange={e => setNewStart(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowReschedule(false)}>Cancelar</Button>
+            <Button onClick={handleReschedule} className="gap-1">
+              <CalendarClock className="h-4 w-4" /> Confirmar reagendamento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {deductionTarget && (
         <ClassDeductionDialog

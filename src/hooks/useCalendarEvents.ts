@@ -47,13 +47,13 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
 };
 
 export const EVENT_STATUS_LABELS: Record<string, string> = {
-  confirmado: 'Confirmado',
-  pendente: 'Pendente',
-  cancelado: 'Cancelado',
-  reagendado: 'Reagendado',
-  concluido: 'Concluído',
-  falta: 'Falta',
-  falta_justificada: 'Falta Justificada',
+  confirmado: 'Agendada',
+  pendente: 'Pendente de decisão',
+  cancelado: 'Cancelada',
+  reagendado: 'Reagendada',
+  concluido: 'Realizada',
+  falta: 'Falta sem aviso',
+  falta_justificada: 'Falta com aviso',
 };
 
 export const STATUS_COLORS: Record<string, string> = {

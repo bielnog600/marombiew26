@@ -52,7 +52,7 @@ export async function linkOrCreateAgendaEventForSession(params: {
       .in('id', eventIds)
       .gte('start_datetime', winStart)
       .lte('start_datetime', winEnd)
-      .not('status', 'in', '(cancelado,concluido)')
+      .not('status', 'in', '(cancelado,concluido,reagendado,falta,falta_justificada)')
       .order('start_datetime', { ascending: true });
 
     if (candidates && candidates.length > 0) {
