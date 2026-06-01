@@ -2234,7 +2234,9 @@ export type Database = {
       workout_sessions: {
         Row: {
           avg_rpe: number | null
+          calendar_event_id: string | null
           completed_at: string
+          completed_at_real: string | null
           created_at: string
           day_name: string | null
           duration_minutes: number
@@ -2248,6 +2250,7 @@ export type Database = {
           session_state: Json | null
           source: string | null
           started_at: string | null
+          started_at_real: string | null
           status: string
           student_id: string
           total_exercises: number
@@ -2256,7 +2259,9 @@ export type Database = {
         }
         Insert: {
           avg_rpe?: number | null
+          calendar_event_id?: string | null
           completed_at?: string
+          completed_at_real?: string | null
           created_at?: string
           day_name?: string | null
           duration_minutes?: number
@@ -2270,6 +2275,7 @@ export type Database = {
           session_state?: Json | null
           source?: string | null
           started_at?: string | null
+          started_at_real?: string | null
           status?: string
           student_id: string
           total_exercises?: number
@@ -2278,7 +2284,9 @@ export type Database = {
         }
         Update: {
           avg_rpe?: number | null
+          calendar_event_id?: string | null
           completed_at?: string
+          completed_at_real?: string | null
           created_at?: string
           day_name?: string | null
           duration_minutes?: number
@@ -2292,6 +2300,7 @@ export type Database = {
           session_state?: Json | null
           source?: string | null
           started_at?: string | null
+          started_at_real?: string | null
           status?: string
           student_id?: string
           total_exercises?: number
