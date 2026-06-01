@@ -218,6 +218,13 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
     if (onDaysChange) onDaysChange(days);
   }, [days, onMealsChange, onDaysChange]);
 
+  // When user switches day tab, sync the "Meta diária" input with that
+  // day's actual kcal so carb-cycle days don't show false "ultrapassou".
+  useEffect(() => {
+    setTarget(Math.round(computeDayTotals(days[activeDayIdx]?.meals ?? []).kcal));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeDayIdx]);
+
   const hasMultipleDays = days.length > 1;
   const usesOptions = useMemo(
     () => days.some((d) => OPTION_TITLE_REGEX.test(d.label)),
