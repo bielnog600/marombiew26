@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { Sparkles, Loader2, Wand2, Settings2, Activity, Dumbbell } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Sparkles, Loader2, Wand2, Settings2, Activity, Dumbbell, Repeat, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { ParsedExercise, ParsedTrainingDay } from '@/lib/trainingResultParser';
@@ -64,6 +65,202 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
    const [instruction, setInstruction] = useState('');
    const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
    const [loading, setLoading] = useState(false);
+   const [tab, setTab] = useState<'ai' | 'variations'>('ai');
+   const [activeDayIdx, setActiveDayIdx] = useState(0);
+   const [catalog, setCatalog] = useState<Array<{ nome: string; grupo_muscular: string; imagem_url?: string | null }>>([]);
+   // Substituições por dia: { [dayIdx]: { [exIdx]: nome } }
+   const [subsByDay, setSubsByDay] = useState<Record<number, Record<number, string>>>({});
+   const [varSubsByDay, setVarSubsByDay] = useState<Record<number, Record<number, string>>>({});
+   const [aiSugByDay, setAiSugByDay] = useState<Record<number, Record<number, string[]>>>({});
+   const [aiSugVarByDay, setAiSugVarByDay] = useState<Record<number, Record<number, string[]>>>({});
+   const [selForAiByDay, setSelForAiByDay] = useState<Record<number, Record<number, boolean>>>({});
+   const [selForAiVarByDay, setSelForAiVarByDay] = useState<Record<number, Record<number, boolean>>>({});
+   const [batchAiLoading, setBatchAiLoading] = useState(false);
+   const [aiLoadingKey, setAiLoadingKey] = useState<string | null>(null);
+
+   useEffect(() => {
+     if (!open) return;
+     (async () => {
+       const { data } = await supabase
+         .from('exercises')
+         .select('nome, grupo_muscular, imagem_url')
+         .order('nome');
+       if (data) setCatalog(data as any);
+     })();
+   }, [open]);
+
+   const normalize = (s: string) =>
+     (s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+       .replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+   const findCatalogEntry = (name: string) => {
+     const n = normalize(name);
+     if (!n) return undefined;
+     let m = catalog.find((c) => normalize(c.nome) === n);
+     if (m) return m;
+     m = catalog.find((c) => {
+       const cn = normalize(c.nome);
+       return cn.includes(n) || n.includes(cn);
+     });
+     return m;
+   };
+
+   const getVariationsFor = (name: string) => {
+     const entry = findCatalogEntry(name);
+     const targetGroup = entry?.grupo_muscular ? normalize(entry.grupo_muscular) : '';
+     const targetName = normalize(name);
+     return catalog
+       .filter((c) => {
+         if (normalize(c.nome) === targetName) return false;
+         if (!targetGroup) return true;
+         return normalize(c.grupo_muscular || '') === targetGroup;
+       })
+       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+   };
+
+   const Thumb: React.FC<{ name: string; size?: 'sm' | 'xs' }> = ({ name, size = 'sm' }) => {
+     const url = findCatalogEntry(name)?.imagem_url || null;
+     const dim = size === 'xs' ? 'h-6 w-6' : 'h-9 w-9';
+     if (!url) {
+       return (
+         <div className={`${dim} shrink-0 rounded-md bg-muted/40 flex items-center justify-center border border-border/40`}>
+           <Dumbbell className="h-3 w-3 text-muted-foreground" />
+         </div>
+       );
+     }
+     return (
+       <img src={url} alt={name} loading="lazy"
+         className={`${dim} shrink-0 rounded-md object-cover border border-border/40 bg-muted/40`} />
+     );
+   };
+
+   const dayCount = (dayIdx: number) =>
+     Object.values(subsByDay[dayIdx] || {}).filter(Boolean).length
+     + Object.values(varSubsByDay[dayIdx] || {}).filter(Boolean).length;
+
+   const totalSubs = allDays.reduce((acc, _d, i) => acc + dayCount(i), 0);
+
+   const runBatchAiSuggestForDay = async (dayIdx: number) => {
+     const day = allDays[dayIdx];
+     const selMain = selForAiByDay[dayIdx] || {};
+     const selVar = selForAiVarByDay[dayIdx] || {};
+     const mainIdx = Object.entries(selMain).filter(([, v]) => v).map(([k]) => Number(k));
+     const varIdx = Object.entries(selVar).filter(([, v]) => v).map(([k]) => Number(k));
+     const targets: Array<{ idx: number; kind: 'main' | 'variation' }> = [
+       ...mainIdx.map((idx) => ({ idx, kind: 'main' as const })),
+       ...varIdx.map((idx) => ({ idx, kind: 'variation' as const })),
+     ];
+     if (targets.length === 0) {
+       toast.error('Selecione 1 ou mais exercícios deste dia para a IA sugerir.');
+       return;
+     }
+     setBatchAiLoading(true);
+     let studentContext: any = undefined;
+     try {
+       if (studentId) {
+         const { data } = await supabase
+           .from('students_profile')
+           .select('lesoes, restricoes, observacoes, objetivo')
+           .eq('user_id', studentId)
+           .maybeSingle();
+         if (data) studentContext = data;
+       }
+
+       const usedNorms = new Set<string>();
+       day.exercises.forEach((e, i) => {
+         if (!mainIdx.includes(i)) usedNorms.add(normalize(e.exercise));
+       });
+
+       const newSubs = { ...(subsByDay[dayIdx] || {}) };
+       const newSugs = { ...(aiSugByDay[dayIdx] || {}) };
+       const newVarSubs = { ...(varSubsByDay[dayIdx] || {}) };
+       const newVarSugs = { ...(aiSugVarByDay[dayIdx] || {}) };
+       let success = 0;
+
+       for (const { idx, kind } of targets) {
+         const ex = day.exercises[idx];
+         const baseName = kind === 'main' ? ex?.exercise : (ex?.variation || ex?.exercise);
+         if (!baseName) continue;
+         setAiLoadingKey(`${dayIdx}-${kind}-${idx}`);
+         try {
+           const { data, error } = await supabase.functions.invoke('training-edit-agent', {
+             body: {
+               dayName: day.day,
+               currentExercises: day.exercises,
+               instruction: `Sugira 6 variações/alternativas para o exercício "${baseName}" (posição ${idx}${kind === 'variation' ? ', campo VARIAÇÃO' : ''}). Todas DEVEM trabalhar o MESMO grupo muscular, vir EXCLUSIVAMENTE do BANCO DE EXERCÍCIOS, e ser DIFERENTES de "${baseName}"${kind === 'variation' && ex?.exercise ? ` e de "${ex.exercise}"` : ''} e dos outros exercícios já presentes no dia. Para cada candidato, retorne uma ação "replace" no índice ${idx} preenchendo apenas exercise.exercise (em MAIÚSCULAS). Retorne exatamente 6 ações, cada uma com um nome distinto.`,
+               exerciseCatalog: catalog,
+               studentContext,
+             },
+           });
+           if (error) throw error;
+           const actions: any[] = Array.isArray((data as any)?.actions) ? (data as any).actions : [];
+           const names: string[] = [];
+           const seen = new Set<string>();
+           for (const a of actions) {
+             const n = a?.exercise?.exercise?.trim();
+             if (!n) continue;
+             const nn = normalize(n);
+             if (!nn || nn === normalize(baseName)) continue;
+             if (seen.has(nn)) continue;
+             seen.add(nn);
+             names.push(n);
+           }
+           if (names.length) {
+             const pick = names.find((n) => !usedNorms.has(normalize(n))) || names[0];
+             if (kind === 'main') { newSugs[idx] = names; newSubs[idx] = pick; }
+             else { newVarSugs[idx] = names; newVarSubs[idx] = pick; }
+             usedNorms.add(normalize(pick));
+             success++;
+           }
+         } catch (err) {
+           console.error('AI variation failed for', dayIdx, idx, err);
+         }
+       }
+
+       setSubsByDay((p) => ({ ...p, [dayIdx]: newSubs }));
+       setAiSugByDay((p) => ({ ...p, [dayIdx]: newSugs }));
+       setVarSubsByDay((p) => ({ ...p, [dayIdx]: newVarSubs }));
+       setAiSugVarByDay((p) => ({ ...p, [dayIdx]: newVarSugs }));
+
+       if (success === 0) toast.error('A IA não retornou variações. Tente novamente.');
+       else {
+         toast.success(`${success} substituição(ões) sugerida(s) pela IA em ${day.day}.`);
+         setSelForAiByDay((p) => ({ ...p, [dayIdx]: {} }));
+         setSelForAiVarByDay((p) => ({ ...p, [dayIdx]: {} }));
+       }
+     } catch (e: any) {
+       console.error(e);
+       toast.error('Erro IA: ' + (e?.message || 'falha'));
+     } finally {
+       setAiLoadingKey(null);
+       setBatchAiLoading(false);
+     }
+   };
+
+   const applyAllVariations = () => {
+     if (totalSubs === 0) {
+       toast.error('Selecione ao menos uma substituição.');
+       return;
+     }
+     const updatedDays = allDays.map((day, dIdx) => {
+       const mainMap = subsByDay[dIdx] || {};
+       const varMap = varSubsByDay[dIdx] || {};
+       if (!Object.keys(mainMap).length && !Object.keys(varMap).length) return day;
+       const list = day.exercises.map((ex, i) => {
+         const next = { ...ex };
+         if (mainMap[i]) next.exercise = mainMap[i];
+         if (varMap[i]) next.variation = varMap[i];
+         return next;
+       });
+       return { ...day, exercises: list };
+     });
+     onApply(updatedDays);
+     toast.success(`${totalSubs} substituição(ões) aplicada(s) em ${allDays.length} dias.`);
+     setSubsByDay({}); setVarSubsByDay({});
+     setAiSugByDay({}); setAiSugVarByDay({});
+     setSelForAiByDay({}); setSelForAiVarByDay({});
+     onOpenChange(false);
+   };
  
    const toggleOption = (optInstruction: string) => {
      setSelectedOptions(prev => 
@@ -162,6 +359,19 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
           </DialogDescription>
         </DialogHeader>
 
+        {/* Tabs */}
+        <div className="flex gap-2 border-b border-border/60 pb-2">
+          <Button type="button" variant={tab === 'ai' ? 'default' : 'ghost'} size="sm"
+            onClick={() => setTab('ai')} disabled={loading} className="gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" /> Ajuste com IA
+          </Button>
+          <Button type="button" variant={tab === 'variations' ? 'default' : 'ghost'} size="sm"
+            onClick={() => setTab('variations')} disabled={loading} className="gap-1.5">
+            <Repeat className="h-3.5 w-3.5" /> Variações
+          </Button>
+        </div>
+
+        {tab === 'ai' && (
         <div className="space-y-4">
           <div className="bg-violet-500/5 border border-violet-500/20 rounded-xl p-4 space-y-4">
             <div className="flex items-center gap-2">
@@ -256,18 +466,241 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
             />
           </div>
         </div>
+        )}
+
+        {tab === 'variations' && (
+          <div className="space-y-3">
+            {/* Day buttons */}
+            <div className="flex flex-wrap gap-1.5">
+              {allDays.map((d, i) => {
+                const count = dayCount(i);
+                const active = activeDayIdx === i;
+                return (
+                  <Button key={i} type="button" size="sm"
+                    variant={active ? 'default' : 'outline'}
+                    className="h-8 text-xs rounded-full gap-1.5"
+                    onClick={() => setActiveDayIdx(i)} disabled={batchAiLoading}>
+                    {d.day}
+                    {count > 0 && (
+                      <span className={`inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full text-[10px] font-bold ${active ? 'bg-primary-foreground text-primary' : 'bg-primary text-primary-foreground'}`}>
+                        {count}
+                      </span>
+                    )}
+                  </Button>
+                );
+              })}
+            </div>
+
+            {/* Per-day editor */}
+            {(() => {
+              const day = allDays[activeDayIdx];
+              if (!day) return null;
+              const subs = subsByDay[activeDayIdx] || {};
+              const varSubs = varSubsByDay[activeDayIdx] || {};
+              const aiSugs = aiSugByDay[activeDayIdx] || {};
+              const aiSugsVar = aiSugVarByDay[activeDayIdx] || {};
+              const selMain = selForAiByDay[activeDayIdx] || {};
+              const selVar = selForAiVarByDay[activeDayIdx] || {};
+              const allMainSel = day.exercises.length > 0 && day.exercises.every((_, i) => selMain[i]);
+              const allVarSel = day.exercises.every((ex, i) => !ex.variation || selVar[i]);
+              return (
+                <>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-md border border-border/60 bg-card/40 p-2.5">
+                    <div className="text-xs text-muted-foreground">
+                      Dia <strong>{day.day}</strong>: marque os exercícios e clique em <strong>IA sugere</strong>. As substituições ficam acumuladas por dia até você clicar em <strong>Aplicar substituições</strong>.
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button type="button" variant="ghost" size="sm" className="h-8 text-xs"
+                        disabled={batchAiLoading || day.exercises.length === 0}
+                        onClick={() => {
+                          if (allMainSel && allVarSel) {
+                            setSelForAiByDay((p) => ({ ...p, [activeDayIdx]: {} }));
+                            setSelForAiVarByDay((p) => ({ ...p, [activeDayIdx]: {} }));
+                          } else {
+                            const m: Record<number, boolean> = {};
+                            const v: Record<number, boolean> = {};
+                            day.exercises.forEach((ex, i) => { m[i] = true; if (ex.variation) v[i] = true; });
+                            setSelForAiByDay((p) => ({ ...p, [activeDayIdx]: m }));
+                            setSelForAiVarByDay((p) => ({ ...p, [activeDayIdx]: v }));
+                          }
+                        }}>
+                        {allMainSel && allVarSel ? 'Limpar' : 'Selecionar todos'}
+                      </Button>
+                      <Button type="button" size="sm" className="h-8 gap-1.5"
+                        disabled={batchAiLoading}
+                        onClick={() => runBatchAiSuggestForDay(activeDayIdx)}>
+                        {batchAiLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                        IA sugere
+                      </Button>
+                    </div>
+                  </div>
+                  {day.exercises.length === 0 && (
+                    <p className="text-sm text-muted-foreground italic">Nenhum exercício neste dia.</p>
+                  )}
+                  <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+                    {day.exercises.map((ex, idx) => {
+                      const variations = getVariationsFor(ex.exercise);
+                      const selected = subs[idx] || '';
+                      const aiNames = aiSugs[idx] || [];
+                      const baseNorms = new Set(variations.map((v) => normalize(v.nome)));
+                      const aiOnly = aiNames.filter((n) => !baseNorms.has(normalize(n)));
+                      const aiNormSet = new Set(aiNames.map((n) => normalize(n)));
+                      const isChecked = !!selMain[idx];
+                      const isAiLoading = aiLoadingKey === `${activeDayIdx}-main-${idx}`;
+                      return (
+                        <div key={idx} className={`rounded-md border p-2.5 space-y-1.5 transition-colors ${isChecked ? 'border-primary/60 bg-primary/5' : 'border-border/60 bg-card/40'}`}>
+                          <div className="flex items-center gap-2 text-sm">
+                            <Checkbox checked={isChecked}
+                              onCheckedChange={(v) => setSelForAiByDay((prev) => {
+                                const cur = { ...(prev[activeDayIdx] || {}) };
+                                if (v) cur[idx] = true; else delete cur[idx];
+                                return { ...prev, [activeDayIdx]: cur };
+                              })}
+                              disabled={batchAiLoading || !ex.exercise} />
+                            <Thumb name={ex.exercise} />
+                            <span className="font-medium truncate flex-1">{ex.exercise || `Exercício ${idx + 1}`}</span>
+                            {isAiLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />}
+                            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          </div>
+                          <Select value={selected}
+                            onValueChange={(v) => setSubsByDay((prev) => {
+                              const cur = { ...(prev[activeDayIdx] || {}) };
+                              if (!v || v === '__none__') delete cur[idx]; else cur[idx] = v;
+                              return { ...prev, [activeDayIdx]: cur };
+                            })}>
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder={variations.length ? 'Escolher substituição...' : 'Sem variações no catálogo'} />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-72">
+                              <SelectItem value="__none__">— Manter exercício atual —</SelectItem>
+                              {aiOnly.map((n) => (
+                                <SelectItem key={`ai-${n}`} value={n}>
+                                  <span className="flex items-center gap-2"><Thumb name={n} size="xs" /><span>✨ {n}</span></span>
+                                </SelectItem>
+                              ))}
+                              {variations.map((v) => {
+                                const isAi = aiNormSet.has(normalize(v.nome));
+                                return (
+                                  <SelectItem key={v.nome} value={v.nome}>
+                                    <span className="flex items-center gap-2"><Thumb name={v.nome} size="xs" /><span>{isAi ? '✨ ' : ''}{v.nome}</span></span>
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                          {aiNames.length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-0.5">
+                              {aiNames.map((n) => {
+                                const isPicked = normalize(selected) === normalize(n);
+                                return (
+                                  <Button key={`chip-${n}`} type="button" size="sm"
+                                    variant={isPicked ? 'default' : 'outline'}
+                                    className="h-7 pl-1 pr-2 text-[11px] rounded-full gap-1"
+                                    onClick={() => setSubsByDay((prev) => ({ ...prev, [activeDayIdx]: { ...(prev[activeDayIdx] || {}), [idx]: n } }))}>
+                                    <Thumb name={n} size="xs" />
+                                    <Sparkles className="h-2.5 w-2.5" />
+                                    {n}
+                                  </Button>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {ex.variation && (() => {
+                            const varVariations = getVariationsFor(ex.variation);
+                            const selectedVar = varSubs[idx] || '';
+                            const aiNamesVar = aiSugsVar[idx] || [];
+                            const baseNormsVar = new Set(varVariations.map((v) => normalize(v.nome)));
+                            const aiOnlyVar = aiNamesVar.filter((n) => !baseNormsVar.has(normalize(n)));
+                            const aiNormSetVar = new Set(aiNamesVar.map((n) => normalize(n)));
+                            const isCheckedVar = !!selVar[idx];
+                            return (
+                              <div className={`mt-1.5 rounded-md border p-2 space-y-1.5 transition-colors ${isCheckedVar ? 'border-primary/60 bg-primary/5' : 'border-border/40 bg-background/40'}`}>
+                                <div className="flex items-center gap-2 text-xs">
+                                  <Checkbox checked={isCheckedVar}
+                                    onCheckedChange={(v) => setSelForAiVarByDay((prev) => {
+                                      const cur = { ...(prev[activeDayIdx] || {}) };
+                                      if (v) cur[idx] = true; else delete cur[idx];
+                                      return { ...prev, [activeDayIdx]: cur };
+                                    })}
+                                    disabled={batchAiLoading} />
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Variação</span>
+                                  <Thumb name={ex.variation} size="xs" />
+                                  <span className="truncate flex-1">{ex.variation}</span>
+                                  <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                                </div>
+                                <Select value={selectedVar}
+                                  onValueChange={(v) => setVarSubsByDay((prev) => {
+                                    const cur = { ...(prev[activeDayIdx] || {}) };
+                                    if (!v || v === '__none__') delete cur[idx]; else cur[idx] = v;
+                                    return { ...prev, [activeDayIdx]: cur };
+                                  })}>
+                                  <SelectTrigger className="h-8 text-xs">
+                                    <SelectValue placeholder={varVariations.length ? 'Escolher substituição da variação...' : 'Sem variações no catálogo'} />
+                                  </SelectTrigger>
+                                  <SelectContent className="max-h-72">
+                                    <SelectItem value="__none__">— Manter variação atual —</SelectItem>
+                                    {aiOnlyVar.map((n) => (
+                                      <SelectItem key={`aiv-${n}`} value={n}>
+                                        <span className="flex items-center gap-2"><Thumb name={n} size="xs" /><span>✨ {n}</span></span>
+                                      </SelectItem>
+                                    ))}
+                                    {varVariations.map((v) => {
+                                      const isAi = aiNormSetVar.has(normalize(v.nome));
+                                      return (
+                                        <SelectItem key={`v-${v.nome}`} value={v.nome}>
+                                          <span className="flex items-center gap-2"><Thumb name={v.nome} size="xs" /><span>{isAi ? '✨ ' : ''}{v.nome}</span></span>
+                                        </SelectItem>
+                                      );
+                                    })}
+                                  </SelectContent>
+                                </Select>
+                                {aiNamesVar.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 pt-0.5">
+                                    {aiNamesVar.map((n) => {
+                                      const isPicked = normalize(selectedVar) === normalize(n);
+                                      return (
+                                        <Button key={`chipv-${n}`} type="button" size="sm"
+                                          variant={isPicked ? 'default' : 'outline'}
+                                          className="h-7 pl-1 pr-2 text-[11px] rounded-full gap-1"
+                                          onClick={() => setVarSubsByDay((prev) => ({ ...prev, [activeDayIdx]: { ...(prev[activeDayIdx] || {}), [idx]: n } }))}>
+                                          <Thumb name={n} size="xs" />
+                                          <Sparkles className="h-2.5 w-2.5" />
+                                          {n}
+                                        </Button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        )}
 
         <DialogFooter className="gap-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancelar
           </Button>
-           <Button 
-             onClick={() => runWithInstruction()} 
-             disabled={loading || (selectedOptions.length === 0 && !instruction.trim())}
-           >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
-            Aplicar em todos os dias
-          </Button>
+          {tab === 'ai' ? (
+            <Button onClick={() => runWithInstruction()}
+              disabled={loading || (selectedOptions.length === 0 && !instruction.trim())}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
+              Aplicar em todos os dias
+            </Button>
+          ) : (
+            <Button onClick={applyAllVariations} disabled={batchAiLoading || totalSubs === 0}>
+              <Repeat className="h-4 w-4 mr-1" />
+              Aplicar substituições{totalSubs > 0 ? ` (${totalSubs})` : ''}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
