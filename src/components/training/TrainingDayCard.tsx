@@ -147,23 +147,18 @@ const ExerciseCombobox: React.FC<{
     const searchLower = search.toLowerCase().trim();
     if (!searchLower) return sortAlpha(unique);
 
-    // Detecta se o termo digitado corresponde (parcial ou exato) a algum grupo muscular.
-    // Ex.: "mobilidade", "mobi", "peito", "costas" → filtra apenas exercícios desse grupo.
-    const groupMatches = new Set(
-      unique
-        .map(o => (o.grupo_muscular || '').toLowerCase())
-        .filter(g => g && (g.includes(searchLower) || searchLower.includes(g)))
-    );
-
-    if (groupMatches.size > 0) {
-      return sortAlpha(
-        unique.filter(opt => groupMatches.has((opt.grupo_muscular || '').toLowerCase()))
-      );
-    }
-
-    // Caso contrário, busca por nome do exercício
+    // Busca combinada: traz exercícios cujo NOME contém o termo
+    // E também exercícios cujo GRUPO MUSCULAR corresponde ao termo.
+    // Ex.: "mobilidade" → mostra exercícios chamados "Mobilidade ..." + todos do grupo Mobilidade.
     return sortAlpha(
-      unique.filter(opt => opt.nome.toLowerCase().includes(searchLower))
+      unique.filter(opt => {
+        const nome = (opt.nome || '').toLowerCase();
+        const grupo = (opt.grupo_muscular || '').toLowerCase();
+        return (
+          nome.includes(searchLower) ||
+          (grupo && (grupo.includes(searchLower) || searchLower.includes(grupo)))
+        );
+      })
     );
   }, [options, search]);
 
