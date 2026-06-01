@@ -195,6 +195,93 @@ const AiEditExerciseDialog: React.FC<Props> = ({
      setSubstitutions({});
      onOpenChange(false);
    };
+
+   const runBatchAiSuggest = async () => {
+     const indices = Object.entries(selectedForAi)
+       .filter(([, v]) => v)
+       .map(([k]) => Number(k));
+     if (indices.length === 0) {
+       toast.error('Selecione 1 ou mais exercícios para a IA sugerir substituições.');
+       return;
+     }
+     setBatchAiLoading(true);
+     let studentContext: any = undefined;
+     try {
+       if (studentId) {
+         const { data } = await supabase
+           .from('students_profile')
+           .select('lesoes, restricoes, observacoes, objetivo')
+           .eq('user_id', studentId)
+           .maybeSingle();
+         if (data) studentContext = data;
+       }
+
+       const usedNorms = new Set<string>();
+       currentExercises.forEach((e, i) => {
+         if (!indices.includes(i)) usedNorms.add(normalize(e.exercise));
+       });
+
+       const newSubs: Record<number, string> = { ...substitutions };
+       const newSuggestions: Record<number, string[]> = { ...aiSuggestions };
+       let success = 0;
+
+       for (const idx of indices) {
+         const ex = currentExercises[idx];
+         if (!ex?.exercise) continue;
+         setAiLoadingIdx(idx);
+         try {
+           const { data, error } = await supabase.functions.invoke('training-edit-agent', {
+             body: {
+               dayName,
+               currentExercises,
+               instruction: `Sugira 6 variações/alternativas para o exercício "${ex.exercise}" (posição ${idx}). Todas DEVEM trabalhar o MESMO grupo muscular, vir EXCLUSIVAMENTE do BANCO DE EXERCÍCIOS, e ser DIFERENTES de "${ex.exercise}" e dos outros exercícios já presentes no dia. Para cada candidato, retorne uma ação "replace" no índice ${idx} preenchendo apenas exercise.exercise (em MAIÚSCULAS). Não inclua séries/reps/pause/description. Retorne exatamente 6 ações, cada uma com um nome distinto.`,
+               exerciseCatalog,
+               studentContext,
+             },
+           });
+           if (error) throw error;
+           const actions: AiEditAction[] = Array.isArray((data as any)?.actions) ? (data as any).actions : [];
+           const names: string[] = [];
+           const seen = new Set<string>();
+           for (const a of actions) {
+             const n = a?.exercise?.exercise?.trim();
+             if (!n) continue;
+             const norm = normalize(n);
+             if (!norm || norm === normalize(ex.exercise)) continue;
+             if (seen.has(norm)) continue;
+             seen.add(norm);
+             names.push(n);
+           }
+           if (names.length) {
+             newSuggestions[idx] = names;
+             // pick first not already used
+             const pick = names.find((n) => !usedNorms.has(normalize(n))) || names[0];
+             newSubs[idx] = pick;
+             usedNorms.add(normalize(pick));
+             success++;
+           }
+         } catch (err) {
+           console.error('AI variation failed for idx', idx, err);
+         }
+       }
+
+       setAiSuggestions(newSuggestions);
+       setSubstitutions(newSubs);
+
+       if (success === 0) {
+         toast.error('A IA não retornou variações. Tente novamente.');
+       } else {
+         toast.success(`${success} substituição(ões) sugerida(s) pela IA. Revise e clique em "Aplicar substituições".`);
+         setSelectedForAi({});
+       }
+     } catch (e: any) {
+       console.error(e);
+       toast.error('Erro IA: ' + (e?.message || 'falha'));
+     } finally {
+       setAiLoadingIdx(null);
+       setBatchAiLoading(false);
+     }
+   };
  
    const toggleOption = (optInstruction: string) => {
      setSelectedOptions(prev => 
