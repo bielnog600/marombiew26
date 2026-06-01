@@ -76,14 +76,24 @@ const ensureGrams = (qty: string) => {
 const finalizeMeal = (meal: ParsedMeal | null) => {
   if (!meal || meal.foods.length === 0) return null;
 
-  const totalKcal = meal.foods.reduce((sum, food) => sum + parseNumericValue(food.kcal), 0);
-  const totalP = meal.foods.reduce((sum, food) => sum + parseNumericValue(food.p), 0);
-  const totalC = meal.foods.reduce((sum, food) => sum + parseNumericValue(food.c), 0);
-  const totalG = meal.foods.reduce((sum, food) => sum + parseNumericValue(food.g), 0);
+  const seenFoods = new Set<string>();
+  const foods = meal.foods.filter((food) => {
+    const key = [food.food, food.qty, food.kcal, food.p, food.c, food.g]
+      .map((value) => normalizeMealName(value || ''))
+      .join('__');
+    if (seenFoods.has(key)) return false;
+    seenFoods.add(key);
+    return true;
+  });
+
+  const totalKcal = foods.reduce((sum, food) => sum + parseNumericValue(food.kcal), 0);
+  const totalP = foods.reduce((sum, food) => sum + parseNumericValue(food.p), 0);
+  const totalC = foods.reduce((sum, food) => sum + parseNumericValue(food.c), 0);
+  const totalG = foods.reduce((sum, food) => sum + parseNumericValue(food.g), 0);
 
   return {
     ...meal,
-    foods: meal.foods.map((food) => ({ ...food, qty: ensureGrams(food.qty) })),
+    foods: foods.map((food) => ({ ...food, qty: ensureGrams(food.qty) })),
     totalKcal: formatNumber(totalKcal, ' kcal'),
     totalP: formatNumber(totalP),
     totalC: formatNumber(totalC),
@@ -108,11 +118,13 @@ const mergeParsedMeals = (meals: ParsedMeal[]): ParsedMeal[] => {
       continue;
     }
 
-    existing.foods.push(...meal.foods);
-    existing.totalKcal = meal.totalKcal || existing.totalKcal;
-    existing.totalP = meal.totalP || existing.totalP;
-    existing.totalC = meal.totalC || existing.totalC;
-    existing.totalG = meal.totalG || existing.totalG;
+    // When carb-cycle plans are re-applied, an already-expanded weekday table
+    // can be fed back into the editor and each day may contain the same meal
+    // sequence multiple times. Appending duplicate meal blocks is what inflated
+    // kcal/macros and showed repeated foods to students. Keep the first complete
+    // occurrence for the same meal + time; separate meals with the same name but
+    // different times (ex: Lanche 09:30 and Lanche 15:30) are still preserved.
+    continue;
   }
 
   return merged.map((meal) => finalizeMeal(meal)!).filter(Boolean);

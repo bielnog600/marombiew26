@@ -97,12 +97,13 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     const mealSections = sections.filter(s => s.type === 'meal' && s.meals && s.meals.length > 0);
     if (mealSections.length === 0) return [];
     const firstDay = [...(mealSections[0].meals || [])];
-    // Dedupe by meal name (case-insensitive) — recovers diets previously
-    // corrupted by the old bug that 7×-duplicated meals inside one day.
+    // Dedupe by meal name + time (case-insensitive) — recovers diets previously
+    // corrupted by the old bug that 7×-duplicated meals inside one day, while
+    // still preserving two valid snacks named "Lanche" at different times.
     const seen = new Set<string>();
     const deduped: ParsedMeal[] = [];
     for (const m of firstDay) {
-      const key = String(m.name || '').trim().toLowerCase();
+      const key = `${String(m.name || '').trim().toLowerCase()}__${String(m.time || '').trim().toLowerCase()}`;
       if (seen.has(key)) continue;
       seen.add(key);
       deduped.push(m);
