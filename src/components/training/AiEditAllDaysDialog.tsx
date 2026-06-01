@@ -65,6 +65,202 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
    const [instruction, setInstruction] = useState('');
    const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
    const [loading, setLoading] = useState(false);
+   const [tab, setTab] = useState<'ai' | 'variations'>('ai');
+   const [activeDayIdx, setActiveDayIdx] = useState(0);
+   const [catalog, setCatalog] = useState<Array<{ nome: string; grupo_muscular: string; imagem_url?: string | null }>>([]);
+   // Substituições por dia: { [dayIdx]: { [exIdx]: nome } }
+   const [subsByDay, setSubsByDay] = useState<Record<number, Record<number, string>>>({});
+   const [varSubsByDay, setVarSubsByDay] = useState<Record<number, Record<number, string>>>({});
+   const [aiSugByDay, setAiSugByDay] = useState<Record<number, Record<number, string[]>>>({});
+   const [aiSugVarByDay, setAiSugVarByDay] = useState<Record<number, Record<number, string[]>>>({});
+   const [selForAiByDay, setSelForAiByDay] = useState<Record<number, Record<number, boolean>>>({});
+   const [selForAiVarByDay, setSelForAiVarByDay] = useState<Record<number, Record<number, boolean>>>({});
+   const [batchAiLoading, setBatchAiLoading] = useState(false);
+   const [aiLoadingKey, setAiLoadingKey] = useState<string | null>(null);
+
+   useEffect(() => {
+     if (!open) return;
+     (async () => {
+       const { data } = await supabase
+         .from('exercises')
+         .select('nome, grupo_muscular, imagem_url')
+         .order('nome');
+       if (data) setCatalog(data as any);
+     })();
+   }, [open]);
+
+   const normalize = (s: string) =>
+     (s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+       .replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+   const findCatalogEntry = (name: string) => {
+     const n = normalize(name);
+     if (!n) return undefined;
+     let m = catalog.find((c) => normalize(c.nome) === n);
+     if (m) return m;
+     m = catalog.find((c) => {
+       const cn = normalize(c.nome);
+       return cn.includes(n) || n.includes(cn);
+     });
+     return m;
+   };
+
+   const getVariationsFor = (name: string) => {
+     const entry = findCatalogEntry(name);
+     const targetGroup = entry?.grupo_muscular ? normalize(entry.grupo_muscular) : '';
+     const targetName = normalize(name);
+     return catalog
+       .filter((c) => {
+         if (normalize(c.nome) === targetName) return false;
+         if (!targetGroup) return true;
+         return normalize(c.grupo_muscular || '') === targetGroup;
+       })
+       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+   };
+
+   const Thumb: React.FC<{ name: string; size?: 'sm' | 'xs' }> = ({ name, size = 'sm' }) => {
+     const url = findCatalogEntry(name)?.imagem_url || null;
+     const dim = size === 'xs' ? 'h-6 w-6' : 'h-9 w-9';
+     if (!url) {
+       return (
+         <div className={`${dim} shrink-0 rounded-md bg-muted/40 flex items-center justify-center border border-border/40`}>
+           <Dumbbell className="h-3 w-3 text-muted-foreground" />
+         </div>
+       );
+     }
+     return (
+       <img src={url} alt={name} loading="lazy"
+         className={`${dim} shrink-0 rounded-md object-cover border border-border/40 bg-muted/40`} />
+     );
+   };
+
+   const dayCount = (dayIdx: number) =>
+     Object.values(subsByDay[dayIdx] || {}).filter(Boolean).length
+     + Object.values(varSubsByDay[dayIdx] || {}).filter(Boolean).length;
+
+   const totalSubs = allDays.reduce((acc, _d, i) => acc + dayCount(i), 0);
+
+   const runBatchAiSuggestForDay = async (dayIdx: number) => {
+     const day = allDays[dayIdx];
+     const selMain = selForAiByDay[dayIdx] || {};
+     const selVar = selForAiVarByDay[dayIdx] || {};
+     const mainIdx = Object.entries(selMain).filter(([, v]) => v).map(([k]) => Number(k));
+     const varIdx = Object.entries(selVar).filter(([, v]) => v).map(([k]) => Number(k));
+     const targets: Array<{ idx: number; kind: 'main' | 'variation' }> = [
+       ...mainIdx.map((idx) => ({ idx, kind: 'main' as const })),
+       ...varIdx.map((idx) => ({ idx, kind: 'variation' as const })),
+     ];
+     if (targets.length === 0) {
+       toast.error('Selecione 1 ou mais exercícios deste dia para a IA sugerir.');
+       return;
+     }
+     setBatchAiLoading(true);
+     let studentContext: any = undefined;
+     try {
+       if (studentId) {
+         const { data } = await supabase
+           .from('students_profile')
+           .select('lesoes, restricoes, observacoes, objetivo')
+           .eq('user_id', studentId)
+           .maybeSingle();
+         if (data) studentContext = data;
+       }
+
+       const usedNorms = new Set<string>();
+       day.exercises.forEach((e, i) => {
+         if (!mainIdx.includes(i)) usedNorms.add(normalize(e.exercise));
+       });
+
+       const newSubs = { ...(subsByDay[dayIdx] || {}) };
+       const newSugs = { ...(aiSugByDay[dayIdx] || {}) };
+       const newVarSubs = { ...(varSubsByDay[dayIdx] || {}) };
+       const newVarSugs = { ...(aiSugVarByDay[dayIdx] || {}) };
+       let success = 0;
+
+       for (const { idx, kind } of targets) {
+         const ex = day.exercises[idx];
+         const baseName = kind === 'main' ? ex?.exercise : (ex?.variation || ex?.exercise);
+         if (!baseName) continue;
+         setAiLoadingKey(`${dayIdx}-${kind}-${idx}`);
+         try {
+           const { data, error } = await supabase.functions.invoke('training-edit-agent', {
+             body: {
+               dayName: day.day,
+               currentExercises: day.exercises,
+               instruction: `Sugira 6 variações/alternativas para o exercício "${baseName}" (posição ${idx}${kind === 'variation' ? ', campo VARIAÇÃO' : ''}). Todas DEVEM trabalhar o MESMO grupo muscular, vir EXCLUSIVAMENTE do BANCO DE EXERCÍCIOS, e ser DIFERENTES de "${baseName}"${kind === 'variation' && ex?.exercise ? ` e de "${ex.exercise}"` : ''} e dos outros exercícios já presentes no dia. Para cada candidato, retorne uma ação "replace" no índice ${idx} preenchendo apenas exercise.exercise (em MAIÚSCULAS). Retorne exatamente 6 ações, cada uma com um nome distinto.`,
+               exerciseCatalog: catalog,
+               studentContext,
+             },
+           });
+           if (error) throw error;
+           const actions: any[] = Array.isArray((data as any)?.actions) ? (data as any).actions : [];
+           const names: string[] = [];
+           const seen = new Set<string>();
+           for (const a of actions) {
+             const n = a?.exercise?.exercise?.trim();
+             if (!n) continue;
+             const nn = normalize(n);
+             if (!nn || nn === normalize(baseName)) continue;
+             if (seen.has(nn)) continue;
+             seen.add(nn);
+             names.push(n);
+           }
+           if (names.length) {
+             const pick = names.find((n) => !usedNorms.has(normalize(n))) || names[0];
+             if (kind === 'main') { newSugs[idx] = names; newSubs[idx] = pick; }
+             else { newVarSugs[idx] = names; newVarSubs[idx] = pick; }
+             usedNorms.add(normalize(pick));
+             success++;
+           }
+         } catch (err) {
+           console.error('AI variation failed for', dayIdx, idx, err);
+         }
+       }
+
+       setSubsByDay((p) => ({ ...p, [dayIdx]: newSubs }));
+       setAiSugByDay((p) => ({ ...p, [dayIdx]: newSugs }));
+       setVarSubsByDay((p) => ({ ...p, [dayIdx]: newVarSubs }));
+       setAiSugVarByDay((p) => ({ ...p, [dayIdx]: newVarSugs }));
+
+       if (success === 0) toast.error('A IA não retornou variações. Tente novamente.');
+       else {
+         toast.success(`${success} substituição(ões) sugerida(s) pela IA em ${day.day}.`);
+         setSelForAiByDay((p) => ({ ...p, [dayIdx]: {} }));
+         setSelForAiVarByDay((p) => ({ ...p, [dayIdx]: {} }));
+       }
+     } catch (e: any) {
+       console.error(e);
+       toast.error('Erro IA: ' + (e?.message || 'falha'));
+     } finally {
+       setAiLoadingKey(null);
+       setBatchAiLoading(false);
+     }
+   };
+
+   const applyAllVariations = () => {
+     if (totalSubs === 0) {
+       toast.error('Selecione ao menos uma substituição.');
+       return;
+     }
+     const updatedDays = allDays.map((day, dIdx) => {
+       const mainMap = subsByDay[dIdx] || {};
+       const varMap = varSubsByDay[dIdx] || {};
+       if (!Object.keys(mainMap).length && !Object.keys(varMap).length) return day;
+       const list = day.exercises.map((ex, i) => {
+         const next = { ...ex };
+         if (mainMap[i]) next.exercise = mainMap[i];
+         if (varMap[i]) next.variation = varMap[i];
+         return next;
+       });
+       return { ...day, exercises: list };
+     });
+     onApply(updatedDays);
+     toast.success(`${totalSubs} substituição(ões) aplicada(s) em ${allDays.length} dias.`);
+     setSubsByDay({}); setVarSubsByDay({});
+     setAiSugByDay({}); setAiSugVarByDay({});
+     setSelForAiByDay({}); setSelForAiVarByDay({});
+     onOpenChange(false);
+   };
  
    const toggleOption = (optInstruction: string) => {
      setSelectedOptions(prev => 
