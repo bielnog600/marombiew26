@@ -72,6 +72,10 @@ const AiEditExerciseDialog: React.FC<Props> = ({
    const [aiLoadingIdx, setAiLoadingIdx] = useState<number | null>(null);
    const [selectedForAi, setSelectedForAi] = useState<Record<number, boolean>>({});
    const [batchAiLoading, setBatchAiLoading] = useState(false);
+   // Variation (campo "variation" do exercício) — substituições paralelas
+   const [variationSubs, setVariationSubs] = useState<Record<number, string>>({});
+   const [aiSuggestionsVar, setAiSuggestionsVar] = useState<Record<number, string[]>>({});
+   const [selectedForAiVar, setSelectedForAiVar] = useState<Record<number, boolean>>({});
 
    const normalize = (s: string) =>
      (s || '')
@@ -179,13 +183,20 @@ const AiEditExerciseDialog: React.FC<Props> = ({
    };
 
    const applyVariations = () => {
-     const actions: AiEditAction[] = Object.entries(substitutions)
-       .filter(([, name]) => !!name)
-       .map(([idx, name]) => ({
-         op: 'modify' as const,
-         index: Number(idx),
-         exercise: { exercise: name },
-       }));
+     const merged: Record<number, { exercise?: string; variation?: string }> = {};
+     Object.entries(substitutions).forEach(([idx, name]) => {
+       if (!name) return;
+       merged[Number(idx)] = { ...(merged[Number(idx)] || {}), exercise: name };
+     });
+     Object.entries(variationSubs).forEach(([idx, name]) => {
+       if (!name) return;
+       merged[Number(idx)] = { ...(merged[Number(idx)] || {}), variation: name };
+     });
+     const actions: AiEditAction[] = Object.entries(merged).map(([idx, ex]) => ({
+       op: 'modify' as const,
+       index: Number(idx),
+       exercise: ex,
+     }));
      if (actions.length === 0) {
        toast.error('Selecione ao menos uma substituição.');
        return;
@@ -193,15 +204,19 @@ const AiEditExerciseDialog: React.FC<Props> = ({
      onApply(actions);
      toast.success(`${actions.length} exercício(s) substituído(s).`);
      setSubstitutions({});
+     setVariationSubs({});
      onOpenChange(false);
    };
 
    const runBatchAiSuggest = async () => {
-     const indices = Object.entries(selectedForAi)
-       .filter(([, v]) => v)
-       .map(([k]) => Number(k));
-     if (indices.length === 0) {
-       toast.error('Selecione 1 ou mais exercícios para a IA sugerir substituições.');
+     const mainIdx = Object.entries(selectedForAi).filter(([, v]) => v).map(([k]) => Number(k));
+     const varIdx = Object.entries(selectedForAiVar).filter(([, v]) => v).map(([k]) => Number(k));
+     const targets: Array<{ idx: number; kind: 'main' | 'variation' }> = [
+       ...mainIdx.map((idx) => ({ idx, kind: 'main' as const })),
+       ...varIdx.map((idx) => ({ idx, kind: 'variation' as const })),
+     ];
+     if (targets.length === 0) {
+       toast.error('Selecione 1 ou mais exercícios (principal ou variação) para a IA sugerir substituições.');
        return;
      }
      setBatchAiLoading(true);
@@ -218,23 +233,26 @@ const AiEditExerciseDialog: React.FC<Props> = ({
 
        const usedNorms = new Set<string>();
        currentExercises.forEach((e, i) => {
-         if (!indices.includes(i)) usedNorms.add(normalize(e.exercise));
+         if (!mainIdx.includes(i)) usedNorms.add(normalize(e.exercise));
        });
 
        const newSubs: Record<number, string> = { ...substitutions };
        const newSuggestions: Record<number, string[]> = { ...aiSuggestions };
+       const newVarSubs: Record<number, string> = { ...variationSubs };
+       const newVarSuggestions: Record<number, string[]> = { ...aiSuggestionsVar };
        let success = 0;
 
-       for (const idx of indices) {
+       for (const { idx, kind } of targets) {
          const ex = currentExercises[idx];
-         if (!ex?.exercise) continue;
+         const baseName = kind === 'main' ? ex?.exercise : (ex?.variation || ex?.exercise);
+         if (!baseName) continue;
          setAiLoadingIdx(idx);
          try {
            const { data, error } = await supabase.functions.invoke('training-edit-agent', {
              body: {
                dayName,
                currentExercises,
-               instruction: `Sugira 6 variações/alternativas para o exercício "${ex.exercise}" (posição ${idx}). Todas DEVEM trabalhar o MESMO grupo muscular, vir EXCLUSIVAMENTE do BANCO DE EXERCÍCIOS, e ser DIFERENTES de "${ex.exercise}" e dos outros exercícios já presentes no dia. Para cada candidato, retorne uma ação "replace" no índice ${idx} preenchendo apenas exercise.exercise (em MAIÚSCULAS). Não inclua séries/reps/pause/description. Retorne exatamente 6 ações, cada uma com um nome distinto.`,
+               instruction: `Sugira 6 variações/alternativas para o exercício "${baseName}" (posição ${idx}${kind === 'variation' ? ', campo VARIAÇÃO' : ''}). Todas DEVEM trabalhar o MESMO grupo muscular, vir EXCLUSIVAMENTE do BANCO DE EXERCÍCIOS, e ser DIFERENTES de "${baseName}"${kind === 'variation' && ex?.exercise ? ` e de "${ex.exercise}"` : ''} e dos outros exercícios já presentes no dia. Para cada candidato, retorne uma ação "replace" no índice ${idx} preenchendo apenas exercise.exercise (em MAIÚSCULAS). Não inclua séries/reps/pause/description. Retorne exatamente 6 ações, cada uma com um nome distinto.`,
                exerciseCatalog,
                studentContext,
              },
@@ -247,16 +265,20 @@ const AiEditExerciseDialog: React.FC<Props> = ({
              const n = a?.exercise?.exercise?.trim();
              if (!n) continue;
              const norm = normalize(n);
-             if (!norm || norm === normalize(ex.exercise)) continue;
+             if (!norm || norm === normalize(baseName)) continue;
              if (seen.has(norm)) continue;
              seen.add(norm);
              names.push(n);
            }
            if (names.length) {
-             newSuggestions[idx] = names;
-             // pick first not already used
              const pick = names.find((n) => !usedNorms.has(normalize(n))) || names[0];
-             newSubs[idx] = pick;
+             if (kind === 'main') {
+               newSuggestions[idx] = names;
+               newSubs[idx] = pick;
+             } else {
+               newVarSuggestions[idx] = names;
+               newVarSubs[idx] = pick;
+             }
              usedNorms.add(normalize(pick));
              success++;
            }
@@ -267,12 +289,15 @@ const AiEditExerciseDialog: React.FC<Props> = ({
 
        setAiSuggestions(newSuggestions);
        setSubstitutions(newSubs);
+       setAiSuggestionsVar(newVarSuggestions);
+       setVariationSubs(newVarSubs);
 
        if (success === 0) {
          toast.error('A IA não retornou variações. Tente novamente.');
        } else {
          toast.success(`${success} substituição(ões) sugerida(s) pela IA. Revise e clique em "Aplicar substituições".`);
          setSelectedForAi({});
+         setSelectedForAiVar({});
        }
      } catch (e: any) {
        console.error(e);
@@ -436,7 +461,7 @@ const AiEditExerciseDialog: React.FC<Props> = ({
           <div className="space-y-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-md border border-border/60 bg-card/40 p-2.5">
               <div className="text-xs text-muted-foreground">
-                Marque os exercícios que deseja trocar e clique em <strong>IA sugere</strong>. A IA escolherá uma substituição do mesmo grupo muscular automaticamente. Você ainda pode ajustar manualmente cada escolha abaixo.
+               Marque os exercícios <strong>principais</strong> e/ou suas <strong>variações</strong> que deseja trocar e clique em <strong>IA sugere</strong>. A IA escolherá uma substituição do mesmo grupo muscular automaticamente. Você ainda pode ajustar manualmente cada escolha abaixo.
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <Button
@@ -446,16 +471,24 @@ const AiEditExerciseDialog: React.FC<Props> = ({
                   className="h-8 text-xs"
                   disabled={loading || batchAiLoading || currentExercises.length === 0}
                   onClick={() => {
-                    const allSelected = currentExercises.every((_, i) => selectedForAi[i]);
-                    if (allSelected) setSelectedForAi({});
-                    else {
-                      const next: Record<number, boolean> = {};
-                      currentExercises.forEach((_, i) => { next[i] = true; });
-                      setSelectedForAi(next);
-                    }
+                   const allMain = currentExercises.every((_, i) => selectedForAi[i]);
+                   const allVar = currentExercises.every((ex, i) => !ex.variation || selectedForAiVar[i]);
+                   if (allMain && allVar) {
+                     setSelectedForAi({});
+                     setSelectedForAiVar({});
+                   } else {
+                     const m: Record<number, boolean> = {};
+                     const v: Record<number, boolean> = {};
+                     currentExercises.forEach((ex, i) => {
+                       m[i] = true;
+                       if (ex.variation) v[i] = true;
+                     });
+                     setSelectedForAi(m);
+                     setSelectedForAiVar(v);
+                   }
                   }}
                 >
-                  {currentExercises.length > 0 && currentExercises.every((_, i) => selectedForAi[i]) ? 'Limpar' : 'Selecionar todos'}
+                 {currentExercises.length > 0 && currentExercises.every((_, i) => selectedForAi[i]) && currentExercises.every((ex, i) => !ex.variation || selectedForAiVar[i]) ? 'Limpar' : 'Selecionar todos'}
                 </Button>
                 <Button
                   type="button"
@@ -569,6 +602,101 @@ const AiEditExerciseDialog: React.FC<Props> = ({
                         })}
                       </div>
                     )}
+                   {/* Variation row */}
+                   {ex.variation && (() => {
+                     const varVariations = getVariationsFor(ex.variation);
+                     const selectedVar = variationSubs[idx] || '';
+                     const aiNamesVar = aiSuggestionsVar[idx] || [];
+                     const baseNormsVar = new Set(varVariations.map((v) => normalize(v.nome)));
+                     const aiOnlyVar = aiNamesVar.filter((n) => !baseNormsVar.has(normalize(n)));
+                     const aiNormSetVar = new Set(aiNamesVar.map((n) => normalize(n)));
+                     const isCheckedVar = !!selectedForAiVar[idx];
+                     return (
+                       <div className={`mt-1.5 rounded-md border p-2 space-y-1.5 transition-colors ${isCheckedVar ? 'border-primary/60 bg-primary/5' : 'border-border/40 bg-background/40'}`}>
+                         <div className="flex items-center gap-2 text-xs">
+                           <Checkbox
+                             checked={isCheckedVar}
+                             onCheckedChange={(v) =>
+                               setSelectedForAiVar((prev) => {
+                                 const next = { ...prev };
+                                 if (v) next[idx] = true;
+                                 else delete next[idx];
+                                 return next;
+                               })
+                             }
+                             disabled={loading || batchAiLoading}
+                             aria-label={`Selecionar variação ${ex.variation} para sugestão da IA`}
+                           />
+                           <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Variação</span>
+                           <Thumb name={ex.variation} size="xs" />
+                           <span className="truncate flex-1">{ex.variation}</span>
+                           <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                         </div>
+                         <Select
+                           value={selectedVar}
+                           onValueChange={(v) =>
+                             setVariationSubs((prev) => {
+                               const next = { ...prev };
+                               if (!v || v === '__none__') delete next[idx];
+                               else next[idx] = v;
+                               return next;
+                             })
+                           }
+                           disabled={loading}
+                         >
+                           <SelectTrigger className="h-8 text-xs">
+                             <SelectValue placeholder={varVariations.length ? 'Escolher substituição da variação...' : 'Sem variações no catálogo'} />
+                           </SelectTrigger>
+                           <SelectContent className="max-h-72">
+                             <SelectItem value="__none__">— Manter variação atual —</SelectItem>
+                             {aiOnlyVar.length > 0 && aiOnlyVar.map((n) => (
+                               <SelectItem key={`aiv-${n}`} value={n}>
+                                 <span className="flex items-center gap-2">
+                                   <Thumb name={n} size="xs" />
+                                   <span>✨ {n}</span>
+                                 </span>
+                               </SelectItem>
+                             ))}
+                             {varVariations.map((v) => {
+                               const isAi = aiNormSetVar.has(normalize(v.nome));
+                               return (
+                                 <SelectItem key={`v-${v.nome}`} value={v.nome}>
+                                   <span className="flex items-center gap-2">
+                                     <Thumb name={v.nome} size="xs" />
+                                     <span>{isAi ? '✨ ' : ''}{v.nome}</span>
+                                   </span>
+                                 </SelectItem>
+                               );
+                             })}
+                           </SelectContent>
+                         </Select>
+                         {aiNamesVar.length > 0 && (
+                           <div className="flex flex-wrap gap-1 pt-0.5">
+                             {aiNamesVar.map((n) => {
+                               const isPicked = normalize(selectedVar) === normalize(n);
+                               return (
+                                 <Button
+                                   key={`chipv-${n}`}
+                                   type="button"
+                                   size="sm"
+                                   variant={isPicked ? 'default' : 'outline'}
+                                   className="h-7 pl-1 pr-2 text-[11px] rounded-full gap-1"
+                                   disabled={loading}
+                                   onClick={() =>
+                                     setVariationSubs((prev) => ({ ...prev, [idx]: n }))
+                                   }
+                                 >
+                                   <Thumb name={n} size="xs" />
+                                   <Sparkles className="h-2.5 w-2.5" />
+                                   {n}
+                                 </Button>
+                               );
+                             })}
+                           </div>
+                         )}
+                       </div>
+                     );
+                   })()}
                   </div>
                 );
               })}
@@ -591,7 +719,7 @@ const AiEditExerciseDialog: React.FC<Props> = ({
            ) : (
              <Button
                onClick={applyVariations}
-               disabled={loading || Object.values(substitutions).filter(Boolean).length === 0}
+                disabled={loading || (Object.values(substitutions).filter(Boolean).length === 0 && Object.values(variationSubs).filter(Boolean).length === 0)}
              >
                <Repeat className="h-4 w-4 mr-1" />
                Aplicar substituições
