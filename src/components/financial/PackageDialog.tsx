@@ -77,6 +77,8 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
         await updateClassPackage(pkg.id, {
           package_name: form.package_name,
           total_amount: Number(form.total_amount),
+          start_date: form.start_date,
+          payment_date: form.payment_date,
           expiry_date: form.expiry_date || null,
           notes: form.notes,
           payment_method: form.payment_method,
