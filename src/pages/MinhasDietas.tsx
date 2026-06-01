@@ -24,6 +24,7 @@ import { buildCarbCycleDays } from '@/lib/dietAiActions';
 
 const WEEKDAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const OPTION_TITLE_REGEX = /(op[cç][aã]o|card[aá]pio)/i;
+const DIET_DISPLAY_SCHEMA_VERSION = 'dedupe-v2';
 
 /**
  * Recover a previously-applied carb cycle saved in the diet markdown notes
@@ -189,7 +190,7 @@ const MinhasDietas = () => {
       // Version key combines plan id + created_at so any admin edit (which
       // bumps created_at via re-insert OR keeps it via update) is detected.
       // We hash the content length as a tiebreaker for in-place updates.
-      setPlanVersion(`${dieta.id}-${dieta.conteudo.length}`);
+      setPlanVersion(`${dieta.id}-${dieta.conteudo.length}-${DIET_DISPLAY_SCHEMA_VERSION}`);
     }
     setLoading(false);
   };
