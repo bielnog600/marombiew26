@@ -70,6 +70,8 @@ const AiEditExerciseDialog: React.FC<Props> = ({
    const [substitutions, setSubstitutions] = useState<Record<number, string>>({});
    const [aiSuggestions, setAiSuggestions] = useState<Record<number, string[]>>({});
    const [aiLoadingIdx, setAiLoadingIdx] = useState<number | null>(null);
+   const [selectedForAi, setSelectedForAi] = useState<Record<number, boolean>>({});
+   const [batchAiLoading, setBatchAiLoading] = useState(false);
 
    const normalize = (s: string) =>
      (s || '')
