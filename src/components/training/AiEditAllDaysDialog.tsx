@@ -747,10 +747,6 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
             {(() => {
               const day = allDays[activeDayIdx];
               if (!day) return null;
-              const subs = subsByDay[activeDayIdx] || {};
-              const varSubs = varSubsByDay[activeDayIdx] || {};
-              const aiSugs = aiSugByDay[activeDayIdx] || {};
-              const aiSugsVar = aiSugVarByDay[activeDayIdx] || {};
               const selMain = selForAiByDay[activeDayIdx] || {};
               const selVar = selForAiVarByDay[activeDayIdx] || {};
               const allMainSel = day.exercises.length > 0 && day.exercises.every((_, i) => selMain[i]);
