@@ -434,9 +434,41 @@ const AiEditExerciseDialog: React.FC<Props> = ({
 
         {tab === 'variations' && (
           <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Selecione um exercício de substituição para cada item que deseja trocar. Mantém séries, reps e descanso atuais.
-            </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-md border border-border/60 bg-card/40 p-2.5">
+              <div className="text-xs text-muted-foreground">
+                Marque os exercícios que deseja trocar e clique em <strong>IA sugere</strong>. A IA escolherá uma substituição do mesmo grupo muscular automaticamente. Você ainda pode ajustar manualmente cada escolha abaixo.
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs"
+                  disabled={loading || batchAiLoading || currentExercises.length === 0}
+                  onClick={() => {
+                    const allSelected = currentExercises.every((_, i) => selectedForAi[i]);
+                    if (allSelected) setSelectedForAi({});
+                    else {
+                      const next: Record<number, boolean> = {};
+                      currentExercises.forEach((_, i) => { next[i] = true; });
+                      setSelectedForAi(next);
+                    }
+                  }}
+                >
+                  {currentExercises.length > 0 && currentExercises.every((_, i) => selectedForAi[i]) ? 'Limpar' : 'Selecionar todos'}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 gap-1.5"
+                  disabled={loading || batchAiLoading}
+                  onClick={runBatchAiSuggest}
+                >
+                  {batchAiLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  IA sugere
+                </Button>
+              </div>
+            </div>
             {currentExercises.length === 0 && (
               <p className="text-sm text-muted-foreground italic">Nenhum exercício neste dia.</p>
             )}
@@ -449,26 +481,26 @@ const AiEditExerciseDialog: React.FC<Props> = ({
                 const aiOnly = aiNames.filter((n) => !baseNorms.has(normalize(n)));
                 const aiNormSet = new Set(aiNames.map((n) => normalize(n)));
                 const isAiLoading = aiLoadingIdx === idx;
+                const isChecked = !!selectedForAi[idx];
                 return (
-                  <div key={idx} className="rounded-md border border-border/60 p-2.5 space-y-1.5 bg-card/40">
+                  <div key={idx} className={`rounded-md border p-2.5 space-y-1.5 transition-colors ${isChecked ? 'border-primary/60 bg-primary/5' : 'border-border/60 bg-card/40'}`}>
                     <div className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={isChecked}
+                        onCheckedChange={(v) =>
+                          setSelectedForAi((prev) => {
+                            const next = { ...prev };
+                            if (v) next[idx] = true;
+                            else delete next[idx];
+                            return next;
+                          })
+                        }
+                        disabled={loading || batchAiLoading || !ex.exercise}
+                        aria-label={`Selecionar ${ex.exercise} para sugestão da IA`}
+                      />
                       <Thumb name={ex.exercise} />
                       <span className="font-medium truncate flex-1">{ex.exercise || `Exercício ${idx + 1}`}</span>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-7 px-2 text-[11px] gap-1 shrink-0"
-                        disabled={loading || isAiLoading || !ex.exercise}
-                        onClick={() => fetchAiVariations(idx, ex)}
-                      >
-                        {isAiLoading ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Sparkles className="h-3 w-3 text-primary" />
-                        )}
-                        IA sugere
-                      </Button>
+                      {isAiLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />}
                       <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     </div>
                     <Select
