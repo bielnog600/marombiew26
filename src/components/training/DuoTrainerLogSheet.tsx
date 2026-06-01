@@ -21,6 +21,8 @@ import {
   draftKey,
   parsePauseSeconds
 } from './TrainerLogSheetUtils';
+import { linkOrCreateAgendaEventForSession, completeAgendaEventForSession } from '@/lib/agendaAutoLink';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Props {
   open: boolean;
@@ -40,6 +42,7 @@ interface StudentSessionState {
 }
 
 export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentAId, planA }) => {
+  const { user } = useAuth();
   const [studentA, setStudentA] = useState<StudentSessionState | null>(null);
   const [studentB, setStudentB] = useState<StudentSessionState | null>(null);
   const [allStudents, setAllStudents] = useState<{ user_id: string; nome: string }[]>([]);
@@ -53,6 +56,36 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     durationSeconds: 0,
     isPaused: false
   });
+  const [calendarEventByStudent, setCalendarEventByStudent] = useState<Record<string, string>>({});
+
+  // Vincula/cria evento na Agenda para cada aluno carregado (uma vez por aluno)
+  useEffect(() => {
+    if (!open || !user?.id) return;
+    const ensureLink = async (sid: string, dayName: string | null, ph: string | null) => {
+      if (calendarEventByStudent[sid]) return;
+      try {
+        const { calendarEventId, isNew } = await linkOrCreateAgendaEventForSession({
+          studentId: sid,
+          adminId: user.id,
+          startedAtReal: new Date(sessionTimer.startedAt),
+          dayName,
+          phase: ph,
+        });
+        setCalendarEventByStudent(prev => ({ ...prev, [sid]: calendarEventId }));
+        toast.success(isNew ? 'Aula criada na Agenda' : 'Aula vinculada à Agenda');
+      } catch (e) {
+        console.error('Agenda link error:', e);
+      }
+    };
+    if (studentA) {
+      const d = studentA.days[studentA.activeDayIdx];
+      ensureLink(studentA.studentId, d?.day || null, studentA.plan?.fase || null);
+    }
+    if (studentB) {
+      const d = studentB.days[studentB.activeDayIdx];
+      ensureLink(studentB.studentId, d?.day || null, studentB.plan?.fase || null);
+    }
+  }, [open, user?.id, studentA?.studentId, studentB?.studentId]);
 
   const [finishing, setFinishing] = useState(false);
 
