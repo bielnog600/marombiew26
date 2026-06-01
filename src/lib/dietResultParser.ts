@@ -93,12 +93,10 @@ const finalizeMeal = (meal: ParsedMeal | null) => {
 
 const mergeParsedMeals = (meals: ParsedMeal[]): ParsedMeal[] => {
   const merged: ParsedMeal[] = [];
-  const seenMealKeys = new Set<string>();
 
   for (const meal of meals) {
     const normalizedName = normalizeMealName(meal.name);
     const normalizedTime = normalizeMealName(meal.time || '');
-    const mealKey = `${normalizedName}__${normalizedTime}`;
     const existing = merged.find(
       (item) =>
         normalizeMealName(item.name) === normalizedName &&
@@ -107,7 +105,6 @@ const mergeParsedMeals = (meals: ParsedMeal[]): ParsedMeal[] => {
 
     if (!existing) {
       merged.push({ ...meal, foods: [...meal.foods] });
-      seenMealKeys.add(mealKey);
       continue;
     }
 
@@ -117,14 +114,7 @@ const mergeParsedMeals = (meals: ParsedMeal[]): ParsedMeal[] => {
     // kcal/macros and showed repeated foods to students. Keep the first complete
     // occurrence for the same meal + time; separate meals with the same name but
     // different times (ex: Lanche 09:30 and Lanche 15:30) are still preserved.
-    if (seenMealKeys.has(mealKey)) continue;
-
-    existing.foods.push(...meal.foods);
-    existing.totalKcal = meal.totalKcal || existing.totalKcal;
-    existing.totalP = meal.totalP || existing.totalP;
-    existing.totalC = meal.totalC || existing.totalC;
-    existing.totalG = meal.totalG || existing.totalG;
-    seenMealKeys.add(mealKey);
+    continue;
   }
 
   return merged.map((meal) => finalizeMeal(meal)!).filter(Boolean);
