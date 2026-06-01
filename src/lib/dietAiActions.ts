@@ -113,8 +113,9 @@ export const buildCarbCycleDays = (
     ? cc.highCarbIncrease : 1.25;
 
   return WEEKDAY_ORDER.map((dayKey) => {
-    const isLow = lowSet.has(dayKey);
-    const isHigh = highSet.has(dayKey);
+    const dayNorm = normalize(dayKey);
+    const isLow = lowSet.has(dayNorm);
+    const isHigh = highSet.has(dayNorm);
     const factor = isLow ? lowF : isHigh ? highF : 1;
 
     const meals: ParsedMeal[] = baseMeals.map((m) => ({
