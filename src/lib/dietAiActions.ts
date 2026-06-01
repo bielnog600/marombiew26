@@ -99,7 +99,7 @@ const WEEKDAY_LABEL: Record<string, string> = {
  * Expand a single-day plan into 7 weekday variants, scaling carbohydrate-rich
  * foods according to a carb cycle (low/high/normal per weekday).
  */
-const buildCarbCycleDays = (
+export const buildCarbCycleDays = (
   baseMeals: ParsedMeal[],
   cc: NonNullable<DietAiAction['carbCycle']>,
 ): { label: string; meals: ParsedMeal[] }[] => {
