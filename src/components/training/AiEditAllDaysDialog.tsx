@@ -348,6 +348,203 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
     }
   };
 
+  // ---- Cross-day helpers (desktop variations view) ----
+  const totalSelected = allDays.reduce((acc, _d, i) => {
+    const m = selForAiByDay[i] || {};
+    const v = selForAiVarByDay[i] || {};
+    return acc + Object.values(m).filter(Boolean).length + Object.values(v).filter(Boolean).length;
+  }, 0);
+
+  const allSelectedAcross = allDays.length > 0 && allDays.every((d, i) => {
+    if (d.exercises.length === 0) return true;
+    const sm = selForAiByDay[i] || {};
+    const sv = selForAiVarByDay[i] || {};
+    const mainOk = d.exercises.every((_, idx) => sm[idx]);
+    const varOk = d.exercises.every((ex, idx) => !ex.variation || sv[idx]);
+    return mainOk && varOk;
+  });
+
+  const toggleSelectAllAcross = () => {
+    if (allSelectedAcross) {
+      setSelForAiByDay({});
+      setSelForAiVarByDay({});
+      return;
+    }
+    const m: Record<number, Record<number, boolean>> = {};
+    const v: Record<number, Record<number, boolean>> = {};
+    allDays.forEach((d, i) => {
+      m[i] = {}; v[i] = {};
+      d.exercises.forEach((ex, idx) => {
+        m[i][idx] = true;
+        if (ex.variation) v[i][idx] = true;
+      });
+    });
+    setSelForAiByDay(m);
+    setSelForAiVarByDay(v);
+  };
+
+  const runBatchAiSuggestAcrossDays = async () => {
+    const dayIndices = allDays.map((_, i) => i).filter((i) => {
+      const m = selForAiByDay[i] || {};
+      const v = selForAiVarByDay[i] || {};
+      return Object.values(m).some(Boolean) || Object.values(v).some(Boolean);
+    });
+    if (dayIndices.length === 0) {
+      toast.error('Selecione 1 ou mais exercícios (de qualquer dia) para a IA sugerir.');
+      return;
+    }
+    for (const i of dayIndices) {
+      await runBatchAiSuggestForDay(i);
+    }
+  };
+
+  const renderExerciseRow = (dayIdx: number, ex: ParsedExercise, idx: number) => {
+    const subs = subsByDay[dayIdx] || {};
+    const varSubs = varSubsByDay[dayIdx] || {};
+    const aiSugs = aiSugByDay[dayIdx] || {};
+    const aiSugsVar = aiSugVarByDay[dayIdx] || {};
+    const selMain = selForAiByDay[dayIdx] || {};
+    const selVar = selForAiVarByDay[dayIdx] || {};
+    const variations = getVariationsFor(ex.exercise);
+    const selected = subs[idx] || '';
+    const aiNames = aiSugs[idx] || [];
+    const baseNorms = new Set(variations.map((v) => normalize(v.nome)));
+    const aiOnly = aiNames.filter((n) => !baseNorms.has(normalize(n)));
+    const aiNormSet = new Set(aiNames.map((n) => normalize(n)));
+    const isChecked = !!selMain[idx];
+    const isAiLoading = aiLoadingKey === `${dayIdx}-main-${idx}`;
+    return (
+      <div key={idx} className={`rounded-md border p-2.5 space-y-1.5 transition-colors ${isChecked ? 'border-primary/60 bg-primary/5' : 'border-border/60 bg-card/40'}`}>
+        <div className="flex items-center gap-2 text-sm">
+          <Checkbox checked={isChecked}
+            onCheckedChange={(v) => setSelForAiByDay((prev) => {
+              const cur = { ...(prev[dayIdx] || {}) };
+              if (v) cur[idx] = true; else delete cur[idx];
+              return { ...prev, [dayIdx]: cur };
+            })}
+            disabled={batchAiLoading || !ex.exercise} />
+          <Thumb name={ex.exercise} />
+          <span className="font-medium truncate flex-1">{ex.exercise || `Exercício ${idx + 1}`}</span>
+          {isAiLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />}
+          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        </div>
+        <Select value={selected}
+          onValueChange={(v) => setSubsByDay((prev) => {
+            const cur = { ...(prev[dayIdx] || {}) };
+            if (!v || v === '__none__') delete cur[idx]; else cur[idx] = v;
+            return { ...prev, [dayIdx]: cur };
+          })}>
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue placeholder={variations.length ? 'Escolher substituição...' : 'Sem variações no catálogo'} />
+          </SelectTrigger>
+          <SelectContent className="max-h-72">
+            <SelectItem value="__none__">— Manter exercício atual —</SelectItem>
+            {aiOnly.map((n) => (
+              <SelectItem key={`ai-${n}`} value={n}>
+                <span className="flex items-center gap-2"><Thumb name={n} size="xs" /><span>✨ {n}</span></span>
+              </SelectItem>
+            ))}
+            {variations.map((v) => {
+              const isAi = aiNormSet.has(normalize(v.nome));
+              return (
+                <SelectItem key={v.nome} value={v.nome}>
+                  <span className="flex items-center gap-2"><Thumb name={v.nome} size="xs" /><span>{isAi ? '✨ ' : ''}{v.nome}</span></span>
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
+        {aiNames.length > 0 && (
+          <div className="flex flex-wrap gap-1 pt-0.5">
+            {aiNames.map((n) => {
+              const isPicked = normalize(selected) === normalize(n);
+              return (
+                <Button key={`chip-${n}`} type="button" size="sm"
+                  variant={isPicked ? 'default' : 'outline'}
+                  className="h-7 pl-1 pr-2 text-[11px] rounded-full gap-1"
+                  onClick={() => setSubsByDay((prev) => ({ ...prev, [dayIdx]: { ...(prev[dayIdx] || {}), [idx]: n } }))}>
+                  <Thumb name={n} size="xs" />
+                  <Sparkles className="h-2.5 w-2.5" />
+                  {n}
+                </Button>
+              );
+            })}
+          </div>
+        )}
+
+        {ex.variation && (() => {
+          const varVariations = getVariationsFor(ex.variation);
+          const selectedVar = varSubs[idx] || '';
+          const aiNamesVar = aiSugsVar[idx] || [];
+          const baseNormsVar = new Set(varVariations.map((v) => normalize(v.nome)));
+          const aiOnlyVar = aiNamesVar.filter((n) => !baseNormsVar.has(normalize(n)));
+          const aiNormSetVar = new Set(aiNamesVar.map((n) => normalize(n)));
+          const isCheckedVar = !!selVar[idx];
+          return (
+            <div className={`mt-1.5 rounded-md border p-2 space-y-1.5 transition-colors ${isCheckedVar ? 'border-primary/60 bg-primary/5' : 'border-border/40 bg-background/40'}`}>
+              <div className="flex items-center gap-2 text-xs">
+                <Checkbox checked={isCheckedVar}
+                  onCheckedChange={(v) => setSelForAiVarByDay((prev) => {
+                    const cur = { ...(prev[dayIdx] || {}) };
+                    if (v) cur[idx] = true; else delete cur[idx];
+                    return { ...prev, [dayIdx]: cur };
+                  })}
+                  disabled={batchAiLoading} />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Variação</span>
+                <Thumb name={ex.variation} size="xs" />
+                <span className="truncate flex-1">{ex.variation}</span>
+                <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+              </div>
+              <Select value={selectedVar}
+                onValueChange={(v) => setVarSubsByDay((prev) => {
+                  const cur = { ...(prev[dayIdx] || {}) };
+                  if (!v || v === '__none__') delete cur[idx]; else cur[idx] = v;
+                  return { ...prev, [dayIdx]: cur };
+                })}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder={varVariations.length ? 'Escolher substituição da variação...' : 'Sem variações no catálogo'} />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  <SelectItem value="__none__">— Manter variação atual —</SelectItem>
+                  {aiOnlyVar.map((n) => (
+                    <SelectItem key={`aiv-${n}`} value={n}>
+                      <span className="flex items-center gap-2"><Thumb name={n} size="xs" /><span>✨ {n}</span></span>
+                    </SelectItem>
+                  ))}
+                  {varVariations.map((v) => {
+                    const isAi = aiNormSetVar.has(normalize(v.nome));
+                    return (
+                      <SelectItem key={`v-${v.nome}`} value={v.nome}>
+                        <span className="flex items-center gap-2"><Thumb name={v.nome} size="xs" /><span>{isAi ? '✨ ' : ''}{v.nome}</span></span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              {aiNamesVar.length > 0 && (
+                <div className="flex flex-wrap gap-1 pt-0.5">
+                  {aiNamesVar.map((n) => {
+                    const isPicked = normalize(selectedVar) === normalize(n);
+                    return (
+                      <Button key={`chipv-${n}`} type="button" size="sm"
+                        variant={isPicked ? 'default' : 'outline'}
+                        className="h-7 pl-1 pr-2 text-[11px] rounded-full gap-1"
+                        onClick={() => setVarSubsByDay((prev) => ({ ...prev, [dayIdx]: { ...(prev[dayIdx] || {}), [idx]: n } }))}>
+                        <Thumb name={n} size="xs" />
+                        <Sparkles className="h-2.5 w-2.5" />
+                        {n}
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </div>
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!loading) onOpenChange(o); }}>
       <DialogContent className={`max-h-[90vh] overflow-y-auto ${tab === 'variations' ? 'sm:max-w-2xl lg:max-w-[min(96vw,1400px)]' : 'sm:max-w-2xl'}`}>
