@@ -78,6 +78,7 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
    const [selForAiVarByDay, setSelForAiVarByDay] = useState<Record<number, Record<number, boolean>>>({});
    const [batchAiLoading, setBatchAiLoading] = useState(false);
    const [aiLoadingKey, setAiLoadingKey] = useState<string | null>(null);
+   const isMobile = useIsMobile();
 
    useEffect(() => {
      if (!open) return;
