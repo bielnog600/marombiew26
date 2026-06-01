@@ -375,7 +375,10 @@ type ViewMode = 'week' | 'day' | 'month';
              const slotId = `slot-${hour}-${minute}`;
              const eventsInSlot = dayEvents.filter(e => {
                const d = new Date(e.start_datetime);
-               return d.getHours() === hour && d.getMinutes() === minute;
+                if (d.getHours() !== hour) return false;
+                const m = d.getMinutes();
+                // Place event in the half-hour slot that contains its start time
+                return minute === 0 ? m < 30 : m >= 30;
              });
  
              return (
