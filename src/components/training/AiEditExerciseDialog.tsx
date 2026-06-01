@@ -602,6 +602,101 @@ const AiEditExerciseDialog: React.FC<Props> = ({
                         })}
                       </div>
                     )}
+                   {/* Variation row */}
+                   {ex.variation && (() => {
+                     const varVariations = getVariationsFor(ex.variation);
+                     const selectedVar = variationSubs[idx] || '';
+                     const aiNamesVar = aiSuggestionsVar[idx] || [];
+                     const baseNormsVar = new Set(varVariations.map((v) => normalize(v.nome)));
+                     const aiOnlyVar = aiNamesVar.filter((n) => !baseNormsVar.has(normalize(n)));
+                     const aiNormSetVar = new Set(aiNamesVar.map((n) => normalize(n)));
+                     const isCheckedVar = !!selectedForAiVar[idx];
+                     return (
+                       <div className={`mt-1.5 rounded-md border p-2 space-y-1.5 transition-colors ${isCheckedVar ? 'border-primary/60 bg-primary/5' : 'border-border/40 bg-background/40'}`}>
+                         <div className="flex items-center gap-2 text-xs">
+                           <Checkbox
+                             checked={isCheckedVar}
+                             onCheckedChange={(v) =>
+                               setSelectedForAiVar((prev) => {
+                                 const next = { ...prev };
+                                 if (v) next[idx] = true;
+                                 else delete next[idx];
+                                 return next;
+                               })
+                             }
+                             disabled={loading || batchAiLoading}
+                             aria-label={`Selecionar variação ${ex.variation} para sugestão da IA`}
+                           />
+                           <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Variação</span>
+                           <Thumb name={ex.variation} size="xs" />
+                           <span className="truncate flex-1">{ex.variation}</span>
+                           <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                         </div>
+                         <Select
+                           value={selectedVar}
+                           onValueChange={(v) =>
+                             setVariationSubs((prev) => {
+                               const next = { ...prev };
+                               if (!v || v === '__none__') delete next[idx];
+                               else next[idx] = v;
+                               return next;
+                             })
+                           }
+                           disabled={loading}
+                         >
+                           <SelectTrigger className="h-8 text-xs">
+                             <SelectValue placeholder={varVariations.length ? 'Escolher substituição da variação...' : 'Sem variações no catálogo'} />
+                           </SelectTrigger>
+                           <SelectContent className="max-h-72">
+                             <SelectItem value="__none__">— Manter variação atual —</SelectItem>
+                             {aiOnlyVar.length > 0 && aiOnlyVar.map((n) => (
+                               <SelectItem key={`aiv-${n}`} value={n}>
+                                 <span className="flex items-center gap-2">
+                                   <Thumb name={n} size="xs" />
+                                   <span>✨ {n}</span>
+                                 </span>
+                               </SelectItem>
+                             ))}
+                             {varVariations.map((v) => {
+                               const isAi = aiNormSetVar.has(normalize(v.nome));
+                               return (
+                                 <SelectItem key={`v-${v.nome}`} value={v.nome}>
+                                   <span className="flex items-center gap-2">
+                                     <Thumb name={v.nome} size="xs" />
+                                     <span>{isAi ? '✨ ' : ''}{v.nome}</span>
+                                   </span>
+                                 </SelectItem>
+                               );
+                             })}
+                           </SelectContent>
+                         </Select>
+                         {aiNamesVar.length > 0 && (
+                           <div className="flex flex-wrap gap-1 pt-0.5">
+                             {aiNamesVar.map((n) => {
+                               const isPicked = normalize(selectedVar) === normalize(n);
+                               return (
+                                 <Button
+                                   key={`chipv-${n}`}
+                                   type="button"
+                                   size="sm"
+                                   variant={isPicked ? 'default' : 'outline'}
+                                   className="h-7 pl-1 pr-2 text-[11px] rounded-full gap-1"
+                                   disabled={loading}
+                                   onClick={() =>
+                                     setVariationSubs((prev) => ({ ...prev, [idx]: n }))
+                                   }
+                                 >
+                                   <Thumb name={n} size="xs" />
+                                   <Sparkles className="h-2.5 w-2.5" />
+                                   {n}
+                                 </Button>
+                               );
+                             })}
+                           </div>
+                         )}
+                       </div>
+                     );
+                   })()}
                   </div>
                 );
               })}
@@ -624,7 +719,7 @@ const AiEditExerciseDialog: React.FC<Props> = ({
            ) : (
              <Button
                onClick={applyVariations}
-               disabled={loading || Object.values(substitutions).filter(Boolean).length === 0}
+                disabled={loading || (Object.values(substitutions).filter(Boolean).length === 0 && Object.values(variationSubs).filter(Boolean).length === 0)}
              >
                <Repeat className="h-4 w-4 mr-1" />
                Aplicar substituições
