@@ -20,9 +20,35 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import ProtocolsDialog from '@/components/diet/ProtocolsDialog';
 import { protocolsToKeys, type SavedProtocols, type ProtocolKey } from '@/lib/dietProtocols';
 import { ListChecks } from 'lucide-react';
+import { buildCarbCycleDays } from '@/lib/dietAiActions';
 
 const WEEKDAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const OPTION_TITLE_REGEX = /(op[cç][aã]o|card[aá]pio)/i;
+
+/**
+ * Recover a previously-applied carb cycle saved in the diet markdown notes
+ * (format: "🔄 Ciclo de Carboidratos" + "Low Carb: ..." / "High Carb: ...").
+ */
+const extractCarbCycleFromMarkdown = (
+  markdown: string,
+): { lowCarbDays: string[]; highCarbDays: string[] } | undefined => {
+  if (!markdown) return undefined;
+  if (!markdown.toLowerCase().includes('ciclo de carbo')) return undefined;
+  const parseDays = (label: 'low carb' | 'high carb'): string[] => {
+    const re = new RegExp(`${label}\\s*:\\s*([^\\n]+)`, 'i');
+    const m = markdown.match(re);
+    if (!m) return [];
+    return m[1]
+      .split(/[,;/]/)
+      .map((s) => s.trim().toLowerCase().replace(/\(.*$/, '').trim())
+      .filter(Boolean)
+      .map((s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+  };
+  const low = parseDays('low carb');
+  const high = parseDays('high carb');
+  if (low.length === 0 && high.length === 0) return undefined;
+  return { lowCarbDays: low, highCarbDays: high };
+};
 
 const parseNum = (v?: string) => {
   if (!v) return 0;
@@ -183,15 +209,47 @@ const MinhasDietas = () => {
 
   // When day-based (not options), always show 7 weekday buttons with independent meal copies
   const displayGroups = useMemo(() => {
-    const base = (usesMealOptions || mealGroups.length === 0)
-      ? mealGroups
-      : WEEKDAY_LABELS.map((label, i) => ({
-          label,
-          meals: mealGroups[i % mealGroups.length].meals.map(m => ({
+    let base: { label: string; meals: any[] }[];
+    if (usesMealOptions || mealGroups.length === 0) {
+      base = mealGroups;
+    } else if (mealGroups.length === 1) {
+      // Single meal block → expand to 7 weekdays. If a carb cycle is saved in
+      // the markdown notes, re-apply it so each day shows its real carbs.
+      const cc = extractCarbCycleFromMarkdown(dietMarkdown);
+      const baseMeals = mealGroups[0].meals;
+      if (cc) {
+        const cycled = buildCarbCycleDays(baseMeals as any, cc);
+        base = WEEKDAY_LABELS.map((label, i) => ({
+          label: cycled[i]?.label?.includes('(') ? `${label} ${cycled[i].label.replace(/^[^(]+/, '').trim()}` : label,
+          meals: (cycled[i]?.meals ?? baseMeals).map(m => ({
             ...m,
             foods: m.foods.map(f => ({ ...f })),
           })),
         }));
+      } else {
+        base = WEEKDAY_LABELS.map((label) => ({
+          label,
+          meals: baseMeals.map(m => ({
+            ...m,
+            foods: m.foods.map(f => ({ ...f })),
+          })),
+        }));
+      }
+    } else {
+      // Multiple meal sections already (e.g. per-day from carb cycle save).
+      base = WEEKDAY_LABELS.map((label, i) => {
+        const src = mealGroups[i % mealGroups.length];
+        const srcLabel = (src.label || '').trim();
+        const tag = srcLabel.match(/\(([^)]+)\)/);
+        return {
+          label: tag ? `${label} (${tag[1]})` : label,
+          meals: src.meals.map(m => ({
+            ...m,
+            foods: m.foods.map(f => ({ ...f })),
+          })),
+        };
+      });
+    }
     // Apply persisted substitutions
     return base.map((group, gi) => ({
       ...group,
@@ -200,7 +258,7 @@ const MinhasDietas = () => {
         return saved ? { ...m, foods: saved } : m;
       }),
     }));
-  }, [mealGroups, usesMealOptions, substitutions]);
+  }, [mealGroups, usesMealOptions, substitutions, dietMarkdown]);
 
   const persistFoodsChange = useCallback((groupIdx: number, mealIdx: number, foods: any[]) => {
     setSubstitutions((prev) => {
@@ -239,10 +297,14 @@ const MinhasDietas = () => {
   const activeGroupIndex = displayGroups[selectedGroupIndex] ? selectedGroupIndex : defaultGroupIndex;
   const currentMeals = displayGroups.length > 0 ? (displayGroups[activeGroupIndex]?.meals ?? []) : allMeals;
 
-  const totalKcal = currentMeals.reduce((s, m) => s + parseNum(m.totalKcal), 0);
-  const totalP = currentMeals.reduce((s, m) => s + parseNum(m.totalP), 0);
-  const totalC = currentMeals.reduce((s, m) => s + parseNum(m.totalC), 0);
-  const totalG = currentMeals.reduce((s, m) => s + parseNum(m.totalG), 0);
+  // Sum directly from foods so totals reflect any carb-cycle scaling or
+  // student substitutions instead of the cached meal totals from the parser.
+  const sumFoods = (key: 'kcal' | 'p' | 'c' | 'g') =>
+    currentMeals.reduce((s, m) => s + (m.foods?.reduce((fs: number, f: any) => fs + parseNum(f[key]), 0) ?? 0), 0);
+  const totalKcal = sumFoods('kcal');
+  const totalP = sumFoods('p');
+  const totalC = sumFoods('c');
+  const totalG = sumFoods('g');
   // Always show the REAL sum of foods on the table — never the theoretical
   // "calorias alvo" written by the AI in the preamble, because the two often
   // diverge (ex: meta 1455 kcal mas alimentos somam 1830 kcal). The student
