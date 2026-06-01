@@ -350,7 +350,7 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!loading) onOpenChange(o); }}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className={`max-h-[90vh] overflow-y-auto ${tab === 'variations' ? 'sm:max-w-2xl lg:max-w-[min(96vw,1400px)]' : 'sm:max-w-2xl'}`}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
