@@ -337,10 +337,13 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     setFinishing(true);
     try {
       const durationMinutes = Math.ceil(sessionTimer.durationSeconds / 60);
-      const completedAt = new Date().toISOString();
+      const completedAtDate = new Date();
+      const completedAt = completedAtDate.toISOString();
+      const startedAtDate = new Date(sessionTimer.startedAt);
 
       const finishStudent = async (st: StudentSessionState, pairedId: string | null) => {
         const exercisesCompleted = Object.values(st.state).filter((ex: any) => ex.savedSets > 0).length;
+        const calendarEventId = calendarEventByStudent[st.studentId] || null;
         await supabase.from('workout_sessions').insert({
           id: slotId(st.studentId), // Use a unique session ID per student but same tracking
           student_id: st.studentId,
@@ -348,6 +351,9 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
           phase: st.plan.fase || null,
           started_at: sessionTimer.startedAt,
           completed_at: completedAt,
+          started_at_real: sessionTimer.startedAt,
+          completed_at_real: completedAt,
+          calendar_event_id: calendarEventId,
           duration_minutes: durationMinutes,
           exercises_completed: exercisesCompleted,
           total_exercises: st.days[st.activeDayIdx].exercises.length,
@@ -358,6 +364,20 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
           paired_student_id: pairedId
         });
         localStorage.removeItem(draftKey(st.studentId, st.days[st.activeDayIdx].day, makeDaySignature(st.days[st.activeDayIdx])));
+
+        if (calendarEventId && user?.id) {
+          try {
+            await completeAgendaEventForSession({
+              calendarEventId,
+              studentId: st.studentId,
+              adminId: user.id,
+              startedAtReal: startedAtDate,
+              completedAtReal: completedAtDate,
+            });
+          } catch (e) {
+            console.error('Falha ao concluir aula na Agenda:', e);
+          }
+        }
       };
 
       // Generate unique IDs for each session but linked via paired_student_id
@@ -368,7 +388,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
         studentB ? finishStudent(studentB, studentA?.studentId || null) : Promise.resolve()
       ]);
 
-      toast.success('Treino Duo finalizado com sucesso!');
+      toast.success('Treino Duo finalizado! Aulas concluídas na Agenda.');
       onOpenChange(false);
     } catch (err: any) {
       toast.error('Erro ao finalizar: ' + err.message);
