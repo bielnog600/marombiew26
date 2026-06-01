@@ -67,6 +67,8 @@ const AiEditExerciseDialog: React.FC<Props> = ({
    const [loading, setLoading] = useState(false);
    const [tab, setTab] = useState<'ai' | 'variations'>('ai');
    const [substitutions, setSubstitutions] = useState<Record<number, string>>({});
+   const [aiSuggestions, setAiSuggestions] = useState<Record<number, string[]>>({});
+   const [aiLoadingIdx, setAiLoadingIdx] = useState<number | null>(null);
 
    const normalize = (s: string) =>
      (s || '')
@@ -100,6 +102,56 @@ const AiEditExerciseDialog: React.FC<Props> = ({
      });
      // sort by nome
      return list.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+   };
+
+   const fetchAiVariations = async (idx: number, ex: ParsedExercise) => {
+     if (!ex.exercise) return;
+     setAiLoadingIdx(idx);
+     try {
+       let studentContext: any = undefined;
+       if (studentId) {
+         const { data } = await supabase
+           .from('students_profile')
+           .select('lesoes, restricoes, observacoes, objetivo')
+           .eq('user_id', studentId)
+           .maybeSingle();
+         if (data) studentContext = data;
+       }
+       const { data, error } = await supabase.functions.invoke('training-edit-agent', {
+         body: {
+           dayName,
+           currentExercises,
+           instruction: `Sugira 6 variações/alternativas para o exercício "${ex.exercise}" (posição ${idx}). Todas DEVEM trabalhar o MESMO grupo muscular, vir EXCLUSIVAMENTE do BANCO DE EXERCÍCIOS, e ser DIFERENTES de "${ex.exercise}" e dos outros exercícios já presentes no dia. Para cada candidato, retorne uma ação "replace" no índice ${idx} preenchendo apenas exercise.exercise (em MAIÚSCULAS). Não inclua séries/reps/pause/description. Retorne exatamente 6 ações, cada uma com um nome distinto.`,
+           exerciseCatalog,
+           studentContext,
+         },
+       });
+       if (error) throw error;
+       if ((data as any)?.error) throw new Error((data as any).error);
+       const actions: AiEditAction[] = Array.isArray((data as any)?.actions) ? (data as any).actions : [];
+       const seen = new Set<string>();
+       const names: string[] = [];
+       for (const a of actions) {
+         const n = a?.exercise?.exercise?.trim();
+         if (!n) continue;
+         const norm = normalize(n);
+         if (!norm || norm === normalize(ex.exercise)) continue;
+         if (seen.has(norm)) continue;
+         seen.add(norm);
+         names.push(n);
+       }
+       if (!names.length) {
+         toast.error('A IA não retornou variações. Tente novamente.');
+         return;
+       }
+       setAiSuggestions((prev) => ({ ...prev, [idx]: names }));
+       toast.success(`${names.length} variação(ões) sugerida(s) pela IA.`);
+     } catch (e: any) {
+       console.error(e);
+       toast.error('Erro IA: ' + (e?.message || 'falha'));
+     } finally {
+       setAiLoadingIdx(null);
+     }
    };
 
    const applyVariations = () => {
@@ -281,10 +333,30 @@ const AiEditExerciseDialog: React.FC<Props> = ({
               {currentExercises.map((ex, idx) => {
                 const variations = getVariationsFor(ex.exercise);
                 const selected = substitutions[idx] || '';
+                const aiNames = aiSuggestions[idx] || [];
+                const baseNorms = new Set(variations.map((v) => normalize(v.nome)));
+                const aiOnly = aiNames.filter((n) => !baseNorms.has(normalize(n)));
+                const aiNormSet = new Set(aiNames.map((n) => normalize(n)));
+                const isAiLoading = aiLoadingIdx === idx;
                 return (
                   <div key={idx} className="rounded-md border border-border/60 p-2.5 space-y-1.5 bg-card/40">
                     <div className="flex items-center gap-2 text-sm">
                       <span className="font-medium truncate flex-1">{ex.exercise || `Exercício ${idx + 1}`}</span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-[11px] gap-1 shrink-0"
+                        disabled={loading || isAiLoading || !ex.exercise}
+                        onClick={() => fetchAiVariations(idx, ex)}
+                      >
+                        {isAiLoading ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-3 w-3 text-primary" />
+                        )}
+                        IA sugere
+                      </Button>
                       <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     </div>
                     <Select
@@ -304,13 +376,48 @@ const AiEditExerciseDialog: React.FC<Props> = ({
                       </SelectTrigger>
                       <SelectContent className="max-h-72">
                         <SelectItem value="__none__">— Manter exercício atual —</SelectItem>
-                        {variations.map((v) => (
-                          <SelectItem key={v.nome} value={v.nome}>
-                            {v.nome}
-                          </SelectItem>
-                        ))}
+                        {aiOnly.length > 0 && (
+                          <>
+                            {aiOnly.map((n) => (
+                              <SelectItem key={`ai-${n}`} value={n}>
+                                ✨ {n}
+                              </SelectItem>
+                            ))}
+                          </>
+                        )}
+                        {variations.map((v) => {
+                          const isAi = aiNormSet.has(normalize(v.nome));
+                          return (
+                            <SelectItem key={v.nome} value={v.nome}>
+                              {isAi ? '✨ ' : ''}{v.nome}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
+                    {aiNames.length > 0 && (
+                      <div className="flex flex-wrap gap-1 pt-0.5">
+                        {aiNames.map((n) => {
+                          const isPicked = normalize(selected) === normalize(n);
+                          return (
+                            <Button
+                              key={`chip-${n}`}
+                              type="button"
+                              size="sm"
+                              variant={isPicked ? 'default' : 'outline'}
+                              className="h-6 px-2 text-[11px] rounded-full"
+                              disabled={loading}
+                              onClick={() =>
+                                setSubstitutions((prev) => ({ ...prev, [idx]: n }))
+                              }
+                            >
+                              <Sparkles className="h-2.5 w-2.5 mr-1" />
+                              {n}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}
