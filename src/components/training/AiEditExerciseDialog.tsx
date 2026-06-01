@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Loader2, Plus, Wand2, Repeat, ArrowRight } from 'lucide-react';
+import { Sparkles, Loader2, Plus, Wand2, Repeat, ArrowRight, Dumbbell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -20,7 +20,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   dayName: string;
   currentExercises: ParsedExercise[];
-  exerciseCatalog: Array<{ nome: string; grupo_muscular: string }>;
+  exerciseCatalog: Array<{ nome: string; grupo_muscular: string; imagem_url?: string | null }>;
   studentId?: string;
   onApply: (actions: AiEditAction[]) => void;
 }
@@ -103,6 +103,27 @@ const AiEditExerciseDialog: React.FC<Props> = ({
      // sort by nome
      return list.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
    };
+
+  const Thumb: React.FC<{ name: string; size?: 'sm' | 'xs' }> = ({ name, size = 'sm' }) => {
+    const entry = findCatalogEntry(name);
+    const url = entry?.imagem_url || null;
+    const dim = size === 'xs' ? 'h-6 w-6' : 'h-9 w-9';
+    if (!url) {
+      return (
+        <div className={`${dim} shrink-0 rounded-md bg-muted/40 flex items-center justify-center border border-border/40`}>
+          <Dumbbell className="h-3 w-3 text-muted-foreground" />
+        </div>
+      );
+    }
+    return (
+      <img
+        src={url}
+        alt={name}
+        loading="lazy"
+        className={`${dim} shrink-0 rounded-md object-cover border border-border/40 bg-muted/40`}
+      />
+    );
+  };
 
    const fetchAiVariations = async (idx: number, ex: ParsedExercise) => {
      if (!ex.exercise) return;
@@ -341,6 +362,7 @@ const AiEditExerciseDialog: React.FC<Props> = ({
                 return (
                   <div key={idx} className="rounded-md border border-border/60 p-2.5 space-y-1.5 bg-card/40">
                     <div className="flex items-center gap-2 text-sm">
+                      <Thumb name={ex.exercise} />
                       <span className="font-medium truncate flex-1">{ex.exercise || `Exercício ${idx + 1}`}</span>
                       <Button
                         type="button"
@@ -380,7 +402,10 @@ const AiEditExerciseDialog: React.FC<Props> = ({
                           <>
                             {aiOnly.map((n) => (
                               <SelectItem key={`ai-${n}`} value={n}>
-                                ✨ {n}
+                                <span className="flex items-center gap-2">
+                                  <Thumb name={n} size="xs" />
+                                  <span>✨ {n}</span>
+                                </span>
                               </SelectItem>
                             ))}
                           </>
@@ -389,7 +414,10 @@ const AiEditExerciseDialog: React.FC<Props> = ({
                           const isAi = aiNormSet.has(normalize(v.nome));
                           return (
                             <SelectItem key={v.nome} value={v.nome}>
-                              {isAi ? '✨ ' : ''}{v.nome}
+                              <span className="flex items-center gap-2">
+                                <Thumb name={v.nome} size="xs" />
+                                <span>{isAi ? '✨ ' : ''}{v.nome}</span>
+                              </span>
                             </SelectItem>
                           );
                         })}
@@ -405,13 +433,14 @@ const AiEditExerciseDialog: React.FC<Props> = ({
                               type="button"
                               size="sm"
                               variant={isPicked ? 'default' : 'outline'}
-                              className="h-6 px-2 text-[11px] rounded-full"
+                              className="h-7 pl-1 pr-2 text-[11px] rounded-full gap-1"
                               disabled={loading}
                               onClick={() =>
                                 setSubstitutions((prev) => ({ ...prev, [idx]: n }))
                               }
                             >
-                              <Sparkles className="h-2.5 w-2.5 mr-1" />
+                              <Thumb name={n} size="xs" />
+                              <Sparkles className="h-2.5 w-2.5" />
                               {n}
                             </Button>
                           );

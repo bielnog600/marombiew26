@@ -699,7 +699,7 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
         onOpenChange={setAiOpen}
         dayName={day.day}
         currentExercises={localExercises}
-        exerciseCatalog={exerciseCatalog.map((c) => ({ nome: c.nome, grupo_muscular: c.grupo_muscular }))}
+        exerciseCatalog={exerciseCatalog.map((c) => ({ nome: c.nome, grupo_muscular: c.grupo_muscular, imagem_url: c.imagem_url }))}
         studentId={studentIdFromRoute}
         onApply={applyAiActions}
       />
