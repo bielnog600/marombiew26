@@ -297,10 +297,14 @@ const MinhasDietas = () => {
   const activeGroupIndex = displayGroups[selectedGroupIndex] ? selectedGroupIndex : defaultGroupIndex;
   const currentMeals = displayGroups.length > 0 ? (displayGroups[activeGroupIndex]?.meals ?? []) : allMeals;
 
-  const totalKcal = currentMeals.reduce((s, m) => s + parseNum(m.totalKcal), 0);
-  const totalP = currentMeals.reduce((s, m) => s + parseNum(m.totalP), 0);
-  const totalC = currentMeals.reduce((s, m) => s + parseNum(m.totalC), 0);
-  const totalG = currentMeals.reduce((s, m) => s + parseNum(m.totalG), 0);
+  // Sum directly from foods so totals reflect any carb-cycle scaling or
+  // student substitutions instead of the cached meal totals from the parser.
+  const sumFoods = (key: 'kcal' | 'p' | 'c' | 'g') =>
+    currentMeals.reduce((s, m) => s + (m.foods?.reduce((fs: number, f: any) => fs + parseNum(f[key]), 0) ?? 0), 0);
+  const totalKcal = sumFoods('kcal');
+  const totalP = sumFoods('p');
+  const totalC = sumFoods('c');
+  const totalG = sumFoods('g');
   // Always show the REAL sum of foods on the table — never the theoretical
   // "calorias alvo" written by the AI in the preamble, because the two often
   // diverge (ex: meta 1455 kcal mas alimentos somam 1830 kcal). The student
