@@ -369,6 +369,34 @@ export default function AgendaEventDetailSheet({ event, open, onClose, onRefresh
           calendarEventId={event.id}
         />
       )}
+
+      <Dialog open={showDeleteChoice} onOpenChange={setShowDeleteChoice}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-4 w-4 text-red-400" /> Excluir evento recorrente
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <p className="text-sm text-muted-foreground">
+              Este evento faz parte de uma série semanal com{' '}
+              <b className="text-foreground">{futureCount}</b> ocorrência(s) a partir desta data.
+              Como deseja excluir?
+            </p>
+          </div>
+          <DialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0">
+            <Button variant="outline" onClick={doDeleteSingle} className="w-full gap-1">
+              <Trash2 className="h-4 w-4" /> Apenas este evento
+            </Button>
+            <Button variant="destructive" onClick={doDeleteSeries} className="w-full gap-1">
+              <Trash2 className="h-4 w-4" /> Este e todos os futuros ({futureCount})
+            </Button>
+            <Button variant="ghost" onClick={() => setShowDeleteChoice(false)} className="w-full">
+              Cancelar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
