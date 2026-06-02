@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CalendarEvent, EVENT_TYPE_LABELS, EVENT_STATUS_LABELS, STATUS_COLORS, updateCalendarEvent, deleteCalendarEvent } from '@/hooks/useCalendarEvents';
+import { CalendarEvent, EVENT_TYPE_LABELS, EVENT_STATUS_LABELS, STATUS_COLORS, updateCalendarEvent, deleteCalendarEvent, deleteCalendarEventSeries, countFutureSeriesEvents } from '@/hooks/useCalendarEvents';
 import { ClassPackage } from '@/hooks/useFinancial';
 import { supabase } from '@/integrations/supabase/client';
 import ClassDeductionDialog from '@/components/financial/ClassDeductionDialog';
@@ -26,6 +26,8 @@ interface Props {
 export default function AgendaEventDetailSheet({ event, open, onClose, onRefresh }: Props) {
   const [showEdit, setShowEdit] = useState(false);
   const [showReschedule, setShowReschedule] = useState(false);
+  const [showDeleteChoice, setShowDeleteChoice] = useState(false);
+  const [futureCount, setFutureCount] = useState<number>(1);
   const [deductionTarget, setDeductionTarget] = useState<{ studentId: string; studentName: string; pkg: ClassPackage | null; allPackages?: ClassPackage[] } | null>(null);
   const { user } = useAuth();
 
@@ -161,15 +163,45 @@ export default function AgendaEventDetailSheet({ event, open, onClose, onRefresh
     }
   };
 
-  const handleDelete = async () => {
+  const handleDeleteClick = async () => {
+    // Se faz parte de uma série recorrente, oferece escolha
+    if (event.recurrence_group_id) {
+      try {
+        const count = await countFutureSeriesEvents(event.id);
+        if (count > 1) {
+          setFutureCount(count);
+          setShowDeleteChoice(true);
+          return;
+        }
+      } catch {
+        // ignora e cai para confirmação simples
+      }
+    }
     if (!window.confirm('Excluir este evento?')) return;
+    await doDeleteSingle();
+  };
+
+  const doDeleteSingle = async () => {
     try {
       await deleteCalendarEvent(event.id);
       toast.success('Evento excluído');
+      setShowDeleteChoice(false);
       onRefresh();
       onClose();
     } catch {
       toast.error('Erro ao excluir');
+    }
+  };
+
+  const doDeleteSeries = async () => {
+    try {
+      const n = await deleteCalendarEventSeries(event.id);
+      toast.success(`${n} evento(s) da série excluído(s)`);
+      setShowDeleteChoice(false);
+      onRefresh();
+      onClose();
+    } catch {
+      toast.error('Erro ao excluir a série');
     }
   };
 
@@ -277,7 +309,7 @@ export default function AgendaEventDetailSheet({ event, open, onClose, onRefresh
               <br />Reagendar, Cancelar e Falta com aviso <b>não</b> consomem aula.
             </p>
 
-            <Button variant="destructive" size="sm" onClick={handleDelete} className="w-full gap-1">
+            <Button variant="destructive" size="sm" onClick={handleDeleteClick} className="w-full gap-1">
               <Trash2 className="h-3.5 w-3.5" /> Excluir Evento
             </Button>
           </div>
