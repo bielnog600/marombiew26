@@ -11,11 +11,15 @@ import {
   type AdherenceReport,
   type AdherenceStatus,
 } from '@/lib/weeklyAdherence';
+import { PHASE_SHORT_LABELS } from '@/lib/trainingPhase';
+import type { WeekResolution } from '@/lib/weeklyProgression';
+import { WEEK_ACTION_LABEL } from '@/lib/weeklyProgression';
 
 interface Props {
   report: AdherenceReport | null;
   loading?: boolean;
   compact?: boolean;
+  progression?: WeekResolution | null;
 }
 
 const ICONS: Record<AdherenceStatus, React.ReactNode> = {
@@ -28,7 +32,7 @@ const ICONS: Record<AdherenceStatus, React.ReactNode> = {
 
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
-const WeeklyAdherenceBanner: React.FC<Props> = ({ report, loading, compact }) => {
+const WeeklyAdherenceBanner: React.FC<Props> = ({ report, loading, compact, progression }) => {
   const [open, setOpen] = useState(false);
 
   if (loading) {
@@ -66,8 +70,33 @@ const WeeklyAdherenceBanner: React.FC<Props> = ({ report, loading, compact }) =>
                 </Button>
               )}
             </div>
-            <p className="text-xs mt-1 text-foreground/90">{report.reasonLabel}</p>
+            <p className="text-xs mt-1 text-foreground/90">
+              {progression?.reasonLabel || report.reasonLabel}
+            </p>
             <p className="text-[11px] text-muted-foreground mt-0.5">{report.detailLabel}</p>
+            {progression && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px]">
+                <span className="px-1.5 py-0.5 rounded border border-border bg-card/70 text-muted-foreground">
+                  Planejada: <span className="text-foreground font-semibold">{PHASE_SHORT_LABELS[progression.plannedPhase]}</span>
+                </span>
+                <span className="px-1.5 py-0.5 rounded border border-primary/30 bg-primary/10 text-primary">
+                  Ativa: <span className="font-semibold">{PHASE_SHORT_LABELS[progression.activePhase]}</span>
+                </span>
+                <span className="px-1.5 py-0.5 rounded border border-border text-muted-foreground">
+                  {WEEK_ACTION_LABEL[progression.action]}
+                </span>
+                {progression.blockOverload && (
+                  <span className="px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-500">
+                    Sem overload
+                  </span>
+                )}
+                {progression.suggestRevision && (
+                  <span className="px-1.5 py-0.5 rounded border border-violet-500/30 bg-violet-500/10 text-violet-500">
+                    Revisão do coach
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </Card>
@@ -83,8 +112,15 @@ const WeeklyAdherenceBanner: React.FC<Props> = ({ report, loading, compact }) =>
 
           <div className="mt-4 space-y-3">
             <div className={`p-3 rounded-lg border ${badge}`}>
-              <p className="text-sm font-semibold">{report.reasonLabel}</p>
+              <p className="text-sm font-semibold">{progression?.reasonLabel || report.reasonLabel}</p>
               <p className="text-xs mt-1 text-foreground/80">{report.detailLabel}</p>
+              {progression && (
+                <p className="text-xs mt-2 text-foreground/80">
+                  Semana planejada: <span className="font-semibold">{PHASE_SHORT_LABELS[progression.plannedPhase]}</span>{' '}
+                  · Semana ativa: <span className="font-semibold">{PHASE_SHORT_LABELS[progression.activePhase]}</span>{' '}
+                  · Ação: <span className="font-semibold">{WEEK_ACTION_LABEL[progression.action]}</span>
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-3 gap-2">
