@@ -498,3 +498,8 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
 };
 
 export default StudentTrainingTab;
+
+const PlanAdherence: React.FC<{ planId: string; studentId: string; conteudo: string }> = ({ planId, studentId, conteudo }) => {
+  const { report, loading } = useWeeklyAdherence({ id: planId, student_id: studentId, conteudo });
+  return <WeeklyAdherenceBanner report={report} loading={loading} />;
+};
