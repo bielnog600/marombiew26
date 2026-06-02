@@ -218,7 +218,7 @@ export interface SessionState {
 export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId, days, phase }) => {
   const { user } = useAuth();
   const [state, setState] = useState<Record<number, ExerciseState>>({});
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [activeDayIdx, setActiveDayIdx] = useState(0);
   const [exercisesList, setExercisesList] = useState<{ id: string; nome: string; grupo_muscular: string; imagem_url?: string | null }[]>([]);
   const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer } = useRestTimer();
@@ -527,7 +527,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
 
         {loading ? <div className="flex justify-center py-12"><Loader2 className="animate-spin" /></div> : (
           <div className="space-y-3 mt-4">
-            {day.exercises.map((ex, exIdx) => (
+            {day.exercises.map((ex, exIdx) => state[exIdx] ? (
               <ExerciseLogCard
                 key={exIdx}
                 exIdx={exIdx}
@@ -544,7 +544,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                 HistoryPopover={HistoryPopover}
                 parsePauseSeconds={parsePauseSeconds}
               />
-            ))}
+            ) : null)}
             <div className="pt-6 pb-8">
               <Button className="w-full h-12 text-base font-bold" onClick={handleFinishSession} disabled={finishing || Object.values(state).every(ex => ex.savedSets === 0)}>
                 {finishing ? <Loader2 className="animate-spin mr-2" /> : <Check className="mr-2" />}
