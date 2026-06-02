@@ -17,6 +17,7 @@ import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { fetchWithCache } from '@/lib/offlineCache';
 import WeeklyAdherenceBanner from '@/components/training/WeeklyAdherenceBanner';
 import { useWeeklyAdherence } from '@/hooks/useWeeklyAdherence';
+import { resolveActiveWeek } from '@/lib/weeklyProgression';
 import {
   TRAINING_PHASES,
   PHASE_LABELS,
@@ -94,6 +95,8 @@ const MeusTreinos = () => {
   const [loading, setLoading] = useState(true);
   const [activePhase, setActivePhase] = useState<TrainingPhase>('semana_1');
   const [autoPhaseSet, setAutoPhaseSet] = useState(false);
+  const [plannedPhase, setPlannedPhase] = useState<TrainingPhase>('semana_1');
+  const [userOverridePhase, setUserOverridePhase] = useState(false);
 
   useEffect(() => {
     if (user) loadTraining();
@@ -127,7 +130,9 @@ const MeusTreinos = () => {
         : (allPlans[0].fase || 'semana_1');
       // Garante que existe plano dessa fase, senão pega a primeira disponível
       const available = allPlans.find(p => p.fase === auto);
-      setActivePhase(available ? auto : (allPlans[0].fase || 'semana_1'));
+      const planned = (available ? auto : (allPlans[0].fase || 'semana_1')) as TrainingPhase;
+      setPlannedPhase(planned);
+      setActivePhase(planned);
       setAutoPhaseSet(true);
     }
 
@@ -192,12 +197,32 @@ const MeusTreinos = () => {
   }, [plans, activePhase]);
 
   const activePlanForAdherence = useMemo(() => {
-    const p = plans.find(pl => pl.fase === activePhase);
+    // Aderência é sempre avaliada sobre a *semana planejada* pelo calendário,
+    // não sobre a semana atualmente exibida (que pode já ser uma resolução).
+    const p = plans.find(pl => pl.fase === plannedPhase) || plans.find(pl => pl.fase === activePhase);
     if (!p || !user) return null;
     return { id: p.id, student_id: user.id, conteudo: p.conteudo };
-  }, [plans, activePhase, user]);
+  }, [plans, activePhase, plannedPhase, user]);
 
   const { report: adherenceReport, loading: adherenceLoading } = useWeeklyAdherence(activePlanForAdherence);
+
+  // Resolve a semana ativa a partir da semana planejada + aderência real.
+  const progression = useMemo(
+    () => resolveActiveWeek(plannedPhase, adherenceReport?.status),
+    [plannedPhase, adherenceReport?.status],
+  );
+
+  // Aplica a semana ativa resolvida (somente se o usuário não trocou manualmente
+  // e se houver um plano para essa semana resolvida).
+  useEffect(() => {
+    if (!autoPhaseSet || userOverridePhase) return;
+    if (adherenceLoading) return;
+    const target = progression.activePhase;
+    const hasPlanForTarget = plans.some(p => p.fase === target);
+    if (hasPlanForTarget && target !== activePhase) {
+      setActivePhase(target);
+    }
+  }, [progression, plans, adherenceLoading, autoPhaseSet, userOverridePhase, activePhase]);
 
   const todayIndex = useMemo(() => {
     if (trainingDays.length === 0) return -1;
@@ -254,7 +279,7 @@ const MeusTreinos = () => {
         {/* Seletor de fase semanal (híbrido: auto + manual) */}
         {availablePhases.length > 1 && (
           <div className="space-y-2">
-            <Tabs value={activePhase} onValueChange={(v) => setActivePhase(v as TrainingPhase)}>
+            <Tabs value={activePhase} onValueChange={(v) => { setActivePhase(v as TrainingPhase); setUserOverridePhase(true); }}>
               <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${availablePhases.length}, 1fr)` }}>
                 {availablePhases.map(p => (
                   <TabsTrigger key={p} value={p} className="text-xs">
@@ -289,7 +314,11 @@ const MeusTreinos = () => {
           </Card>
         ) : (
           <>
-            <WeeklyAdherenceBanner report={adherenceReport} loading={adherenceLoading} />
+            <WeeklyAdherenceBanner
+              report={adherenceReport}
+              loading={adherenceLoading}
+              progression={progression}
+            />
             {
           trainingDays.map((day, i) => {
             const isToday = i === todayIndex;

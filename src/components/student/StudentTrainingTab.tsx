@@ -17,6 +17,7 @@ import { rebuildTrainingMarkdown } from '@/lib/trainingResultParser';
 import AiEditAllDaysDialog from '@/components/training/AiEditAllDaysDialog';
 import WeeklyAdherenceBanner from '@/components/training/WeeklyAdherenceBanner';
 import { useWeeklyAdherence } from '@/hooks/useWeeklyAdherence';
+import { resolveActiveWeek } from '@/lib/weeklyProgression';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -284,7 +285,12 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
 
                 {isExpanded && (
                   <div className="mt-4 pt-4 border-t border-border space-y-4">
-                    <PlanAdherence planId={plan.id} studentId={studentId} conteudo={currentMarkdown} />
+                    <PlanAdherence
+                      planId={plan.id}
+                      studentId={studentId}
+                      conteudo={currentMarkdown}
+                      fase={(editedPhases[plan.id] ?? plan.fase) as TrainingPhase}
+                    />
                     {/* Ações Híbridas - Central de Ação Individual */}
                     <div className="flex flex-wrap gap-2 pb-2">
                       <Button 
@@ -499,7 +505,11 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
 
 export default StudentTrainingTab;
 
-const PlanAdherence: React.FC<{ planId: string; studentId: string; conteudo: string }> = ({ planId, studentId, conteudo }) => {
+const PlanAdherence: React.FC<{ planId: string; studentId: string; conteudo: string; fase?: TrainingPhase | null }> = ({ planId, studentId, conteudo, fase }) => {
   const { report, loading } = useWeeklyAdherence({ id: planId, student_id: studentId, conteudo });
-  return <WeeklyAdherenceBanner report={report} loading={loading} />;
+  const progression = React.useMemo(
+    () => resolveActiveWeek((fase as TrainingPhase) || 'semana_1', report?.status),
+    [fase, report?.status],
+  );
+  return <WeeklyAdherenceBanner report={report} loading={loading} progression={progression} />;
 };
