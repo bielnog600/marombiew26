@@ -273,6 +273,63 @@ export async function deleteCalendarEvent(eventId: string) {
   if (error) throw error;
 }
 
+/**
+ * Exclui este evento e todos os futuros da mesma série recorrente
+ * (mesmo recurrence_group_id e start_datetime >= deste evento).
+ * Retorna a quantidade de eventos excluídos.
+ */
+export async function deleteCalendarEventSeries(eventId: string): Promise<number> {
+  const { data: base, error: bErr } = await supabase
+    .from('calendar_events')
+    .select('id, recurrence_group_id, start_datetime')
+    .eq('id', eventId)
+    .single();
+  if (bErr || !base) throw bErr || new Error('Evento não encontrado');
+
+  if (!base.recurrence_group_id) {
+    await deleteCalendarEvent(eventId);
+    return 1;
+  }
+
+  const { data: toDelete, error: lErr } = await supabase
+    .from('calendar_events')
+    .select('id')
+    .eq('recurrence_group_id', base.recurrence_group_id)
+    .gte('start_datetime', base.start_datetime);
+  if (lErr) throw lErr;
+
+  const ids = (toDelete || []).map(e => e.id);
+  if (ids.length === 0) return 0;
+
+  const { error: dErr } = await supabase
+    .from('calendar_events')
+    .delete()
+    .in('id', ids);
+  if (dErr) throw dErr;
+
+  return ids.length;
+}
+
+/**
+ * Conta quantos eventos futuros da mesma série existem (inclui o próprio).
+ */
+export async function countFutureSeriesEvents(eventId: string): Promise<number> {
+  const { data: base } = await supabase
+    .from('calendar_events')
+    .select('id, recurrence_group_id, start_datetime')
+    .eq('id', eventId)
+    .single();
+  if (!base || !base.recurrence_group_id) return 1;
+
+  const { count } = await supabase
+    .from('calendar_events')
+    .select('id', { count: 'exact', head: true })
+    .eq('recurrence_group_id', base.recurrence_group_id)
+    .gte('start_datetime', base.start_datetime);
+
+  return count || 1;
+}
+
 export async function checkConflicts(
   startDt: string,
   endDt: string,
