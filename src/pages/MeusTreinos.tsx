@@ -15,6 +15,8 @@ import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingRes
 import { getSafeWorkoutDays, trackPlanAccess } from '@/lib/planMigrationUtils';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { fetchWithCache } from '@/lib/offlineCache';
+import WeeklyAdherenceBanner from '@/components/training/WeeklyAdherenceBanner';
+import { useWeeklyAdherence } from '@/hooks/useWeeklyAdherence';
 import {
   TRAINING_PHASES,
   PHASE_LABELS,
@@ -189,6 +191,14 @@ const MeusTreinos = () => {
     return merged;
   }, [plans, activePhase]);
 
+  const activePlanForAdherence = useMemo(() => {
+    const p = plans.find(pl => pl.fase === activePhase);
+    if (!p || !user) return null;
+    return { id: p.id, student_id: user.id, conteudo: p.conteudo };
+  }, [plans, activePhase, user]);
+
+  const { report: adherenceReport, loading: adherenceLoading } = useWeeklyAdherence(activePlanForAdherence);
+
   const todayIndex = useMemo(() => {
     if (trainingDays.length === 0) return -1;
     const jsDay = new Date().getDay();
@@ -278,6 +288,9 @@ const MeusTreinos = () => {
             </CardContent>
           </Card>
         ) : (
+          <>
+            <WeeklyAdherenceBanner report={adherenceReport} loading={adherenceLoading} />
+            {
           trainingDays.map((day, i) => {
             const isToday = i === todayIndex;
             const isActiveDay = isToday && !!activeSession;
@@ -371,6 +384,8 @@ const MeusTreinos = () => {
               </Card>
             );
           })
+            }
+          </>
         )}
       </div>
     </AppLayout>

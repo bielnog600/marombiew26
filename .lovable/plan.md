@@ -1,168 +1,118 @@
-# Evolução do pipeline de geração de dietas
+## Periodização Adaptativa por Aderência
 
-## Visão geral
-
-Migrar a fonte de verdade da dieta de **markdown → parser → ParsedMeal[]** para **JSON canônico tipado**, com markdown apenas como saída derivada para visualização/PDF. Adicionar camadas explícitas de validação nutricional e contexto de treino estruturado.
-
-```text
-Antes:  IA → Markdown → Parser frágil → UI + DB
-Depois: IA → JSON canônico (validado) → UI + DB
-                       ↓
-                 Markdown derivado (visual/PDF)
-```
+Refinar a lógica de avanço semanal do treino para que dependa da execução real do aluno (não só do calendário).
 
 ---
 
-## 1. Schema canônico da dieta (`src/lib/dietSchema.ts`)
+### 1. Novo módulo: `src/lib/weeklyAdherence.ts`
 
-Nova fonte de verdade, validada por Zod (já usado em outras edge functions). Será compartilhada entre front (`src/lib`) e edge functions (via cópia em `_shared` ou import relativo).
+Função pura que recebe `plan` + `exercise_set_logs` da semana anterior e retorna:
 
-```text
-DietPlan
-├── meta
-│   ├── version: "1.0"
-│   ├── generatedAt, model
-│   ├── objective: "cutting" | "bulking" | "recomp" | "manutencao" | "performance"
-│   ├── strategy: "linear" | "carb_cycle" | "refeed" | "low_carb" | "if" | "custom"
-│   ├── style: "tradicional" | "mediterranea" | "low_carb" | "vegana" | "flexivel" | ...
-│   └── trainingAware: boolean
-├── targets
-│   ├── tmb, get, deficit/superavit, kcal
-│   └── macros { p, c, g }   (g e %)
-├── trainingContext            // resumo estruturado do treino do aluno
-│   ├── splitType, weeklySessions
-│   └── daysOfWeek: Record<weekday, DayLoad>
-│       └── DayLoad { type: "rest"|"upper"|"lower"|"full"|"cardio"|"tabata"|"mixed",
-│                     intensity: "low"|"medium"|"high",
-│                     timeOfDay?: "manha"|"tarde"|"noite" }
-├── days[]                     // 1 (padrão semanal) ou 7 (ciclo)
-│   ├── label ("Padrão" | "Segunda" | ...)
-│   ├── carbBias: "low"|"normal"|"high"   // para ciclos
-│   ├── meals[]
-│   │   ├── id, name, time, order
-│   │   ├── items[]            // antes "foods"
-│   │   │   ├── foodId? (catálogo) | freeText
-│   │   │   ├── name, qtyGrams, portionLabel
-│   │   │   └── macros { kcal, p, c, g }
-│   │   └── totals { kcal, p, c, g }   // calculados
-│   └── totals { kcal, p, c, g }
-├── tips[], notes[]
-└── validation                 // preenchido pela camada de validação
-    ├── kcalDelta, macroDeltas
-    ├── warnings[], errors[]
-    └── status: "ok"|"warning"|"invalid"
-```
+```ts
+type AdherenceStatus =
+  | 'apto_avancar'        // ≥75% sessões + ≥70% exercícios com carga/reps
+  | 'manter_semana'       // 50-74% — manter semana atual mais 7 dias
+  | 'repetir_semana'      // 25-49% — repetir a mesma semana
+  | 'dados_insuficientes' // <25% ou sem logbook
+  | 'sugerir_reanalise';  // padrão anômalo (ex: cargas zeradas, reps faltando)
 
-Vai conviver com `ParsedMeal` (legado) via adaptador, para não quebrar UI atual.
-
----
-
-## 2. Edge function `diet-agent`: saída estruturada
-
-Mudanças em `supabase/functions/diet-agent/index.ts`:
-
-- Trocar o prompt "responda em markdown" por **OpenAI structured output** (`response_format: { type: "json_schema" }`) com o schema canônico (versão simplificada do schema, validada por Zod no retorno).
-- Separar explicitamente no prompt as três camadas:
-  1. **Objetivo metabólico** (cutting/bulking/recomp/manutenção/performance) — define direção calórica.
-  2. **Estratégia nutricional** (linear / ciclo de carbo / refeed / low carb / IF) — define distribuição entre dias.
-  3. **Estilo alimentar** (mediterrânea, tradicional brasileira, vegana, flexível) — define escolha de alimentos.
-- Construir `trainingContext` no backend antes de chamar a IA: ler `ai_plans` tipo `'treino'` + parser leve para extrair `daysOfWeek` (rest/upper/lower/cardio/tabata/intensity/timeOfDay). Passar como JSON estruturado, não texto bruto.
-- A IA recebe `targets`, `style`, `strategy`, `trainingContext`, `foodCatalog` e devolve `DietPlan` JSON.
-- Após a resposta: parsing Zod → se falhar, 1 retry com mensagem de correção; se falhar de novo, erro 422 para o front.
-- Gerar markdown derivado no próprio backend usando `dietMarkdownSerializer` (move-se uma cópia para `_shared` ou serializa-se inline) e devolver **ambos**: `{ plan: DietPlan, markdown: string }`.
-
----
-
-## 3. Camada de validação nutricional (`src/lib/dietValidation.ts`)
-
-Função pura usada após geração, edição e substituição:
-
-```text
-validateDietPlan(plan, targets) → {
-  status, kcalDelta, macroDeltas, warnings[], errors[]
+interface AdherenceReport {
+  status: AdherenceStatus;
+  sessionsPlanned: number;
+  sessionsExecuted: number;
+  exercisesPlanned: number;
+  exercisesLogged: number;
+  setsWithLoad: number;
+  setsTotal: number;
+  reasonLabel: string;     // mensagem PT-BR para o aluno
+  detailLabel: string;     // detalhe secundário
+  canAutoAdvance: boolean;
 }
 ```
 
-Regras:
-- Recalcula `meals[].totals` e `days[].totals` a partir dos `items` (não confia nos totais da IA).
-- `kcalDelta`: diferença vs `targets.kcal`. `warning` se > 5%, `error` se > 12%.
-- `macroDeltas`: diferença por macro. `warning` se > 10g ou > 15%.
-- Coerência de cada item: `kcal ≈ p*4 + c*4 + g*9` (tolerância ±15%).
-- Items órfãos do catálogo: `warning`.
-- Estratégia: se `strategy = carb_cycle`, exige variação de carbo entre dias (>15% diff).
+Métricas:
+- **% sessões realizadas** = dias com ≥1 set logado / dias planejados no markdown
+- **% exercícios principais com registro** = exercícios distintos logados / exercícios planejados
+- **% sets com carga+reps** = sets com `weight_kg>0 && reps>0` / sets totais
 
-Resultado anexado em `plan.validation`. UI mostra badges.
-
----
-
-## 4. Edição e substituição também usam o JSON
-
-- `diet-edit-agent`: receber `DietPlan` em vez de `currentMeals`. Continuar usando `actions` (`scale_day`, `modify`, `replace`, `add`, `carb_cycle`) — `applyDietActions` migra para operar sobre `DietPlan`. Após aplicar, **revalida** com `validateDietPlan` e devolve `plan + validation`.
-- `FoodSubstitutionDialog`: substituições viram `MealItem`. Após swap → revalidação local; se ultrapassar threshold de erro, exibir aviso antes de aceitar.
-- `DietReadjustmentDialog`: mesmo padrão.
+Limiares (constantes ajustáveis no topo do arquivo):
+- `apto`: sessões ≥75% E exercícios ≥70% E setsCompletos ≥70%
+- `manter`: sessões ≥50% (ou exercícios ≥50%)
+- `repetir`: sessões ≥25%
+- `dados_insuficientes`: <25% ou 0 logs
+- `sugerir_reanalise`: ≥50% sessões mas <30% sets com carga/reps (treinou mas não registrou)
 
 ---
 
-## 5. Persistência
+### 2. Hook: `src/hooks/useWeeklyAdherence.ts`
 
-Em `ai_plans`:
-- Continuar salvando `conteudo` (markdown derivado) → preserva compatibilidade total com PDF, portal do aluno e relatórios atuais.
-- Adicionar coluna nova `conteudo_json jsonb` (nullable) com o `DietPlan` canônico. Migration simples; sem grants extras (mesma tabela).
-- Loader: se `conteudo_json` existir → usa direto. Senão → fallback para parser do markdown (planos antigos).
+```ts
+useWeeklyAdherence(plan) -> { report, loading }
+```
 
----
-
-## 6. UI
-
-- `DietaIA.tsx` e `DietPlanEditor.tsx`: passam a consumir `DietPlan` diretamente quando disponível.
-- Adaptador `dietPlanToParsedMeals(plan)` mantém compatibilidade com `DietResultCards` / `MealCard` enquanto migra os componentes.
-- Novo componente `DietValidationBadge` (chips: ok/warning/invalid com tooltip dos deltas).
-- Bloco de **trainingContext** visível no editor: mostra como a IA leu os dias do aluno (transparência para o admin).
+- Calcula janela da semana anterior baseada em `plan.fase_inicio_data` + `plan.fase`
+- Busca `exercise_set_logs` desse intervalo para `student_id`
+- Parseia `plan.conteudo` (via `parseTrainingSections`) para obter dias e exercícios planejados
+- Devolve `AdherenceReport`
 
 ---
 
-## Arquivos a criar / alterar
+### 3. Bloquear/sinalizar avanço automático
 
-**Novos**
-- `src/lib/dietSchema.ts` — tipos + Zod do `DietPlan`
-- `src/lib/dietValidation.ts` — validação nutricional
-- `src/lib/dietPlanAdapter.ts` — `dietPlanToParsedMeals` / `parsedMealsToDietPlan` (compat)
-- `src/lib/trainingContextExtractor.ts` — extrai `trainingContext` estruturado de um plano de treino
-- `src/components/diet/DietValidationBadge.tsx`
-- Migration: `ai_plans.conteudo_json jsonb`
+Hoje a "fase" (semana_1..semana_4) é texto no plano, sem auto-advance ativo. Garantir que:
 
-**Alterados**
-- `supabase/functions/diet-agent/index.ts` — JSON structured output + camadas separadas + trainingContext
-- `supabase/functions/diet-edit-agent/index.ts` — opera sobre `DietPlan`
-- `src/lib/dietAiActions.ts` — actions sobre `DietPlan`
-- `src/lib/dietMarkdownSerializer.ts` — adiciona `dietPlanToMarkdown(plan)`
-- `src/pages/DietaIA.tsx` — consome `{ plan, markdown }`
-- `src/components/diet/AiEditDietDialog.tsx` — envia/recebe `DietPlan`, mostra validation
-- `src/components/diet/FoodSubstitutionDialog.tsx` — revalida após swap
-
-**Preservados (sem mudança)**
-- `dietResultParser.ts` permanece para planos legados.
-- PDF e portal do aluno continuam lendo markdown.
+- **Nenhum job ou trigger** avance `fase` automaticamente sem checar aderência. (Verificar `supabase/functions/` por cron de progressão — se existir, adicionar gate.)
+- A UI passa a exibir o estado de aderência e só sugere avanço quando `canAutoAdvance === true`.
 
 ---
 
-## Estratégia de rollout
+### 4. Banner de aderência
 
-1. Schema + validação + adaptador (não quebra nada).
-2. Migration `conteudo_json`.
-3. Edge function devolve `{ plan, markdown }`; front salva ambos mas ainda renderiza via markdown.
-4. UI passa a preferir `plan` quando presente.
-5. Edição/substituição migram para `DietPlan`.
-6. trainingContext estruturado entra no prompt.
+Novo componente `src/components/training/WeeklyAdherenceBanner.tsx`:
 
-Cada etapa é independente e reversível.
+- Renderiza badge colorido conforme `status`:
+  - verde "Apto para avançar"
+  - amarelo "Semana mantida por falta de registros suficientes"
+  - laranja "Repetindo semana — execução parcial"
+  - cinza "Dados insuficientes — Complete os registros para liberar progressão mais precisa"
+  - violeta "Sugerir reanálise pelo coach — registros pouco confiáveis na semana passada"
+- Mostra mini-stats (X/Y sessões, X/Y exercícios registrados)
+- CTA "Ver detalhes" abre Sheet com breakdown completo
 
 ---
 
-## Riscos / decisões em aberto
+### 5. Integração nas telas
 
-- **Tamanho do JSON vs janela do modelo**: dieta semanal com 7 dias × 6 refeições pode estourar tokens. Mitigação: por padrão gerar **1 dia base + overrides por dia** (só itens que mudam em ciclos), não 7 dias completos.
-- **Catálogo de alimentos**: hoje mandamos 250 alimentos. Com structured output isso continua. Avaliar enviar apenas IDs+macros (sem porção textual) para economizar tokens.
-- **Compat com planos antigos**: garantido via fallback do parser, mas vale uma migração assíncrona opcional (job que converte markdown → JSON para histórico).
+**Aluno** — `src/pages/MeusTreinos.tsx`: banner no topo do treino ativo.
 
-Quer que eu siga com esse plano, ou prefere começar só por uma fatia (ex.: schema + validação + edge function devolvendo JSON, deixando edição/substituição para depois)?
+**Admin** — `src/components/student/StudentTrainingTab.tsx`: banner ao expandir o plano + bloquear botão "Avançar fase" automático quando `!canAutoAdvance` (substituir por confirmação explícita "Avançar mesmo assim").
+
+---
+
+### 6. Mensagens PT-BR (em `weeklyAdherence.ts`)
+
+```
+apto_avancar       → "Apto para avançar de semana"
+manter_semana      → "Semana mantida por falta de registros suficientes"
+repetir_semana     → "Repetindo a semana — execução parcial na semana anterior"
+dados_insuficientes→ "Complete os registros para liberar progressão mais precisa"
+sugerir_reanalise  → "Na semana passada não houve registros confiáveis de cargas e repetições"
+```
+
+---
+
+### Arquivos alterados/criados
+
+- `src/lib/weeklyAdherence.ts` (novo)
+- `src/hooks/useWeeklyAdherence.ts` (novo)
+- `src/components/training/WeeklyAdherenceBanner.tsx` (novo)
+- `src/pages/MeusTreinos.tsx` (banner aluno)
+- `src/components/student/StudentTrainingTab.tsx` (banner admin + gate de avanço)
+
+Sem mudanças de schema — usa `exercise_set_logs` e `ai_plans` existentes.
+
+---
+
+### Resultado
+
+Progressão semanal passa a depender de aderência real. Aluno vê claramente por que a semana foi mantida/repetida. Admin recebe sinal explícito antes de avançar fase.
