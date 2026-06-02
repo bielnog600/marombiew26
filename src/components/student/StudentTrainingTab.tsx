@@ -285,7 +285,12 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
 
                 {isExpanded && (
                   <div className="mt-4 pt-4 border-t border-border space-y-4">
-                    <PlanAdherence planId={plan.id} studentId={studentId} conteudo={currentMarkdown} />
+                    <PlanAdherence
+                      planId={plan.id}
+                      studentId={studentId}
+                      conteudo={currentMarkdown}
+                      fase={(editedPhases[plan.id] ?? plan.fase) as TrainingPhase}
+                    />
                     {/* Ações Híbridas - Central de Ação Individual */}
                     <div className="flex flex-wrap gap-2 pb-2">
                       <Button 
