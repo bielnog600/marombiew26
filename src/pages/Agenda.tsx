@@ -353,7 +353,11 @@ type ViewMode = 'week' | 'day' | 'month';
    const handleGlobalMouseUp = React.useCallback(() => {
      if (dragNewEventStart && dragNewEventEnd) {
        const start = dragNewEventStart < dragNewEventEnd ? dragNewEventStart : dragNewEventEnd;
-       onDragCreateComplete(start, dragNewEventEnd);
+       const end = dragNewEventStart < dragNewEventEnd ? dragNewEventEnd : dragNewEventStart;
+       // Add 30 mins to end to cover the full slot
+       const finalEnd = new Date(end);
+       finalEnd.setMinutes(finalEnd.getMinutes() + 30);
+       onDragCreateComplete(start, finalEnd);
      }
      setDragNewEventStart(null);
      setDragNewEventEnd(null);
@@ -374,9 +378,8 @@ type ViewMode = 'week' | 'day' | 'month';
      const start = dragNewEventStart < dragNewEventEnd ? dragNewEventStart : dragNewEventEnd;
      const end = dragNewEventStart < dragNewEventEnd ? dragNewEventEnd : dragNewEventStart;
      
-     // 56px per 30 minutes. 112px per hour.
      const startMinutes = start.getHours() * 60 + start.getMinutes();
-     const endMinutes = end.getHours() * 60 + end.getMinutes() + 30; // inclusive of the last slot
+     const endMinutes = end.getHours() * 60 + end.getMinutes() + 30;
      
      const top = (startMinutes / 30) * 56;
      const height = ((endMinutes - startMinutes) / 30) * 56;
@@ -392,12 +395,12 @@ type ViewMode = 'week' | 'day' | 'month';
           <span>{dayEvents.length} aulas agendadas</span>
         </div>
         <div className="text-[10px] text-muted-foreground/60 italic">
-          Arraste para selecionar o horário
+          Pressione e segure para agendar
         </div>
       </div>
       <div 
         ref={containerRef} 
-        className="flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth custom-scrollbar"
+        className="flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth custom-scrollbar touch-pan-y"
       >
         {selectionStyles && (
           <div 
@@ -405,7 +408,7 @@ type ViewMode = 'week' | 'day' | 'month';
             style={{ 
               top: `${selectionStyles.top}px`, 
               height: `${selectionStyles.height}px`,
-              transition: 'all 0.1s ease-out'
+              transition: 'all 0.05s ease-out'
             }}
           >
             <div className="bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded shadow-sm">
@@ -508,21 +511,22 @@ type ViewMode = 'week' | 'day' | 'month';
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
 
   const handleStart = (e: React.MouseEvent | React.TouchEvent) => {
-    // Only trigger if not clicking an existing event
     if ((e.target as HTMLElement).closest('.event-card-container')) return;
     
-    onDragStart?.();
-    
+    // Set a timer to detect long press
     timerRef.current = setTimeout(() => {
-      // Small vibration or visual feedback could go here
-    }, 200);
+      onDragStart?.();
+      // On mobile, providing haptic feedback if possible
+      if (window.navigator && window.navigator.vibrate) {
+        window.navigator.vibrate(50);
+      }
+    }, 500); // 500ms hold to start "creation mode"
   };
 
   const handleEnd = () => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
     }
-    setIsPressing(false);
   };
 
   const handleMouseEnter = () => {
