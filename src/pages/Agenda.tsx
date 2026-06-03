@@ -35,6 +35,9 @@ import { ptBR } from 'date-fns/locale';
 import AgendaEventDialog from '@/components/agenda/AgendaEventDialog';
 import AgendaEventDetailSheet from '@/components/agenda/AgendaEventDetailSheet';
 import AgendaNotificationSettings from '@/components/agenda/AgendaNotificationSettings';
+import { AgendaHeader } from '@/components/agenda/AgendaHeader';
+import { AgendaStats } from '@/components/agenda/AgendaStats';
+import { AgendaNavigation } from '@/components/agenda/AgendaNavigation';
 
 type ViewMode = 'week' | 'day' | 'month';
 
@@ -159,88 +162,31 @@ type ViewMode = 'week' | 'day' | 'month';
   const nextEvent = events.find(e => new Date(e.start_datetime) >= new Date() && e.status !== 'cancelado');
   const cancelledCount = events.filter(e => e.status === 'cancelado').length;
 
+  const pendingCount = events.filter(e => e.status === 'pendente').length;
+
   return (
     <AppLayout>
       <div className="p-4 pb-24 space-y-4 max-w-5xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-            <CalendarDays className="h-5 w-5 text-primary" />
-            Agenda
-          </h1>
-          <div className="flex gap-2">
-            <Button size="icon" variant="ghost" onClick={() => setShowSettings(true)}>
-              <Settings className="h-4 w-4" />
-            </Button>
-            <Button size="sm" onClick={() => setShowCreateDialog(true)} className="gap-1">
-              <Plus className="h-4 w-4" /> Agendar
-            </Button>
-          </div>
-        </div>
+        <AgendaHeader 
+          onSettingsClick={() => setShowSettings(true)}
+          onAgendarClick={() => setShowCreateDialog(true)}
+        />
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Card className="bg-card border-border/50">
-            <CardContent className="p-3 text-center">
-              <p className="text-2xl font-bold text-primary">{todayEvents.length}</p>
-              <p className="text-xs text-muted-foreground">Hoje</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-card border-border/50">
-            <CardContent className="p-3 text-center">
-              <p className="text-2xl font-bold text-foreground">{tomorrowEvents.length}</p>
-              <p className="text-xs text-muted-foreground">Amanhã</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-card border-border/50">
-            <CardContent className="p-3 text-center">
-              <p className="text-sm font-semibold text-foreground">
-                {nextEvent ? format(new Date(nextEvent.start_datetime), 'HH:mm') : '—'}
-              </p>
-              <p className="text-xs text-muted-foreground truncate">
-                {nextEvent?.students?.[0]?.student_name || 'Próximo'}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="bg-card border-border/50">
-            <CardContent className="p-3 text-center">
-              <p className="text-2xl font-bold text-red-400">{cancelledCount}</p>
-              <p className="text-xs text-muted-foreground">Cancelados</p>
-            </CardContent>
-          </Card>
-        </div>
+        <AgendaStats 
+          todayCount={todayEvents.length}
+          nextEvent={nextEvent ? format(new Date(nextEvent.start_datetime), 'HH:mm') : '—'}
+          nextStudent={nextEvent?.students?.[0]?.student_name || 'Próximo'}
+          pendingCount={pendingCount}
+          cancelledCount={cancelledCount}
+        />
 
-        {/* Navigation */}
-        <div className="flex flex-col gap-3">
-          <div className="flex gap-1 w-full">
-            {(['day', 'week', 'month'] as ViewMode[]).map(m => (
-              <Button
-                key={m}
-                size="sm"
-                variant={viewMode === m ? 'default' : 'ghost'}
-                onClick={() => setViewMode(m)}
-                className="text-[10px] sm:text-xs capitalize flex-1 h-8 px-1"
-              >
-                {m === 'day' ? 'Dia' : m === 'week' ? 'Semana' : 'Mês'}
-              </Button>
-            ))}
-          </div>
-          <div className="flex items-center justify-between gap-1 w-full bg-secondary/20 rounded-lg p-1">
-            <Button size="icon" variant="ghost" onClick={() => navigate(-1)} className="h-8 w-8 shrink-0">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-[11px] sm:text-sm font-bold text-foreground text-center truncate px-1">
-              {viewMode === 'day'
-                ? format(currentDate, "dd 'de' MMMM", { locale: ptBR })
-                : viewMode === 'week'
-                ? `${format(rangeStart, 'dd/MM')} - ${format(rangeEnd, 'dd/MM')}`
-                : format(currentDate, "MMMM yyyy", { locale: ptBR })}
-            </span>
-            <Button size="icon" variant="ghost" onClick={() => navigate(1)} className="h-8 w-8 shrink-0">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+        <AgendaNavigation 
+          viewMode={viewMode}
+          currentDate={currentDate}
+          onViewModeChange={setViewMode}
+          onNavigate={navigate}
+          onGoToToday={() => setCurrentDate(new Date())}
+        />
 
         {/* Content */}
          <DndContext
