@@ -435,39 +435,39 @@ function MonthView({ events, currentDate, onEventClick, onDayClick }: { events: 
   const start = startOfMonth(currentDate);
   const end = endOfMonth(currentDate);
   const days = eachDayOfInterval({ start, end });
-  return (
-    <div className="grid grid-cols-7 gap-1">
-      {['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map(d => (
-        <div key={d} className="text-center text-xs text-muted-foreground font-medium py-1">{d}</div>
-      ))}
-      {/* Offset for first day */}
-      {Array.from({ length: (start.getDay() + 6) % 7 }).map((_, i) => <div key={`empty-${i}`} />)}
-      {days.map(day => {
-        const dayEvents = events.filter(e => isSameDay(new Date(e.start_datetime), day));
-        return (
-          <button
-            key={day.toISOString()}
-            onClick={() => onDayClick(day)}
-            className={`p-1 rounded-lg text-center min-h-[48px] transition-colors ${
-              isToday(day) ? 'bg-primary/20 border border-primary/50' : 'hover:bg-secondary'
-            }`}
-          >
-            <span className={`text-xs ${isToday(day) ? 'text-primary font-bold' : 'text-foreground'}`}>
-              {format(day, 'd')}
-            </span>
-            {dayEvents.length > 0 && (
-              <div className="flex justify-center gap-0.5 mt-1">
-                {dayEvents.slice(0, 3).map((_, i) => (
-                  <div key={i} className="w-1.5 h-1.5 rounded-full bg-primary" />
-                ))}
-              </div>
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+    return (
+      <div className="grid grid-cols-7 gap-1 bg-secondary/10 p-2 rounded-xl border border-border/40 shadow-inner">
+        {['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map(d => (
+          <div key={d} className="text-center text-[10px] text-muted-foreground/60 font-black py-2 uppercase tracking-widest">{d}</div>
+        ))}
+        {Array.from({ length: (start.getDay() + 6) % 7 }).map((_, i) => <div key={`empty-${i}`} />)}
+        {days.map(day => {
+          const dayEvents = events.filter(e => isSameDay(new Date(e.start_datetime), day));
+          return (
+            <button
+              key={day.toISOString()}
+              onClick={() => onDayClick(day)}
+              className={`p-1.5 rounded-lg text-center min-h-[56px] transition-all relative flex flex-col items-center justify-start gap-1 group overflow-hidden ${
+                isToday(day) ? 'bg-primary/20 ring-1 ring-primary/50' : 'hover:bg-primary/5 active:scale-95'
+              }`}
+            >
+              <span className={`text-xs font-black z-10 ${isToday(day) ? 'text-primary' : 'text-foreground/80 group-hover:text-primary transition-colors'}`}>
+                {format(day, 'd')}
+              </span>
+              {dayEvents.length > 0 && (
+                <div className="flex flex-wrap justify-center gap-0.5 mt-auto pb-1 max-w-full">
+                  {dayEvents.slice(0, 4).map((_, i) => (
+                    <div key={i} className="w-1.5 h-1.5 rounded-full bg-primary/80 shadow-sm" />
+                  ))}
+                  {dayEvents.length > 4 && <span className="text-[7px] text-primary/70 font-bold">+{dayEvents.length - 4}</span>}
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
 
  // ── Event Card ──
  function EventCard({ 
