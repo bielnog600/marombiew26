@@ -274,12 +274,12 @@ type ViewMode = 'week' | 'day' | 'month';
    React.useEffect(() => {
      if (isToday(date) && containerRef.current) {
        const currentHour = now.getHours();
-       // Slots start at 5:00. Each slot is 48px. 2 slots per hour.
-       const slotHeight = 48;
+       // Slots start at 0:00. Each slot is 56px. 2 slots per hour.
+       const slotHeight = 56;
        const hoursFromStart = currentHour;
        if (hoursFromStart >= 0) {
          const scrollPos = hoursFromStart * 2 * slotHeight;
-         containerRef.current.scrollTop = scrollPos - 100; // Center it a bit
+         containerRef.current.scrollTop = scrollPos - 120; // Center it a bit
        }
      }
    }, [date]);
@@ -290,7 +290,7 @@ type ViewMode = 'week' | 'day' | 'month';
       const minute = now.getMinutes();
      
      const minutesFromStart = hour * 60 + minute;
-     const pixelsPerMinute = 48 / 30; // 48px per 30 min
+     const pixelsPerMinute = 56 / 30; // 56px per 30 min (height set in TimeSlot)
      return minutesFromStart * pixelsPerMinute;
    }, [now, date]);
  
