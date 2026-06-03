@@ -152,8 +152,8 @@ type ViewMode = 'week' | 'day' | 'month';
 
   const navigate = (dir: number) => {
     if (viewMode === 'day') setCurrentDate(prev => addDays(prev, dir));
-    else if (viewMode === 'week') setCurrentDate(prev => dir > 0 ? addWeeks(prev, 1) : subWeeks(prev, 1));
-    else setCurrentDate(prev => dir > 0 ? addMonths(prev, 1) : subMonths(prev, 1));
+    else if (viewMode === 'week') setCurrentDate(prev => addDays(prev, dir * 7));
+    else setCurrentDate(prev => addMonths(prev, dir));
   };
 
   // Dashboard stats
