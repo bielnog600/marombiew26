@@ -41,12 +41,14 @@ import { AgendaNavigation } from '@/components/agenda/AgendaNavigation';
 
 type ViewMode = 'week' | 'day' | 'month';
 
- const Agenda: React.FC = () => {
-   const [viewMode, setViewMode] = useState<ViewMode>('day');
-   const [currentDate, setCurrentDate] = useState(new Date());
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [initialDialogTime, setInitialDialogTime] = useState<Date | null>(null);
-   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const Agenda: React.FC = () => {
+    const [viewMode, setViewMode] = useState<ViewMode>('day');
+    const [currentDate, setCurrentDate] = useState(new Date());
+    const [showCreateDialog, setShowCreateDialog] = useState(false);
+    const [initialDialogTime, setInitialDialogTime] = useState<Date | null>(null);
+    const [dragNewEventStart, setDragNewEventStart] = useState<Date | null>(null);
+    const [dragNewEventEnd, setDragNewEventEnd] = useState<Date | null>(null);
+    const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
     const [activeDragId, setActiveDragId] = useState<string | null>(null);
     const [optimisticEvents, setOptimisticEvents] = useState<CalendarEvent[] | null>(null);
  
@@ -222,6 +224,14 @@ type ViewMode = 'week' | 'day' | 'month';
                  setInitialDialogTime(time);
                  setShowCreateDialog(true);
                }}
+               dragNewEventStart={dragNewEventStart}
+               dragNewEventEnd={dragNewEventEnd}
+               setDragNewEventStart={setDragNewEventStart}
+               setDragNewEventEnd={setDragNewEventEnd}
+               onDragCreateComplete={(start, end) => {
+                 setInitialDialogTime(start);
+                 setShowCreateDialog(true);
+               }}
              />
            ) : viewMode === 'week' ? (
              <WeekView events={events} rangeStart={rangeStart} onEventClick={setSelectedEvent} />
@@ -273,7 +283,27 @@ type ViewMode = 'week' | 'day' | 'month';
 };
 
  // ── Day View ──
- function DayView({ events, date, onEventClick, onSlotClick }: { events: CalendarEvent[]; date: Date; onEventClick: (e: CalendarEvent) => void; onSlotClick: (d: Date) => void }) {
+ function DayView({ 
+  events, 
+  date, 
+  onEventClick, 
+  onSlotClick,
+  dragNewEventStart,
+  dragNewEventEnd,
+  setDragNewEventStart,
+  setDragNewEventEnd,
+  onDragCreateComplete
+}: { 
+  events: CalendarEvent[]; 
+  date: Date; 
+  onEventClick: (e: CalendarEvent) => void; 
+  onSlotClick: (d: Date) => void;
+  dragNewEventStart: Date | null;
+  dragNewEventEnd: Date | null;
+  setDragNewEventStart: (d: Date | null) => void;
+  setDragNewEventEnd: (d: Date | null) => void;
+  onDragCreateComplete: (start: Date, end: Date) => void;
+}) {
    const dayEvents = useMemo(() => 
      events.filter(e => isSameDay(new Date(e.start_datetime), date)),
      [events, date]
@@ -320,18 +350,38 @@ type ViewMode = 'week' | 'day' | 'month';
      return minutesFromStart * pixelsPerMinute;
    }, [now, date]);
  
+   const handleGlobalMouseUp = React.useCallback(() => {
+     if (dragNewEventStart && dragNewEventEnd) {
+       onDragCreateComplete(dragNewEventStart, dragNewEventEnd);
+     }
+     setDragNewEventStart(null);
+     setDragNewEventEnd(null);
+   }, [dragNewEventStart, dragNewEventEnd, onDragCreateComplete, setDragNewEventStart, setDragNewEventEnd]);
+
+   React.useEffect(() => {
+     window.addEventListener('mouseup', handleGlobalMouseUp);
+     window.addEventListener('touchend', handleGlobalMouseUp);
+     return () => {
+       window.removeEventListener('mouseup', handleGlobalMouseUp);
+       window.removeEventListener('touchend', handleGlobalMouseUp);
+     };
+   }, [handleGlobalMouseUp]);
+
   return (
-    <div className="space-y-0 relative border border-border/50 rounded-xl bg-card/30 flex flex-col h-[70vh] max-h-[650px] overflow-hidden shadow-sm">
+    <div className="space-y-0 relative border border-border/50 rounded-xl bg-card/30 flex flex-col h-[70vh] max-h-[650px] overflow-hidden shadow-sm select-none">
       <div className="px-4 py-2.5 bg-secondary/20 flex items-center justify-between border-b border-border/50 shrink-0">
         <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
           <Info className="h-3.5 w-3.5 text-primary/70" />
           <span>{dayEvents.length} aulas agendadas</span>
         </div>
         <div className="text-[10px] text-muted-foreground/60 italic">
-          Arraste para ajustar horários
+          Toque e arraste para criar um agendamento
         </div>
       </div>
-      <div ref={containerRef} className="flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth custom-scrollbar">
+      <div 
+        ref={containerRef} 
+        className="flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth custom-scrollbar"
+      >
         {currentTimePosition !== null && (
           <div 
             className="absolute left-0 right-0 z-20 flex items-center pointer-events-none"
@@ -369,6 +419,27 @@ type ViewMode = 'week' | 'day' | 'month';
                   slotTime.setHours(hour, minute, 0, 0);
                   onSlotClick(slotTime);
                 }}
+                isDraggingNew={(() => {
+                  if (!dragNewEventStart || !dragNewEventEnd) return false;
+                  const slotTime = new Date(date);
+                  slotTime.setHours(hour, minute, 0, 0);
+                  const start = dragNewEventStart < dragNewEventEnd ? dragNewEventStart : dragNewEventEnd;
+                  const end = dragNewEventStart < dragNewEventEnd ? dragNewEventEnd : dragNewEventStart;
+                  return slotTime >= start && slotTime <= end;
+                })()}
+                onDragStart={() => {
+                  const slotTime = new Date(date);
+                  slotTime.setHours(hour, minute, 0, 0);
+                  setDragNewEventStart(slotTime);
+                  setDragNewEventEnd(slotTime);
+                }}
+                onDragEnter={() => {
+                  if (dragNewEventStart) {
+                    const slotTime = new Date(date);
+                    slotTime.setHours(hour, minute, 0, 0);
+                    setDragNewEventEnd(slotTime);
+                  }
+                }}
               >
                 {eventsInSlot.map(ev => (
                   <SortableEventCard key={ev.id} event={ev} onEventClick={onEventClick} />
@@ -382,17 +453,43 @@ type ViewMode = 'week' | 'day' | 'month';
   );
 }
 
- function TimeSlot({ id, time, children, isHalfHour, onPress }: { id: string; time: string; children?: React.ReactNode; isHalfHour: boolean; onPress: () => void }) {
+ function TimeSlot({ 
+  id, 
+  time, 
+  children, 
+  isHalfHour, 
+  onPress,
+  isDraggingNew,
+  onDragStart,
+  onDragEnter
+}: { 
+  id: string; 
+  time: string; 
+  children?: React.ReactNode; 
+  isHalfHour: boolean; 
+  onPress: () => void;
+  isDraggingNew?: boolean;
+  onDragStart?: () => void;
+  onDragEnter?: () => void;
+}) {
   const { setNodeRef, isOver } = useDroppable({ id });
   const [isPressing, setIsPressing] = React.useState(false);
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  const handleStart = () => {
+  const handleStart = (e: React.MouseEvent | React.TouchEvent) => {
+    // Only trigger if not clicking an existing event
+    if ((e.target as HTMLElement).closest('.event-card-container')) return;
+    
     setIsPressing(true);
+    onDragStart?.();
+    
     timerRef.current = setTimeout(() => {
-      onPress();
-      setIsPressing(false);
-    }, 600); // 600ms hold to trigger
+      // If we haven't moved much, we can consider it a long press create
+      if (isPressing) {
+        onPress();
+        setIsPressing(false);
+      }
+    }, 800);
   };
 
   const handleEnd = () => {
@@ -400,6 +497,10 @@ type ViewMode = 'week' | 'day' | 'month';
       clearTimeout(timerRef.current);
     }
     setIsPressing(false);
+  };
+
+  const handleMouseEnter = () => {
+    onDragEnter?.();
   };
 
   return (
@@ -410,9 +511,10 @@ type ViewMode = 'week' | 'day' | 'month';
       onMouseLeave={handleEnd}
       onTouchStart={handleStart}
       onTouchEnd={handleEnd}
+      onMouseEnter={handleMouseEnter}
       className={`flex min-h-[56px] border-b ${isHalfHour ? 'border-border/10' : 'border-border/30'} last:border-0 transition-colors w-full overflow-hidden ${
         isOver ? 'bg-primary/5' : ''
-      } ${isPressing ? 'bg-primary/10 scale-[0.99] transition-all' : ''}`}
+      } ${isPressing || isDraggingNew ? 'bg-primary/10' : ''} ${isDraggingNew ? 'border-l-2 border-l-primary' : ''} relative`}
     >
       <div className={`w-14 flex items-start justify-center pt-3 border-r border-border/20 shrink-0 ${isHalfHour ? 'bg-transparent' : 'bg-secondary/5'}`}>
         <span className={`text-[10px] font-bold ${isHalfHour ? 'text-muted-foreground/30' : 'text-muted-foreground/60'}`}>
@@ -441,8 +543,8 @@ type ViewMode = 'week' | 'day' | 'month';
      opacity: isDragging ? 0.3 : 1,
    };
  
-   return (
-     <div ref={setNodeRef} style={style} {...attributes}>
+    return (
+      <div ref={setNodeRef} style={style} {...attributes} className="event-card-container">
        <EventCard 
          event={event} 
          onClick={() => onEventClick(event)} 
