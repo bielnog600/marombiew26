@@ -520,7 +520,7 @@ type ViewMode = 'week' | 'day' | 'month';
       if (window.navigator && window.navigator.vibrate) {
         window.navigator.vibrate(50);
       }
-    }, 500); // 500ms hold to start "creation mode"
+    }, 800); // Increased to 800ms to prevent accidental triggers while scrolling
   };
 
   const handleEnd = () => {
