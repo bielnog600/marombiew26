@@ -540,7 +540,7 @@ type ViewMode = 'week' | 'day' | 'month';
       onMouseEnter={handleMouseEnter}
       className={`flex min-h-[56px] border-b ${isHalfHour ? 'border-border/10' : 'border-border/30'} last:border-0 transition-colors w-full overflow-hidden ${
         isOver ? 'bg-primary/5' : ''
-      } ${isPressing || isDraggingNew ? 'bg-primary/10' : ''} ${isDraggingNew ? 'border-l-2 border-l-primary' : ''} relative`}
+      } relative`}
     >
       <div className={`w-14 flex items-start justify-center pt-3 border-r border-border/20 shrink-0 ${isHalfHour ? 'bg-transparent' : 'bg-secondary/5'}`}>
         <span className={`text-[10px] font-bold ${isHalfHour ? 'text-muted-foreground/30' : 'text-muted-foreground/60'}`}>
