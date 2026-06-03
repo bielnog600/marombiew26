@@ -294,76 +294,84 @@ type ViewMode = 'week' | 'day' | 'month';
      return minutesFromStart * pixelsPerMinute;
    }, [now, date]);
  
-   return (
-     <div className="space-y-0 relative border border-border/50 rounded-xl bg-card/30 flex flex-col h-[70vh] max-h-[600px] overflow-hidden">
-       <div className="p-2 bg-secondary/30 flex items-center gap-2 text-[10px] text-muted-foreground border-b border-border/50 shrink-0">
-         <Info className="h-3 w-3" /> Arraste as aulas para os horários desejados
-       </div>
-       <div ref={containerRef} className="flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth">
-         {currentTimePosition !== null && (
-           <div 
-             className="absolute left-0 right-0 z-10 flex items-center pointer-events-none"
-             style={{ top: `${currentTimePosition}px` }}
-           >
-             <div className="w-16 flex justify-end pr-1">
-               <span className="text-[9px] font-bold text-red-500 bg-background px-1 rounded shadow-sm border border-red-200">
-                 {format(now, 'HH:mm')}
-               </span>
-             </div>
-             <div className="flex-1 h-0.5 bg-red-500 relative">
-               <div className="absolute left-0 -top-1 w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm" />
-             </div>
-           </div>
-         )}
-         <SortableContext items={dayEvents.map(e => e.id)} strategy={verticalListSortingStrategy}>
-           {timeSlots.map(({ hour, minute }) => {
-             const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-             const slotId = `slot-${hour}-${minute}`;
-             const eventsInSlot = dayEvents.filter(e => {
-               const d = new Date(e.start_datetime);
-                if (d.getHours() !== hour) return false;
-                const m = d.getMinutes();
-                // Place event in the half-hour slot that contains its start time
-                return minute === 0 ? m < 30 : m >= 30;
-             });
- 
-             return (
-               <TimeSlot 
-                 key={slotId} 
-                 id={slotId} 
-                 time={timeStr}
-               >
-                 {eventsInSlot.map(ev => (
-                   <SortableEventCard key={ev.id} event={ev} onEventClick={onEventClick} />
-                 ))}
-               </TimeSlot>
-             );
-           })}
-         </SortableContext>
-       </div>
-     </div>
-   );
- }
- 
- function TimeSlot({ id, time, children }: { id: string; time: string; children?: React.ReactNode }) {
-   const { setNodeRef, isOver } = useDroppable({ id });
- 
-   return (
-     <div 
-       ref={setNodeRef}
-       className={`flex min-h-[44px] border-b border-border/30 last:border-0 transition-colors w-full overflow-hidden ${
-         isOver ? 'bg-primary/10' : ''
-       }`}
-     >
-       <div className="w-12 flex items-start justify-center pt-3 border-r border-border/30 bg-secondary/5 shrink-0">
-         <span className="text-[9px] font-bold text-muted-foreground">{time}</span>
-       </div>
-       <div className="flex-1 p-0.5 space-y-0.5 min-w-0 overflow-hidden">
-         {children}
-       </div>
-     </div>
-   );
- }
+  return (
+    <div className="space-y-0 relative border border-border/50 rounded-xl bg-card/30 flex flex-col h-[70vh] max-h-[650px] overflow-hidden shadow-sm">
+      <div className="px-4 py-2.5 bg-secondary/20 flex items-center justify-between border-b border-border/50 shrink-0">
+        <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+          <Info className="h-3.5 w-3.5 text-primary/70" />
+          <span>{dayEvents.length} aulas agendadas</span>
+        </div>
+        <div className="text-[10px] text-muted-foreground/60 italic">
+          Arraste para ajustar horários
+        </div>
+      </div>
+      <div ref={containerRef} className="flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth custom-scrollbar">
+        {currentTimePosition !== null && (
+          <div 
+            className="absolute left-0 right-0 z-20 flex items-center pointer-events-none"
+            style={{ top: `${currentTimePosition}px` }}
+          >
+            <div className="w-14 flex justify-end pr-1.5">
+              <span className="text-[10px] font-black text-white bg-red-600 px-1.5 py-0.5 rounded shadow-lg border border-red-500 whitespace-nowrap">
+                {format(now, 'HH:mm')}
+              </span>
+            </div>
+            <div className="flex-1 h-[2px] bg-red-600 relative opacity-80">
+              <div className="absolute left-0 -top-[3px] w-2.5 h-2.5 rounded-full bg-red-600 shadow-md ring-2 ring-background" />
+            </div>
+          </div>
+        )}
+        <SortableContext items={dayEvents.map(e => e.id)} strategy={verticalListSortingStrategy}>
+          {timeSlots.map(({ hour, minute }) => {
+            const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+            const slotId = `slot-${hour}-${minute}`;
+            const eventsInSlot = dayEvents.filter(e => {
+              const d = new Date(e.start_datetime);
+              if (d.getHours() !== hour) return false;
+              const m = d.getMinutes();
+              return minute === 0 ? m < 30 : m >= 30;
+            });
+
+            return (
+              <TimeSlot 
+                key={slotId} 
+                id={slotId} 
+                time={timeStr}
+                isHalfHour={minute === 30}
+              >
+                {eventsInSlot.map(ev => (
+                  <SortableEventCard key={ev.id} event={ev} onEventClick={onEventClick} />
+                ))}
+              </TimeSlot>
+            );
+          })}
+        </SortableContext>
+      </div>
+    </div>
+  );
+}
+
+function TimeSlot({ id, time, children, isHalfHour }: { id: string; time: string; children?: React.ReactNode; isHalfHour: boolean }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+
+  return (
+    <div 
+      ref={setNodeRef}
+      className={`flex min-h-[56px] border-b ${isHalfHour ? 'border-border/10' : 'border-border/30'} last:border-0 transition-colors w-full overflow-hidden ${
+        isOver ? 'bg-primary/5' : ''
+      }`}
+    >
+      <div className={`w-14 flex items-start justify-center pt-3 border-r border-border/20 shrink-0 ${isHalfHour ? 'bg-transparent' : 'bg-secondary/5'}`}>
+        <span className={`text-[10px] font-bold ${isHalfHour ? 'text-muted-foreground/30' : 'text-muted-foreground/60'}`}>
+          {time}
+        </span>
+      </div>
+      <div className="flex-1 p-1 space-y-1 min-w-0 overflow-hidden relative">
+        {children}
+      </div>
+    </div>
+  );
+}
  
  function SortableEventCard({ event, onEventClick }: { event: CalendarEvent; onEventClick: (e: CalendarEvent) => void }) {
    const {
@@ -478,48 +486,81 @@ function MonthView({ events, currentDate, onEventClick, onDayClick }: { events: 
      ? studentNames.join(' + ')
      : `${studentNames.length} alunos — ${studentNames.slice(0, 2).join(', ')}...`;
  
-   return (
-     <Card
-       className={`bg-card border-border/50 cursor-pointer hover:border-primary/40 transition-colors ${isOverlay ? 'shadow-2xl border-primary/50' : ''}`}
-       onClick={onClick}
-     >
-        <CardContent className="p-1.5 flex items-center gap-2 overflow-hidden">
-          <div 
-            {...dragHandleProps} 
-            className="cursor-grab active:cursor-grabbing p-1.5 -m-1 hover:bg-secondary rounded-lg touch-none shrink-0"
-            style={{ touchAction: 'none' }}
-          >
-            <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+  return (
+    <Card
+      className={`bg-card/80 backdrop-blur-sm border-l-4 border-y-border/40 border-r-border/40 cursor-pointer hover:shadow-md transition-all duration-200 group ${isOverlay ? 'shadow-2xl border-primary/50 ring-2 ring-primary/20 scale-105' : ''}`}
+      style={{ borderLeftColor: getStatusColor(event.status) }}
+      onClick={onClick}
+    >
+      <CardContent className="p-2.5 flex items-center gap-3 overflow-hidden">
+        <div 
+          {...dragHandleProps} 
+          className="cursor-grab active:cursor-grabbing p-1.5 -ml-1 hover:bg-secondary/50 rounded-md transition-colors touch-none shrink-0"
+          style={{ touchAction: 'none' }}
+        >
+          <GripVertical className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground/70" />
+        </div>
+        
+        <div className="flex flex-col min-w-[45px] shrink-0 border-r border-border/30 pr-3">
+          <span className="text-[12px] font-black text-foreground tabular-nums leading-none">
+            {format(new Date(event.start_datetime), 'HH:mm')}
+          </span>
+          <span className="text-[10px] text-muted-foreground/60 mt-1 font-medium tabular-nums leading-none">
+            {format(new Date(event.end_datetime), 'HH:mm')}
+          </span>
+        </div>
+
+        <div className="flex-1 min-w-0 py-0.5">
+          <div className="flex items-center gap-2 mb-1">
+            <h4 className="text-[13px] font-bold text-foreground truncate leading-tight group-hover:text-primary transition-colors">
+              {displayName || event.title || 'Atendimento'}
+            </h4>
+            {event.is_recurring && (
+              <div className="bg-secondary/40 p-0.5 rounded shadow-sm shrink-0">
+                <RefreshCw className="h-2.5 w-2.5 text-primary/80" />
+              </div>
+            )}
+            {studentNames.length > 1 && (
+              <div className="bg-primary/10 px-1 rounded flex items-center shrink-0">
+                <Users className="h-2.5 w-2.5 text-primary" />
+                <span className="text-[8px] font-bold ml-0.5 text-primary">{studentNames.length}</span>
+              </div>
+            )}
           </div>
-          <div className="text-center min-w-[38px] shrink-0 border-r border-border/30 pr-2">
-            <p className="text-xs font-bold text-primary leading-none">
-              {format(new Date(event.start_datetime), 'HH:mm')}
-            </p>
-            <p className="text-[9px] text-muted-foreground mt-0.5">
-              {format(new Date(event.end_datetime), 'HH:mm')}
-            </p>
+          
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground/80 truncate font-medium">
+            <span className="bg-secondary/30 px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-bold">
+              {EVENT_TYPE_LABELS[event.event_type] || event.event_type}
+            </span>
+            {event.location && (
+              <span className="flex items-center gap-1 truncate opacity-70">
+                <MapPin className="h-3 w-3 shrink-0" />
+                {event.location}
+              </span>
+            )}
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 mb-0.5">
-              <p className="text-[11px] font-bold text-foreground truncate leading-tight">{displayName || event.title || 'Evento'}</p>
-              {event.is_recurring && <RefreshCw className="h-2.5 w-2.5 text-muted-foreground shrink-0" />}
-            </div>
-            <div className="flex items-center gap-1 text-[9px] text-muted-foreground truncate">
-              <span className="truncate">{EVENT_TYPE_LABELS[event.event_type] || event.event_type}</span>
-              {event.location && (
-                <>
-                  <span className="shrink-0">·</span>
-                  <span className="flex items-center gap-0.5 truncate"><MapPin className="h-2.5 w-2.5 shrink-0" />{event.location}</span>
-                </>
-              )}
-            </div>
-          </div>
-          <Badge className={`shrink-0 text-[8px] px-1 h-3.5 leading-none font-normal ${STATUS_COLORS[event.status] || ''}`}>
+        </div>
+
+        <div className="flex flex-col items-end gap-1.5 shrink-0 ml-1">
+          <Badge className={`text-[9px] px-2 py-0 h-4 leading-none font-bold shadow-sm uppercase tracking-tighter ${STATUS_COLORS[event.status] || ''}`}>
             {EVENT_STATUS_LABELS[event.status] || event.status}
           </Badge>
-        </CardContent>
-     </Card>
-   );
- }
+          {event.notes && <div className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-pulse" title="Tem observações" />}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function getStatusColor(status: string) {
+  switch (status) {
+    case 'confirmado': return '#22c55e'; // green-500
+    case 'pendente': return '#f59e0b'; // amber-500
+    case 'reagendado': return '#3b82f6'; // blue-500
+    case 'cancelado': return '#ef4444'; // red-500
+    case 'concluido': return '#10b981'; // emerald-500
+    default: return '#fbbf24'; // primary
+  }
+}
 
 export default Agenda;
