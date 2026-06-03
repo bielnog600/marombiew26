@@ -45,6 +45,7 @@ type ViewMode = 'week' | 'day' | 'month';
    const [viewMode, setViewMode] = useState<ViewMode>('day');
    const [currentDate, setCurrentDate] = useState(new Date());
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [initialDialogTime, setInitialDialogTime] = useState<Date | null>(null);
    const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
     const [activeDragId, setActiveDragId] = useState<string | null>(null);
     const [optimisticEvents, setOptimisticEvents] = useState<CalendarEvent[] | null>(null);
@@ -213,7 +214,15 @@ type ViewMode = 'week' | 'day' | 'month';
                {[1,2,3].map(i => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
              </div>
            ) : viewMode === 'day' ? (
-             <DayView events={events} date={currentDate} onEventClick={setSelectedEvent} />
+             <DayView 
+               events={events} 
+               date={currentDate} 
+               onEventClick={setSelectedEvent} 
+               onSlotClick={(time) => {
+                 setInitialDialogTime(time);
+                 setShowCreateDialog(true);
+               }}
+             />
            ) : viewMode === 'week' ? (
              <WeekView events={events} rangeStart={rangeStart} onEventClick={setSelectedEvent} />
            ) : (
@@ -235,8 +244,12 @@ type ViewMode = 'week' | 'day' | 'month';
       {showCreateDialog && (
         <AgendaEventDialog
           open={showCreateDialog}
-          onClose={() => setShowCreateDialog(false)}
+          onClose={() => {
+            setShowCreateDialog(false);
+            setInitialDialogTime(null);
+          }}
           onSaved={refetch}
+          initialStartTime={initialDialogTime || undefined}
         />
       )}
 
@@ -260,7 +273,7 @@ type ViewMode = 'week' | 'day' | 'month';
 };
 
  // ── Day View ──
- function DayView({ events, date, onEventClick }: { events: CalendarEvent[]; date: Date; onEventClick: (e: CalendarEvent) => void }) {
+ function DayView({ events, date, onEventClick, onSlotClick }: { events: CalendarEvent[]; date: Date; onEventClick: (e: CalendarEvent) => void; onSlotClick: (d: Date) => void }) {
    const dayEvents = useMemo(() => 
      events.filter(e => isSameDay(new Date(e.start_datetime), date)),
      [events, date]
@@ -351,6 +364,11 @@ type ViewMode = 'week' | 'day' | 'month';
                 id={slotId} 
                 time={timeStr}
                 isHalfHour={minute === 30}
+                onPress={() => {
+                  const slotTime = new Date(date);
+                  slotTime.setHours(hour, minute, 0, 0);
+                  onSlotClick(slotTime);
+                }}
               >
                 {eventsInSlot.map(ev => (
                   <SortableEventCard key={ev.id} event={ev} onEventClick={onEventClick} />
@@ -364,15 +382,37 @@ type ViewMode = 'week' | 'day' | 'month';
   );
 }
 
-function TimeSlot({ id, time, children, isHalfHour }: { id: string; time: string; children?: React.ReactNode; isHalfHour: boolean }) {
+ function TimeSlot({ id, time, children, isHalfHour, onPress }: { id: string; time: string; children?: React.ReactNode; isHalfHour: boolean; onPress: () => void }) {
   const { setNodeRef, isOver } = useDroppable({ id });
+  const [isPressing, setIsPressing] = React.useState(false);
+  const timerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  const handleStart = () => {
+    setIsPressing(true);
+    timerRef.current = setTimeout(() => {
+      onPress();
+      setIsPressing(false);
+    }, 600); // 600ms hold to trigger
+  };
+
+  const handleEnd = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
+    setIsPressing(false);
+  };
 
   return (
     <div 
       ref={setNodeRef}
+      onMouseDown={handleStart}
+      onMouseUp={handleEnd}
+      onMouseLeave={handleEnd}
+      onTouchStart={handleStart}
+      onTouchEnd={handleEnd}
       className={`flex min-h-[56px] border-b ${isHalfHour ? 'border-border/10' : 'border-border/30'} last:border-0 transition-colors w-full overflow-hidden ${
         isOver ? 'bg-primary/5' : ''
-      }`}
+      } ${isPressing ? 'bg-primary/10 scale-[0.99] transition-all' : ''}`}
     >
       <div className={`w-14 flex items-start justify-center pt-3 border-r border-border/20 shrink-0 ${isHalfHour ? 'bg-transparent' : 'bg-secondary/5'}`}>
         <span className={`text-[10px] font-bold ${isHalfHour ? 'text-muted-foreground/30' : 'text-muted-foreground/60'}`}>

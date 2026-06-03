@@ -36,9 +36,10 @@ interface Props {
   onClose: () => void;
   onSaved: () => void;
   editEvent?: CalendarEvent;
+  initialStartTime?: Date;
 }
 
-export default function AgendaEventDialog({ open, onClose, onSaved, editEvent }: Props) {
+export default function AgendaEventDialog({ open, onClose, onSaved, editEvent, initialStartTime }: Props) {
   const { user } = useAuth();
   const [students, setStudents] = useState<{ user_id: string; nome: string }[]>([]);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
@@ -80,8 +81,14 @@ export default function AgendaEventDialog({ open, onClose, onSaved, editEvent }:
       setStatus(editEvent.status);
       setIsRecurring(editEvent.is_recurring);
       setSelectedStudentIds(editEvent.students?.map(s => s.student_id) || []);
+    } else if (initialStartTime) {
+      setDate(format(initialStartTime, 'yyyy-MM-dd'));
+      setStartTime(format(initialStartTime, 'HH:mm'));
+      const end = new Date(initialStartTime);
+      end.setHours(end.getHours() + 1);
+      setEndTime(format(end, 'HH:mm'));
     }
-  }, [editEvent]);
+  }, [editEvent, initialStartTime]);
 
   const toggleStudent = (id: string) => {
     setSelectedStudentIds(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]);
