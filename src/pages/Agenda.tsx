@@ -35,6 +35,9 @@ import { ptBR } from 'date-fns/locale';
 import AgendaEventDialog from '@/components/agenda/AgendaEventDialog';
 import AgendaEventDetailSheet from '@/components/agenda/AgendaEventDetailSheet';
 import AgendaNotificationSettings from '@/components/agenda/AgendaNotificationSettings';
+import { AgendaHeader } from '@/components/agenda/AgendaHeader';
+import { AgendaStats } from '@/components/agenda/AgendaStats';
+import { AgendaNavigation } from '@/components/agenda/AgendaNavigation';
 
 type ViewMode = 'week' | 'day' | 'month';
 
@@ -149,8 +152,8 @@ type ViewMode = 'week' | 'day' | 'month';
 
   const navigate = (dir: number) => {
     if (viewMode === 'day') setCurrentDate(prev => addDays(prev, dir));
-    else if (viewMode === 'week') setCurrentDate(prev => dir > 0 ? addWeeks(prev, 1) : subWeeks(prev, 1));
-    else setCurrentDate(prev => dir > 0 ? addMonths(prev, 1) : subMonths(prev, 1));
+    else if (viewMode === 'week') setCurrentDate(prev => addDays(prev, dir * 7));
+    else setCurrentDate(prev => addMonths(prev, dir));
   };
 
   // Dashboard stats
@@ -159,87 +162,43 @@ type ViewMode = 'week' | 'day' | 'month';
   const nextEvent = events.find(e => new Date(e.start_datetime) >= new Date() && e.status !== 'cancelado');
   const cancelledCount = events.filter(e => e.status === 'cancelado').length;
 
+  const pendingCount = events.filter(e => e.status === 'pendente').length;
+
   return (
     <AppLayout>
       <div className="p-4 pb-24 space-y-4 max-w-5xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-            <CalendarDays className="h-5 w-5 text-primary" />
-            Agenda
-          </h1>
-          <div className="flex gap-2">
-            <Button size="icon" variant="ghost" onClick={() => setShowSettings(true)}>
-              <Settings className="h-4 w-4" />
-            </Button>
-            <Button size="sm" onClick={() => setShowCreateDialog(true)} className="gap-1">
-              <Plus className="h-4 w-4" /> Agendar
-            </Button>
-          </div>
-        </div>
+        <AgendaHeader 
+          onSettingsClick={() => setShowSettings(true)}
+          onAgendarClick={() => setShowCreateDialog(true)}
+        />
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Card className="bg-card border-border/50">
-            <CardContent className="p-3 text-center">
-              <p className="text-2xl font-bold text-primary">{todayEvents.length}</p>
-              <p className="text-xs text-muted-foreground">Hoje</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-card border-border/50">
-            <CardContent className="p-3 text-center">
-              <p className="text-2xl font-bold text-foreground">{tomorrowEvents.length}</p>
-              <p className="text-xs text-muted-foreground">Amanhã</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-card border-border/50">
-            <CardContent className="p-3 text-center">
-              <p className="text-sm font-semibold text-foreground">
-                {nextEvent ? format(new Date(nextEvent.start_datetime), 'HH:mm') : '—'}
-              </p>
-              <p className="text-xs text-muted-foreground truncate">
-                {nextEvent?.students?.[0]?.student_name || 'Próximo'}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="bg-card border-border/50">
-            <CardContent className="p-3 text-center">
-              <p className="text-2xl font-bold text-red-400">{cancelledCount}</p>
-              <p className="text-xs text-muted-foreground">Cancelados</p>
-            </CardContent>
-          </Card>
-        </div>
+        <AgendaStats 
+          todayCount={todayEvents.length}
+          nextEvent={nextEvent ? format(new Date(nextEvent.start_datetime), 'HH:mm') : '—'}
+          nextStudent={nextEvent?.students?.[0]?.student_name || 'Próximo'}
+          pendingCount={pendingCount}
+          cancelledCount={cancelledCount}
+        />
 
-        {/* Navigation */}
-        <div className="flex flex-col gap-3">
-          <div className="flex gap-1 w-full">
-            {(['day', 'week', 'month'] as ViewMode[]).map(m => (
-              <Button
-                key={m}
-                size="sm"
-                variant={viewMode === m ? 'default' : 'ghost'}
-                onClick={() => setViewMode(m)}
-                className="text-[10px] sm:text-xs capitalize flex-1 h-8 px-1"
-              >
-                {m === 'day' ? 'Dia' : m === 'week' ? 'Semana' : 'Mês'}
-              </Button>
-            ))}
-          </div>
-          <div className="flex items-center justify-between gap-1 w-full bg-secondary/20 rounded-lg p-1">
-            <Button size="icon" variant="ghost" onClick={() => navigate(-1)} className="h-8 w-8 shrink-0">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-[11px] sm:text-sm font-bold text-foreground text-center truncate px-1">
-              {viewMode === 'day'
-                ? format(currentDate, "dd 'de' MMMM", { locale: ptBR })
-                : viewMode === 'week'
-                ? `${format(rangeStart, 'dd/MM')} - ${format(rangeEnd, 'dd/MM')}`
-                : format(currentDate, "MMMM yyyy", { locale: ptBR })}
-            </span>
-            <Button size="icon" variant="ghost" onClick={() => navigate(1)} className="h-8 w-8 shrink-0">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+        <AgendaNavigation 
+          viewMode={viewMode}
+          currentDate={currentDate}
+          onViewModeChange={setViewMode}
+          onNavigate={navigate}
+          onGoToToday={() => setCurrentDate(new Date())}
+        />
+
+        {/* Quick Filters */}
+        <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+          {['Todos', 'Personal', 'Duo', 'Grupo', 'Confirmadas', 'Pendentes', 'Canceladas'].map(filter => (
+            <Badge 
+              key={filter} 
+              variant="outline" 
+              className="cursor-pointer hover:bg-primary/10 hover:border-primary/50 transition-colors whitespace-nowrap text-[10px] font-bold px-2 py-0.5 border-border/40 text-muted-foreground"
+            >
+              {filter}
+            </Badge>
+          ))}
         </div>
 
         {/* Content */}
@@ -328,12 +287,12 @@ type ViewMode = 'week' | 'day' | 'month';
    React.useEffect(() => {
      if (isToday(date) && containerRef.current) {
        const currentHour = now.getHours();
-       // Slots start at 5:00. Each slot is 48px. 2 slots per hour.
-       const slotHeight = 48;
+       // Slots start at 0:00. Each slot is 56px. 2 slots per hour.
+       const slotHeight = 56;
        const hoursFromStart = currentHour;
        if (hoursFromStart >= 0) {
          const scrollPos = hoursFromStart * 2 * slotHeight;
-         containerRef.current.scrollTop = scrollPos - 100; // Center it a bit
+         containerRef.current.scrollTop = scrollPos - 120; // Center it a bit
        }
      }
    }, [date]);
@@ -344,80 +303,88 @@ type ViewMode = 'week' | 'day' | 'month';
       const minute = now.getMinutes();
      
      const minutesFromStart = hour * 60 + minute;
-     const pixelsPerMinute = 48 / 30; // 48px per 30 min
+     const pixelsPerMinute = 56 / 30; // 56px per 30 min (height set in TimeSlot)
      return minutesFromStart * pixelsPerMinute;
    }, [now, date]);
  
-   return (
-     <div className="space-y-0 relative border border-border/50 rounded-xl bg-card/30 flex flex-col h-[70vh] max-h-[600px] overflow-hidden">
-       <div className="p-2 bg-secondary/30 flex items-center gap-2 text-[10px] text-muted-foreground border-b border-border/50 shrink-0">
-         <Info className="h-3 w-3" /> Arraste as aulas para os horários desejados
-       </div>
-       <div ref={containerRef} className="flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth">
-         {currentTimePosition !== null && (
-           <div 
-             className="absolute left-0 right-0 z-10 flex items-center pointer-events-none"
-             style={{ top: `${currentTimePosition}px` }}
-           >
-             <div className="w-16 flex justify-end pr-1">
-               <span className="text-[9px] font-bold text-red-500 bg-background px-1 rounded shadow-sm border border-red-200">
-                 {format(now, 'HH:mm')}
-               </span>
-             </div>
-             <div className="flex-1 h-0.5 bg-red-500 relative">
-               <div className="absolute left-0 -top-1 w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm" />
-             </div>
-           </div>
-         )}
-         <SortableContext items={dayEvents.map(e => e.id)} strategy={verticalListSortingStrategy}>
-           {timeSlots.map(({ hour, minute }) => {
-             const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-             const slotId = `slot-${hour}-${minute}`;
-             const eventsInSlot = dayEvents.filter(e => {
-               const d = new Date(e.start_datetime);
-                if (d.getHours() !== hour) return false;
-                const m = d.getMinutes();
-                // Place event in the half-hour slot that contains its start time
-                return minute === 0 ? m < 30 : m >= 30;
-             });
- 
-             return (
-               <TimeSlot 
-                 key={slotId} 
-                 id={slotId} 
-                 time={timeStr}
-               >
-                 {eventsInSlot.map(ev => (
-                   <SortableEventCard key={ev.id} event={ev} onEventClick={onEventClick} />
-                 ))}
-               </TimeSlot>
-             );
-           })}
-         </SortableContext>
-       </div>
-     </div>
-   );
- }
- 
- function TimeSlot({ id, time, children }: { id: string; time: string; children?: React.ReactNode }) {
-   const { setNodeRef, isOver } = useDroppable({ id });
- 
-   return (
-     <div 
-       ref={setNodeRef}
-       className={`flex min-h-[44px] border-b border-border/30 last:border-0 transition-colors w-full overflow-hidden ${
-         isOver ? 'bg-primary/10' : ''
-       }`}
-     >
-       <div className="w-12 flex items-start justify-center pt-3 border-r border-border/30 bg-secondary/5 shrink-0">
-         <span className="text-[9px] font-bold text-muted-foreground">{time}</span>
-       </div>
-       <div className="flex-1 p-0.5 space-y-0.5 min-w-0 overflow-hidden">
-         {children}
-       </div>
-     </div>
-   );
- }
+  return (
+    <div className="space-y-0 relative border border-border/50 rounded-xl bg-card/30 flex flex-col h-[70vh] max-h-[650px] overflow-hidden shadow-sm">
+      <div className="px-4 py-2.5 bg-secondary/20 flex items-center justify-between border-b border-border/50 shrink-0">
+        <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+          <Info className="h-3.5 w-3.5 text-primary/70" />
+          <span>{dayEvents.length} aulas agendadas</span>
+        </div>
+        <div className="text-[10px] text-muted-foreground/60 italic">
+          Arraste para ajustar horários
+        </div>
+      </div>
+      <div ref={containerRef} className="flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth custom-scrollbar">
+        {currentTimePosition !== null && (
+          <div 
+            className="absolute left-0 right-0 z-20 flex items-center pointer-events-none"
+            style={{ top: `${currentTimePosition}px` }}
+          >
+            <div className="w-14 flex justify-end pr-1.5">
+              <span className="text-[10px] font-black text-white bg-red-600 px-1.5 py-0.5 rounded shadow-lg border border-red-500 whitespace-nowrap">
+                {format(now, 'HH:mm')}
+              </span>
+            </div>
+            <div className="flex-1 h-[2px] bg-red-600 relative opacity-80">
+              <div className="absolute left-0 -top-[3px] w-2.5 h-2.5 rounded-full bg-red-600 shadow-md ring-2 ring-background" />
+            </div>
+          </div>
+        )}
+        <SortableContext items={dayEvents.map(e => e.id)} strategy={verticalListSortingStrategy}>
+          {timeSlots.map(({ hour, minute }) => {
+            const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+            const slotId = `slot-${hour}-${minute}`;
+            const eventsInSlot = dayEvents.filter(e => {
+              const d = new Date(e.start_datetime);
+              if (d.getHours() !== hour) return false;
+              const m = d.getMinutes();
+              return minute === 0 ? m < 30 : m >= 30;
+            });
+
+            return (
+              <TimeSlot 
+                key={slotId} 
+                id={slotId} 
+                time={timeStr}
+                isHalfHour={minute === 30}
+              >
+                {eventsInSlot.map(ev => (
+                  <SortableEventCard key={ev.id} event={ev} onEventClick={onEventClick} />
+                ))}
+              </TimeSlot>
+            );
+          })}
+        </SortableContext>
+      </div>
+    </div>
+  );
+}
+
+function TimeSlot({ id, time, children, isHalfHour }: { id: string; time: string; children?: React.ReactNode; isHalfHour: boolean }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+
+  return (
+    <div 
+      ref={setNodeRef}
+      className={`flex min-h-[56px] border-b ${isHalfHour ? 'border-border/10' : 'border-border/30'} last:border-0 transition-colors w-full overflow-hidden ${
+        isOver ? 'bg-primary/5' : ''
+      }`}
+    >
+      <div className={`w-14 flex items-start justify-center pt-3 border-r border-border/20 shrink-0 ${isHalfHour ? 'bg-transparent' : 'bg-secondary/5'}`}>
+        <span className={`text-[10px] font-bold ${isHalfHour ? 'text-muted-foreground/30' : 'text-muted-foreground/60'}`}>
+          {time}
+        </span>
+      </div>
+      <div className="flex-1 p-1 space-y-1 min-w-0 overflow-hidden relative">
+        {children}
+      </div>
+    </div>
+  );
+}
  
  function SortableEventCard({ event, onEventClick }: { event: CalendarEvent; onEventClick: (e: CalendarEvent) => void }) {
    const {
@@ -481,39 +448,39 @@ function MonthView({ events, currentDate, onEventClick, onDayClick }: { events: 
   const start = startOfMonth(currentDate);
   const end = endOfMonth(currentDate);
   const days = eachDayOfInterval({ start, end });
-  return (
-    <div className="grid grid-cols-7 gap-1">
-      {['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map(d => (
-        <div key={d} className="text-center text-xs text-muted-foreground font-medium py-1">{d}</div>
-      ))}
-      {/* Offset for first day */}
-      {Array.from({ length: (start.getDay() + 6) % 7 }).map((_, i) => <div key={`empty-${i}`} />)}
-      {days.map(day => {
-        const dayEvents = events.filter(e => isSameDay(new Date(e.start_datetime), day));
-        return (
-          <button
-            key={day.toISOString()}
-            onClick={() => onDayClick(day)}
-            className={`p-1 rounded-lg text-center min-h-[48px] transition-colors ${
-              isToday(day) ? 'bg-primary/20 border border-primary/50' : 'hover:bg-secondary'
-            }`}
-          >
-            <span className={`text-xs ${isToday(day) ? 'text-primary font-bold' : 'text-foreground'}`}>
-              {format(day, 'd')}
-            </span>
-            {dayEvents.length > 0 && (
-              <div className="flex justify-center gap-0.5 mt-1">
-                {dayEvents.slice(0, 3).map((_, i) => (
-                  <div key={i} className="w-1.5 h-1.5 rounded-full bg-primary" />
-                ))}
-              </div>
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+    return (
+      <div className="grid grid-cols-7 gap-1 bg-secondary/10 p-2 rounded-xl border border-border/40 shadow-inner">
+        {['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map(d => (
+          <div key={d} className="text-center text-[10px] text-muted-foreground/60 font-black py-2 uppercase tracking-widest">{d}</div>
+        ))}
+        {Array.from({ length: (start.getDay() + 6) % 7 }).map((_, i) => <div key={`empty-${i}`} />)}
+        {days.map(day => {
+          const dayEvents = events.filter(e => isSameDay(new Date(e.start_datetime), day));
+          return (
+            <button
+              key={day.toISOString()}
+              onClick={() => onDayClick(day)}
+              className={`p-1.5 rounded-lg text-center min-h-[56px] transition-all relative flex flex-col items-center justify-start gap-1 group overflow-hidden ${
+                isToday(day) ? 'bg-primary/20 ring-1 ring-primary/50' : 'hover:bg-primary/5 active:scale-95'
+              }`}
+            >
+              <span className={`text-xs font-black z-10 ${isToday(day) ? 'text-primary' : 'text-foreground/80 group-hover:text-primary transition-colors'}`}>
+                {format(day, 'd')}
+              </span>
+              {dayEvents.length > 0 && (
+                <div className="flex flex-wrap justify-center gap-0.5 mt-auto pb-1 max-w-full">
+                  {dayEvents.slice(0, 4).map((_, i) => (
+                    <div key={i} className="w-1.5 h-1.5 rounded-full bg-primary/80 shadow-sm" />
+                  ))}
+                  {dayEvents.length > 4 && <span className="text-[7px] text-primary/70 font-bold">+{dayEvents.length - 4}</span>}
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
 
  // ── Event Card ──
  function EventCard({ 
@@ -532,48 +499,81 @@ function MonthView({ events, currentDate, onEventClick, onDayClick }: { events: 
      ? studentNames.join(' + ')
      : `${studentNames.length} alunos — ${studentNames.slice(0, 2).join(', ')}...`;
  
-   return (
-     <Card
-       className={`bg-card border-border/50 cursor-pointer hover:border-primary/40 transition-colors ${isOverlay ? 'shadow-2xl border-primary/50' : ''}`}
-       onClick={onClick}
-     >
-        <CardContent className="p-1.5 flex items-center gap-2 overflow-hidden">
-          <div 
-            {...dragHandleProps} 
-            className="cursor-grab active:cursor-grabbing p-1.5 -m-1 hover:bg-secondary rounded-lg touch-none shrink-0"
-            style={{ touchAction: 'none' }}
-          >
-            <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+  return (
+    <Card
+      className={`bg-card/80 backdrop-blur-sm border-l-4 border-y-border/40 border-r-border/40 cursor-pointer hover:shadow-md transition-all duration-200 group ${isOverlay ? 'shadow-2xl border-primary/50 ring-2 ring-primary/20 scale-105' : ''}`}
+      style={{ borderLeftColor: getStatusColor(event.status) }}
+      onClick={onClick}
+    >
+      <CardContent className="p-2.5 flex items-center gap-3 overflow-hidden">
+        <div 
+          {...dragHandleProps} 
+          className="cursor-grab active:cursor-grabbing p-1.5 -ml-1 hover:bg-secondary/50 rounded-md transition-colors touch-none shrink-0"
+          style={{ touchAction: 'none' }}
+        >
+          <GripVertical className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground/70" />
+        </div>
+        
+        <div className="flex flex-col min-w-[45px] shrink-0 border-r border-border/30 pr-3">
+          <span className="text-[12px] font-black text-foreground tabular-nums leading-none">
+            {format(new Date(event.start_datetime), 'HH:mm')}
+          </span>
+          <span className="text-[10px] text-muted-foreground/60 mt-1 font-medium tabular-nums leading-none">
+            {format(new Date(event.end_datetime), 'HH:mm')}
+          </span>
+        </div>
+
+        <div className="flex-1 min-w-0 py-0.5">
+          <div className="flex items-center gap-2 mb-1">
+            <h4 className="text-[13px] font-bold text-foreground truncate leading-tight group-hover:text-primary transition-colors">
+              {displayName || event.title || 'Atendimento'}
+            </h4>
+            {event.is_recurring && (
+              <div className="bg-secondary/40 p-0.5 rounded shadow-sm shrink-0">
+                <RefreshCw className="h-2.5 w-2.5 text-primary/80" />
+              </div>
+            )}
+            {studentNames.length > 1 && (
+              <div className="bg-primary/10 px-1 rounded flex items-center shrink-0">
+                <Users className="h-2.5 w-2.5 text-primary" />
+                <span className="text-[8px] font-bold ml-0.5 text-primary">{studentNames.length}</span>
+              </div>
+            )}
           </div>
-          <div className="text-center min-w-[38px] shrink-0 border-r border-border/30 pr-2">
-            <p className="text-xs font-bold text-primary leading-none">
-              {format(new Date(event.start_datetime), 'HH:mm')}
-            </p>
-            <p className="text-[9px] text-muted-foreground mt-0.5">
-              {format(new Date(event.end_datetime), 'HH:mm')}
-            </p>
+          
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground/80 truncate font-medium">
+            <span className="bg-secondary/30 px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-bold">
+              {EVENT_TYPE_LABELS[event.event_type] || event.event_type}
+            </span>
+            {event.location && (
+              <span className="flex items-center gap-1 truncate opacity-70">
+                <MapPin className="h-3 w-3 shrink-0" />
+                {event.location}
+              </span>
+            )}
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 mb-0.5">
-              <p className="text-[11px] font-bold text-foreground truncate leading-tight">{displayName || event.title || 'Evento'}</p>
-              {event.is_recurring && <RefreshCw className="h-2.5 w-2.5 text-muted-foreground shrink-0" />}
-            </div>
-            <div className="flex items-center gap-1 text-[9px] text-muted-foreground truncate">
-              <span className="truncate">{EVENT_TYPE_LABELS[event.event_type] || event.event_type}</span>
-              {event.location && (
-                <>
-                  <span className="shrink-0">·</span>
-                  <span className="flex items-center gap-0.5 truncate"><MapPin className="h-2.5 w-2.5 shrink-0" />{event.location}</span>
-                </>
-              )}
-            </div>
-          </div>
-          <Badge className={`shrink-0 text-[8px] px-1 h-3.5 leading-none font-normal ${STATUS_COLORS[event.status] || ''}`}>
+        </div>
+
+        <div className="flex flex-col items-end gap-1.5 shrink-0 ml-1">
+          <Badge className={`text-[9px] px-2 py-0 h-4 leading-none font-bold shadow-sm uppercase tracking-tighter ${STATUS_COLORS[event.status] || ''}`}>
             {EVENT_STATUS_LABELS[event.status] || event.status}
           </Badge>
-        </CardContent>
-     </Card>
-   );
- }
+          {event.notes && <div className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-pulse" title="Tem observações" />}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function getStatusColor(status: string) {
+  switch (status) {
+    case 'confirmado': return '#22c55e'; // green-500
+    case 'pendente': return '#f59e0b'; // amber-500
+    case 'reagendado': return '#3b82f6'; // blue-500
+    case 'cancelado': return '#ef4444'; // red-500
+    case 'concluido': return '#10b981'; // emerald-500
+    default: return '#fbbf24'; // primary
+  }
+}
 
 export default Agenda;

@@ -1,118 +1,46 @@
-## Periodização Adaptativa por Aderência
+### Plano de Refinamento da Agenda MAROMBIEW
 
-Refinar a lógica de avanço semanal do treino para que dependa da execução real do aluno (não só do calendário).
+O objetivo é transformar a interface da Agenda para uma experiência mais premium e organizada, focando em hierarquia visual, clareza e densidade de informação sem alterar a lógica subjacente.
 
----
+#### 1. Estrutura do Cabeçalho e Ações
+- Criar um novo componente de cabeçalho (`AgendaHeader`) para gerenciar:
+  - Título e subtítulo "Agenda de atendimentos".
+  - Ações no lado direito (filtros, configurações, botão "Agendar").
+  - Segmented control para alternar entre "Dia/Semana/Mês".
 
-### 1. Novo módulo: `src/lib/weeklyAdherence.ts`
+#### 2. Redesenho dos Cards KPI (Dashboard)
+- Reduzir o grid do topo para 4 cards: "Hoje", "Próxima", "Pendentes", "Cancelados".
+- Estilizar como cards compactos, com ícones sutis e tipografia clara (valor em destaque, label em tamanho menor).
 
-Função pura que recebe `plan` + `exercise_set_logs` da semana anterior e retorna:
+#### 3. Controle e Navegação Temporal
+- Implementar o "Segmented Control" refinado (Dia, Semana, Mês).
+- Melhorar a barra de navegação com "Hoje" centralizado e botões de seta mais limpos.
+- Exibir a data atual com formato amigável ("Qua, 04 Jun 2026").
 
-```ts
-type AdherenceStatus =
-  | 'apto_avancar'        // ≥75% sessões + ≥70% exercícios com carga/reps
-  | 'manter_semana'       // 50-74% — manter semana atual mais 7 dias
-  | 'repetir_semana'      // 25-49% — repetir a mesma semana
-  | 'dados_insuficientes' // <25% ou sem logbook
-  | 'sugerir_reanalise';  // padrão anômalo (ex: cargas zeradas, reps faltando)
+#### 4. Refinamento da Grade e Cards de Evento
+- **Grade (DayView):** Ajustar o espaçamento, divisões de 30 minutos mais suaves e melhorar o contraste das horas. Linha de tempo atual (present line) será mais destacada em vermelho.
+- **Card de Evento:**
+  - Melhorar a hierarquia: Horário (negrito) > Nome do Aluno > Tipo da Aula/Local.
+  - Usar badges mais elegantes (com cores de fundo leves) para os status de agendamento (Confirmada, Pendente, etc.).
+  - Adicionar indicadores visuais (ícones menores) para "Grupo/Duo", "Recorrente".
 
-interface AdherenceReport {
-  status: AdherenceStatus;
-  sessionsPlanned: number;
-  sessionsExecuted: number;
-  exercisesPlanned: number;
-  exercisesLogged: number;
-  setsWithLoad: number;
-  setsTotal: number;
-  reasonLabel: string;     // mensagem PT-BR para o aluno
-  detailLabel: string;     // detalhe secundário
-  canAutoAdvance: boolean;
-}
-```
+#### 5. Sistema de Cores e Status
+- Padronizar as cores dos status em toda a interface para leitura instantânea:
+  - Agendada: Verde/Primário
+  - Pendente: Amarelo/Âmbar
+  - Reagendada: Azul
+  - Cancelada: Vermelho/Cinza suave
 
-Métricas:
-- **% sessões realizadas** = dias com ≥1 set logado / dias planejados no markdown
-- **% exercícios principais com registro** = exercícios distintos logados / exercícios planejados
-- **% sets com carga+reps** = sets com `weight_kg>0 && reps>0` / sets totais
-
-Limiares (constantes ajustáveis no topo do arquivo):
-- `apto`: sessões ≥75% E exercícios ≥70% E setsCompletos ≥70%
-- `manter`: sessões ≥50% (ou exercícios ≥50%)
-- `repetir`: sessões ≥25%
-- `dados_insuficientes`: <25% ou 0 logs
-- `sugerir_reanalise`: ≥50% sessões mas <30% sets com carga/reps (treinou mas não registrou)
+#### 6. Implementação Técnica
+- Criar novos componentes especializados dentro de `src/components/agenda/` para manter `Agenda.tsx` limpo.
+- Utilizar `tailwind` para o design system (Dark Mode + Amarelo).
+- Manter a lógica de drag-and-drop e a estrutura de estados do `Agenda.tsx`.
 
 ---
 
-### 2. Hook: `src/hooks/useWeeklyAdherence.ts`
-
-```ts
-useWeeklyAdherence(plan) -> { report, loading }
-```
-
-- Calcula janela da semana anterior baseada em `plan.fase_inicio_data` + `plan.fase`
-- Busca `exercise_set_logs` desse intervalo para `student_id`
-- Parseia `plan.conteudo` (via `parseTrainingSections`) para obter dias e exercícios planejados
-- Devolve `AdherenceReport`
-
----
-
-### 3. Bloquear/sinalizar avanço automático
-
-Hoje a "fase" (semana_1..semana_4) é texto no plano, sem auto-advance ativo. Garantir que:
-
-- **Nenhum job ou trigger** avance `fase` automaticamente sem checar aderência. (Verificar `supabase/functions/` por cron de progressão — se existir, adicionar gate.)
-- A UI passa a exibir o estado de aderência e só sugere avanço quando `canAutoAdvance === true`.
-
----
-
-### 4. Banner de aderência
-
-Novo componente `src/components/training/WeeklyAdherenceBanner.tsx`:
-
-- Renderiza badge colorido conforme `status`:
-  - verde "Apto para avançar"
-  - amarelo "Semana mantida por falta de registros suficientes"
-  - laranja "Repetindo semana — execução parcial"
-  - cinza "Dados insuficientes — Complete os registros para liberar progressão mais precisa"
-  - violeta "Sugerir reanálise pelo coach — registros pouco confiáveis na semana passada"
-- Mostra mini-stats (X/Y sessões, X/Y exercícios registrados)
-- CTA "Ver detalhes" abre Sheet com breakdown completo
-
----
-
-### 5. Integração nas telas
-
-**Aluno** — `src/pages/MeusTreinos.tsx`: banner no topo do treino ativo.
-
-**Admin** — `src/components/student/StudentTrainingTab.tsx`: banner ao expandir o plano + bloquear botão "Avançar fase" automático quando `!canAutoAdvance` (substituir por confirmação explícita "Avançar mesmo assim").
-
----
-
-### 6. Mensagens PT-BR (em `weeklyAdherence.ts`)
-
-```
-apto_avancar       → "Apto para avançar de semana"
-manter_semana      → "Semana mantida por falta de registros suficientes"
-repetir_semana     → "Repetindo a semana — execução parcial na semana anterior"
-dados_insuficientes→ "Complete os registros para liberar progressão mais precisa"
-sugerir_reanalise  → "Na semana passada não houve registros confiáveis de cargas e repetições"
-```
-
----
-
-### Arquivos alterados/criados
-
-- `src/lib/weeklyAdherence.ts` (novo)
-- `src/hooks/useWeeklyAdherence.ts` (novo)
-- `src/components/training/WeeklyAdherenceBanner.tsx` (novo)
-- `src/pages/MeusTreinos.tsx` (banner aluno)
-- `src/components/student/StudentTrainingTab.tsx` (banner admin + gate de avanço)
-
-Sem mudanças de schema — usa `exercise_set_logs` e `ai_plans` existentes.
-
----
-
-### Resultado
-
-Progressão semanal passa a depender de aderência real. Aluno vê claramente por que a semana foi mantida/repetida. Admin recebe sinal explícito antes de avançar fase.
+**Arquivos a serem criados/editados:**
+- `src/components/agenda/AgendaHeader.tsx` (Novo)
+- `src/components/agenda/AgendaStats.tsx` (Novo)
+- `src/components/agenda/AgendaNavigation.tsx` (Novo)
+- `src/components/agenda/AgendaGrid.tsx` (Novo)
+- `src/pages/Agenda.tsx` (Refatoração para usar novos componentes)
