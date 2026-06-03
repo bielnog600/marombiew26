@@ -352,7 +352,8 @@ type ViewMode = 'week' | 'day' | 'month';
  
    const handleGlobalMouseUp = React.useCallback(() => {
      if (dragNewEventStart && dragNewEventEnd) {
-       onDragCreateComplete(dragNewEventStart, dragNewEventEnd);
+       const start = dragNewEventStart < dragNewEventEnd ? dragNewEventStart : dragNewEventEnd;
+       onDragCreateComplete(start, dragNewEventEnd);
      }
      setDragNewEventStart(null);
      setDragNewEventEnd(null);
@@ -367,6 +368,22 @@ type ViewMode = 'week' | 'day' | 'month';
      };
    }, [handleGlobalMouseUp]);
 
+   const selectionStyles = useMemo(() => {
+     if (!dragNewEventStart || !dragNewEventEnd) return null;
+     
+     const start = dragNewEventStart < dragNewEventEnd ? dragNewEventStart : dragNewEventEnd;
+     const end = dragNewEventStart < dragNewEventEnd ? dragNewEventEnd : dragNewEventStart;
+     
+     // 56px per 30 minutes. 112px per hour.
+     const startMinutes = start.getHours() * 60 + start.getMinutes();
+     const endMinutes = end.getHours() * 60 + end.getMinutes() + 30; // inclusive of the last slot
+     
+     const top = (startMinutes / 30) * 56;
+     const height = ((endMinutes - startMinutes) / 30) * 56;
+     
+     return { top, height };
+   }, [dragNewEventStart, dragNewEventEnd]);
+
   return (
     <div className="space-y-0 relative border border-border/50 rounded-xl bg-card/30 flex flex-col h-[70vh] max-h-[650px] overflow-hidden shadow-sm select-none">
       <div className="px-4 py-2.5 bg-secondary/20 flex items-center justify-between border-b border-border/50 shrink-0">
@@ -375,13 +392,27 @@ type ViewMode = 'week' | 'day' | 'month';
           <span>{dayEvents.length} aulas agendadas</span>
         </div>
         <div className="text-[10px] text-muted-foreground/60 italic">
-          Toque e arraste para criar um agendamento
+          Arraste para selecionar o horário
         </div>
       </div>
       <div 
         ref={containerRef} 
         className="flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth custom-scrollbar"
       >
+        {selectionStyles && (
+          <div 
+            className="absolute left-14 right-0 z-10 bg-primary/20 border-2 border-primary rounded-md pointer-events-none flex items-center justify-center"
+            style={{ 
+              top: `${selectionStyles.top}px`, 
+              height: `${selectionStyles.height}px`,
+              transition: 'all 0.1s ease-out'
+            }}
+          >
+            <div className="bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded shadow-sm">
+              Novo Agendamento
+            </div>
+          </div>
+        )}
         {currentTimePosition !== null && (
           <div 
             className="absolute left-0 right-0 z-20 flex items-center pointer-events-none"
@@ -480,16 +511,11 @@ type ViewMode = 'week' | 'day' | 'month';
     // Only trigger if not clicking an existing event
     if ((e.target as HTMLElement).closest('.event-card-container')) return;
     
-    setIsPressing(true);
     onDragStart?.();
     
     timerRef.current = setTimeout(() => {
-      // If we haven't moved much, we can consider it a long press create
-      if (isPressing) {
-        onPress();
-        setIsPressing(false);
-      }
-    }, 800);
+      // Small vibration or visual feedback could go here
+    }, 200);
   };
 
   const handleEnd = () => {
@@ -514,7 +540,7 @@ type ViewMode = 'week' | 'day' | 'month';
       onMouseEnter={handleMouseEnter}
       className={`flex min-h-[56px] border-b ${isHalfHour ? 'border-border/10' : 'border-border/30'} last:border-0 transition-colors w-full overflow-hidden ${
         isOver ? 'bg-primary/5' : ''
-      } ${isPressing || isDraggingNew ? 'bg-primary/10' : ''} ${isDraggingNew ? 'border-l-2 border-l-primary' : ''} relative`}
+      } relative`}
     >
       <div className={`w-14 flex items-start justify-center pt-3 border-r border-border/20 shrink-0 ${isHalfHour ? 'bg-transparent' : 'bg-secondary/5'}`}>
         <span className={`text-[10px] font-bold ${isHalfHour ? 'text-muted-foreground/30' : 'text-muted-foreground/60'}`}>
