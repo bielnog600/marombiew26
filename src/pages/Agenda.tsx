@@ -511,16 +511,11 @@ type ViewMode = 'week' | 'day' | 'month';
     // Only trigger if not clicking an existing event
     if ((e.target as HTMLElement).closest('.event-card-container')) return;
     
-    setIsPressing(true);
     onDragStart?.();
     
     timerRef.current = setTimeout(() => {
-      // If we haven't moved much, we can consider it a long press create
-      if (isPressing) {
-        onPress();
-        setIsPressing(false);
-      }
-    }, 800);
+      // Small vibration or visual feedback could go here
+    }, 200);
   };
 
   const handleEnd = () => {
