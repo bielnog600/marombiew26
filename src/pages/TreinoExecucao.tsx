@@ -226,7 +226,11 @@ const TreinoExecucao = () => {
     sessionInitRef.current = true;
     (async () => {
       const applyState = (state: any) => {
-        if (state?.currentIndex != null) setCurrentIndex(state.currentIndex);
+        if (state?.currentIndex != null) {
+          const maxIdx = Math.max(0, exercises.length - 1);
+          const safeIdx = Math.min(Math.max(0, state.currentIndex), maxIdx);
+          setCurrentIndex(safeIdx);
+        }
         if (state?.sets) {
           setSets(state.sets);
           const idxs = new Set<number>(Object.keys(state.sets).map((k) => Number(k)));
