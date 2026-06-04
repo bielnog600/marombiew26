@@ -246,7 +246,8 @@ const TreinoExecucao = () => {
 
       if (existing && existing.started_at) {
         const age = Date.now() - new Date(existing.started_at).getTime();
-        if (age <= 12 * 60 * 60 * 1000) {
+        const sameDay = !dayName || !existing.day_name || existing.day_name === dayName;
+        if (age <= 12 * 60 * 60 * 1000 && sameDay) {
           const state = (activeSession?.id === existing.id ? activeSession.session_state : null) ?? existing.session_state;
           setSessionId(existing.id);
           setSessionStartAt(new Date(existing.started_at).getTime());
@@ -262,12 +263,14 @@ const TreinoExecucao = () => {
           return;
         } else {
           await supabase.from('workout_sessions').update({ status: 'abandoned' }).eq('id', existing.id);
+          clearActiveSession();
         }
       }
 
       if (existingError && activeSession?.id && activeSession.started_at) {
         const age = Date.now() - new Date(activeSession.started_at).getTime();
-        if (age <= 12 * 60 * 60 * 1000) {
+        const sameDayLocal = !dayName || !activeSession.day_name || activeSession.day_name === dayName;
+        if (age <= 12 * 60 * 60 * 1000 && sameDayLocal) {
           setSessionId(activeSession.id);
           setSessionStartAt(new Date(activeSession.started_at).getTime());
           applyState(activeSession.session_state);
