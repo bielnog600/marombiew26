@@ -533,6 +533,17 @@ type ViewMode = 'week' | 'day' | 'month';
     onDragEnter?.();
   };
 
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.id === id) {
+        onDragEnter?.();
+      }
+    };
+    window.addEventListener('agenda-slot-enter', handler);
+    return () => window.removeEventListener('agenda-slot-enter', handler);
+  }, [id, onDragEnter]);
+
   const handleTouchMove = (e: React.TouchEvent) => {
     // If user moves finger before long-press fires, cancel creation (allow scrolling)
     if (timerRef.current) {
