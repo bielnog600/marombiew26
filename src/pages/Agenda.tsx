@@ -520,7 +520,7 @@ type ViewMode = 'week' | 'day' | 'month';
       if (window.navigator && window.navigator.vibrate) {
         window.navigator.vibrate(50);
       }
-    }, 800); // Increased to 800ms to prevent accidental triggers while scrolling
+    }, 1500); // 1.5s hold to prevent accidental triggers while scrolling
   };
 
   const handleEnd = () => {
@@ -533,14 +533,44 @@ type ViewMode = 'week' | 'day' | 'month';
     onDragEnter?.();
   };
 
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.id === id) {
+        onDragEnter?.();
+      }
+    };
+    window.addEventListener('agenda-slot-enter', handler);
+    return () => window.removeEventListener('agenda-slot-enter', handler);
+  }, [id, onDragEnter]);
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    // If user moves finger before long-press fires, cancel creation (allow scrolling)
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    // After long-press fired, extend selection by detecting slot under the finger
+    const touch = e.touches[0];
+    if (!touch) return;
+    const el = document.elementFromPoint(touch.clientX, touch.clientY) as HTMLElement | null;
+    const slotEl = el?.closest('[data-slot-id]') as HTMLElement | null;
+    if (slotEl) {
+      const ev = new CustomEvent('agenda-slot-enter', { detail: { id: slotEl.dataset.slotId } });
+      window.dispatchEvent(ev);
+    }
+  };
+
   return (
     <div 
       ref={setNodeRef}
+      data-slot-id={id}
       onMouseDown={handleStart}
       onMouseUp={handleEnd}
       onMouseLeave={handleEnd}
       onTouchStart={handleStart}
       onTouchEnd={handleEnd}
+      onTouchMove={handleTouchMove}
       onMouseEnter={handleMouseEnter}
       className={`flex min-h-[56px] border-b ${isHalfHour ? 'border-border/10' : 'border-border/30'} last:border-0 transition-colors w-full overflow-hidden ${
         isOver ? 'bg-primary/5' : ''
