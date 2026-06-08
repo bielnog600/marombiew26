@@ -107,8 +107,7 @@ const Consultoria = () => {
 
   const { notifications, loading: notifLoading, count: notifCount, refresh: refreshNotifs, dismissNotification } = useNotifications();
   const { alerts: behavioralAlerts, loading: behavioralLoading, generating: behavioralGenerating, generate: generateBehavioral, updateStatus: updateBehavioralStatus } = useBehavioralAlerts();
-  const [notifFilter, setNotifFilter] = useState('all');
-  const [alertCategory, setAlertCategory] = useState<'todos' | 'operacional' | 'comportamental'>('todos');
+  const [notifFilter] = useState('all');
 
   useEffect(() => {
     loadData();
@@ -808,7 +807,10 @@ const Consultoria = () => {
                 <Activity className="h-4 w-4 text-primary" />
                 <h3 className="text-sm font-semibold">Comportamento de hoje</h3>
               </div>
-              <EngagementOverviewCards />
+              <EngagementOverviewCards
+                pendentes={totalAlerts}
+                onPendentesClick={() => setTab('alertas')}
+              />
             </div>
           </div>
         )}
