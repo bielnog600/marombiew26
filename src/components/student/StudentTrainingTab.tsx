@@ -206,7 +206,6 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
     } else {
       toast.success('Treino salvo com sucesso!');
       setPlans(prev => prev.map(p => p.id === planId ? { ...p, ...updates } : p));
-      setTrainPlan(prev => prev?.id === planId ? { ...prev, ...updates } : prev);
       const nextEditedRef = { ...editedMarkdownsRef.current };
       delete nextEditedRef[planId];
       editedMarkdownsRef.current = nextEditedRef;
