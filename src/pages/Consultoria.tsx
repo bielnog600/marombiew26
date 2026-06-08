@@ -107,8 +107,7 @@ const Consultoria = () => {
 
   const { notifications, loading: notifLoading, count: notifCount, refresh: refreshNotifs, dismissNotification } = useNotifications();
   const { alerts: behavioralAlerts, loading: behavioralLoading, generating: behavioralGenerating, generate: generateBehavioral, updateStatus: updateBehavioralStatus } = useBehavioralAlerts();
-  const [notifFilter, setNotifFilter] = useState('all');
-  const [alertCategory, setAlertCategory] = useState<'todos' | 'operacional' | 'comportamental'>('todos');
+  const [notifFilter] = useState('all');
 
   useEffect(() => {
     loadData();
@@ -808,187 +807,126 @@ const Consultoria = () => {
                 <Activity className="h-4 w-4 text-primary" />
                 <h3 className="text-sm font-semibold">Comportamento de hoje</h3>
               </div>
-              <EngagementOverviewCards />
+              <EngagementOverviewCards
+                pendentes={totalAlerts}
+                onPendentesClick={() => setTab('alertas')}
+              />
             </div>
           </div>
         )}
 
         {tab === 'alertas' && (
           <div className="space-y-4">
-            {/* Category filter */}
-            <div className="flex gap-2 flex-wrap items-center">
-              {([
-                { value: 'todos', label: 'Todos', count: notifCount + behavioralAlerts.length },
-                { value: 'operacional', label: 'Operacionais', count: notifCount },
-                { value: 'comportamental', label: 'Comportamentais', count: behavioralAlerts.length },
-              ] as const).map((c) => {
-                const isActive = alertCategory === c.value;
+            {(() => {
+              const classifyBehavioral = (k: string): 'criticos' | 'atencao' | 'insights' => {
+                if (k === 'inactive_5d' || k === 'no_workout_3d' || k === 'combined_neglect_2d') return 'criticos';
+                if (k.startsWith('progression_dow_')) return 'insights';
+                return 'atencao';
+              };
+              const classifyNotif = (t: NotificationType): 'criticos' | 'atencao' | 'insights' => {
+                if (t === 'sem_treino' || t === 'sem_dieta' || t === 'sem_telefone') return 'criticos';
+                if (t === 'aniversario' || t === 'mensagem_semanal') return 'insights';
+                return 'atencao';
+              };
+
+              const buckets: Record<'criticos' | 'atencao' | 'insights', { behavioral: typeof behavioralAlerts; notifs: typeof notifications }> = {
+                criticos: { behavioral: [], notifs: [] },
+                atencao: { behavioral: [], notifs: [] },
+                insights: { behavioral: [], notifs: [] },
+              };
+              behavioralAlerts.forEach((a) => buckets[classifyBehavioral(a.alert_key)].behavioral.push(a));
+              notifications.forEach((n) => buckets[classifyNotif(n.type)].notifs.push(n));
+
+              const sections = [
+                { key: 'criticos' as const, label: 'Críticos', icon: AlertTriangle, color: 'text-destructive', empty: 'Nenhum item crítico 🎉' },
+                { key: 'atencao' as const, label: 'Atenção', icon: Bell, color: 'text-orange-500', empty: 'Nada exigindo atenção agora.' },
+                { key: 'insights' as const, label: 'Insights da IA', icon: Sparkles, color: 'text-primary', empty: 'Sem insights novos.' },
+              ];
+
+              const renderNotifRow = (n: Notification) => {
+                const config = notifTypeConfig[n.type];
+                const Icon = config.icon;
                 return (
-                  <button
-                    key={c.value}
-                    onClick={() => setAlertCategory(c.value)}
-                    className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all border ${
-                      isActive
-                        ? 'bg-foreground text-background border-foreground'
-                        : 'bg-secondary/50 text-muted-foreground border-border hover:bg-secondary'
-                    }`}
-                  >
-                    {c.label}
-                    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${isActive ? 'bg-background/20' : 'bg-muted'}`}>
-                      {c.count}
-                    </span>
-                  </button>
-                );
-              })}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="ml-auto"
-                onClick={() => { refreshNotifs(); generateBehavioral(); }}
-                disabled={notifLoading || behavioralGenerating}
-              >
-                <RefreshCw className={`h-4 w-4 mr-1 ${(notifLoading || behavioralGenerating) ? 'animate-spin' : ''}`} />
-                Atualizar
-              </Button>
-            </div>
-
-            {/* Behavioral alerts */}
-            {(alertCategory === 'todos' || alertCategory === 'comportamental') && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-primary" />
-                  <h3 className="text-sm font-semibold">Comportamentais & Engajamento</h3>
-                </div>
-                {behavioralLoading ? (
-                  <Skeleton className="h-20 w-full rounded-lg" />
-                ) : behavioralAlerts.length === 0 ? (
-                  <Card>
-                    <CardContent className="py-6 text-center text-muted-foreground text-sm">
-                      Nenhum alerta comportamental ativo. Clique em "Atualizar" para gerar.
-                    </CardContent>
-                  </Card>
-                ) : (
-                  behavioralAlerts.map((a) => (
-                    <BehavioralAlertCard key={a.id} alert={a} onUpdateStatus={updateBehavioralStatus} />
-                  ))
-                )}
-              </div>
-            )}
-
-            {(alertCategory === 'todos' || alertCategory === 'operacional') && (
-              <div className="flex items-center gap-2 pt-2">
-                <Activity className="h-4 w-4 text-orange-500" />
-                <h3 className="text-sm font-semibold">Operacionais</h3>
-              </div>
-            )}
-          </div>
-        )}
-
-        {tab === 'alertas' && (alertCategory === 'todos' || alertCategory === 'operacional') && (
-          <div className="space-y-4 -mt-2">
-
-            {/* Notification sub-filter tabs */}
-            <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
-              <div className="flex gap-2 w-max">
-                {notifFilterTabs.map((t) => {
-                  const isActive = notifFilter === t.value;
-                  const Icon = t.icon;
-                  return (
-                    <button
-                      key={t.value}
-                      onClick={() => setNotifFilter(t.value)}
-                      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium whitespace-nowrap transition-all border ${
-                        isActive
-                          ? 'bg-foreground/10 text-foreground border-foreground/20'
-                          : 'bg-secondary/30 text-muted-foreground border-transparent hover:bg-secondary/60'
-                      }`}
-                    >
-                      {Icon && <Icon className="h-3 w-3" />}
-                      {t.label}
-                      {t.count > 0 && (
-                        <span className={`ml-0.5 rounded-full px-1 py-0.5 text-[9px] font-bold leading-none ${
-                          isActive ? 'bg-foreground/10' : 'bg-muted'
-                        }`}>
-                          {t.count}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Notification cards */}
-            <div className="space-y-3">
-              {notifLoading ? (
-                Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-24 w-full rounded-lg" />
-                ))
-              ) : groupedNotifs.length === 0 ? (
-                <Card>
-                  <CardContent className="py-8 text-center text-muted-foreground">
-                    Nenhum alerta nesta categoria 🎉
-                  </CardContent>
-                </Card>
-              ) : (
-                groupedNotifs.map((group) => (
-                  <Card key={group.studentId} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-4 space-y-3">
-                      <div className="flex items-center justify-between">
+                  <Card key={n.id} className="hover:shadow-md transition-shadow">
+                    <CardContent className="p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
                         <div
-                          className="flex items-center gap-2 cursor-pointer hover:opacity-80"
-                          onClick={() => navigate(`/alunos/${group.studentId}`)}
+                          className="flex items-center gap-2 cursor-pointer hover:opacity-80 min-w-0"
+                          onClick={() => navigate(`/alunos/${n.studentId}`)}
                         >
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-primary font-semibold text-xs">
-                            {group.studentName[0]?.toUpperCase() || '?'}
+                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/20 text-primary font-semibold text-xs shrink-0">
+                            {n.studentName?.[0]?.toUpperCase() ?? '?'}
                           </div>
-                          <span className="font-medium text-sm">{group.studentName}</span>
-                          <Badge variant="outline" className={`text-[10px] ${priorityBadge[group.highestPriority]}`}>
-                            {group.notifications.length} alerta{group.notifications.length > 1 ? 's' : ''}
-                          </Badge>
+                          <span className="font-medium text-sm truncate">{n.studentName}</span>
+                          <Badge variant="outline" className={`text-[10px] shrink-0 ${priorityBadge[n.priority]}`}>{config.label}</Badge>
                         </div>
+                      </div>
+                      <div className="flex items-start gap-2 pl-9">
+                        <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${config.color}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium">{n.title}</p>
+                          <p className="text-xs text-muted-foreground line-clamp-2">{n.description}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-end gap-1 pl-9">
+                        {renderNotifAction(n)}
                         <Button
-                          size="sm"
+                          size="icon"
                           variant="ghost"
-                          className="h-7 text-xs"
-                          onClick={() => navigate(`/alunos/${group.studentId}`)}
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                          onClick={() => dismissNotification(n.id)}
+                          title="Dispensar até o próximo mês"
                         >
-                          Ver aluno
+                          <X className="h-3 w-3" />
                         </Button>
                       </div>
-
-                      <div className="space-y-2 pl-10">
-                        {group.notifications.map((n) => {
-                          const config = notifTypeConfig[n.type];
-                          const Icon = config.icon;
-                          return (
-                            <div key={n.id} className="flex items-start sm:items-center gap-3 p-2 rounded-lg bg-secondary/30">
-                              <Icon className={`h-4 w-4 shrink-0 mt-0.5 sm:mt-0 ${config.color}`} />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-medium">{n.title}</p>
-                                <p className="text-xs text-muted-foreground line-clamp-2">{n.description}</p>
-                              </div>
-                              <div className="flex items-center gap-1 shrink-0">
-                                {renderNotifAction(n)}
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                                  onClick={() => dismissNotification(n.id)}
-                                  title="Dispensar até o próximo mês"
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
                     </CardContent>
                   </Card>
-                ))
-              )}
-            </div>
+                );
+              };
+
+              return (
+                <>
+                  <div className="flex justify-end">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => { refreshNotifs(); generateBehavioral(); }}
+                      disabled={notifLoading || behavioralGenerating}
+                    >
+                      <RefreshCw className={`h-4 w-4 mr-1 ${(notifLoading || behavioralGenerating) ? 'animate-spin' : ''}`} />
+                      Atualizar
+                    </Button>
+                  </div>
+                  {sections.map((sec) => {
+                    const items = buckets[sec.key];
+                    const total = items.behavioral.length + items.notifs.length;
+                    const SecIcon = sec.icon;
+                    return (
+                      <div key={sec.key} className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <SecIcon className={`h-4 w-4 ${sec.color}`} />
+                          <h3 className="text-sm font-semibold">{sec.label}</h3>
+                          <Badge variant="outline" className="text-[10px]">{total}</Badge>
+                        </div>
+                        {behavioralLoading || notifLoading ? (
+                          <Skeleton className="h-20 w-full rounded-lg" />
+                        ) : total === 0 ? (
+                          <Card><CardContent className="py-4 text-center text-muted-foreground text-xs">{sec.empty}</CardContent></Card>
+                        ) : (
+                          <div className="space-y-2">
+                            {items.behavioral.map((a) => (
+                              <BehavioralAlertCard key={a.id} alert={a} onUpdateStatus={updateBehavioralStatus} />
+                            ))}
+                            {items.notifs.map(renderNotifRow)}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
+              );
+            })()}
           </div>
         )}
 

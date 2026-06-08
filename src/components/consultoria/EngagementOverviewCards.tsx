@@ -1,21 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { Activity, UserCheck, UserX, Dumbbell, Utensils, GlassWater, AlertOctagon } from 'lucide-react';
+import { Activity, UserCheck, Dumbbell, AlertOctagon } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-type CardKey = 'openedToday' | 'notOpened' | 'workoutToday' | 'noWorkout' | 'mealsToday' | 'waterToday' | 'riskAbandon';
+type CardKey = 'openedToday' | 'workoutToday' | 'riskAbandon' | 'pendentes';
 
 interface Stats {
   openedToday: number;
-  notOpened: number;
   workoutToday: number;
-  noWorkout: number;
-  mealsToday: number;
-  waterToday: number;
   riskAbandon: number;
   totalStudents: number;
 }
@@ -26,13 +22,9 @@ interface StudentRow {
   detail?: string;
 }
 
-// Usa data LOCAL (Brasil) para não pular o dia depois das 21h BRT
 const todayStr = () => {
   const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 const startOfTodayIso = () => {
   const d = new Date();
@@ -45,13 +37,17 @@ const daysAgoIso = (n: number) => {
   return d.toISOString();
 };
 
-const EngagementOverviewCards: React.FC = () => {
+interface Props {
+  pendentes?: number;
+  onPendentesClick?: () => void;
+}
+
+const EngagementOverviewCards: React.FC<Props> = ({ pendentes = 0, onPendentesClick }) => {
   const [stats, setStats] = useState<Stats | null>(null);
   const [allStudents, setAllStudents] = useState<{ id: string; name: string }[]>([]);
   const [data, setData] = useState<{
     openedEvents: { student_id: string; created_at: string }[];
     workoutSessions: { student_id: string; completed_at: string }[];
-    tracking: { student_id: string; water_glasses: number; meals_completed: any }[];
     recentOpenedIds: Set<string>;
   } | null>(null);
   const [openCard, setOpenCard] = useState<CardKey | null>(null);
@@ -66,15 +62,13 @@ const EngagementOverviewCards: React.FC = () => {
         .from('profiles')
         .select('user_id, nome')
         .in('user_id', ids.length > 0 ? ids : ['00000000-0000-0000-0000-000000000000']);
-      const studentList = (profiles ?? []).map((p) => ({ id: p.user_id, name: p.nome || 'Sem nome' }));
-      setAllStudents(studentList);
+      setAllStudents((profiles ?? []).map((p) => ({ id: p.user_id, name: p.nome || 'Sem nome' })));
 
-      const today = todayStr();
       const startOfDay = startOfTodayIso();
       const fiveDaysAgo = daysAgoIso(5);
-
       const safeIds = ids.length > 0 ? ids : ['00000000-0000-0000-0000-000000000000'];
-      const [openedRes, workoutRes, trackingRes, eventsLastRes] = await Promise.all([
+
+      const [openedRes, workoutRes, eventsLastRes] = await Promise.all([
         supabase
           .from('student_events')
           .select('student_id, created_at')
@@ -90,11 +84,6 @@ const EngagementOverviewCards: React.FC = () => {
           .in('student_id', safeIds)
           .order('completed_at', { ascending: false }),
         supabase
-          .from('daily_tracking')
-          .select('student_id, water_glasses, meals_completed')
-          .eq('date', today)
-          .in('student_id', safeIds),
-        supabase
           .from('student_events')
           .select('student_id, created_at')
           .eq('event_type', 'app_opened')
@@ -104,110 +93,60 @@ const EngagementOverviewCards: React.FC = () => {
 
       const openedEvents = openedRes.data ?? [];
       const workoutSessions = workoutRes.data ?? [];
-      const tracking = trackingRes.data ?? [];
       const recentOpenedSet = new Set((eventsLastRes.data ?? []).map((e) => e.student_id));
 
-      const openedSet = new Set(openedEvents.map((e) => e.student_id));
-      const workoutSet = new Set(workoutSessions.map((w) => w.student_id));
-      const mealsCount = tracking.filter((t) => Array.isArray(t.meals_completed) && t.meals_completed.length > 0).length;
-      const waterCount = tracking.filter((t) => (t.water_glasses ?? 0) > 0).length;
-      const riskAbandon = ids.filter((id) => !recentOpenedSet.has(id)).length;
-
       setStats({
-        openedToday: openedSet.size,
-        notOpened: total - openedSet.size,
-        workoutToday: workoutSet.size,
-        noWorkout: total - workoutSet.size,
-        mealsToday: mealsCount,
-        waterToday: waterCount,
-        riskAbandon,
+        openedToday: new Set(openedEvents.map((e) => e.student_id)).size,
+        workoutToday: new Set(workoutSessions.map((w) => w.student_id)).size,
+        riskAbandon: ids.filter((id) => !recentOpenedSet.has(id)).length,
         totalStudents: total,
       });
-      setData({ openedEvents, workoutSessions, tracking, recentOpenedIds: recentOpenedSet });
+      setData({ openedEvents, workoutSessions, recentOpenedIds: recentOpenedSet });
     })();
   }, []);
 
   const cards: { key: CardKey; label: string; value: number | undefined; icon: any; color: string }[] = [
     { key: 'openedToday', label: 'Acessaram hoje', value: stats?.openedToday, icon: UserCheck, color: 'text-emerald-500' },
-    { key: 'notOpened', label: 'Não acessaram', value: stats?.notOpened, icon: UserX, color: 'text-orange-500' },
     { key: 'workoutToday', label: 'Treinaram hoje', value: stats?.workoutToday, icon: Dumbbell, color: 'text-primary' },
-    { key: 'noWorkout', label: 'Sem treino hoje', value: stats?.noWorkout, icon: Activity, color: 'text-amber-500' },
-    { key: 'mealsToday', label: 'Refeições hoje', value: stats?.mealsToday, icon: Utensils, color: 'text-emerald-500' },
-    { key: 'waterToday', label: 'Água hoje', value: stats?.waterToday, icon: GlassWater, color: 'text-blue-500' },
-    { key: 'riskAbandon', label: 'Risco abandono', value: stats?.riskAbandon, icon: AlertOctagon, color: 'text-destructive' },
+    { key: 'riskAbandon', label: 'Em risco', value: stats?.riskAbandon, icon: AlertOctagon, color: 'text-destructive' },
+    { key: 'pendentes', label: 'Pendentes', value: pendentes, icon: Activity, color: 'text-orange-500' },
   ];
 
   const nameOf = (id: string) => allStudents.find((s) => s.id === id)?.name ?? 'Aluno';
-  const fmt = (iso: string) => format(new Date(iso), "HH:mm", { locale: ptBR });
+  const fmt = (iso: string) => format(new Date(iso), 'HH:mm', { locale: ptBR });
 
   const getRows = (key: CardKey): StudentRow[] => {
     if (!data) return [];
-    switch (key) {
-      case 'openedToday': {
-        // group by student, take earliest+latest access today
-        const byStudent = new Map<string, string[]>();
-        for (const e of data.openedEvents) {
-          if (!byStudent.has(e.student_id)) byStudent.set(e.student_id, []);
-          byStudent.get(e.student_id)!.push(e.created_at);
-        }
-        return Array.from(byStudent.entries()).map(([id, times]) => {
-          const sorted = times.sort();
-          const detail = sorted.length === 1
-            ? `às ${fmt(sorted[0])}`
-            : `${sorted.length} acessos · ${fmt(sorted[0])} – ${fmt(sorted[sorted.length - 1])}`;
-          return { id, name: nameOf(id), detail };
-        }).sort((a, b) => a.name.localeCompare(b.name));
+    if (key === 'openedToday') {
+      const byStudent = new Map<string, string[]>();
+      for (const e of data.openedEvents) {
+        if (!byStudent.has(e.student_id)) byStudent.set(e.student_id, []);
+        byStudent.get(e.student_id)!.push(e.created_at);
       }
-      case 'notOpened': {
-        const openedSet = new Set(data.openedEvents.map((e) => e.student_id));
-        return allStudents
-          .filter((s) => !openedSet.has(s.id))
-          .map((s) => ({ id: s.id, name: s.name, detail: 'Não acessou hoje' }))
-          .sort((a, b) => a.name.localeCompare(b.name));
-      }
-      case 'workoutToday': {
-        const byStudent = new Map<string, string>();
-        for (const w of data.workoutSessions) {
-          if (!byStudent.has(w.student_id)) byStudent.set(w.student_id, w.completed_at);
-        }
-        return Array.from(byStudent.entries())
-          .map(([id, t]) => ({ id, name: nameOf(id), detail: `Concluído às ${fmt(t)}` }))
-          .sort((a, b) => a.name.localeCompare(b.name));
-      }
-      case 'noWorkout': {
-        const workoutSet = new Set(data.workoutSessions.map((w) => w.student_id));
-        return allStudents
-          .filter((s) => !workoutSet.has(s.id))
-          .map((s) => ({ id: s.id, name: s.name, detail: 'Sem treino hoje' }))
-          .sort((a, b) => a.name.localeCompare(b.name));
-      }
-      case 'mealsToday': {
-        return data.tracking
-          .filter((t) => Array.isArray(t.meals_completed) && t.meals_completed.length > 0)
-          .map((t) => ({
-            id: t.student_id,
-            name: nameOf(t.student_id),
-            detail: `${(t.meals_completed as any[]).length} refeição(ões)`,
-          }))
-          .sort((a, b) => a.name.localeCompare(b.name));
-      }
-      case 'waterToday': {
-        return data.tracking
-          .filter((t) => (t.water_glasses ?? 0) > 0)
-          .map((t) => ({
-            id: t.student_id,
-            name: nameOf(t.student_id),
-            detail: `${t.water_glasses} copo(s)`,
-          }))
-          .sort((a, b) => a.name.localeCompare(b.name));
-      }
-      case 'riskAbandon': {
-        return allStudents
-          .filter((s) => !data.recentOpenedIds.has(s.id))
-          .map((s) => ({ id: s.id, name: s.name, detail: 'Sem acesso há 5+ dias' }))
-          .sort((a, b) => a.name.localeCompare(b.name));
-      }
+      return Array.from(byStudent.entries()).map(([id, times]) => {
+        const sorted = times.sort();
+        const detail = sorted.length === 1
+          ? `às ${fmt(sorted[0])}`
+          : `${sorted.length} acessos · ${fmt(sorted[0])} – ${fmt(sorted[sorted.length - 1])}`;
+        return { id, name: nameOf(id), detail };
+      }).sort((a, b) => a.name.localeCompare(b.name));
     }
+    if (key === 'workoutToday') {
+      const byStudent = new Map<string, string>();
+      for (const w of data.workoutSessions) {
+        if (!byStudent.has(w.student_id)) byStudent.set(w.student_id, w.completed_at);
+      }
+      return Array.from(byStudent.entries())
+        .map(([id, t]) => ({ id, name: nameOf(id), detail: `Concluído às ${fmt(t)}` }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
+    if (key === 'riskAbandon') {
+      return allStudents
+        .filter((s) => !data.recentOpenedIds.has(s.id))
+        .map((s) => ({ id: s.id, name: s.name, detail: 'Sem acesso há 5+ dias' }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return [];
   };
 
   const currentCard = cards.find((c) => c.key === openCard);
@@ -215,12 +154,15 @@ const EngagementOverviewCards: React.FC = () => {
 
   return (
     <>
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {cards.map((c) => (
           <Card
             key={c.label}
             className="glass-card cursor-pointer hover:bg-secondary/50 transition-colors"
-            onClick={() => stats && setOpenCard(c.key)}
+            onClick={() => {
+              if (c.key === 'pendentes') { onPendentesClick?.(); return; }
+              if (stats) setOpenCard(c.key);
+            }}
           >
             <CardContent className="p-2.5 flex items-center gap-2">
               <div className={`rounded-lg p-1.5 bg-secondary ${c.color}`}>
@@ -228,14 +170,14 @@ const EngagementOverviewCards: React.FC = () => {
               </div>
               <div className="min-w-0">
                 <p className="text-[9px] text-muted-foreground leading-tight uppercase truncate">{c.label}</p>
-                <p className="text-lg font-bold leading-tight">{stats ? c.value : '…'}</p>
+                <p className="text-lg font-bold leading-tight">{c.value ?? '…'}</p>
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <Dialog open={!!openCard} onOpenChange={(o) => !o && setOpenCard(null)}>
+      <Dialog open={!!openCard && openCard !== 'pendentes'} onOpenChange={(o) => !o && setOpenCard(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
