@@ -5,6 +5,8 @@
  */
 
 import type { ParsedTrainingDay } from './trainingResultParser';
+import type { AdherenceStatus } from './weeklyAdherence';
+import { TRAINING_PHASES, type TrainingPhase } from './trainingPhase';
 
 export interface ExerciseLog {
   exercise_name: string;
@@ -143,4 +145,81 @@ export const formatDelta = (d: ExerciseDelta): string => {
   if (d.weightDelta !== 0) parts.push(`${d.weightDelta > 0 ? '+' : ''}${d.weightDelta}kg`);
   if (d.repsDelta !== 0) parts.push(`${d.repsDelta > 0 ? '+' : ''}${d.repsDelta} reps`);
   return `${d.exercise}${parts.length ? ' ' + parts.join(' / ') : ''}`;
+};
+
+// ============================================================
+// Resolução de semana ativa a partir da aderência
+// ============================================================
+
+export type WeekAction =
+  | 'advance'
+  | 'hold'
+  | 'repeat'
+  | 'revise'
+  | 'awaiting_data';
+
+export const WEEK_ACTION_LABEL: Record<WeekAction, string> = {
+  advance: 'Avançar para próxima semana',
+  hold: 'Manter semana atual',
+  repeat: 'Repetir semana anterior',
+  revise: 'Sugerir reanálise do plano',
+  awaiting_data: 'Aguardando registros suficientes',
+};
+
+export interface WeekResolution {
+  plannedPhase: TrainingPhase;
+  activePhase: TrainingPhase;
+  action: WeekAction;
+  blockOverload: boolean;
+  suggestRevision: boolean;
+}
+
+const nextPhase = (p: TrainingPhase): TrainingPhase => {
+  const i = TRAINING_PHASES.indexOf(p);
+  if (i < 0 || i === TRAINING_PHASES.length - 1) return p;
+  return TRAINING_PHASES[i + 1];
+};
+
+const prevPhase = (p: TrainingPhase): TrainingPhase => {
+  const i = TRAINING_PHASES.indexOf(p);
+  if (i <= 0) return p;
+  return TRAINING_PHASES[i - 1];
+};
+
+/**
+ * Decide qual semana o aluno deve treinar agora, com base na aderência
+ * da semana anterior e na fase planejada.
+ */
+export const resolveActiveWeek = (
+  plannedPhase: TrainingPhase,
+  adherence?: AdherenceStatus,
+): WeekResolution => {
+  const base: WeekResolution = {
+    plannedPhase,
+    activePhase: plannedPhase,
+    action: 'hold',
+    blockOverload: false,
+    suggestRevision: false,
+  };
+
+  if (!adherence) return { ...base, action: 'awaiting_data' };
+
+  switch (adherence) {
+    case 'apto_avancar':
+      return { ...base, activePhase: nextPhase(plannedPhase), action: 'advance' };
+    case 'manter_semana':
+      return { ...base, action: 'hold' };
+    case 'repetir_semana':
+      return {
+        ...base,
+        activePhase: prevPhase(plannedPhase),
+        action: 'repeat',
+        blockOverload: true,
+      };
+    case 'sugerir_reanalise':
+      return { ...base, action: 'revise', suggestRevision: true, blockOverload: true };
+    case 'dados_insuficientes':
+    default:
+      return { ...base, action: 'awaiting_data', blockOverload: true };
+  }
 };
