@@ -15,10 +15,11 @@ interface AlertSpec {
 
 // Data LOCAL do servidor — mas garantimos BRT explicitamente para evitar
 // que após as 21h BRT o "hoje" UTC já tenha virado amanhã.
-const todayStr = (d = new Date()) => {
-  const brt = new Date(d.getTime() - 3 * 60 * 60 * 1000);
-  return brt.toISOString().slice(0, 10);
+const toBrtDate = (iso: string | Date) => {
+  const d = typeof iso === 'string' ? new Date(iso) : iso;
+  return new Date(d.getTime() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
 };
+const todayStr = (d = new Date()) => toBrtDate(d);
 const daysAgo = (n: number) => {
   const d = new Date();
   d.setDate(d.getDate() - n);
@@ -162,8 +163,8 @@ Deno.serve(async (req) => {
       }
 
       // MÉDIA: treino sem registro de cargas
-      const todayWorkout = studentSessions.find((s) => s.completed_at.slice(0, 10) === today);
-      const todayLogs = studentLogs.filter((l) => l.performed_at.slice(0, 10) === today);
+      const todayWorkout = studentSessions.find((s) => s.completed_at && toBrtDate(s.completed_at) === today);
+      const todayLogs = studentLogs.filter((l) => l.performed_at && toBrtDate(l.performed_at) === today);
       if (todayWorkout && todayLogs.length === 0) {
         const key = `workout_no_loads_${today}`;
         activeKeysByStudent[studentId].add(key);
@@ -178,10 +179,10 @@ Deno.serve(async (req) => {
 
       // BAIXA: treino abandonado (started sem completed) hoje
       const startedToday = studentEvents.find(
-        (e) => e.event_type === 'workout_started' && e.created_at.slice(0, 10) === today
+        (e) => e.event_type === 'workout_started' && toBrtDate(e.created_at) === today
       );
       const completedToday = studentEvents.find(
-        (e) => e.event_type === 'workout_completed' && e.created_at.slice(0, 10) === today
+        (e) => e.event_type === 'workout_completed' && toBrtDate(e.created_at) === today
       );
       if (startedToday && !completedToday && todayWorkout === undefined) {
         const key = `workout_abandoned_${today}`;
@@ -215,7 +216,7 @@ Deno.serve(async (req) => {
       // Gera para TODO aluno que ainda não treinou hoje. Se tiver histórico do
       // mesmo dia da semana passada, personaliza pelo RPE; senão, dica genérica.
       const alreadyTrainedToday = studentSessions.some(
-        (s) => s.completed_at?.slice(0, 10) === today
+        (s) => s.completed_at && toBrtDate(s.completed_at) === today
       );
 
       if (!alreadyTrainedToday) {
