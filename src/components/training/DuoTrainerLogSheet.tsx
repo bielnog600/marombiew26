@@ -21,8 +21,19 @@ import {
   draftKey,
   parsePauseSeconds
 } from './TrainerLogSheetUtils';
-import { linkOrCreateAgendaEventForSession, completeAgendaEventForSession } from '@/lib/agendaAutoLink';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAdminTrainerSession } from '@/contexts/AdminTrainerSessionContext';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 interface Props {
   open: boolean;
@@ -43,62 +54,26 @@ interface StudentSessionState {
 
 export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentAId, planA }) => {
   const { user } = useAuth();
+  const { active, finish, cancel, setPairedStudent } = useAdminTrainerSession();
   const [studentA, setStudentA] = useState<StudentSessionState | null>(null);
   const [studentB, setStudentB] = useState<StudentSessionState | null>(null);
   const [allStudents, setAllStudents] = useState<{ user_id: string; nome: string }[]>([]);
   const [selectingStudentB, setSelectingStudentB] = useState(false);
   const [exercisesList, setExercisesList] = useState<any[]>([]);
   const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer } = useRestTimer();
-  
-  const [sessionTimer, setSessionTimer] = useState({
-    id: crypto.randomUUID(),
-    startedAt: new Date().toISOString(),
-    durationSeconds: 0,
-    isPaused: false
-  });
-  const [calendarEventByStudent, setCalendarEventByStudent] = useState<Record<string, string>>({});
-
-  // Vincula/cria evento na Agenda para cada aluno carregado (uma vez por aluno)
-  useEffect(() => {
-    if (!open || !user?.id) return;
-    const ensureLink = async (sid: string, dayName: string | null, ph: string | null) => {
-      if (calendarEventByStudent[sid]) return;
-      try {
-        const { calendarEventId, isNew } = await linkOrCreateAgendaEventForSession({
-          studentId: sid,
-          adminId: user.id,
-          startedAtReal: new Date(sessionTimer.startedAt),
-          dayName,
-          phase: ph,
-        });
-        setCalendarEventByStudent(prev => ({ ...prev, [sid]: calendarEventId }));
-        toast.success(isNew ? 'Aula criada na Agenda' : 'Aula vinculada à Agenda');
-      } catch (e) {
-        console.error('Agenda link error:', e);
-      }
-    };
-    if (studentA) {
-      const d = studentA.days[studentA.activeDayIdx];
-      ensureLink(studentA.studentId, d?.day || null, studentA.plan?.fase || null);
-    }
-    if (studentB) {
-      const d = studentB.days[studentB.activeDayIdx];
-      ensureLink(studentB.studentId, d?.day || null, studentB.plan?.fase || null);
-    }
-  }, [open, user?.id, studentA?.studentId, studentB?.studentId]);
-
+  const sessionId = active?.id || '';
+  const sessionStartedAt = active?.startedAtReal || new Date().toISOString();
+  const [now, setNow] = useState(() => Date.now());
+  const durationSeconds = Math.max(0, Math.floor((now - new Date(sessionStartedAt).getTime()) / 1000));
   const [finishing, setFinishing] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   // Timer interval
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-    if (open && !sessionTimer.isPaused) {
-      interval = setInterval(() => {
-        setSessionTimer(prev => ({ ...prev, durationSeconds: prev.durationSeconds + 1 }));
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [open, sessionTimer.isPaused]);
+    if (!open) return;
+    const i = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(i);
+  }, [open]);
 
   // Load exercises list
   useEffect(() => {
@@ -303,7 +278,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
 
     const rows = validSets.map((s: any) => ({
       student_id: st.studentId,
-      session_id: sessionTimer.id,
+      session_id: sessionId,
       exercise_name: normalizeExName(exerciseName),
       set_number: s.idx + 1,
       weight_kg: Number.isNaN(s.weight) ? null : s.weight,
