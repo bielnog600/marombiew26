@@ -439,12 +439,47 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
               <Dumbbell className="h-5 w-5 text-primary" />
               Modo Treino
             </div>
-            {session.startedAt && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-full border border-primary/20">
-                <Timer className="h-4 w-4 text-primary animate-pulse" />
-                <span className="text-sm font-mono font-bold text-primary">{formatDuration(session.durationSeconds)}</span>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {session.startedAt && (
+                <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-full border border-primary/20">
+                  <Timer className="h-4 w-4 text-primary animate-pulse" />
+                  <span className="text-sm font-mono font-bold text-primary">{formatDuration(durationSeconds)}</span>
+                </div>
+              )}
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm" variant="ghost" className="h-8 text-destructive hover:text-destructive">
+                    Cancelar
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Cancelar sessão?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      A sessão será marcada como abandonada e não contará como treino concluído. As séries já salvas no histórico permanecem.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Voltar</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      disabled={cancelling}
+                      onClick={async () => {
+                        setCancelling(true);
+                        try {
+                          await cancel();
+                          if (day) localStorage.removeItem(draftKey(studentId, day.day, daySignature));
+                        } finally {
+                          setCancelling(false);
+                        }
+                      }}
+                    >
+                      Cancelar sessão
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </SheetTitle>
           <SheetDescription>Registre o treino do aluno em tempo real.</SheetDescription>
         </SheetHeader>
