@@ -228,20 +228,23 @@ export interface SessionState {
 
 export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId, days, phase }) => {
   const { user } = useAuth();
+  const { active, close, cancel, finish, patchState } = useAdminTrainerSession();
   const [state, setState] = useState<Record<number, ExerciseState>>({});
   const [loading, setLoading] = useState(true);
   const [activeDayIdx, setActiveDayIdx] = useState(0);
   const [exercisesList, setExercisesList] = useState<{ id: string; nome: string; grupo_muscular: string; imagem_url?: string | null }[]>([]);
   const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer } = useRestTimer();
-  
-  const [session, setSession] = useState<SessionState>({
-    id: null,
-    startedAt: null,
-    durationSeconds: 0,
-    isPaused: true,
-    calendarEventId: null,
-  });
+
+  const session = {
+    id: active?.id ?? null,
+    startedAt: active?.startedAtReal ?? null,
+    calendarEventId: (active && active.calendarEventIds[studentId]) || null,
+  };
+  const [now, setNow] = useState(() => Date.now());
+  const startedMs = session.startedAt ? new Date(session.startedAt).getTime() : null;
+  const durationSeconds = startedMs ? Math.max(0, Math.floor((now - startedMs) / 1000)) : 0;
   const [finishing, setFinishing] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   const parsePauseSeconds = (raw?: string | null): number => {
     if (!raw) return 60;
@@ -257,54 +260,14 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   };
 
   useEffect(() => {
-    if (!open) {
-      stopTimer();
-      setSession(prev => ({ ...prev, isPaused: true }));
-    } else {
-      if (!session.startedAt) {
-        const startedAt = new Date();
-        const newSessionId = crypto.randomUUID();
-        setSession({
-          id: newSessionId,
-          startedAt: startedAt.toISOString(),
-          durationSeconds: 0,
-          isPaused: false,
-          calendarEventId: null,
-        });
-        // Vincular ou criar evento na Agenda
-        if (user?.id) {
-          const today = days[0]?.day ?? null;
-          linkOrCreateAgendaEventForSession({
-            studentId,
-            adminId: user.id,
-            startedAtReal: startedAt,
-            dayName: today,
-            phase: phase || null,
-          })
-            .then(({ calendarEventId, isNew }) => {
-              setSession(prev => ({ ...prev, calendarEventId }));
-              toast.success(isNew ? 'Aula criada na Agenda' : 'Aula vinculada à Agenda');
-            })
-            .catch((e) => {
-              console.error('Agenda link error:', e);
-              toast.error('Não foi possível vincular à Agenda');
-            });
-        }
-      } else {
-        setSession(prev => ({ ...prev, isPaused: false }));
-      }
-    }
+    if (!open) stopTimer();
   }, [open]);
 
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-    if (open && !session.isPaused) {
-      interval = setInterval(() => {
-        setSession(prev => ({ ...prev, durationSeconds: prev.durationSeconds + 1 }));
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [open, session.isPaused]);
+    if (!open) return;
+    const i = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(i);
+  }, [open]);
 
   const formatDuration = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
@@ -447,58 +410,16 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   };
 
   const handleFinishSession = async () => {
-    if (!session.startedAt) return;
+    if (!session.startedAt || !active) return;
     setFinishing(true);
     try {
-      const durationMinutes = Math.ceil(session.durationSeconds / 60);
       const exercisesCompleted = Object.values(state).filter(ex => ex.savedSets > 0).length;
-      const completedAt = new Date();
-      const startedAt = new Date(session.startedAt);
-      const { error } = await supabase.from('workout_sessions').insert({
-        id: session.id,
-        student_id: studentId,
-        day_name: day.day,
-        phase: phase || null,
-        started_at: session.startedAt,
-        completed_at: completedAt.toISOString(),
-        started_at_real: session.startedAt,
-        completed_at_real: completedAt.toISOString(),
-        calendar_event_id: session.calendarEventId || null,
-        duration_minutes: durationMinutes,
-        exercises_completed: exercisesCompleted,
-        total_exercises: day.exercises.length,
-        status: 'completed',
-        source: 'admin',
-        executed_by: 'coach',
-        session_mode: 'individual'
+      await finish({
+        [studentId]: {
+          exercisesCompleted,
+          totalExercises: day.exercises.length,
+        },
       });
-      if (error) throw error;
-
-      // Concluir aula na Agenda + descontar crédito
-      if (session.calendarEventId && user?.id) {
-        try {
-          const { deducted } = await completeAgendaEventForSession({
-            calendarEventId: session.calendarEventId,
-            studentId,
-            adminId: user.id,
-            startedAtReal: startedAt,
-            completedAtReal: completedAt,
-          });
-          toast.success(
-            deducted
-              ? 'Treino finalizado! Aula concluída e 1 crédito descontado.'
-              : 'Treino finalizado! Aula concluída na Agenda.'
-          );
-        } catch (e: any) {
-          console.error(e);
-          toast.success('Treino finalizado!');
-          toast.error('Falha ao atualizar Agenda: ' + e.message);
-        }
-      } else {
-        toast.success('Treino finalizado!');
-      }
-
-      onOpenChange(false);
       localStorage.removeItem(draftKey(studentId, day.day, daySignature));
     } catch (err: any) {
       toast.error('Erro ao finalizar: ' + err.message);
