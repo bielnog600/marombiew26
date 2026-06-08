@@ -108,7 +108,7 @@ export const AdminTrainerSessionProvider: React.FC<{ children: React.ReactNode }
         startedAtReal: row.started_at_real || row.started_at,
         students,
         calendarEventIds,
-        sessionState: row.session_state || {},
+        sessionState: ss,
       };
       activeIdRef.current = a.id;
       setActive(a);
