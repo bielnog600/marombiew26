@@ -13,7 +13,12 @@ interface AlertSpec {
   description: string;
 }
 
-const todayStr = (d = new Date()) => d.toISOString().slice(0, 10);
+// Data LOCAL do servidor — mas garantimos BRT explicitamente para evitar
+// que após as 21h BRT o "hoje" UTC já tenha virado amanhã.
+const todayStr = (d = new Date()) => {
+  const brt = new Date(d.getTime() - 3 * 60 * 60 * 1000);
+  return brt.toISOString().slice(0, 10);
+};
 const daysAgo = (n: number) => {
   const d = new Date();
   d.setDate(d.getDate() - n);
@@ -73,8 +78,9 @@ Deno.serve(async (req) => {
         .gte('created_at', fiveDaysAgo),
       supabase
         .from('workout_sessions')
-        .select('id, student_id, day_name, phase, avg_rpe, total_volume_kg, total_sets, completed_at')
+        .select('id, student_id, day_name, phase, avg_rpe, total_volume_kg, total_sets, completed_at, status')
         .in('student_id', studentIds)
+        .eq('status', 'completed')
         .gte('completed_at', eightDaysAgo),
       supabase
         .from('daily_tracking')
