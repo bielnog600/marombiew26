@@ -273,6 +273,53 @@ type ViewMode = 'week' | 'day' | 'month';
 
  // ── Day View ──
  function DayView({ 
+function WeekDayStrip({ selectedDate, onSelect, events }: { selectedDate: Date; onSelect: (d: Date) => void; events: CalendarEvent[] }) {
+  const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
+  const days = eachDayOfInterval({ start: weekStart, end: addDays(weekStart, 6) });
+  return (
+    <div className="grid grid-cols-7 gap-0 border-b border-border/50 bg-secondary/10 shrink-0">
+      {days.map(day => {
+        const today = isToday(day);
+        const selected = isSameDay(day, selectedDate);
+        const count = events.filter(e => isSameDay(new Date(e.start_datetime), day)).length;
+        return (
+          <button
+            key={day.toISOString()}
+            onClick={() => onSelect(day)}
+            className={`flex flex-col items-center justify-center py-1.5 border-r border-border/20 last:border-r-0 transition-colors ${
+              selected
+                ? 'bg-primary/20 ring-1 ring-inset ring-primary/60'
+                : today
+                  ? 'bg-primary/5 hover:bg-primary/10'
+                  : 'hover:bg-primary/5'
+            }`}
+          >
+            <span className={`text-[9px] font-black uppercase tracking-wider leading-none ${
+              selected ? 'text-primary' : today ? 'text-primary/80' : 'text-muted-foreground'
+            }`}>
+              {format(day, 'EEE', { locale: ptBR }).replace('.', '')}
+            </span>
+            <span className={`text-sm font-bold tabular-nums leading-tight mt-0.5 ${
+              selected ? 'text-primary' : today ? 'text-primary/90' : 'text-foreground'
+            }`}>
+              {format(day, 'dd')}
+            </span>
+            {count > 0 && (
+              <span className={`text-[8px] font-bold leading-none mt-0.5 ${
+                selected ? 'text-primary/80' : 'text-muted-foreground/70'
+              }`}>
+                {count}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+ // ── Day View Component ──
+ function DayView({ 
   events, 
   date, 
   onEventClick, 
