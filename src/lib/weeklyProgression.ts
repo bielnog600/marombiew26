@@ -172,6 +172,7 @@ export interface WeekResolution {
   action: WeekAction;
   blockOverload: boolean;
   suggestRevision: boolean;
+  reasonLabel: string;
 }
 
 const nextPhase = (p: TrainingPhase): TrainingPhase => {
@@ -200,26 +201,28 @@ export const resolveActiveWeek = (
     action: 'hold',
     blockOverload: false,
     suggestRevision: false,
+    reasonLabel: WEEK_ACTION_LABEL['hold'],
   };
 
-  if (!adherence) return { ...base, action: 'awaiting_data' };
+  if (!adherence) return { ...base, action: 'awaiting_data', reasonLabel: WEEK_ACTION_LABEL['awaiting_data'] };
 
   switch (adherence) {
     case 'apto_avancar':
-      return { ...base, activePhase: nextPhase(plannedPhase), action: 'advance' };
+      return { ...base, activePhase: nextPhase(plannedPhase), action: 'advance', reasonLabel: WEEK_ACTION_LABEL['advance'] };
     case 'manter_semana':
-      return { ...base, action: 'hold' };
+      return { ...base, action: 'hold', reasonLabel: WEEK_ACTION_LABEL['hold'] };
     case 'repetir_semana':
       return {
         ...base,
         activePhase: prevPhase(plannedPhase),
         action: 'repeat',
         blockOverload: true,
+        reasonLabel: WEEK_ACTION_LABEL['repeat'],
       };
     case 'sugerir_reanalise':
-      return { ...base, action: 'revise', suggestRevision: true, blockOverload: true };
+      return { ...base, action: 'revise', suggestRevision: true, blockOverload: true, reasonLabel: WEEK_ACTION_LABEL['revise'] };
     case 'dados_insuficientes':
     default:
-      return { ...base, action: 'awaiting_data', blockOverload: true };
+      return { ...base, action: 'awaiting_data', blockOverload: true, reasonLabel: WEEK_ACTION_LABEL['awaiting_data'] };
   }
 };
