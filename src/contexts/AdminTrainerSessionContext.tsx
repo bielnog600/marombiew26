@@ -37,6 +37,7 @@ interface Ctx {
   cancel: () => Promise<void>;
   patchState: (updater: (prev: any) => any) => void;
   refresh: () => Promise<void>;
+  setPairedStudent: (student: AdminSessionStudent | null) => Promise<void>;
 }
 
 const AdminTrainerSessionContext = createContext<Ctx | null>(null);
@@ -302,9 +303,59 @@ export const AdminTrainerSessionProvider: React.FC<{ children: React.ReactNode }
     toast.success('Sessão cancelada.');
   }, [active]);
 
+  const setPairedStudent: Ctx['setPairedStudent'] = useCallback(
+    async (student) => {
+      if (!active || active.mode !== 'duo' || !user) return;
+      let calendarEventIds = { ...active.calendarEventIds };
+      const students: AdminSessionStudent[] = student
+        ? [active.students[0], student]
+        : [active.students[0]];
+      if (student && !calendarEventIds[student.id]) {
+        try {
+          const { calendarEventId } = await linkOrCreateAgendaEventForSession({
+            studentId: student.id,
+            adminId: user.id,
+            startedAtReal: new Date(active.startedAtReal),
+            dayName: student.dayName || null,
+            phase: student.phase || null,
+          });
+          calendarEventIds[student.id] = calendarEventId;
+        } catch (e) {
+          console.error('agenda link (B) failed', e);
+        }
+      }
+      const nextMeta = {
+        ...(active.sessionState?.meta || {}),
+        students: students.map((s) => ({
+          id: s.id,
+          nome: s.nome,
+          planId: s.planId ?? null,
+          dayName: s.dayName ?? null,
+          phase: s.phase ?? null,
+        })),
+        calendar_event_ids: calendarEventIds,
+      };
+      const nextState = { ...active.sessionState, meta: nextMeta };
+      await supabase
+        .from('workout_sessions')
+        .update({
+          paired_student_id: student?.id || null,
+          session_state: nextState,
+        })
+        .eq('id', active.id);
+      setActive({
+        ...active,
+        students,
+        calendarEventIds,
+        sessionState: nextState,
+      });
+    },
+    [active, user],
+  );
+
   return (
     <AdminTrainerSessionContext.Provider
-      value={{ active, isOpen, loading, start, open, close, finish, cancel, patchState, refresh }}
+      value={{ active, isOpen, loading, start, open, close, finish, cancel, patchState, refresh, setPairedStudent }}
     >
       {children}
     </AdminTrainerSessionContext.Provider>
