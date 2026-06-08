@@ -375,14 +375,19 @@ type ViewMode = 'week' | 'day' | 'month';
    }, [dragNewEventStart, dragNewEventEnd]);
 
   return (
-    <div className="space-y-0 relative border border-border/50 rounded-xl bg-card/30 flex flex-col h-[70vh] max-h-[650px] overflow-hidden shadow-sm select-none">
-      <div className="px-4 py-2.5 bg-secondary/20 flex items-center justify-between border-b border-border/50 shrink-0">
-        <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
-          <Info className="h-3.5 w-3.5 text-primary/70" />
-          <span>{dayEvents.length} aulas agendadas</span>
+    <div className="space-y-0 relative border border-border/50 rounded-xl bg-card/30 flex flex-col h-[calc(100vh-260px)] min-h-[500px] overflow-hidden shadow-sm select-none">
+      <div className="px-3 py-1.5 bg-secondary/20 flex items-center justify-between border-b border-border/50 shrink-0">
+        <div className="flex items-center gap-2">
+          <span className={`text-xs font-black uppercase tracking-wider ${isToday(date) ? 'text-primary' : 'text-foreground'}`}>
+            {format(date, 'EEE', { locale: ptBR })}
+          </span>
+          <span className="text-sm font-bold text-foreground tabular-nums">
+            {format(date, 'dd/MM')}
+          </span>
+          <span className="text-[10px] text-muted-foreground">· {dayEvents.length} aulas</span>
         </div>
         <div className="text-[10px] text-muted-foreground/60 italic">
-          Pressione e segure para agendar
+          Segure para agendar
         </div>
       </div>
       <div 
