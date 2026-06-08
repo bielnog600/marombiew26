@@ -1156,6 +1156,7 @@ export type Database = {
           id: string
           imagem_url: string | null
           nome: string
+          requires_load_logging: boolean
           video_embed: string | null
         }
         Insert: {
@@ -1165,6 +1166,7 @@ export type Database = {
           id?: string
           imagem_url?: string | null
           nome: string
+          requires_load_logging?: boolean
           video_embed?: string | null
         }
         Update: {
@@ -1174,6 +1176,7 @@ export type Database = {
           id?: string
           imagem_url?: string | null
           nome?: string
+          requires_load_logging?: boolean
           video_embed?: string | null
         }
         Relationships: []
