@@ -9,8 +9,6 @@ import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar, Send, Clipbo
 import { Trash2, Copy, User } from 'lucide-react';
 import { toast } from 'sonner';
 import TrainingResultCards from '@/components/TrainingResultCards';
-import TrainerLogSheet from '@/components/training/TrainerLogSheet';
-import DuoTrainerLogSheet from '@/components/training/DuoTrainerLogSheet';
 import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { rebuildTrainingMarkdown } from '@/lib/trainingResultParser';
@@ -36,6 +34,7 @@ import {
   getPhasePreview,
   type TrainingPhase,
 } from '@/lib/trainingPhase';
+import { useAdminTrainerSession } from '@/contexts/AdminTrainerSessionContext';
 
 interface StudentTrainingTabProps {
   studentId: string;
@@ -43,6 +42,7 @@ interface StudentTrainingTabProps {
 
 const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) => {
   const navigate = useNavigate();
+  const adminSession = useAdminTrainerSession();
   const [plans, setPlans] = useState<any[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editedMarkdowns, setEditedMarkdowns] = useState<Record<string, string>>({});
@@ -53,12 +53,61 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   const [students, setStudents] = useState<{ user_id: string; nome: string }[]>([]);
   const [targetStudentId, setTargetStudentId] = useState<string>('');
   const [transferring, setTransferring] = useState(false);
-  const [trainPlan, setTrainPlan] = useState<any | null>(null);
-  const [duoTrainOpen, setDuoTrainOpen] = useState(false);
   const [trainModeChoice, setTrainModeChoice] = useState<any | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [aiAllDaysOpen, setAiAllDaysOpen] = useState<string | null>(null);
   const editedMarkdownsRef = useRef<Record<string, string>>({});
+  const [starting, setStarting] = useState(false);
+
+  const [studentName, setStudentName] = useState<string>('');
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from('profiles').select('nome').eq('user_id', studentId).maybeSingle();
+      if (data?.nome) setStudentName(data.nome);
+    })();
+  }, [studentId]);
+
+  const todayDayName = (plan: any): string | null => {
+    const days = parseTrainingSections(plan?.conteudo || '').flatMap((s) => s.days || []);
+    const weekdays = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+    const today = weekdays[new Date().getDay()];
+    const found = days.find((d) => d.day.toLowerCase().includes(today));
+    return (found || days[0])?.day || null;
+  };
+
+  const handleStartTrain = async (mode: 'individual' | 'duo', plan: any) => {
+    const eff = getEffectivePlan(plan);
+    const existing = adminSession.active;
+    if (existing) {
+      const sameStudent = existing.students[0]?.id === studentId;
+      if (sameStudent) {
+        adminSession.open();
+        return;
+      }
+      toast.error(`Finalize ou cancele a sessão de ${existing.students[0]?.nome || 'outro aluno'} antes de iniciar outra.`);
+      adminSession.open();
+      return;
+    }
+    setStarting(true);
+    try {
+      await adminSession.start({
+        mode,
+        students: [
+          {
+            id: studentId,
+            nome: studentName || 'Aluno',
+            planId: eff.id,
+            dayName: todayDayName(eff),
+            phase: eff.fase || null,
+          },
+        ],
+      });
+    } catch (e: any) {
+      toast.error('Erro ao iniciar sessão: ' + (e?.message || e));
+    } finally {
+      setStarting(false);
+    }
+  };
 
   const getEffectivePlan = (plan: any) => {
     const hasEditedMarkdown = Object.prototype.hasOwnProperty.call(editedMarkdownsRef.current, plan.id);
@@ -157,7 +206,6 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
     } else {
       toast.success('Treino salvo com sucesso!');
       setPlans(prev => prev.map(p => p.id === planId ? { ...p, ...updates } : p));
-      setTrainPlan(prev => prev?.id === planId ? { ...prev, ...updates } : prev);
       const nextEditedRef = { ...editedMarkdownsRef.current };
       delete nextEditedRef[planId];
       editedMarkdownsRef.current = nextEditedRef;
@@ -403,25 +451,6 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
         })}
       </div>
 
-      {trainPlan && (
-        <TrainerLogSheet
-          open={!!trainPlan}
-          onOpenChange={(v) => !v && setTrainPlan(null)}
-          studentId={studentId}
-          days={parseTrainingSections(trainPlan.conteudo || '').flatMap(s => s.days || [])}
-          phase={trainPlan.fase}
-        />
-      )}
-
-      {duoTrainOpen && trainPlan && (
-        <DuoTrainerLogSheet
-          open={duoTrainOpen}
-          onOpenChange={setDuoTrainOpen}
-          studentAId={studentId}
-          planA={trainPlan}
-        />
-      )}
-
       <Dialog open={!!trainModeChoice} onOpenChange={(v) => !v && setTrainModeChoice(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -435,7 +464,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
               onClick={() => {
                 const p = trainModeChoice;
                 setTrainModeChoice(null);
-                setTrainPlan(p);
+                handleStartTrain('individual', p);
               }}
             >
               <div className="h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center">
@@ -452,8 +481,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
               onClick={() => {
                 const p = trainModeChoice;
                 setTrainModeChoice(null);
-                setTrainPlan(p);
-                setDuoTrainOpen(true);
+                handleStartTrain('duo', p);
               }}
             >
               <div className="h-12 w-12 rounded-full bg-violet-500/15 text-violet-600 flex items-center justify-center">

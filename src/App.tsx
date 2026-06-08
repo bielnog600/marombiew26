@@ -6,6 +6,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { TabSwipeProvider } from "@/contexts/TabSwipeContext";
+import { AdminTrainerSessionProvider } from "@/contexts/AdminTrainerSessionContext";
+import AdminTrainerSessionMount from "@/components/training/AdminTrainerSessionMount";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import SplashScreenContainer from "@/components/SplashScreen";
 import InstallBanner from "@/components/InstallBanner";
@@ -79,7 +81,9 @@ const App = () => {
           <div>
           <AuthProvider>
             <TabSwipeProvider>
+            <AdminTrainerSessionProvider>
             <PushNotificationsInit />
+            <AdminTrainerSessionMount />
             <Routes>
               <Route path="/" element={<RootRedirect />} />
               <Route path="/login" element={<Login />} />
@@ -116,6 +120,7 @@ const App = () => {
               <Route path="/minha-agenda" element={<ProtectedRoute requiredRole="aluno"><MinhaAgenda /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </AdminTrainerSessionProvider>
             </TabSwipeProvider>
           </AuthProvider>
           </div>
