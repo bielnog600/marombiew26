@@ -191,19 +191,6 @@ type ViewMode = 'week' | 'day' | 'month';
           onGoToToday={() => setCurrentDate(new Date())}
         />
 
-        {/* Quick Filters */}
-        <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-          {['Todos', 'Personal', 'Duo', 'Grupo', 'Confirmadas', 'Pendentes', 'Canceladas'].map(filter => (
-            <Badge 
-              key={filter} 
-              variant="outline" 
-              className="cursor-pointer hover:bg-primary/10 hover:border-primary/50 transition-colors whitespace-nowrap text-[10px] font-bold px-2 py-0.5 border-border/40 text-muted-foreground"
-            >
-              {filter}
-            </Badge>
-          ))}
-        </div>
-
         {/* Content */}
          <DndContext
            sensors={sensors}
