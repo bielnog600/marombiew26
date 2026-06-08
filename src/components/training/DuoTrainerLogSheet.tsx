@@ -165,8 +165,22 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
       loading: true
     };
 
-    if (slot === 'A') setStudentA(data);
-    else setStudentB(data);
+    if (slot === 'A') {
+      setStudentA(data);
+    } else {
+      setStudentB(data);
+      try {
+        await setPairedStudent({
+          id: studentId,
+          nome,
+          planId: plan.id,
+          dayName: days[activeIdx]?.day || null,
+          phase: plan.fase || null,
+        });
+      } catch (e) {
+        console.error('setPairedStudent failed', e);
+      }
+    }
   };
 
   // Initialize/Hydrate state when student data is loaded or day changes
