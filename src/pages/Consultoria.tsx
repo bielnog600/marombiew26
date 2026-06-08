@@ -21,8 +21,11 @@ import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useNotifications, NotificationType, buildWhatsAppUrl, Notification } from '@/hooks/useNotifications';
 import { useBehavioralAlerts } from '@/hooks/useBehavioralAlerts';
-import BehavioralAlertCard from '@/components/consultoria/BehavioralAlertCard';
 import EngagementOverviewCards from '@/components/consultoria/EngagementOverviewCards';
+import WeeklyAlertOverviewCards from '@/components/consultoria/WeeklyAlertOverviewCards';
+import StudentWeeklyCard from '@/components/consultoria/StudentWeeklyCard';
+import OtherAlertsSection from '@/components/consultoria/OtherAlertsSection';
+import { useStudentsWeeklySummary } from '@/hooks/useStudentsWeeklySummary';
 import ConsultoriaStudentSearch from '@/components/consultoria/ConsultoriaStudentSearch';
 import DietRenewalPanel from '@/components/consultoria/DietRenewalPanel';
 import WorkoutRenewalPanel from '@/components/consultoria/WorkoutRenewalPanel';
@@ -108,6 +111,8 @@ const Consultoria = () => {
   const { notifications, loading: notifLoading, count: notifCount, refresh: refreshNotifs, dismissNotification } = useNotifications();
   const { alerts: behavioralAlerts, loading: behavioralLoading, generating: behavioralGenerating, generate: generateBehavioral, updateStatus: updateBehavioralStatus } = useBehavioralAlerts();
   const [notifFilter] = useState('all');
+  const { summaries: weeklySummaries, loading: weeklyLoading, reload: reloadWeekly } = useStudentsWeeklySummary();
+  const [alertFilter, setAlertFilter] = useState<'all' | 'atencao' | 'sem_progresso' | 'dados'>('all');
 
   useEffect(() => {
     loadData();
@@ -818,112 +823,63 @@ const Consultoria = () => {
         {tab === 'alertas' && (
           <div className="space-y-4">
             {(() => {
-              const classifyBehavioral = (k: string): 'criticos' | 'atencao' | 'insights' => {
-                if (k === 'inactive_5d' || k === 'no_workout_3d' || k === 'combined_neglect_2d') return 'criticos';
-                if (k.startsWith('progression_dow_')) return 'insights';
-                return 'atencao';
-              };
-              const classifyNotif = (t: NotificationType): 'criticos' | 'atencao' | 'insights' => {
-                if (t === 'sem_treino' || t === 'sem_dieta' || t === 'sem_telefone') return 'criticos';
-                if (t === 'aniversario' || t === 'mensagem_semanal') return 'insights';
-                return 'atencao';
-              };
-
-              const buckets: Record<'criticos' | 'atencao' | 'insights', { behavioral: typeof behavioralAlerts; notifs: typeof notifications }> = {
-                criticos: { behavioral: [], notifs: [] },
-                atencao: { behavioral: [], notifs: [] },
-                insights: { behavioral: [], notifs: [] },
-              };
-              behavioralAlerts.forEach((a) => buckets[classifyBehavioral(a.alert_key)].behavioral.push(a));
-              notifications.forEach((n) => buckets[classifyNotif(n.type)].notifs.push(n));
-
-              const sections = [
-                { key: 'criticos' as const, label: 'Críticos', icon: AlertTriangle, color: 'text-destructive', empty: 'Nenhum item crítico 🎉' },
-                { key: 'atencao' as const, label: 'Atenção', icon: Bell, color: 'text-orange-500', empty: 'Nada exigindo atenção agora.' },
-                { key: 'insights' as const, label: 'Insights da IA', icon: Sparkles, color: 'text-primary', empty: 'Sem insights novos.' },
-              ];
-
-              const renderNotifRow = (n: Notification) => {
-                const config = notifTypeConfig[n.type];
-                const Icon = config.icon;
-                return (
-                  <Card key={n.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-3 space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <div
-                          className="flex items-center gap-2 cursor-pointer hover:opacity-80 min-w-0"
-                          onClick={() => navigate(`/alunos/${n.studentId}`)}
-                        >
-                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/20 text-primary font-semibold text-xs shrink-0">
-                            {n.studentName?.[0]?.toUpperCase() ?? '?'}
-                          </div>
-                          <span className="font-medium text-sm truncate">{n.studentName}</span>
-                          <Badge variant="outline" className={`text-[10px] shrink-0 ${priorityBadge[n.priority]}`}>{config.label}</Badge>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-2 pl-9">
-                        <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${config.color}`} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium">{n.title}</p>
-                          <p className="text-xs text-muted-foreground line-clamp-2">{n.description}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-end gap-1 pl-9">
-                        {renderNotifAction(n)}
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                          onClick={() => dismissNotification(n.id)}
-                          title="Dispensar até o próximo mês"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              };
-
+              const filtered = weeklySummaries.filter((s) => {
+                if (alertFilter === 'all') return s.attention !== 'ok';
+                if (alertFilter === 'atencao') return ['regressao', 'baixa_aderencia', 'reanalisar'].includes(s.attention);
+                if (alertFilter === 'sem_progresso') return s.attention === 'sem_progresso';
+                if (alertFilter === 'dados') return s.attention === 'dados_insuficientes';
+                return true;
+              });
               return (
                 <>
-                  <div className="flex justify-end">
+                  <WeeklyAlertOverviewCards
+                    summaries={weeklySummaries}
+                    active={alertFilter}
+                    onChange={setAlertFilter}
+                  />
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Activity className="h-4 w-4 text-primary" />
+                      <h3 className="text-sm font-semibold">Acompanhamento da semana</h3>
+                      <Badge variant="outline" className="text-[10px]">{filtered.length}</Badge>
+                    </div>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => { refreshNotifs(); generateBehavioral(); }}
-                      disabled={notifLoading || behavioralGenerating}
+                      onClick={() => { refreshNotifs(); generateBehavioral(); reloadWeekly(); }}
+                      disabled={notifLoading || behavioralGenerating || weeklyLoading}
                     >
-                      <RefreshCw className={`h-4 w-4 mr-1 ${(notifLoading || behavioralGenerating) ? 'animate-spin' : ''}`} />
+                      <RefreshCw className={`h-4 w-4 mr-1 ${(notifLoading || behavioralGenerating || weeklyLoading) ? 'animate-spin' : ''}`} />
                       Atualizar
                     </Button>
                   </div>
-                  {sections.map((sec) => {
-                    const items = buckets[sec.key];
-                    const total = items.behavioral.length + items.notifs.length;
-                    const SecIcon = sec.icon;
-                    return (
-                      <div key={sec.key} className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <SecIcon className={`h-4 w-4 ${sec.color}`} />
-                          <h3 className="text-sm font-semibold">{sec.label}</h3>
-                          <Badge variant="outline" className="text-[10px]">{total}</Badge>
-                        </div>
-                        {behavioralLoading || notifLoading ? (
-                          <Skeleton className="h-20 w-full rounded-lg" />
-                        ) : total === 0 ? (
-                          <Card><CardContent className="py-4 text-center text-muted-foreground text-xs">{sec.empty}</CardContent></Card>
-                        ) : (
-                          <div className="space-y-2">
-                            {items.behavioral.map((a) => (
-                              <BehavioralAlertCard key={a.id} alert={a} onUpdateStatus={updateBehavioralStatus} />
-                            ))}
-                            {items.notifs.map(renderNotifRow)}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+
+                  {weeklyLoading ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-32 w-full rounded-lg" />
+                      <Skeleton className="h-32 w-full rounded-lg" />
+                    </div>
+                  ) : filtered.length === 0 ? (
+                    <Card>
+                      <CardContent className="py-6 text-center text-xs text-muted-foreground">
+                        Nenhum aluno precisando de atenção agora 🎉
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="space-y-2">
+                      {filtered.map((s) => (
+                        <StudentWeeklyCard key={s.studentId} summary={s} />
+                      ))}
+                    </div>
+                  )}
+
+                  <OtherAlertsSection
+                    notifications={notifications}
+                    behavioralAlerts={behavioralAlerts}
+                    onDismiss={dismissNotification}
+                    onUpdateBehavioral={updateBehavioralStatus}
+                  />
                 </>
               );
             })()}
