@@ -26,7 +26,19 @@ interface StudentRow {
   detail?: string;
 }
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
+// Usa data LOCAL (Brasil) para não pular o dia depois das 21h BRT
+const todayStr = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+const startOfTodayIso = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+};
 const daysAgoIso = (n: number) => {
   const d = new Date();
   d.setDate(d.getDate() - n);
@@ -58,7 +70,7 @@ const EngagementOverviewCards: React.FC = () => {
       setAllStudents(studentList);
 
       const today = todayStr();
-      const startOfDay = `${today}T00:00:00.000Z`;
+      const startOfDay = startOfTodayIso();
       const fiveDaysAgo = daysAgoIso(5);
 
       const safeIds = ids.length > 0 ? ids : ['00000000-0000-0000-0000-000000000000'];
@@ -74,6 +86,7 @@ const EngagementOverviewCards: React.FC = () => {
           .from('workout_sessions')
           .select('student_id, completed_at')
           .gte('completed_at', startOfDay)
+          .eq('status', 'completed')
           .in('student_id', safeIds)
           .order('completed_at', { ascending: false }),
         supabase
