@@ -13,7 +13,7 @@ interface Props {
   notifications: Notification[];
   behavioralAlerts: BehavioralAlert[];
   onDismiss: (id: string) => void;
-  onUpdateBehavioral: (id: string, status: 'resolvido' | 'snoozed') => void;
+  onUpdateBehavioral: (id: string, status: 'lido' | 'pendente' | 'resolvido') => void;
 }
 
 const OtherAlertsSection: React.FC<Props> = ({
