@@ -487,7 +487,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="font-bold text-sm">{studentB.nome}</p>
-                          <Button variant="ghost" size="icon" className="h-4 w-4" onClick={() => setStudentB(null)}>
+                          <Button variant="ghost" size="icon" className="h-4 w-4" onClick={() => { setStudentB(null); setPairedStudent(null).catch(() => undefined); }}>
                             <X className="h-3 w-3" />
                           </Button>
                         </div>
