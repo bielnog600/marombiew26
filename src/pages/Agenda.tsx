@@ -191,19 +191,6 @@ type ViewMode = 'week' | 'day' | 'month';
           onGoToToday={() => setCurrentDate(new Date())}
         />
 
-        {/* Quick Filters */}
-        <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-          {['Todos', 'Personal', 'Duo', 'Grupo', 'Confirmadas', 'Pendentes', 'Canceladas'].map(filter => (
-            <Badge 
-              key={filter} 
-              variant="outline" 
-              className="cursor-pointer hover:bg-primary/10 hover:border-primary/50 transition-colors whitespace-nowrap text-[10px] font-bold px-2 py-0.5 border-border/40 text-muted-foreground"
-            >
-              {filter}
-            </Badge>
-          ))}
-        </div>
-
         {/* Content */}
          <DndContext
            sensors={sensors}
@@ -388,14 +375,19 @@ type ViewMode = 'week' | 'day' | 'month';
    }, [dragNewEventStart, dragNewEventEnd]);
 
   return (
-    <div className="space-y-0 relative border border-border/50 rounded-xl bg-card/30 flex flex-col h-[70vh] max-h-[650px] overflow-hidden shadow-sm select-none">
-      <div className="px-4 py-2.5 bg-secondary/20 flex items-center justify-between border-b border-border/50 shrink-0">
-        <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
-          <Info className="h-3.5 w-3.5 text-primary/70" />
-          <span>{dayEvents.length} aulas agendadas</span>
+    <div className="space-y-0 relative border border-border/50 rounded-xl bg-card/30 flex flex-col h-[calc(100vh-260px)] min-h-[500px] overflow-hidden shadow-sm select-none">
+      <div className="px-3 py-1.5 bg-secondary/20 flex items-center justify-between border-b border-border/50 shrink-0">
+        <div className="flex items-center gap-2">
+          <span className={`text-xs font-black uppercase tracking-wider ${isToday(date) ? 'text-primary' : 'text-foreground'}`}>
+            {format(date, 'EEE', { locale: ptBR })}
+          </span>
+          <span className="text-sm font-bold text-foreground tabular-nums">
+            {format(date, 'dd/MM')}
+          </span>
+          <span className="text-[10px] text-muted-foreground">· {dayEvents.length} aulas</span>
         </div>
         <div className="text-[10px] text-muted-foreground/60 italic">
-          Pressione e segure para agendar
+          Segure para agendar
         </div>
       </div>
       <div 
@@ -617,30 +609,72 @@ type ViewMode = 'week' | 'day' | 'month';
  // ── Week View ──
  function WeekView({ events, rangeStart, onEventClick }: { events: CalendarEvent[]; rangeStart: Date; onEventClick: (e: CalendarEvent) => void }) {
    const days = eachDayOfInterval({ start: rangeStart, end: addDays(rangeStart, 6) });
+   const dayRefs = React.useRef<Record<string, HTMLDivElement | null>>({});
+
+   const scrollToDay = (day: Date) => {
+     const el = dayRefs.current[day.toISOString()];
+     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+   };
+
    return (
-     <div className="space-y-4">
-       {days.map(day => {
-         const dayEvents = events.filter(e => isSameDay(new Date(e.start_datetime), day));
-         return (
-           <div key={day.toISOString()}>
-             <p className={`text-sm font-semibold mb-2 ${isToday(day) ? 'text-primary' : 'text-foreground'}`}>
-               {format(day, "EEEE, dd/MM", { locale: ptBR })}
-               {isToday(day) && <span className="ml-2 text-xs text-primary">(hoje)</span>}
-             </p>
-             {dayEvents.length === 0 ? (
-               <p className="text-xs text-muted-foreground pl-2">Sem eventos</p>
-             ) : (
-               <SortableContext items={dayEvents.map(e => e.id)} strategy={verticalListSortingStrategy}>
-                 <div className="space-y-2">
-                   {dayEvents.map(ev => (
-                     <SortableEventCard key={ev.id} event={ev} onEventClick={onEventClick} />
-                   ))}
-                 </div>
-               </SortableContext>
-             )}
-           </div>
-         );
-       })}
+     <div className="flex flex-col h-[calc(100vh-260px)] min-h-[500px] border border-border/50 rounded-xl bg-card/30 overflow-hidden shadow-sm">
+       {/* Header com dias da semana */}
+       <div className="grid grid-cols-7 gap-0 border-b border-border/50 bg-secondary/20 shrink-0">
+         {days.map(day => {
+           const dayEvents = events.filter(e => isSameDay(new Date(e.start_datetime), day));
+           const today = isToday(day);
+           return (
+             <button
+               key={day.toISOString()}
+               onClick={() => scrollToDay(day)}
+               className={`flex flex-col items-center justify-center py-2 border-r border-border/30 last:border-r-0 transition-colors ${
+                 today ? 'bg-primary/15' : 'hover:bg-primary/5'
+               }`}
+             >
+               <span className={`text-[10px] font-black uppercase tracking-wider ${today ? 'text-primary' : 'text-muted-foreground'}`}>
+                 {format(day, 'EEE', { locale: ptBR }).replace('.', '')}
+               </span>
+               <span className={`text-base font-bold leading-tight tabular-nums ${today ? 'text-primary' : 'text-foreground'}`}>
+                 {format(day, 'dd')}
+               </span>
+               {dayEvents.length > 0 && (
+                 <span className={`text-[9px] font-bold leading-none mt-0.5 ${today ? 'text-primary/80' : 'text-muted-foreground/70'}`}>
+                   {dayEvents.length}
+                 </span>
+               )}
+             </button>
+           );
+         })}
+       </div>
+
+       {/* Conteúdo rolável por dia */}
+       <div className="flex-1 overflow-y-auto p-3 space-y-4">
+         {days.map(day => {
+           const dayEvents = events.filter(e => isSameDay(new Date(e.start_datetime), day));
+           return (
+             <div
+               key={day.toISOString()}
+               ref={el => { dayRefs.current[day.toISOString()] = el; }}
+             >
+               <p className={`text-xs font-bold mb-2 sticky top-0 bg-card/95 backdrop-blur-sm py-1 ${isToday(day) ? 'text-primary' : 'text-foreground'}`}>
+                 {format(day, "EEEE, dd/MM", { locale: ptBR })}
+                 {isToday(day) && <span className="ml-2 text-[10px] text-primary">(hoje)</span>}
+               </p>
+               {dayEvents.length === 0 ? (
+                 <p className="text-[11px] text-muted-foreground/60 pl-2 italic">Sem eventos</p>
+               ) : (
+                 <SortableContext items={dayEvents.map(e => e.id)} strategy={verticalListSortingStrategy}>
+                   <div className="space-y-2">
+                     {dayEvents.map(ev => (
+                       <SortableEventCard key={ev.id} event={ev} onEventClick={onEventClick} />
+                     ))}
+                   </div>
+                 </SortableContext>
+               )}
+             </div>
+           );
+         })}
+       </div>
      </div>
    );
  }

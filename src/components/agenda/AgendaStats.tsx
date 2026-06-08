@@ -13,27 +13,27 @@ export const AgendaStats: React.FC<StatsProps> = ({ todayCount, nextEvent, nextS
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       <Card className="bg-card border-border/50">
-        <CardContent className="p-3 text-center">
-          <p className="text-2xl font-bold text-primary">{todayCount}</p>
-          <p className="text-xs text-muted-foreground font-medium">Hoje</p>
+        <CardContent className="px-2 py-1.5 text-center">
+          <p className="text-base font-bold text-primary leading-tight">{todayCount}</p>
+          <p className="text-[10px] text-muted-foreground font-medium leading-tight">Hoje</p>
         </CardContent>
       </Card>
       <Card className="bg-card border-border/50">
-        <CardContent className="p-3 text-center">
-          <p className="text-sm font-bold text-foreground truncate">{nextEvent}</p>
-          <p className="text-xs text-muted-foreground truncate">{nextStudent}</p>
+        <CardContent className="px-2 py-1.5 text-center">
+          <p className="text-xs font-bold text-foreground truncate leading-tight">{nextEvent}</p>
+          <p className="text-[10px] text-muted-foreground truncate leading-tight">{nextStudent}</p>
         </CardContent>
       </Card>
       <Card className="bg-card border-border/50">
-        <CardContent className="p-3 text-center">
-          <p className="text-2xl font-bold text-amber-500">{pendingCount}</p>
-          <p className="text-xs text-muted-foreground font-medium">Pendentes</p>
+        <CardContent className="px-2 py-1.5 text-center">
+          <p className="text-base font-bold text-amber-500 leading-tight">{pendingCount}</p>
+          <p className="text-[10px] text-muted-foreground font-medium leading-tight">Pendentes</p>
         </CardContent>
       </Card>
       <Card className="bg-card border-border/50">
-        <CardContent className="p-3 text-center">
-          <p className="text-2xl font-bold text-red-400">{cancelledCount}</p>
-          <p className="text-xs text-muted-foreground font-medium">Cancelados</p>
+        <CardContent className="px-2 py-1.5 text-center">
+          <p className="text-base font-bold text-red-400 leading-tight">{cancelledCount}</p>
+          <p className="text-[10px] text-muted-foreground font-medium leading-tight">Cancelados</p>
         </CardContent>
       </Card>
     </div>
