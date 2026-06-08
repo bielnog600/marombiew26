@@ -311,60 +311,23 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
   const handleFinishDuoSession = async () => {
     setFinishing(true);
     try {
-      const durationMinutes = Math.ceil(sessionTimer.durationSeconds / 60);
-      const completedAtDate = new Date();
-      const completedAt = completedAtDate.toISOString();
-      const startedAtDate = new Date(sessionTimer.startedAt);
-
-      const finishStudent = async (st: StudentSessionState, pairedId: string | null) => {
-        const exercisesCompleted = Object.values(st.state).filter((ex: any) => ex.savedSets > 0).length;
-        const calendarEventId = calendarEventByStudent[st.studentId] || null;
-        await supabase.from('workout_sessions').insert({
-          id: slotId(st.studentId), // Use a unique session ID per student but same tracking
-          student_id: st.studentId,
-          day_name: st.days[st.activeDayIdx].day,
-          phase: st.plan.fase || null,
-          started_at: sessionTimer.startedAt,
-          completed_at: completedAt,
-          started_at_real: sessionTimer.startedAt,
-          completed_at_real: completedAt,
-          calendar_event_id: calendarEventId,
-          duration_minutes: durationMinutes,
-          exercises_completed: exercisesCompleted,
-          total_exercises: st.days[st.activeDayIdx].exercises.length,
-          status: 'completed',
-          source: 'admin',
-          executed_by: 'coach',
-          session_mode: 'duo',
-          paired_student_id: pairedId
-        });
-        localStorage.removeItem(draftKey(st.studentId, st.days[st.activeDayIdx].day, makeDaySignature(st.days[st.activeDayIdx])));
-
-        if (calendarEventId && user?.id) {
-          try {
-            await completeAgendaEventForSession({
-              calendarEventId,
-              studentId: st.studentId,
-              adminId: user.id,
-              startedAtReal: startedAtDate,
-              completedAtReal: completedAtDate,
-            });
-          } catch (e) {
-            console.error('Falha ao concluir aula na Agenda:', e);
-          }
+      const totals: Record<string, { exercisesCompleted: number; totalExercises: number }> = {};
+      const cleanup: Array<() => void> = [];
+      [studentA, studentB].forEach((st) => {
+        if (!st) return;
+        const day = st.days[st.activeDayIdx];
+        totals[st.studentId] = {
+          exercisesCompleted: Object.values(st.state).filter((ex: any) => ex.savedSets > 0).length,
+          totalExercises: day?.exercises.length || 0,
+        };
+        if (day) {
+          cleanup.push(() =>
+            localStorage.removeItem(draftKey(st.studentId, day.day, makeDaySignature(day))),
+          );
         }
-      };
-
-      // Generate unique IDs for each session but linked via paired_student_id
-      const slotId = (id: string) => crypto.randomUUID();
-
-      await Promise.all([
-        studentA ? finishStudent(studentA, studentB?.studentId || null) : Promise.resolve(),
-        studentB ? finishStudent(studentB, studentA?.studentId || null) : Promise.resolve()
-      ]);
-
-      toast.success('Treino Duo finalizado! Aulas concluídas na Agenda.');
-      onOpenChange(false);
+      });
+      await finish(totals);
+      cleanup.forEach((fn) => fn());
     } catch (err: any) {
       toast.error('Erro ao finalizar: ' + err.message);
     } finally {
@@ -391,20 +354,39 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
               <div className="flex items-center gap-2 px-3 py-1 bg-violet-500/10 rounded-full border border-violet-500/20">
                 <Timer className="h-4 w-4 text-violet-500 animate-pulse" />
                 <span className="text-sm font-mono font-bold text-violet-500">
-                  {formatDuration(sessionTimer.durationSeconds)}
+                  {formatDuration(durationSeconds)}
                 </span>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setSessionTimer(p => ({ ...p, isPaused: !p.isPaused }))}
-                className="h-8"
-              >
-                {sessionTimer.isPaused ? <Play className="h-3 w-3 mr-1" /> : <X className="h-3 w-3 mr-1" />}
-                {sessionTimer.isPaused ? 'Retomar' : 'Pausar'}
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 text-destructive hover:text-destructive">
+                    Cancelar
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Cancelar sessão duo?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      A sessão será marcada como abandonada. Não vai concluir aulas na Agenda nem descontar créditos.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Voltar</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      disabled={cancelling}
+                      onClick={async () => {
+                        setCancelling(true);
+                        try { await cancel(); } finally { setCancelling(false); }
+                      }}
+                    >
+                      Cancelar sessão
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
               <Button 
                 size="sm" 
                 onClick={handleFinishDuoSession} 
