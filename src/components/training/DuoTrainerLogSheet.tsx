@@ -445,7 +445,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
             </div>
           </div>
 
-          <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 divide-x">
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 divide-x">
             {/* Aluno A */}
             <div className="p-4 space-y-4">
               {studentA ? (
