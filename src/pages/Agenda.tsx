@@ -219,6 +219,8 @@ type ViewMode = 'week' | 'day' | 'month';
                  setInitialDialogTime(start);
                  setShowCreateDialog(true);
                }}
+               onDateChange={setCurrentDate}
+               allEvents={events}
              />
            ) : viewMode === 'week' ? (
              <WeekView events={events} rangeStart={rangeStart} onEventClick={setSelectedEvent} />
