@@ -271,8 +271,6 @@ type ViewMode = 'week' | 'day' | 'month';
   );
 };
 
- // ── Day View ──
- function DayView({ 
 function WeekDayStrip({ selectedDate, onSelect, events }: { selectedDate: Date; onSelect: (d: Date) => void; events: CalendarEvent[] }) {
   const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
   const days = eachDayOfInterval({ start: weekStart, end: addDays(weekStart, 6) });
