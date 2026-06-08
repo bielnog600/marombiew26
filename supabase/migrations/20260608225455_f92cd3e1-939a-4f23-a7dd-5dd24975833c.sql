@@ -1,0 +1,2 @@
+ALTER TABLE public.exercises ADD COLUMN IF NOT EXISTS requires_load_logging boolean NOT NULL DEFAULT true;
+UPDATE public.exercises SET requires_load_logging = false WHERE grupo_muscular IN ('MOBILIDADE');

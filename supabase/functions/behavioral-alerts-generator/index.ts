@@ -165,7 +165,13 @@ Deno.serve(async (req) => {
       // MÉDIA: treino sem registro de cargas
       const todayWorkout = studentSessions.find((s) => s.completed_at && toBrtDate(s.completed_at) === today);
       const todayLogs = studentLogs.filter((l) => l.performed_at && toBrtDate(l.performed_at) === today);
-      if (todayWorkout && todayLogs.length === 0) {
+      // Só alertar quando o aluno costuma treinar com carga (tem ao menos 1
+      // set com peso>0 nos últimos 8 dias). Alunos focados em mobilidade /
+      // alongamento / ativação não geram registro de carga por natureza.
+      const hasLoadedSetsRecently = studentLogs.some(
+        (l) => Number(l.weight_kg ?? 0) > 0 && Number(l.reps ?? 0) > 0,
+      );
+      if (todayWorkout && todayLogs.length === 0 && hasLoadedSetsRecently) {
         const key = `workout_no_loads_${today}`;
         activeKeysByStudent[studentId].add(key);
         alerts.push({

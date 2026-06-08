@@ -7,6 +7,7 @@
 import type { ParsedTrainingDay } from './trainingResultParser';
 import type { AdherenceStatus } from './weeklyAdherence';
 import { TRAINING_PHASES, type TrainingPhase } from './trainingPhase';
+import { isNoLoadExercise } from './exerciseLoadType';
 
 export interface ExerciseLog {
   exercise_name: string;
@@ -127,6 +128,8 @@ export const buildProgressionReport = (
         const key = norm(e.exercise);
         if (!key || seen.has(key)) continue;
         seen.add(key);
+        // Mobilidade/alongamento/ativação não devem virar "exercício faltante"
+        if (isNoLoadExercise(e.exercise)) continue;
         if (!lastByEx.has(key)) missing.push(e.exercise);
       }
     }

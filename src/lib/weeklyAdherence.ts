@@ -5,6 +5,7 @@
  */
 
 import type { ParsedTrainingDay } from './trainingResultParser';
+import { isNoLoadExercise } from './exerciseLoadType';
 
 export type AdherenceStatus =
   | 'apto_avancar'
@@ -74,7 +75,13 @@ export const buildAdherenceReport = (
   windowEnd: Date,
 ): AdherenceReport => {
   const sessionsPlanned = plannedDays.length || 0;
-  const exercisesPlanned = plannedDays.reduce((acc, d) => acc + (d.exercises?.length || 0), 0);
+  // Exercícios planejados que EXIGEM registro de carga.
+  // Mobilidade/alongamento/ativação/estabilidade/isometria não entram na conta.
+  const exercisesPlanned = plannedDays.reduce(
+    (acc, d) =>
+      acc + (d.exercises?.filter((e) => !isNoLoadExercise(e.exercise)).length || 0),
+    0,
+  );
 
   // Sessões executadas = nº de dias distintos com ≥1 log na janela
   const daysWithLogs = new Set<string>();
@@ -83,7 +90,10 @@ export const buildAdherenceReport = (
   let setsWithLoad = 0;
 
   for (const l of logs) {
+    // Conta o dia (presença) sempre, independentemente do tipo do exercício
     daysWithLogs.add(dayKey(l.performed_at));
+    // Mas não conta como "set sem carga" se for mobilidade/alongamento etc.
+    if (isNoLoadExercise(l.exercise_name)) continue;
     exercisesLoggedSet.add(norm(l.exercise_name));
     setsTotal += 1;
     if ((l.weight_kg ?? 0) > 0 && (l.reps ?? 0) > 0) setsWithLoad += 1;
@@ -96,6 +106,7 @@ export const buildAdherenceReport = (
   if (exercisesPlanned > 0) {
     for (const d of plannedDays) {
       for (const e of d.exercises) {
+        if (isNoLoadExercise(e.exercise)) continue;
         if (exercisesLoggedSet.has(norm(e.exercise))) exercisesLogged += 1;
       }
     }
