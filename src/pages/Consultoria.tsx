@@ -111,6 +111,8 @@ const Consultoria = () => {
   const { notifications, loading: notifLoading, count: notifCount, refresh: refreshNotifs, dismissNotification } = useNotifications();
   const { alerts: behavioralAlerts, loading: behavioralLoading, generating: behavioralGenerating, generate: generateBehavioral, updateStatus: updateBehavioralStatus } = useBehavioralAlerts();
   const [notifFilter] = useState('all');
+  const { summaries: weeklySummaries, loading: weeklyLoading, reload: reloadWeekly } = useStudentsWeeklySummary();
+  const [alertFilter, setAlertFilter] = useState<'all' | 'atencao' | 'sem_progresso' | 'dados'>('all');
 
   useEffect(() => {
     loadData();
