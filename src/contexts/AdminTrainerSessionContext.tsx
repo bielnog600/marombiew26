@@ -90,9 +90,13 @@ export const AdminTrainerSessionProvider: React.FC<{ children: React.ReactNode }
       .order('started_at_real', { ascending: false })
       .limit(30);
 
-    const row = (data || []).find((r: any) => r.session_state?.meta?.admin_id === user.id);
+    const row = ((data as any[]) || []).find((r: any) => {
+      const ss = r.session_state as any;
+      return ss && typeof ss === 'object' && ss.meta?.admin_id === user.id;
+    });
     if (row) {
-      const meta = row.session_state?.meta || {};
+      const ss = (row.session_state as any) || {};
+      const meta = ss.meta || {};
       const students: AdminSessionStudent[] = meta.students || [];
       const calendarEventIds: Record<string, string> = { ...(meta.calendar_event_ids || {}) };
       if (row.calendar_event_id && students[0] && !calendarEventIds[students[0].id]) {
