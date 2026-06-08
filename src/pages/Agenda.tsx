@@ -281,7 +281,9 @@ type ViewMode = 'week' | 'day' | 'month';
   dragNewEventEnd,
   setDragNewEventStart,
   setDragNewEventEnd,
-  onDragCreateComplete
+  onDragCreateComplete,
+  onDateChange,
+  allEvents,
 }: { 
   events: CalendarEvent[]; 
   date: Date; 
@@ -292,6 +294,8 @@ type ViewMode = 'week' | 'day' | 'month';
   setDragNewEventStart: (d: Date | null) => void;
   setDragNewEventEnd: (d: Date | null) => void;
   onDragCreateComplete: (start: Date, end: Date) => void;
+  onDateChange: (d: Date) => void;
+  allEvents: CalendarEvent[];
 }) {
    const dayEvents = useMemo(() => 
      events.filter(e => isSameDay(new Date(e.start_datetime), date)),
@@ -378,6 +382,7 @@ type ViewMode = 'week' | 'day' | 'month';
 
   return (
     <div className="space-y-0 relative border border-border/50 rounded-xl bg-card/30 flex flex-col h-[calc(100vh-260px)] min-h-[500px] overflow-hidden shadow-sm select-none">
+      <WeekDayStrip selectedDate={date} onSelect={onDateChange} events={allEvents} />
       <div className="px-3 py-1.5 bg-secondary/20 flex items-center justify-between border-b border-border/50 shrink-0">
         <div className="flex items-center gap-2">
           <span className={`text-xs font-black uppercase tracking-wider ${isToday(date) ? 'text-primary' : 'text-foreground'}`}>
