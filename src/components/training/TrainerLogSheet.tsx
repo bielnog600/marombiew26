@@ -14,8 +14,19 @@ import { useRestTimer } from '@/hooks/useRestTimer';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ExerciseLogCard from './ExerciseLogCard';
-import { linkOrCreateAgendaEventForSession, completeAgendaEventForSession } from '@/lib/agendaAutoLink';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAdminTrainerSession } from '@/contexts/AdminTrainerSessionContext';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import {
   normalizeExName,
   buildSetPlan,
