@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Dumbbell, Save, Loader2, Check, Timer } from 'lucide-react';
+import { Dumbbell, Save, Loader2, Check, Timer, Plus, Minus, Trash2, X } from 'lucide-react';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 
 interface SetEntry {
@@ -39,6 +39,9 @@ interface Props {
   onSaveExercise: (exIdx: number) => void;
   onStartRestTimer: (secs: number, exIdx: number) => void;
   onExerciseNameChange: (name: string) => void;
+  onAddSet: (exIdx: number) => void;
+  onRemoveSet: (exIdx: number, setIdx: number) => void;
+  onRemoveExercise: (exIdx: number) => void;
   ExerciseNamePicker: React.FC<any>;
   HistoryPopover: React.FC<any>;
   parsePauseSeconds: (raw?: string | null) => number;
@@ -55,6 +58,9 @@ const ExerciseLogCard: React.FC<Props> = ({
   onSaveExercise,
   onStartRestTimer,
   onExerciseNameChange,
+  onAddSet,
+  onRemoveSet,
+  onRemoveExercise,
   ExerciseNamePicker,
   HistoryPopover,
   parsePauseSeconds,
@@ -97,6 +103,17 @@ const ExerciseLogCard: React.FC<Props> = ({
           {st.exerciseName && (
             <HistoryPopover studentId={studentId} exerciseName={st.exerciseName} last={st} />
           )}
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+            onClick={() => onRemoveExercise(exIdx)}
+            aria-label="Remover exercício"
+            title="Remover exercício"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
         </div>
 
         <div>
@@ -120,7 +137,7 @@ const ExerciseLogCard: React.FC<Props> = ({
             const p = st.plan?.[setIdx] ?? { kind: 'work' as const, targetReps: '' };
             const isRecon = p?.kind === 'recon';
             return (
-              <div key={setIdx} className="grid grid-cols-[68px_1fr_1fr] items-center gap-2">
+              <div key={setIdx} className="grid grid-cols-[68px_1fr_1fr_28px] items-center gap-2">
                 <span
                   className={`text-[9px] font-bold text-center px-1 py-0.5 rounded ${
                     isRecon
@@ -147,9 +164,28 @@ const ExerciseLogCard: React.FC<Props> = ({
                   onChange={(e) => onUpdateSet(exIdx, setIdx, 'reps', e.target.value)}
                   className="h-8 text-xs"
                 />
+                <button
+                  type="button"
+                  onClick={() => onRemoveSet(exIdx, setIdx)}
+                  disabled={st.sets.length <= 1}
+                  className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                  aria-label="Remover série"
+                  title="Remover série"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
               </div>
             );
           })}
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 w-full gap-1 text-[10px] text-muted-foreground hover:text-primary border border-dashed border-border/50"
+            onClick={() => onAddSet(exIdx)}
+          >
+            <Plus className="h-3 w-3" /> Adicionar série
+          </Button>
         </div>
 
         <Textarea
