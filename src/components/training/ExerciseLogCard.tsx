@@ -39,9 +39,9 @@ interface Props {
   onSaveExercise: (exIdx: number) => void;
   onStartRestTimer: (secs: number, exIdx: number) => void;
   onExerciseNameChange: (name: string) => void;
-  onAddSet: (exIdx: number) => void;
-  onRemoveSet: (exIdx: number, setIdx: number) => void;
-  onRemoveExercise: (exIdx: number) => void;
+  onAddSet?: (exIdx: number) => void;
+  onRemoveSet?: (exIdx: number, setIdx: number) => void;
+  onRemoveExercise?: (exIdx: number) => void;
   ExerciseNamePicker: React.FC<any>;
   HistoryPopover: React.FC<any>;
   parsePauseSeconds: (raw?: string | null) => number;
