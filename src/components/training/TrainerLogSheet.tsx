@@ -4,18 +4,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Save, History, Dumbbell, Check, ChevronDown, Pencil, Timer, X, Play } from 'lucide-react';
+import { Loader2, Save, History, Dumbbell, Check, ChevronDown, Pencil, Timer, X, Play, Plus, Sparkles } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import type { ParsedTrainingDay } from '@/lib/trainingResultParser';
+import type { ParsedTrainingDay, ParsedExercise } from '@/lib/trainingResultParser';
 import { useRestTimer } from '@/hooks/useRestTimer';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ExerciseLogCard from './ExerciseLogCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdminTrainerSession } from '@/contexts/AdminTrainerSessionContext';
+import AiEditExerciseDialog, { type AiEditAction } from './AiEditExerciseDialog';
+import { applyActionsToDay } from './AiEditAllDaysDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -233,6 +235,8 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   const [loading, setLoading] = useState(true);
   const [activeDayIdx, setActiveDayIdx] = useState(0);
   const [exercisesList, setExercisesList] = useState<{ id: string; nome: string; grupo_muscular: string; imagem_url?: string | null }[]>([]);
+  const [currentExercises, setCurrentExercises] = useState<ParsedExercise[]>([]);
+  const [aiOpen, setAiOpen] = useState(false);
   const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer } = useRestTimer();
 
   const session = {
@@ -280,6 +284,10 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
 
   const day = days[activeDayIdx] || null;
   const daySignature = makeDaySignature(day);
+  const persist = (nextState: Record<number, ExerciseState>, nextExercises?: ParsedExercise[]) => {
+    if (!day) return;
+    saveDraft(studentId, day.day, daySignature, nextState, nextExercises ?? currentExercises);
+  };
 
   useEffect(() => {
     if (!open || exercisesList.length > 0) return;
@@ -302,7 +310,11 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     setLoading(true);
     (async () => {
       const initial: Record<number, ExerciseState> = {};
-      day.exercises.forEach((ex, i) => {
+      const draft = loadDraft(studentId, day.day, daySignature);
+      const baseExercises: ParsedExercise[] = draft?.exercises && draft.exercises.length > 0
+        ? draft.exercises
+        : day.exercises;
+      baseExercises.forEach((ex, i) => {
         const plan = buildSetPlan(ex.series, ex.series2, ex.reps);
         initial[i] = {
           sets: plan.map(() => ({ weight: '', reps: '' })),
@@ -316,10 +328,18 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
           exerciseName: ex.exercise || '',
         };
       });
-      const draft = loadDraft(studentId, day.day, daySignature);
       if (draft) {
         Object.keys(initial).forEach((k) => {
           const idx = Number(k);
+          if (draft.plans?.[idx]) {
+            initial[idx].plan = draft.plans[idx];
+            // Ensure sets matches plan length
+            if (initial[idx].sets.length !== draft.plans[idx].length) {
+              initial[idx].sets = draft.plans[idx].map(
+                (_, i) => initial[idx].sets[i] || { weight: '', reps: '' },
+              );
+            }
+          }
           if (draft.sets?.[idx]) initial[idx].sets = initial[idx].sets.map((s, i) => draft.sets[idx][i] || s);
           if (draft.notes?.[idx]) initial[idx].notes = draft.notes[idx];
           if (draft.savedSets?.[idx]) initial[idx].savedSets = draft.savedSets[idx];
@@ -327,13 +347,14 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
         });
       }
       await Promise.all(
-        day.exercises.map(async (ex, i) => {
-          if (!ex.exercise) return;
+        baseExercises.map(async (ex, i) => {
+          const name = initial[i]?.exerciseName || ex.exercise;
+          if (!name) return;
           const { data } = await supabase
             .from('exercise_set_logs')
             .select('weight_kg, reps, performed_at')
             .eq('student_id', studentId)
-            .ilike('exercise_name', normalizeExName(ex.exercise))
+            .ilike('exercise_name', normalizeExName(name))
             .order('performed_at', { ascending: false })
             .limit(1);
           if (data?.[0]) {
@@ -343,6 +364,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
           }
         })
       );
+      setCurrentExercises(baseExercises);
       setState(initial);
       setLoading(false);
     })();
@@ -352,7 +374,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     setState((prev) => {
       const copy = { ...prev };
       copy[exIdx].sets[setIdx][field] = value;
-      saveDraft(studentId, day.day, daySignature, copy);
+      saveDraft(studentId, day.day, daySignature, copy, currentExercises);
       return { ...copy };
     });
   };
@@ -360,13 +382,126 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   const updateNotes = (exIdx: number, value: string) => {
     setState((prev) => {
       const next = { ...prev, [exIdx]: { ...prev[exIdx], notes: value } };
-      saveDraft(studentId, day.day, daySignature, next);
+      saveDraft(studentId, day.day, daySignature, next, currentExercises);
       return next;
     });
   };
 
+  const updateExerciseName = (exIdx: number, name: string) => {
+    setState((prev) => {
+      const next = { ...prev, [exIdx]: { ...prev[exIdx], exerciseName: name } };
+      const newExercises = currentExercises.map((e, i) => i === exIdx ? { ...e, exercise: name } : e);
+      setCurrentExercises(newExercises);
+      saveDraft(studentId, day.day, daySignature, next, newExercises);
+      return next;
+    });
+  };
+
+  const addSet = (exIdx: number) => {
+    setState((prev) => {
+      const cur = prev[exIdx];
+      if (!cur) return prev;
+      const lastPlan = cur.plan[cur.plan.length - 1];
+      const newPlan: SetPlan[] = [...cur.plan, { kind: 'work', targetReps: lastPlan?.targetReps || '' }];
+      const newSets: SetEntry[] = [...cur.sets, { weight: '', reps: '' }];
+      const next = { ...prev, [exIdx]: { ...cur, plan: newPlan, sets: newSets } };
+      saveDraft(studentId, day.day, daySignature, next, currentExercises);
+      return next;
+    });
+  };
+
+  const removeSet = (exIdx: number, setIdx: number) => {
+    setState((prev) => {
+      const cur = prev[exIdx];
+      if (!cur || cur.sets.length <= 1) return prev;
+      const newPlan = cur.plan.filter((_, i) => i !== setIdx);
+      const newSets = cur.sets.filter((_, i) => i !== setIdx);
+      const next = { ...prev, [exIdx]: { ...cur, plan: newPlan, sets: newSets } };
+      saveDraft(studentId, day.day, daySignature, next, currentExercises);
+      return next;
+    });
+  };
+
+  const removeExercise = (exIdx: number) => {
+    const newExercises = currentExercises.filter((_, i) => i !== exIdx);
+    const newState: Record<number, ExerciseState> = {};
+    currentExercises.forEach((_, i) => {
+      if (i < exIdx) newState[i] = state[i];
+      else if (i > exIdx) newState[i - 1] = state[i];
+    });
+    setCurrentExercises(newExercises);
+    setState(newState);
+    saveDraft(studentId, day.day, daySignature, newState, newExercises);
+  };
+
+  const addExercise = () => {
+    const newEx: ParsedExercise = {
+      exercise: '',
+      series: '3',
+      series2: '',
+      reps: '8-12',
+      rir: '',
+      pause: '60s',
+      description: '',
+      variation: '',
+    };
+    const newExercises = [...currentExercises, newEx];
+    const newIdx = newExercises.length - 1;
+    const plan = buildSetPlan(newEx.series, newEx.series2, newEx.reps);
+    const newState = {
+      ...state,
+      [newIdx]: {
+        sets: plan.map(() => ({ weight: '', reps: '' })),
+        plan,
+        notes: '',
+        saving: false,
+        lastWeight: null,
+        lastReps: null,
+        lastDate: null,
+        savedSets: 0,
+        exerciseName: '',
+      },
+    };
+    setCurrentExercises(newExercises);
+    setState(newState);
+    saveDraft(studentId, day.day, daySignature, newState, newExercises);
+  };
+
+  const applyAiActions = (actions: AiEditAction[]) => {
+    if (!day) return;
+    const fakeDay = { ...day, exercises: currentExercises };
+    const updated = applyActionsToDay(fakeDay, actions);
+    const newExercises = updated.exercises;
+    const newState: Record<number, ExerciseState> = {};
+    newExercises.forEach((ex, i) => {
+      // Try to preserve sets if same name at same idx
+      const prev = state[i];
+      const sameName = prev && (prev.exerciseName || '').trim().toUpperCase() === (ex.exercise || '').trim().toUpperCase();
+      if (sameName) {
+        newState[i] = { ...prev, exerciseName: ex.exercise || prev.exerciseName };
+      } else {
+        const plan = buildSetPlan(ex.series, ex.series2, ex.reps);
+        newState[i] = {
+          sets: plan.map(() => ({ weight: '', reps: '' })),
+          plan,
+          notes: '',
+          saving: false,
+          lastWeight: null,
+          lastReps: null,
+          lastDate: null,
+          savedSets: 0,
+          exerciseName: ex.exercise || '',
+        };
+      }
+    });
+    setCurrentExercises(newExercises);
+    setState(newState);
+    saveDraft(studentId, day.day, daySignature, newState, newExercises);
+    toast.success('Alterações da IA aplicadas');
+  };
+
   const saveExercise = async (exIdx: number) => {
-    const ex = day.exercises[exIdx];
+    const ex = currentExercises[exIdx];
     const st = state[exIdx];
     if (!ex || !st) return;
     const exerciseName = (st.exerciseName || ex.exercise || '').trim();
@@ -401,7 +536,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       const savedIdx = new Set(validSets.map((s) => s.idx));
       const nextSets = cur.sets.map((s, i) => (savedIdx.has(i) ? { weight: '', reps: '' } : s));
       const next = { ...prev, [exIdx]: { ...cur, saving: false, sets: nextSets, savedSets: cur.savedSets + rows.length } };
-      saveDraft(studentId, day.day, daySignature, next);
+      saveDraft(studentId, day.day, daySignature, next, currentExercises);
       return next;
     });
 
@@ -417,7 +552,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       await finish({
         [studentId]: {
           exercisesCompleted,
-          totalExercises: day.exercises.length,
+          totalExercises: currentExercises.length,
         },
       });
       localStorage.removeItem(draftKey(studentId, day.day, daySignature));
