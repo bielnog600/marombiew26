@@ -103,6 +103,7 @@ const ExerciseLogCard: React.FC<Props> = ({
           {st.exerciseName && (
             <HistoryPopover studentId={studentId} exerciseName={st.exerciseName} last={st} />
           )}
+          {onRemoveExercise && (
           <Button
             type="button"
             size="icon"
@@ -114,6 +115,7 @@ const ExerciseLogCard: React.FC<Props> = ({
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
+          )}
         </div>
 
         <div>
@@ -164,6 +166,7 @@ const ExerciseLogCard: React.FC<Props> = ({
                   onChange={(e) => onUpdateSet(exIdx, setIdx, 'reps', e.target.value)}
                   className="h-8 text-xs"
                 />
+                {onRemoveSet ? (
                 <button
                   type="button"
                   onClick={() => onRemoveSet(exIdx, setIdx)}
@@ -174,9 +177,11 @@ const ExerciseLogCard: React.FC<Props> = ({
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
+                ) : <span />}
               </div>
             );
           })}
+          {onAddSet && (
           <Button
             type="button"
             size="sm"
@@ -186,6 +191,7 @@ const ExerciseLogCard: React.FC<Props> = ({
           >
             <Plus className="h-3 w-3" /> Adicionar série
           </Button>
+          )}
         </div>
 
         <Textarea
