@@ -818,7 +818,7 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
   );
 };
 
-function applyActionsToDay(day: ParsedTrainingDay, actions: any[]): ParsedTrainingDay {
+export function applyActionsToDay(day: ParsedTrainingDay, actions: any[]): ParsedTrainingDay {
   let list = [...day.exercises];
   const norm = (s: string) =>
     (s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();

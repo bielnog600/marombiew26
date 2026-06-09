@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import type { ParsedTrainingDay } from '@/lib/trainingResultParser';
+import type { ParsedTrainingDay, ParsedExercise } from '@/lib/trainingResultParser';
 
 // Normalize exercise name for consistent DB lookups
 export const normalizeExName = (name: string) => name.trim().replace(/\s+/g, ' ').toUpperCase();
@@ -54,6 +54,8 @@ export interface DraftShape {
   notes: Record<number, string>;
   savedSets: Record<number, number>;
   exerciseNames?: Record<number, string>;
+  plans?: Record<number, SetPlan[]>;
+  exercises?: ParsedExercise[];
 }
 
 export const loadDraft = (studentId: string, dayName: string, planSignature: string): DraftShape | null => {
@@ -65,16 +67,24 @@ export const loadDraft = (studentId: string, dayName: string, planSignature: str
   }
 };
 
-export const saveDraft = (studentId: string, dayName: string, planSignature: string, state: Record<number, any>) => {
+export const saveDraft = (
+  studentId: string,
+  dayName: string,
+  planSignature: string,
+  state: Record<number, any>,
+  exercises?: ParsedExercise[],
+) => {
   try {
-    const draft: DraftShape = { sets: {}, notes: {}, savedSets: {}, exerciseNames: {} };
+    const draft: DraftShape = { sets: {}, notes: {}, savedSets: {}, exerciseNames: {}, plans: {} };
     Object.entries(state).forEach(([k, v]) => {
       const idx = Number(k);
       draft.sets[idx] = v.sets;
       draft.notes[idx] = v.notes;
       draft.savedSets[idx] = v.savedSets;
       draft.exerciseNames![idx] = v.exerciseName;
+      draft.plans![idx] = v.plan;
     });
+    if (exercises) draft.exercises = exercises;
     localStorage.setItem(draftKey(studentId, dayName, planSignature), JSON.stringify(draft));
   } catch {
     // ignore quota errors
