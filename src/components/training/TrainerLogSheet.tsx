@@ -629,7 +629,17 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
 
         {loading ? <div className="flex justify-center py-12"><Loader2 className="animate-spin" /></div> : (
           <div className="space-y-3 mt-4">
-            {day.exercises.map((ex, exIdx) => state[exIdx] ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="w-full gap-2 border-primary/40 text-primary hover:bg-primary/10"
+              onClick={() => setAiOpen(true)}
+            >
+              <Sparkles className="h-4 w-4" />
+              Editar treino com IA
+            </Button>
+            {currentExercises.map((ex, exIdx) => state[exIdx] ? (
               <ExerciseLogCard
                 key={exIdx}
                 exIdx={exIdx}
@@ -641,12 +651,24 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                 onUpdateNotes={updateNotes}
                 onSaveExercise={saveExercise}
                 onStartRestTimer={setRestTimer}
-                onExerciseNameChange={(name) => setState(prev => ({ ...prev, [exIdx]: { ...prev[exIdx], exerciseName: name } }))}
+                onExerciseNameChange={(name) => updateExerciseName(exIdx, name)}
+                onAddSet={addSet}
+                onRemoveSet={removeSet}
+                onRemoveExercise={removeExercise}
                 ExerciseNamePicker={ExerciseNamePicker}
                 HistoryPopover={HistoryPopover}
                 parsePauseSeconds={parsePauseSeconds}
               />
             ) : null)}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full gap-2 h-10 border-dashed border-primary/40 text-primary hover:bg-primary/10"
+              onClick={addExercise}
+            >
+              <Plus className="h-4 w-4" />
+              Adicionar exercício
+            </Button>
             <div className="pt-6 pb-8">
               <Button className="w-full h-12 text-base font-bold" onClick={handleFinishSession} disabled={finishing || Object.values(state).every(ex => ex.savedSets === 0)}>
                 {finishing ? <Loader2 className="animate-spin mr-2" /> : <Check className="mr-2" />}
@@ -654,6 +676,18 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
               </Button>
             </div>
           </div>
+        )}
+
+        {day && (
+          <AiEditExerciseDialog
+            open={aiOpen}
+            onOpenChange={setAiOpen}
+            dayName={day.day}
+            currentExercises={currentExercises}
+            exerciseCatalog={exercisesList.map((e) => ({ nome: e.nome, grupo_muscular: e.grupo_muscular, imagem_url: e.imagem_url }))}
+            studentId={studentId}
+            onApply={applyAiActions}
+          />
         )}
 
         {restTimer && (
