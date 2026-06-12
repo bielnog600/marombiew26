@@ -434,6 +434,17 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     saveDraft(studentId, day.day, daySignature, newState, newExercises);
   };
 
+  const updateExerciseMeta = (
+    exIdx: number,
+    patch: Partial<Pick<ParsedExercise, 'pause' | 'variation' | 'reps' | 'rir'>>,
+  ) => {
+    const newExercises = currentExercises.map((e, i) =>
+      i === exIdx ? { ...e, ...patch } : e,
+    );
+    setCurrentExercises(newExercises);
+    saveDraft(studentId, day.day, daySignature, state, newExercises);
+  };
+
   const addExercise = () => {
     const newEx: ParsedExercise = {
       exercise: '',
@@ -655,6 +666,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                 onAddSet={addSet}
                 onRemoveSet={removeSet}
                 onRemoveExercise={removeExercise}
+                onUpdateMeta={(patch) => updateExerciseMeta(exIdx, patch)}
                 ExerciseNamePicker={ExerciseNamePicker}
                 HistoryPopover={HistoryPopover}
                 parsePauseSeconds={parsePauseSeconds}
