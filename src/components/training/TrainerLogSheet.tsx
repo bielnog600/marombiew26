@@ -434,6 +434,17 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     saveDraft(studentId, day.day, daySignature, newState, newExercises);
   };
 
+  const updateExerciseMeta = (
+    exIdx: number,
+    patch: Partial<Pick<ParsedExercise, 'pause' | 'variation' | 'reps' | 'rir'>>,
+  ) => {
+    const newExercises = currentExercises.map((e, i) =>
+      i === exIdx ? { ...e, ...patch } : e,
+    );
+    setCurrentExercises(newExercises);
+    saveDraft(studentId, day.day, daySignature, state, newExercises);
+  };
+
   const addExercise = () => {
     const newEx: ParsedExercise = {
       exercise: '',
@@ -655,6 +666,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                 onAddSet={addSet}
                 onRemoveSet={removeSet}
                 onRemoveExercise={removeExercise}
+                onUpdateMeta={(patch) => updateExerciseMeta(exIdx, patch)}
                 ExerciseNamePicker={ExerciseNamePicker}
                 HistoryPopover={HistoryPopover}
                 parsePauseSeconds={parsePauseSeconds}
@@ -750,7 +762,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
             {(() => {
               const timerExIdx = restTimer.exIdx;
               const timerSt = state[timerExIdx];
-              const timerEx = day?.exercises[timerExIdx];
+              const timerEx = currentExercises[timerExIdx];
               if (!timerSt || !timerEx) return null;
               return (
                 <div className="mt-6 w-full max-w-sm px-4 space-y-2">

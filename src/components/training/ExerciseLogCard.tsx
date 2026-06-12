@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Dumbbell, Save, Loader2, Check, Timer, Plus, Minus, Trash2, X } from 'lucide-react';
+import { Dumbbell, Save, Loader2, Check, Timer, Plus, Minus, Trash2, X, Settings2 } from 'lucide-react';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 
 interface SetEntry {
@@ -42,6 +42,7 @@ interface Props {
   onAddSet?: (exIdx: number) => void;
   onRemoveSet?: (exIdx: number, setIdx: number) => void;
   onRemoveExercise?: (exIdx: number) => void;
+  onUpdateMeta?: (patch: { pause?: string; variation?: string; reps?: string; rir?: string }) => void;
   ExerciseNamePicker: React.FC<any>;
   HistoryPopover: React.FC<any>;
   parsePauseSeconds: (raw?: string | null) => number;
@@ -61,10 +62,12 @@ const ExerciseLogCard: React.FC<Props> = ({
   onAddSet,
   onRemoveSet,
   onRemoveExercise,
+  onUpdateMeta,
   ExerciseNamePicker,
   HistoryPopover,
   parsePauseSeconds,
 }) => {
+  const [editOpen, setEditOpen] = useState(false);
   return (
     <Card className="border-border/60">
       <CardContent className="p-3 space-y-3">
@@ -119,6 +122,7 @@ const ExerciseLogCard: React.FC<Props> = ({
         </div>
 
         <div>
+          <div className="flex items-center gap-2 flex-wrap">
           <Button
             type="button"
             size="sm"
@@ -132,6 +136,62 @@ const ExerciseLogCard: React.FC<Props> = ({
             <Timer className="h-3 w-3" />
             Cronômetro de descanso{ex.pause ? ` · ${ex.pause}` : ''}
           </Button>
+            {onUpdateMeta && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 gap-1 px-2 text-[10px] text-muted-foreground hover:text-primary"
+                onClick={() => setEditOpen((v) => !v)}
+              >
+                <Settings2 className="h-3 w-3" />
+                {editOpen ? 'Fechar edição' : 'Editar'}
+              </Button>
+            )}
+          </div>
+          {onUpdateMeta && editOpen && (
+            <div className="mt-2 grid grid-cols-2 gap-2 rounded-md border border-border/50 bg-secondary/30 p-2">
+              <div className="space-y-1">
+                <label className="text-[9px] uppercase text-muted-foreground font-semibold">Reps alvo</label>
+                <Input
+                  defaultValue={ex.reps || ''}
+                  onBlur={(e) => onUpdateMeta({ reps: e.target.value })}
+                  className="h-7 text-xs"
+                  placeholder="8-12"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] uppercase text-muted-foreground font-semibold">Descanso</label>
+                <Input
+                  defaultValue={ex.pause || ''}
+                  onBlur={(e) => onUpdateMeta({ pause: e.target.value })}
+                  className="h-7 text-xs"
+                  placeholder="60s ou 1:30"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] uppercase text-muted-foreground font-semibold">RIR</label>
+                <Input
+                  defaultValue={ex.rir || ''}
+                  onBlur={(e) => onUpdateMeta({ rir: e.target.value })}
+                  className="h-7 text-xs"
+                  placeholder="1-2"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] uppercase text-muted-foreground font-semibold">Variação</label>
+                <Input
+                  defaultValue={ex.variation || ''}
+                  onBlur={(e) => onUpdateMeta({ variation: e.target.value })}
+                  className="h-7 text-xs"
+                  placeholder="ex: pegada fechada"
+                />
+              </div>
+              <p className="col-span-2 text-[9px] text-muted-foreground">
+                Para mudar a quantidade de séries, use os botões + / × na lista abaixo.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="space-y-1.5">
