@@ -750,7 +750,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
             {(() => {
               const timerExIdx = restTimer.exIdx;
               const timerSt = state[timerExIdx];
-              const timerEx = day?.exercises[timerExIdx];
+              const timerEx = currentExercises[timerExIdx];
               if (!timerSt || !timerEx) return null;
               return (
                 <div className="mt-6 w-full max-w-sm px-4 space-y-2">
