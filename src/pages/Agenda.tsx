@@ -38,6 +38,7 @@ import AgendaNotificationSettings from '@/components/agenda/AgendaNotificationSe
 import { AgendaHeader } from '@/components/agenda/AgendaHeader';
 import { AgendaStats } from '@/components/agenda/AgendaStats';
 import { AgendaNavigation } from '@/components/agenda/AgendaNavigation';
+import AgendaReconciliationDialog from '@/components/agenda/AgendaReconciliationDialog';
 
 type ViewMode = 'week' | 'day' | 'month';
 
