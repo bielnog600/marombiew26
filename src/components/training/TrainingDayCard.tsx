@@ -13,6 +13,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { findBestExerciseMatch, type MatchableExercise } from '@/lib/exerciseMatcher';
+import { tokenMatches } from '@/lib/fuzzyMatch';
 import AiEditExerciseDialog, { type AiEditAction } from '@/components/training/AiEditExerciseDialog';
 import { useParams } from 'react-router-dom';
 
@@ -144,21 +145,15 @@ const ExerciseCombobox: React.FC<{
         a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })
       );
 
-    const searchLower = search.toLowerCase().trim();
-    if (!searchLower) return sortAlpha(unique);
+    const q = search.trim();
+    if (!q) return sortAlpha(unique);
 
-    // Busca combinada: traz exercícios cujo NOME contém o termo
-    // E também exercícios cujo GRUPO MUSCULAR corresponde ao termo.
-    // Ex.: "mobilidade" → mostra exercícios chamados "Mobilidade ..." + todos do grupo Mobilidade.
+    // Busca tolerante por tokens: "afundo dois steps" casa com
+    // "Afundo com dois steps". Também busca pelo grupo muscular.
     return sortAlpha(
-      unique.filter(opt => {
-        const nome = (opt.nome || '').toLowerCase();
-        const grupo = (opt.grupo_muscular || '').toLowerCase();
-        return (
-          nome.includes(searchLower) ||
-          (grupo && (grupo.includes(searchLower) || searchLower.includes(grupo)))
-        );
-      })
+      unique.filter(opt =>
+        tokenMatches(`${opt.nome} ${opt.grupo_muscular || ''}`, q),
+      ),
     );
   }, [options, search]);
 

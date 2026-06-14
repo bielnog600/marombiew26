@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import { tokenMatchScore } from '@/lib/fuzzyMatch';
 
 interface ExerciseOption {
   id: string;
@@ -60,16 +61,16 @@ export const ExercisePicker: React.FC<Props> = ({ value, onChange, placeholder =
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0 bg-popover z-50" align="start">
-        <Command>
+        <Command filter={tokenMatchScore}>
           <CommandInput placeholder="Buscar exercício..." />
-          <CommandList>
+          <CommandList className="max-h-[50vh] overflow-y-auto overscroll-contain">
             <CommandEmpty>Nenhum exercício encontrado.</CommandEmpty>
             {Object.entries(grouped).map(([group, list]) => (
               <CommandGroup key={group} heading={group}>
                 {list.map(ex => (
                   <CommandItem
                     key={ex.id}
-                    value={ex.nome}
+                    value={`${ex.nome} ${ex.grupo_muscular}`}
                     onSelect={() => {
                       onChange(ex.nome);
                       setOpen(false);
