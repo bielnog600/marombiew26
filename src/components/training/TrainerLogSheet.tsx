@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { tokenMatchScore } from '@/lib/fuzzyMatch';
 import type { ParsedTrainingDay, ParsedExercise } from '@/lib/trainingResultParser';
 import { useRestTimer } from '@/hooks/useRestTimer';
 import { format } from 'date-fns';
@@ -76,9 +77,9 @@ export const ExerciseNamePicker: React.FC<{
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-72 p-0">
-        <Command>
+        <Command filter={tokenMatchScore}>
           <CommandInput placeholder="Buscar exercício..." />
-          <CommandList>
+          <CommandList className="max-h-[55vh] overflow-y-auto overscroll-contain">
             <CommandEmpty>Nenhum exercício encontrado.</CommandEmpty>
             {original && (
               <CommandGroup heading="Original">
