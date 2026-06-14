@@ -38,6 +38,7 @@ import AgendaNotificationSettings from '@/components/agenda/AgendaNotificationSe
 import { AgendaHeader } from '@/components/agenda/AgendaHeader';
 import { AgendaStats } from '@/components/agenda/AgendaStats';
 import { AgendaNavigation } from '@/components/agenda/AgendaNavigation';
+import AgendaReconciliationDialog from '@/components/agenda/AgendaReconciliationDialog';
 
 type ViewMode = 'week' | 'day' | 'month';
 
@@ -130,6 +131,7 @@ type ViewMode = 'week' | 'day' | 'month';
       }
     };
   const [showSettings, setShowSettings] = useState(false);
+  const [showReconcile, setShowReconcile] = useState(false);
 
   const rangeStart = useMemo(() => {
     if (viewMode === 'day') return startOfDay(currentDate);
@@ -173,6 +175,7 @@ type ViewMode = 'week' | 'day' | 'month';
         <AgendaHeader 
           onSettingsClick={() => setShowSettings(true)}
           onAgendarClick={() => setShowCreateDialog(true)}
+          onReconcileClick={() => setShowReconcile(true)}
         />
 
         <AgendaStats 
@@ -267,6 +270,12 @@ type ViewMode = 'week' | 'day' | 'month';
           onClose={() => setShowSettings(false)}
         />
       )}
+
+      <AgendaReconciliationDialog
+        open={showReconcile}
+        onOpenChange={setShowReconcile}
+        onApplied={refetch}
+      />
     </AppLayout>
   );
 };
