@@ -270,6 +270,12 @@ type ViewMode = 'week' | 'day' | 'month';
           onClose={() => setShowSettings(false)}
         />
       )}
+
+      <AgendaReconciliationDialog
+        open={showReconcile}
+        onOpenChange={setShowReconcile}
+        onApplied={refetch}
+      />
     </AppLayout>
   );
 };
