@@ -295,6 +295,26 @@ export default function AgendaEventDetailSheet({ event, open, onClose, onRefresh
               </div>
             )}
 
+            {recon.length > 0 && (
+              <div className="rounded-lg border border-border/50 bg-secondary/30 p-2 space-y-1.5">
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <AlertCircle className="h-3.5 w-3.5" /> Status de crédito do pacote
+                </p>
+                {recon.map(r => {
+                  const tone =
+                    r.status === 'ok' ? 'text-green-400'
+                    : r.status === 'auto_fixed' ? 'text-amber-400'
+                    : 'text-red-400';
+                  return (
+                    <div key={r.studentId} className="text-xs">
+                      <span className="text-foreground font-medium">{r.studentName}: </span>
+                      <span className={tone}>{r.message}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Actions */}
             <div className="grid grid-cols-2 gap-2">
               <Button variant="outline" size="sm" onClick={() => setShowEdit(true)} className="gap-1">
