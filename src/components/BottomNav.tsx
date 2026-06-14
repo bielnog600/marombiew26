@@ -16,6 +16,7 @@ const adminItems = [
   { title: 'Agenda', url: '/agenda', icon: CalendarDays },
   { title: 'Financeiro', url: '/financeiro', icon: Wallet },
   { title: 'Alimentos', url: '/alimentos', icon: Apple },
+  { title: 'Exercícios', url: '/exercicios', icon: Settings2 },
 ];
 
 const alunoItems = [
