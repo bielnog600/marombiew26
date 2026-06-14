@@ -1,13 +1,14 @@
 import React from 'react';
-import { CalendarDays, Settings, Plus } from 'lucide-react';
+import { CalendarDays, Settings, Plus, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface Props {
   onSettingsClick: () => void;
   onAgendarClick: () => void;
+  onReconcileClick?: () => void;
 }
 
-export const AgendaHeader: React.FC<Props> = ({ onSettingsClick, onAgendarClick }) => {
+export const AgendaHeader: React.FC<Props> = ({ onSettingsClick, onAgendarClick, onReconcileClick }) => {
   return (
     <div className="flex items-center justify-between">
       <div>
@@ -18,6 +19,11 @@ export const AgendaHeader: React.FC<Props> = ({ onSettingsClick, onAgendarClick 
         <p className="text-sm text-muted-foreground mt-0.5">Gerencie seus atendimentos e compromissos</p>
       </div>
       <div className="flex gap-2">
+        {onReconcileClick && (
+          <Button size="icon" variant="ghost" onClick={onReconcileClick} className="h-9 w-9" title="Reconciliar pacotes">
+            <ShieldCheck className="h-4 w-4 text-emerald-400" />
+          </Button>
+        )}
         <Button size="icon" variant="ghost" onClick={onSettingsClick} className="h-9 w-9">
           <Settings className="h-4 w-4" />
         </Button>
