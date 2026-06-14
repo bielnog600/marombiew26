@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
+import { checkEventReconciliation, ReconciliationStatus } from '@/lib/agendaReconciliation';
 
 interface Props {
   event: CalendarEvent;
@@ -30,6 +31,18 @@ export default function AgendaEventDetailSheet({ event, open, onClose, onRefresh
   const [futureCount, setFutureCount] = useState<number>(1);
   const [deductionTarget, setDeductionTarget] = useState<{ studentId: string; studentName: string; pkg: ClassPackage | null; allPackages?: ClassPackage[] } | null>(null);
   const { user } = useAuth();
+  const [recon, setRecon] = useState<{ studentId: string; studentName: string; status: ReconciliationStatus; message: string }[]>([]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (event.status !== 'concluido' && event.status !== 'falta') {
+      setRecon([]);
+      return;
+    }
+    let alive = true;
+    checkEventReconciliation(event.id).then(r => { if (alive) setRecon(r); }).catch(() => {});
+    return () => { alive = false; };
+  }, [open, event.id, event.status]);
 
   // Defaults para reagendamento: mesmo horário no dia seguinte
   const origStart = new Date(event.start_datetime);
