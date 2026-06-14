@@ -1,27 +1,20 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { AlertOctagon, TrendingDown, FileQuestion } from 'lucide-react';
-import type { StudentWeeklySummary } from '@/hooks/useStudentsWeeklySummary';
+import { MessageCircle, CheckCircle2, Clock } from 'lucide-react';
 
-type Filter = 'all' | 'atencao' | 'sem_progresso' | 'dados';
+export type FollowupFilter = 'hoje' | 'falados' | 'espera';
 
 interface Props {
-  summaries: StudentWeeklySummary[];
-  active: Filter;
-  onChange: (f: Filter) => void;
+  counts: { hoje: number; falados: number; espera: number };
+  active: FollowupFilter;
+  onChange: (f: FollowupFilter) => void;
 }
 
-const WeeklyAlertOverviewCards: React.FC<Props> = ({ summaries, active, onChange }) => {
-  const atencao = summaries.filter((s) =>
-    ['regressao', 'baixa_aderencia', 'reanalisar'].includes(s.attention)
-  ).length;
-  const semProg = summaries.filter((s) => s.attention === 'sem_progresso').length;
-  const dados = summaries.filter((s) => s.attention === 'dados_insuficientes').length;
-
-  const cards: { key: Filter; label: string; value: number; icon: any; color: string }[] = [
-    { key: 'atencao', label: 'Precisam de atenção', value: atencao, icon: AlertOctagon, color: 'text-destructive' },
-    { key: 'sem_progresso', label: 'Sem progresso', value: semProg, icon: TrendingDown, color: 'text-amber-500' },
-    { key: 'dados', label: 'Dados insuficientes', value: dados, icon: FileQuestion, color: 'text-muted-foreground' },
+const WeeklyAlertOverviewCards: React.FC<Props> = ({ counts, active, onChange }) => {
+  const cards: { key: FollowupFilter; label: string; value: number; icon: any; color: string }[] = [
+    { key: 'hoje', label: 'Para falar hoje', value: counts.hoje, icon: MessageCircle, color: 'text-primary' },
+    { key: 'falados', label: 'Já falados', value: counts.falados, icon: CheckCircle2, color: 'text-emerald-500' },
+    { key: 'espera', label: 'Voltam depois', value: counts.espera, icon: Clock, color: 'text-amber-500' },
   ];
 
   return (
@@ -34,7 +27,7 @@ const WeeklyAlertOverviewCards: React.FC<Props> = ({ summaries, active, onChange
             className={`cursor-pointer transition-all border ${
               isActive ? 'border-primary bg-primary/10 shadow-md shadow-primary/10' : 'glass-card hover:bg-secondary/50'
             }`}
-            onClick={() => onChange(isActive ? 'all' : c.key)}
+            onClick={() => onChange(c.key)}
           >
             <CardContent className="p-2.5 flex items-center gap-2">
               <div className={`rounded-lg p-1.5 bg-secondary ${c.color}`}>
