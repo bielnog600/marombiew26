@@ -26,6 +26,7 @@ import WeeklyAlertOverviewCards from '@/components/consultoria/WeeklyAlertOvervi
 import StudentWeeklyCard from '@/components/consultoria/StudentWeeklyCard';
 import OtherAlertsSection from '@/components/consultoria/OtherAlertsSection';
 import { useStudentsWeeklySummary } from '@/hooks/useStudentsWeeklySummary';
+import { useStudentFollowups, bucketFor, type FollowupBucket } from '@/hooks/useStudentFollowups';
 import ConsultoriaStudentSearch from '@/components/consultoria/ConsultoriaStudentSearch';
 import DietRenewalPanel from '@/components/consultoria/DietRenewalPanel';
 import WorkoutRenewalPanel from '@/components/consultoria/WorkoutRenewalPanel';
@@ -112,7 +113,8 @@ const Consultoria = () => {
   const { alerts: behavioralAlerts, loading: behavioralLoading, generating: behavioralGenerating, generate: generateBehavioral, updateStatus: updateBehavioralStatus } = useBehavioralAlerts();
   const [notifFilter] = useState('all');
   const { summaries: weeklySummaries, loading: weeklyLoading, reload: reloadWeekly } = useStudentsWeeklySummary();
-  const [alertFilter, setAlertFilter] = useState<'all' | 'atencao' | 'sem_progresso' | 'dados'>('all');
+  const { followups, loading: followupsLoading, reload: reloadFollowups, markAsDone, reopen } = useStudentFollowups();
+  const [alertFilter, setAlertFilter] = useState<FollowupBucket>('hoje');
 
   useEffect(() => {
     loadData();
