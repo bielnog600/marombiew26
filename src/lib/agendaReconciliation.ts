@@ -84,7 +84,7 @@ export async function reconcileAgendaPackages(opts: {
   let q = supabase
     .from('calendar_events')
     .select('id, title, start_datetime, status, admin_id')
-    .in('status', CREDIT_EVENT_STATUS as unknown as string[])
+    .in('status', CREDIT_EVENT_STATUS as unknown as Array<'concluido' | 'falta'>)
     .gte('start_datetime', from)
     .lte('start_datetime', to);
   if (adminId) q = q.eq('admin_id', adminId);
