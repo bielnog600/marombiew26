@@ -8,12 +8,13 @@ import {
 import { useNavigate } from 'react-router-dom';
 import {
   ExternalLink, MessageSquare, Copy, TrendingUp, TrendingDown, AlertTriangle,
-  Check, RotateCcw, Mic, ChevronDown,
+  Check, RotateCcw, Mic, ChevronDown, Sparkles,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { buildWhatsAppUrl } from '@/hooks/useNotifications';
 import { ADHERENCE_SHORT_LABEL, ADHERENCE_BADGE_CLASS } from '@/lib/weeklyAdherence';
 import { formatDelta } from '@/lib/weeklyProgression';
+import { buildNextSessionGuidance } from '@/lib/nextSessionGuidance';
 import type { StudentWeeklySummary, AttentionKind } from '@/hooks/useStudentsWeeklySummary';
 import {
   bucketFor, type SnoozeOption, type StudentFollowup,
@@ -87,14 +88,27 @@ const StudentWeeklyCard: React.FC<Props> = ({ summary, followup, onMarkDone, onR
     : 'Sem plano de treino ativo';
 
   const audioSummary = buildAudioSummary(summary);
+  const nextGuidance = buildNextSessionGuidance(summary);
   const whatsappUrl = summary.studentPhone
-    ? buildWhatsAppUrl(summary.studentPhone, buildWhatsAppMessage(summary))
+    ? buildWhatsAppUrl(
+        summary.studentPhone,
+        `${buildWhatsAppMessage(summary)}\n\n👉 Próxima sessão: ${nextGuidance}`,
+      )
     : null;
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(audioSummary);
+      await navigator.clipboard.writeText(`${audioSummary}\n\nOrientação da próxima sessão:\n${nextGuidance}`);
       toast({ title: 'Resumo copiado', description: 'Cole onde quiser ou use como base para o áudio.' });
+    } catch {
+      toast({ title: 'Não foi possível copiar', variant: 'destructive' });
+    }
+  };
+
+  const handleCopyGuidance = async () => {
+    try {
+      await navigator.clipboard.writeText(nextGuidance);
+      toast({ title: 'Orientação copiada', description: 'Pronta para enviar como áudio no WhatsApp.' });
     } catch {
       toast({ title: 'Não foi possível copiar', variant: 'destructive' });
     }
@@ -203,6 +217,27 @@ const StudentWeeklyCard: React.FC<Props> = ({ summary, followup, onMarkDone, onR
           <pre className="text-xs text-foreground/90 leading-snug whitespace-pre-wrap font-sans">
 {audioSummary}
           </pre>
+        </div>
+
+        {/* Orientação da próxima sessão */}
+        <div className="rounded-md border border-primary/30 bg-primary/10 p-2 space-y-1">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="h-3 w-3 text-primary" />
+              <p className="text-[10px] uppercase tracking-wide text-primary font-medium">
+                Orientação da próxima sessão
+              </p>
+            </div>
+            <button
+              onClick={handleCopyGuidance}
+              className="text-[10px] text-primary hover:underline flex items-center gap-1"
+            >
+              <Copy className="h-3 w-3" /> Copiar
+            </button>
+          </div>
+          <p className="text-xs text-foreground/90 leading-snug whitespace-pre-wrap">
+            {nextGuidance}
+          </p>
         </div>
 
         {/* Status follow-up info */}
