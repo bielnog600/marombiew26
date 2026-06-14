@@ -1856,6 +1856,42 @@ export type Database = {
           },
         ]
       }
+      student_followups: {
+        Row: {
+          admin_id: string
+          created_at: string
+          id: string
+          last_contacted_at: string | null
+          note: string | null
+          snoozed_until: string | null
+          status: string
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          admin_id: string
+          created_at?: string
+          id?: string
+          last_contacted_at?: string | null
+          note?: string | null
+          snoozed_until?: string | null
+          status?: string
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          admin_id?: string
+          created_at?: string
+          id?: string
+          last_contacted_at?: string | null
+          note?: string | null
+          snoozed_until?: string | null
+          status?: string
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       students_profile: {
         Row: {
           altura: number | null

@@ -26,6 +26,7 @@ import WeeklyAlertOverviewCards from '@/components/consultoria/WeeklyAlertOvervi
 import StudentWeeklyCard from '@/components/consultoria/StudentWeeklyCard';
 import OtherAlertsSection from '@/components/consultoria/OtherAlertsSection';
 import { useStudentsWeeklySummary } from '@/hooks/useStudentsWeeklySummary';
+import { useStudentFollowups, bucketFor, type FollowupBucket } from '@/hooks/useStudentFollowups';
 import ConsultoriaStudentSearch from '@/components/consultoria/ConsultoriaStudentSearch';
 import DietRenewalPanel from '@/components/consultoria/DietRenewalPanel';
 import WorkoutRenewalPanel from '@/components/consultoria/WorkoutRenewalPanel';
@@ -112,7 +113,8 @@ const Consultoria = () => {
   const { alerts: behavioralAlerts, loading: behavioralLoading, generating: behavioralGenerating, generate: generateBehavioral, updateStatus: updateBehavioralStatus } = useBehavioralAlerts();
   const [notifFilter] = useState('all');
   const { summaries: weeklySummaries, loading: weeklyLoading, reload: reloadWeekly } = useStudentsWeeklySummary();
-  const [alertFilter, setAlertFilter] = useState<'all' | 'atencao' | 'sem_progresso' | 'dados'>('all');
+  const { followups, loading: followupsLoading, reload: reloadFollowups, markAsDone, reopen } = useStudentFollowups();
+  const [alertFilter, setAlertFilter] = useState<FollowupBucket>('hoje');
 
   useEffect(() => {
     loadData();
@@ -823,17 +825,18 @@ const Consultoria = () => {
         {tab === 'alertas' && (
           <div className="space-y-4">
             {(() => {
-              const filtered = weeklySummaries.filter((s) => {
-                if (alertFilter === 'all') return s.attention !== 'ok';
-                if (alertFilter === 'atencao') return ['regressao', 'baixa_aderencia', 'reanalisar'].includes(s.attention);
-                if (alertFilter === 'sem_progresso') return s.attention === 'sem_progresso';
-                if (alertFilter === 'dados') return s.attention === 'dados_insuficientes';
-                return true;
-              });
+              const relevant = weeklySummaries.filter((s) => s.attention !== 'ok');
+              const withBucket = relevant.map((s) => ({ s, b: bucketFor(followups.get(s.studentId)) }));
+              const counts = {
+                hoje: withBucket.filter((x) => x.b === 'hoje').length,
+                falados: withBucket.filter((x) => x.b === 'falados').length,
+                espera: withBucket.filter((x) => x.b === 'espera').length,
+              };
+              const filtered = withBucket.filter((x) => x.b === alertFilter).map((x) => x.s);
               return (
                 <>
                   <WeeklyAlertOverviewCards
-                    summaries={weeklySummaries}
+                    counts={counts}
                     active={alertFilter}
                     onChange={setAlertFilter}
                   />
@@ -841,21 +844,25 @@ const Consultoria = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Activity className="h-4 w-4 text-primary" />
-                      <h3 className="text-sm font-semibold">Acompanhamento da semana</h3>
+                      <h3 className="text-sm font-semibold">
+                        {alertFilter === 'hoje' && 'Para falar hoje'}
+                        {alertFilter === 'falados' && 'Já falados hoje'}
+                        {alertFilter === 'espera' && 'Voltam depois'}
+                      </h3>
                       <Badge variant="outline" className="text-[10px]">{filtered.length}</Badge>
                     </div>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => { refreshNotifs(); generateBehavioral(); reloadWeekly(); }}
-                      disabled={notifLoading || behavioralGenerating || weeklyLoading}
+                      onClick={() => { refreshNotifs(); generateBehavioral(); reloadWeekly(); reloadFollowups(); }}
+                      disabled={notifLoading || behavioralGenerating || weeklyLoading || followupsLoading}
                     >
-                      <RefreshCw className={`h-4 w-4 mr-1 ${(notifLoading || behavioralGenerating || weeklyLoading) ? 'animate-spin' : ''}`} />
+                      <RefreshCw className={`h-4 w-4 mr-1 ${(notifLoading || behavioralGenerating || weeklyLoading || followupsLoading) ? 'animate-spin' : ''}`} />
                       Atualizar
                     </Button>
                   </div>
 
-                  {weeklyLoading ? (
+                  {weeklyLoading || followupsLoading ? (
                     <div className="space-y-2">
                       <Skeleton className="h-32 w-full rounded-lg" />
                       <Skeleton className="h-32 w-full rounded-lg" />
@@ -863,13 +870,21 @@ const Consultoria = () => {
                   ) : filtered.length === 0 ? (
                     <Card>
                       <CardContent className="py-6 text-center text-xs text-muted-foreground">
-                        Nenhum aluno precisando de atenção agora 🎉
+                        {alertFilter === 'hoje' && 'Nenhum aluno na fila de follow-up agora 🎉'}
+                        {alertFilter === 'falados' && 'Você ainda não marcou ninguém como falado hoje.'}
+                        {alertFilter === 'espera' && 'Nenhum aluno aguardando retorno.'}
                       </CardContent>
                     </Card>
                   ) : (
                     <div className="space-y-2">
                       {filtered.map((s) => (
-                        <StudentWeeklyCard key={s.studentId} summary={s} />
+                        <StudentWeeklyCard
+                          key={s.studentId}
+                          summary={s}
+                          followup={followups.get(s.studentId)}
+                          onMarkDone={markAsDone}
+                          onReopen={reopen}
+                        />
                       ))}
                     </div>
                   )}
