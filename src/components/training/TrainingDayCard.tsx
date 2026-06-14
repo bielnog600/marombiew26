@@ -13,6 +13,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { findBestExerciseMatch, type MatchableExercise } from '@/lib/exerciseMatcher';
+import { tokenMatches } from '@/lib/fuzzyMatch';
 import AiEditExerciseDialog, { type AiEditAction } from '@/components/training/AiEditExerciseDialog';
 import { useParams } from 'react-router-dom';
 
