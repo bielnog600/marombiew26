@@ -131,6 +131,7 @@ type ViewMode = 'week' | 'day' | 'month';
       }
     };
   const [showSettings, setShowSettings] = useState(false);
+  const [showReconcile, setShowReconcile] = useState(false);
 
   const rangeStart = useMemo(() => {
     if (viewMode === 'day') return startOfDay(currentDate);
@@ -174,6 +175,7 @@ type ViewMode = 'week' | 'day' | 'month';
         <AgendaHeader 
           onSettingsClick={() => setShowSettings(true)}
           onAgendarClick={() => setShowCreateDialog(true)}
+          onReconcileClick={() => setShowReconcile(true)}
         />
 
         <AgendaStats 
