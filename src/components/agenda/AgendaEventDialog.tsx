@@ -15,6 +15,16 @@ import { getStudentActivePackage, ClassPackage } from '@/hooks/useFinancial';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
+const stripAccents = (s: string) =>
+  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+const addOneHour = (hhmm: string): string => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm);
+  if (!m) return hhmm;
+  const h = (parseInt(m[1], 10) + 1) % 24;
+  return `${String(h).padStart(2, '0')}:${m[2]}`;
+};
+
 const EVENT_TYPES = Object.entries(EVENT_TYPE_LABELS);
 const STATUS_OPTIONS = [
   ['confirmado', 'Confirmado'],
@@ -160,7 +170,7 @@ export default function AgendaEventDialog({ open, onClose, onSaved, editEvent, i
   };
 
   const filteredStudents = students.filter(s =>
-    s.nome.toLowerCase().includes(searchTerm.toLowerCase())
+    stripAccents(s.nome).includes(stripAccents(searchTerm))
   );
 
   return (
@@ -249,7 +259,16 @@ export default function AgendaEventDialog({ open, onClose, onSaved, editEvent, i
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Início</Label>
-              <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="mt-1" />
+              <Input
+                type="time"
+                value={startTime}
+                onChange={e => {
+                  const v = e.target.value;
+                  setStartTime(v);
+                  if (v) setEndTime(addOneHour(v));
+                }}
+                className="mt-1"
+              />
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Fim</Label>
