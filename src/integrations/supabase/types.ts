@@ -1097,6 +1097,63 @@ export type Database = {
         }
         Relationships: []
       }
+      exercise_execution_videos: {
+        Row: {
+          admin_note: string | null
+          cf_uid: string
+          created_at: string
+          duration_seconds: number | null
+          exercise_id: string | null
+          exercise_name: string
+          id: string
+          plan_id: string | null
+          playback_url: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          student_id: string
+          thumbnail_url: string | null
+          updated_at: string
+          workout_session_id: string | null
+        }
+        Insert: {
+          admin_note?: string | null
+          cf_uid: string
+          created_at?: string
+          duration_seconds?: number | null
+          exercise_id?: string | null
+          exercise_name: string
+          id?: string
+          plan_id?: string | null
+          playback_url: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          student_id: string
+          thumbnail_url?: string | null
+          updated_at?: string
+          workout_session_id?: string | null
+        }
+        Update: {
+          admin_note?: string | null
+          cf_uid?: string
+          created_at?: string
+          duration_seconds?: number | null
+          exercise_id?: string | null
+          exercise_name?: string
+          id?: string
+          plan_id?: string | null
+          playback_url?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          student_id?: string
+          thumbnail_url?: string | null
+          updated_at?: string
+          workout_session_id?: string | null
+        }
+        Relationships: []
+      }
       exercise_set_logs: {
         Row: {
           created_at: string

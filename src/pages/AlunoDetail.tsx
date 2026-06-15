@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Sparkles } from 'lucide-react';
 import KarvonenZones from '@/components/KarvonenZones';
 import StudentFinancialTab from '@/components/financial/StudentFinancialTab';
+import StudentExerciseVideos from '@/components/admin/StudentExerciseVideos';
 import { Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -386,6 +387,11 @@ const AlunoDetail = () => {
                 </CardContent>
               </Card>
               <StudentTrainingTab studentId={id!} />
+              <StudentExerciseVideos
+                studentId={id!}
+                studentPhone={profile?.telefone ?? studentProfile?.telefone ?? null}
+                studentName={profile?.nome ?? null}
+              />
             </div>
           </TabsContent>
 

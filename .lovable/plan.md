@@ -1,106 +1,97 @@
-## Objetivo
+# Vídeos de Execução do Aluno
 
-Transformar **Consultoria > Alertas** em um painel semanal acionável por aluno, focado em aderência, progressão e ações de WhatsApp — eliminando o ruído de notificações operacionais leves.
+Permitir que o aluno grave/envie um vídeo curto por exercício durante o treino, com upload para Cloudflare Stream, e revisão pelo admin no perfil do aluno.
 
-## 1. Topo simplificado (3 cards)
+## 1. Banco de dados (nova migração)
 
-Substituir os 4 cards atuais do `EngagementOverviewCards` por 3:
-
-- **Precisam de atenção** — alunos com regressão, baixa aderência, treino mal registrado ou sem progresso
-- **Sem progresso** — aderência ≥ 75% mas sem ganho de carga/reps na semana
-- **Dados insuficientes** — treinaram mas <30% dos sets têm carga/reps, ou planos sem logs
-
-Cada card é clicável e filtra a lista abaixo.
-
-## 2. Lista principal — Card semanal por aluno
-
-Novo componente `StudentWeeklyCard.tsx`. Um card por aluno ativo com plano de treino, mostrando:
+Criar tabela `exercise_execution_videos`:
 
 ```text
-┌─────────────────────────────────────────────────────┐
-│ Nome do Aluno              [estado: Manter semana]  │
-│ Aderência: 3 de 4 treinos (75%) • Sets c/ carga 82% │
-│                                                     │
-│ Evoluiu:    Supino reto +5kg • Agachamento +2 reps  │
-│ Regrediu:   Remada baixa -5kg                       │
-│ Sem registro: Stiff, Rosca direta                   │
-│                                                     │
-│ Ação sugerida: Manter semana e cobrar registro de   │
-│ carga em Stiff/Rosca.                               │
-│                                                     │
-│ [Ver aluno] [Reanalisar] [WhatsApp] [Copiar resumo] │
-└─────────────────────────────────────────────────────┘
+id                  uuid pk
+student_id          uuid not null → auth.users
+workout_session_id  uuid null     → workout_sessions
+plan_id             uuid null     → ai_plans
+exercise_name       text not null
+exercise_id         uuid null     → exercises
+cf_uid              text not null  (Cloudflare Stream UID)
+playback_url        text not null
+thumbnail_url       text null
+duration_seconds    int  null
+status              text default 'uploading'  -- uploading|ready|error|pending_review|reviewed|needs_redo
+admin_note          text null
+reviewed_at         timestamptz null
+reviewed_by         uuid null
+created_at          timestamptz default now()
+updated_at          timestamptz default now()
+unique (student_id, workout_session_id, exercise_name)  -- 1 vídeo por exercício por sessão
 ```
 
-**Estado da semana** (já existe em `weeklyAdherence.ts`):
-`apto_avancar` · `manter_semana` · `repetir_semana` · `dados_insuficientes` · `sugerir_reanalise`
+Index em `(student_id, created_at desc)`.
 
-**Progressão/Regressão**: comparar `exercise_set_logs` da semana anterior vs. 2 semanas atrás por `exercise_name`, calculando delta de peso máximo e reps máximas. Listar até 3 melhorias e 3 pioras.
+GRANTs:
+- `authenticated`: SELECT/INSERT/UPDATE/DELETE
+- `service_role`: ALL
 
-**Sem registro**: exercícios planejados (do `ai_plans.conteudo`) sem nenhum log na semana.
+RLS:
+- Aluno: pode SELECT/INSERT/UPDATE/DELETE seus próprios vídeos (`student_id = auth.uid()`)
+- Admin (`has_role(auth.uid(),'admin')`): pode SELECT/UPDATE todos (para revisão e nota)
 
-**Ação sugerida**: regra baseada no `status` do `AdherenceReport`:
-- `apto_avancar` → "Liberar progressão de carga"
-- `manter_semana` → "Manter semana atual"
-- `repetir_semana` → "Repetir semana, cobrar presença"
-- `dados_insuficientes` → "Cobrar registro de carga/reps"
-- `sugerir_reanalise` → "Reanalisar plano"
+Trigger `update_updated_at` em UPDATE.
 
-## 3. Ações por card
+## 2. Edge function `student-video-upload`
 
-- **Ver aluno** → navega para perfil
-- **Reanalisar** → abre `WorkoutRenewalPanel` (já existe) com o plano atual
-- **WhatsApp** → abre `wa.me/<telefone>` com mensagem pré-preenchida do resumo
-- **Copiar resumo** → copia para clipboard texto formatado (nome, aderência, evoluiu, regrediu, ação)
+Hoje `cloudflare-stream-upload` é **admin-only**. Criar nova função similar mas aberta a `authenticated` (com validação de JWT em código). Retorna `uploadURL`, `uid`, `playbackUrl`. `maxDurationSeconds` limitado a 30s no servidor.
 
-## 4. Filtros e ordenação
+## 3. UI — Aluno (sem mudar layout principal)
 
-Topo da lista:
-- Filtro: Todos · Precisam atenção · Sem progresso · Dados insuficientes
-- Ordenação padrão: prioridade (regressão > dados insuficientes > sem progresso > ok)
+Novo componente `ExerciseVideoCapture.tsx` — botão compacto adicionado ao final do `ExerciseLogCard`, na mesma linha do "Salvar":
 
-## 5. Seção secundária colapsável "Outros avisos"
+- Botão **"Gravar execução"** (ícone Video) — abre `<input type="file" accept="video/*" capture="environment">`.
+- Botão secundário **"Da galeria"** — `<input type="file" accept="video/*">`.
+- Após selecionar:
+  1. Valida duração ≤ 30s via `<video>.duration`.
+  2. Chama edge `student-video-upload` para obter `uploadURL`.
+  3. `PUT` do arquivo direto no Cloudflare via `XMLHttpRequest` (para progress).
+  4. Insere linha em `exercise_execution_videos` com `status='pending_review'`.
+- Estados visuais: idle / enviando (com %) / enviado (check verde) / erro (botão "Reenviar").
+- Se houver vídeo existente para esse exercício+sessão, mostra "✓ Vídeo enviado" + botão "Substituir".
+- **Offline**: se sem conexão, mostra aviso "Sem conexão — envie depois" e não enfileira binário (Cloudflare exige upload direto). Re-tentável quando voltar online.
 
-Mover para um `<Collapsible>` recolhido por padrão, no fim da aba:
-- Aniversários
-- Água baixa
-- Sem telefone
-- Mensagem semanal
-- Reavaliação vencida
-- Ficha mensal pendente
-- Financeiros / pacote
+Plumbing no `TreinoExecucao.tsx`: passar `sessionId`, `planId` para o card. `ExerciseLogCard` recebe novo prop opcional `videoCaptureSlot` e renderiza o componente.
 
-Reutiliza a lista atual de `useNotifications` + alertas comportamentais não relacionados a treino.
+## 4. UI — Admin / Consultoria
 
-## 6. O que sai da aba
+Em `AlunoDetail.tsx`, na aba **Treinos**, adicionar sub-seção/aba **"Vídeos de execução"**: novo componente `StudentExerciseVideos.tsx`.
 
-Removidos da tela principal (continuam disponíveis em "Outros avisos"):
-- `app_opened` do dia
-- `agua_baixa`
-- Aniversários
-- Mensagem semanal
-- Sem telefone
-- Reavaliação vencida (vira aviso secundário)
+Lista (mais recentes primeiro) com cards:
+- Thumbnail (Cloudflare gera automático: `https://videodelivery.net/{uid}/thumbnails/thumbnail.jpg`)
+- Nome do exercício • duração • data • sessão (dia/fase se disponível)
+- Badge de status (pendente revisão / revisado / pedir novo)
+- Ações: **Assistir** (modal com iframe Cloudflare), **Marcar revisado**, **Pedir novo vídeo** (muda status → `needs_redo`), **Nota** (textarea inline), **WhatsApp** (link `wa.me` reusando telefone do perfil).
 
-## Detalhes técnicos
+Badge de contador "N vídeos pendentes" no header da aba.
 
-**Novos arquivos:**
-- `src/lib/weeklyProgression.ts` — compara exercise_set_logs de 2 janelas semanais e retorna `{improved[], regressed[], missing[]}`
-- `src/hooks/useStudentsWeeklySummary.ts` — para cada aluno ativo: busca plano de treino ativo, roda `buildAdherenceReport` + `weeklyProgression`, retorna lista pronta para renderizar
-- `src/components/consultoria/StudentWeeklyCard.tsx` — UI do card
-- `src/components/consultoria/OtherAlertsSection.tsx` — Collapsible com notificações leves
+## 5. Detalhes técnicos
 
-**Arquivos editados:**
-- `src/components/consultoria/EngagementOverviewCards.tsx` — reduz para 3 cards (precisam_atencao, sem_progresso, dados_insuficientes)
-- `src/pages/Consultoria.tsx` — bloco `tab === 'alertas'` reescrito para usar `useStudentsWeeklySummary` + filtros, renderizar `StudentWeeklyCard` em loop, e `OtherAlertsSection` no rodapé
+- Cloudflare Stream Direct Creator Upload: usar `tus` opcional, mas para simplicidade usar `POST` (Cloudflare aceita PUT/POST no `uploadURL`).
+- Thumbnail: derivada do `uid` (`https://videodelivery.net/{uid}/thumbnails/thumbnail.jpg?time=2s&height=200`).
+- Duração persistida do `<video>.duration` lido antes do upload.
+- Tipos: regenerar `src/integrations/supabase/types.ts` automaticamente após migração.
 
-**Mantido:**
-- `useBehavioralAlerts` / `useNotifications` continuam existindo (usados em "Outros avisos" e no bell global)
-- Lógica de classificação `classifyBehavioral` removida do Consultoria
-- Tabela `behavioral_alerts` e edge function não mudam — só a UI
+## Arquivos
 
-## Fora de escopo
+**Novos**
+- `supabase/migrations/<ts>_exercise_execution_videos.sql`
+- `supabase/functions/student-video-upload/index.ts`
+- `src/components/training/ExerciseVideoCapture.tsx`
+- `src/components/admin/StudentExerciseVideos.tsx`
 
-- Nada de mudança em outras abas (Renovações, Check-ins, Visão)
-- Edge function `behavioral-alerts-generator` continua igual
-- Sem mudanças no banco
+**Editados**
+- `src/components/training/ExerciseLogCard.tsx` — novo prop slot + renderização.
+- `src/pages/TreinoExecucao.tsx` — passar `sessionId`, `planId`, `exerciseName` ao card.
+- `src/pages/AlunoDetail.tsx` — adicionar sub-aba "Vídeos de execução" dentro de Treinos.
+
+## Fora de escopo (próximas iterações)
+- Compressão client-side (depende de FFmpeg.wasm, pesado).
+- Enfileiramento offline do binário em IndexedDB.
+- Múltiplos vídeos por exercício/sessão.

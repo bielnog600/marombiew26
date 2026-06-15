@@ -19,6 +19,7 @@ import { PhaseInfoSheet } from '@/components/training/PhaseInfoSheet';
 import { MachineAdjustSheet } from '@/components/training/MachineAdjustSheet';
 import { ExerciseLoadHistorySheet } from '@/components/training/ExerciseLoadHistorySheet';
 import { SessionRpeDialog } from '@/components/training/SessionRpeDialog';
+import ExerciseVideoCapture from '@/components/training/ExerciseVideoCapture';
 import { Settings2, Info, BarChart3, Timer } from 'lucide-react';
 import { fetchWithCache } from '@/lib/offlineCache';
 import { useRestTimer } from '@/hooks/useRestTimer';
@@ -996,6 +997,15 @@ const TreinoExecucao = () => {
             });
           })()}
         </div>
+
+        {user && (
+          <ExerciseVideoCapture
+            studentId={user.id}
+            sessionId={sessionId}
+            exerciseName={selectedExerciseName}
+            exerciseId={activeExercise?.id ?? matchedExercise?.id ?? null}
+          />
+        )}
 
       </div>
 
