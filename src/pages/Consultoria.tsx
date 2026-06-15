@@ -1076,6 +1076,20 @@ const Consultoria = () => {
           </Card>
         )}
 
+        {tab === 'videos' && (
+          <Card className="glass-card">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Video className="h-5 w-5 text-primary" />
+                Vídeos de execução dos alunos
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <AllExecutionVideos />
+            </CardContent>
+          </Card>
+        )}
+
         {tab === 'push_hoje' && (
           <Card className="glass-card">
             <CardHeader>
