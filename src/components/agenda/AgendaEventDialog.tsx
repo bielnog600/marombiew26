@@ -66,6 +66,8 @@ export default function AgendaEventDialog({ open, onClose, onSaved, editEvent, i
   const [conflicts, setConflicts] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [packageAlerts, setPackageAlerts] = useState<Record<string, ClassPackage | null>>({});
+  const [recentLocations, setRecentLocations] = useState<string[]>([]);
+  const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
 
   useEffect(() => {
     supabase.from('profiles').select('user_id, nome')
@@ -78,6 +80,28 @@ export default function AgendaEventDialog({ open, onClose, onSaved, editEvent, i
           });
       });
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    supabase
+      .from('calendar_events')
+      .select('location')
+      .not('location', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(100)
+      .then(({ data }) => {
+        const seen = new Set<string>();
+        const uniq: string[] = [];
+        (data || []).forEach((r: any) => {
+          const v = (r.location || '').trim();
+          if (v && !seen.has(v.toLowerCase())) {
+            seen.add(v.toLowerCase());
+            uniq.push(v);
+          }
+        });
+        setRecentLocations(uniq.slice(0, 10));
+      });
+  }, [open]);
 
   useEffect(() => {
     if (editEvent) {
@@ -279,7 +303,32 @@ export default function AgendaEventDialog({ open, onClose, onSaved, editEvent, i
           {/* Location */}
           <div>
             <Label className="text-xs text-muted-foreground">Local</Label>
-            <Input value={location} onChange={e => setLocation(e.target.value)} placeholder="Ginásio, sala, online..." className="mt-1" />
+            <div className="relative">
+              <Input
+                value={location}
+                onChange={e => setLocation(e.target.value)}
+                onFocus={() => setShowLocationSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowLocationSuggestions(false), 150)}
+                placeholder="Ginásio, sala, online..."
+                className="mt-1"
+              />
+              {showLocationSuggestions && recentLocations.length > 0 && (
+                <div className="absolute z-50 left-0 right-0 mt-1 max-h-40 overflow-y-auto rounded-md border border-border bg-popover shadow-md">
+                  {recentLocations
+                    .filter(l => !location || stripAccents(l).includes(stripAccents(location)))
+                    .map(l => (
+                      <button
+                        key={l}
+                        type="button"
+                        className="w-full text-left text-sm px-3 py-2 hover:bg-secondary text-foreground"
+                        onMouseDown={e => { e.preventDefault(); setLocation(l); setShowLocationSuggestions(false); }}
+                      >
+                        {l}
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Status */}
