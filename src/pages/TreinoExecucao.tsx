@@ -20,7 +20,8 @@ import { MachineAdjustSheet } from '@/components/training/MachineAdjustSheet';
 import { ExerciseLoadHistorySheet } from '@/components/training/ExerciseLoadHistorySheet';
 import { SessionRpeDialog } from '@/components/training/SessionRpeDialog';
 import ExerciseVideoCapture from '@/components/training/ExerciseVideoCapture';
-import { Settings2, Info, BarChart3, Timer } from 'lucide-react';
+import { Settings2, Info, BarChart3, Timer, Camera } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { fetchWithCache } from '@/lib/offlineCache';
 import { useRestTimer } from '@/hooks/useRestTimer';
 
