@@ -1023,7 +1023,7 @@ const TreinoExecucao = () => {
           <p className="text-xs text-muted-foreground -mt-1">
             Grave um clipe curto (até 30s) do exercício{' '}
             <span className="font-semibold text-foreground">{selectedExerciseName}</span>{' '}
-            para o seu treinador revisar.
+            para o Fabiew revisar.
           </p>
           {user && (
             <ExerciseVideoCapture
