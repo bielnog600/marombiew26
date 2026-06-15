@@ -387,6 +387,11 @@ const AlunoDetail = () => {
                 </CardContent>
               </Card>
               <StudentTrainingTab studentId={id!} />
+              <StudentExerciseVideos
+                studentId={id!}
+                studentPhone={profile?.telefone ?? studentProfile?.telefone ?? null}
+                studentName={profile?.nome ?? null}
+              />
             </div>
           </TabsContent>
 
