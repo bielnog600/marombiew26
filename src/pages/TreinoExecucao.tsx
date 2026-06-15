@@ -968,6 +968,16 @@ const TreinoExecucao = () => {
               Ajuste
             </button>
           )}
+          {user && (
+            <button
+              type="button"
+              onClick={() => setShowVideoCapture(true)}
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary/20 transition-colors"
+            >
+              <Camera className="h-3 w-3" />
+              Execução
+            </button>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -1000,16 +1010,31 @@ const TreinoExecucao = () => {
           })()}
         </div>
 
-        {user && (
-          <ExerciseVideoCapture
-            studentId={user.id}
-            sessionId={sessionId}
-            exerciseName={selectedExerciseName}
-            exerciseId={activeExercise?.id ?? matchedExercise?.id ?? null}
-          />
-        )}
-
       </div>
+
+      <Dialog open={showVideoCapture} onOpenChange={setShowVideoCapture}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Camera className="h-4 w-4 text-primary" />
+              Vídeo de execução
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground -mt-1">
+            Grave um clipe curto (até 30s) do exercício{' '}
+            <span className="font-semibold text-foreground">{selectedExerciseName}</span>{' '}
+            para o seu treinador revisar.
+          </p>
+          {user && (
+            <ExerciseVideoCapture
+              studentId={user.id}
+              sessionId={sessionId}
+              exerciseName={selectedExerciseName}
+              exerciseId={activeExercise?.id ?? matchedExercise?.id ?? null}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-t border-border p-3" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}>
         <div className="flex items-center justify-between gap-3">
