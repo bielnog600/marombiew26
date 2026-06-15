@@ -7,7 +7,17 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Video, Check, AlertOctagon, Phone, Play, Search, MessageSquare } from 'lucide-react';
+import { Video, Check, AlertOctagon, Phone, Play, Search, MessageSquare, Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -44,6 +54,8 @@ const AllExecutionVideos: React.FC = () => {
   const [openVideo, setOpenVideo] = useState<Row | null>(null);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Row | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = async () => {
     const { data: videos } = await supabase
@@ -87,6 +99,19 @@ const AllExecutionVideos: React.FC = () => {
     if (error) return toast.error('Falha ao atualizar.');
     toast.success('Atualizado.');
     load();
+  };
+
+  const handleDelete = async (row: Row) => {
+    setDeletingId(row.id);
+    const { error } = await supabase
+      .from('exercise_execution_videos')
+      .delete()
+      .eq('id', row.id);
+    setDeletingId(null);
+    setConfirmDelete(null);
+    if (error) return toast.error('Falha ao deletar vídeo.');
+    toast.success('Vídeo deletado.');
+    setRows((prev) => (prev ? prev.filter((r) => r.id !== row.id) : prev));
   };
 
   const openWhatsApp = (phone: string | null | undefined, msg: string) => {
@@ -269,6 +294,16 @@ const AllExecutionVideos: React.FC = () => {
                         WhatsApp
                       </Button>
                     )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 gap-1 text-[10px] text-destructive hover:text-destructive hover:bg-destructive/10 ml-auto"
+                      disabled={deletingId === r.id}
+                      onClick={() => setConfirmDelete(r)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      Deletar
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -296,6 +331,32 @@ const AllExecutionVideos: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!confirmDelete} onOpenChange={(v) => !v && setConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deletar vídeo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDelete && (
+                <>
+                  Esta ação não pode ser desfeita. O vídeo de{' '}
+                  <strong>{confirmDelete.exercise_name}</strong> enviado por{' '}
+                  <strong>{confirmDelete.student_name}</strong> será removido permanentemente.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => confirmDelete && handleDelete(confirmDelete)}
+            >
+              Deletar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
