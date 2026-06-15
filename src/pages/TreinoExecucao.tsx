@@ -939,11 +939,11 @@ const TreinoExecucao = () => {
       </div>
 
       <div className="flex-1 p-4 space-y-4 pb-28">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
             onClick={() => setShowPhaseInfo(true)}
-            className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/25 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary/15 transition-colors"
+            className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/25 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-primary hover:bg-primary/15 transition-colors whitespace-nowrap"
           >
             <Info className="h-3 w-3" />
             {PHASE_SHORT_LABELS[currentPhase]}
@@ -952,7 +952,7 @@ const TreinoExecucao = () => {
             <button
               type="button"
               onClick={() => setShowLoadHistory(true)}
-              className="inline-flex items-center gap-1.5 rounded-full bg-accent/15 border border-accent/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-accent/25 transition-colors"
+              className="inline-flex items-center gap-1 rounded-full bg-accent/15 border border-accent/30 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-foreground hover:bg-accent/25 transition-colors whitespace-nowrap"
             >
               <BarChart3 className="h-3 w-3" />
               Cargas
@@ -962,7 +962,7 @@ const TreinoExecucao = () => {
             <button
               type="button"
               onClick={() => setShowAdjust(true)}
-              className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 border border-border/60 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-secondary transition-colors"
+              className="inline-flex items-center gap-1 rounded-full bg-secondary/70 border border-border/60 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-foreground hover:bg-secondary transition-colors whitespace-nowrap"
             >
               <Settings2 className="h-3 w-3" />
               Ajuste
@@ -972,7 +972,7 @@ const TreinoExecucao = () => {
             <button
               type="button"
               onClick={() => setShowVideoCapture(true)}
-              className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary/20 transition-colors"
+              className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/30 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-primary hover:bg-primary/20 transition-colors whitespace-nowrap"
             >
               <Camera className="h-3 w-3" />
               Execução
