@@ -21,7 +21,6 @@ interface VideoRow {
   reviewed_at: string | null;
   created_at: string;
   workout_session_id: string | null;
-  workout_sessions?: { day_name: string | null; phase: string | null } | null;
 }
 
 interface Props {
@@ -159,7 +158,6 @@ const StudentExerciseVideos: React.FC<Props> = ({ studentId, studentPhone, stude
                     <p className="text-sm font-semibold truncate">{r.exercise_name}</p>
                     <p className="text-[10px] text-muted-foreground">
                       {new Date(r.created_at).toLocaleString('pt-BR')}
-                      {r.workout_sessions?.day_name && ` · ${r.workout_sessions.day_name}`}
                     </p>
                   </div>
                   <Badge className={`${meta.cls} border text-[10px] shrink-0`}>{meta.label}</Badge>
