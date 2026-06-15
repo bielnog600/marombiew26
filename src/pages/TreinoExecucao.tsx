@@ -998,6 +998,15 @@ const TreinoExecucao = () => {
           })()}
         </div>
 
+        {user && (
+          <ExerciseVideoCapture
+            studentId={user.id}
+            sessionId={sessionId}
+            exerciseName={selectedExerciseName}
+            exerciseId={activeExercise?.id ?? matchedExercise?.id ?? null}
+          />
+        )}
+
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-t border-border p-3" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}>
