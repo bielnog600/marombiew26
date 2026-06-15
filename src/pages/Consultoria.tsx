@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { FileText, Utensils, Dumbbell, ClipboardList, Users, Bell, MessageSquare, CalendarClock, Cake, Phone, AlertTriangle, RefreshCw, ExternalLink, X, UtensilsCrossed, Activity, Sparkles, Send } from 'lucide-react';
+import { FileText, Utensils, Dumbbell, ClipboardList, Users, Bell, MessageSquare, CalendarClock, Cake, Phone, AlertTriangle, RefreshCw, ExternalLink, X, UtensilsCrossed, Activity, Sparkles, Send, Video } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,7 @@ import ConsultoriaStudentSearch from '@/components/consultoria/ConsultoriaStuden
 import DietRenewalPanel from '@/components/consultoria/DietRenewalPanel';
 import WorkoutRenewalPanel from '@/components/consultoria/WorkoutRenewalPanel';
 import PushNotificationsToday from '@/components/consultoria/PushNotificationsToday';
+import AllExecutionVideos from '@/components/consultoria/AllExecutionVideos';
 
 const CYCLE_MIN_DAYS = 35; // Pré-renovação aos 35d (faltam 10)
 const CYCLE_MAX_DAYS = 45;
@@ -701,6 +702,7 @@ const Consultoria = () => {
     { value: 'dietas', label: 'Dietas', icon: Utensils, count: null },
     { value: 'treinos', label: 'Treinos', icon: Dumbbell, count: null },
     { value: 'fichas', label: 'Fichas', icon: ClipboardList, count: totals.fichasPendentes },
+    { value: 'videos', label: 'Vídeos', icon: Video, count: null },
     { value: 'push_hoje', label: 'Notificações', icon: Send, count: null },
   ];
 
