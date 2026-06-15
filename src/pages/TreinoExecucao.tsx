@@ -193,6 +193,7 @@ const TreinoExecucao = () => {
   const [summary, setSummary] = useState<{ duration: number; completed: number } | null>(null);
   const [showPhaseInfo, setShowPhaseInfo] = useState(false);
   const [showAdjust, setShowAdjust] = useState(false);
+  const [showVideoCapture, setShowVideoCapture] = useState(false);
   const [showLoadHistory, setShowLoadHistory] = useState(false);
   const currentPhase = phase ?? getPhaseByMonthDay();
   const videoRef = useRef<HTMLVideoElement | null>(null);
