@@ -45,7 +45,7 @@ const StudentExerciseVideos: React.FC<Props> = ({ studentId, studentPhone, stude
   const load = async () => {
     const { data } = await supabase
       .from('exercise_execution_videos')
-      .select('id, exercise_name, cf_uid, playback_url, thumbnail_url, duration_seconds, status, admin_note, reviewed_at, created_at, workout_session_id, workout_sessions:workout_sessions(day_name, phase)')
+      .select('id, exercise_name, cf_uid, playback_url, thumbnail_url, duration_seconds, status, admin_note, reviewed_at, created_at, workout_session_id')
       .eq('student_id', studentId)
       .order('created_at', { ascending: false });
     setRows((data as any) ?? []);
