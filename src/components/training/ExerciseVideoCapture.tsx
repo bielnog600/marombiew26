@@ -59,7 +59,7 @@ const ExerciseVideoCapture: React.FC<Props> = ({
   const [progress, setProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const online = useOnlineStatus();
+  const { online } = useOnlineStatus();
 
   useEffect(() => {
     let cancelled = false;
