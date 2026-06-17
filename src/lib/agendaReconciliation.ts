@@ -96,7 +96,7 @@ export async function reconcileAgendaPackages(opts: {
   let pendingQ = supabase
     .from('calendar_events')
     .select('id, title, start_datetime, status, admin_id')
-    .in('status', ['agendado', 'confirmado'])
+    .in('status', ['pendente', 'confirmado'])
     .gte('start_datetime', from)
     .lte('start_datetime', to);
   if (adminId) pendingQ = pendingQ.eq('admin_id', adminId);
