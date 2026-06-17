@@ -6,6 +6,7 @@ import {
   linkOrCreateAgendaEventForSession,
   completeAgendaEventForSession,
 } from '@/lib/agendaAutoLink';
+import { getStudentActivePackage, deductClassCredit } from '@/hooks/useFinancial';
 
 export type AdminSessionMode = 'individual' | 'duo';
 
@@ -278,6 +279,33 @@ export const AdminTrainerSessionProvider: React.FC<{ children: React.ReactNode }
           } catch (e) {
             console.error('agenda complete failed', e);
           }
+        } else {
+          // Sem evento de agenda vinculado — ainda assim tentar descontar crédito
+          try {
+            const pkg = await getStudentActivePackage(s.id);
+            if (pkg && pkg.remaining_classes > 0) {
+              await deductClassCredit({
+                student_id: s.id,
+                package_id: pkg.id,
+                reason: 'Aula concluída (sessão de treino do admin)',
+                created_by: user.id,
+                action_type: 'use_credit',
+              });
+            }
+          } catch (e) {
+            console.error('deduct credit (no event) failed', e);
+          }
+        }
+        // Feedback explícito por aluno
+        try {
+          const pkgAfter = await getStudentActivePackage(s.id);
+          if (pkgAfter) {
+            toast.success(`${s.nome}: 1 aula descontada — restam ${pkgAfter.remaining_classes}.`);
+          } else {
+            toast.info(`${s.nome}: sem pacote ativo para descontar.`);
+          }
+        } catch {
+          // ignore
         }
       }
 
