@@ -88,8 +88,75 @@ export async function reconcileAgendaPackages(opts: {
     .gte('start_datetime', from)
     .lte('start_datetime', to);
   if (adminId) q = q.eq('admin_id', adminId);
-  const { data: evs, error: evErr } = await q;
-  if (evErr || !evs || evs.length === 0) {
+  const { data: evsRaw, error: evErr } = await q;
+
+  // 1.b) Detecta eventos AGENDADOS/CONFIRMADOS cujo aluno já completou o treino
+  //     próximo ao horário do evento — auto-marca como concluído antes de
+  //     conferir o débito de crédito.
+  let pendingQ = supabase
+    .from('calendar_events')
+    .select('id, title, start_datetime, status, admin_id')
+    .in('status', ['agendado', 'confirmado'])
+    .gte('start_datetime', from)
+    .lte('start_datetime', to);
+  if (adminId) pendingQ = pendingQ.eq('admin_id', adminId);
+  const { data: pendingEvs } = await pendingQ;
+
+  const autoConcluded: typeof evsRaw = [];
+  if (pendingEvs && pendingEvs.length > 0) {
+    const pIds = pendingEvs.map(e => e.id);
+    const { data: pCes } = await supabase
+      .from('calendar_event_students')
+      .select('event_id, student_id')
+      .in('event_id', pIds);
+    const studentsByEvent = new Map<string, string[]>();
+    (pCes || []).forEach(c => {
+      const arr = studentsByEvent.get(c.event_id) || [];
+      arr.push(c.student_id);
+      studentsByEvent.set(c.event_id, arr);
+    });
+
+    const allStudentIds = [...new Set((pCes || []).map(c => c.student_id))];
+    let sessions: { student_id: string; completed_at: string; calendar_event_id: string | null }[] = [];
+    if (allStudentIds.length > 0) {
+      const { data: ws } = await supabase
+        .from('workout_sessions')
+        .select('student_id, completed_at, calendar_event_id')
+        .eq('status', 'completed')
+        .in('student_id', allStudentIds)
+        .gte('completed_at', new Date(new Date(from).getTime() - 4 * 60 * 60 * 1000).toISOString())
+        .lte('completed_at', new Date(new Date(to).getTime() + 6 * 60 * 60 * 1000).toISOString());
+      sessions = (ws || []) as any;
+    }
+
+    const toConclude: string[] = [];
+    for (const ev of pendingEvs) {
+      const studs = studentsByEvent.get(ev.id) || [];
+      if (studs.length === 0) continue;
+      const evStart = new Date(ev.start_datetime).getTime();
+      // Janela: 2h antes até 6h depois do início do evento
+      const matched = sessions.some(s => {
+        if (!studs.includes(s.student_id)) return false;
+        if (s.calendar_event_id && s.calendar_event_id !== ev.id) return false;
+        const t = new Date(s.completed_at).getTime();
+        return t >= evStart - 2 * 3600 * 1000 && t <= evStart + 6 * 3600 * 1000;
+      });
+      if (matched) {
+        toConclude.push(ev.id);
+        autoConcluded.push({ ...ev, status: 'concluido' });
+      }
+    }
+
+    if (toConclude.length > 0 && !dryRun) {
+      await supabase
+        .from('calendar_events')
+        .update({ status: 'concluido' })
+        .in('id', toConclude);
+    }
+  }
+
+  const evs = [...(evsRaw || []), ...autoConcluded];
+  if (evs.length === 0) {
     return { scanned: 0, ok: 0, fixed: 0, pending: 0, items: [] };
   }
 
