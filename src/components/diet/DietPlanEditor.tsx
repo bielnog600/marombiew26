@@ -728,7 +728,7 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
                         <TableCell className="px-2 py-1.5 text-muted-foreground">
                           <PortionCell
                             food={food}
-                            dbDensity={getFoodDbDensity(food.food)}
+                            dbDensity={getFoodFallbackDensity(food.food)}
                             onCommit={(qty, density) => applyPortion(mealIdx, foodIdx, qty, density)}
                           />
                         </TableCell>
