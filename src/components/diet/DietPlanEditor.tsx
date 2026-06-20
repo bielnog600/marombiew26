@@ -656,6 +656,7 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
                         <TableCell className="px-2 py-1.5 text-muted-foreground">
                           <PortionCell
                             food={food}
+                            dbDensity={getFoodDbDensity(food.food)}
                             onCommit={(qty, density) => applyPortion(mealIdx, foodIdx, qty, density)}
                           />
                         </TableCell>
@@ -748,20 +749,15 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
  */
 interface PortionCellProps {
   food: ParsedFood;
+  dbDensity?: MacroDensity;
   onCommit: (
     qty: number,
-    density: { kcal: number; p: number; c: number; g: number },
+    density: MacroDensity,
   ) => void;
 }
 
-const PortionCell: React.FC<PortionCellProps> = ({ food, onCommit }) => {
-  const initialQty = useMemo(() => num(stripG(food.qty)), []); // eslint-disable-line react-hooks/exhaustive-deps
-  const densityRef = useRef<{ kcal: number; p: number; c: number; g: number }>({
-    kcal: initialQty > 0 ? num(food.kcal) / initialQty : 0,
-    p: initialQty > 0 ? num(food.p) / initialQty : 0,
-    c: initialQty > 0 ? num(food.c) / initialQty : 0,
-    g: initialQty > 0 ? num(food.g) / initialQty : 0,
-  });
+const PortionCell: React.FC<PortionCellProps> = ({ food, dbDensity, onCommit }) => {
+  const densityRef = useRef<MacroDensity>(buildDensityFromFood(food, dbDensity));
   // Edit only the numeric part — never display " g" inside the input, or
   // it gets injected back into the value while the user is still typing.
   const [text, setText] = useState<string>(() => {
@@ -771,15 +767,20 @@ const PortionCell: React.FC<PortionCellProps> = ({ food, onCommit }) => {
   const editingRef = useRef(false);
 
   // Sync when the parent food changes from outside (substitution, AI edit,
-  // ajustar porções). When that happens, reset the density baseline too.
+  // ajustar porções). While typing, keep the original density baseline so live
+  // updates do not compound from each keystroke; only fill missing zero fields
+  // from the database fallback when available.
   useEffect(() => {
     const q = num(stripG(food.qty));
-    if (q > 0) {
+    const nextDensity = buildDensityFromFood(food, dbDensity);
+    if (!editingRef.current) {
+      densityRef.current = nextDensity;
+    } else if (hasDensity(dbDensity)) {
       densityRef.current = {
-        kcal: num(food.kcal) / q,
-        p: num(food.p) / q,
-        c: num(food.c) / q,
-        g: num(food.g) / q,
+        kcal: densityRef.current.kcal > 0 ? densityRef.current.kcal : dbDensity!.kcal,
+        p: densityRef.current.p > 0 ? densityRef.current.p : dbDensity!.p,
+        c: densityRef.current.c > 0 ? densityRef.current.c : dbDensity!.c,
+        g: densityRef.current.g > 0 ? densityRef.current.g : dbDensity!.g,
       };
     }
     // Do NOT overwrite the input while the user is actively editing — the
@@ -788,7 +789,7 @@ const PortionCell: React.FC<PortionCellProps> = ({ food, onCommit }) => {
     if (!editingRef.current) {
       setText(q > 0 ? String(q) : '');
     }
-  }, [food.food, food.qty, food.kcal, food.p, food.c, food.g]);
+  }, [food.food, food.qty, food.kcal, food.p, food.c, food.g, dbDensity]);
 
   const commit = () => {
     editingRef.current = false;
