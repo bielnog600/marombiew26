@@ -339,33 +339,35 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
      toast.success(`Porções ajustadas para ${target} kcal`);
    }, [target]);
 
-   const handlePortionChange = (mealIdx: number, foodIdx: number, newQtyStr: string) => {
-     const newQty = num(newQtyStr);
-     if (newQty <= 0) return;
-
+   /**
+    * Apply a new portion using a stable density (per-gram) baseline supplied
+    * by the row component. This avoids the compounding-factor bug where
+    * intermediate keystrokes (e.g. user clears "150" to type "200") would
+    * zero out the macros and never recover.
+    */
+   const applyPortion = useCallback((
+     mealIdx: number,
+     foodIdx: number,
+     newQty: number,
+     density: { kcal: number; p: number; c: number; g: number },
+   ) => {
+     if (!Number.isFinite(newQty) || newQty <= 0) return;
      updateMeals((prev) => {
        const updated = [...prev];
        const meal = { ...updated[mealIdx] };
        const foods = [...meal.foods];
        const food = { ...foods[foodIdx] };
-
-       const oldQty = num(stripG(food.qty));
-       if (oldQty <= 0) return prev;
-
-       const factor = newQty / oldQty;
-
        food.qty = `${newQty} g`;
-       food.kcal = fmt(num(food.kcal) * factor);
-       food.p = fmt(num(food.p) * factor);
-       food.c = fmt(num(food.c) * factor);
-       food.g = fmt(num(food.g) * factor);
-
+       food.kcal = fmt(density.kcal * newQty);
+       food.p = fmt(density.p * newQty);
+       food.c = fmt(density.c * newQty);
+       food.g = fmt(density.g * newQty);
        foods[foodIdx] = food;
        meal.foods = foods;
        updated[mealIdx] = meal;
        return updated;
      });
-   };
+   }, [updateMeals]);
 
   if (days.length === 0) {
     return (
@@ -555,14 +557,12 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
                       >
                         {food.food}
                       </TableCell>
-                       <TableCell className="px-2 py-1.5 text-muted-foreground">
-                         <Input
-                           type="text"
-                           value={food.qty || ''}
-                           onChange={(e) => handlePortionChange(mealIdx, foodIdx, e.target.value)}
-                           className="h-7 w-20 text-xs px-1 bg-transparent border-dashed border-muted-foreground/30 focus:border-primary transition-all"
-                         />
-                       </TableCell>
+                        <TableCell className="px-2 py-1.5 text-muted-foreground">
+                          <PortionCell
+                            food={food}
+                            onCommit={(qty, density) => applyPortion(mealIdx, foodIdx, qty, density)}
+                          />
+                        </TableCell>
                       <TableCell className="px-2 py-1.5 text-right">{food.kcal || '—'}</TableCell>
                       <TableCell className="px-2 py-1.5 text-right">{food.p || '—'}</TableCell>
                       <TableCell className="px-2 py-1.5 text-right">{food.c || '—'}</TableCell>
