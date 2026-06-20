@@ -44,6 +44,40 @@ const num = (v?: string) => {
 };
 const fmt = (v: number) => Number.isInteger(v) ? String(v) : (Math.round(v * 10) / 10).toFixed(1);
 
+type MacroDensity = { kcal: number; p: number; c: number; g: number };
+
+const ZERO_DENSITY: MacroDensity = { kcal: 0, p: 0, c: 0, g: 0 };
+const hasDensity = (d?: MacroDensity) => Boolean(d && (d.kcal > 0 || d.p > 0 || d.c > 0 || d.g > 0));
+
+const normalizeFoodKey = (value: string) =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const STOP_FOOD_TOKENS = new Set(['com', 'sem', 'de', 'da', 'do', 'das', 'dos', 'ao', 'a', 'o', 'e', 'g', 'grama', 'gramas', 'porcao', 'cozido', 'cru', 'grelhado', 'assado', 'frito', 'picado']);
+const foodTokens = (value: string) => normalizeFoodKey(value).split(' ').filter((token) => token.length > 2 && !STOP_FOOD_TOKENS.has(token));
+
+const buildDensityFromFood = (food: ParsedFood, dbDensity?: MacroDensity): MacroDensity => {
+  const q = num(stripG(food.qty));
+  const local: MacroDensity = q > 0
+    ? { kcal: num(food.kcal) / q, p: num(food.p) / q, c: num(food.c) / q, g: num(food.g) / q }
+    : ZERO_DENSITY;
+  const merged: MacroDensity = {
+    kcal: local.kcal > 0 ? local.kcal : dbDensity?.kcal ?? 0,
+    p: local.p > 0 ? local.p : dbDensity?.p ?? 0,
+    c: local.c > 0 ? local.c : dbDensity?.c ?? 0,
+    g: local.g > 0 ? local.g : dbDensity?.g ?? 0,
+  };
+  if (merged.kcal <= 0 && (merged.p > 0 || merged.c > 0 || merged.g > 0)) {
+    merged.kcal = merged.p * 4 + merged.c * 4 + merged.g * 9;
+  }
+  return merged;
+};
+
 /** Canonical meal order for resorting after a rename/swap */
 const MEAL_ORDER = [
   'café da manhã',
@@ -185,7 +219,13 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
   const [days, setDays] = useState<{ label: string; meals: ParsedMeal[] }[]>(initialDays);
   const [activeDayIdx, setActiveDayIdx] = useState(0);
   const activeDayIdxRef = useRef(0);
+  const onMealsChangeRef = useRef(onMealsChange);
+  const onDaysChangeRef = useRef(onDaysChange);
   useEffect(() => { activeDayIdxRef.current = activeDayIdx; }, [activeDayIdx]);
+  useEffect(() => {
+    onMealsChangeRef.current = onMealsChange;
+    onDaysChangeRef.current = onDaysChange;
+  }, [onMealsChange, onDaysChange]);
   const meals = days[activeDayIdx]?.meals ?? [];
   const setMeals = useCallback((updater: React.SetStateAction<ParsedMeal[]>) => {
     setDays((prev) => {
@@ -202,6 +242,64 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
   const [addingForMeal, setAddingForMeal] = useState<number | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
 
+  const { data: foodMacroRows = [] } = useQuery({
+    queryKey: ['foods-macro-density'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('foods')
+        .select('name, calories, protein, carbs, fats, portion_size')
+        .order('name');
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const foodDensityIndex = useMemo(() => {
+    const exact = new Map<string, { density: MacroDensity; tokens: string[] }>();
+    const entries = (foodMacroRows as any[]).map((row) => {
+      const base = Number(row.portion_size) || 100;
+      const density: MacroDensity = {
+        kcal: base > 0 ? num(String(row.calories)) / base : 0,
+        p: base > 0 ? num(String(row.protein)) / base : 0,
+        c: base > 0 ? num(String(row.carbs)) / base : 0,
+        g: base > 0 ? num(String(row.fats)) / base : 0,
+      };
+      const key = normalizeFoodKey(row.name || '');
+      const item = { key, density, tokens: foodTokens(key) };
+      if (key && hasDensity(density)) exact.set(key, item);
+      return item;
+    }).filter((item) => item.key && hasDensity(item.density));
+    return { exact, entries };
+  }, [foodMacroRows]);
+
+  const getFoodDbDensity = useCallback((foodName: string): MacroDensity | undefined => {
+    const key = normalizeFoodKey(foodName);
+    if (!key) return undefined;
+    const exactMatch = foodDensityIndex.exact.get(key);
+    if (exactMatch) return exactMatch.density;
+    const queryTokens = foodTokens(key);
+    if (!queryTokens.length) return undefined;
+
+    let best: MacroDensity | undefined;
+    let bestScore = 0;
+    for (const entry of foodDensityIndex.entries) {
+      let score = 0;
+      if (entry.key.includes(key) || key.includes(entry.key)) {
+        score = 100 + Math.min(entry.key.length, key.length);
+      } else {
+        const overlap = queryTokens.filter((token) => entry.tokens.includes(token)).length;
+        const required = queryTokens.length === 1 ? 1 : Math.min(2, queryTokens.length);
+        if (overlap >= required) score = overlap / Math.max(queryTokens.length, entry.tokens.length);
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        best = entry.density;
+      }
+    }
+    return bestScore > 0 ? best : undefined;
+  }, [foodDensityIndex]);
+
   // Reset when source markdown changes
   useEffect(() => {
     const fresh = extractDays(markdown);
@@ -214,9 +312,9 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
   // Notify parent — keep legacy single-day callback for fallback paths and
   // emit full per-day structure when supported.
   useEffect(() => {
-    onMealsChange(days[0]?.meals ?? []);
-    if (onDaysChange) onDaysChange(days);
-  }, [days, onMealsChange, onDaysChange]);
+    onMealsChangeRef.current(days[0]?.meals ?? []);
+    if (onDaysChangeRef.current) onDaysChangeRef.current(days);
+  }, [days]);
 
   // When user switches day tab, sync the "Meta diária" input with that
   // day's actual kcal so carb-cycle days don't show false "ultrapassou".
@@ -340,16 +438,14 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
    }, [target]);
 
    /**
-    * Apply a new portion using a stable density (per-gram) baseline supplied
-    * by the row component. This avoids the compounding-factor bug where
-    * intermediate keystrokes (e.g. user clears "150" to type "200") would
-    * zero out the macros and never recover.
+     * Apply a new portion using a stable per-gram density baseline. Fields that
+     * do not have a known density are preserved instead of being forced to 0.
     */
    const applyPortion = useCallback((
      mealIdx: number,
      foodIdx: number,
      newQty: number,
-     density: { kcal: number; p: number; c: number; g: number },
+      density: MacroDensity,
    ) => {
      if (!Number.isFinite(newQty) || newQty <= 0) return;
      updateMeals((prev) => {
@@ -358,10 +454,10 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
        const foods = [...meal.foods];
        const food = { ...foods[foodIdx] };
        food.qty = `${newQty} g`;
-       food.kcal = fmt(density.kcal * newQty);
-       food.p = fmt(density.p * newQty);
-       food.c = fmt(density.c * newQty);
-       food.g = fmt(density.g * newQty);
+        if (density.kcal > 0) food.kcal = fmt(density.kcal * newQty);
+        if (density.p > 0) food.p = fmt(density.p * newQty);
+        if (density.c > 0) food.c = fmt(density.c * newQty);
+        if (density.g > 0) food.g = fmt(density.g * newQty);
        foods[foodIdx] = food;
        meal.foods = foods;
        updated[mealIdx] = meal;
