@@ -643,8 +643,6 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
   );
 };
 
-/* ---------------- Add-food picker ---------------- */
-
 /* ---------------- Portion cell ----------------
  * Editable portion (grams) input with a stable per-gram macro density
  * baseline. Density is captured on mount from the food's current values so
