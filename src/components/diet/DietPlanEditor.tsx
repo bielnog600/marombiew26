@@ -339,33 +339,35 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
      toast.success(`Porções ajustadas para ${target} kcal`);
    }, [target]);
 
-   const handlePortionChange = (mealIdx: number, foodIdx: number, newQtyStr: string) => {
-     const newQty = num(newQtyStr);
-     if (newQty <= 0) return;
-
+   /**
+    * Apply a new portion using a stable density (per-gram) baseline supplied
+    * by the row component. This avoids the compounding-factor bug where
+    * intermediate keystrokes (e.g. user clears "150" to type "200") would
+    * zero out the macros and never recover.
+    */
+   const applyPortion = useCallback((
+     mealIdx: number,
+     foodIdx: number,
+     newQty: number,
+     density: { kcal: number; p: number; c: number; g: number },
+   ) => {
+     if (!Number.isFinite(newQty) || newQty <= 0) return;
      updateMeals((prev) => {
        const updated = [...prev];
        const meal = { ...updated[mealIdx] };
        const foods = [...meal.foods];
        const food = { ...foods[foodIdx] };
-
-       const oldQty = num(stripG(food.qty));
-       if (oldQty <= 0) return prev;
-
-       const factor = newQty / oldQty;
-
        food.qty = `${newQty} g`;
-       food.kcal = fmt(num(food.kcal) * factor);
-       food.p = fmt(num(food.p) * factor);
-       food.c = fmt(num(food.c) * factor);
-       food.g = fmt(num(food.g) * factor);
-
+       food.kcal = fmt(density.kcal * newQty);
+       food.p = fmt(density.p * newQty);
+       food.c = fmt(density.c * newQty);
+       food.g = fmt(density.g * newQty);
        foods[foodIdx] = food;
        meal.foods = foods;
        updated[mealIdx] = meal;
        return updated;
      });
-   };
+   }, [updateMeals]);
 
   if (days.length === 0) {
     return (
@@ -555,14 +557,12 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
                       >
                         {food.food}
                       </TableCell>
-                       <TableCell className="px-2 py-1.5 text-muted-foreground">
-                         <Input
-                           type="text"
-                           value={food.qty || ''}
-                           onChange={(e) => handlePortionChange(mealIdx, foodIdx, e.target.value)}
-                           className="h-7 w-20 text-xs px-1 bg-transparent border-dashed border-muted-foreground/30 focus:border-primary transition-all"
-                         />
-                       </TableCell>
+                        <TableCell className="px-2 py-1.5 text-muted-foreground">
+                          <PortionCell
+                            food={food}
+                            onCommit={(qty, density) => applyPortion(mealIdx, foodIdx, qty, density)}
+                          />
+                        </TableCell>
                       <TableCell className="px-2 py-1.5 text-right">{food.kcal || '—'}</TableCell>
                       <TableCell className="px-2 py-1.5 text-right">{food.p || '—'}</TableCell>
                       <TableCell className="px-2 py-1.5 text-right">{food.c || '—'}</TableCell>
@@ -640,6 +640,73 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
         }}
       />
     </div>
+  );
+};
+
+/* ---------------- Portion cell ----------------
+ * Editable portion (grams) input with a stable per-gram macro density
+ * baseline. Density is captured on mount from the food's current values so
+ * that successive edits never compound (which previously zeroed macros when
+ * the user cleared the field mid-type).
+ * Commits on blur / Enter — keystrokes are local-only.
+ */
+interface PortionCellProps {
+  food: ParsedFood;
+  onCommit: (
+    qty: number,
+    density: { kcal: number; p: number; c: number; g: number },
+  ) => void;
+}
+
+const PortionCell: React.FC<PortionCellProps> = ({ food, onCommit }) => {
+  const initialQty = useMemo(() => num(stripG(food.qty)), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const densityRef = useRef<{ kcal: number; p: number; c: number; g: number }>({
+    kcal: initialQty > 0 ? num(food.kcal) / initialQty : 0,
+    p: initialQty > 0 ? num(food.p) / initialQty : 0,
+    c: initialQty > 0 ? num(food.c) / initialQty : 0,
+    g: initialQty > 0 ? num(food.g) / initialQty : 0,
+  });
+  const [text, setText] = useState<string>(food.qty || '');
+
+  // Sync when the parent food changes from outside (substitution, AI edit,
+  // ajustar porções). When that happens, reset the density baseline too.
+  useEffect(() => {
+    setText(food.qty || '');
+    const q = num(stripG(food.qty));
+    if (q > 0) {
+      densityRef.current = {
+        kcal: num(food.kcal) / q,
+        p: num(food.p) / q,
+        c: num(food.c) / q,
+        g: num(food.g) / q,
+      };
+    }
+  }, [food.food, food.qty, food.kcal, food.p, food.c, food.g]);
+
+  const commit = () => {
+    const qty = num(text);
+    if (qty <= 0) {
+      setText(food.qty || '');
+      return;
+    }
+    onCommit(qty, densityRef.current);
+  };
+
+  return (
+    <Input
+      type="text"
+      inputMode="decimal"
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
+      className="h-7 w-20 text-xs px-1 bg-transparent border-dashed border-muted-foreground/30 focus:border-primary transition-all"
+    />
   );
 };
 
