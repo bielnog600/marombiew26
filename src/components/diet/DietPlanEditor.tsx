@@ -46,6 +46,16 @@ const fmt = (v: number) => Number.isInteger(v) ? String(v) : (Math.round(v * 10)
 
 type MacroDensity = { kcal: number; p: number; c: number; g: number };
 
+type DbFoodRow = {
+  id?: string;
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fats: number;
+  portion_size: number;
+};
+
 const ZERO_DENSITY: MacroDensity = { kcal: 0, p: 0, c: 0, g: 0 };
 const hasDensity = (d?: MacroDensity) => Boolean(d && (d.kcal > 0 || d.p > 0 || d.c > 0 || d.g > 0));
 
@@ -242,7 +252,7 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
   const [addingForMeal, setAddingForMeal] = useState<number | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
 
-  const { data: foodMacroRows = [] } = useQuery({
+  const { data: foodMacroRows = [] } = useQuery<DbFoodRow[]>({
     queryKey: ['foods-macro-density'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -250,14 +260,14 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
         .select('name, calories, protein, carbs, fats, portion_size')
         .order('name');
       if (error) throw error;
-      return data || [];
+      return (data || []) as DbFoodRow[];
     },
     staleTime: 5 * 60 * 1000,
   });
 
   const foodDensityIndex = useMemo(() => {
     const exact = new Map<string, { density: MacroDensity; tokens: string[] }>();
-    const entries = (foodMacroRows as any[]).map((row) => {
+    const entries = foodMacroRows.map((row) => {
       const base = Number(row.portion_size) || 100;
       const density: MacroDensity = {
         kcal: base > 0 ? num(String(row.calories)) / base : 0,
@@ -847,12 +857,12 @@ const AddFoodPicker: React.FC<AddFoodPickerProps> = ({ open, onOpenChange, onAdd
   const [search, setSearch] = useState('');
   const [portion, setPortion] = useState<number>(100);
 
-  const { data: foods = [] } = useQuery({
+  const { data: foods = [] } = useQuery<DbFoodRow[]>({
     queryKey: ['foods-add-picker'],
     queryFn: async () => {
       const { data, error } = await supabase.from('foods').select('*').order('name');
       if (error) throw error;
-      return data || [];
+      return (data || []) as DbFoodRow[];
     },
     enabled: open,
     staleTime: 5 * 60 * 1000,
@@ -861,10 +871,10 @@ const AddFoodPicker: React.FC<AddFoodPickerProps> = ({ open, onOpenChange, onAdd
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return foods.slice(0, 25);
-    return foods.filter((f: any) => f.name.toLowerCase().includes(q)).slice(0, 25);
+    return foods.filter((f) => f.name.toLowerCase().includes(q)).slice(0, 25);
   }, [foods, search]);
 
-  const handlePick = (dbFood: any) => {
+  const handlePick = (dbFood: DbFoodRow) => {
     const base = dbFood.portion_size || 100;
     const scale = portion / base;
     onAdd({
@@ -912,7 +922,7 @@ const AddFoodPicker: React.FC<AddFoodPickerProps> = ({ open, onOpenChange, onAdd
               <p className="text-xs text-muted-foreground py-4 text-center">Nenhum alimento encontrado.</p>
             ) : (
               <ul className="divide-y divide-border">
-                {filtered.map((f: any) => (
+                {filtered.map((f) => (
                   <li key={f.id}>
                     <button
                       type="button"
