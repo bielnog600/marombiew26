@@ -88,6 +88,16 @@ const buildDensityFromFood = (food: ParsedFood, dbDensity?: MacroDensity): Macro
   return merged;
 };
 
+const mergeDensity = (primary?: MacroDensity, fallback?: MacroDensity): MacroDensity | undefined => {
+  if (!hasDensity(primary) && !hasDensity(fallback)) return undefined;
+  return {
+    kcal: primary?.kcal && primary.kcal > 0 ? primary.kcal : fallback?.kcal ?? 0,
+    p: primary?.p && primary.p > 0 ? primary.p : fallback?.p ?? 0,
+    c: primary?.c && primary.c > 0 ? primary.c : fallback?.c ?? 0,
+    g: primary?.g && primary.g > 0 ? primary.g : fallback?.g ?? 0,
+  };
+};
+
 /** Canonical meal order for resorting after a rename/swap */
 const MEAL_ORDER = [
   'café da manhã',
@@ -283,6 +293,32 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
     return { exact, entries };
   }, [foodMacroRows]);
 
+  const planDensityIndex = useMemo(() => {
+    const exact = new Map<string, { density: MacroDensity; tokens: string[] }>();
+    const entries: { key: string; density: MacroDensity; tokens: string[] }[] = [];
+    for (const day of currentPlan?.days ?? []) {
+      for (const meal of day.meals ?? []) {
+        for (const item of meal.items ?? []) {
+          const grams = Number(item.qtyGrams) || num(item.portionLabel || '');
+          if (grams <= 0) continue;
+          const density: MacroDensity = {
+            kcal: Number(item.macros?.kcal || 0) / grams,
+            p: Number(item.macros?.p || 0) / grams,
+            c: Number(item.macros?.c || 0) / grams,
+            g: Number(item.macros?.g || 0) / grams,
+          };
+          if (!hasDensity(density)) continue;
+          const key = normalizeFoodKey(item.name || '');
+          if (!key) continue;
+          const entry = { key, density, tokens: foodTokens(key) };
+          exact.set(key, entry);
+          entries.push(entry);
+        }
+      }
+    }
+    return { exact, entries };
+  }, [currentPlan]);
+
   const getFoodDbDensity = useCallback((foodName: string): MacroDensity | undefined => {
     const key = normalizeFoodKey(foodName);
     if (!key) return undefined;
@@ -309,6 +345,32 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
     }
     return bestScore > 0 ? best : undefined;
   }, [foodDensityIndex]);
+
+  const getIndexedDensity = useCallback((foodName: string, index: typeof foodDensityIndex): MacroDensity | undefined => {
+    const key = normalizeFoodKey(foodName);
+    if (!key) return undefined;
+    const exactMatch = index.exact.get(key);
+    if (exactMatch) return exactMatch.density;
+    const queryTokens = foodTokens(key);
+    if (!queryTokens.length) return undefined;
+    let best: MacroDensity | undefined;
+    let bestScore = 0;
+    for (const entry of index.entries) {
+      const overlap = queryTokens.filter((token) => entry.tokens.includes(token)).length;
+      const score = entry.key.includes(key) || key.includes(entry.key)
+        ? 100 + Math.min(entry.key.length, key.length)
+        : overlap / Math.max(queryTokens.length, entry.tokens.length || 1);
+      if (overlap > 0 && score > bestScore) {
+        bestScore = score;
+        best = entry.density;
+      }
+    }
+    return bestScore > 0 ? best : undefined;
+  }, []);
+
+  const getFoodFallbackDensity = useCallback((foodName: string): MacroDensity | undefined => {
+    return mergeDensity(getIndexedDensity(foodName, planDensityIndex), getFoodDbDensity(foodName));
+  }, [getFoodDbDensity, getIndexedDensity, planDensityIndex]);
 
   // Reset when source markdown changes
   useEffect(() => {
