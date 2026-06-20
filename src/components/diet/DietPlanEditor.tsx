@@ -645,6 +645,75 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
 
 /* ---------------- Add-food picker ---------------- */
 
+/* ---------------- Portion cell ----------------
+ * Editable portion (grams) input with a stable per-gram macro density
+ * baseline. Density is captured on mount from the food's current values so
+ * that successive edits never compound (which previously zeroed macros when
+ * the user cleared the field mid-type).
+ * Commits on blur / Enter — keystrokes are local-only.
+ */
+interface PortionCellProps {
+  food: ParsedFood;
+  onCommit: (
+    qty: number,
+    density: { kcal: number; p: number; c: number; g: number },
+  ) => void;
+}
+
+const PortionCell: React.FC<PortionCellProps> = ({ food, onCommit }) => {
+  const initialQty = useMemo(() => num(stripG(food.qty)), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const densityRef = useRef<{ kcal: number; p: number; c: number; g: number }>({
+    kcal: initialQty > 0 ? num(food.kcal) / initialQty : 0,
+    p: initialQty > 0 ? num(food.p) / initialQty : 0,
+    c: initialQty > 0 ? num(food.c) / initialQty : 0,
+    g: initialQty > 0 ? num(food.g) / initialQty : 0,
+  });
+  const [text, setText] = useState<string>(food.qty || '');
+
+  // Sync when the parent food changes from outside (substitution, AI edit,
+  // ajustar porções). When that happens, reset the density baseline too.
+  useEffect(() => {
+    setText(food.qty || '');
+    const q = num(stripG(food.qty));
+    if (q > 0) {
+      densityRef.current = {
+        kcal: num(food.kcal) / q,
+        p: num(food.p) / q,
+        c: num(food.c) / q,
+        g: num(food.g) / q,
+      };
+    }
+  }, [food.food, food.qty, food.kcal, food.p, food.c, food.g]);
+
+  const commit = () => {
+    const qty = num(text);
+    if (qty <= 0) {
+      setText(food.qty || '');
+      return;
+    }
+    onCommit(qty, densityRef.current);
+  };
+
+  return (
+    <Input
+      type="text"
+      inputMode="decimal"
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
+      className="h-7 w-20 text-xs px-1 bg-transparent border-dashed border-muted-foreground/30 focus:border-primary transition-all"
+    />
+  );
+};
+
+/* ---------------- Add-food picker ---------------- */
+
 interface AddFoodPickerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
