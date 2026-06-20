@@ -44,6 +44,60 @@ const num = (v?: string) => {
 };
 const fmt = (v: number) => Number.isInteger(v) ? String(v) : (Math.round(v * 10) / 10).toFixed(1);
 
+type MacroDensity = { kcal: number; p: number; c: number; g: number };
+
+type DbFoodRow = {
+  id?: string;
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fats: number;
+  portion_size: number;
+};
+
+const ZERO_DENSITY: MacroDensity = { kcal: 0, p: 0, c: 0, g: 0 };
+const hasDensity = (d?: MacroDensity) => Boolean(d && (d.kcal > 0 || d.p > 0 || d.c > 0 || d.g > 0));
+
+const normalizeFoodKey = (value: string) =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const STOP_FOOD_TOKENS = new Set(['com', 'sem', 'de', 'da', 'do', 'das', 'dos', 'ao', 'a', 'o', 'e', 'g', 'grama', 'gramas', 'porcao', 'cozido', 'cru', 'grelhado', 'assado', 'frito', 'picado']);
+const foodTokens = (value: string) => normalizeFoodKey(value).split(' ').filter((token) => token.length > 2 && !STOP_FOOD_TOKENS.has(token));
+
+const buildDensityFromFood = (food: ParsedFood, dbDensity?: MacroDensity): MacroDensity => {
+  const q = num(stripG(food.qty));
+  const local: MacroDensity = q > 0
+    ? { kcal: num(food.kcal) / q, p: num(food.p) / q, c: num(food.c) / q, g: num(food.g) / q }
+    : ZERO_DENSITY;
+  const merged: MacroDensity = {
+    kcal: local.kcal > 0 ? local.kcal : dbDensity?.kcal ?? 0,
+    p: local.p > 0 ? local.p : dbDensity?.p ?? 0,
+    c: local.c > 0 ? local.c : dbDensity?.c ?? 0,
+    g: local.g > 0 ? local.g : dbDensity?.g ?? 0,
+  };
+  if (merged.kcal <= 0 && (merged.p > 0 || merged.c > 0 || merged.g > 0)) {
+    merged.kcal = merged.p * 4 + merged.c * 4 + merged.g * 9;
+  }
+  return merged;
+};
+
+const mergeDensity = (primary?: MacroDensity, fallback?: MacroDensity): MacroDensity | undefined => {
+  if (!hasDensity(primary) && !hasDensity(fallback)) return undefined;
+  return {
+    kcal: primary?.kcal && primary.kcal > 0 ? primary.kcal : fallback?.kcal ?? 0,
+    p: primary?.p && primary.p > 0 ? primary.p : fallback?.p ?? 0,
+    c: primary?.c && primary.c > 0 ? primary.c : fallback?.c ?? 0,
+    g: primary?.g && primary.g > 0 ? primary.g : fallback?.g ?? 0,
+  };
+};
+
 /** Canonical meal order for resorting after a rename/swap */
 const MEAL_ORDER = [
   'café da manhã',
@@ -185,7 +239,13 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
   const [days, setDays] = useState<{ label: string; meals: ParsedMeal[] }[]>(initialDays);
   const [activeDayIdx, setActiveDayIdx] = useState(0);
   const activeDayIdxRef = useRef(0);
+  const onMealsChangeRef = useRef(onMealsChange);
+  const onDaysChangeRef = useRef(onDaysChange);
   useEffect(() => { activeDayIdxRef.current = activeDayIdx; }, [activeDayIdx]);
+  useEffect(() => {
+    onMealsChangeRef.current = onMealsChange;
+    onDaysChangeRef.current = onDaysChange;
+  }, [onMealsChange, onDaysChange]);
   const meals = days[activeDayIdx]?.meals ?? [];
   const setMeals = useCallback((updater: React.SetStateAction<ParsedMeal[]>) => {
     setDays((prev) => {
@@ -202,6 +262,116 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
   const [addingForMeal, setAddingForMeal] = useState<number | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
 
+  const { data: foodMacroRows = [] } = useQuery<DbFoodRow[]>({
+    queryKey: ['foods-macro-density'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('foods')
+        .select('name, calories, protein, carbs, fats, portion_size')
+        .order('name');
+      if (error) throw error;
+      return (data || []) as DbFoodRow[];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const foodDensityIndex = useMemo(() => {
+    const exact = new Map<string, { density: MacroDensity; tokens: string[] }>();
+    const entries = foodMacroRows.map((row) => {
+      const base = Number(row.portion_size) || 100;
+      const density: MacroDensity = {
+        kcal: base > 0 ? num(String(row.calories)) / base : 0,
+        p: base > 0 ? num(String(row.protein)) / base : 0,
+        c: base > 0 ? num(String(row.carbs)) / base : 0,
+        g: base > 0 ? num(String(row.fats)) / base : 0,
+      };
+      const key = normalizeFoodKey(row.name || '');
+      const item = { key, density, tokens: foodTokens(key) };
+      if (key && hasDensity(density)) exact.set(key, item);
+      return item;
+    }).filter((item) => item.key && hasDensity(item.density));
+    return { exact, entries };
+  }, [foodMacroRows]);
+
+  const planDensityIndex = useMemo(() => {
+    const exact = new Map<string, { density: MacroDensity; tokens: string[] }>();
+    const entries: { key: string; density: MacroDensity; tokens: string[] }[] = [];
+    for (const day of currentPlan?.days ?? []) {
+      for (const meal of day.meals ?? []) {
+        for (const item of meal.items ?? []) {
+          const grams = Number(item.qtyGrams) || num(item.portionLabel || '');
+          if (grams <= 0) continue;
+          const density: MacroDensity = {
+            kcal: Number(item.macros?.kcal || 0) / grams,
+            p: Number(item.macros?.p || 0) / grams,
+            c: Number(item.macros?.c || 0) / grams,
+            g: Number(item.macros?.g || 0) / grams,
+          };
+          if (!hasDensity(density)) continue;
+          const key = normalizeFoodKey(item.name || '');
+          if (!key) continue;
+          const entry = { key, density, tokens: foodTokens(key) };
+          exact.set(key, entry);
+          entries.push(entry);
+        }
+      }
+    }
+    return { exact, entries };
+  }, [currentPlan]);
+
+  const getFoodDbDensity = useCallback((foodName: string): MacroDensity | undefined => {
+    const key = normalizeFoodKey(foodName);
+    if (!key) return undefined;
+    const exactMatch = foodDensityIndex.exact.get(key);
+    if (exactMatch) return exactMatch.density;
+    const queryTokens = foodTokens(key);
+    if (!queryTokens.length) return undefined;
+
+    let best: MacroDensity | undefined;
+    let bestScore = 0;
+    for (const entry of foodDensityIndex.entries) {
+      let score = 0;
+      if (entry.key.includes(key) || key.includes(entry.key)) {
+        score = 100 + Math.min(entry.key.length, key.length);
+      } else {
+        const overlap = queryTokens.filter((token) => entry.tokens.includes(token)).length;
+        const required = queryTokens.length === 1 ? 1 : Math.min(2, queryTokens.length);
+        if (overlap >= required) score = overlap / Math.max(queryTokens.length, entry.tokens.length);
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        best = entry.density;
+      }
+    }
+    return bestScore > 0 ? best : undefined;
+  }, [foodDensityIndex]);
+
+  const getIndexedDensity = useCallback((foodName: string, index: typeof foodDensityIndex): MacroDensity | undefined => {
+    const key = normalizeFoodKey(foodName);
+    if (!key) return undefined;
+    const exactMatch = index.exact.get(key);
+    if (exactMatch) return exactMatch.density;
+    const queryTokens = foodTokens(key);
+    if (!queryTokens.length) return undefined;
+    let best: MacroDensity | undefined;
+    let bestScore = 0;
+    for (const entry of index.entries) {
+      const overlap = queryTokens.filter((token) => entry.tokens.includes(token)).length;
+      const score = entry.key.includes(key) || key.includes(entry.key)
+        ? 100 + Math.min(entry.key.length, key.length)
+        : overlap / Math.max(queryTokens.length, entry.tokens.length || 1);
+      if (overlap > 0 && score > bestScore) {
+        bestScore = score;
+        best = entry.density;
+      }
+    }
+    return bestScore > 0 ? best : undefined;
+  }, []);
+
+  const getFoodFallbackDensity = useCallback((foodName: string): MacroDensity | undefined => {
+    return mergeDensity(getIndexedDensity(foodName, planDensityIndex), getFoodDbDensity(foodName));
+  }, [getFoodDbDensity, getIndexedDensity, planDensityIndex]);
+
   // Reset when source markdown changes
   useEffect(() => {
     const fresh = extractDays(markdown);
@@ -214,9 +384,9 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
   // Notify parent — keep legacy single-day callback for fallback paths and
   // emit full per-day structure when supported.
   useEffect(() => {
-    onMealsChange(days[0]?.meals ?? []);
-    if (onDaysChange) onDaysChange(days);
-  }, [days, onMealsChange, onDaysChange]);
+    onMealsChangeRef.current(days[0]?.meals ?? []);
+    if (onDaysChangeRef.current) onDaysChangeRef.current(days);
+  }, [days]);
 
   // When user switches day tab, sync the "Meta diária" input with that
   // day's actual kcal so carb-cycle days don't show false "ultrapassou".
@@ -340,16 +510,14 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
    }, [target]);
 
    /**
-    * Apply a new portion using a stable density (per-gram) baseline supplied
-    * by the row component. This avoids the compounding-factor bug where
-    * intermediate keystrokes (e.g. user clears "150" to type "200") would
-    * zero out the macros and never recover.
+     * Apply a new portion using a stable per-gram density baseline. Fields that
+     * do not have a known density are preserved instead of being forced to 0.
     */
    const applyPortion = useCallback((
      mealIdx: number,
      foodIdx: number,
      newQty: number,
-     density: { kcal: number; p: number; c: number; g: number },
+      density: MacroDensity,
    ) => {
      if (!Number.isFinite(newQty) || newQty <= 0) return;
      updateMeals((prev) => {
@@ -358,10 +526,10 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
        const foods = [...meal.foods];
        const food = { ...foods[foodIdx] };
        food.qty = `${newQty} g`;
-       food.kcal = fmt(density.kcal * newQty);
-       food.p = fmt(density.p * newQty);
-       food.c = fmt(density.c * newQty);
-       food.g = fmt(density.g * newQty);
+        if (density.kcal > 0) food.kcal = fmt(density.kcal * newQty);
+        if (density.p > 0) food.p = fmt(density.p * newQty);
+        if (density.c > 0) food.c = fmt(density.c * newQty);
+        if (density.g > 0) food.g = fmt(density.g * newQty);
        foods[foodIdx] = food;
        meal.foods = foods;
        updated[mealIdx] = meal;
@@ -560,6 +728,7 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
                         <TableCell className="px-2 py-1.5 text-muted-foreground">
                           <PortionCell
                             food={food}
+                            dbDensity={getFoodFallbackDensity(food.food)}
                             onCommit={(qty, density) => applyPortion(mealIdx, foodIdx, qty, density)}
                           />
                         </TableCell>
@@ -652,20 +821,15 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
  */
 interface PortionCellProps {
   food: ParsedFood;
+  dbDensity?: MacroDensity;
   onCommit: (
     qty: number,
-    density: { kcal: number; p: number; c: number; g: number },
+    density: MacroDensity,
   ) => void;
 }
 
-const PortionCell: React.FC<PortionCellProps> = ({ food, onCommit }) => {
-  const initialQty = useMemo(() => num(stripG(food.qty)), []); // eslint-disable-line react-hooks/exhaustive-deps
-  const densityRef = useRef<{ kcal: number; p: number; c: number; g: number }>({
-    kcal: initialQty > 0 ? num(food.kcal) / initialQty : 0,
-    p: initialQty > 0 ? num(food.p) / initialQty : 0,
-    c: initialQty > 0 ? num(food.c) / initialQty : 0,
-    g: initialQty > 0 ? num(food.g) / initialQty : 0,
-  });
+const PortionCell: React.FC<PortionCellProps> = ({ food, dbDensity, onCommit }) => {
+  const densityRef = useRef<MacroDensity>(buildDensityFromFood(food, dbDensity));
   // Edit only the numeric part — never display " g" inside the input, or
   // it gets injected back into the value while the user is still typing.
   const [text, setText] = useState<string>(() => {
@@ -675,15 +839,20 @@ const PortionCell: React.FC<PortionCellProps> = ({ food, onCommit }) => {
   const editingRef = useRef(false);
 
   // Sync when the parent food changes from outside (substitution, AI edit,
-  // ajustar porções). When that happens, reset the density baseline too.
+  // ajustar porções). While typing, keep the original density baseline so live
+  // updates do not compound from each keystroke; only fill missing zero fields
+  // from the database fallback when available.
   useEffect(() => {
     const q = num(stripG(food.qty));
-    if (q > 0) {
+    const nextDensity = buildDensityFromFood(food, dbDensity);
+    if (!editingRef.current) {
+      densityRef.current = nextDensity;
+    } else if (hasDensity(dbDensity)) {
       densityRef.current = {
-        kcal: num(food.kcal) / q,
-        p: num(food.p) / q,
-        c: num(food.c) / q,
-        g: num(food.g) / q,
+        kcal: densityRef.current.kcal > 0 ? densityRef.current.kcal : dbDensity!.kcal,
+        p: densityRef.current.p > 0 ? densityRef.current.p : dbDensity!.p,
+        c: densityRef.current.c > 0 ? densityRef.current.c : dbDensity!.c,
+        g: densityRef.current.g > 0 ? densityRef.current.g : dbDensity!.g,
       };
     }
     // Do NOT overwrite the input while the user is actively editing — the
@@ -692,7 +861,7 @@ const PortionCell: React.FC<PortionCellProps> = ({ food, onCommit }) => {
     if (!editingRef.current) {
       setText(q > 0 ? String(q) : '');
     }
-  }, [food.food, food.qty, food.kcal, food.p, food.c, food.g]);
+  }, [food.food, food.qty, food.kcal, food.p, food.c, food.g, dbDensity]);
 
   const commit = () => {
     editingRef.current = false;
@@ -750,12 +919,12 @@ const AddFoodPicker: React.FC<AddFoodPickerProps> = ({ open, onOpenChange, onAdd
   const [search, setSearch] = useState('');
   const [portion, setPortion] = useState<number>(100);
 
-  const { data: foods = [] } = useQuery({
+  const { data: foods = [] } = useQuery<DbFoodRow[]>({
     queryKey: ['foods-add-picker'],
     queryFn: async () => {
       const { data, error } = await supabase.from('foods').select('*').order('name');
       if (error) throw error;
-      return data || [];
+      return (data || []) as DbFoodRow[];
     },
     enabled: open,
     staleTime: 5 * 60 * 1000,
@@ -764,10 +933,10 @@ const AddFoodPicker: React.FC<AddFoodPickerProps> = ({ open, onOpenChange, onAdd
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return foods.slice(0, 25);
-    return foods.filter((f: any) => f.name.toLowerCase().includes(q)).slice(0, 25);
+    return foods.filter((f) => f.name.toLowerCase().includes(q)).slice(0, 25);
   }, [foods, search]);
 
-  const handlePick = (dbFood: any) => {
+  const handlePick = (dbFood: DbFoodRow) => {
     const base = dbFood.portion_size || 100;
     const scale = portion / base;
     onAdd({
@@ -815,7 +984,7 @@ const AddFoodPicker: React.FC<AddFoodPickerProps> = ({ open, onOpenChange, onAdd
               <p className="text-xs text-muted-foreground py-4 text-center">Nenhum alimento encontrado.</p>
             ) : (
               <ul className="divide-y divide-border">
-                {filtered.map((f: any) => (
+                {filtered.map((f) => (
                   <li key={f.id}>
                     <button
                       type="button"
