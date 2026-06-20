@@ -666,12 +666,17 @@ const PortionCell: React.FC<PortionCellProps> = ({ food, onCommit }) => {
     c: initialQty > 0 ? num(food.c) / initialQty : 0,
     g: initialQty > 0 ? num(food.g) / initialQty : 0,
   });
-  const [text, setText] = useState<string>(food.qty || '');
+  // Edit only the numeric part — never display " g" inside the input, or
+  // it gets injected back into the value while the user is still typing.
+  const [text, setText] = useState<string>(() => {
+    const n = num(stripG(food.qty));
+    return n > 0 ? String(n) : '';
+  });
+  const editingRef = useRef(false);
 
   // Sync when the parent food changes from outside (substitution, AI edit,
   // ajustar porções). When that happens, reset the density baseline too.
   useEffect(() => {
-    setText(food.qty || '');
     const q = num(stripG(food.qty));
     if (q > 0) {
       densityRef.current = {
@@ -681,20 +686,32 @@ const PortionCell: React.FC<PortionCellProps> = ({ food, onCommit }) => {
         g: num(food.g) / q,
       };
     }
+    // Do NOT overwrite the input while the user is actively editing — the
+    // parent re-renders on every keystroke (live macro update) and would
+    // clobber what the user is typing.
+    if (!editingRef.current) {
+      setText(q > 0 ? String(q) : '');
+    }
   }, [food.food, food.qty, food.kcal, food.p, food.c, food.g]);
 
   const commit = () => {
+    editingRef.current = false;
     const qty = num(text);
     if (qty <= 0) {
-      setText(food.qty || '');
+      const n = num(stripG(food.qty));
+      setText(n > 0 ? String(n) : '');
       return;
     }
+    setText(String(qty));
     onCommit(qty, densityRef.current);
   };
 
   const handleChange = (raw: string) => {
-    setText(raw);
-    const qty = num(raw);
+    editingRef.current = true;
+    // Keep only digits, comma and dot — strip stray " g" or other chars.
+    const cleaned = raw.replace(/[^\d.,]/g, '');
+    setText(cleaned);
+    const qty = num(cleaned);
     if (qty > 0) {
       // Live update macros as the user types, using the stable density
       // baseline so successive keystrokes never compound.
@@ -708,6 +725,7 @@ const PortionCell: React.FC<PortionCellProps> = ({ food, onCommit }) => {
       inputMode="decimal"
       value={text}
       onChange={(e) => handleChange(e.target.value)}
+      onFocus={() => { editingRef.current = true; }}
       onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
