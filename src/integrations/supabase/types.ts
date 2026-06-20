@@ -2339,6 +2339,7 @@ export type Database = {
           executed_by: string | null
           exercises_completed: number
           id: string
+          last_active_at: string | null
           paired_student_id: string | null
           phase: string | null
           plan_id: string | null
@@ -2352,6 +2353,7 @@ export type Database = {
           total_exercises: number
           total_sets: number | null
           total_volume_kg: number | null
+          updated_at: string
         }
         Insert: {
           avg_rpe?: number | null
@@ -2364,6 +2366,7 @@ export type Database = {
           executed_by?: string | null
           exercises_completed?: number
           id?: string
+          last_active_at?: string | null
           paired_student_id?: string | null
           phase?: string | null
           plan_id?: string | null
@@ -2377,6 +2380,7 @@ export type Database = {
           total_exercises?: number
           total_sets?: number | null
           total_volume_kg?: number | null
+          updated_at?: string
         }
         Update: {
           avg_rpe?: number | null
@@ -2389,6 +2393,7 @@ export type Database = {
           executed_by?: string | null
           exercises_completed?: number
           id?: string
+          last_active_at?: string | null
           paired_student_id?: string | null
           phase?: string | null
           plan_id?: string | null
@@ -2402,6 +2407,7 @@ export type Database = {
           total_exercises?: number
           total_sets?: number | null
           total_volume_kg?: number | null
+          updated_at?: string
         }
         Relationships: [
           {
