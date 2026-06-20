@@ -692,12 +692,22 @@ const PortionCell: React.FC<PortionCellProps> = ({ food, onCommit }) => {
     onCommit(qty, densityRef.current);
   };
 
+  const handleChange = (raw: string) => {
+    setText(raw);
+    const qty = num(raw);
+    if (qty > 0) {
+      // Live update macros as the user types, using the stable density
+      // baseline so successive keystrokes never compound.
+      onCommit(qty, densityRef.current);
+    }
+  };
+
   return (
     <Input
       type="text"
       inputMode="decimal"
       value={text}
-      onChange={(e) => setText(e.target.value)}
+      onChange={(e) => handleChange(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
