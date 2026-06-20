@@ -2331,7 +2331,7 @@ export type Database = {
         Row: {
           avg_rpe: number | null
           calendar_event_id: string | null
-          completed_at: string
+          completed_at: string | null
           completed_at_real: string | null
           created_at: string
           day_name: string | null
@@ -2358,7 +2358,7 @@ export type Database = {
         Insert: {
           avg_rpe?: number | null
           calendar_event_id?: string | null
-          completed_at?: string
+          completed_at?: string | null
           completed_at_real?: string | null
           created_at?: string
           day_name?: string | null
@@ -2385,7 +2385,7 @@ export type Database = {
         Update: {
           avg_rpe?: number | null
           calendar_event_id?: string | null
-          completed_at?: string
+          completed_at?: string | null
           completed_at_real?: string | null
           created_at?: string
           day_name?: string | null
