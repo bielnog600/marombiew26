@@ -809,6 +809,31 @@ GERE TUDO DE UMA VEZ:
                 className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
               />
             </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Variação em relação ao plano anterior</p>
+              <div className="grid grid-cols-3 gap-2">
+                {VARIATION_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setVariationIntensity(opt.value)}
+                    className={`rounded-xl border-2 p-2 text-xs text-left transition-all ${
+                      variationIntensity === opt.value
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <div className="font-semibold">{opt.label}</div>
+                    <div className="text-[10px] text-muted-foreground mt-1 leading-tight">
+                      {opt.desc}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Acima do limite, o sistema regenera 1x automaticamente e alerta se ainda ficar parecido.
+              </p>
+            </div>
           </CardContent>
         </Card>
               )}
