@@ -1882,6 +1882,24 @@ ${generated}`;
 
         {result && !generating && (
           <div ref={resultRef} className="space-y-4">
+            {dietSimilarity && dietSimilarity.historyCount > 0 && (() => {
+              const fb = describeSimilarity(dietSimilarity);
+              const cls =
+                fb.level === 'warn'
+                  ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-200'
+                  : 'border-primary/30 bg-primary/5 text-muted-foreground';
+              return (
+                <div className={`rounded-xl border px-3 py-2 text-xs ${cls}`}>
+                  {fb.label}
+                  {dietSimilarity.worstOverlap && dietSimilarity.worstOverlap.length > 0 && (
+                    <div className="mt-1 opacity-80">
+                      Alimentos repetidos: {dietSimilarity.worstOverlap.slice(0, 6).join(', ')}
+                      {dietSimilarity.worstOverlap.length > 6 ? '…' : ''}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-lg flex items-center gap-2">
                 <UtensilsCrossed className="h-5 w-5 text-primary" />
