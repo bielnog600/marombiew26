@@ -95,10 +95,13 @@ export function dietVariationPrompt(
     block.push(
       "",
       "🔒 EXIGÊNCIA DE VARIAÇÃO DE CARDÁPIO (não negociável nesta geração):",
-      "- Em pelo menos 60% das refeições, troque a fonte principal de proteína OU de carboidrato em relação ao cardápio anterior.",
+      "- Em pelo menos 60% das refeições, troque a FONTE PRINCIPAL (proteína OU carboidrato) por outra de GRUPO FUNCIONAL DIFERENTE.",
+      "  Grupos de proteína: vermelha (bovina/suína), branca (frango/peru), peixe/frutos do mar, ovos, vísceras (fígado/moela/coração), laticínios (whey/iogurte/queijo), vegetal (tofu/soja/PTS).",
+      "  Grupos de carbo: cereais (arroz/aveia/pão/tapioca/macarrão), tubérculos (batata/batata doce/mandioca/inhame), frutas, leguminosas (feijão/lentilha/grão-de-bico).",
+      "  Manter o MESMO grupo (ex.: carne vermelha → carne vermelha em outra refeição equivalente) NÃO conta como variação, mesmo que o nome mude.",
       "- Inclua pelo menos 3 alimentos NOVOS (que não aparecem na dieta anterior do aluno).",
       "- Mantenha exatamente as metas de kcal, P, C, G — ajuste porções dos NOVOS alimentos para fechar a conta.",
-      "- Se você devolver praticamente os mesmos alimentos da dieta anterior, a geração será considerada inválida.",
+      "- Se você devolver praticamente os mesmos alimentos OU manter a mesma família de proteína/carbo na mesma refeição, a geração será considerada inválida.",
     );
   }
   if (historySummary) {
