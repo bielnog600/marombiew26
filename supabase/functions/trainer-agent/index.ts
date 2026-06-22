@@ -5,6 +5,335 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// ============================================================
+// Workout Plan v2 — JSON schema enforced by OpenAI Structured Outputs.
+// Mirrors src/lib/workoutSchema.ts. Keep in sync.
+// ============================================================
+const WORKOUT_PLAN_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["version", "type", "metadata", "days"],
+  properties: {
+    version: { type: "string", description: "Plan schema version, always 2.0" },
+    type: { type: "string", enum: ["workout"] },
+    metadata: {
+      type: "object",
+      additionalProperties: false,
+      required: ["goal", "frequency", "notes"],
+      properties: {
+        goal: { type: "string" },
+        frequency: { type: ["integer", "null"] },
+        notes: { type: "string" },
+      },
+    },
+    days: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id", "day", "focus", "exercises"],
+        properties: {
+          id: { type: "string", description: "Stable per-day id" },
+          day: {
+            type: "string",
+            description: "Uppercase weekday name: SEGUNDA-FEIRA, TERÇA-FEIRA, ...",
+          },
+          focus: { type: "string" },
+          exercises: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: [
+                "id",
+                "exercise",
+                "series",
+                "series2",
+                "reps",
+                "rir",
+                "restSeconds",
+                "description",
+                "variation",
+              ],
+              properties: {
+                id: { type: "string", description: "Stable per-exercise id" },
+                exercise: {
+                  type: "string",
+                  description: "Must come from the EXERCISE DATABASE in the system prompt",
+                },
+                series: {
+                  type: "string",
+                  description: "Number of working sets, e.g. \"3\", \"4\"",
+                },
+                series2: {
+                  type: "string",
+                  description: "Second-block sets when there is a recognition set; otherwise \"-\"",
+                },
+                reps: { type: "string", description: "e.g. \"8-12\", \"10\", \"15 + 8\"" },
+                rir: {
+                  type: "string",
+                  description: "RIR value or \"-\" if not applicable. Never put reps here.",
+                },
+                restSeconds: {
+                  type: ["integer", "null"],
+                  description: "Rest in seconds. Use null for mobility/cardio only.",
+                },
+                description: { type: "string" },
+                variation: { type: "string", description: "Equivalent exercise from the DB" },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
+const JSON_OUTPUT_INSTRUCTIONS = `
+========================================
+MODO DE SAÍDA: JSON ESTRUTURADO (OBRIGATÓRIO)
+========================================
+
+Sua resposta DEVE ser EXCLUSIVAMENTE um objeto JSON válido seguindo o schema fornecido (workout_plan v2).
+NÃO escreva markdown, NÃO escreva tabelas, NÃO escreva texto antes ou depois do JSON.
+
+Regras de preenchimento:
+- "version" = "2.0"
+- "type" = "workout"
+- "metadata.goal" = objetivo curto (ex.: "Hipertrofia membros inferiores").
+- "metadata.frequency" = número de dias por semana (inteiro) ou null.
+- "metadata.notes" = observações gerais do bloco (string, pode ser vazia).
+- Cada item em "days":
+    • "id" = identificador único curto (ex.: "day-1", "day-2").
+    • "day" = nome do dia em MAIÚSCULAS: SEGUNDA-FEIRA, TERÇA-FEIRA, QUARTA-FEIRA, QUINTA-FEIRA, SEXTA-FEIRA, SÁBADO, DOMINGO.
+    • "focus" = grupo muscular ou foco do dia (ex.: "PEITO + TRÍCEPS").
+    • "exercises" = lista ordenada (mobilidade primeiro, depois principais, depois acessórios).
+- Cada item em "exercises":
+    • "id" único (ex.: "ex-1", "ex-2", ...).
+    • "exercise" e "variation" devem ser copiados EXATAMENTE do BANCO DE EXERCÍCIOS.
+    • "series" sempre preenchido (string com número). Nunca vazio.
+    • "series2" = "-" quando não houver série de reconhecimento.
+    • "reps" no formato "8-12", "10", "15 + 8" etc. NUNCA misture com RIR.
+    • "rir" como "1-2", "2", "-" (use "-" para mobilidade/cardio).
+    • "restSeconds" inteiro em segundos (ex.: 60, 90, 120). Use null APENAS para mobilidade leve.
+    • "description" com técnica, postura, adaptações de segurança.
+
+NUNCA emita texto fora do JSON. NUNCA inclua mensagens de WhatsApp neste modo.
+`;
+
+type StructuredArgs = {
+  apiKey: string;
+  systemPrompt: string;
+  messages: Array<{ role: string; content: string }>;
+};
+
+function newId(prefix: string): string {
+  // deno-lint-ignore no-explicit-any
+  const c: any = (globalThis as any).crypto;
+  if (c?.randomUUID) return c.randomUUID();
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function parsePauseToSeconds(raw?: string): number | undefined {
+  if (!raw) return undefined;
+  const s = String(raw).trim().toLowerCase();
+  if (!s || s === "-" || s === "—") return undefined;
+  const min = s.match(/^(\d+(?:[.,]\d+)?)\s*(?:min|m)\b/);
+  if (min) return Math.round(Number(min[1].replace(",", ".")) * 60);
+  const sec = s.match(/^(\d+)\s*(?:s|seg|segundos?|["''”″`])?$/);
+  if (sec) return Number(sec[1]);
+  return undefined;
+}
+
+// deno-lint-ignore no-explicit-any
+function validateAndNormalizePlan(raw: any): { ok: true; data: any } | { ok: false; error: string } {
+  if (!raw || typeof raw !== "object") return { ok: false, error: "Resposta não é um objeto JSON" };
+  if (raw.type !== "workout") return { ok: false, error: "type deve ser \"workout\"" };
+  if (!Array.isArray(raw.days) || raw.days.length === 0) return { ok: false, error: "days vazio" };
+
+  const seenDayIds = new Set<string>();
+  const days = raw.days
+    // deno-lint-ignore no-explicit-any
+    .map((d: any) => {
+      let id = typeof d.id === "string" && d.id.trim() ? d.id.trim() : newId("day");
+      while (seenDayIds.has(id)) id = newId("day");
+      seenDayIds.add(id);
+      const seenExIds = new Set<string>();
+      const exercises = Array.isArray(d.exercises)
+        // deno-lint-ignore no-explicit-any
+        ? d.exercises
+            // deno-lint-ignore no-explicit-any
+            .map((e: any) => {
+              let eid = typeof e.id === "string" && e.id.trim() ? e.id.trim() : newId("ex");
+              while (seenExIds.has(eid)) eid = newId("ex");
+              seenExIds.add(eid);
+              const restSeconds =
+                typeof e.restSeconds === "number" && Number.isFinite(e.restSeconds)
+                  ? Math.round(e.restSeconds)
+                  : parsePauseToSeconds(e.pause);
+              return {
+                id: eid,
+                exercise: String(e.exercise ?? "").trim(),
+                series: String(e.series ?? "").trim(),
+                series2: String(e.series2 ?? "-").trim(),
+                reps: String(e.reps ?? "").trim(),
+                rir: String(e.rir ?? "-").trim(),
+                restSeconds: restSeconds ?? null,
+                description: String(e.description ?? "").trim(),
+                variation: String(e.variation ?? "").trim(),
+              };
+            })
+            // deno-lint-ignore no-explicit-any
+            .filter((e: any) => e.exercise.length > 0)
+        : [];
+      return {
+        id,
+        day: String(d.day ?? "").trim().toUpperCase(),
+        focus: String(d.focus ?? "").trim(),
+        exercises,
+      };
+    })
+    // deno-lint-ignore no-explicit-any
+    .filter((d: any) => d.day.length > 0 && d.exercises.length > 0);
+
+  if (days.length === 0) return { ok: false, error: "Nenhum dia com exercícios válidos" };
+
+  return {
+    ok: true,
+    data: {
+      version: "2.0",
+      type: "workout",
+      metadata: {
+        goal: typeof raw.metadata?.goal === "string" ? raw.metadata.goal : "",
+        frequency:
+          typeof raw.metadata?.frequency === "number" && Number.isFinite(raw.metadata.frequency)
+            ? raw.metadata.frequency
+            : null,
+        notes: typeof raw.metadata?.notes === "string" ? raw.metadata.notes : "",
+      },
+      days,
+    },
+  };
+}
+
+// deno-lint-ignore no-explicit-any
+function workoutPlanToMarkdown(plan: any): string {
+  const cell = (v: unknown): string => {
+    if (v == null) return "-";
+    const s = String(v).trim();
+    return s.length === 0 ? "-" : s.replace(/\|/g, "/");
+  };
+  const restCell = (rs: number | null | undefined, pause?: string): string => {
+    if (typeof rs === "number" && rs > 0) return `${rs}s`;
+    return cell(pause);
+  };
+  const lines: string[] = [];
+  if (plan.metadata?.goal) {
+    lines.push(`**Objetivo:** ${plan.metadata.goal}`);
+    lines.push("");
+  }
+  lines.push(
+    "| TREINO DO DIA | EXERCÍCIO | SÉRIE | SÉRIE 2 | REPETIÇÕES | RIR | PAUSA | DESCRIÇÃO | VARIAÇÃO |",
+  );
+  lines.push("|---|---|---|---|---|---|---|---|---|");
+  for (const day of plan.days) {
+    for (const ex of day.exercises) {
+      lines.push(
+        `| ${cell(day.day)} | ${cell(ex.exercise)} | ${cell(ex.series)} | ${cell(ex.series2)} | ${cell(ex.reps)} | ${cell(ex.rir)} | ${restCell(ex.restSeconds)} | ${cell(ex.description)} | ${cell(ex.variation)} |`,
+      );
+    }
+  }
+  lines.push("");
+  if (plan.metadata?.notes) {
+    lines.push("");
+    lines.push(`> ${plan.metadata.notes}`);
+  }
+  return lines.join("\n");
+}
+
+async function generateStructuredWorkout({
+  apiKey,
+  systemPrompt,
+  messages,
+}: StructuredArgs): Promise<Response> {
+  const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "gpt-4o-2024-08-06",
+      messages: [
+        { role: "system", content: systemPrompt + "\n\n" + JSON_OUTPUT_INSTRUCTIONS },
+        ...messages,
+      ],
+      max_tokens: 16000,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "workout_plan",
+          strict: true,
+          schema: WORKOUT_PLAN_JSON_SCHEMA,
+        },
+      },
+    }),
+  });
+
+  if (!upstream.ok) {
+    const t = await upstream.text();
+    console.error("trainer-agent[json] gateway error:", upstream.status, t);
+    if (upstream.status === 429) {
+      return new Response(
+        JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns minutos." }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    if (upstream.status === 402) {
+      return new Response(
+        JSON.stringify({ error: "Créditos insuficientes na sua conta OpenAI." }),
+        { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    return new Response(JSON.stringify({ error: "Erro no gateway de IA", detail: t }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const payload = await upstream.json();
+  const content = payload?.choices?.[0]?.message?.content;
+  if (typeof content !== "string") {
+    return new Response(
+      JSON.stringify({ error: "Resposta vazia do modelo" }),
+      { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch (e) {
+    console.error("trainer-agent[json] parse error:", e, content.slice(0, 500));
+    return new Response(
+      JSON.stringify({ error: "Modelo retornou JSON inválido" }),
+      { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  const validation = validateAndNormalizePlan(parsed);
+  if (!validation.ok) {
+    console.error("trainer-agent[json] validation error:", validation.error);
+    return new Response(
+      JSON.stringify({ error: "Plano gerado é inválido", detail: validation.error }),
+      { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  const markdown = workoutPlanToMarkdown(validation.data);
+  return new Response(
+    JSON.stringify({ json: validation.data, markdown }),
+    { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
+}
+
 const EXERCISE_DATABASE = `
 ========================================
 BANCO DE EXERCÍCIOS (OBRIGATÓRIO)
@@ -349,7 +678,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages, studentContext } = await req.json();
+    const { messages, studentContext, outputMode } = await req.json();
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
@@ -512,6 +841,17 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
       }
 
       contextMessage += "\n=== FIM DOS DADOS ===\n\nIMPORTANTE: Todos os dados acima já são conhecidos. Comece perguntando APENAS o que falta (nível, dias/semana, semana do ciclo, divisão, equipamentos, preferências alimentares, etc). UMA PERGUNTA POR VEZ.\n\nATENÇÃO MÁXIMA: ANTES de gerar o treino, releia TODOS os campos de lesões, dores, cirurgias, restrições, desvios posturais e histórico de saúde. CRUZE cada exercício escolhido contra essas condições. Se um exercício pode agravar qualquer condição reportada, SUBSTITUA por uma alternativa segura do banco de exercícios. Se houver dados de análise postural, CONSIDERE-OS ao montar o treino: priorize exercícios corretivos para desvios identificados, inclua mobilidade específica e evite exercícios que possam agravar problemas posturais detectados.";
+    }
+
+    // ============================================================
+    // STRUCTURED MODE — JSON-FIRST (workout schema v2)
+    // ============================================================
+    if (outputMode === "json") {
+      return await generateStructuredWorkout({
+        apiKey: OPENAI_API_KEY,
+        systemPrompt: SYSTEM_PROMPT + contextMessage,
+        messages,
+      });
     }
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
