@@ -52,7 +52,7 @@ export interface HistoryRow {
 export const ExerciseNamePicker: React.FC<{
   value: string;
   original: string;
-  options: { id: string; nome: string; grupo_muscular: string }[];
+  options: { id: string; nome: string; grupo_muscular: string; imagem_url?: string | null }[];
   onChange: (name: string) => void;
 }> = ({ value, original, options, onChange }) => {
   const [open, setOpen] = useState(false);
@@ -76,10 +76,21 @@ export const ExerciseNamePicker: React.FC<{
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-72 p-0">
+      <PopoverContent
+        align="start"
+        className="w-[min(92vw,22rem)] p-0"
+        onOpenAutoFocus={(e) => {
+          // keep focus available for typing on mobile
+        }}
+      >
         <Command filter={tokenMatchScore}>
-          <CommandInput placeholder="Buscar exercício..." />
-          <CommandList className="max-h-[55vh] overflow-y-auto overscroll-contain">
+          <CommandInput placeholder="Digite o nome do exercício..." autoFocus />
+          <CommandList
+            className="max-h-[60vh] overflow-y-auto overscroll-contain"
+            style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+            onWheel={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+          >
             <CommandEmpty>Nenhum exercício encontrado.</CommandEmpty>
             {original && (
               <CommandGroup heading="Original">
@@ -104,10 +115,23 @@ export const ExerciseNamePicker: React.FC<{
                     onChange(opt.nome);
                     setOpen(false);
                   }}
+                  className="gap-2"
                 >
-                  <Check className={`h-3 w-3 mr-2 ${value === opt.nome ? 'opacity-100' : 'opacity-0'}`} />
-                  <div className="min-w-0">
-                    <p className="truncate">{opt.nome}</p>
+                  <Check className={`h-3 w-3 shrink-0 ${value === opt.nome ? 'opacity-100' : 'opacity-0'}`} />
+                  {opt.imagem_url ? (
+                    <img
+                      src={opt.imagem_url}
+                      alt=""
+                      loading="lazy"
+                      className="h-9 w-9 rounded object-cover bg-muted shrink-0 border border-border/40"
+                    />
+                  ) : (
+                    <div className="h-9 w-9 rounded bg-muted shrink-0 flex items-center justify-center">
+                      <Dumbbell className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm">{opt.nome}</p>
                     <p className="text-[10px] text-muted-foreground truncate">{opt.grupo_muscular}</p>
                   </div>
                 </CommandItem>
