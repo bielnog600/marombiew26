@@ -23,6 +23,13 @@ import { finalizeDietPlan } from '@/lib/dietValidation';
 import { parseDietPlanStrict, parseDietPlanLoose, type DietPlan } from '@/lib/dietSchema';
 import { dietPlanToMarkdown } from '@/lib/dietMarkdownSerializer';
 import { extractTrainingContext } from '@/lib/trainingContextExtractor';
+import {
+  DEFAULT_INTENSITY as DEFAULT_DIET_INTENSITY,
+  VARIATION_OPTIONS as DIET_VARIATION_OPTIONS,
+  describeSimilarity,
+  type SimilarityFeedback,
+  type VariationIntensity as DietVariationIntensity,
+} from '@/lib/variationProfiles';
 import DietValidationBadge from '@/components/diet/DietValidationBadge';
 import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
