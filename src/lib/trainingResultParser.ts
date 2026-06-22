@@ -222,7 +222,7 @@ export const parseTrainingSections = (markdown: string): ParsedTrainingSection[]
 
       const firstLine = tableLines[0]?.toLowerCase() || '';
       if (isTrainingTable(firstLine)) {
-        const days = parseTrainingTable(tableLines);
+        const days = parseTrainingTable(tableLines, title);
         if (days.length > 0) {
           sections.push({ type: 'training', title, content: tableLines.join('\n'), days });
         } else {
