@@ -223,6 +223,9 @@ const DietaIA = () => {
   const [showCompare, setShowCompare] = useState(false);
   // Canonical structured plan (source of truth when structured generation succeeds).
   const [structuredPlan, setStructuredPlan] = useState<DietPlan | null>(null);
+  // Variability controls + feedback (mirrors TreinoIA).
+  const [variationIntensity, setVariationIntensity] = useState<DietVariationIntensity>(DEFAULT_DIET_INTENSITY);
+  const [dietSimilarity, setDietSimilarity] = useState<SimilarityFeedback | null>(null);
 
   useEffect(() => {
     if (studentId) loadStudentData();
