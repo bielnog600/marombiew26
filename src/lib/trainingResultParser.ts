@@ -132,7 +132,8 @@ export const parseTrainingTable = (tableLines: string[], fallbackTitle = ''): Pa
       if (dayCell) lastDayName = dayCell;
     }
 
-    if (exerciseCell && !exerciseCell.toLowerCase().includes('exercício')) {
+    const normalizedExercise = normalizeText(exerciseCell);
+    if (exerciseCell && exerciseCell !== '-' && exerciseCell !== '—' && normalizedExercise !== 'exercicio') {
       currentDay.exercises.push({
         exercise: exerciseCell,
         series: seriesCell,
