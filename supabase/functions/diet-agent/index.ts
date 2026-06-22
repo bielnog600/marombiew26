@@ -350,6 +350,7 @@ serve(async (req) => {
       dietConfig,
       studentId,
       variationIntensity,
+      regenerateIntent,
     } = await req.json();
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
@@ -577,6 +578,8 @@ serve(async (req) => {
           ? variationIntensity
           : DEFAULT_INTENSITY;
 
+      // Treat explicit regenerate as a hard demand for menu variation.
+      const requireMenuVariation = Boolean(regenerateIntent);
       let history: HistoryPlan[] = [];
       let historySummary = "";
       if (typeof studentId === "string" && studentId.length > 0) {
@@ -656,7 +659,9 @@ serve(async (req) => {
         }
       };
 
-      const first = await callModel(dietVariationPrompt(intensity, historySummary));
+      const first = await callModel(
+        dietVariationPrompt(intensity, historySummary, undefined, requireMenuVariation),
+      );
       if (!first.ok) return first.resp;
 
       const historyJsons = history
@@ -669,26 +674,48 @@ serve(async (req) => {
       let regenerated = false;
       let warning: string | null = null;
 
-      if (similarity.score > threshold && historyJsons.length > 0) {
+      const qOnly = similarity.quantityOnlyRatio ?? 0;
+      const isPortionOnly = similarity.changeKind === "portion_only";
+      // Trigger regen if:
+      //  - similarity above threshold, OR
+      //  - the change is essentially "same foods, different portions", OR
+      //  - admin asked for regeneration / menu renewal and we got portion_only
+      const needsRetry =
+        historyJsons.length > 0 &&
+        (similarity.score > threshold || isPortionOnly || (requireMenuVariation && qOnly > 0.3));
+
+      if (needsRetry) {
         const overlapList = similarity.worstOverlap.length
           ? `Alimentos repetidos do cardápio anterior (TROQUE A MAIORIA): ${similarity.worstOverlap.join(", ")}.`
           : "Muitos alimentos coincidem com o cardápio anterior.";
-        const retryNotes = [
+        const retryParts = [
           overlapList,
           "Substitua por equivalentes em macros usando o BANCO DE ALIMENTOS.",
           "Preserve metas calóricas, macros, restrições e preferências.",
-        ].join(" ");
-        const second = await callModel(dietVariationPrompt(intensity, historySummary, retryNotes));
+        ];
+        if (isPortionOnly || qOnly > 0.3) {
+          retryParts.push(
+            "❗ A geração anterior apenas mudou GRAMAGEM dos mesmos alimentos. Isto NÃO é variação. Substitua de fato os alimentos por outros equivalentes (proteínas, carbs e gorduras diferentes).",
+          );
+        }
+        const second = await callModel(
+          dietVariationPrompt(intensity, historySummary, retryParts.join(" "), true),
+        );
         if (second.ok) {
           const sim2 = computeDietSimilarity(second.plan, historyJsons);
-          if (sim2.score <= similarity.score) {
+          // Prefer the second plan when it (a) lowers similarity OR
+          // (b) escapes portion_only mode.
+          const escapedPortion =
+            isPortionOnly && sim2.changeKind !== "portion_only";
+          if (sim2.score <= similarity.score || escapedPortion) {
             finalPlan = second.plan;
             similarity = sim2;
           }
           regenerated = true;
-          if (similarity.score > threshold) warning = "high_similarity";
+          if (similarity.changeKind === "portion_only") warning = "quantity_only";
+          else if (similarity.score > threshold) warning = "high_similarity";
         } else {
-          warning = "high_similarity";
+          warning = isPortionOnly ? "quantity_only" : "high_similarity";
         }
       }
 
@@ -703,6 +730,8 @@ serve(async (req) => {
             warning,
             worstOverlap: similarity.worstOverlap,
             historyCount: historyJsons.length,
+            quantityOnlyRatio: Number((similarity.quantityOnlyRatio ?? 0).toFixed(3)),
+            changeKind: similarity.changeKind ?? "new_menu",
           },
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
