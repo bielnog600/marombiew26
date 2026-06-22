@@ -47,11 +47,15 @@ export interface PlanData {
  */
 export const getSafeWorkoutDays = (plan: PlanData): { days: ParsedTrainingDay[], isFromJSON: boolean } => {
   const status = plan.migration_status as string;
+  const markdownDays = parseTrainingSections(plan.conteudo).flatMap(s => s.days ?? []);
   // 1. Try JSON if status is 'completed'
   if (status === 'completed' && plan.conteudo_json) {
     try {
       const data = plan.conteudo_json as unknown as WorkoutDataJSON;
       if (data && data.type === 'workout' && Array.isArray(data.days)) {
+        if (markdownDays.length > data.days.length) {
+          return { days: markdownDays, isFromJSON: false };
+        }
         return { days: data.days, isFromJSON: true };
       }
     } catch (e) {
@@ -60,10 +64,7 @@ export const getSafeWorkoutDays = (plan: PlanData): { days: ParsedTrainingDay[],
   }
 
   // 2. Fallback to Markdown
-  const sections = parseTrainingSections(plan.conteudo);
-  const days = sections.flatMap(s => s.days ?? []);
-  
-  return { days, isFromJSON: false };
+  return { days: markdownDays, isFromJSON: false };
 };
 
 /**
