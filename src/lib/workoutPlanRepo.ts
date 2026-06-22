@@ -30,6 +30,10 @@ export type SaveResult =
   | { success: true; markdown: string; json: WorkoutPlan }
   | { success: false; error: string };
 
+export type CreateResult =
+  | { success: true; id: string; markdown: string; json: WorkoutPlan }
+  | { success: false; error: string };
+
 /** Save a workout plan from a validated v2 JSON. Markdown is derived. */
 export const saveWorkoutPlanJSON = async (
   planId: string,
@@ -50,6 +54,41 @@ export const saveWorkoutPlanJSON = async (
   const { error } = await supabase.from("ai_plans").update(updates).eq("id", planId);
   if (error) return { success: false, error: error.message };
   return { success: true, markdown, json: validation.data };
+};
+
+/**
+ * Insert a brand-new workout plan from a validated v2 JSON.
+ * Same guarantees as saveWorkoutPlanJSON: never persists invalid data,
+ * never inserts with conteudo_json null when JSON is valid.
+ */
+export const createWorkoutPlanJSON = async (
+  studentId: string,
+  json: WorkoutPlan,
+  extras: SaveExtras & { tipo?: string; cycle_status?: string } = {},
+): Promise<CreateResult> => {
+  const validation = validateWorkoutPlan(json);
+  if (!validation.success) {
+    return { success: false, error: (validation as { error: string }).error };
+  }
+  const markdown = workoutPlanToMarkdown(validation.data);
+  const insertPayload: Record<string, unknown> = {
+    student_id: studentId,
+    tipo: extras.tipo ?? "treino",
+    titulo: extras.titulo ?? `Treino - ${new Date().toLocaleDateString("pt-BR")}`,
+    conteudo: markdown,
+    conteudo_json: validation.data as unknown as Json,
+    migration_status: "completed",
+    cycle_status: extras.cycle_status ?? "em_dia",
+    fase: extras.fase ?? null,
+    fase_inicio_data: extras.fase_inicio_data ?? null,
+  };
+  const { data, error } = await supabase
+    .from("ai_plans")
+    .insert(insertPayload as any)
+    .select("id")
+    .single();
+  if (error) return { success: false, error: error.message };
+  return { success: true, id: data.id, markdown, json: validation.data };
 };
 
 /**

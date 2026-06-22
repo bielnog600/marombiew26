@@ -16,7 +16,12 @@ import { ArrowLeft, Loader2, Save, Dumbbell, RotateCcw, AlertTriangle, ChevronDo
  } from "@/components/ui/dialog";
  import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
-import { validateWorkoutJSON } from '@/lib/planMigrationUtils';
+import {
+  saveWorkoutPlanJSON,
+  createWorkoutPlanJSON,
+  saveWorkoutPlanFromMarkdown,
+} from '@/lib/workoutPlanRepo';
+import { normalizeWorkoutPlan, type WorkoutPlan } from '@/lib/workoutSchema';
 import ReactMarkdown from 'react-markdown';
 import TrainingResultCards from '@/components/TrainingResultCards';
 
@@ -162,6 +167,10 @@ const TreinoIA = () => {
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState('');
   const [saving, setSaving] = useState(false);
+  // Source of truth for the IA-generated plan. Markdown in `result` is derived.
+  const [generatedJson, setGeneratedJson] = useState<WorkoutPlan | null>(null);
+  // Tracks whether the markdown shown in `result` was hand-edited after generation.
+  const [markdownEdited, setMarkdownEdited] = useState(false);
   const [marombiewEnabled, setMarombiewEnabled] = useState(false);
   const [configCollapsed, setConfigCollapsed] = useState(!!editPlanId);
   const [lastWorkoutPlan, setLastWorkoutPlan] = useState<any>(null);
@@ -180,6 +189,10 @@ const TreinoIA = () => {
     const { data } = await supabase.from('ai_plans').select('*').eq('id', editPlanId!).maybeSingle();
     if (data) {
       setResult(data.conteudo);
+      // If the plan being edited has JSON v2, hydrate it so saves stay JSON-first.
+      const json = data.conteudo_json ? normalizeWorkoutPlan(data.conteudo_json) : null;
+      setGeneratedJson(json);
+      setMarkdownEdited(false);
     }
   };
 
@@ -296,6 +309,8 @@ const TreinoIA = () => {
     if (!canGenerate || !studentCtx) return;
     setGenerating(true);
     setResult('');
+    setGeneratedJson(null);
+    setMarkdownEdited(false);
 
     const selectedLevel = LEVELS.find(l => l.value === level);
     const selectedSplit = SPLITS.find(s => s.value === split);
@@ -410,59 +425,25 @@ GERE TUDO DE UMA VEZ:
           body: JSON.stringify({
             messages: [{ role: 'user', content: prompt }],
             studentContext: studentCtx,
+            outputMode: 'json',
           }),
         }
       );
 
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ error: 'Erro desconhecido' }));
-        throw new Error(err.error || `Erro ${resp.status}`);
+        throw new Error(err.detail || err.error || `Erro ${resp.status}`);
       }
-      if (!resp.body) throw new Error('Sem resposta');
 
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let textBuffer = '';
-      let accumulated = '';
-      let streamDone = false;
-
-      while (!streamDone) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        textBuffer += decoder.decode(value, { stream: true });
-        let idx: number;
-        while ((idx = textBuffer.indexOf('\n')) !== -1) {
-          let line = textBuffer.slice(0, idx);
-          textBuffer = textBuffer.slice(idx + 1);
-          if (line.endsWith('\r')) line = line.slice(0, -1);
-          if (line.startsWith(':') || line.trim() === '') continue;
-          if (!line.startsWith('data: ')) continue;
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === '[DONE]') { streamDone = true; break; }
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-            if (content) { accumulated += content; setResult(accumulated); }
-          } catch {
-            textBuffer = line + '\n' + textBuffer;
-            break;
-          }
-        }
+      const payload = await resp.json();
+      const json = normalizeWorkoutPlan(payload?.json);
+      const markdown = typeof payload?.markdown === 'string' ? payload.markdown : '';
+      if (!json || !markdown) {
+        throw new Error('Resposta da IA inválida (sem JSON estruturado).');
       }
-      if (textBuffer.trim()) {
-        for (let raw of textBuffer.split('\n')) {
-          if (!raw || raw.startsWith(':') || raw.trim() === '') continue;
-          if (raw.endsWith('\r')) raw = raw.slice(0, -1);
-          if (!raw.startsWith('data: ')) continue;
-          const jsonStr = raw.slice(6).trim();
-          if (jsonStr === '[DONE]') continue;
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-            if (content) { accumulated += content; setResult(accumulated); }
-          } catch { /* ignore */ }
-        }
-      }
+      setGeneratedJson(json);
+      setResult(markdown);
+      setMarkdownEdited(false);
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || 'Erro ao gerar treino');
@@ -474,41 +455,59 @@ GERE TUDO DE UMA VEZ:
   const savePlan = async () => {
     if (!result) return;
     setSaving(true);
-    if (editPlanId) {
-      const validation = validateWorkoutJSON(result);
-      const { error } = await supabase.from('ai_plans').update({
-        conteudo: result,
-        titulo: `Treino - ${new Date().toLocaleDateString('pt-BR')} (editado)`,
-        conteudo_json: validation.success ? (validation.data as any) : null,
-        migration_status: (validation.success ? 'completed' : 'failed') as any,
-        migration_error: validation.error || null,
-      }).eq('id', editPlanId);
-      if (error) toast.error('Erro: ' + error.message);
-      else toast.success('Treino atualizado!');
-    } else {
-      const validation = validateWorkoutJSON(result);
-      const { error } = await supabase.from('ai_plans').insert({
-        student_id: studentId!,
-        tipo: 'treino',
-        titulo: `Treino - ${new Date().toLocaleDateString('pt-BR')}`,
-        conteudo: result,
-        cycle_status: 'em_dia',
-        conteudo_json: validation.success ? (validation.data as any) : null,
-        migration_status: (validation.success ? 'completed' : 'failed') as any,
-        migration_error: validation.error || null,
-      });
-      if (error) {
-        toast.error('Erro: ' + error.message);
+    try {
+      const dateLabel = new Date().toLocaleDateString('pt-BR');
+      const titulo = editPlanId
+        ? `Treino - ${dateLabel} (editado)`
+        : `Treino - ${dateLabel}`;
+
+      // JSON-first persistence: prefer the structured JSON whenever possible.
+      // Only fall back to markdown-based save when the user edited the markdown
+      // by hand AND we have no JSON to start from (shouldn't normally happen
+      // because edits hydrate `generatedJson` from `conteudo_json`).
+      const useMarkdownFallback = markdownEdited || !generatedJson;
+
+      if (editPlanId) {
+        if (!useMarkdownFallback && generatedJson) {
+          const r = await saveWorkoutPlanJSON(editPlanId, generatedJson, { titulo });
+          if (r.success !== true) {
+            toast.error('Erro ao salvar: ' + (r as { error: string }).error);
+            return;
+          }
+          toast.success('Treino atualizado!');
+        } else {
+          const r = await saveWorkoutPlanFromMarkdown(editPlanId, result, { titulo });
+          if (!r.success) {
+            toast.warning('Treino salvo, mas JSON não pôde ser regenerado. JSON anterior preservado.');
+          } else {
+            setGeneratedJson(r.json);
+            setMarkdownEdited(false);
+            toast.success('Treino atualizado!');
+          }
+        }
       } else {
+        if (!generatedJson) {
+          toast.error('Plano JSON ausente. Gere novamente para salvar.');
+          return;
+        }
+        const r = await createWorkoutPlanJSON(studentId!, generatedJson, {
+          titulo,
+          cycle_status: 'em_dia',
+        });
+        if (r.success !== true) {
+          toast.error('Erro ao salvar: ' + (r as { error: string }).error);
+          return;
+        }
         if (lastWorkoutPlan?.id) {
-          await supabase.from('ai_plans').update({
-            cycle_status: 'renovado'
-          }).eq('id', lastWorkoutPlan.id);
+          await supabase.from('ai_plans').update({ cycle_status: 'renovado' }).eq('id', lastWorkoutPlan.id);
         }
         toast.success('Treino salvo e ciclo atualizado!');
       }
+    } catch (e: any) {
+      toast.error('Erro ao salvar: ' + (e?.message || e));
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   if (loading) {
