@@ -982,6 +982,7 @@ const DietaIA = () => {
     setResult('');
     setMacroReport(null);
     setStructuredPlan(null);
+    setDietSimilarity(null);
 
     const selectedStrategy = STRATEGIES.find(s => s.value === strategy);
     const selectedActivity = ACTIVITY_LEVELS.find(a => a.value === activityLevel);
