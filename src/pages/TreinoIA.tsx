@@ -24,6 +24,13 @@ import {
 import { normalizeWorkoutPlan, type WorkoutPlan } from '@/lib/workoutSchema';
 import ReactMarkdown from 'react-markdown';
 import TrainingResultCards from '@/components/TrainingResultCards';
+import {
+  DEFAULT_INTENSITY,
+  VARIATION_OPTIONS,
+  describeSimilarity,
+  type SimilarityFeedback,
+  type VariationIntensity,
+} from '@/lib/variationProfiles';
 
 type StudentCtx = Record<string, any>;
 
@@ -171,6 +178,9 @@ const TreinoIA = () => {
   const [generatedJson, setGeneratedJson] = useState<WorkoutPlan | null>(null);
   // Tracks whether the markdown shown in `result` was hand-edited after generation.
   const [markdownEdited, setMarkdownEdited] = useState(false);
+  // Variability controls + feedback returned by the agent.
+  const [variationIntensity, setVariationIntensity] = useState<VariationIntensity>(DEFAULT_INTENSITY);
+  const [similarity, setSimilarity] = useState<SimilarityFeedback | null>(null);
   const [marombiewEnabled, setMarombiewEnabled] = useState(false);
   const [configCollapsed, setConfigCollapsed] = useState(!!editPlanId);
   const [lastWorkoutPlan, setLastWorkoutPlan] = useState<any>(null);
@@ -426,6 +436,8 @@ GERE TUDO DE UMA VEZ:
             messages: [{ role: 'user', content: prompt }],
             studentContext: studentCtx,
             outputMode: 'json',
+            studentId,
+            variationIntensity,
           }),
         }
       );
@@ -444,6 +456,15 @@ GERE TUDO DE UMA VEZ:
       setGeneratedJson(json);
       setResult(markdown);
       setMarkdownEdited(false);
+      if (payload?.similarity) {
+        const sim = payload.similarity as SimilarityFeedback;
+        setSimilarity(sim);
+        const fb = describeSimilarity(sim);
+        if (fb.level === 'warn') toast.warning(fb.label);
+        else if (sim.historyCount > 0) toast.info(fb.label);
+      } else {
+        setSimilarity(null);
+      }
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || 'Erro ao gerar treino');
