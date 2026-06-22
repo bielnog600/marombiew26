@@ -1569,6 +1569,31 @@ ${generated}`;
               </div>
             </div>
             <div>
+              <p className="text-xs text-muted-foreground mb-2">Variação em relação à dieta anterior</p>
+              <div className="grid grid-cols-3 gap-2">
+                {DIET_VARIATION_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setVariationIntensity(opt.value)}
+                    className={`rounded-xl border-2 p-2 text-xs text-left transition-all ${
+                      variationIntensity === opt.value
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <div className="font-semibold">{opt.label}</div>
+                    <div className="text-[10px] text-muted-foreground mt-1 leading-tight">
+                      {opt.desc}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Se ficar parecido demais com o cardápio anterior, o sistema regerar automaticamente 1x.
+              </p>
+            </div>
+            <div>
               <p className="text-xs text-muted-foreground mb-2">Frequência de treino</p>
               <div className="flex gap-2 flex-wrap">
                 {TRAINING_DAYS_OPTIONS.map(d => (
