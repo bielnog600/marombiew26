@@ -84,7 +84,7 @@ export const createWorkoutPlanJSON = async (
   };
   const { data, error } = await supabase
     .from("ai_plans")
-    .insert(insertPayload)
+    .insert(insertPayload as any)
     .select("id")
     .single();
   if (error) return { success: false, error: error.message };
