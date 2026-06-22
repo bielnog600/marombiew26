@@ -29,6 +29,27 @@ const splitMarkdownRow = (line: string) => {
 
 const cleanCell = (value: string) => value.replace(/\*\*/g, '').trim();
 
+const normalizeText = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+
+const cleanTitle = (value: string) =>
+  cleanCell(value)
+    .replace(/^#+\s*/, '')
+    .replace(/^[-*]\s*/, '')
+    .replace(/:$/, '')
+    .trim();
+
+const extractDayFromTitle = (title: string) => {
+  const cleaned = cleanTitle(title);
+  const normalized = normalizeText(cleaned);
+  const match = normalized.match(/\b(segunda(?:-feira)?|terca(?:-feira)?|quarta(?:-feira)?|quinta(?:-feira)?|sexta(?:-feira)?|sabado|domingo|treino\s+[a-z])\b/i);
+  return match ? cleaned : '';
+};
+
 // Normalize pause values: convert 60", 60'', 60 seg, 60 segundos -> 60s
 const normalizePause = (value: string): string => {
   if (!value) return '';
@@ -48,8 +69,22 @@ const isTrainingTable = (firstLine: string) => {
   );
 };
 
-export const parseTrainingTable = (tableLines: string[]): ParsedTrainingDay[] => {
+export const parseTrainingTable = (tableLines: string[], fallbackTitle = ''): ParsedTrainingDay[] => {
   const rows: string[][] = [];
+  const headerCells = splitMarkdownRow(tableLines.find((line) => line.trim().startsWith('|') && !line.includes('---')) || '');
+  const header = headerCells.map(normalizeText);
+  const findHeader = (predicate: (cell: string) => boolean) => header.findIndex(predicate);
+  const dayIndex = findHeader((cell) => (cell.includes('treino') && cell.includes('dia')) || (cell === 'dia' || cell.includes('dia do treino')));
+  const exerciseIndex = findHeader((cell) => cell.includes('exerc'));
+  const seriesIndex = findHeader((cell) => cell.includes('serie') && !cell.includes('2'));
+  const series2Index = findHeader((cell) => cell.includes('serie') && cell.includes('2'));
+  const repsIndex = findHeader((cell) => cell.includes('repet'));
+  const rirIndex = findHeader((cell) => cell.includes('rir'));
+  const pauseIndex = findHeader((cell) => cell.includes('pausa') || cell.includes('descanso'));
+  const descIndex = findHeader((cell) => cell.includes('descr') || cell.includes('instr'));
+  const variationIndex = findHeader((cell) => cell.includes('vari'));
+  const fallbackDay = extractDayFromTitle(fallbackTitle);
+  const hasMappedHeader = exerciseIndex >= 0;
 
   for (const line of tableLines) {
     if (!line.trim().startsWith('|')) continue;
@@ -57,7 +92,7 @@ export const parseTrainingTable = (tableLines: string[]): ParsedTrainingDay[] =>
     const cells = splitMarkdownRow(line);
     if (cells.length < 4) continue;
 
-    const first = cells[0]?.toLowerCase() || '';
+    const first = normalizeText(cells[0] || '');
     if (first.includes('treino do dia') || first.includes('exercício') || first.includes('exercicio')) {
       continue;
     }
@@ -72,15 +107,21 @@ export const parseTrainingTable = (tableLines: string[]): ParsedTrainingDay[] =>
   let lastDayName = '';
 
   for (const cells of rows) {
-    const dayCell = cleanCell(cells[0] || '');
-    const exerciseCell = cleanCell(cells[1] || '');
-    const seriesCell = cleanCell(cells[2] || '');
-    const series2Cell = cleanCell(cells[3] || '');
-    const repsCell = cleanCell(cells[4] || '');
-    const rirCell = cleanCell(cells[5] || '');
-    const pauseCell = normalizePause(cleanCell(cells[6] || ''));
-    const descCell = cleanCell(cells[7] || '');
-    const variationCell = cleanCell(cells[8] || '');
+    const hasDayColumn = dayIndex >= 0;
+    const get = (idx: number, positionalFallback: number, optional = false) => {
+      if (idx >= 0) return cleanCell(cells[idx] || '');
+      if (hasMappedHeader && optional) return '';
+      return cleanCell(cells[positionalFallback] || '');
+    };
+    const dayCell = hasDayColumn ? get(dayIndex, 0) : fallbackDay;
+    const exerciseCell = hasMappedHeader ? get(exerciseIndex, hasDayColumn ? 1 : 0) : get(hasDayColumn ? 1 : 0, hasDayColumn ? 1 : 0);
+    const seriesCell = hasMappedHeader ? get(seriesIndex, hasDayColumn ? 2 : 1) : get(hasDayColumn ? 2 : 1, hasDayColumn ? 2 : 1);
+    const series2Cell = hasMappedHeader ? get(series2Index, hasDayColumn ? 3 : 2, true) : get(hasDayColumn ? 3 : 2, hasDayColumn ? 3 : 2);
+    const repsCell = hasMappedHeader ? get(repsIndex, hasDayColumn ? 4 : 3) : get(hasDayColumn ? 4 : 3, hasDayColumn ? 4 : 3);
+    const rirCell = hasMappedHeader ? get(rirIndex, hasDayColumn ? 5 : 4, true) : get(hasDayColumn ? 5 : 4, hasDayColumn ? 5 : 4);
+    const pauseCell = normalizePause(hasMappedHeader ? get(pauseIndex, hasDayColumn ? 6 : 5, true) : get(hasDayColumn ? 6 : 5, hasDayColumn ? 6 : 5));
+    const descCell = hasMappedHeader ? get(descIndex, hasDayColumn ? 7 : 6, true) : get(hasDayColumn ? 7 : 6, hasDayColumn ? 7 : 6);
+    const variationCell = hasMappedHeader ? get(variationIndex, hasDayColumn ? 8 : 7, true) : get(hasDayColumn ? 8 : 7, hasDayColumn ? 8 : 7);
 
     if (dayCell && dayCell !== '-' && dayCell.toLowerCase() !== lastDayName.toLowerCase()) {
       if (currentDay && currentDay.exercises.length > 0) {
@@ -95,7 +136,8 @@ export const parseTrainingTable = (tableLines: string[]): ParsedTrainingDay[] =>
       if (dayCell) lastDayName = dayCell;
     }
 
-    if (exerciseCell && !exerciseCell.toLowerCase().includes('exercício')) {
+    const normalizedExercise = normalizeText(exerciseCell);
+    if (exerciseCell && exerciseCell !== '-' && exerciseCell !== '—' && normalizedExercise !== 'exercicio') {
       currentDay.exercises.push({
         exercise: exerciseCell,
         series: seriesCell,
@@ -185,7 +227,7 @@ export const parseTrainingSections = (markdown: string): ParsedTrainingSection[]
 
       const firstLine = tableLines[0]?.toLowerCase() || '';
       if (isTrainingTable(firstLine)) {
-        const days = parseTrainingTable(tableLines);
+        const days = parseTrainingTable(tableLines, title);
         if (days.length > 0) {
           sections.push({ type: 'training', title, content: tableLines.join('\n'), days });
         } else {

@@ -216,6 +216,16 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
     setSaving(null);
   };
 
+  const normalizeDayName = (value: string) =>
+    value
+      .toUpperCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/-FEIRA/g, '')
+      .replace(/[^A-Z0-9 ]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
   if (plans.length === 0) {
     return (
       <Card className="glass-card">
@@ -430,8 +440,8 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                         onClick={() => {
                           const existingDays = currentDays;
                           const allDayNames = ['SEGUNDA-FEIRA','TERÇA-FEIRA','QUARTA-FEIRA','QUINTA-FEIRA','SEXTA-FEIRA','SÁBADO','DOMINGO'];
-                          const usedDays = existingDays.map(d => d.day.toUpperCase());
-                          const nextDay = allDayNames.find(d => !usedDays.includes(d)) || `TREINO ${String.fromCharCode(65 + existingDays.length)}`;
+                          const usedDays = existingDays.map(d => normalizeDayName(d.day));
+                          const nextDay = allDayNames.find(d => !usedDays.includes(normalizeDayName(d))) || `TREINO ${String.fromCharCode(65 + existingDays.length)}`;
                           const updatedDays = [...existingDays, {
                             day: nextDay,
                             exercises: [{ exercise: 'Novo exercício', series: '3', series2: '', reps: '8-12', rir: '', pause: '60s', description: '', variation: '' }],
