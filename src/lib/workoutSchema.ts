@@ -14,15 +14,11 @@ import type { ParsedTrainingDay, ParsedExercise } from "./trainingResultParser";
 
 export const WORKOUT_PLAN_VERSION = "2.0" as const;
 
-const trimmedString = z
-  .string()
-  .transform((v) => (typeof v === "string" ? v.trim() : v))
-  .pipe(z.string());
+const trimmedString = z.string().min(1).transform((v) => v.trim());
 
 const optionalString = z
   .union([z.string(), z.null(), z.undefined()])
-  .transform((v) => (v == null ? "" : String(v).trim()))
-  .pipe(z.string());
+  .transform((v): string => (v == null ? "" : String(v).trim()));
 
 /**
  * Reps / load are kept as strings because trainers use ranges ("8-12"),
@@ -30,8 +26,8 @@ const optionalString = z
  * it is a string and trim it so consumers can rely on the shape.
  */
 export const WorkoutExerciseSchema = z.object({
-  id: trimmedString.min(1),
-  exercise: trimmedString.min(1),
+  id: z.string().min(1),
+  exercise: z.string().min(1),
   exerciseId: optionalString.optional(),
   series: optionalString,
   series2: optionalString.optional(),
@@ -56,8 +52,8 @@ export const WorkoutExerciseSchema = z.object({
 export type WorkoutExercise = z.infer<typeof WorkoutExerciseSchema>;
 
 export const WorkoutDaySchema = z.object({
-  id: trimmedString.min(1),
-  day: trimmedString.min(1),
+  id: z.string().min(1),
+  day: z.string().min(1),
   focus: optionalString.optional(),
   exercises: z.array(WorkoutExerciseSchema),
 });
@@ -141,10 +137,10 @@ export const parsedDaysToWorkoutPlan = (
 
 /** Back-compat: project a v2 plan to the legacy ParsedTrainingDay[] shape. */
 export const workoutPlanToParsedDays = (plan: WorkoutPlan): ParsedTrainingDay[] =>
-  plan.days.map((d) => ({
-    day: d.day,
-    exercises: d.exercises.map((e) => ({
-      exercise: e.exercise,
+  plan.days.map((d): ParsedTrainingDay => ({
+    day: String(d.day),
+    exercises: d.exercises.map((e): ParsedExercise => ({
+      exercise: String(e.exercise),
       series: e.series || "",
       series2: e.series2 || "",
       reps: e.reps || "",

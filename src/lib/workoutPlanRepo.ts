@@ -38,7 +38,7 @@ export const saveWorkoutPlanJSON = async (
 ): Promise<SaveResult> => {
   const validation = validateWorkoutPlan(json);
   if (!validation.success) {
-    return { success: false, error: validation.error };
+    return { success: false, error: (validation as { error: string }).error };
   }
   const markdown = workoutPlanToMarkdown(validation.data);
   const updates: Record<string, unknown> = {
