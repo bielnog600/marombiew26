@@ -470,8 +470,8 @@ GERE TUDO DE UMA VEZ:
       if (editPlanId) {
         if (!useMarkdownFallback && generatedJson) {
           const r = await saveWorkoutPlanJSON(editPlanId, generatedJson, { titulo });
-          if (!r.success) {
-            toast.error('Erro ao salvar: ' + r.error);
+          if (r.success !== true) {
+            toast.error('Erro ao salvar: ' + (r as { error: string }).error);
             return;
           }
           toast.success('Treino atualizado!');
@@ -494,8 +494,8 @@ GERE TUDO DE UMA VEZ:
           titulo,
           cycle_status: 'em_dia',
         });
-        if (!r.success) {
-          toast.error('Erro ao salvar: ' + r.error);
+        if (r.success !== true) {
+          toast.error('Erro ao salvar: ' + (r as { error: string }).error);
           return;
         }
         if (lastWorkoutPlan?.id) {
