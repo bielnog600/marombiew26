@@ -122,6 +122,126 @@ const foodSet = (m: any): Set<string> => {
   return out;
 };
 
+// ─────────── functional food group classification ───────────
+
+const PROTEIN_GROUPS: Record<string, string[]> = {
+  protein_red: ["carne vermelha", "bovino", "patinho", "alcatra", "picanha", "coxao", "maminha", "file mignon", "acem", "musculo bovino", "cordeiro", "suino", "porco", "lombo suino", "pernil", "bacon", "linguica", "carne moida"],
+  protein_white: ["frango", "peito de frango", "sobrecoxa", "coxa de frango", "peru", "chester", "ave"],
+  protein_fish: ["peixe", "tilapia", "salmao", "atum", "sardinha", "merluza", "pescada", "bacalhau", "camarao", "polvo", "lula", "frutos do mar"],
+  protein_egg: ["ovo", "clara", "gema", "omelete"],
+  protein_organ: ["figado", "moela", "coracao bovino", "coracao de frango", "rim", "lingua", "viscera"],
+  protein_dairy: ["whey", "caseina", "iogurte", "queijo", "cottage", "ricota", "leite", "proteina isolada", "albumina"],
+  protein_plant: ["tofu", "tempeh", "seitan", "proteina texturizada", "pts", "soja", "ervilha proteica"],
+};
+
+const CARB_GROUPS: Record<string, string[]> = {
+  carb_grain: ["arroz", "aveia", "pao", "macarrao", "massa", "cuscuz", "tapioca", "quinoa", "granola", "milho", "cevada", "trigo", "panqueca", "wrap", "biscoito"],
+  carb_tuber: ["batata", "batata doce", "mandioca", "aipim", "inhame", "cara", "mandioquinha"],
+  carb_fruit: ["banana", "maca", "mamao", "manga", "abacaxi", "morango", "uva", "pera", "laranja", "kiwi", "melancia", "melao", "fruta"],
+  carb_legume: ["feijao", "lentilha", "grao de bico"],
+};
+
+function classifyByGroup(
+  name: string,
+  groups: Record<string, string[]>,
+): string | null {
+  if (!name) return null;
+  let best: { group: string; len: number } | null = null;
+  for (const [group, terms] of Object.entries(groups)) {
+    for (const t of terms) {
+      if (name.includes(t) && (!best || t.length > best.len)) {
+        best = { group, len: t.length };
+      }
+    }
+  }
+  return best?.group ?? null;
+}
+
+const classifyProtein = (name: string) => classifyByGroup(name, PROTEIN_GROUPS);
+const classifyCarb = (name: string) => classifyByGroup(name, CARB_GROUPS);
+
+/** Pick the primary protein source of a meal (max protein grams; must classify). */
+function primaryProteinGroup(m: any): string | null {
+  let best: { group: string; p: number } | null = null;
+  for (const item of m?.items ?? []) {
+    const n = normalizeName(item?.name);
+    const g = classifyProtein(n);
+    if (!g) continue;
+    const p = Number(item?.macros?.p);
+    const pv = Number.isFinite(p) ? p : 0;
+    if (!best || pv > best.p) best = { group: g, p: pv };
+  }
+  return best?.group ?? null;
+}
+
+/** Pick the primary carb source of a meal (max carb grams; must classify). */
+function primaryCarbGroup(m: any): string | null {
+  let best: { group: string; c: number } | null = null;
+  for (const item of m?.items ?? []) {
+    const n = normalizeName(item?.name);
+    const g = classifyCarb(n);
+    if (!g) continue;
+    const c = Number(item?.macros?.c);
+    const cv = Number.isFinite(c) ? c : 0;
+    if (!best || cv > best.c) best = { group: g, c: cv };
+  }
+  return best?.group ?? null;
+}
+
+export type PrimarySourceBreakdown = {
+  /** Ratio (0..1) of meals where the primary protein group repeats vs previous plan. */
+  proteinRepeatRatio: number;
+  /** Ratio (0..1) of meals where the primary carb group repeats vs previous plan. */
+  carbRepeatRatio: number;
+  /** Meal labels where protein group repeated. */
+  proteinRepeats: string[];
+  /** Meal labels where carb group repeated. */
+  carbRepeats: string[];
+};
+
+function primarySourceRepeats(
+  fresh: DietPlanLike,
+  prev: DietPlanLike,
+): PrimarySourceBreakdown {
+  const ma = mealsOfDietPlan(fresh);
+  const mb = mealsOfDietPlan(prev);
+  if (ma.length === 0 || mb.length === 0) {
+    return { proteinRepeatRatio: 0, carbRepeatRatio: 0, proteinRepeats: [], carbRepeats: [] };
+  }
+  const prevByKey = new Map<string, any[]>();
+  for (const m of mb) {
+    const k = mealKey(m);
+    if (!prevByKey.has(k)) prevByKey.set(k, []);
+    prevByKey.get(k)!.push(m);
+  }
+  let pTotal = 0, pRepeat = 0, cTotal = 0, cRepeat = 0;
+  const proteinRepeats: string[] = [];
+  const carbRepeats: string[] = [];
+  for (const m of ma) {
+    const k = mealKey(m);
+    const candidates = prevByKey.get(k) ?? [];
+    if (candidates.length === 0) continue;
+    const freshP = primaryProteinGroup(m);
+    const freshC = primaryCarbGroup(m);
+    const prevPs = new Set(candidates.map(primaryProteinGroup).filter(Boolean) as string[]);
+    const prevCs = new Set(candidates.map(primaryCarbGroup).filter(Boolean) as string[]);
+    if (freshP) {
+      pTotal++;
+      if (prevPs.has(freshP)) { pRepeat++; proteinRepeats.push(m?.name || k); }
+    }
+    if (freshC) {
+      cTotal++;
+      if (prevCs.has(freshC)) { cRepeat++; carbRepeats.push(m?.name || k); }
+    }
+  }
+  return {
+    proteinRepeatRatio: pTotal === 0 ? 0 : pRepeat / pTotal,
+    carbRepeatRatio: cTotal === 0 ? 0 : cRepeat / cTotal,
+    proteinRepeats,
+    carbRepeats,
+  };
+}
+
 /** Per-item map name→qtyGrams (rounded to 5g). */
 const itemPortions = (m: any): Map<string, number> => {
   const out = new Map<string, number>();
@@ -200,6 +320,14 @@ export type SimilarityResult = {
   quantityOnlyRatio?: number;
   /** Diet-only: 'menu_variation' | 'portion_only' | 'mixed' | 'new_menu' */
   changeKind?: "menu_variation" | "portion_only" | "mixed" | "new_menu";
+  /** Diet-only: ratio (0..1) of meals where primary protein source repeats from previous plan. */
+  primaryProteinRepeatRatio?: number;
+  /** Diet-only: ratio (0..1) of meals where primary carb source repeats from previous plan. */
+  primaryCarbRepeatRatio?: number;
+  /** Diet-only: meal names where the primary protein source repeated. */
+  proteinRepeatMeals?: string[];
+  /** Diet-only: meal names where the primary carb source repeated. */
+  carbRepeatMeals?: string[];
 };
 
 function aggregateAgainstHistory(
@@ -293,6 +421,22 @@ export function computeDietSimilarity(
     } else if (sameFoodRatio >= 0.6) {
       adjustedScore = Math.max(adjustedScore, 0.8);
     }
+    // PENALTY: primary protein/carb sources repeating across most meals
+    // counts as low variation even if names/portions vary.
+    const ps = primarySourceRepeats(fresh, history[0]);
+    const maxPrimary = Math.max(ps.proteinRepeatRatio, ps.carbRepeatRatio);
+    if (maxPrimary >= 0.8) adjustedScore = Math.max(adjustedScore, 0.85);
+    else if (maxPrimary >= 0.6) adjustedScore = Math.max(adjustedScore, 0.7);
+    return {
+      ...base,
+      score: adjustedScore,
+      quantityOnlyRatio,
+      changeKind,
+      primaryProteinRepeatRatio: ps.proteinRepeatRatio,
+      primaryCarbRepeatRatio: ps.carbRepeatRatio,
+      proteinRepeatMeals: ps.proteinRepeats,
+      carbRepeatMeals: ps.carbRepeats,
+    };
   }
   return { ...base, score: adjustedScore, quantityOnlyRatio, changeKind };
 }
