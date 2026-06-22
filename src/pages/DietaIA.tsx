@@ -883,6 +883,7 @@ const DietaIA = () => {
     userPrompt: string,
     dietConfig: { objective?: string; strategy?: string; style?: string },
     targets: { kcal: number; p: number; c: number; g: number; tmb?: number; get?: number },
+    regenerateIntent = false,
   ): Promise<DietPlan | null> => {
     // Latest training markdown → structured context
     let trainingContext: any = undefined;
@@ -920,6 +921,7 @@ const DietaIA = () => {
         trainingContext,
         studentId,
         variationIntensity,
+        regenerateIntent,
       }),
     });
     if (!resp.ok) {
@@ -976,7 +978,7 @@ const DietaIA = () => {
     }));
   };
 
-  const generatePlan = async () => {
+  const generatePlan = async (opts: { regenerateIntent?: boolean } = {}) => {
     if (!canGenerate || !studentCtx) return;
     setGenerating(true);
     setResult('');
@@ -1208,6 +1210,7 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
               g: currentTargets.fats,
               tmb: studentCtx.recomendacao_ia?.tmb,
             },
+            opts.regenerateIntent === true,
           );
         } catch (e) {
           console.warn('structured generation threw, falling back to streaming:', e);
