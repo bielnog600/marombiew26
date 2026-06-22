@@ -1937,7 +1937,7 @@ ${generated}`;
                 )}
               </h3>
               <div className="flex gap-2 flex-wrap">
-                <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan(); }}>
+                <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan({ regenerateIntent: true }); }}>
                   <RotateCcw className="h-3 w-3 mr-1" /> Regenerar
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => generateDietPDF(result, studentName)}>
@@ -1982,7 +1982,7 @@ ${generated}`;
                     <Button variant="outline" size="sm" onClick={() => setShowMacroModal(true)}>
                       <Percent className="h-3 w-3 mr-1" /> Ajustar macros
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan(); }}>
+                    <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan({ regenerateIntent: true }); }}>
                       <RefreshCw className="h-3 w-3 mr-1" /> Regenerar dieta
                     </Button>
                     {lastDietPlan && !editPlanId && (
