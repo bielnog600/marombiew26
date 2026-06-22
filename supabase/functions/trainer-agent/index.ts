@@ -23,7 +23,7 @@ const WORKOUT_PLAN_JSON_SCHEMA = {
       properties: {
         goal: { type: "string" },
         frequency: { type: ["integer", "null"] },
-        notes: { type: "string" },
+        notes: { type: ["string", "null"] },
       },
     },
     days: {
@@ -66,20 +66,23 @@ const WORKOUT_PLAN_JSON_SCHEMA = {
                   description: "Number of working sets, e.g. \"3\", \"4\"",
                 },
                 series2: {
-                  type: "string",
+                  type: ["string", "null"],
                   description: "Second-block sets when there is a recognition set; otherwise \"-\"",
                 },
                 reps: { type: "string", description: "e.g. \"8-12\", \"10\", \"15 + 8\"" },
                 rir: {
-                  type: "string",
+                  type: ["string", "null"],
                   description: "RIR value or \"-\" if not applicable. Never put reps here.",
                 },
                 restSeconds: {
                   type: ["integer", "null"],
                   description: "Rest in seconds. Use null for mobility/cardio only.",
                 },
-                description: { type: "string" },
-                variation: { type: "string", description: "Equivalent exercise from the DB" },
+                description: { type: ["string", "null"] },
+                variation: {
+                  type: ["string", "null"],
+                  description: "Equivalent exercise from the DB; null if none",
+                },
               },
             },
           },
