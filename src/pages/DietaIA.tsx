@@ -883,6 +883,7 @@ const DietaIA = () => {
     userPrompt: string,
     dietConfig: { objective?: string; strategy?: string; style?: string },
     targets: { kcal: number; p: number; c: number; g: number; tmb?: number; get?: number },
+    regenerateIntent = false,
   ): Promise<DietPlan | null> => {
     // Latest training markdown → structured context
     let trainingContext: any = undefined;
@@ -920,6 +921,7 @@ const DietaIA = () => {
         trainingContext,
         studentId,
         variationIntensity,
+        regenerateIntent,
       }),
     });
     if (!resp.ok) {
@@ -976,7 +978,7 @@ const DietaIA = () => {
     }));
   };
 
-  const generatePlan = async () => {
+  const generatePlan = async (opts: { regenerateIntent?: boolean } = {}) => {
     if (!canGenerate || !studentCtx) return;
     setGenerating(true);
     setResult('');
@@ -1208,6 +1210,7 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
               g: currentTargets.fats,
               tmb: studentCtx.recomendacao_ia?.tmb,
             },
+            opts.regenerateIntent === true,
           );
         } catch (e) {
           console.warn('structured generation threw, falling back to streaming:', e);
@@ -1934,7 +1937,7 @@ ${generated}`;
                 )}
               </h3>
               <div className="flex gap-2 flex-wrap">
-                <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan(); }}>
+                <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan({ regenerateIntent: true }); }}>
                   <RotateCcw className="h-3 w-3 mr-1" /> Regenerar
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => generateDietPDF(result, studentName)}>
@@ -1979,7 +1982,7 @@ ${generated}`;
                     <Button variant="outline" size="sm" onClick={() => setShowMacroModal(true)}>
                       <Percent className="h-3 w-3 mr-1" /> Ajustar macros
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan(); }}>
+                    <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan({ regenerateIntent: true }); }}>
                       <RefreshCw className="h-3 w-3 mr-1" /> Regenerar dieta
                     </Button>
                     {lastDietPlan && !editPlanId && (

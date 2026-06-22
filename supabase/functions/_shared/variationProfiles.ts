@@ -36,9 +36,9 @@ const DIET_RULES: Record<VariationIntensity, string> = {
   baixa:
     "Preserve a estrutura de refeições e a maioria dos alimentos. Faça apenas 1-2 trocas pontuais e ajuste porções para bater a meta.",
   media:
-    "Mantenha as âncoras de horário e número de refeições, mas varie ALIMENTOS e COMBINAÇÕES: troque pelo menos uma fonte de proteína, uma de carboidrato e uma de gordura por refeição em relação ao cardápio anterior. Use opções equivalentes dentro dos mesmos macros.",
+    "Mantenha as âncoras de horário e número de refeições, mas varie ALIMENTOS e COMBINAÇÕES: troque pelo menos uma fonte de proteína, uma de carboidrato e uma de gordura por refeição em relação ao cardápio anterior. Use opções equivalentes dentro dos mesmos macros. APENAS reduzir ou aumentar a gramagem dos MESMOS alimentos NÃO conta como variação.",
   alta:
-    "Reescreva o cardápio com alimentos majoritariamente NOVOS em relação ao anterior, mantendo apenas itens essenciais por restrição/preferência. Preserve metas calóricas, macros, restrições e preferências.",
+    "Reescreva o cardápio com alimentos majoritariamente NOVOS em relação ao anterior, mantendo apenas itens essenciais por restrição/preferência. Preserve metas calóricas, macros, restrições e preferências. Repetir os mesmos alimentos com porções diferentes NÃO é aceitável.",
 };
 
 export function workoutVariationPrompt(
@@ -74,6 +74,7 @@ export function dietVariationPrompt(
   intensity: VariationIntensity,
   historySummary: string,
   retryNotes?: string,
+  requireMenuVariation = false,
 ): string {
   const rules = DIET_RULES[intensity] ?? DIET_RULES.media;
   const block = [
@@ -83,7 +84,23 @@ export function dietVariationPrompt(
     `Intensidade de variação: ${intensity.toUpperCase()}.`,
     rules,
     "NÃO quebre: metas calóricas, macros, restrições, preferências e aderência relatada.",
+    "",
+    "DIFERENÇA OBRIGATÓRIA — AJUSTE NUTRICIONAL vs VARIAÇÃO DE CARDÁPIO:",
+    "• Ajuste nutricional = mudar calorias/macros/déficit.",
+    "• Variação de cardápio = trocar alimentos, combinações e preparações.",
+    "Quando o contexto for NOVA dieta, RENOVAÇÃO ou REGENERAÇÃO, é OBRIGATÓRIO variação real de cardápio.",
+    "NÃO considere suficiente apenas escalar a quantidade (em gramas) dos mesmos alimentos.",
   ];
+  if (requireMenuVariation) {
+    block.push(
+      "",
+      "🔒 EXIGÊNCIA DE VARIAÇÃO DE CARDÁPIO (não negociável nesta geração):",
+      "- Em pelo menos 60% das refeições, troque a fonte principal de proteína OU de carboidrato em relação ao cardápio anterior.",
+      "- Inclua pelo menos 3 alimentos NOVOS (que não aparecem na dieta anterior do aluno).",
+      "- Mantenha exatamente as metas de kcal, P, C, G — ajuste porções dos NOVOS alimentos para fechar a conta.",
+      "- Se você devolver praticamente os mesmos alimentos da dieta anterior, a geração será considerada inválida.",
+    );
+  }
   if (historySummary) {
     block.push("", "DIETAS RECENTES DO ALUNO (mais nova primeiro):", historySummary);
   }

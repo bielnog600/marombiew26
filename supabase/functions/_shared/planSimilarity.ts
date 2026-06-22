@@ -122,11 +122,35 @@ const foodSet = (m: any): Set<string> => {
   return out;
 };
 
-function dietPairScore(a: DietPlanLike, b: DietPlanLike): number {
+/** Per-item map name→qtyGrams (rounded to 5g). */
+const itemPortions = (m: any): Map<string, number> => {
+  const out = new Map<string, number>();
+  for (const item of m?.items ?? []) {
+    const n = normalizeName(item?.name);
+    if (!n) continue;
+    const q = Number(item?.qtyGrams);
+    out.set(n, Number.isFinite(q) ? Math.round(q / 5) * 5 : -1);
+  }
+  return out;
+};
+
+type DietPairBreakdown = {
+  /** raw foodset Jaccard, 0..1 (1 = same foods, ignoring portions) */
+  score: number;
+  /** how many meals had ≥80% foodset overlap with best candidate */
+  sameFoodMeals: number;
+  /** subset of sameFoodMeals where at least one portion changed */
+  portionOnlyMeals: number;
+  /** total meals in `a` */
+  totalMeals: number;
+};
+
+function dietPairBreakdown(a: DietPlanLike, b: DietPlanLike): DietPairBreakdown {
   const ma = mealsOfDietPlan(a);
   const mb = mealsOfDietPlan(b);
-  if (ma.length === 0 || mb.length === 0) return 0;
-  // Group b by meal name
+  if (ma.length === 0 || mb.length === 0) {
+    return { score: 0, sameFoodMeals: 0, portionOnlyMeals: 0, totalMeals: ma.length };
+  }
   const bByKey = new Map<string, any[]>();
   for (const m of mb) {
     const k = mealKey(m);
@@ -134,19 +158,36 @@ function dietPairScore(a: DietPlanLike, b: DietPlanLike): number {
     bByKey.get(k)!.push(m);
   }
   let sum = 0;
-  let count = 0;
+  let sameFoodMeals = 0;
+  let portionOnlyMeals = 0;
   for (const m of ma) {
     const k = mealKey(m);
     const candidates = bByKey.get(k) ?? mb;
     let best = 0;
+    let bestMeal: any = null;
     for (const c of candidates) {
       const j = jaccard(foodSet(m), foodSet(c));
-      if (j > best) best = j;
+      if (j > best) { best = j; bestMeal = c; }
     }
     sum += best;
-    count++;
+    if (best >= 0.8 && bestMeal) {
+      sameFoodMeals++;
+      const pa = itemPortions(m);
+      const pb = itemPortions(bestMeal);
+      let portionChanged = false;
+      for (const [name, qa] of pa) {
+        const qb = pb.get(name);
+        if (qb != null && qa !== qb) { portionChanged = true; break; }
+      }
+      if (portionChanged) portionOnlyMeals++;
+    }
   }
-  return count === 0 ? 0 : sum / count;
+  return {
+    score: sum / ma.length,
+    sameFoodMeals,
+    portionOnlyMeals,
+    totalMeals: ma.length,
+  };
 }
 
 // ─────────────────────────── public API ───────────────────────────
@@ -155,6 +196,10 @@ export type SimilarityResult = {
   score: number;
   perPlan: Array<{ planIndex: number; raw: number; weighted: number }>;
   worstOverlap: string[]; // normalized names that repeat most
+  /** Diet-only: ratio of meals (0..1) that kept the same foods and only changed portions. */
+  quantityOnlyRatio?: number;
+  /** Diet-only: 'menu_variation' | 'portion_only' | 'mixed' | 'new_menu' */
+  changeKind?: "menu_variation" | "portion_only" | "mixed" | "new_menu";
 };
 
 function aggregateAgainstHistory(
@@ -222,10 +267,32 @@ export function computeDietSimilarity(
   fresh: DietPlanLike,
   history: DietPlanLike[],
 ): SimilarityResult {
-  return aggregateAgainstHistory(
-    (h) => dietPairScore(fresh, h),
+  const base = aggregateAgainstHistory(
+    (h) => dietPairBreakdown(fresh, h).score,
     history,
     dietItems,
     fresh,
   );
+  // Compute breakdown against the most recent plan only (used for UX label
+  // and for the regeneration gate).
+  let quantityOnlyRatio = 0;
+  let changeKind: SimilarityResult["changeKind"] = "new_menu";
+  let adjustedScore = base.score;
+  if (history.length > 0) {
+    const bd = dietPairBreakdown(fresh, history[0]);
+    quantityOnlyRatio = bd.totalMeals === 0 ? 0 : bd.portionOnlyMeals / bd.totalMeals;
+    const sameFoodRatio = bd.totalMeals === 0 ? 0 : bd.sameFoodMeals / bd.totalMeals;
+    if (sameFoodRatio >= 0.6 && quantityOnlyRatio >= 0.5) changeKind = "portion_only";
+    else if (sameFoodRatio >= 0.6) changeKind = "mixed"; // same foods, same portions = no change
+    else if (sameFoodRatio >= 0.3) changeKind = "mixed";
+    else changeKind = "menu_variation";
+    // PENALTY: if it's basically the old menu with rescaled portions, push
+    // similarity up so the threshold gate fires regardless of meal-name shuffle.
+    if (changeKind === "portion_only") {
+      adjustedScore = Math.max(adjustedScore, 0.9);
+    } else if (sameFoodRatio >= 0.6) {
+      adjustedScore = Math.max(adjustedScore, 0.8);
+    }
+  }
+  return { ...base, score: adjustedScore, quantityOnlyRatio, changeKind };
 }
