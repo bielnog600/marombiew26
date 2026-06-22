@@ -1,5 +1,11 @@
 import { Json } from "@/integrations/supabase/types";
 import { ParsedTrainingDay, parseTrainingSections } from "./trainingResultParser";
+import {
+  normalizeWorkoutPlan,
+  parsedDaysToWorkoutPlan,
+  workoutPlanToParsedDays,
+  type WorkoutPlan,
+} from "./workoutSchema";
 
 export type MigrationStatus = 'pending' | 'completed' | 'failed' | 'manual_fix_needed';
 
@@ -43,28 +49,52 @@ export interface PlanData {
 }
 
 /**
- * Hook logic or utility for safe plan reading with fallback
+ * Read a workout plan as ParsedTrainingDay[] with JSON-first priority.
+ *
+ * Rules:
+ * - JSON in `conteudo_json` is the source of truth whenever it is parseable,
+ *   regardless of `migration_status` (status is telemetry, never a gate).
+ * - If JSON is missing/invalid, fall back to parsing the markdown.
+ * - We never throw and never drop existing JSON.
  */
 export const getSafeWorkoutDays = (plan: PlanData): { days: ParsedTrainingDay[], isFromJSON: boolean } => {
-  const status = plan.migration_status as string;
-  const markdownDays = parseTrainingSections(plan.conteudo).flatMap(s => s.days ?? []);
-  // 1. Try JSON if status is 'completed'
-  if (status === 'completed' && plan.conteudo_json) {
-    try {
-      const data = plan.conteudo_json as unknown as WorkoutDataJSON;
-      if (data && data.type === 'workout' && Array.isArray(data.days)) {
-        if (markdownDays.length > data.days.length) {
-          return { days: markdownDays, isFromJSON: false };
-        }
-        return { days: data.days, isFromJSON: true };
-      }
-    } catch (e) {
-      console.error("Failed to parse workout JSON for plan", plan.id, e);
+  // 1. JSON-first (no migration_status gate).
+  if (plan.conteudo_json) {
+    const normalized = normalizeWorkoutPlan(plan.conteudo_json);
+    if (normalized && normalized.days.length > 0) {
+      return { days: workoutPlanToParsedDays(normalized), isFromJSON: true };
     }
   }
-
-  // 2. Fallback to Markdown
+  // 2. Markdown fallback (legacy plans).
+  const markdownDays = parseTrainingSections(plan.conteudo || "").flatMap((s) => s.days ?? []);
   return { days: markdownDays, isFromJSON: false };
+};
+
+/**
+ * Get the full v2 workout plan for editing. Always returns a WorkoutPlan:
+ *  - if `conteudo_json` is valid -> normalize and return it
+ *  - else parse markdown -> convert to v2 with fresh stable IDs
+ *  - else return an empty plan (never null)
+ *
+ * `source` is `'json' | 'markdown' | 'empty'` for telemetry/UI hints.
+ */
+export const getEditableWorkoutPlan = (
+  plan: PlanData,
+): { plan: WorkoutPlan; source: 'json' | 'markdown' | 'empty' } => {
+  if (plan.conteudo_json) {
+    const normalized = normalizeWorkoutPlan(plan.conteudo_json);
+    if (normalized && normalized.days.length > 0) {
+      return { plan: normalized, source: 'json' };
+    }
+  }
+  const days = parseTrainingSections(plan.conteudo || "").flatMap((s) => s.days ?? []);
+  if (days.length > 0) {
+    return { plan: parsedDaysToWorkoutPlan(days), source: 'markdown' };
+  }
+  return {
+    plan: { version: '2.0', type: 'workout', metadata: {}, days: [] },
+    source: 'empty',
+  };
 };
 
 /**

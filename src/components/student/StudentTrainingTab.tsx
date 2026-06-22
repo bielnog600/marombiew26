@@ -12,6 +12,7 @@ import TrainingResultCards from '@/components/TrainingResultCards';
 import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { rebuildTrainingMarkdown } from '@/lib/trainingResultParser';
+import { saveWorkoutPlanFromMarkdown } from '@/lib/workoutPlanRepo';
 import AiEditAllDaysDialog from '@/components/training/AiEditAllDaysDialog';
 import WeeklyAdherenceBanner from '@/components/training/WeeklyAdherenceBanner';
 import { useWeeklyAdherence } from '@/hooks/useWeeklyAdherence';
@@ -184,36 +185,63 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   };
 
   const handleSave = async (planId: string) => {
-    const updates: Record<string, any> = {};
-    if (editedMarkdowns[planId] !== undefined) {
-      updates.conteudo = editedMarkdowns[planId];
-      // Invalida o JSON cacheado para que o app do aluno releia do markdown atualizado.
-      // Sem isso, getSafeWorkoutDays prioriza conteudo_json e mostra a versão antiga gerada pela IA.
-      updates.conteudo_json = null;
-      updates.migration_status = 'pending';
-    }
-    if (editedPhases[planId] !== undefined) updates.fase = editedPhases[planId];
-    if (editedStartDates[planId] !== undefined) {
-      updates.fase_inicio_data = editedStartDates[planId] || null;
-    }
-    if (Object.keys(updates).length === 0) return;
+    const markdownChanged = editedMarkdowns[planId] !== undefined;
+    const phaseChanged = editedPhases[planId] !== undefined;
+    const startDateChanged = editedStartDates[planId] !== undefined;
+    if (!markdownChanged && !phaseChanged && !startDateChanged) return;
 
     setSaving(planId);
-    const { error } = await supabase.from('ai_plans').update(updates).eq('id', planId);
 
-    if (error) {
-      toast.error('Erro ao salvar: ' + error.message);
-    } else {
-      toast.success('Treino salvo com sucesso!');
-      setPlans(prev => prev.map(p => p.id === planId ? { ...p, ...updates } : p));
+    const extras: { fase?: string | null; fase_inicio_data?: string | null } = {};
+    if (phaseChanged) extras.fase = editedPhases[planId];
+    if (startDateChanged) extras.fase_inicio_data = editedStartDates[planId] || null;
+
+    try {
+      let appliedUpdates: Record<string, any> = { ...extras };
+
+      if (markdownChanged) {
+        // Sync persistence: re-derives JSON from markdown and saves BOTH.
+        // If parsing fails we keep the previous conteudo_json untouched.
+        const result = await saveWorkoutPlanFromMarkdown(planId, editedMarkdowns[planId], extras);
+        if (!result.success) {
+          // Markdown was saved, but JSON couldn't be regenerated.
+          toast.warning('Treino salvo, mas a estrutura JSON não pôde ser regenerada. JSON anterior preservado.');
+          appliedUpdates = {
+            ...appliedUpdates,
+            conteudo: editedMarkdowns[planId],
+            migration_status: 'manual_fix_needed',
+          };
+        } else {
+          toast.success('Treino salvo com sucesso!');
+          appliedUpdates = {
+            ...appliedUpdates,
+            conteudo: editedMarkdowns[planId],
+            conteudo_json: result.json,
+            migration_status: 'completed',
+          };
+        }
+      } else {
+        const { error } = await supabase.from('ai_plans').update(extras).eq('id', planId);
+        if (error) {
+          toast.error('Erro ao salvar: ' + error.message);
+          setSaving(null);
+          return;
+        }
+        toast.success('Treino salvo com sucesso!');
+      }
+
+      setPlans(prev => prev.map(p => p.id === planId ? { ...p, ...appliedUpdates } : p));
       const nextEditedRef = { ...editedMarkdownsRef.current };
       delete nextEditedRef[planId];
       editedMarkdownsRef.current = nextEditedRef;
       setEditedMarkdowns(prev => { const c = { ...prev }; delete c[planId]; return c; });
       setEditedPhases(prev => { const c = { ...prev }; delete c[planId]; return c; });
       setEditedStartDates(prev => { const c = { ...prev }; delete c[planId]; return c; });
+    } catch (e: any) {
+      toast.error('Erro ao salvar: ' + (e?.message || e));
+    } finally {
+      setSaving(null);
     }
-    setSaving(null);
   };
 
   const normalizeDayName = (value: string) =>
