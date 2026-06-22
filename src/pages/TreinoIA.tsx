@@ -493,6 +493,9 @@ GERE TUDO DE UMA VEZ:
         const r = await createWorkoutPlanJSON(studentId!, generatedJson, {
           titulo,
           cycle_status: 'em_dia',
+          // Inherit current phase from previous plan when available, else fallback inside repo.
+          fase: lastWorkoutPlan?.fase ?? undefined,
+          fase_inicio_data: lastWorkoutPlan?.fase_inicio_data ?? undefined,
         });
         if (r.success !== true) {
           toast.error('Erro ao salvar: ' + (r as { error: string }).error);
