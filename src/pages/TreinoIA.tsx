@@ -24,6 +24,13 @@ import {
 import { normalizeWorkoutPlan, type WorkoutPlan } from '@/lib/workoutSchema';
 import ReactMarkdown from 'react-markdown';
 import TrainingResultCards from '@/components/TrainingResultCards';
+import {
+  DEFAULT_INTENSITY,
+  VARIATION_OPTIONS,
+  describeSimilarity,
+  type SimilarityFeedback,
+  type VariationIntensity,
+} from '@/lib/variationProfiles';
 
 type StudentCtx = Record<string, any>;
 
@@ -171,6 +178,9 @@ const TreinoIA = () => {
   const [generatedJson, setGeneratedJson] = useState<WorkoutPlan | null>(null);
   // Tracks whether the markdown shown in `result` was hand-edited after generation.
   const [markdownEdited, setMarkdownEdited] = useState(false);
+  // Variability controls + feedback returned by the agent.
+  const [variationIntensity, setVariationIntensity] = useState<VariationIntensity>(DEFAULT_INTENSITY);
+  const [similarity, setSimilarity] = useState<SimilarityFeedback | null>(null);
   const [marombiewEnabled, setMarombiewEnabled] = useState(false);
   const [configCollapsed, setConfigCollapsed] = useState(!!editPlanId);
   const [lastWorkoutPlan, setLastWorkoutPlan] = useState<any>(null);
@@ -426,6 +436,8 @@ GERE TUDO DE UMA VEZ:
             messages: [{ role: 'user', content: prompt }],
             studentContext: studentCtx,
             outputMode: 'json',
+            studentId,
+            variationIntensity,
           }),
         }
       );
@@ -444,6 +456,15 @@ GERE TUDO DE UMA VEZ:
       setGeneratedJson(json);
       setResult(markdown);
       setMarkdownEdited(false);
+      if (payload?.similarity) {
+        const sim = payload.similarity as SimilarityFeedback;
+        setSimilarity(sim);
+        const fb = describeSimilarity(sim);
+        if (fb.level === 'warn') toast.warning(fb.label);
+        else if (sim.historyCount > 0) toast.info(fb.label);
+      } else {
+        setSimilarity(null);
+      }
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || 'Erro ao gerar treino');
@@ -787,6 +808,31 @@ GERE TUDO DE UMA VEZ:
                 placeholder="Ex: foco em glúteos, evitar supino reto, treino anterior foi PPL..."
                 className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
               />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Variação em relação ao plano anterior</p>
+              <div className="grid grid-cols-3 gap-2">
+                {VARIATION_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setVariationIntensity(opt.value)}
+                    className={`rounded-xl border-2 p-2 text-xs text-left transition-all ${
+                      variationIntensity === opt.value
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <div className="font-semibold">{opt.label}</div>
+                    <div className="text-[10px] text-muted-foreground mt-1 leading-tight">
+                      {opt.desc}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Acima do limite, o sistema regenera 1x automaticamente e alerta se ainda ficar parecido.
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -1173,6 +1219,24 @@ GERE TUDO DE UMA VEZ:
               </div>
             </div>
             <TrainingResultCards markdown={result} editable={!!editPlanId} onMarkdownChange={setResult} />
+            {similarity && similarity.historyCount > 0 && (() => {
+              const fb = describeSimilarity(similarity);
+              const cls =
+                fb.level === 'warn'
+                  ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-200'
+                  : 'border-primary/30 bg-primary/5 text-muted-foreground';
+              return (
+                <div className={`rounded-xl border px-3 py-2 text-xs ${cls}`}>
+                  {fb.label}
+                  {similarity.worstOverlap && similarity.worstOverlap.length > 0 && (
+                    <div className="mt-1 opacity-80">
+                      Itens repetidos: {similarity.worstOverlap.slice(0, 6).join(', ')}
+                      {similarity.worstOverlap.length > 6 ? '…' : ''}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
          )}
  

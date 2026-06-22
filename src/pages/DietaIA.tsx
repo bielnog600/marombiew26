@@ -23,6 +23,13 @@ import { finalizeDietPlan } from '@/lib/dietValidation';
 import { parseDietPlanStrict, parseDietPlanLoose, type DietPlan } from '@/lib/dietSchema';
 import { dietPlanToMarkdown } from '@/lib/dietMarkdownSerializer';
 import { extractTrainingContext } from '@/lib/trainingContextExtractor';
+import {
+  DEFAULT_INTENSITY as DEFAULT_DIET_INTENSITY,
+  VARIATION_OPTIONS as DIET_VARIATION_OPTIONS,
+  describeSimilarity,
+  type SimilarityFeedback,
+  type VariationIntensity as DietVariationIntensity,
+} from '@/lib/variationProfiles';
 import DietValidationBadge from '@/components/diet/DietValidationBadge';
 import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
@@ -223,6 +230,9 @@ const DietaIA = () => {
   const [showCompare, setShowCompare] = useState(false);
   // Canonical structured plan (source of truth when structured generation succeeds).
   const [structuredPlan, setStructuredPlan] = useState<DietPlan | null>(null);
+  // Variability controls + feedback (mirrors TreinoIA).
+  const [variationIntensity, setVariationIntensity] = useState<DietVariationIntensity>(DEFAULT_DIET_INTENSITY);
+  const [dietSimilarity, setDietSimilarity] = useState<SimilarityFeedback | null>(null);
 
   useEffect(() => {
     if (studentId) loadStudentData();
@@ -908,6 +918,8 @@ const DietaIA = () => {
         studentContext: studentCtx,
         dietConfig,
         trainingContext,
+        studentId,
+        variationIntensity,
       }),
     });
     if (!resp.ok) {
@@ -918,6 +930,15 @@ const DietaIA = () => {
     const data = await resp.json().catch(() => null);
     const raw = data?.plan;
     if (!raw) return null;
+    if (data?.similarity) {
+      const sim = data.similarity as SimilarityFeedback;
+      setDietSimilarity(sim);
+      const fb = describeSimilarity(sim);
+      if (fb.level === 'warn') toast.warning(fb.label);
+      else if (sim.historyCount > 0) toast(fb.label);
+    } else {
+      setDietSimilarity(null);
+    }
 
     // Inject targets if model didn't echo them
     if (raw.targets) {
@@ -961,6 +982,7 @@ const DietaIA = () => {
     setResult('');
     setMacroReport(null);
     setStructuredPlan(null);
+    setDietSimilarity(null);
 
     const selectedStrategy = STRATEGIES.find(s => s.value === strategy);
     const selectedActivity = ACTIVITY_LEVELS.find(a => a.value === activityLevel);
@@ -1547,6 +1569,31 @@ ${generated}`;
               </div>
             </div>
             <div>
+              <p className="text-xs text-muted-foreground mb-2">Variação em relação à dieta anterior</p>
+              <div className="grid grid-cols-3 gap-2">
+                {DIET_VARIATION_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setVariationIntensity(opt.value)}
+                    className={`rounded-xl border-2 p-2 text-xs text-left transition-all ${
+                      variationIntensity === opt.value
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <div className="font-semibold">{opt.label}</div>
+                    <div className="text-[10px] text-muted-foreground mt-1 leading-tight">
+                      {opt.desc}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Se ficar parecido demais com o cardápio anterior, o sistema regerar automaticamente 1x.
+              </p>
+            </div>
+            <div>
               <p className="text-xs text-muted-foreground mb-2">Frequência de treino</p>
               <div className="flex gap-2 flex-wrap">
                 {TRAINING_DAYS_OPTIONS.map(d => (
@@ -1860,6 +1907,24 @@ ${generated}`;
 
         {result && !generating && (
           <div ref={resultRef} className="space-y-4">
+            {dietSimilarity && dietSimilarity.historyCount > 0 && (() => {
+              const fb = describeSimilarity(dietSimilarity);
+              const cls =
+                fb.level === 'warn'
+                  ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-200'
+                  : 'border-primary/30 bg-primary/5 text-muted-foreground';
+              return (
+                <div className={`rounded-xl border px-3 py-2 text-xs ${cls}`}>
+                  {fb.label}
+                  {dietSimilarity.worstOverlap && dietSimilarity.worstOverlap.length > 0 && (
+                    <div className="mt-1 opacity-80">
+                      Alimentos repetidos: {dietSimilarity.worstOverlap.slice(0, 6).join(', ')}
+                      {dietSimilarity.worstOverlap.length > 6 ? '…' : ''}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-lg flex items-center gap-2">
                 <UtensilsCrossed className="h-5 w-5 text-primary" />

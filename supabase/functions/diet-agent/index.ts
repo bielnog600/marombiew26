@@ -1,5 +1,17 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  DEFAULT_INTENSITY,
+  SIMILARITY_THRESHOLDS,
+  dietVariationPrompt,
+  type VariationIntensity,
+} from "../_shared/variationProfiles.ts";
+import { computeDietSimilarity } from "../_shared/planSimilarity.ts";
+import {
+  loadPlanHistory,
+  summarizeDietForPrompt,
+  type HistoryPlan,
+} from "../_shared/planHistory.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -330,7 +342,15 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages, studentContext, mode, trainingContext, dietConfig } = await req.json();
+    const {
+      messages,
+      studentContext,
+      mode,
+      trainingContext,
+      dietConfig,
+      studentId,
+      variationIntensity,
+    } = await req.json();
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
@@ -552,70 +572,141 @@ serve(async (req) => {
     // ─── Structured (JSON) generation mode ───
     if (mode === "structured") {
       const layeredInstructions = buildLayeredInstructions(dietConfig, trainingContext);
-      const jsonSystem =
-        SYSTEM_PROMPT +
-        contextMessage +
-        layeredInstructions +
-        STRUCTURED_OUTPUT_INSTRUCTIONS;
+      const intensity: VariationIntensity =
+        variationIntensity === "baixa" || variationIntensity === "alta"
+          ? variationIntensity
+          : DEFAULT_INTENSITY;
 
-      const jsonResp = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-4o",
-          messages: [
-            { role: "system", content: jsonSystem },
-            ...messages,
-          ],
-          temperature: 0.3,
-          max_tokens: 16000,
-          response_format: { type: "json_object" },
-        }),
-      });
+      let history: HistoryPlan[] = [];
+      let historySummary = "";
+      if (typeof studentId === "string" && studentId.length > 0) {
+        history = await loadPlanHistory(studentId, "dieta");
+        historySummary = history.map((p, i) => summarizeDietForPrompt(p, i)).join("\n");
+      }
 
-      if (!jsonResp.ok) {
-        const status = jsonResp.status;
-        const text = await jsonResp.text();
-        console.error("structured diet-agent error:", status, text);
-        return new Response(
-          JSON.stringify({
-            error:
-              status === 429
-                ? "Limite de requisições excedido. Tente novamente em alguns minutos."
-                : status === 402
-                  ? "Créditos insuficientes na conta OpenAI."
-                  : "Erro ao gerar dieta estruturada.",
+      const callModel = async (
+        extraSystem: string,
+      ): Promise<{ ok: true; plan: any } | { ok: false; resp: Response }> => {
+        const jsonSystem =
+          SYSTEM_PROMPT +
+          contextMessage +
+          layeredInstructions +
+          "\n\n" +
+          extraSystem +
+          "\n\n" +
+          STRUCTURED_OUTPUT_INSTRUCTIONS;
+        const r = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${OPENAI_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "gpt-4o",
+            messages: [
+              { role: "system", content: jsonSystem },
+              ...messages,
+            ],
+            temperature: 0.3,
+            max_tokens: 16000,
+            response_format: { type: "json_object" },
           }),
-          { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
+        });
+        if (!r.ok) {
+          const status = r.status;
+          const t = await r.text();
+          console.error("structured diet-agent error:", status, t);
+          return {
+            ok: false,
+            resp: new Response(
+              JSON.stringify({
+                error:
+                  status === 429
+                    ? "Limite de requisições excedido. Tente novamente em alguns minutos."
+                    : status === 402
+                      ? "Créditos insuficientes na conta OpenAI."
+                      : "Erro ao gerar dieta estruturada.",
+              }),
+              { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            ),
+          };
+        }
+        const completion = await r.json();
+        const raw = completion?.choices?.[0]?.message?.content;
+        if (!raw) {
+          return {
+            ok: false,
+            resp: new Response(
+              JSON.stringify({ error: "Resposta vazia do modelo." }),
+              { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            ),
+          };
+        }
+        try {
+          return { ok: true, plan: JSON.parse(raw) };
+        } catch (e) {
+          console.error("structured diet-agent: invalid JSON", e, raw.slice(0, 500));
+          return {
+            ok: false,
+            resp: new Response(
+              JSON.stringify({ error: "Modelo retornou JSON inválido.", raw }),
+              { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            ),
+          };
+        }
+      };
+
+      const first = await callModel(dietVariationPrompt(intensity, historySummary));
+      if (!first.ok) return first.resp;
+
+      const historyJsons = history
+        .map((h) => h.conteudo_json)
+        .filter((j) => j && typeof j === "object") as any[];
+
+      let similarity = computeDietSimilarity(first.plan, historyJsons);
+      const threshold = SIMILARITY_THRESHOLDS[intensity];
+      let finalPlan = first.plan;
+      let regenerated = false;
+      let warning: string | null = null;
+
+      if (similarity.score > threshold && historyJsons.length > 0) {
+        const overlapList = similarity.worstOverlap.length
+          ? `Alimentos repetidos do cardápio anterior (TROQUE A MAIORIA): ${similarity.worstOverlap.join(", ")}.`
+          : "Muitos alimentos coincidem com o cardápio anterior.";
+        const retryNotes = [
+          overlapList,
+          "Substitua por equivalentes em macros usando o BANCO DE ALIMENTOS.",
+          "Preserve metas calóricas, macros, restrições e preferências.",
+        ].join(" ");
+        const second = await callModel(dietVariationPrompt(intensity, historySummary, retryNotes));
+        if (second.ok) {
+          const sim2 = computeDietSimilarity(second.plan, historyJsons);
+          if (sim2.score <= similarity.score) {
+            finalPlan = second.plan;
+            similarity = sim2;
+          }
+          regenerated = true;
+          if (similarity.score > threshold) warning = "high_similarity";
+        } else {
+          warning = "high_similarity";
+        }
       }
 
-      const completion = await jsonResp.json();
-      const raw = completion?.choices?.[0]?.message?.content;
-      if (!raw) {
-        return new Response(
-          JSON.stringify({ error: "Resposta vazia do modelo." }),
-          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
-      }
-
-      let plan: unknown;
-      try {
-        plan = JSON.parse(raw);
-      } catch (parseErr) {
-        console.error("structured diet-agent: invalid JSON", parseErr, raw.slice(0, 500));
-        return new Response(
-          JSON.stringify({ error: "Modelo retornou JSON inválido.", raw }),
-          { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
-      }
-
-      return new Response(JSON.stringify({ plan }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          plan: finalPlan,
+          similarity: {
+            score: Number(similarity.score.toFixed(3)),
+            threshold,
+            intensity,
+            regenerated,
+            warning,
+            worstOverlap: similarity.worstOverlap,
+            historyCount: historyJsons.length,
+          },
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {

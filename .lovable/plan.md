@@ -1,97 +1,92 @@
-# Vídeos de Execução do Aluno
+# Variabilidade controlada de planos (treino + dieta)
 
-Permitir que o aluno grave/envie um vídeo curto por exercício durante o treino, com upload para Cloudflare Stream, e revisão pelo admin no perfil do aluno.
+## Objetivo
 
-## 1. Banco de dados (nova migração)
+Reduzir a sensação de "plano reciclado" sem perder coerência técnica. IA gera planos mais variados quando apropriado, e o backend mede similaridade com o histórico antes de aceitar.
 
-Criar tabela `exercise_execution_videos`:
+## Decisões já alinhadas
+
+- Default de variação: **Média**
+- Acima do limite: **regenerar 1x automaticamente**, depois alertar
+- Escopo: **último + ponderado por idade** (decay: 1.0 / 0.6 / 0.3 nos 3 últimos)
+- Métrica: **híbrida** — Jaccard determinístico como gate, IA-judge só quando passar do limite (pra justificar e guiar a 2ª tentativa)
+
+## Arquitetura
 
 ```text
-id                  uuid pk
-student_id          uuid not null → auth.users
-workout_session_id  uuid null     → workout_sessions
-plan_id             uuid null     → ai_plans
-exercise_name       text not null
-exercise_id         uuid null     → exercises
-cf_uid              text not null  (Cloudflare Stream UID)
-playback_url        text not null
-thumbnail_url       text null
-duration_seconds    int  null
-status              text default 'uploading'  -- uploading|ready|error|pending_review|reviewed|needs_redo
-admin_note          text null
-reviewed_at         timestamptz null
-reviewed_by         uuid null
-created_at          timestamptz default now()
-updated_at          timestamptz default now()
-unique (student_id, workout_session_id, exercise_name)  -- 1 vídeo por exercício por sessão
+TreinoIA / DietaIA  ──> trainer-agent / diet-agent
+                          │
+                          ├─ carrega últimos 3 planos do aluno (RPC leve)
+                          ├─ injeta resumo + regras de divergência no prompt
+                          ├─ 1ª geração (JSON schema v2)
+                          ├─ computeSimilarity(novo, histórico ponderado)
+                          │     └─ se > threshold[intensidade]:
+                          │           - chama IA-judge curta p/ apontar
+                          │             quais blocos repetem
+                          │           - regenera 1x com instruções extras
+                          ├─ persiste plano + métricas (similarity_score,
+                          │   regeneration_count, variation_intensity)
+                          └─ retorna alerta soft se ainda > threshold
 ```
 
-Index em `(student_id, created_at desc)`.
+## Arquivos a criar
 
-GRANTs:
-- `authenticated`: SELECT/INSERT/UPDATE/DELETE
-- `service_role`: ALL
+- `src/lib/planSimilarity.ts` — Jaccard ponderado por idade, normalização de nomes, score 0–1, breakdown por seção (exercícios principais vs acessórios; refeições vs alimentos).
+- `src/lib/variationProfiles.ts` — thresholds e instruções de prompt por intensidade (baixa/média/alta), separado treino x dieta.
+- `supabase/functions/_shared/planHistory.ts` — busca últimos N planos ativos do aluno (treino ou dieta), retorna resumo compacto pro prompt.
+- `supabase/functions/_shared/similarityJudge.ts` — chamada curta à IA pra explicar repetições quando gate determinístico falha.
 
-RLS:
-- Aluno: pode SELECT/INSERT/UPDATE/DELETE seus próprios vídeos (`student_id = auth.uid()`)
-- Admin (`has_role(auth.uid(),'admin')`): pode SELECT/UPDATE todos (para revisão e nota)
+## Arquivos a alterar
 
-Trigger `update_updated_at` em UPDATE.
+- `supabase/functions/trainer-agent/index.ts`
+  - aceita `variationIntensity` no input (default `media`)
+  - carrega histórico via `planHistory`
+  - injeta no system prompt: resumo dos últimos planos + regras de divergência (compostos podem manter, acessórios devem rotacionar ≥X%, variar rep ranges/técnicas/ordem)
+  - após validar JSON, chama `computeWorkoutSimilarity`
+  - se acima do limite → IA-judge → 2ª geração com instruções extras → recomputa
+  - retorna `{ plan, similarity: { score, breakdown, regenerated, warning } }`
+- `supabase/functions/diet-agent/index.ts`
+  - mesmo padrão: variar alimentos, combinações, distribuição; manter macros/restrições/preferências
+  - similaridade compara alimentos por refeição (não só lista flat)
+- `supabase/functions/_shared/ai-gateway.ts` — se já não existir, sem mudança
+- `src/pages/TreinoIA.tsx` e `src/pages/DietaIA.tsx`
+  - selector de intensidade (baixa/média/alta) com default média
+  - badge mostrando score de similaridade após geração; toast quando regenerou; alerta soft quando ainda alto
+- `src/lib/workoutPlanRepo.ts` — persistir metadata opcional `{ similarity_score, variation_intensity, regenerated }` em coluna existente (`metadata` jsonb se houver) ou nas tabelas `*_versions`
 
-## 2. Edge function `student-video-upload`
+## Métrica determinística (resumo)
 
-Hoje `cloudflare-stream-upload` é **admin-only**. Criar nova função similar mas aberta a `authenticated` (com validação de JWT em código). Retorna `uploadURL`, `uid`, `playbackUrl`. `maxDurationSeconds` limitado a 30s no servidor.
+**Treino** — para cada dia:
+- normaliza nome do exercício (lowercase, remove variação, mapeia sinônimos via `exerciseMatcher` já existente)
+- Jaccard entre conjuntos de exercícios + bônus quando rep range/técnica também coincide
+- peso maior nos acessórios (compostos podem repetir), peso menor nos principais
 
-## 3. UI — Aluno (sem mudar layout principal)
+**Dieta**:
+- por refeição (café, almoço, etc.), Jaccard de alimentos normalizados
+- bônus de divergência quando combinação (proteína+carbo+gordura) muda
 
-Novo componente `ExerciseVideoCapture.tsx` — botão compacto adicionado ao final do `ExerciseLogCard`, na mesma linha do "Salvar":
+**Score final**: média ponderada das seções × decay temporal do plano histórico (1.0, 0.6, 0.3).
 
-- Botão **"Gravar execução"** (ícone Video) — abre `<input type="file" accept="video/*" capture="environment">`.
-- Botão secundário **"Da galeria"** — `<input type="file" accept="video/*">`.
-- Após selecionar:
-  1. Valida duração ≤ 30s via `<video>.duration`.
-  2. Chama edge `student-video-upload` para obter `uploadURL`.
-  3. `PUT` do arquivo direto no Cloudflare via `XMLHttpRequest` (para progress).
-  4. Insere linha em `exercise_execution_videos` com `status='pending_review'`.
-- Estados visuais: idle / enviando (com %) / enviado (check verde) / erro (botão "Reenviar").
-- Se houver vídeo existente para esse exercício+sessão, mostra "✓ Vídeo enviado" + botão "Substituir".
-- **Offline**: se sem conexão, mostra aviso "Sem conexão — envie depois" e não enfileira binário (Cloudflare exige upload direto). Re-tentável quando voltar online.
+**Thresholds**:
+- baixa: aceita até 0.75
+- média: aceita até 0.55
+- alta: aceita até 0.35
 
-Plumbing no `TreinoExecucao.tsx`: passar `sessionId`, `planId` para o card. `ExerciseLogCard` recebe novo prop opcional `videoCaptureSlot` e renderiza o componente.
+## Tratamento de erro
 
-## 4. UI — Admin / Consultoria
+- IA-judge falha → segue só com gate determinístico, regenera com instrução genérica
+- 2ª geração falha validação → mantém 1ª (já é válida), marca `warning: 'high_similarity'`
+- Histórico vazio (1º plano do aluno) → pula similaridade
 
-Em `AlunoDetail.tsx`, na aba **Treinos**, adicionar sub-seção/aba **"Vídeos de execução"**: novo componente `StudentExerciseVideos.tsx`.
+## O que NÃO muda
 
-Lista (mais recentes primeiro) com cards:
-- Thumbnail (Cloudflare gera automático: `https://videodelivery.net/{uid}/thumbnails/thumbnail.jpg`)
-- Nome do exercício • duração • data • sessão (dia/fase se disponível)
-- Badge de status (pendente revisão / revisado / pedir novo)
-- Ações: **Assistir** (modal com iframe Cloudflare), **Marcar revisado**, **Pedir novo vídeo** (muda status → `needs_redo`), **Nota** (textarea inline), **WhatsApp** (link `wa.me` reusando telefone do perfil).
+- Schema v2 do `workoutSchema.ts` permanece igual
+- Pipeline de persistência JSON-first (passos 1–3) intocado
+- `migration_status`, `conteudo_json`, `fase` — sem alteração
 
-Badge de contador "N vídeos pendentes" no header da aba.
+## Validação
 
-## 5. Detalhes técnicos
-
-- Cloudflare Stream Direct Creator Upload: usar `tus` opcional, mas para simplicidade usar `POST` (Cloudflare aceita PUT/POST no `uploadURL`).
-- Thumbnail: derivada do `uid` (`https://videodelivery.net/{uid}/thumbnails/thumbnail.jpg?time=2s&height=200`).
-- Duração persistida do `<video>.duration` lido antes do upload.
-- Tipos: regenerar `src/integrations/supabase/types.ts` automaticamente após migração.
-
-## Arquivos
-
-**Novos**
-- `supabase/migrations/<ts>_exercise_execution_videos.sql`
-- `supabase/functions/student-video-upload/index.ts`
-- `src/components/training/ExerciseVideoCapture.tsx`
-- `src/components/admin/StudentExerciseVideos.tsx`
-
-**Editados**
-- `src/components/training/ExerciseLogCard.tsx` — novo prop slot + renderização.
-- `src/pages/TreinoExecucao.tsx` — passar `sessionId`, `planId`, `exerciseName` ao card.
-- `src/pages/AlunoDetail.tsx` — adicionar sub-aba "Vídeos de execução" dentro de Treinos.
-
-## Fora de escopo (próximas iterações)
-- Compressão client-side (depende de FFmpeg.wasm, pesado).
-- Enfileiramento offline do binário em IndexedDB.
-- Múltiplos vídeos por exercício/sessão.
+- Unit tests em `planSimilarity.ts` (casos: idêntico=1, totalmente diferente=0, parcial)
+- Cenário manual: gerar 2 treinos seguidos pro mesmo aluno, confirmar score visível < threshold e exercícios efetivamente rotacionados
+- Cenário manual dieta: idem
+- 1º plano de aluno novo: confirma que pula gate sem erro

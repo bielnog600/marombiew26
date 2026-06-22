@@ -1,4 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import {
+  DEFAULT_INTENSITY,
+  SIMILARITY_THRESHOLDS,
+  workoutVariationPrompt,
+  type VariationIntensity,
+} from "../_shared/variationProfiles.ts";
+import { computeWorkoutSimilarity } from "../_shared/planSimilarity.ts";
+import {
+  loadPlanHistory,
+  summarizeWorkoutForPrompt,
+  type HistoryPlan,
+} from "../_shared/planHistory.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -254,18 +266,29 @@ function workoutPlanToMarkdown(plan: any): string {
   return lines.join("\n");
 }
 
-async function generateStructuredWorkout({
+async function callStructuredModel({
   apiKey,
   systemPrompt,
   messages,
-}: StructuredArgs): Promise<Response> {
+  extraSystem,
+}: StructuredArgs & { extraSystem?: string }): Promise<
+  | { ok: true; data: any }
+  | { ok: false; response: Response }
+> {
   const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: "gpt-4o-2024-08-06",
       messages: [
-        { role: "system", content: systemPrompt + "\n\n" + JSON_OUTPUT_INSTRUCTIONS },
+        {
+          role: "system",
+          content:
+            systemPrompt +
+            "\n\n" +
+            JSON_OUTPUT_INSTRUCTIONS +
+            (extraSystem ? "\n\n" + extraSystem : ""),
+        },
         ...messages,
       ],
       max_tokens: 16000,
@@ -284,30 +307,42 @@ async function generateStructuredWorkout({
     const t = await upstream.text();
     console.error("trainer-agent[json] gateway error:", upstream.status, t);
     if (upstream.status === 429) {
-      return new Response(
-        JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns minutos." }),
-        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return {
+        ok: false,
+        response: new Response(
+          JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns minutos." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        ),
+      };
     }
     if (upstream.status === 402) {
-      return new Response(
-        JSON.stringify({ error: "Créditos insuficientes na sua conta OpenAI." }),
-        { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return {
+        ok: false,
+        response: new Response(
+          JSON.stringify({ error: "Créditos insuficientes na sua conta OpenAI." }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        ),
+      };
     }
-    return new Response(JSON.stringify({ error: "Erro no gateway de IA", detail: t }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return {
+      ok: false,
+      response: new Response(JSON.stringify({ error: "Erro no gateway de IA", detail: t }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }),
+    };
   }
 
   const payload = await upstream.json();
   const content = payload?.choices?.[0]?.message?.content;
   if (typeof content !== "string") {
-    return new Response(
-      JSON.stringify({ error: "Resposta vazia do modelo" }),
-      { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return {
+      ok: false,
+      response: new Response(
+        JSON.stringify({ error: "Resposta vazia do modelo" }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      ),
+    };
   }
 
   let parsed: unknown;
@@ -315,24 +350,116 @@ async function generateStructuredWorkout({
     parsed = JSON.parse(content);
   } catch (e) {
     console.error("trainer-agent[json] parse error:", e, content.slice(0, 500));
-    return new Response(
-      JSON.stringify({ error: "Modelo retornou JSON inválido" }),
-      { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return {
+      ok: false,
+      response: new Response(
+        JSON.stringify({ error: "Modelo retornou JSON inválido" }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      ),
+    };
   }
 
   const validation = validateAndNormalizePlan(parsed);
   if (!validation.ok) {
     console.error("trainer-agent[json] validation error:", validation.error);
-    return new Response(
-      JSON.stringify({ error: "Plano gerado é inválido", detail: validation.error }),
-      { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return {
+      ok: false,
+      response: new Response(
+        JSON.stringify({ error: "Plano gerado é inválido", detail: validation.error }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      ),
+    };
   }
 
-  const markdown = workoutPlanToMarkdown(validation.data);
+  return { ok: true, data: validation.data };
+}
+
+async function generateStructuredWorkoutWithVariation(args: {
+  apiKey: string;
+  systemPrompt: string;
+  messages: Array<{ role: string; content: string }>;
+  studentId?: string;
+  intensity: VariationIntensity;
+}): Promise<Response> {
+  let history: HistoryPlan[] = [];
+  let historySummary = "";
+  if (args.studentId) {
+    history = await loadPlanHistory(args.studentId, "treino");
+    historySummary = history
+      .map((p, i) => summarizeWorkoutForPrompt(p, i))
+      .join("\n");
+  }
+
+  const intensity = args.intensity;
+  const variationBlock = workoutVariationPrompt(intensity, historySummary);
+
+  // 1st attempt
+  const first = await callStructuredModel({
+    apiKey: args.apiKey,
+    systemPrompt: args.systemPrompt,
+    messages: args.messages,
+    extraSystem: variationBlock,
+  });
+  if (!first.ok) return first.response;
+
+  const historyJsons = history
+    .map((h) => h.conteudo_json)
+    .filter((j) => j && typeof j === "object") as any[];
+
+  let similarity = computeWorkoutSimilarity(first.data, historyJsons);
+  const threshold = SIMILARITY_THRESHOLDS[intensity];
+  let finalPlan = first.data;
+  let regenerated = false;
+  let warning: string | null = null;
+
+  if (similarity.score > threshold && historyJsons.length > 0) {
+    const overlapList = similarity.worstOverlap.length
+      ? `Exercícios que se repetem do plano anterior (TROQUE OU VARIE A MAIORIA): ${similarity.worstOverlap.join(", ")}.`
+      : "Muitos exercícios coincidem com o plano anterior.";
+    const retryNotes = [
+      overlapList,
+      "Reduza coincidências para no máximo ~40% dos exercícios.",
+      "Mantenha apenas compostos principais essenciais; substitua acessórios e mobilidade.",
+    ].join(" ");
+    const retryBlock = workoutVariationPrompt(intensity, historySummary, retryNotes);
+
+    const second = await callStructuredModel({
+      apiKey: args.apiKey,
+      systemPrompt: args.systemPrompt,
+      messages: args.messages,
+      extraSystem: retryBlock,
+    });
+    if (second.ok) {
+      const sim2 = computeWorkoutSimilarity(second.data, historyJsons);
+      // Keep the more-different plan
+      if (sim2.score <= similarity.score) {
+        finalPlan = second.data;
+        similarity = sim2;
+      }
+      regenerated = true;
+      if (similarity.score > threshold) {
+        warning = "high_similarity";
+      }
+    } else {
+      warning = "high_similarity";
+    }
+  }
+
+  const markdown = workoutPlanToMarkdown(finalPlan);
   return new Response(
-    JSON.stringify({ json: validation.data, markdown }),
+    JSON.stringify({
+      json: finalPlan,
+      markdown,
+      similarity: {
+        score: Number(similarity.score.toFixed(3)),
+        threshold,
+        intensity,
+        regenerated,
+        warning,
+        worstOverlap: similarity.worstOverlap,
+        historyCount: historyJsons.length,
+      },
+    }),
     { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
   );
 }
@@ -681,7 +808,13 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages, studentContext, outputMode } = await req.json();
+    const {
+      messages,
+      studentContext,
+      outputMode,
+      studentId,
+      variationIntensity,
+    } = await req.json();
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
@@ -850,10 +983,16 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
     // STRUCTURED MODE — JSON-FIRST (workout schema v2)
     // ============================================================
     if (outputMode === "json") {
-      return await generateStructuredWorkout({
+      const intensity: VariationIntensity =
+        variationIntensity === "baixa" || variationIntensity === "alta"
+          ? variationIntensity
+          : DEFAULT_INTENSITY;
+      return await generateStructuredWorkoutWithVariation({
         apiKey: OPENAI_API_KEY,
         systemPrompt: SYSTEM_PROMPT + contextMessage,
         messages,
+        studentId: typeof studentId === "string" && studentId.length > 0 ? studentId : undefined,
+        intensity,
       });
     }
 
