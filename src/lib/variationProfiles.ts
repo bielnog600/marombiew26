@@ -41,6 +41,14 @@ export type SimilarityFeedback = {
   quantityOnlyRatio?: number;
   /** Diet-only: categorization of the change vs previous plan. */
   changeKind?: "menu_variation" | "portion_only" | "mixed" | "new_menu";
+  /** Diet-only: 0..1 ratio of meals whose primary protein family repeats. */
+  primaryProteinRepeatRatio?: number;
+  /** Diet-only: 0..1 ratio of meals whose primary carb family repeats. */
+  primaryCarbRepeatRatio?: number;
+  /** Diet-only: meal names where primary protein source repeated. */
+  proteinRepeatMeals?: string[];
+  /** Diet-only: meal names where primary carb source repeated. */
+  carbRepeatMeals?: string[];
 };
 
 export function describeSimilarity(s: SimilarityFeedback): {
@@ -51,11 +59,23 @@ export function describeSimilarity(s: SimilarityFeedback): {
     return { level: "info", label: "Primeiro plano do aluno — sem comparação." };
   }
   const pct = Math.round(s.score * 100);
+  const protPct = Math.round((s.primaryProteinRepeatRatio ?? 0) * 100);
+  const carbPct = Math.round((s.primaryCarbRepeatRatio ?? 0) * 100);
+  const primaryRepeat = Math.max(s.primaryProteinRepeatRatio ?? 0, s.primaryCarbRepeatRatio ?? 0);
   // Diet-specific: portion-only is a strong warning even when "regenerated".
   if (s.changeKind === "portion_only") {
     return {
       level: "warn",
       label: `⚠ Apenas ajuste de quantidades (sem variação real de cardápio). Similaridade: ${pct}%.`,
+    };
+  }
+  if (s.warning === "primary_source_repeated" || primaryRepeat >= 0.6) {
+    const which = (s.primaryProteinRepeatRatio ?? 0) >= (s.primaryCarbRepeatRatio ?? 0)
+      ? `proteína principal repetida em ${protPct}% das refeições`
+      : `carbo principal repetido em ${carbPct}% das refeições`;
+    return {
+      level: "warn",
+      label: `⚠ Mesma família de fonte principal (${which}). Similaridade: ${pct}%.`,
     };
   }
   if (s.warning === "high_similarity") {
