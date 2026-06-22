@@ -92,8 +92,12 @@ export const createWorkoutPlanJSON = async (
     conteudo_json: validation.data as unknown as Json,
     migration_status: "completed",
     cycle_status: extras.cycle_status ?? "em_dia",
-    fase: extras.fase ?? null,
-    fase_inicio_data: extras.fase_inicio_data ?? null,
+    // `fase` is NOT NULL on ai_plans. Always derive a fallback so insert never fails.
+    fase:
+      extras.fase ??
+      calculateCurrentPhase(extras.fase_inicio_data ?? null) ??
+      getPhaseByMonthDay(),
+    fase_inicio_data: extras.fase_inicio_data ?? new Date().toISOString().slice(0, 10),
   };
   const { data, error } = await supabase
     .from("ai_plans")
@@ -131,7 +135,7 @@ export const saveWorkoutPlanFromMarkdown = async (
           conteudo: markdown,
           conteudo_json: validation.data as unknown as Json,
           migration_status: "completed",
-          ...extras,
+          ...sanitizeExtras(extras),
         })
         .eq("id", planId);
       if (error) return { success: false, error: error.message };
@@ -146,7 +150,7 @@ export const saveWorkoutPlanFromMarkdown = async (
     .update({
       conteudo: markdown,
       migration_status: "manual_fix_needed",
-      ...extras,
+      ...sanitizeExtras(extras),
     })
     .eq("id", planId);
   if (error) return { success: false, error: error.message };
