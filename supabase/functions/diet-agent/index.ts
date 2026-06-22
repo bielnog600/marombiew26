@@ -676,13 +676,20 @@ serve(async (req) => {
 
       const qOnly = similarity.quantityOnlyRatio ?? 0;
       const isPortionOnly = similarity.changeKind === "portion_only";
+      const protRepeat = similarity.primaryProteinRepeatRatio ?? 0;
+      const carbRepeat = similarity.primaryCarbRepeatRatio ?? 0;
+      const primarySourceTooRepetitive = Math.max(protRepeat, carbRepeat) >= 0.6;
       // Trigger regen if:
       //  - similarity above threshold, OR
       //  - the change is essentially "same foods, different portions", OR
       //  - admin asked for regeneration / menu renewal and we got portion_only
+      //  - primary protein/carb groups repeat in ≥60% of meals vs previous plan
       const needsRetry =
         historyJsons.length > 0 &&
-        (similarity.score > threshold || isPortionOnly || (requireMenuVariation && qOnly > 0.3));
+        (similarity.score > threshold ||
+          isPortionOnly ||
+          (requireMenuVariation && qOnly > 0.3) ||
+          primarySourceTooRepetitive);
 
       if (needsRetry) {
         const overlapList = similarity.worstOverlap.length
@@ -698,22 +705,47 @@ serve(async (req) => {
             "❗ A geração anterior apenas mudou GRAMAGEM dos mesmos alimentos. Isto NÃO é variação. Substitua de fato os alimentos por outros equivalentes (proteínas, carbs e gorduras diferentes).",
           );
         }
+        if (protRepeat >= 0.6 && similarity.proteinRepeatMeals?.length) {
+          retryParts.push(
+            `❗ Em ${Math.round(protRepeat * 100)}% das refeições a PROTEÍNA PRINCIPAL repete a MESMA FAMÍLIA do cardápio anterior (refeições: ${similarity.proteinRepeatMeals.join(", ")}). Troque por outra família: se antes era carne vermelha, use frango, peixe, ovos, vísceras (fígado/moela) ou laticínios — não outra carne vermelha.`,
+          );
+        }
+        if (carbRepeat >= 0.6 && similarity.carbRepeatMeals?.length) {
+          retryParts.push(
+            `❗ Em ${Math.round(carbRepeat * 100)}% das refeições o CARBOIDRATO PRINCIPAL repete a MESMA FAMÍLIA (refeições: ${similarity.carbRepeatMeals.join(", ")}). Alterne entre cereais, tubérculos, frutas e leguminosas.`,
+          );
+        }
         const second = await callModel(
           dietVariationPrompt(intensity, historySummary, retryParts.join(" "), true),
         );
         if (second.ok) {
           const sim2 = computeDietSimilarity(second.plan, historyJsons);
           // Prefer the second plan when it (a) lowers similarity OR
-          // (b) escapes portion_only mode.
+          // (b) escapes portion_only mode OR
+          // (c) reduces primary-source repetition.
           const escapedPortion =
             isPortionOnly && sim2.changeKind !== "portion_only";
-          if (sim2.score <= similarity.score || escapedPortion) {
+          const sim2Primary = Math.max(
+            sim2.primaryProteinRepeatRatio ?? 0,
+            sim2.primaryCarbRepeatRatio ?? 0,
+          );
+          const reducedPrimary =
+            primarySourceTooRepetitive && sim2Primary < Math.max(protRepeat, carbRepeat);
+          if (sim2.score <= similarity.score || escapedPortion || reducedPrimary) {
             finalPlan = second.plan;
             similarity = sim2;
           }
           regenerated = true;
           if (similarity.changeKind === "portion_only") warning = "quantity_only";
           else if (similarity.score > threshold) warning = "high_similarity";
+          else if (
+            Math.max(
+              similarity.primaryProteinRepeatRatio ?? 0,
+              similarity.primaryCarbRepeatRatio ?? 0,
+            ) >= 0.6
+          ) {
+            warning = "primary_source_repeated";
+          }
         } else {
           warning = isPortionOnly ? "quantity_only" : "high_similarity";
         }
@@ -732,6 +764,14 @@ serve(async (req) => {
             historyCount: historyJsons.length,
             quantityOnlyRatio: Number((similarity.quantityOnlyRatio ?? 0).toFixed(3)),
             changeKind: similarity.changeKind ?? "new_menu",
+            primaryProteinRepeatRatio: Number(
+              (similarity.primaryProteinRepeatRatio ?? 0).toFixed(3),
+            ),
+            primaryCarbRepeatRatio: Number(
+              (similarity.primaryCarbRepeatRatio ?? 0).toFixed(3),
+            ),
+            proteinRepeatMeals: similarity.proteinRepeatMeals ?? [],
+            carbRepeatMeals: similarity.carbRepeatMeals ?? [],
           },
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
