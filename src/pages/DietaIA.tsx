@@ -918,6 +918,8 @@ const DietaIA = () => {
         studentContext: studentCtx,
         dietConfig,
         trainingContext,
+        studentId,
+        variationIntensity,
       }),
     });
     if (!resp.ok) {
@@ -928,6 +930,15 @@ const DietaIA = () => {
     const data = await resp.json().catch(() => null);
     const raw = data?.plan;
     if (!raw) return null;
+    if (data?.similarity) {
+      const sim = data.similarity as SimilarityFeedback;
+      setDietSimilarity(sim);
+      const fb = describeSimilarity(sim);
+      if (fb.level === 'warn') toast.warning(fb.label);
+      else if (sim.historyCount > 0) toast(fb.label);
+    } else {
+      setDietSimilarity(null);
+    }
 
     // Inject targets if model didn't echo them
     if (raw.targets) {
