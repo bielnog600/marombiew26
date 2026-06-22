@@ -808,7 +808,13 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages, studentContext, outputMode } = await req.json();
+    const {
+      messages,
+      studentContext,
+      outputMode,
+      studentId,
+      variationIntensity,
+    } = await req.json();
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
@@ -977,10 +983,16 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
     // STRUCTURED MODE — JSON-FIRST (workout schema v2)
     // ============================================================
     if (outputMode === "json") {
-      return await generateStructuredWorkout({
+      const intensity: VariationIntensity =
+        variationIntensity === "baixa" || variationIntensity === "alta"
+          ? variationIntensity
+          : DEFAULT_INTENSITY;
+      return await generateStructuredWorkoutWithVariation({
         apiKey: OPENAI_API_KEY,
         systemPrompt: SYSTEM_PROMPT + contextMessage,
         messages,
+        studentId: typeof studentId === "string" && studentId.length > 0 ? studentId : undefined,
+        intensity,
       });
     }
 
