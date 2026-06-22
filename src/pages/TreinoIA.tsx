@@ -1219,6 +1219,24 @@ GERE TUDO DE UMA VEZ:
               </div>
             </div>
             <TrainingResultCards markdown={result} editable={!!editPlanId} onMarkdownChange={setResult} />
+            {similarity && similarity.historyCount > 0 && (() => {
+              const fb = describeSimilarity(similarity);
+              const cls =
+                fb.level === 'warn'
+                  ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-200'
+                  : 'border-primary/30 bg-primary/5 text-muted-foreground';
+              return (
+                <div className={`rounded-xl border px-3 py-2 text-xs ${cls}`}>
+                  {fb.label}
+                  {similarity.worstOverlap && similarity.worstOverlap.length > 0 && (
+                    <div className="mt-1 opacity-80">
+                      Itens repetidos: {similarity.worstOverlap.slice(0, 6).join(', ')}
+                      {similarity.worstOverlap.length > 6 ? '…' : ''}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
          )}
  
