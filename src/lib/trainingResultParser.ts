@@ -108,16 +108,20 @@ export const parseTrainingTable = (tableLines: string[], fallbackTitle = ''): Pa
 
   for (const cells of rows) {
     const hasDayColumn = dayIndex >= 0;
-    const get = (idx: number, positionalFallback: number) => cleanCell(cells[(idx >= 0 ? idx : positionalFallback)] || '');
+    const get = (idx: number, positionalFallback: number, optional = false) => {
+      if (idx >= 0) return cleanCell(cells[idx] || '');
+      if (hasMappedHeader && optional) return '';
+      return cleanCell(cells[positionalFallback] || '');
+    };
     const dayCell = hasDayColumn ? get(dayIndex, 0) : fallbackDay;
     const exerciseCell = hasMappedHeader ? get(exerciseIndex, hasDayColumn ? 1 : 0) : get(hasDayColumn ? 1 : 0, hasDayColumn ? 1 : 0);
     const seriesCell = hasMappedHeader ? get(seriesIndex, hasDayColumn ? 2 : 1) : get(hasDayColumn ? 2 : 1, hasDayColumn ? 2 : 1);
-    const series2Cell = hasMappedHeader ? get(series2Index, hasDayColumn ? 3 : 2) : get(hasDayColumn ? 3 : 2, hasDayColumn ? 3 : 2);
+    const series2Cell = hasMappedHeader ? get(series2Index, hasDayColumn ? 3 : 2, true) : get(hasDayColumn ? 3 : 2, hasDayColumn ? 3 : 2);
     const repsCell = hasMappedHeader ? get(repsIndex, hasDayColumn ? 4 : 3) : get(hasDayColumn ? 4 : 3, hasDayColumn ? 4 : 3);
-    const rirCell = hasMappedHeader ? get(rirIndex, hasDayColumn ? 5 : 4) : get(hasDayColumn ? 5 : 4, hasDayColumn ? 5 : 4);
-    const pauseCell = normalizePause(hasMappedHeader ? get(pauseIndex, hasDayColumn ? 6 : 5) : get(hasDayColumn ? 6 : 5, hasDayColumn ? 6 : 5));
-    const descCell = hasMappedHeader ? get(descIndex, hasDayColumn ? 7 : 6) : get(hasDayColumn ? 7 : 6, hasDayColumn ? 7 : 6);
-    const variationCell = hasMappedHeader ? get(variationIndex, hasDayColumn ? 8 : 7) : get(hasDayColumn ? 8 : 7, hasDayColumn ? 8 : 7);
+    const rirCell = hasMappedHeader ? get(rirIndex, hasDayColumn ? 5 : 4, true) : get(hasDayColumn ? 5 : 4, hasDayColumn ? 5 : 4);
+    const pauseCell = normalizePause(hasMappedHeader ? get(pauseIndex, hasDayColumn ? 6 : 5, true) : get(hasDayColumn ? 6 : 5, hasDayColumn ? 6 : 5));
+    const descCell = hasMappedHeader ? get(descIndex, hasDayColumn ? 7 : 6, true) : get(hasDayColumn ? 7 : 6, hasDayColumn ? 7 : 6);
+    const variationCell = hasMappedHeader ? get(variationIndex, hasDayColumn ? 8 : 7, true) : get(hasDayColumn ? 8 : 7, hasDayColumn ? 8 : 7);
 
     if (dayCell && dayCell !== '-' && dayCell.toLowerCase() !== lastDayName.toLowerCase()) {
       if (currentDay && currentDay.exercises.length > 0) {
