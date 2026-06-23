@@ -1221,6 +1221,7 @@ ${adjustmentLabels.length > 0 ? adjustmentLabels.map(a => `- ${a}`).join('\n') :
 ${enableFitoterapia ? '- INCLUIR RECEITAS DE FITOTERAPIA: Sugira chás, infusões e preparações fitoterápicas complementares. Inclua dosagens, horários e benefícios.' : ''}
 ${enableSuplementos ? '- INCLUIR SUPLEMENTAÇÃO COMPLETA: Protocolo de suplementos com dosagem, horário e justificativa.' : ''}
 ${enableEmagrecimentoRapido ? '- ESTRATÉGIA DE EMAGRECIMENTO RÁPIDO: Estratégias avançadas (jejum intermitente, HIIT, termogênicos).' : ''}
+${enableJejumIntermitente ? '- JEJUM INTERMITENTE: Estruturar o dia alimentar respeitando a janela alimentar. Concentrar refeições na janela e indicar horários explicitamente. Não criar refeições fora da janela.' : ''}
 === SUBSTITUIÇÕES DE ALIMENTOS ===
 OBRIGATÓRIO: Para CADA alimento na tabela de refeições, a coluna "Substituição" deve conter EXATAMENTE 3 opções de troca, cada uma com nome e quantidade (em gramas), que tenham macros e calorias equivalentes ao alimento principal.
 Formato da coluna Substituição: "1) Alimento X (Xg); 2) Alimento Y (Xg); 3) Alimento Z (Xg)"
