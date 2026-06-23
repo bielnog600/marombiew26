@@ -1940,6 +1940,56 @@ ${generated}`;
 
         {result && !generating && (
           <div ref={resultRef} className="space-y-4">
+            {/* Intent badge — what kind of generation produced this plan */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className={`rounded-full border px-2 py-0.5 ${
+                lastIntent === 'regenerate'
+                  ? 'border-purple-500/40 bg-purple-500/10 text-purple-200'
+                  : lastIntent === 'update'
+                    ? 'border-blue-500/40 bg-blue-500/10 text-blue-200'
+                    : 'border-primary/40 bg-primary/10 text-primary'
+              }`}>
+                {DIET_INTENT_LABELS[lastIntent].label}
+              </span>
+              {dietSimilarity?.changeKind && (
+                <span className="rounded-full border border-muted-foreground/30 bg-muted/30 px-2 py-0.5 text-muted-foreground">
+                  Tipo de mudança:{' '}
+                  {dietSimilarity.changeKind === 'portion_only'
+                    ? 'ajuste de quantidades'
+                    : dietSimilarity.changeKind === 'menu_variation' || dietSimilarity.changeKind === 'new_menu'
+                      ? 'variação real de cardápio'
+                      : 'mista (quantidades + trocas)'}
+                </span>
+              )}
+            </div>
+
+            {/* Viability score card */}
+            {viability && (() => {
+              const v = describeViability(viability.score);
+              const cls = v.level === 'ok'
+                ? 'border-green-500/40 bg-green-500/10 text-green-200'
+                : v.level === 'warn'
+                  ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-200'
+                  : 'border-red-500/40 bg-red-500/10 text-red-200';
+              return (
+                <div className={`rounded-xl border px-3 py-2 text-xs space-y-1 ${cls}`}>
+                  <div className="font-semibold">{v.label}</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 opacity-90">
+                    <span>Aderência: <strong>{viability.breakdown.adherence}</strong></span>
+                    <span>Praticidade: <strong>{viability.breakdown.practicality}</strong></span>
+                    <span>Familiaridade: <strong>{viability.breakdown.familiarity}</strong></span>
+                    <span>Complexidade: <strong>{viability.breakdown.complexity}</strong></span>
+                    <span>Custo: <strong>{viability.breakdown.cost}</strong></span>
+                  </div>
+                  {viability.notes.length > 0 && (
+                    <ul className="list-disc pl-4 opacity-80">
+                      {viability.notes.map((n, i) => <li key={i}>{n}</li>)}
+                    </ul>
+                  )}
+                </div>
+              );
+            })()}
+
             {dietSimilarity && dietSimilarity.historyCount > 0 && (() => {
               const fb = describeSimilarity(dietSimilarity);
               const cls =
