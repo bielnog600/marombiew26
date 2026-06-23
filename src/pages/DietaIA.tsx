@@ -29,7 +29,10 @@ import {
   describeSimilarity,
   type SimilarityFeedback,
   type VariationIntensity as DietVariationIntensity,
+  DIET_INTENT_LABELS,
+  type DietIntent,
 } from '@/lib/variationProfiles';
+import { computeViabilityScore, describeViability, type ViabilityBreakdown } from '@/lib/dietViability';
 import DietValidationBadge from '@/components/diet/DietValidationBadge';
 import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
@@ -233,6 +236,10 @@ const DietaIA = () => {
   // Variability controls + feedback (mirrors TreinoIA).
   const [variationIntensity, setVariationIntensity] = useState<DietVariationIntensity>(DEFAULT_DIET_INTENSITY);
   const [dietSimilarity, setDietSimilarity] = useState<SimilarityFeedback | null>(null);
+  // Generation intent (new | update | regenerate). "new" is the default fresh path.
+  const [lastIntent, setLastIntent] = useState<DietIntent>('new');
+  // Viability score computed after structured generation.
+  const [viability, setViability] = useState<{ score: number; breakdown: ViabilityBreakdown; notes: string[] } | null>(null);
 
   useEffect(() => {
     if (studentId) loadStudentData();
