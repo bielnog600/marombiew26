@@ -221,8 +221,16 @@ export function decideDietAction(input: DietDecisionInput): DietDecisionResult {
   }
 
   // 8) Good progress — everything looks stable / positive.
+  const hasAnyPositiveSignal =
+    rate != null ||
+    input.energia != null ||
+    input.performance != null ||
+    input.adesao != null ||
+    input.fome != null ||
+    input.saciedade != null;
   const positiveProgress =
-    (goal !== 'cutting' || (rate != null && rate < 0 && rate > -0.012)) &&
+    hasAnyPositiveSignal &&
+    (goal !== 'cutting' || (rate != null && rate < 0 && rate > -1.0)) &&
     input.energia !== 'baixa' &&
     input.performance !== 'piorou' &&
     (input.adesao === 'alta' || input.adesao === 'media' || input.adesao == null);
