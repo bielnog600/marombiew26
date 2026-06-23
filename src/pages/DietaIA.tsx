@@ -1373,6 +1373,11 @@ ${generated}`;
         cycle_status: 'em_dia',
         conteudo_json: canonicalPlan ?? null,
         migration_status: canonicalPlan ? 'completed' : 'pending',
+        diet_strategy: strategy || null,
+        strategy_source: 'manual',
+        generation_intent: lastIntent,
+        viability_score: viability?.score ?? null,
+        viability_breakdown: viability?.breakdown ?? null,
       });
       if (error) {
         toast.error('Erro: ' + error.message);
