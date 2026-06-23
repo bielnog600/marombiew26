@@ -1412,7 +1412,7 @@ ${generated}`;
           if (lifted) canonicalPlan = finalizeDietPlan(lifted);
         }
       } catch (e) { console.error('lift to DietPlan failed', e); }
-      const { error } = await supabase.from('ai_plans').insert({
+      const { data: insertedPlan, error } = await supabase.from('ai_plans').insert({
         student_id: studentId!,
         tipo: 'dieta',
         titulo: `Dieta - ${new Date().toLocaleDateString('pt-BR')}`,
@@ -1426,9 +1426,10 @@ ${generated}`;
         generation_intent: lastIntent,
         viability_score: viability?.score ?? null,
         viability_breakdown: viability?.breakdown ?? null,
-      });
+      }).select('id').single();
       if (error) {
         toast.error('Erro: ' + error.message);
+        await failDietApplication(applicationId, error.message);
       } else {
         // If we have a lastDietPlan, mark it as 'renovado'
         if (lastDietPlan?.id) {
@@ -1437,6 +1438,7 @@ ${generated}`;
           }).eq('id', lastDietPlan.id);
         }
         toast.success('Dieta salva e ciclo atualizado!');
+        await closeDietApplication(applicationId, insertedPlan?.id ?? null);
       }
     }
     setSaving(false);
