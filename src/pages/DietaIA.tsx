@@ -1756,6 +1756,44 @@ ${generated}`;
                 ))}
               </div>
             </div>
+
+            {/* Phase 2: macros por g/kg (override opcional) */}
+            <div className="rounded-xl border border-border bg-secondary/30 p-3 space-y-2">
+              <p className="text-xs font-semibold">Macros por g/kg (opcional)</p>
+              <p className="text-[10px] text-muted-foreground">
+                Deixe em branco para usar os valores automáticos por fase/estratégia. Preencha para
+                sobrescrever apenas proteína e/ou gordura — carboidrato é recalculado para fechar a meta calórica.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="text-[10px] text-muted-foreground">Proteína (g/kg)</span>
+                  <input
+                    inputMode="decimal"
+                    value={proteinPerKgOverride}
+                    onChange={(e) => setProteinPerKgOverride(e.target.value)}
+                    placeholder="ex: 2.2"
+                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[10px] text-muted-foreground">Gordura (g/kg)</span>
+                  <input
+                    inputMode="decimal"
+                    value={fatPerKgOverride}
+                    onChange={(e) => setFatPerKgOverride(e.target.value)}
+                    placeholder="ex: 0.8"
+                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
+                  />
+                </label>
+              </div>
+              {(proteinPerKgOverride || fatPerKgOverride) && studentCtx?.peso && (
+                <p className="text-[10px] text-primary">
+                  Override ativo: P {proteinPerKgOverride || '—'} g/kg, G {fatPerKgOverride || '—'} g/kg
+                  {' '}({Math.round((Number(proteinPerKgOverride.replace(',', '.')) || 0) * Number(studentCtx.peso)) || '—'}g P,
+                  {' '}{Math.round((Number(fatPerKgOverride.replace(',', '.')) || 0) * Number(studentCtx.peso)) || '—'}g G).
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
               )}
