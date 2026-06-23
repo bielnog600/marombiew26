@@ -194,6 +194,8 @@ const DietaIA = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const editPlanId = searchParams.get('edit');
+  const applicationId = searchParams.get('application');
+  const checkinIdParam = searchParams.get('checkin');
 
   const [studentCtx, setStudentCtx] = useState<StudentCtx | null>(null);
   const [studentName, setStudentName] = useState('Aluno');
