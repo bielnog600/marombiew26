@@ -870,6 +870,65 @@ export type Database = {
           },
         ]
       }
+      diet_decision_applications: {
+        Row: {
+          applied_action: string
+          applied_at: string
+          applied_by: string | null
+          checkin_id: string
+          confidence: number | null
+          created_at: string
+          id: string
+          notes: string | null
+          rationale: string | null
+          result_plan_id: string | null
+          scenario: string
+          student_id: string
+          suggested_action: string
+          target_plan_id: string | null
+        }
+        Insert: {
+          applied_action: string
+          applied_at?: string
+          applied_by?: string | null
+          checkin_id: string
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          rationale?: string | null
+          result_plan_id?: string | null
+          scenario: string
+          student_id: string
+          suggested_action: string
+          target_plan_id?: string | null
+        }
+        Update: {
+          applied_action?: string
+          applied_at?: string
+          applied_by?: string | null
+          checkin_id?: string
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          rationale?: string | null
+          result_plan_id?: string | null
+          scenario?: string
+          student_id?: string
+          suggested_action?: string
+          target_plan_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diet_decision_applications_checkin_id_fkey"
+            columns: ["checkin_id"]
+            isOneToOne: false
+            referencedRelation: "diet_checkins"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       diet_plan_versions: {
         Row: {
           archived_at: string | null

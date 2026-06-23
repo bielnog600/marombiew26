@@ -8,6 +8,17 @@ import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2, ClipboardCheck, Sparkles } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   decideDietAction,
   scenarioLabel,
@@ -15,6 +26,7 @@ import {
   type DietDecisionResult,
   type DietDecisionGoal,
   type DietDecisionInput,
+  type DietAction,
 } from '@/lib/dietDecisionEngine';
 
 interface Props {
@@ -38,6 +50,11 @@ const DietCheckinDialog: React.FC<Props> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [decision, setDecision] = useState<DietDecisionResult | null>(null);
+  const [checkinId, setCheckinId] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<DietAction | null>(null);
+  const [applying, setApplying] = useState(false);
+  const [appliedAction, setAppliedAction] = useState<DietAction | null>(null);
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     fome: 'moderada',
     energia: 'normal',
@@ -92,7 +109,7 @@ const DietCheckinDialog: React.FC<Props> = ({
       };
       const result = decideDietAction(input);
 
-      const { error } = await supabase
+      const { data: inserted, error } = await supabase
         .from('diet_checkins')
         .insert({
           student_id: studentId,
@@ -115,11 +132,14 @@ const DietCheckinDialog: React.FC<Props> = ({
           decision_action: result.action,
           decision_rationale: result.rationale,
           decision_confidence: result.confidence,
-        });
+        })
+        .select('id')
+        .single();
 
       if (error) throw error;
 
       setDecision(result);
+      setCheckinId(inserted?.id ?? null);
       toast.success('Check-in registrado. Análise gerada abaixo.');
       onSuccess?.();
     } catch (error: any) {
@@ -127,6 +147,140 @@ const DietCheckinDialog: React.FC<Props> = ({
       toast.error('Erro ao salvar check-in: ' + error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ============= Assisted action (Fase 4) =============
+
+  const ACTION_PREVIEW: Record<DietAction, { title: string; preview: string; needsGenerator: boolean; intent?: 'update' | 'regenerate' }> = {
+    manter: {
+      title: 'Manter plano atual',
+      preview: 'Nenhuma alteração será feita no plano. O check-in é registrado como resolvido e o histórico guarda a decisão de manter.',
+      needsGenerator: false,
+    },
+    atualizar_dieta: {
+      title: 'Atualizar dieta (ajuste fino)',
+      preview: 'Abre o gerador em modo UPDATE com o aluno pré-selecionado. O plano atual NÃO é sobrescrito — uma nova versão será gerada a partir do plano vigente.',
+      needsGenerator: true,
+      intent: 'update',
+    },
+    regenerar_dieta: {
+      title: 'Regenerar dieta (do zero)',
+      preview: 'Abre o gerador em modo REGENERATE. Um novo plano será criado mantendo objetivo e metas, sem apagar o histórico do plano atual.',
+      needsGenerator: true,
+      intent: 'regenerate',
+    },
+    subir_proteina: {
+      title: 'Subir proteína',
+      preview: 'Abre o gerador em modo UPDATE com a diretriz de elevar proteína em almoço/jantar (e lanche se necessário). Você revisa antes de salvar.',
+      needsGenerator: true,
+      intent: 'update',
+    },
+    reduzir_densidade: {
+      title: 'Reduzir densidade calórica',
+      preview: 'Abre o gerador em modo UPDATE com a diretriz de trocar alimentos densos por opções de maior volume/saciedade, sem mexer nas metas.',
+      needsGenerator: true,
+      intent: 'update',
+    },
+    aliviar_agressividade: {
+      title: 'Aliviar agressividade do déficit',
+      preview: 'Abre o gerador em modo UPDATE com a diretriz de reduzir o corte calórico (subir carbo no treino) e preservar proteína.',
+      needsGenerator: true,
+      intent: 'update',
+    },
+    aplicar_refeed: {
+      title: 'Aplicar refeed',
+      preview: 'Abre o gerador em modo UPDATE com a diretriz de 1-2 dias de carbo elevado (refeed) antes de qualquer corte adicional.',
+      needsGenerator: true,
+      intent: 'update',
+    },
+    revisar_manual: {
+      title: 'Marcar para revisão manual',
+      preview: 'Sinaliza que o caso precisa de análise humana. Nenhuma alteração automática é feita no plano.',
+      needsGenerator: false,
+    },
+  };
+
+  const applyAction = async (action: DietAction) => {
+    if (!decision || !checkinId) return;
+    setApplying(true);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const adminId = userData?.user?.id ?? null;
+
+      // Find current active diet plan (target)
+      const { data: activePlan } = await supabase
+        .from('ai_plans')
+        .select('id')
+        .eq('student_id', studentId)
+        .eq('tipo', 'dieta')
+        .eq('is_draft', false)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const meta = ACTION_PREVIEW[action];
+      const directive = `[${actionLabel(action)}] ${decision.rationale}`;
+
+      // Persist history record
+      const { error: histErr } = await (supabase as any)
+        .from('diet_decision_applications')
+        .insert({
+          checkin_id: checkinId,
+          student_id: studentId,
+          scenario: decision.scenario,
+          suggested_action: decision.action,
+          applied_action: action,
+          rationale: decision.rationale,
+          confidence: decision.confidence,
+          applied_by: adminId,
+          target_plan_id: activePlan?.id ?? null,
+          notes: directive,
+        });
+      if (histErr) throw histErr;
+
+      // If action requires generator, pre-load directive and navigate
+      if (meta.needsGenerator && meta.intent) {
+        try {
+          sessionStorage.setItem(
+            `dietDirective:${studentId}`,
+            JSON.stringify({
+              intent: meta.intent,
+              action,
+              actionLabel: actionLabel(action),
+              rationale: decision.rationale,
+              scenario: decision.scenario,
+              checkinId,
+              targetPlanId: activePlan?.id ?? null,
+              createdAt: new Date().toISOString(),
+            })
+          );
+        } catch {/* sessionStorage may be unavailable */}
+
+        toast.success('Ação registrada. Abrindo o gerador para revisão...');
+        setAppliedAction(action);
+        setConfirmAction(null);
+        onOpenChange(false);
+        navigate(
+          `/dieta-ia?student=${studentId}&intent=${meta.intent}&checkin=${checkinId}`
+        );
+        return;
+      }
+
+      // Non-generator actions just close the loop
+      toast.success(
+        action === 'manter'
+          ? 'Plano mantido. Decisão registrada no histórico.'
+          : 'Caso marcado para revisão manual. Decisão registrada no histórico.'
+      );
+      setAppliedAction(action);
+      setConfirmAction(null);
+      onSuccess?.();
+    } catch (err: any) {
+      console.error('Erro ao aplicar ação:', err);
+      toast.error('Erro ao aplicar ação: ' + (err?.message ?? 'desconhecido'));
+    } finally {
+      setApplying(false);
     }
   };
 
@@ -324,6 +478,49 @@ const DietCheckinDialog: React.FC<Props> = ({
                   {decision.signals.map((s, i) => <li key={i}>{s}</li>)}
                 </ul>
               )}
+
+              {/* Fase 4 — assisted action panel */}
+              {!appliedAction && checkinId && (
+                <div className="pt-3 mt-2 border-t border-primary/20 space-y-2">
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">
+                    Ação assistida
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => setConfirmAction(decision.action)}
+                      disabled={applying}
+                    >
+                      Aplicar: {actionLabel(decision.action)}
+                    </Button>
+                    {decision.action !== 'manter' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setConfirmAction('manter')}
+                        disabled={applying}
+                      >
+                        Manter plano
+                      </Button>
+                    )}
+                    {decision.action !== 'revisar_manual' && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setConfirmAction('revisar_manual')}
+                        disabled={applying}
+                      >
+                        Revisar manual
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+              {appliedAction && (
+                <div className="pt-3 mt-2 border-t border-primary/20 text-xs text-emerald-500">
+                  ✓ Ação aplicada: {actionLabel(appliedAction)}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -340,6 +537,39 @@ const DietCheckinDialog: React.FC<Props> = ({
           )}
         </DialogFooter>
       </DialogContent>
+
+      <AlertDialog open={!!confirmAction} onOpenChange={(o) => !o && setConfirmAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmAction ? ACTION_PREVIEW[confirmAction].title : ''}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <span className="block">
+                {confirmAction ? ACTION_PREVIEW[confirmAction].preview : ''}
+              </span>
+              {decision && (
+                <span className="block text-xs opacity-80 pt-2 border-t">
+                  <strong>Justificativa:</strong> {decision.rationale}
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={applying}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (confirmAction) applyAction(confirmAction);
+              }}
+              disabled={applying}
+            >
+              {applying ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Confirmar e aplicar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 };
