@@ -1668,20 +1668,18 @@ ${generated}`;
 
         {(() => {
           const STEP_TITLES = [
-            'Rotina e Treino',
-            'Estilo, Fase e Hormônios',
-            'Atividade e Estratégia',
-            'Refeições e Preferências',
-            'Ajustes do Protocolo',
-            'Extras',
-            'Substituições',
+            'Objetivo do Plano',
+            'Base da Dieta',
+            'Estratégia da Dieta',
+            'Estrutura Alimentar do Dia',
+            'Ajustes Finos do Protocolo',
+            'Extras e Observações',
           ];
           const stepValid = [
-            !!trainingTime && !!trainingDays,
-            !!dietStyle && !!phase && usesHormones !== null,
-            !!activityLevel && !!strategy,
-            !!mealCount,
+            !!trainingTime && !!trainingDays && !!phase && usesHormones !== null && !!activityLevel && !!strategy,
+            !!dietStyle,
             true,
+            !!mealCount,
             true,
             true,
           ];
