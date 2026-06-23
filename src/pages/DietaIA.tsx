@@ -1224,7 +1224,7 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
               g: currentTargets.fats,
               tmb: studentCtx.recomendacao_ia?.tmb,
             },
-            opts.regenerateIntent === true,
+            intent,
           );
         } catch (e) {
           console.warn('structured generation threw, falling back to streaming:', e);
