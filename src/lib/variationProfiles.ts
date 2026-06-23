@@ -49,6 +49,17 @@ export type SimilarityFeedback = {
   proteinRepeatMeals?: string[];
   /** Diet-only: meal names where primary carb source repeated. */
   carbRepeatMeals?: string[];
+  /** Diet-only: nutrition guardrail result returned by the agent. */
+  nutrition?: {
+    ok: boolean;
+    issues: Array<{
+      meal: string;
+      reason: "missing_primary_protein" | "protein_below_floor" | "low_protein_share";
+      proteinG: number;
+    }>;
+    totalProteinG?: number;
+    totalKcal?: number;
+  };
 };
 
 export function describeSimilarity(s: SimilarityFeedback): {
@@ -59,6 +70,20 @@ export function describeSimilarity(s: SimilarityFeedback): {
     return { level: "info", label: "Primeiro plano do aluno — sem comparação." };
   }
   const pct = Math.round(s.score * 100);
+  // Nutrition guardrail has the highest priority in UX messaging.
+  if (s.warning === "incomplete_nutrition" || (s.nutrition && !s.nutrition.ok)) {
+    const issues = s.nutrition?.issues ?? [];
+    const missing = issues.filter((i) => i.reason === "missing_primary_protein").map((i) => i.meal);
+    const lowProt = issues.filter((i) => i.reason === "protein_below_floor").map((i) => i.meal);
+    const parts: string[] = [];
+    if (missing.length) parts.push(`sem proteína principal em ${missing.join(", ")}`);
+    if (lowProt.length) parts.push(`proteína abaixo do piso em ${lowProt.join(", ")}`);
+    const detail = parts.length ? ` (${parts.join("; ")})` : "";
+    return {
+      level: "warn",
+      label: `⚠ Estrutura nutricional incompleta${detail} — revise antes de salvar.`,
+    };
+  }
   const protPct = Math.round((s.primaryProteinRepeatRatio ?? 0) * 100);
   const carbPct = Math.round((s.primaryCarbRepeatRatio ?? 0) * 100);
   const primaryRepeat = Math.max(s.primaryProteinRepeatRatio ?? 0, s.primaryCarbRepeatRatio ?? 0);
