@@ -4,9 +4,18 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, ClipboardCheck } from 'lucide-react';
+import { Loader2, ClipboardCheck, Sparkles } from 'lucide-react';
+import {
+  decideDietAction,
+  scenarioLabel,
+  actionLabel,
+  type DietDecisionResult,
+  type DietDecisionGoal,
+  type DietDecisionInput,
+} from '@/lib/dietDecisionEngine';
 
 interface Props {
   open: boolean;
@@ -14,6 +23,7 @@ interface Props {
   studentId: string;
   studentName: string;
   dietId?: string;
+  goal?: DietDecisionGoal;
   onSuccess?: () => void;
 }
 
@@ -23,9 +33,11 @@ const DietCheckinDialog: React.FC<Props> = ({
   studentId,
   studentName,
   dietId,
+  goal,
   onSuccess
 }) => {
   const [loading, setLoading] = useState(false);
+  const [decision, setDecision] = useState<DietDecisionResult | null>(null);
   const [formData, setFormData] = useState({
     fome: 'moderada',
     energia: 'normal',
@@ -33,12 +45,53 @@ const DietCheckinDialog: React.FC<Props> = ({
     sono: 'igual',
     digestao: 'ok',
     facilidade: 'media',
+    performance: 'igual',
+    adesao: 'media',
+    retencao: 'nenhuma',
+    peso_kg: '' as string,
+    cintura_cm: '' as string,
     observacoes: ''
   });
 
   const handleSubmit = async () => {
     setLoading(true);
     try {
+      // Pull previous weight (within ~60d) for trend, if peso informado
+      const pesoNum = formData.peso_kg ? Number(formData.peso_kg) : null;
+      const cinturaNum = formData.cintura_cm ? Number(formData.cintura_cm) : null;
+      let weightDeltaKg: number | undefined;
+      let weeksBetweenWeights: number | undefined;
+      if (pesoNum != null && !Number.isNaN(pesoNum)) {
+        const { data: prevWeights } = await supabase
+          .from('weight_logs')
+          .select('peso, data')
+          .eq('student_id', studentId)
+          .order('data', { ascending: false })
+          .limit(5);
+        const prev = (prevWeights ?? []).find((w: any) => Number(w.peso) !== pesoNum);
+        if (prev) {
+          weightDeltaKg = pesoNum - Number(prev.peso);
+          const ms = Date.now() - new Date(prev.data).getTime();
+          weeksBetweenWeights = Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24 * 7)));
+        }
+      }
+
+      const input: DietDecisionInput = {
+        goal,
+        fome: formData.fome as any,
+        energia: formData.energia as any,
+        saciedade: formData.saciedade as any,
+        sono: formData.sono as any,
+        digestao: formData.digestao as any,
+        facilidade: formData.facilidade as any,
+        performance: formData.performance as any,
+        adesao: formData.adesao as any,
+        retencao: formData.retencao as any,
+        weightDeltaKg,
+        weeksBetweenWeights,
+      };
+      const result = decideDietAction(input);
+
       const { error } = await supabase
         .from('diet_checkins')
         .insert({
@@ -46,14 +99,29 @@ const DietCheckinDialog: React.FC<Props> = ({
           diet_id: dietId,
           status: 'completed',
           completed_at: new Date().toISOString(),
-          ...formData
+          fome: formData.fome,
+          energia: formData.energia,
+          saciedade: formData.saciedade,
+          sono: formData.sono,
+          digestao: formData.digestao,
+          facilidade: formData.facilidade,
+          performance: formData.performance,
+          adesao: formData.adesao,
+          retencao: formData.retencao,
+          peso_kg: pesoNum,
+          cintura_cm: cinturaNum,
+          observacoes: formData.observacoes,
+          decision_scenario: result.scenario,
+          decision_action: result.action,
+          decision_rationale: result.rationale,
+          decision_confidence: result.confidence,
         });
 
       if (error) throw error;
 
-      toast.success('Check-in registrado com sucesso!');
+      setDecision(result);
+      toast.success('Check-in registrado. Análise gerada abaixo.');
       onSuccess?.();
-      onOpenChange(false);
     } catch (error: any) {
       console.error('Error saving checkin:', error);
       toast.error('Erro ao salvar check-in: ' + error.message);
@@ -166,6 +234,67 @@ const DietCheckinDialog: React.FC<Props> = ({
             ]}
           />
 
+          <Field
+            label="Performance no treino"
+            id="performance"
+            value={formData.performance}
+            onChange={(v: string) => setFormData(p => ({ ...p, performance: v }))}
+            options={[
+              { label: 'Piorou', value: 'piorou' },
+              { label: 'Igual', value: 'igual' },
+              { label: 'Melhorou', value: 'melhorou' }
+            ]}
+          />
+
+          <Field
+            label="Aderência ao plano"
+            id="adesao"
+            value={formData.adesao}
+            onChange={(v: string) => setFormData(p => ({ ...p, adesao: v }))}
+            options={[
+              { label: 'Baixa', value: 'baixa' },
+              { label: 'Média', value: 'media' },
+              { label: 'Alta', value: 'alta' }
+            ]}
+          />
+
+          <Field
+            label="Retenção percebida"
+            id="retencao"
+            value={formData.retencao}
+            onChange={(v: string) => setFormData(p => ({ ...p, retencao: v }))}
+            options={[
+              { label: 'Nenhuma', value: 'nenhuma' },
+              { label: 'Leve', value: 'leve' },
+              { label: 'Alta', value: 'alta' }
+            ]}
+          />
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="peso" className="text-sm font-semibold">Peso atual (kg)</Label>
+              <Input
+                id="peso"
+                type="number"
+                step="0.1"
+                placeholder="opcional"
+                value={formData.peso_kg}
+                onChange={(e) => setFormData(p => ({ ...p, peso_kg: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cintura" className="text-sm font-semibold">Cintura (cm)</Label>
+              <Input
+                id="cintura"
+                type="number"
+                step="0.1"
+                placeholder="opcional"
+                value={formData.cintura_cm}
+                onChange={(e) => setFormData(p => ({ ...p, cintura_cm: e.target.value }))}
+              />
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="obs" className="text-sm font-semibold">Observações importantes</Label>
             <Textarea
@@ -175,16 +304,40 @@ const DietCheckinDialog: React.FC<Props> = ({
               onChange={(e) => setFormData(p => ({ ...p, observacoes: e.target.value }))}
             />
           </div>
+
+          {decision && (
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-2">
+              <div className="flex items-center gap-2 text-primary font-semibold text-sm">
+                <Sparkles className="h-4 w-4" />
+                Análise automática
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Cenário: <span className="font-semibold text-foreground">{scenarioLabel(decision.scenario)}</span>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Ação sugerida: <span className="font-semibold text-foreground">{actionLabel(decision.action)}</span>
+                <span className="ml-2 opacity-60">({Math.round(decision.confidence * 100)}% confiança)</span>
+              </div>
+              <p className="text-xs leading-relaxed">{decision.rationale}</p>
+              {decision.signals.length > 0 && (
+                <ul className="text-[11px] text-muted-foreground list-disc list-inside space-y-0.5">
+                  {decision.signals.map((s, i) => <li key={i}>{s}</li>)}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-            Cancelar
+          <Button variant="outline" onClick={() => { setDecision(null); onOpenChange(false); }} disabled={loading}>
+            {decision ? 'Fechar' : 'Cancelar'}
           </Button>
-          <Button onClick={handleSubmit} disabled={loading}>
-            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ClipboardCheck className="h-4 w-4 mr-2" />}
-            Salvar Check-in
-          </Button>
+          {!decision && (
+            <Button onClick={handleSubmit} disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ClipboardCheck className="h-4 w-4 mr-2" />}
+              Salvar e analisar
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

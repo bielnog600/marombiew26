@@ -777,8 +777,14 @@ export type Database = {
       }
       diet_checkins: {
         Row: {
+          adesao: string | null
+          cintura_cm: number | null
           completed_at: string | null
           created_at: string
+          decision_action: string | null
+          decision_confidence: number | null
+          decision_rationale: string | null
+          decision_scenario: string | null
           diet_id: string | null
           digestao: string | null
           energia: string | null
@@ -787,7 +793,10 @@ export type Database = {
           fome: string | null
           id: string
           observacoes: string | null
+          performance: string | null
+          peso_kg: number | null
           requested_at: string
+          retencao: string | null
           saciedade: string | null
           sono: string | null
           status: string
@@ -796,8 +805,14 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          adesao?: string | null
+          cintura_cm?: number | null
           completed_at?: string | null
           created_at?: string
+          decision_action?: string | null
+          decision_confidence?: number | null
+          decision_rationale?: string | null
+          decision_scenario?: string | null
           diet_id?: string | null
           digestao?: string | null
           energia?: string | null
@@ -806,7 +821,10 @@ export type Database = {
           fome?: string | null
           id?: string
           observacoes?: string | null
+          performance?: string | null
+          peso_kg?: number | null
           requested_at?: string
+          retencao?: string | null
           saciedade?: string | null
           sono?: string | null
           status?: string
@@ -815,8 +833,14 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          adesao?: string | null
+          cintura_cm?: number | null
           completed_at?: string | null
           created_at?: string
+          decision_action?: string | null
+          decision_confidence?: number | null
+          decision_rationale?: string | null
+          decision_scenario?: string | null
           diet_id?: string | null
           digestao?: string | null
           energia?: string | null
@@ -825,7 +849,10 @@ export type Database = {
           fome?: string | null
           id?: string
           observacoes?: string | null
+          performance?: string | null
+          peso_kg?: number | null
           requested_at?: string
+          retencao?: string | null
           saciedade?: string | null
           sono?: string | null
           status?: string
