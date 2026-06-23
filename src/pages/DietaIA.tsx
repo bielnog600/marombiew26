@@ -261,6 +261,10 @@ const DietaIA = () => {
   const [lastIntent, setLastIntent] = useState<DietIntent>('new');
   // Viability score computed after structured generation.
   const [viability, setViability] = useState<{ score: number; breakdown: ViabilityBreakdown; notes: string[] } | null>(null);
+  // Phase 2: g/kg overrides (optional). When null, defaults from phase/strategy are used.
+  const [proteinPerKgOverride, setProteinPerKgOverride] = useState<string>('');
+  const [fatPerKgOverride, setFatPerKgOverride] = useState<string>('');
+  // Phase 2: enable structured carb cycling alongside the protocol checkbox.
 
   useEffect(() => {
     if (studentId) loadStudentData();
@@ -1089,6 +1093,8 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
         strategyValue: strategy,
         phaseValue: phase,
         hormoneUse: hasHormoneUse(usesHormones),
+        proteinPerKgOverride: proteinPerKgOverride ? Number(proteinPerKgOverride.replace(',', '.')) : null,
+        fatPerKgOverride: fatPerKgOverride ? Number(fatPerKgOverride.replace(',', '.')) : null,
       });
       currentTargets = {
         calories: currentCalories,
