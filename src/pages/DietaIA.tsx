@@ -933,7 +933,10 @@ const DietaIA = () => {
     const raw = data?.plan;
     if (!raw) return null;
     if (data?.similarity) {
-      const sim = data.similarity as SimilarityFeedback;
+      const sim = {
+        ...(data.similarity as SimilarityFeedback),
+        nutrition: data?.nutrition,
+      } as SimilarityFeedback;
       setDietSimilarity(sim);
       const fb = describeSimilarity(sim);
       if (fb.level === 'warn') toast.warning(fb.label);
