@@ -890,7 +890,7 @@ const DietaIA = () => {
     userPrompt: string,
     dietConfig: { objective?: string; strategy?: string; style?: string },
     targets: { kcal: number; p: number; c: number; g: number; tmb?: number; get?: number },
-    regenerateIntent = false,
+    intent: DietIntent = 'new',
   ): Promise<DietPlan | null> => {
     // Latest training markdown → structured context
     let trainingContext: any = undefined;
@@ -928,7 +928,8 @@ const DietaIA = () => {
         trainingContext,
         studentId,
         variationIntensity,
-        regenerateIntent,
+        intent,
+        regenerateIntent: intent === 'regenerate',
       }),
     });
     if (!resp.ok) {
@@ -988,13 +989,16 @@ const DietaIA = () => {
     }));
   };
 
-  const generatePlan = async (opts: { regenerateIntent?: boolean } = {}) => {
+  const generatePlan = async (opts: { regenerateIntent?: boolean; intent?: DietIntent } = {}) => {
     if (!canGenerate || !studentCtx) return;
+    const intent: DietIntent = opts.intent ?? (opts.regenerateIntent ? 'regenerate' : 'new');
+    setLastIntent(intent);
     setGenerating(true);
     setResult('');
     setMacroReport(null);
     setStructuredPlan(null);
     setDietSimilarity(null);
+    setViability(null);
 
     const selectedStrategy = STRATEGIES.find(s => s.value === strategy);
     const selectedActivity = ACTIVITY_LEVELS.find(a => a.value === activityLevel);
