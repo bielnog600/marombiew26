@@ -1246,7 +1246,7 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
             plan: structured,
             questionnaire: studentCtx.questionario_dieta ?? null,
             adherencePct,
-            mealCount,
+            mealCount: Number(mealCount) || undefined,
           });
           setViability(v);
         } catch (e) { console.warn('viability score failed', e); }
