@@ -28,6 +28,10 @@ import {
   type DietDecisionInput,
   type DietAction,
 } from '@/lib/dietDecisionEngine';
+import {
+  ACTION_META,
+  buildApplicationRecord,
+} from '@/lib/dietActionApplier';
 
 interface Props {
   open: boolean;
@@ -151,55 +155,7 @@ const DietCheckinDialog: React.FC<Props> = ({
   };
 
   // ============= Assisted action (Fase 4) =============
-
-  const ACTION_PREVIEW: Record<DietAction, { title: string; preview: string; needsGenerator: boolean; intent?: 'update' | 'regenerate' }> = {
-    manter: {
-      title: 'Manter plano atual',
-      preview: 'Nenhuma alteração será feita no plano. O check-in é registrado como resolvido e o histórico guarda a decisão de manter.',
-      needsGenerator: false,
-    },
-    atualizar_dieta: {
-      title: 'Atualizar dieta (ajuste fino)',
-      preview: 'Abre o gerador em modo UPDATE com o aluno pré-selecionado. O plano atual NÃO é sobrescrito — uma nova versão será gerada a partir do plano vigente.',
-      needsGenerator: true,
-      intent: 'update',
-    },
-    regenerar_dieta: {
-      title: 'Regenerar dieta (do zero)',
-      preview: 'Abre o gerador em modo REGENERATE. Um novo plano será criado mantendo objetivo e metas, sem apagar o histórico do plano atual.',
-      needsGenerator: true,
-      intent: 'regenerate',
-    },
-    subir_proteina: {
-      title: 'Subir proteína',
-      preview: 'Abre o gerador em modo UPDATE com a diretriz de elevar proteína em almoço/jantar (e lanche se necessário). Você revisa antes de salvar.',
-      needsGenerator: true,
-      intent: 'update',
-    },
-    reduzir_densidade: {
-      title: 'Reduzir densidade calórica',
-      preview: 'Abre o gerador em modo UPDATE com a diretriz de trocar alimentos densos por opções de maior volume/saciedade, sem mexer nas metas.',
-      needsGenerator: true,
-      intent: 'update',
-    },
-    aliviar_agressividade: {
-      title: 'Aliviar agressividade do déficit',
-      preview: 'Abre o gerador em modo UPDATE com a diretriz de reduzir o corte calórico (subir carbo no treino) e preservar proteína.',
-      needsGenerator: true,
-      intent: 'update',
-    },
-    aplicar_refeed: {
-      title: 'Aplicar refeed',
-      preview: 'Abre o gerador em modo UPDATE com a diretriz de 1-2 dias de carbo elevado (refeed) antes de qualquer corte adicional.',
-      needsGenerator: true,
-      intent: 'update',
-    },
-    revisar_manual: {
-      title: 'Marcar para revisão manual',
-      preview: 'Sinaliza que o caso precisa de análise humana. Nenhuma alteração automática é feita no plano.',
-      needsGenerator: false,
-    },
-  };
+  const ACTION_PREVIEW = ACTION_META;
 
   const applyAction = async (action: DietAction) => {
     if (!decision || !checkinId) return;
@@ -220,23 +176,19 @@ const DietCheckinDialog: React.FC<Props> = ({
         .maybeSingle();
 
       const meta = ACTION_PREVIEW[action];
-      const directive = `[${actionLabel(action)}] ${decision.rationale}`;
+      const record = buildApplicationRecord(decision, action, {
+        checkinId,
+        studentId,
+        adminId,
+        targetPlanId: activePlan?.id ?? null,
+      });
 
-      // Persist history record
-      const { error: histErr } = await (supabase as any)
+      // Persist history record (status is set inside buildApplicationRecord)
+      const { data: histRow, error: histErr } = await (supabase as any)
         .from('diet_decision_applications')
-        .insert({
-          checkin_id: checkinId,
-          student_id: studentId,
-          scenario: decision.scenario,
-          suggested_action: decision.action,
-          applied_action: action,
-          rationale: decision.rationale,
-          confidence: decision.confidence,
-          applied_by: adminId,
-          target_plan_id: activePlan?.id ?? null,
-          notes: directive,
-        });
+        .insert(record)
+        .select('id')
+        .single();
       if (histErr) throw histErr;
 
       // If action requires generator, pre-load directive and navigate
@@ -245,6 +197,7 @@ const DietCheckinDialog: React.FC<Props> = ({
           sessionStorage.setItem(
             `dietDirective:${studentId}`,
             JSON.stringify({
+              applicationId: histRow?.id ?? null,
               intent: meta.intent,
               action,
               actionLabel: actionLabel(action),
@@ -257,12 +210,12 @@ const DietCheckinDialog: React.FC<Props> = ({
           );
         } catch {/* sessionStorage may be unavailable */}
 
-        toast.success('Ação registrada. Abrindo o gerador para revisão...');
+        toast.success('Ação pendente de geração. Abrindo o gerador para revisão...');
         setAppliedAction(action);
         setConfirmAction(null);
         onOpenChange(false);
         navigate(
-          `/dieta-ia?student=${studentId}&intent=${meta.intent}&checkin=${checkinId}`
+          `/dieta-ia?student=${studentId}&intent=${meta.intent}&checkin=${checkinId}&application=${histRow?.id ?? ''}`
         );
         return;
       }
