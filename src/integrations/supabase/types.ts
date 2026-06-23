@@ -57,11 +57,13 @@ export type Database = {
           created_at: string
           cycle_days: number
           cycle_status: string
+          diet_strategy: string | null
           draft_analysis_id: string | null
           draft_reason: string | null
           draft_source: string | null
           fase: string
           fase_inicio_data: string | null
+          generation_intent: string | null
           has_new_checkin: boolean | null
           id: string
           is_draft: boolean
@@ -78,10 +80,14 @@ export type Database = {
           pending_checkin: boolean | null
           protocols: Json | null
           renewal_mode: string
+          strategy_source: string | null
           student_id: string
+          supplementation: Json | null
           tipo: string
           titulo: string
           version: number
+          viability_breakdown: Json | null
+          viability_score: number | null
           whatsapp_notified_at: string | null
           whatsapp_notified_count: number
         }
@@ -91,11 +97,13 @@ export type Database = {
           created_at?: string
           cycle_days?: number
           cycle_status?: string
+          diet_strategy?: string | null
           draft_analysis_id?: string | null
           draft_reason?: string | null
           draft_source?: string | null
           fase?: string
           fase_inicio_data?: string | null
+          generation_intent?: string | null
           has_new_checkin?: boolean | null
           id?: string
           is_draft?: boolean
@@ -112,10 +120,14 @@ export type Database = {
           pending_checkin?: boolean | null
           protocols?: Json | null
           renewal_mode?: string
+          strategy_source?: string | null
           student_id: string
+          supplementation?: Json | null
           tipo?: string
           titulo?: string
           version?: number
+          viability_breakdown?: Json | null
+          viability_score?: number | null
           whatsapp_notified_at?: string | null
           whatsapp_notified_count?: number
         }
@@ -125,11 +137,13 @@ export type Database = {
           created_at?: string
           cycle_days?: number
           cycle_status?: string
+          diet_strategy?: string | null
           draft_analysis_id?: string | null
           draft_reason?: string | null
           draft_source?: string | null
           fase?: string
           fase_inicio_data?: string | null
+          generation_intent?: string | null
           has_new_checkin?: boolean | null
           id?: string
           is_draft?: boolean
@@ -146,10 +160,14 @@ export type Database = {
           pending_checkin?: boolean | null
           protocols?: Json | null
           renewal_mode?: string
+          strategy_source?: string | null
           student_id?: string
+          supplementation?: Json | null
           tipo?: string
           titulo?: string
           version?: number
+          viability_breakdown?: Json | null
+          viability_score?: number | null
           whatsapp_notified_at?: string | null
           whatsapp_notified_count?: number
         }

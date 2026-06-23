@@ -7,6 +7,24 @@ export type VariationIntensity = "baixa" | "media" | "alta";
 
 export const DEFAULT_INTENSITY: VariationIntensity = "media";
 
+/** Generation intent — mirrors backend. */
+export type DietIntent = "new" | "update" | "regenerate";
+
+export const DIET_INTENT_LABELS: Record<DietIntent, { label: string; desc: string }> = {
+  new: {
+    label: "Nova dieta",
+    desc: "Gera do zero. IA decide entre preservar, ajustar ou trocar.",
+  },
+  update: {
+    label: "Atualizar dieta",
+    desc: "Mantém pelo menos 70% da base — ajusta porções/macros, sem trocar tudo.",
+  },
+  regenerate: {
+    label: "Regenerar dieta",
+    desc: "Força variação real: troca fontes principais, combinações e preparações.",
+  },
+};
+
 export const VARIATION_OPTIONS: ReadonlyArray<{
   value: VariationIntensity;
   label: string;

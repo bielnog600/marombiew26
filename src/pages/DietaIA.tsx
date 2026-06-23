@@ -29,7 +29,10 @@ import {
   describeSimilarity,
   type SimilarityFeedback,
   type VariationIntensity as DietVariationIntensity,
+  DIET_INTENT_LABELS,
+  type DietIntent,
 } from '@/lib/variationProfiles';
+import { computeViabilityScore, describeViability, type ViabilityBreakdown } from '@/lib/dietViability';
 import DietValidationBadge from '@/components/diet/DietValidationBadge';
 import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
@@ -233,6 +236,10 @@ const DietaIA = () => {
   // Variability controls + feedback (mirrors TreinoIA).
   const [variationIntensity, setVariationIntensity] = useState<DietVariationIntensity>(DEFAULT_DIET_INTENSITY);
   const [dietSimilarity, setDietSimilarity] = useState<SimilarityFeedback | null>(null);
+  // Generation intent (new | update | regenerate). "new" is the default fresh path.
+  const [lastIntent, setLastIntent] = useState<DietIntent>('new');
+  // Viability score computed after structured generation.
+  const [viability, setViability] = useState<{ score: number; breakdown: ViabilityBreakdown; notes: string[] } | null>(null);
 
   useEffect(() => {
     if (studentId) loadStudentData();
@@ -883,7 +890,7 @@ const DietaIA = () => {
     userPrompt: string,
     dietConfig: { objective?: string; strategy?: string; style?: string },
     targets: { kcal: number; p: number; c: number; g: number; tmb?: number; get?: number },
-    regenerateIntent = false,
+    intent: DietIntent = 'new',
   ): Promise<DietPlan | null> => {
     // Latest training markdown → structured context
     let trainingContext: any = undefined;
@@ -921,7 +928,8 @@ const DietaIA = () => {
         trainingContext,
         studentId,
         variationIntensity,
-        regenerateIntent,
+        intent,
+        regenerateIntent: intent === 'regenerate',
       }),
     });
     if (!resp.ok) {
@@ -981,13 +989,16 @@ const DietaIA = () => {
     }));
   };
 
-  const generatePlan = async (opts: { regenerateIntent?: boolean } = {}) => {
+  const generatePlan = async (opts: { regenerateIntent?: boolean; intent?: DietIntent } = {}) => {
     if (!canGenerate || !studentCtx) return;
+    const intent: DietIntent = opts.intent ?? (opts.regenerateIntent ? 'regenerate' : 'new');
+    setLastIntent(intent);
     setGenerating(true);
     setResult('');
     setMacroReport(null);
     setStructuredPlan(null);
     setDietSimilarity(null);
+    setViability(null);
 
     const selectedStrategy = STRATEGIES.find(s => s.value === strategy);
     const selectedActivity = ACTIVITY_LEVELS.find(a => a.value === activityLevel);
@@ -1213,7 +1224,7 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
               g: currentTargets.fats,
               tmb: studentCtx.recomendacao_ia?.tmb,
             },
-            opts.regenerateIntent === true,
+            intent,
           );
         } catch (e) {
           console.warn('structured generation threw, falling back to streaming:', e);
@@ -1228,6 +1239,17 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
           const report = validateDietMacros(md, currentTargets, foodRecords);
           setMacroReport(report);
         }
+        // Compute viability score from generated plan + questionnaire + adherence.
+        try {
+          const adherencePct = studentCtx.historico_processo?.aderencia_recente?.percentual_aderencia ?? null;
+          const v = computeViabilityScore({
+            plan: structured,
+            questionnaire: studentCtx.questionario_dieta ?? null,
+            adherencePct,
+            mealCount: Number(mealCount) || undefined,
+          });
+          setViability(v);
+        } catch (e) { console.warn('viability score failed', e); }
         const status = structured.validation?.status;
         if (status === 'ok') toast.success('Dieta gerada (JSON canônico).');
         else if (status === 'warning') toast('Dieta gerada — revisar avisos.', { icon: '⚠️' });
@@ -1351,6 +1373,11 @@ ${generated}`;
         cycle_status: 'em_dia',
         conteudo_json: canonicalPlan ?? null,
         migration_status: canonicalPlan ? 'completed' : 'pending',
+        diet_strategy: strategy || null,
+        strategy_source: 'manual',
+        generation_intent: lastIntent,
+        viability_score: viability?.score ?? null,
+        viability_breakdown: viability?.breakdown ?? null,
       });
       if (error) {
         toast.error('Erro: ' + error.message);
@@ -1913,6 +1940,56 @@ ${generated}`;
 
         {result && !generating && (
           <div ref={resultRef} className="space-y-4">
+            {/* Intent badge — what kind of generation produced this plan */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className={`rounded-full border px-2 py-0.5 ${
+                lastIntent === 'regenerate'
+                  ? 'border-purple-500/40 bg-purple-500/10 text-purple-200'
+                  : lastIntent === 'update'
+                    ? 'border-blue-500/40 bg-blue-500/10 text-blue-200'
+                    : 'border-primary/40 bg-primary/10 text-primary'
+              }`}>
+                {DIET_INTENT_LABELS[lastIntent].label}
+              </span>
+              {dietSimilarity?.changeKind && (
+                <span className="rounded-full border border-muted-foreground/30 bg-muted/30 px-2 py-0.5 text-muted-foreground">
+                  Tipo de mudança:{' '}
+                  {dietSimilarity.changeKind === 'portion_only'
+                    ? 'ajuste de quantidades'
+                    : dietSimilarity.changeKind === 'menu_variation' || dietSimilarity.changeKind === 'new_menu'
+                      ? 'variação real de cardápio'
+                      : 'mista (quantidades + trocas)'}
+                </span>
+              )}
+            </div>
+
+            {/* Viability score card */}
+            {viability && (() => {
+              const v = describeViability(viability.score);
+              const cls = v.level === 'ok'
+                ? 'border-green-500/40 bg-green-500/10 text-green-200'
+                : v.level === 'warn'
+                  ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-200'
+                  : 'border-red-500/40 bg-red-500/10 text-red-200';
+              return (
+                <div className={`rounded-xl border px-3 py-2 text-xs space-y-1 ${cls}`}>
+                  <div className="font-semibold">{v.label}</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 opacity-90">
+                    <span>Aderência: <strong>{viability.breakdown.adherence}</strong></span>
+                    <span>Praticidade: <strong>{viability.breakdown.practicality}</strong></span>
+                    <span>Familiaridade: <strong>{viability.breakdown.familiarity}</strong></span>
+                    <span>Complexidade: <strong>{viability.breakdown.complexity}</strong></span>
+                    <span>Custo: <strong>{viability.breakdown.cost}</strong></span>
+                  </div>
+                  {viability.notes.length > 0 && (
+                    <ul className="list-disc pl-4 opacity-80">
+                      {viability.notes.map((n, i) => <li key={i}>{n}</li>)}
+                    </ul>
+                  )}
+                </div>
+              );
+            })()}
+
             {dietSimilarity && dietSimilarity.historyCount > 0 && (() => {
               const fb = describeSimilarity(dietSimilarity);
               const cls =
@@ -1940,7 +2017,20 @@ ${generated}`;
                 )}
               </h3>
               <div className="flex gap-2 flex-wrap">
-                <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan({ regenerateIntent: true }); }}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  title={DIET_INTENT_LABELS.update.desc}
+                  onClick={() => { setResult(''); generatePlan({ intent: 'update' }); }}
+                >
+                  <SlidersHorizontal className="h-3 w-3 mr-1" /> Atualizar
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  title={DIET_INTENT_LABELS.regenerate.desc}
+                  onClick={() => { setResult(''); generatePlan({ intent: 'regenerate' }); }}
+                >
                   <RotateCcw className="h-3 w-3 mr-1" /> Regenerar
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => generateDietPDF(result, studentName)}>
