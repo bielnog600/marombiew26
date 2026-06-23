@@ -120,7 +120,7 @@ export function decideDietAction(input: DietDecisionInput): DietDecisionResult {
 
   // 2) Aggressive deficit — losing too fast OR multiple negative signals at once.
   const aggressiveByRate =
-    goal === 'cutting' && rate != null && rate <= -0.012; // > ~1.2%/wk for an 80kg athlete = too fast roughly
+    goal === 'cutting' && rate != null && rate <= -1.0; // perdendo > 1 kg/sem = rápido demais
   const aggressiveBySymptoms =
     (input.energia === 'baixa' && input.fome === 'alta') ||
     (input.energia === 'baixa' && input.sono === 'piorou');
