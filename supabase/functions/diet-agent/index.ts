@@ -6,7 +6,11 @@ import {
   dietVariationPrompt,
   type VariationIntensity,
 } from "../_shared/variationProfiles.ts";
-import { computeDietSimilarity } from "../_shared/planSimilarity.ts";
+import {
+  computeDietSimilarity,
+  validateDietNutrition,
+  type DietNutritionValidation,
+} from "../_shared/planSimilarity.ts";
 import {
   loadPlanHistory,
   summarizeDietForPrompt,
@@ -673,6 +677,7 @@ serve(async (req) => {
       let finalPlan = first.plan;
       let regenerated = false;
       let warning: string | null = null;
+      let nutrition: DietNutritionValidation = validateDietNutrition(finalPlan);
 
       const qOnly = similarity.quantityOnlyRatio ?? 0;
       const isPortionOnly = similarity.changeKind === "portion_only";
@@ -680,11 +685,13 @@ serve(async (req) => {
       const carbRepeat = similarity.primaryCarbRepeatRatio ?? 0;
       const primarySourceTooRepetitive = Math.max(protRepeat, carbRepeat) >= 0.6;
       // Trigger regen if:
+      //  - nutrition guardrail failed (main meals must have primary protein), OR
       //  - similarity above threshold, OR
       //  - the change is essentially "same foods, different portions", OR
       //  - admin asked for regeneration / menu renewal and we got portion_only
       //  - primary protein/carb groups repeat in ≥60% of meals vs previous plan
       const needsRetry =
+        !nutrition.ok ||
         historyJsons.length > 0 &&
         (similarity.score > threshold ||
           isPortionOnly ||
@@ -700,6 +707,30 @@ serve(async (req) => {
           "Substitua por equivalentes em macros usando o BANCO DE ALIMENTOS.",
           "Preserve metas calóricas, macros, restrições e preferências.",
         ];
+        if (!nutrition.ok) {
+          const missing = nutrition.issues
+            .filter((i) => i.reason === "missing_primary_protein")
+            .map((i) => i.meal);
+          const lowProt = nutrition.issues
+            .filter((i) => i.reason === "protein_below_floor")
+            .map((i) => `${i.meal} (${Math.round(i.proteinG)}g)`);
+          const lowShare = nutrition.issues
+            .filter((i) => i.reason === "low_protein_share")
+            .map((i) => `${i.meal} (${Math.round(i.proteinG)}g)`);
+          retryParts.unshift(
+            "🚨 PRIORIDADE MÁXIMA — ESTRUTURA NUTRICIONAL INCOMPLETA. Antes de pensar em variação, CORRIJA:",
+            ...(missing.length
+              ? [`• Refeições principais SEM proteína principal: ${missing.join(", ")}. Inclua OBRIGATORIAMENTE uma fonte de proteína principal (frango, peixe, carne, ovos, vísceras, laticínios ou vegetal proteica) em cada uma.`]
+              : []),
+            ...(lowProt.length
+              ? [`• Almoço/Jantar com proteína abaixo do piso (mín 30g): ${lowProt.join(", ")}. Aumente a porção da proteína principal até atingir o piso, ajustando carbo/gordura para manter as metas.`]
+              : []),
+            ...(lowShare.length
+              ? [`• Refeições com participação de proteína muito baixa: ${lowShare.join(", ")}. Acrescente uma fonte proteica adequada.`]
+              : []),
+            "Variação de cardápio é prioridade MENOR que esta correção — não remova proteínas para variar.",
+          );
+        }
         if (isPortionOnly || qOnly > 0.3) {
           retryParts.push(
             "❗ A geração anterior apenas mudou GRAMAGEM dos mesmos alimentos. Isto NÃO é variação. Substitua de fato os alimentos por outros equivalentes (proteínas, carbs e gorduras diferentes).",
@@ -720,9 +751,11 @@ serve(async (req) => {
         );
         if (second.ok) {
           const sim2 = computeDietSimilarity(second.plan, historyJsons);
+          const nut2 = validateDietNutrition(second.plan);
           // Prefer the second plan when it (a) lowers similarity OR
           // (b) escapes portion_only mode OR
-          // (c) reduces primary-source repetition.
+          // (c) reduces primary-source repetition OR
+          // (d) fixes a nutrition guardrail failure.
           const escapedPortion =
             isPortionOnly && sim2.changeKind !== "portion_only";
           const sim2Primary = Math.max(
@@ -731,12 +764,22 @@ serve(async (req) => {
           );
           const reducedPrimary =
             primarySourceTooRepetitive && sim2Primary < Math.max(protRepeat, carbRepeat);
-          if (sim2.score <= similarity.score || escapedPortion || reducedPrimary) {
+          const fixedNutrition = !nutrition.ok && nut2.issues.length < nutrition.issues.length;
+          // Nutrition guardrail trumps similarity preference: if the first plan
+          // was nutritionally invalid and the second is valid (or better),
+          // always take the second.
+          if (
+            fixedNutrition ||
+            (nutrition.ok &&
+              (sim2.score <= similarity.score || escapedPortion || reducedPrimary))
+          ) {
             finalPlan = second.plan;
             similarity = sim2;
+            nutrition = nut2;
           }
           regenerated = true;
-          if (similarity.changeKind === "portion_only") warning = "quantity_only";
+          if (!nutrition.ok) warning = "incomplete_nutrition";
+          else if (similarity.changeKind === "portion_only") warning = "quantity_only";
           else if (similarity.score > threshold) warning = "high_similarity";
           else if (
             Math.max(
@@ -747,7 +790,11 @@ serve(async (req) => {
             warning = "primary_source_repeated";
           }
         } else {
-          warning = isPortionOnly ? "quantity_only" : "high_similarity";
+          warning = !nutrition.ok
+            ? "incomplete_nutrition"
+            : isPortionOnly
+              ? "quantity_only"
+              : "high_similarity";
         }
       }
 
@@ -772,6 +819,12 @@ serve(async (req) => {
             ),
             proteinRepeatMeals: similarity.proteinRepeatMeals ?? [],
             carbRepeatMeals: similarity.carbRepeatMeals ?? [],
+          },
+          nutrition: {
+            ok: nutrition.ok,
+            issues: nutrition.issues,
+            totalProteinG: Math.round(nutrition.totalProteinG),
+            totalKcal: Math.round(nutrition.totalKcal),
           },
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
