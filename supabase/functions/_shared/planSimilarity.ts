@@ -163,10 +163,35 @@ const classifyCarb = (name: string) => classifyByGroup(name, CARB_GROUPS);
 // ─────────── nutritional completeness validation ───────────
 
 const MAIN_MEAL_PATTERNS = ["almoco", "jantar"];
+const BREAKFAST_PATTERNS = ["cafe da manha", "cafe manha", "desjejum"];
+// Afternoon snack: explicit user rule — may be lighter (carb / carb+fat only)
+const AFTERNOON_SNACK_PATTERNS = ["lanche da tarde", "lanche tarde"];
 
 const isMainMeal = (m: any): boolean => {
   const n = normalizeName(m?.name) || normalizeName(m?.id);
   return MAIN_MEAL_PATTERNS.some((p) => n.includes(p));
+};
+
+const isBreakfast = (m: any): boolean => {
+  const n = normalizeName(m?.name) || normalizeName(m?.id);
+  return BREAKFAST_PATTERNS.some((p) => n.includes(p));
+};
+
+const isAfternoonSnack = (m: any): boolean => {
+  const n = normalizeName(m?.name) || normalizeName(m?.id);
+  return AFTERNOON_SNACK_PATTERNS.some((p) => n.includes(p));
+};
+
+/** Any item that carries protein (even non-primary, e.g. whey, iogurte, queijo). */
+const hasAnyProteinSource = (m: any): boolean => {
+  for (const item of m?.items ?? []) {
+    const n = normalizeName(item?.name);
+    if (classifyProtein(n)) return true;
+    // Fallback: count items contributing ≥6g protein as a protein source
+    const p = Number(item?.macros?.p);
+    if (Number.isFinite(p) && p >= 6) return true;
+  }
+  return false;
 };
 
 const mealProteinGrams = (m: any): number => {
@@ -192,7 +217,9 @@ export type DietNutritionIssue = {
   reason:
     | "missing_primary_protein"
     | "protein_below_floor"
-    | "low_protein_share";
+    | "low_protein_share"
+    | "breakfast_missing_protein"
+    | "breakfast_protein_below_floor";
   proteinG: number;
 };
 
@@ -212,9 +239,10 @@ export type DietNutritionValidation = {
  */
 export function validateDietNutrition(
   plan: DietPlanLike,
-  opts: { mainMealProteinFloor?: number } = {},
+  opts: { mainMealProteinFloor?: number; breakfastProteinFloor?: number } = {},
 ): DietNutritionValidation {
   const floor = opts.mainMealProteinFloor ?? 30;
+  const bfFloor = opts.breakfastProteinFloor ?? 15;
   const meals = mealsOfDietPlan(plan);
   const issues: DietNutritionIssue[] = [];
   let totalProteinG = 0;
@@ -231,6 +259,17 @@ export function validateDietNutrition(
       } else if (p < floor) {
         issues.push({ meal: label, reason: "protein_below_floor", proteinG: p });
       }
+    } else if (isBreakfast(m)) {
+      // Breakfast must keep a coherent protein structure: at least ONE
+      // protein source (any group; whey/eggs/dairy count) and ≥ bfFloor g.
+      if (!hasAnyProteinSource(m)) {
+        issues.push({ meal: label, reason: "breakfast_missing_protein", proteinG: p });
+      } else if (p < bfFloor) {
+        issues.push({ meal: label, reason: "breakfast_protein_below_floor", proteinG: p });
+      }
+    } else if (isAfternoonSnack(m)) {
+      // Afternoon snack is explicitly allowed to be lighter / carb-only or
+      // carb+fat. Do NOT flag low protein share here.
     } else if (k >= 200) {
       // For larger non-main meals, flag if protein share is very low.
       const share = k > 0 ? (p * 4) / k : 0;

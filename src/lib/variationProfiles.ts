@@ -54,7 +54,12 @@ export type SimilarityFeedback = {
     ok: boolean;
     issues: Array<{
       meal: string;
-      reason: "missing_primary_protein" | "protein_below_floor" | "low_protein_share";
+      reason:
+        | "missing_primary_protein"
+        | "protein_below_floor"
+        | "low_protein_share"
+        | "breakfast_missing_protein"
+        | "breakfast_protein_below_floor";
       proteinG: number;
     }>;
     totalProteinG?: number;
@@ -75,9 +80,13 @@ export function describeSimilarity(s: SimilarityFeedback): {
     const issues = s.nutrition?.issues ?? [];
     const missing = issues.filter((i) => i.reason === "missing_primary_protein").map((i) => i.meal);
     const lowProt = issues.filter((i) => i.reason === "protein_below_floor").map((i) => i.meal);
+    const bfMissing = issues.filter((i) => i.reason === "breakfast_missing_protein").map((i) => i.meal);
+    const bfLow = issues.filter((i) => i.reason === "breakfast_protein_below_floor").map((i) => i.meal);
     const parts: string[] = [];
     if (missing.length) parts.push(`sem proteína principal em ${missing.join(", ")}`);
     if (lowProt.length) parts.push(`proteína abaixo do piso em ${lowProt.join(", ")}`);
+    if (bfMissing.length) parts.push(`café da manhã sem proteína em ${bfMissing.join(", ")}`);
+    if (bfLow.length) parts.push(`café da manhã com proteína baixa em ${bfLow.join(", ")}`);
     const detail = parts.length ? ` (${parts.join("; ")})` : "";
     return {
       level: "warn",

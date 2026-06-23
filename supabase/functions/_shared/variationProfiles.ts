@@ -36,9 +36,9 @@ const DIET_RULES: Record<VariationIntensity, string> = {
   baixa:
     "Preserve a estrutura de refeições e a maioria dos alimentos. Faça apenas 1-2 trocas pontuais e ajuste porções para bater a meta.",
   media:
-    "Mantenha as âncoras de horário e número de refeições, mas varie ALIMENTOS e COMBINAÇÕES: troque pelo menos uma fonte de proteína, uma de carboidrato e uma de gordura por refeição em relação ao cardápio anterior. Use opções equivalentes dentro dos mesmos macros. APENAS reduzir ou aumentar a gramagem dos MESMOS alimentos NÃO conta como variação.",
+    "Mantenha as âncoras de horário e número de refeições, mas varie ALIMENTOS e COMBINAÇÕES: troque pelo menos uma fonte de proteína, uma de carboidrato e uma de gordura por refeição em relação ao cardápio anterior. Use opções equivalentes dentro dos mesmos macros — e DENTRO da lista de alimentos preferidos/acessíveis/práticos do questionário do aluno. APENAS reduzir ou aumentar a gramagem dos MESMOS alimentos NÃO conta como variação.",
   alta:
-    "Reescreva o cardápio com alimentos majoritariamente NOVOS em relação ao anterior, mantendo apenas itens essenciais por restrição/preferência. Preserve metas calóricas, macros, restrições e preferências. Repetir os mesmos alimentos com porções diferentes NÃO é aceitável.",
+    "Reescreva o cardápio com alimentos majoritariamente NOVOS em relação ao anterior, mantendo apenas itens essenciais por restrição/preferência/aderência. As trocas devem usar SOMENTE alimentos da lista de preferidos/acessíveis/práticos do questionário do aluno — nunca introduza um alimento que o aluno não marcou como viável. Preserve metas calóricas, macros, restrições e preferências. Repetir os mesmos alimentos com porções diferentes NÃO é aceitável.",
 };
 
 export function workoutVariationPrompt(
@@ -84,16 +84,20 @@ export function dietVariationPrompt(
     "HIERARQUIA DE PRIORIDADES (NÃO INVERTA):",
     "1) Segurança e restrições do aluno",
     "2) Meta calórica e de macros do dia",
-    "3) Proteína mínima por refeição (≥30g em almoço e jantar)",
-    "4) Estrutura obrigatória das refeições principais (almoço e jantar SEMPRE com uma fonte de proteína principal)",
-    "5) Aderência/praticidade",
-    "6) Variação do cardápio",
+    "3) Estrutura mínima das refeições (ver regra de estrutura abaixo)",
+    "4) Proteína obrigatória nas refeições principais (almoço e jantar SEMPRE com uma fonte de proteína principal, ≥30g; café da manhã com pelo menos UMA fonte proteica e ≥15g)",
+    "5) Aderência / praticidade / acessibilidade (alimentos preferidos do questionário do aluno)",
+    "6) Variação do cardápio (último critério, NUNCA sobrepõe os anteriores)",
     "Variação NUNCA pode remover a proteína principal de almoço/jantar nem deixar essas refeições com proteína abaixo do piso.",
+    "Variação NUNCA pode remover a fonte proteica do café da manhã. Café da manhã deve manter coerência proteica (ex.: ovos, whey, iogurte, queijo, leite, tapioca com frango, omelete, panqueca proteica).",
+    "Variação NUNCA pode introduzir alimentos que o aluno NÃO marcou como preferidos/acessíveis/práticos no questionário. Variar fora dessa lista é considerado erro grave — quebra aderência.",
+    "EXCEÇÃO CONTROLADA — LANCHE DA TARDE: pode ter pouca proteína, ou ser apenas carbo, ou carbo + gordura (ex.: fruta com pasta de amendoim, tapioca com geleia, mix de oleaginosas). Isso é exceção e não pode virar padrão do plano — as demais refeições continuam com proteína adequada.",
     "Trocas de variedade devem ser por EQUIVALÊNCIA FUNCIONAL: proteína principal só sai se entrar OUTRA proteína principal — nunca substitua proteína por carbo + gordura.",
     "",
     `Intensidade de variação: ${intensity.toUpperCase()}.`,
     rules,
     "NÃO quebre: metas calóricas, macros, restrições, preferências e aderência relatada.",
+    "Priorize SEMPRE alimentos que o aluno declarou no questionário como GOSTA / ACESSÍVEIS / FÁCEIS DE PREPARAR. A variação deve acontecer DENTRO desse conjunto viável.",
     "",
     "DIFERENÇA OBRIGATÓRIA — AJUSTE NUTRICIONAL vs VARIAÇÃO DE CARDÁPIO:",
     "• Ajuste nutricional = mudar calorias/macros/déficit.",
@@ -111,6 +115,8 @@ export function dietVariationPrompt(
       "  Manter o MESMO grupo (ex.: carne vermelha → carne vermelha em outra refeição equivalente) NÃO conta como variação, mesmo que o nome mude.",
       "- Inclua pelo menos 3 alimentos NOVOS (que não aparecem na dieta anterior do aluno).",
       "- Mantenha exatamente as metas de kcal, P, C, G — ajuste porções dos NOVOS alimentos para fechar a conta.",
+      "- TODAS as trocas devem usar APENAS alimentos da lista de preferidos/acessíveis/práticos do questionário. Se a única forma de variar uma refeição quebrar essa lista, MANTENHA o alimento da refeição anterior — variar fora da lista do aluno NÃO é variação válida.",
+      "- NÃO remova proteína de café da manhã, almoço ou jantar só para variar. Lanche da tarde pode ser carbo / carbo+gordura como exceção.",
       "- Se você devolver praticamente os mesmos alimentos OU manter a mesma família de proteína/carbo na mesma refeição, a geração será considerada inválida.",
     );
   }

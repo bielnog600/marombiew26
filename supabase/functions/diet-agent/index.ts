@@ -717,6 +717,12 @@ serve(async (req) => {
           const lowShare = nutrition.issues
             .filter((i) => i.reason === "low_protein_share")
             .map((i) => `${i.meal} (${Math.round(i.proteinG)}g)`);
+          const bfMissing = nutrition.issues
+            .filter((i) => i.reason === "breakfast_missing_protein")
+            .map((i) => i.meal);
+          const bfLow = nutrition.issues
+            .filter((i) => i.reason === "breakfast_protein_below_floor")
+            .map((i) => `${i.meal} (${Math.round(i.proteinG)}g)`);
           retryParts.unshift(
             "🚨 PRIORIDADE MÁXIMA — ESTRUTURA NUTRICIONAL INCOMPLETA. Antes de pensar em variação, CORRIJA:",
             ...(missing.length
@@ -725,10 +731,17 @@ serve(async (req) => {
             ...(lowProt.length
               ? [`• Almoço/Jantar com proteína abaixo do piso (mín 30g): ${lowProt.join(", ")}. Aumente a porção da proteína principal até atingir o piso, ajustando carbo/gordura para manter as metas.`]
               : []),
+            ...(bfMissing.length
+              ? [`• Café da manhã SEM fonte proteica: ${bfMissing.join(", ")}. Inclua OBRIGATORIAMENTE uma fonte proteica (ovos, whey, iogurte, queijo, leite ou similar da lista do aluno).`]
+              : []),
+            ...(bfLow.length
+              ? [`• Café da manhã com proteína abaixo do piso (mín 15g): ${bfLow.join(", ")}. Aumente a porção da fonte proteica.`]
+              : []),
             ...(lowShare.length
               ? [`• Refeições com participação de proteína muito baixa: ${lowShare.join(", ")}. Acrescente uma fonte proteica adequada.`]
               : []),
-            "Variação de cardápio é prioridade MENOR que esta correção — não remova proteínas para variar.",
+            "Variação de cardápio é prioridade MENOR que esta correção — não remova proteínas para variar. Lanche da tarde é a ÚNICA refeição que pode ser carbo / carbo+gordura.",
+            "Todas as correções devem usar alimentos da lista de preferidos/acessíveis/práticos do questionário do aluno.",
           );
         }
         if (isPortionOnly || qOnly > 0.3) {
