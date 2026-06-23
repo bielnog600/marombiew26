@@ -33,6 +33,7 @@ import {
   type DietIntent,
 } from '@/lib/variationProfiles';
 import { computeViabilityScore, describeViability, type ViabilityBreakdown } from '@/lib/dietViability';
+import { buildCarbCyclePlan } from '@/lib/carbCycling';
 import DietValidationBadge from '@/components/diet/DietValidationBadge';
 import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
@@ -144,12 +145,16 @@ const calculateMacroTargets = ({
   strategyValue,
   phaseValue,
   hormoneUse,
+  proteinPerKgOverride,
+  fatPerKgOverride,
 }: {
   calories: number;
   weight: number;
   strategyValue: string;
   phaseValue: string;
   hormoneUse: boolean;
+  proteinPerKgOverride?: number | null;
+  fatPerKgOverride?: number | null;
 }) => {
   const isDeficit = strategyValue.includes('deficit') || phaseValue === 'cutting' || phaseValue === 'pre_contest';
   const isMaintenance = (phaseValue === 'manutencao' || strategyValue === 'manutencao') && !isDeficit;
@@ -161,11 +166,27 @@ const calculateMacroTargets = ({
   if (hormoneUse) proteinPerKg = Math.min(proteinPerKg + 0.2, proteinMax);
   proteinPerKg = Math.min(proteinPerKg, proteinMax);
 
-  const proteinGrams = Math.round(proteinPerKg * weight);
-  const fatGrams = Math.round(fatPerKg * weight);
+  // g/kg overrides (Phase 2): apply when caller provided them and they are sensible.
+  const finalProteinPerKg =
+    typeof proteinPerKgOverride === 'number' && proteinPerKgOverride > 0
+      ? Math.min(Math.max(proteinPerKgOverride, 0.8), 3.5)
+      : proteinPerKg;
+  const finalFatPerKg =
+    typeof fatPerKgOverride === 'number' && fatPerKgOverride > 0
+      ? Math.min(Math.max(fatPerKgOverride, 0.3), 2.0)
+      : fatPerKg;
+
+  const proteinGrams = Math.round(finalProteinPerKg * weight);
+  const fatGrams = Math.round(finalFatPerKg * weight);
   const carbGrams = Math.max(Math.round((calories - proteinGrams * 4 - fatGrams * 9) / 4), 0);
 
-  return { proteinPerKg, proteinGrams, fatPerKg, fatGrams, carbGrams };
+  return {
+    proteinPerKg: finalProteinPerKg,
+    proteinGrams,
+    fatPerKg: finalFatPerKg,
+    fatGrams,
+    carbGrams,
+  };
 };
 
 const DietaIA = () => {
@@ -240,6 +261,10 @@ const DietaIA = () => {
   const [lastIntent, setLastIntent] = useState<DietIntent>('new');
   // Viability score computed after structured generation.
   const [viability, setViability] = useState<{ score: number; breakdown: ViabilityBreakdown; notes: string[] } | null>(null);
+  // Phase 2: g/kg overrides (optional). When null, defaults from phase/strategy are used.
+  const [proteinPerKgOverride, setProteinPerKgOverride] = useState<string>('');
+  const [fatPerKgOverride, setFatPerKgOverride] = useState<string>('');
+  // Phase 2: enable structured carb cycling alongside the protocol checkbox.
 
   useEffect(() => {
     if (studentId) loadStudentData();
@@ -888,7 +913,7 @@ const DietaIA = () => {
    */
   const generateStructuredPlan = async (
     userPrompt: string,
-    dietConfig: { objective?: string; strategy?: string; style?: string },
+    dietConfig: { objective?: string; strategy?: string; style?: string; carbCyclePlan?: any },
     targets: { kcal: number; p: number; c: number; g: number; tmb?: number; get?: number },
     intent: DietIntent = 'new',
   ): Promise<DietPlan | null> => {
@@ -1068,6 +1093,8 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
         strategyValue: strategy,
         phaseValue: phase,
         hormoneUse: hasHormoneUse(usesHormones),
+        proteinPerKgOverride: proteinPerKgOverride ? Number(proteinPerKgOverride.replace(',', '.')) : null,
+        fatPerKgOverride: fatPerKgOverride ? Number(fatPerKgOverride.replace(',', '.')) : null,
       });
       currentTargets = {
         calories: currentCalories,
@@ -1209,6 +1236,19 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
       // ── 1) STRUCTURED MODE (primary path) ──
       let structured: DietPlan | null = null;
       if (currentTargets) {
+        // Phase 2: build carb-cycle plan when the protocol is selected.
+        const wantsCarbCycle = selectedAdjustments.includes('carb_cycling');
+        const wantsRefeed = selectedAdjustments.includes('refeed');
+        const cyclePlan = wantsCarbCycle
+          ? buildCarbCyclePlan({
+              baseKcal: currentTargets.calories,
+              baseP: currentTargets.protein,
+              baseC: currentTargets.carbs,
+              baseG: currentTargets.fats,
+              trainingDaysCount: trainingDays ? Number(trainingDays) : null,
+              enableRefeed: wantsRefeed,
+            })
+          : null;
         try {
           structured = await generateStructuredPlan(
             prompt,
@@ -1216,6 +1256,7 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
               objective: phase || undefined,
               strategy: strategy || undefined,
               style: dietStyle || undefined,
+              ...(cyclePlan ? { carbCyclePlan: cyclePlan } : {}),
             },
             {
               kcal: currentTargets.calories,
@@ -1714,6 +1755,44 @@ ${generated}`;
                   </SelectionButton>
                 ))}
               </div>
+            </div>
+
+            {/* Phase 2: macros por g/kg (override opcional) */}
+            <div className="rounded-xl border border-border bg-secondary/30 p-3 space-y-2">
+              <p className="text-xs font-semibold">Macros por g/kg (opcional)</p>
+              <p className="text-[10px] text-muted-foreground">
+                Deixe em branco para usar os valores automáticos por fase/estratégia. Preencha para
+                sobrescrever apenas proteína e/ou gordura — carboidrato é recalculado para fechar a meta calórica.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="text-[10px] text-muted-foreground">Proteína (g/kg)</span>
+                  <input
+                    inputMode="decimal"
+                    value={proteinPerKgOverride}
+                    onChange={(e) => setProteinPerKgOverride(e.target.value)}
+                    placeholder="ex: 2.2"
+                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[10px] text-muted-foreground">Gordura (g/kg)</span>
+                  <input
+                    inputMode="decimal"
+                    value={fatPerKgOverride}
+                    onChange={(e) => setFatPerKgOverride(e.target.value)}
+                    placeholder="ex: 0.8"
+                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
+                  />
+                </label>
+              </div>
+              {(proteinPerKgOverride || fatPerKgOverride) && studentCtx?.peso && (
+                <p className="text-[10px] text-primary">
+                  Override ativo: P {proteinPerKgOverride || '—'} g/kg, G {fatPerKgOverride || '—'} g/kg
+                  {' '}({Math.round((Number(proteinPerKgOverride.replace(',', '.')) || 0) * Number(studentCtx.peso)) || '—'}g P,
+                  {' '}{Math.round((Number(fatPerKgOverride.replace(',', '.')) || 0) * Number(studentCtx.peso)) || '—'}g G).
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

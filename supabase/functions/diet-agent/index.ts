@@ -19,6 +19,12 @@ import {
   summarizeDietForPrompt,
   type HistoryPlan,
 } from "../_shared/planHistory.ts";
+import {
+  detectHungerContext,
+  satietyPromptBlock,
+  carbCyclePromptBlock,
+  type CarbCyclePlan,
+} from "../_shared/satietyEngine.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -609,6 +615,11 @@ serve(async (req) => {
       const callModel = async (
         extraSystem: string,
       ): Promise<{ ok: true; plan: any } | { ok: false; resp: Response }> => {
+        const hungerCtx = detectHungerContext(studentContext);
+        const cyclePlan: CarbCyclePlan | undefined =
+          dietConfig && typeof dietConfig === "object" && dietConfig.carbCyclePlan
+            ? (dietConfig.carbCyclePlan as CarbCyclePlan)
+            : undefined;
         const jsonSystem =
           SYSTEM_PROMPT +
           contextMessage +
@@ -618,6 +629,9 @@ serve(async (req) => {
           "\n\n" +
           supplementationPolicyPrompt() +
           "\n\n" +
+          satietyPromptBlock(hungerCtx) +
+          "\n\n" +
+          (cyclePlan ? carbCyclePromptBlock(cyclePlan) + "\n\n" : "") +
           extraSystem +
           "\n\n" +
           STRUCTURED_OUTPUT_INSTRUCTIONS;
