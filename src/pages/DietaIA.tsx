@@ -33,6 +33,7 @@ import {
   type DietIntent,
 } from '@/lib/variationProfiles';
 import { computeViabilityScore, describeViability, type ViabilityBreakdown } from '@/lib/dietViability';
+import { buildCarbCyclePlan, summarizeCyclePlanShort } from '@/lib/carbCycling';
 import DietValidationBadge from '@/components/diet/DietValidationBadge';
 import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
@@ -144,12 +145,16 @@ const calculateMacroTargets = ({
   strategyValue,
   phaseValue,
   hormoneUse,
+  proteinPerKgOverride,
+  fatPerKgOverride,
 }: {
   calories: number;
   weight: number;
   strategyValue: string;
   phaseValue: string;
   hormoneUse: boolean;
+  proteinPerKgOverride?: number | null;
+  fatPerKgOverride?: number | null;
 }) => {
   const isDeficit = strategyValue.includes('deficit') || phaseValue === 'cutting' || phaseValue === 'pre_contest';
   const isMaintenance = (phaseValue === 'manutencao' || strategyValue === 'manutencao') && !isDeficit;
@@ -161,11 +166,27 @@ const calculateMacroTargets = ({
   if (hormoneUse) proteinPerKg = Math.min(proteinPerKg + 0.2, proteinMax);
   proteinPerKg = Math.min(proteinPerKg, proteinMax);
 
-  const proteinGrams = Math.round(proteinPerKg * weight);
-  const fatGrams = Math.round(fatPerKg * weight);
+  // g/kg overrides (Phase 2): apply when caller provided them and they are sensible.
+  const finalProteinPerKg =
+    typeof proteinPerKgOverride === 'number' && proteinPerKgOverride > 0
+      ? Math.min(Math.max(proteinPerKgOverride, 0.8), 3.5)
+      : proteinPerKg;
+  const finalFatPerKg =
+    typeof fatPerKgOverride === 'number' && fatPerKgOverride > 0
+      ? Math.min(Math.max(fatPerKgOverride, 0.3), 2.0)
+      : fatPerKg;
+
+  const proteinGrams = Math.round(finalProteinPerKg * weight);
+  const fatGrams = Math.round(finalFatPerKg * weight);
   const carbGrams = Math.max(Math.round((calories - proteinGrams * 4 - fatGrams * 9) / 4), 0);
 
-  return { proteinPerKg, proteinGrams, fatPerKg, fatGrams, carbGrams };
+  return {
+    proteinPerKg: finalProteinPerKg,
+    proteinGrams,
+    fatPerKg: finalFatPerKg,
+    fatGrams,
+    carbGrams,
+  };
 };
 
 const DietaIA = () => {
