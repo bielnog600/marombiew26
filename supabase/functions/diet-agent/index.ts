@@ -4,7 +4,10 @@ import {
   DEFAULT_INTENSITY,
   SIMILARITY_THRESHOLDS,
   dietVariationPrompt,
+  dietIntentPrompt,
+  supplementationPolicyPrompt,
   type VariationIntensity,
+  type DietIntent,
 } from "../_shared/variationProfiles.ts";
 import {
   computeDietSimilarity,
@@ -355,6 +358,7 @@ serve(async (req) => {
       studentId,
       variationIntensity,
       regenerateIntent,
+      intent: rawIntent,
     } = await req.json();
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
@@ -577,13 +581,24 @@ serve(async (req) => {
     // ─── Structured (JSON) generation mode ───
     if (mode === "structured") {
       const layeredInstructions = buildLayeredInstructions(dietConfig, trainingContext);
-      const intensity: VariationIntensity =
-        variationIntensity === "baixa" || variationIntensity === "alta"
-          ? variationIntensity
-          : DEFAULT_INTENSITY;
+      // Resolve intent: explicit `intent` wins; legacy `regenerateIntent` maps to "regenerate".
+      const intent: DietIntent =
+        rawIntent === "update" || rawIntent === "regenerate" || rawIntent === "new"
+          ? rawIntent
+          : regenerateIntent ? "regenerate" : "new";
 
-      // Treat explicit regenerate as a hard demand for menu variation.
-      const requireMenuVariation = Boolean(regenerateIntent);
+      // For "update" intent, force LOW variation regardless of what was passed.
+      const intensity: VariationIntensity =
+        intent === "update"
+          ? "baixa"
+          : intent === "regenerate"
+            ? "alta"
+            : variationIntensity === "baixa" || variationIntensity === "alta"
+              ? variationIntensity
+              : DEFAULT_INTENSITY;
+
+      // Hard demand for menu variation when explicitly regenerating.
+      const requireMenuVariation = intent === "regenerate";
       let history: HistoryPlan[] = [];
       let historySummary = "";
       if (typeof studentId === "string" && studentId.length > 0) {
@@ -598,6 +613,10 @@ serve(async (req) => {
           SYSTEM_PROMPT +
           contextMessage +
           layeredInstructions +
+          "\n\n" +
+          dietIntentPrompt(intent) +
+          "\n\n" +
+          supplementationPolicyPrompt() +
           "\n\n" +
           extraSystem +
           "\n\n" +
@@ -814,6 +833,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           plan: finalPlan,
+          intent,
           similarity: {
             score: Number(similarity.score.toFixed(3)),
             threshold,
