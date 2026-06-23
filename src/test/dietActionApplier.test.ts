@@ -105,3 +105,50 @@ describe('Fase 4 — assisted action persistence', () => {
     }
   });
 });
+
+describe('Fase 5 — lifecycle closure', () => {
+  const now = new Date('2026-06-23T14:00:00Z');
+
+  it('buildClosePatch: fecha aplicação com result_plan_id e timestamp', () => {
+    const patch = buildClosePatch({
+      applicationId: 'app-1',
+      resultPlanId: 'plan-99',
+      now,
+    });
+    expect(patch).toEqual({
+      status: 'completed',
+      result_plan_id: 'plan-99',
+      completed_at: '2026-06-23T14:00:00.000Z',
+    });
+  });
+
+  it('buildFailPatch: registra failure_reason truncada e timestamp', () => {
+    const patch = buildFailPatch({
+      applicationId: 'app-1',
+      reason: 'erro de geração',
+      now,
+    });
+    expect(patch.status).toBe('failed');
+    expect(patch.failure_reason).toBe('erro de geração');
+    expect(patch.completed_at).toBe('2026-06-23T14:00:00.000Z');
+  });
+
+  it('buildFailPatch: trunca reason longa em 500 chars', () => {
+    const long = 'x'.repeat(1000);
+    const patch = buildFailPatch({ applicationId: 'a', reason: long });
+    expect(patch.failure_reason.length).toBe(500);
+  });
+
+  it('orphanCutoffISO: padrão = now - 48h', () => {
+    const cutoff = orphanCutoffISO(now);
+    const expected = new Date(now.getTime() - 48 * 3600 * 1000).toISOString();
+    expect(cutoff).toBe(expected);
+    expect(ORPHAN_PENDING_HOURS).toBe(48);
+  });
+
+  it('orphanCutoffISO: respeita janela customizada', () => {
+    expect(orphanCutoffISO(now, 24)).toBe(
+      new Date(now.getTime() - 24 * 3600 * 1000).toISOString()
+    );
+  });
+});
