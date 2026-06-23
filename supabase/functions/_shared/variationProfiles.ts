@@ -8,6 +8,86 @@ export type VariationIntensity = "baixa" | "media" | "alta";
 
 export const DEFAULT_INTENSITY: VariationIntensity = "media";
 
+/** Generation intent — separates "update" (keep base, tweak macros) from
+ * "regenerate" (force real menu variation) from "new" (default behavior). */
+export type DietIntent = "new" | "update" | "regenerate";
+
+/**
+ * Whitelist of generally useful / contextual supplements and a blacklist of
+ * supplements considered dispensable for most students.
+ * Shared with the prompt so the model stops pushing low-value items.
+ */
+export const SUPPLEMENT_POLICY = {
+  useful_contextual: [
+    "creatina monohidratada",
+    "whey protein (apenas para fechar piso proteico ou praticidade)",
+    "cafeína",
+    "beta-alanina",
+    "ômega-3 (em contextos específicos)",
+    "vitamina D (em deficiência comprovada)",
+  ],
+  generally_dispensable: [
+    "BCAA",
+    "glutamina (para hipertrofia)",
+    "L-carnitina",
+    "termogênicos fracos",
+    "pré-treinos genéricos",
+    "ZMA",
+  ],
+};
+
+export function supplementationPolicyPrompt(): string {
+  return [
+    "========================================",
+    "POLÍTICA DE SUPLEMENTAÇÃO (HONESTA — NÃO EMPURRAR PRODUTO)",
+    "========================================",
+    "Considere ÚTEIS/CONTEXTUAIS (recomende SOMENTE quando ajudarem objetivo/praticidade):",
+    ...SUPPLEMENT_POLICY.useful_contextual.map((s) => `  • ${s}`),
+    "",
+    "Considere GERALMENTE DISPENSÁVEIS — NÃO recomende sem justificativa explícita e contexto:",
+    ...SUPPLEMENT_POLICY.generally_dispensable.map((s) => `  • ${s}`),
+    "",
+    "Whey só faz sentido se for necessário para FECHAR o piso de proteína diário ou para PRATICIDADE real do aluno.",
+    "Se não houver justificativa clara, omita o suplemento. Não inflar lista para parecer 'completo'.",
+    "",
+    "Quando incluir suplementação, devolva também um bloco JSON no campo `meta.supplementation` com itens",
+    `{ "name": string, "useful": boolean, "category": "useful_contextual"|"generally_dispensable", "dose": string, "timing": string, "reason": string }.`,
+  ].join("\n");
+}
+
+export function dietIntentPrompt(intent: DietIntent): string {
+  if (intent === "update") {
+    return [
+      "========================================",
+      "MODO ATUALIZAR DIETA (PRESERVE_BASE = TRUE)",
+      "========================================",
+      "Objetivo desta geração: AJUSTAR a dieta atual — NÃO regerar do zero.",
+      "Regras OBRIGATÓRIAS:",
+      "1) PRESERVE pelo menos 70% dos alimentos principais da última dieta ativa do aluno.",
+      "2) Ajuste primeiro QUANTIDADES (gramagem) para bater a nova meta calórica/macros.",
+      "3) Faça no máximo 1-2 trocas pontuais — apenas quando estritamente necessário (restrição nova, baixa aderência em refeição específica, ou para fechar macros).",
+      "4) MANTENHA estrutura de refeições (mesmo número, mesmos horários, mesmas funções).",
+      "5) Similaridade alta com o cardápio anterior NESTE MODO é desejada — é a confirmação de que você preservou a base.",
+      "6) Variação de cardápio NÃO é objetivo aqui. Não troque alimentos só para parecer 'novo'.",
+    ].join("\n");
+  }
+  if (intent === "regenerate") {
+    return [
+      "========================================",
+      "MODO REGENERAR DIETA (FORCE_NEW_PRIMARY_SOURCES = TRUE)",
+      "========================================",
+      "Objetivo desta geração: VARIAR cardápio de verdade — trocar fontes principais, combinações e preparações.",
+      "Regras OBRIGATÓRIAS:",
+      "1) Troque a FONTE PRINCIPAL (proteína OU carbo) de pelo menos 60% das refeições por outra de GRUPO FUNCIONAL DIFERENTE.",
+      "2) Inclua pelo menos 3 alimentos NOVOS em relação à última dieta.",
+      "3) Mantenha metas calóricas, macros, restrições e PRESERVE proteína obrigatória nas refeições principais.",
+      "4) Use APENAS alimentos da lista de preferidos/acessíveis/práticos do questionário do aluno.",
+      "5) Mudar apenas gramagem dos mesmos alimentos NÃO é aceitável neste modo.",
+    ].join("\n");
+  }
+  return "";
+}
+
 /**
  * Similarity threshold ABOVE which the plan is considered too similar to
  * recent history and we trigger a 1x regeneration with stronger instructions.
