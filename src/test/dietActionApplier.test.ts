@@ -2,6 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   buildApplicationRecord,
   ACTION_META,
+  buildClosePatch,
+  buildFailPatch,
+  orphanCutoffISO,
+  ORPHAN_PENDING_HOURS,
 } from '@/lib/dietActionApplier';
 import type { DietDecisionResult } from '@/lib/dietDecisionEngine';
 
