@@ -913,7 +913,7 @@ const DietaIA = () => {
    */
   const generateStructuredPlan = async (
     userPrompt: string,
-    dietConfig: { objective?: string; strategy?: string; style?: string },
+    dietConfig: { objective?: string; strategy?: string; style?: string; carbCyclePlan?: any },
     targets: { kcal: number; p: number; c: number; g: number; tmb?: number; get?: number },
     intent: DietIntent = 'new',
   ): Promise<DietPlan | null> => {
@@ -1236,6 +1236,19 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
       // ── 1) STRUCTURED MODE (primary path) ──
       let structured: DietPlan | null = null;
       if (currentTargets) {
+        // Phase 2: build carb-cycle plan when the protocol is selected.
+        const wantsCarbCycle = selectedAdjustments.includes('carb_cycling');
+        const wantsRefeed = selectedAdjustments.includes('refeed');
+        const cyclePlan = wantsCarbCycle
+          ? buildCarbCyclePlan({
+              baseKcal: currentTargets.calories,
+              baseP: currentTargets.protein,
+              baseC: currentTargets.carbs,
+              baseG: currentTargets.fats,
+              trainingDaysCount: trainingDays ? Number(trainingDays) : null,
+              enableRefeed: wantsRefeed,
+            })
+          : null;
         try {
           structured = await generateStructuredPlan(
             prompt,
@@ -1243,6 +1256,7 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
               objective: phase || undefined,
               strategy: strategy || undefined,
               style: dietStyle || undefined,
+              ...(cyclePlan ? { carbCyclePlan: cyclePlan } : {}),
             },
             {
               kcal: currentTargets.calories,
