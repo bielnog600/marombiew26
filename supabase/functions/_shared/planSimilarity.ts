@@ -160,6 +160,88 @@ function classifyByGroup(
 const classifyProtein = (name: string) => classifyByGroup(name, PROTEIN_GROUPS);
 const classifyCarb = (name: string) => classifyByGroup(name, CARB_GROUPS);
 
+// ─────────── nutritional completeness validation ───────────
+
+const MAIN_MEAL_PATTERNS = ["almoco", "jantar"];
+
+const isMainMeal = (m: any): boolean => {
+  const n = normalizeName(m?.name) || normalizeName(m?.id);
+  return MAIN_MEAL_PATTERNS.some((p) => n.includes(p));
+};
+
+const mealProteinGrams = (m: any): number => {
+  let total = 0;
+  for (const it of m?.items ?? []) {
+    const p = Number(it?.macros?.p);
+    if (Number.isFinite(p)) total += p;
+  }
+  return total;
+};
+
+const mealTotalKcal = (m: any): number => {
+  let total = 0;
+  for (const it of m?.items ?? []) {
+    const k = Number(it?.macros?.kcal);
+    if (Number.isFinite(k)) total += k;
+  }
+  return total;
+};
+
+export type DietNutritionIssue = {
+  meal: string;
+  reason:
+    | "missing_primary_protein"
+    | "protein_below_floor"
+    | "low_protein_share";
+  proteinG: number;
+};
+
+export type DietNutritionValidation = {
+  ok: boolean;
+  issues: DietNutritionIssue[];
+  /** Daily totals (informational). */
+  totalProteinG: number;
+  totalKcal: number;
+};
+
+/**
+ * Hard guardrail: every main meal (lunch/dinner) must include a primary
+ * protein source AND deliver at least `mainMealProteinFloor` g of protein.
+ * Snack/secondary meals are not required to hit the floor, but a meal that
+ * has fewer than ~15% of its kcal from protein is flagged.
+ */
+export function validateDietNutrition(
+  plan: DietPlanLike,
+  opts: { mainMealProteinFloor?: number } = {},
+): DietNutritionValidation {
+  const floor = opts.mainMealProteinFloor ?? 30;
+  const meals = mealsOfDietPlan(plan);
+  const issues: DietNutritionIssue[] = [];
+  let totalProteinG = 0;
+  let totalKcal = 0;
+  for (const m of meals) {
+    const p = mealProteinGrams(m);
+    const k = mealTotalKcal(m);
+    totalProteinG += p;
+    totalKcal += k;
+    const label = m?.name || mealKey(m);
+    if (isMainMeal(m)) {
+      if (!primaryProteinGroup(m)) {
+        issues.push({ meal: label, reason: "missing_primary_protein", proteinG: p });
+      } else if (p < floor) {
+        issues.push({ meal: label, reason: "protein_below_floor", proteinG: p });
+      }
+    } else if (k >= 200) {
+      // For larger non-main meals, flag if protein share is very low.
+      const share = k > 0 ? (p * 4) / k : 0;
+      if (share < 0.12) {
+        issues.push({ meal: label, reason: "low_protein_share", proteinG: p });
+      }
+    }
+  }
+  return { ok: issues.length === 0, issues, totalProteinG, totalKcal };
+}
+
 /** Pick the primary protein source of a meal (max protein grams; must classify). */
 function primaryProteinGroup(m: any): string | null {
   let best: { group: string; p: number } | null = null;
