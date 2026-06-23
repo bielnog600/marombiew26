@@ -64,14 +64,14 @@ const DietCheckinDialog: React.FC<Props> = ({
       if (pesoNum != null && !Number.isNaN(pesoNum)) {
         const { data: prevWeights } = await supabase
           .from('weight_logs')
-          .select('weight_kg, logged_at')
+          .select('peso, data')
           .eq('student_id', studentId)
-          .order('logged_at', { ascending: false })
+          .order('data', { ascending: false })
           .limit(5);
-        const prev = (prevWeights ?? []).find((w: any) => Number(w.weight_kg) !== pesoNum);
+        const prev = (prevWeights ?? []).find((w: any) => Number(w.peso) !== pesoNum);
         if (prev) {
-          weightDeltaKg = pesoNum - Number(prev.weight_kg);
-          const ms = Date.now() - new Date(prev.logged_at).getTime();
+          weightDeltaKg = pesoNum - Number(prev.peso);
+          const ms = Date.now() - new Date(prev.data).getTime();
           weeksBetweenWeights = Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24 * 7)));
         }
       }
