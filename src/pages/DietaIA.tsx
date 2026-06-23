@@ -133,6 +133,16 @@ const PROTOCOL_ADJUSTMENTS = [
   { id: 'carb_cycling', label: 'Carb Cycling', desc: 'Ciclagem de carboidrato (high/medium/low)', icon: SlidersHorizontal },
 ];
 
+// Grouping of protocol adjustments by the new wizard step that owns them.
+// IDs are unchanged — only the visual placement changes, so the prompt, the
+// decision engine and the dietActionApplier keep working with the same keys.
+const STRATEGY_ADJUSTMENT_IDS = ['refeed', 'diet_break', 'carb_cycling', 'plato'] as const;
+const STRUCTURE_ADJUSTMENT_IDS = ['meal_change'] as const;
+const FINE_TUNE_ADJUSTMENT_IDS = ['calorie_adjust', 'carb_adjust', 'sodium_adjust', 'water_adjust'] as const;
+const STRATEGY_ADJUSTMENTS = PROTOCOL_ADJUSTMENTS.filter(a => (STRATEGY_ADJUSTMENT_IDS as readonly string[]).includes(a.id));
+const STRUCTURE_ADJUSTMENTS = PROTOCOL_ADJUSTMENTS.filter(a => (STRUCTURE_ADJUSTMENT_IDS as readonly string[]).includes(a.id));
+const FINE_TUNE_ADJUSTMENTS = PROTOCOL_ADJUSTMENTS.filter(a => (FINE_TUNE_ADJUSTMENT_IDS as readonly string[]).includes(a.id));
+
 const hasHormoneUse = (value: unknown): boolean => {
   if (typeof value === 'boolean') return value;
   if (!value) return false;
