@@ -140,3 +140,65 @@ export function buildApplicationRecord(
 export function getActionMeta(action: DietAction): ActionMeta {
   return ACTION_META[action];
 }
+
+// =============================================================
+// Lifecycle closure helpers (Fase 5)
+// =============================================================
+
+/**
+ * Threshold (hours) above which a pending_generation application is
+ * considered orphaned and should be auto-dismissed.
+ */
+export const ORPHAN_PENDING_HOURS = 48;
+
+export interface CloseApplicationInput {
+  applicationId: string;
+  resultPlanId: string;
+  now?: Date;
+}
+
+export interface CloseApplicationPatch {
+  status: 'completed';
+  result_plan_id: string;
+  completed_at: string;
+}
+
+/**
+ * Builds the UPDATE patch that closes a pending application after the
+ * resulting plan has been persisted.
+ */
+export function buildClosePatch(input: CloseApplicationInput): CloseApplicationPatch {
+  return {
+    status: 'completed',
+    result_plan_id: input.resultPlanId,
+    completed_at: (input.now ?? new Date()).toISOString(),
+  };
+}
+
+export interface FailApplicationInput {
+  applicationId: string;
+  reason: string;
+  now?: Date;
+}
+
+export interface FailApplicationPatch {
+  status: 'failed';
+  failure_reason: string;
+  completed_at: string;
+}
+
+export function buildFailPatch(input: FailApplicationInput): FailApplicationPatch {
+  return {
+    status: 'failed',
+    failure_reason: input.reason.slice(0, 500),
+    completed_at: (input.now ?? new Date()).toISOString(),
+  };
+}
+
+/**
+ * Computes the timestamp before which pending_generation rows should be
+ * dismissed (orphans). Pure to keep it testable.
+ */
+export function orphanCutoffISO(now: Date = new Date(), hours: number = ORPHAN_PENDING_HOURS): string {
+  return new Date(now.getTime() - hours * 60 * 60 * 1000).toISOString();
+}

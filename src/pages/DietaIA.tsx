@@ -33,6 +33,7 @@ import {
   type DietIntent,
 } from '@/lib/variationProfiles';
 import { computeViabilityScore, describeViability, type ViabilityBreakdown } from '@/lib/dietViability';
+import { buildClosePatch, buildFailPatch, orphanCutoffISO } from '@/lib/dietActionApplier';
 import { buildCarbCyclePlan } from '@/lib/carbCycling';
 import DietValidationBadge from '@/components/diet/DietValidationBadge';
 import ReactMarkdown from 'react-markdown';
@@ -194,6 +195,8 @@ const DietaIA = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const editPlanId = searchParams.get('edit');
+  const applicationId = searchParams.get('application');
+  const checkinIdParam = searchParams.get('checkin');
 
   const [studentCtx, setStudentCtx] = useState<StudentCtx | null>(null);
   const [studentName, setStudentName] = useState('Aluno');
@@ -273,6 +276,58 @@ const DietaIA = () => {
   useEffect(() => {
     if (editPlanId && studentId) loadEditPlan();
   }, [editPlanId]);
+
+  // ===== Fase 5: lifecycle of diet_decision_applications =====
+  useEffect(() => {
+    if (!studentId) return;
+    // Opportunistic orphan dismissal: pending_generation older than the threshold
+    // for this student are auto-marked as dismissed so the history never lies.
+    (async () => {
+      try {
+        const cutoff = orphanCutoffISO();
+        await (supabase as any)
+          .from('diet_decision_applications')
+          .update({
+            status: 'dismissed',
+            failure_reason: 'orphan_pending_timeout',
+            completed_at: new Date().toISOString(),
+          })
+          .eq('student_id', studentId)
+          .eq('status', 'pending_generation')
+          .lt('applied_at', cutoff);
+      } catch (e) {
+        console.warn('orphan dismissal skipped:', e);
+      }
+    })();
+  }, [studentId]);
+
+  const closeDietApplication = async (appId: string | null, planId: string | null) => {
+    if (!appId || !planId) return;
+    try {
+      const patch = buildClosePatch({ applicationId: appId, resultPlanId: planId });
+      await (supabase as any)
+        .from('diet_decision_applications')
+        .update(patch)
+        .eq('id', appId)
+        .eq('status', 'pending_generation'); // only close if still pending
+    } catch (e) {
+      console.warn('closeDietApplication failed:', e);
+    }
+  };
+
+  const failDietApplication = async (appId: string | null, reason: string) => {
+    if (!appId) return;
+    try {
+      const patch = buildFailPatch({ applicationId: appId, reason });
+      await (supabase as any)
+        .from('diet_decision_applications')
+        .update(patch)
+        .eq('id', appId)
+        .eq('status', 'pending_generation');
+    } catch (e) {
+      console.warn('failDietApplication failed:', e);
+    }
+  };
 
   const loadEditPlan = async () => {
     const { data } = await supabase.from('ai_plans').select('*').eq('id', editPlanId!).maybeSingle();
@@ -1387,8 +1442,13 @@ ${generated}`;
         migration_status: (validation.success ? 'completed' : 'failed') as any,
         migration_error: validation.error || null,
       }).eq('id', editPlanId);
-      if (error) toast.error('Erro: ' + error.message);
-      else toast.success('Dieta atualizada!');
+      if (error) {
+        toast.error('Erro: ' + error.message);
+        await failDietApplication(applicationId, error.message);
+      } else {
+        toast.success('Dieta atualizada!');
+        await closeDietApplication(applicationId, editPlanId);
+      }
     } else {
       let canonicalPlan: any = null;
       if (structuredPlan) {
@@ -1405,7 +1465,7 @@ ${generated}`;
           if (lifted) canonicalPlan = finalizeDietPlan(lifted);
         }
       } catch (e) { console.error('lift to DietPlan failed', e); }
-      const { error } = await supabase.from('ai_plans').insert({
+      const { data: insertedPlan, error } = await supabase.from('ai_plans').insert({
         student_id: studentId!,
         tipo: 'dieta',
         titulo: `Dieta - ${new Date().toLocaleDateString('pt-BR')}`,
@@ -1419,9 +1479,10 @@ ${generated}`;
         generation_intent: lastIntent,
         viability_score: viability?.score ?? null,
         viability_breakdown: viability?.breakdown ?? null,
-      });
+      }).select('id').single();
       if (error) {
         toast.error('Erro: ' + error.message);
+        await failDietApplication(applicationId, error.message);
       } else {
         // If we have a lastDietPlan, mark it as 'renovado'
         if (lastDietPlan?.id) {
@@ -1430,6 +1491,7 @@ ${generated}`;
           }).eq('id', lastDietPlan.id);
         }
         toast.success('Dieta salva e ciclo atualizado!');
+        await closeDietApplication(applicationId, insertedPlan?.id ?? null);
       }
     }
     setSaving(false);
