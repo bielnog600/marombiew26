@@ -241,6 +241,10 @@ const DietaIA = () => {
   const [enableFitoterapia, setEnableFitoterapia] = useState(false);
   const [enableSuplementos, setEnableSuplementos] = useState(false);
   const [enableEmagrecimentoRapido, setEnableEmagrecimentoRapido] = useState(false);
+  // New: jejum intermitente has its own toggle in "Estrutura Alimentar do Dia".
+  // The composite "Emagrecimento Rápido" toggle was split: jejum lives in the
+  // structure step; HIIT + termogênicos stays in Extras (rotulado "HIIT + Termogênicos").
+  const [enableJejumIntermitente, setEnableJejumIntermitente] = useState(false);
 
   // Substitutions
   const [substitutions, setSubstitutions] = useState<{ food: string; portion: string }[]>([]);
@@ -350,6 +354,7 @@ const DietaIA = () => {
           setEnableFitoterapia(!!p.extras.fitoterapia);
           setEnableSuplementos(!!p.extras.suplementos);
           setEnableEmagrecimentoRapido(!!p.extras.emagrecimento_rapido);
+          setEnableJejumIntermitente(!!p.extras.jejum_intermitente);
         }
       }
     }
