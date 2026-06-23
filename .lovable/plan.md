@@ -1,139 +1,139 @@
 
-# Evolução da Geração de Dieta — MAROMBIEW
+# Reorganização do Wizard da Dieta IA
 
-## 1. Como funciona hoje
-
-**Fluxo de geração (admin):**
-DietaIA.tsx → carrega contexto completo do aluno (perfil, antropometria, composição, anamnese, histórico de planos, aderência 14d, último reajuste, questionário) → wizard 6 passos define estratégia/macros → `diet-agent` em modo JSON estruturado (GPT-4o, temp 0.3) → validação Zod + recálculo de totais + similaridade Jaccard + guardrail nutricional → 1× retry automático se falhar → salva em `ai_plans` (`conteudo` markdown + `conteudo_json` estruturado + `protocols` JSON).
-
-**Camadas já existentes:**
-- Engine TMB multi-fórmula (Harris-Benedict, Mifflin, Cunningham, Tinsley) com auto-seleção
-- `buildLayeredInstructions`: objetivo → estratégia → estilo → contexto de treino
-- `DietStrategy` enum (linear/low_carb/carb_cycle/refeed/IF/custom)
-- Similaridade por refeição com classificação funcional (7 grupos proteicos, 4 carbo)
-- `validateDietNutrition`: piso proteico almoço/jantar ≥30g, café ≥15g, lanche tarde flexível
-- Renovação cíclica de 45 dias com `diet-renewal-analyzer` → draft → comparação → publicação
-- Check-ins (`diet_checkins`) e reajustes (`diet_readjustments`) alimentando o `historico_processo`
-- Edit-agent com 11 operações (carb_cycle, scale_day, swap_food, add_meal, etc.)
-
-**Gaps principais:**
-- Estratégia existe no enum mas **não persiste como campo de primeira classe** em `ai_plans` (fica solto em `conteudo_json.meta.strategy`)
-- **Não há distinção UI/backend entre "Regenerar" e "Atualizar"** — wizard usa mesmo fluxo
-- Substituição por item é **string única**, não array tipado com macros/categorias
-- **Suplementação** sai como texto markdown, sem estrutura queryable
-- **Saciedade/densidade calórica**, fiber e índice de saciedade dos alimentos: inexistentes
-- **Viability score** (aderência esperada × praticidade × custo): inexistente
-- Questionário não captura: janela de fome, tempo de preparo, orçamento, contexto social
-- **Refeed/calorias livres** são checkbox de protocolo, não recurso estruturado com config (frequência, kcal extras, distribuição)
-- Per-dia carb cycling existe em `conteudo_json.days[].carbBias` mas **sem inputs explícitos** de kcal/dia no admin
+Antes de tocar em qualquer código, aqui está a nova estrutura proposta. Nada é removido — só **reagrupado, renomeado e remapeado**. O motor de geração (prompt do GPT), o decision engine, o check-in e o `dietActionApplier` continuam funcionando com o mesmo vocabulário interno.
 
 ---
 
-## 2. Plano por Fases
+## Estrutura atual (hoje, confusa)
 
-### FASE 1 — Maior impacto, menor risco (estrutura + separação de fluxos)
+```text
+Step 1  Rotina e Treino
+Step 2  Estilo da Dieta, Fase e Hormônios   ← estilo misturado com fase
+Step 3  Atividade e Estratégia              ← "estratégia" = nível atividade
+Step 4  Refeições e Preferências            ← nº refeições isolado
+Step 5  Ajustes do Protocolo                ← refeed, carb cycling, diet break, platô, sódio, água, calorias, carbo
+Step 6  Extras                              ← jejum intermitente escondido aqui
+Step 7  Alimentos para Substituição
+```
 
-Objetivo: tornar primeira-classe o que já está implícito + separar Regenerar vs Atualizar.
-
-**Backend:**
-1. Migração `ai_plans`: adicionar colunas
-   - `diet_strategy text` (balanced/low_carb/high_carb/carb_cycling/intermittent_fasting/refeed_enabled)
-   - `strategy_source text` ('ai'|'manual')
-   - `supplementation jsonb` (array tipado: `{name, useful, dose, timing, reason}`)
-   - `viability_score numeric` (0–100)
-   - `viability_breakdown jsonb` (`{adherence, practicality, cost, complexity, familiarity}`)
-   - `generation_intent text` ('new'|'regenerate'|'update')
-2. `diet-agent` ganha parâmetro `intent`:
-   - `regenerate` → força `requireMenuVariation=true`, alta intensidade, troca de fontes principais
-   - `update` → preserva ≥70% dos alimentos, ajusta só quantidades/macros, similaridade alta é OK
-   - `new` → comportamento atual (decisão IA + similaridade vs histórico)
-3. Schema de substituições: `MealItem.substitutions: SubstitutionOption[]` com `{food, qty, kind: 'equivalent'|'higher_satiety'|'lower_density'|'cheaper'|'preferred', macros}`
-4. Calculador `computeViabilityScore(plan, questionnaire, adherenceHistory)` rodando após geração.
-5. Suplementação estruturada: enum de utilidade (`useful_contextual`/`generally_dispensable`) com whitelist (creatina, whey, cafeína, beta-alanina, ômega-3) e blacklist (BCAA, glutamina, L-carnitina, termogênicos).
-
-**Frontend:**
-6. DietaIA: dois botões distintos no topo do plano existente — **"Atualizar dieta"** (mantém base, ajusta macros) e **"Regenerar dieta"** (variação real); botão "Nova dieta" continua iniciando do zero.
-7. Wizard Step 2 ganha **seletor de estratégia** com opção "IA decide" + 6 estratégias explícitas.
-8. Badge de similaridade já existe — adicionar badge de **"Tipo de mudança"** (`ajuste de quantidades` / `variação real de cardápio`).
-9. Card de **Suplementação Útil** vs **Dispensável** com explicação curta por item.
-10. Card de **Viability Score** com breakdown (aderência esperada, praticidade, custo, complexidade).
-
-**Regras IA atualizadas (prompt):**
-- Hierarquia explícita: Segurança > Macros > Estrutura nutricional > Piso proteico > Aderência (preferidos) > Variação
-- "Atualizar" injeta `PRESERVE_BASE=true` no prompt
-- "Regenerar" injeta `FORCE_NEW_PRIMARY_SOURCES=true`
-- Suplementação: bloquear sugestão de BCAA/glutamina/L-carnitina sem justificativa explícita; whey só se ajuda a fechar piso de proteína
+Problemas: jejum em "Extras", protocolos de condução (refeed/diet break) misturados com ajustes finos (sódio/água), nenhuma separação entre "o que a dieta é" e "como ela é conduzida".
 
 ---
 
-### FASE 2 — Estratégia avançada (carb cycling, refeed, g/kg, saciedade)
+## Estrutura nova (proposta)
 
-Objetivo: dar ferramentas reais de estrategista nutricional.
+```text
+Step 1  Objetivo do Plano
+        → fase: cutting | manutenção | bulking | recomp | performance
+        → hormônios (mantido aqui, pois muda meta proteica)
+        → rotina/treino (dias, horário, intensidade) — fica aqui porque
+          objetivo + treino definem juntos a direção do plano
 
-**Backend:**
-11. **Macros por g/kg de primeira classe**: wizard Step 3 aceita inputs `protein_gkg`, `fat_gkg`, `carb_strategy` (residual|fixed_gkg|percent); conversão automática para gramas/kcal/% visível no UI antes de gerar. Persistir em `ai_plans.macro_input jsonb`.
-12. **Carb cycling estruturado**: novo schema `day_targets[]` em `conteudo_json` com `{weekday, type: LOW|MODERATE|HIGH|REFEED, kcal, p, c, g, linked_training_day_id}`. Admin pode editar antes de gerar; IA recebe targets explícitos por dia.
-13. **Refeed/calorias livres** como recurso formal:
-    - Toggle `refeed_enabled`, `refeed_frequency` (weekly/biweekly), `refeed_kcal_bonus`, `refeed_distribution` ('1_meal'|'2_meals'|'free_weekly_budget')
-    - Persistir em `ai_plans.refeed_config jsonb`
-    - Prompt injeta dia(s) de refeed alinhados com treino mais pesado
-14. **Substituições por objetivo na IA**: prompt obriga 3 substituições por item principal com categorias (equivalente macro / maior saciedade / menor densidade / mais acessível / dentro das preferências).
-15. **Motor de saciedade/densidade** v1: adicionar coluna `foods.satiety_index numeric` e `foods.density_kcal_per_g numeric`; pass inicial com seeding manual/CSV para top 100 alimentos.
-16. **`diet-edit-agent` ganha operações novas**: `apply_refeed_day`, `set_day_carb_target`, `swap_for_higher_satiety`, `swap_for_lower_density`.
+Step 2  Base da Dieta            (era "Estilo da Dieta")
+        → Convencional | Flexível/IIFYM | Low Carb | Cetogênica |
+          Mediterrânea | Paleolítica | Vegetariana | Vegana
+        → "a dieta-mãe"
 
-**Frontend:**
-17. Wizard Step 3 redesenhado: tabs `kcal_totais` | `percentual` | `g/kg` com conversão ao vivo.
-18. Tela de **distribuição semanal** (matriz 7 dias × tipo de dia) integrada ao treino do dia; admin arrasta para marcar HIGH/LOW/REFEED.
-19. **Substituições por refeição** no app do aluno: cada item principal mostra ≥3 alternativas categorizadas em sheet/dialog.
-20. Visualização "Dia de hoje" no aluno: badge LOW/MOD/HIGH/REFEED + kcal/macros do dia atual.
+Step 3  Estratégia da Dieta      (NOVO agrupamento)
+        → Linear (default, sem toggle = linear)
+        → Refeed
+        → Diet Break
+        → Carb Cycling (mantém editor estruturado high/med/low)
+        → Estratégia para Platô
+        → Aliviar Agressividade (mapeado do decision engine)
+        → "como a dieta será conduzida ao longo do tempo"
 
----
+Step 4  Estrutura Alimentar do Dia
+        → Número de refeições
+        → Distribuição de horários
+        → Distribuição treino / descanso
+        → Jejum Intermitente        ← MOVIDO de Extras
+        → Janela alimentar (se jejum ativo)
+        → Reorganização de refeições (meal_change movido para cá)
+        → "como o dia alimentar é montado"
 
-### FASE 3 — Inteligência de decisão (check-in → ação automática)
+Step 5  Ajustes Finos do Protocolo
+        → Ajuste de Calorias
+        → Ajuste de Carboidrato
+        → Ajuste de Sódio
+        → Ajuste de Água / Manipulação Hídrica
+        → Ajuste de densidade energética
+        → Overrides g/kg (proteína, gordura)
+        → "refinamentos numéricos que não mudam base nem estratégia"
 
-Objetivo: fechar o loop check-in → análise → sugestão de ação.
-
-**Backend:**
-21. **Check-in inteligente expandido**: `diet_checkins` ganha colunas `peso_atual`, `cintura_cm`, `foto_url`, `retencao_percebida`, `performance_treino_subjetiva`.
-22. **Decision engine** (`diet-decision-engine` function) consumindo últimos 2 check-ins + weight_logs + adherence + workout_checkins e produzindo `recommended_action` com regras:
-    - peso↓ + cintura↓ + perf OK → `manter`
-    - peso/cintura estagnados + adesão OK → `apertar` (sugerir −5% kcal ou −0.5g/kg carbo)
-    - fome alta + perf OK → `swap_higher_satiety` (substituir por maior saciedade, manter kcal)
-    - peso↓ rápido + perf↓ → `aliviar` (déficit agressivo demais)
-    - perf↓ + sono↓ + fadiga↑ → `bloquear_aperto_automatico` + flag de revisão manual
-    - >4 semanas no mesmo plano + plateau → `aplicar_refeed` ou `regenerar`
-23. Decisões geram entradas em `diet_renewal_analysis` com `decision_type` enriquecido (manter|apertar|aliviar|subir_proteina|ajustar_carbo|aplicar_refeed|regenerar|trocar_densidade|revisao_manual).
-24. **Notificação automática para admin** (`behavioral_alerts`) quando decisão exige revisão manual ou quando aluno sinaliza degradação clara.
-
-**Frontend:**
-25. **DietRenewalPanel** (consultoria) ganha seção "Sugestões automáticas" com cards de ação proposta + botão "aplicar como draft" ou "ignorar".
-26. **Check-in do aluno** com novos campos (medidas opcionais, foto, performance subjetiva).
-27. **Cards educativos curtos** no app do aluno (não texto longo): "Por que seu carbo subiu hoje?", "O que é refeed?", etc.
-
----
-
-### O que NÃO entra (confirmado fora de escopo)
-
-- Protocolos hormonais, fármacos, esteroides, T3/T4, clenbuterol, efedrina, ioimbina
-- Nenhuma lógica prescritiva ligada a fármacos
-- `usa_hormonios` continua apenas como **contexto interno** (já modifica piso proteico) — nunca como sugestão do sistema
+Step 6  Extras e Observações
+        → Suplementação
+        → Fitoterapia
+        → Observações livres / notas
+        → Alimentos para substituição (movido do antigo step 7)
+        → "complementos que não afetam a lógica central"
+```
 
 ---
 
-## 3. Resumo dos artefatos por fase
+## Mapeamento das funções existentes → novos steps
 
-| Fase | Migrações | Edge functions | Frontend |
-|---|---|---|---|
-| 1 | `ai_plans` (+6 colunas) | `diet-agent` (intent), novo `computeViabilityScore` | Botões Atualizar/Regenerar, seletor de estratégia, badges, card de suplementação, card de viability |
-| 2 | `foods` (+satiety, density), seed inicial | `diet-edit-agent` (+4 ops), `diet-agent` (carb cycling + refeed estruturado) | Wizard Step 3 redesenhado, matriz semanal, substituições no app do aluno, dia de hoje |
-| 3 | `diet_checkins` (+5 colunas) | `diet-decision-engine` (nova), integração com `behavioral_alerts` | Check-in expandido, painel de sugestões automáticas, cards educativos |
+Nada some. Apenas muda de lugar.
+
+| Função atual | Step antigo | Step novo |
+|---|---|---|
+| Estilo da Dieta (8 opções) | 2 | **2 (Base, renomeado)** |
+| Fase + Hormônios | 2 | **1 (Objetivo)** |
+| Rotina/Treino | 1 | **1 (Objetivo)** |
+| Nível de atividade | 3 | **1 (Objetivo)** |
+| Nº de refeições | 4 | **4 (Estrutura)** |
+| Preferências alimentares | 4 | **6 (Extras)** ou mantido em 4 se preferir — ver pergunta abaixo |
+| `refeed` | 5 | **3 (Estratégia)** |
+| `diet_break` | 5 | **3 (Estratégia)** |
+| `carb_cycling` + editor estruturado | 5 | **3 (Estratégia)** |
+| `plato` | 5 | **3 (Estratégia)** |
+| `meal_change` | 5 | **4 (Estrutura)** |
+| `calorie_adjust` | 5 | **5 (Ajustes Finos)** |
+| `carb_adjust` | 5 | **5 (Ajustes Finos)** |
+| `sodium_adjust` | 5 | **5 (Ajustes Finos)** |
+| `water_adjust` | 5 | **5 (Ajustes Finos)** |
+| Jejum intermitente | 6 (Extras → toggle "Emagrecimento rápido") | **4 (Estrutura)** — toggle dedicado |
+| Suplementos | 6 | **6 (Extras)** |
+| Fitoterapia | 6 | **6 (Extras)** |
+| Emagrecimento Rápido (toggle composto) | 6 | desmembrado: jejum → step 4, HIIT/termogênicos → step 6 |
+| Alimentos para Substituição | 7 | **6 (Extras)** |
 
 ---
 
-## 4. Decisões que preciso confirmar com você antes de começar
+## Compatibilidade preservada
 
-1. **Confirma a separação Atualizar vs Regenerar com botões distintos no admin** (em vez de detecção automática)?
-2. **Viability score**: você quer um número 0–100 com breakdown visual, ou prefere semáforo (verde/amarelo/vermelho) por dimensão?
-3. **Saciedade/densidade dos alimentos**: aceito fazer seed manual dos top ~100 alimentos da `foods` table (eu preencho via IA com revisão sua), ou prefere apenas heurística textual no prompt sem coluna nova?
-4. **Refeed**: preferência por refeição única, 2 refeições no dia, ou budget semanal de kcal livres?
-5. **Quer que eu comece pela Fase 1 inteira como próximo passo**, ou prefere implementar incrementalmente sub-fases (ex: 1a = separar Atualizar/Regenerar + estratégia explícita; 1b = suplementação + viability)?
+1. **IDs internos não mudam.** `refeed`, `carb_cycling`, `diet_break`, `plato`, `meal_change`, `calorie_adjust`, `carb_adjust`, `sodium_adjust`, `water_adjust` continuam com as mesmas chaves em `selectedAdjustments[]`. Só mudam de step visualmente.
+2. **Prompt do GPT inalterado** — as seções `=== ESTILO DE DIETA ===`, `=== AJUSTES DO PROTOCOLO ===`, `=== EXTRAS ===` continuam sendo montadas a partir dos mesmos arrays.
+3. **Decision Engine** continua emitindo as mesmas `decision_action`. O remapeamento de ação → step fica:
+   - `atualizar_dieta` → abre wizard no **Step 5 (Ajustes Finos)**
+   - `regenerar_dieta` → abre no **Step 2 (Base)**
+   - `aplicar_refeed` → abre no **Step 3 (Estratégia)** com refeed marcado
+   - `aliviar_agressividade` → abre no **Step 3 (Estratégia)** com diet_break
+   - `reduzir_densidade` → abre no **Step 5 (Ajustes Finos)**
+   - `manter` / `revisar_manual` → não abrem wizard
+4. **`dietActionApplier`** não muda — ele só usa IDs internos, não números de step.
+5. **Check-in / persistência** intactos.
+6. **Carb Cycling estruturado** continua disponível quando `carb_cycling` é marcado em Step 3.
+
+---
+
+## Detalhes técnicos
+
+Arquivos afetados (apenas reorganização visual + renomeação):
+
+- `src/pages/DietaIA.tsx` — único arquivo realmente alterado: `STEP_TITLES`, blocos `{currentStep === N && (...)}`, validações `stepValid`, função `StepHeader` e o pequeno bloco "Emagrecimento Rápido" desmembrado.
+- `PROTOCOL_ADJUSTMENTS` é partido em três arrays derivados (`STRATEGY_OPTIONS`, `STRUCTURE_OPTIONS`, `FINE_TUNE_OPTIONS`) sem alterar IDs.
+- Nenhuma alteração em `dietSchema.ts`, `dietProtocols.ts`, `dietActionApplier.ts`, `dietDecisionEngine.ts`, `diet-agent` edge function ou `ProtocolsDialog.tsx`.
+
+Resumo do diff esperado: ~150 linhas movidas/renomeadas em `DietaIA.tsx`, zero remoções de feature, zero mudanças no backend.
+
+---
+
+## O que eu preciso confirmar antes de implementar
+
+1. **Preferências alimentares** (gosta / não gosta / alergias): ficam no Step 4 (Estrutura) ou no Step 6 (Extras)?
+2. **Distribuição treino/descanso de macros**: hoje vive dentro do prompt como derivada. Crio um toggle visível no Step 4 ou mantenho automático?
+3. Mantenho o **toggle "Emagrecimento Rápido"** como atalho composto no Step 6 (que ativa jejum+HIIT+termogênicos de uma vez), ou removo o atalho agora que jejum tem seu próprio espaço no Step 4?
+
+Se preferir, posso assumir defaults sensatos (1 → Step 4 · 2 → automático · 3 → remover o atalho composto) e seguir. Me responde com "ok seguir com defaults" ou ajusta o que quiser.
