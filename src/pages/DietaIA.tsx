@@ -1699,7 +1699,10 @@ ${generated}`;
               {currentStep === 0 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-4">
-            <StepHeader step={1} title="Rotina e Treino" />
+            <StepHeader step={1} title="Objetivo do Plano" />
+            <p className="text-[11px] text-muted-foreground -mt-2">
+              Defina a direção do plano: rotina, treino, fase, hormônios, atividade e estratégia.
+            </p>
             <div>
               <p className="text-xs text-muted-foreground mb-2">Descreva a rotina diária do aluno (trabalho, horários, etc.)</p>
               <input
@@ -1754,25 +1757,6 @@ ${generated}`;
                 ))}
               </div>
             </div>
-          </CardContent>
-        </Card>
-              )}
-
-              {currentStep === 1 && (
-        <Card className="glass-card">
-          <CardContent className="p-4 space-y-4">
-            <StepHeader step={2} title="Estilo da Dieta, Fase e Hormônios" />
-            <div>
-              <p className="text-xs text-muted-foreground mb-2">Estilo da dieta</p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {DIET_STYLES.map(d => (
-                  <SelectionButton key={d.value} selected={dietStyle === d.value} onClick={() => setDietStyle(d.value)}>
-                    <span className="font-semibold text-sm block">{d.label}</span>
-                    <span className="text-xs text-muted-foreground">{d.desc}</span>
-                  </SelectionButton>
-                ))}
-              </div>
-            </div>
             <div>
               <p className="text-xs text-muted-foreground mb-2">Fase atual do aluno</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -1803,14 +1787,6 @@ ${generated}`;
                 />
               )}
             </div>
-          </CardContent>
-        </Card>
-              )}
-
-              {currentStep === 2 && (
-        <Card className="glass-card">
-          <CardContent className="p-4 space-y-4">
-            <StepHeader step={3} title="Atividade e Estratégia" />
             <div>
               <p className="text-xs text-muted-foreground mb-2">Nível de atividade física</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -1823,7 +1799,7 @@ ${generated}`;
               </div>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground mb-2">Estratégia nutricional</p>
+              <p className="text-xs text-muted-foreground mb-2">Estratégia nutricional (cutting/manutenção/bulking/recomp/performance)</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {STRATEGIES.map(s => (
                   <SelectionButton key={s.value} selected={strategy === s.value} onClick={() => setStrategy(s.value)}>
@@ -1833,43 +1809,58 @@ ${generated}`;
                 ))}
               </div>
             </div>
-
-            {/* Phase 2: macros por g/kg (override opcional) */}
-            <div className="rounded-xl border border-border bg-secondary/30 p-3 space-y-2">
-              <p className="text-xs font-semibold">Macros por g/kg (opcional)</p>
-              <p className="text-[10px] text-muted-foreground">
-                Deixe em branco para usar os valores automáticos por fase/estratégia. Preencha para
-                sobrescrever apenas proteína e/ou gordura — carboidrato é recalculado para fechar a meta calórica.
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="block">
-                  <span className="text-[10px] text-muted-foreground">Proteína (g/kg)</span>
-                  <input
-                    inputMode="decimal"
-                    value={proteinPerKgOverride}
-                    onChange={(e) => setProteinPerKgOverride(e.target.value)}
-                    placeholder="ex: 2.2"
-                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-[10px] text-muted-foreground">Gordura (g/kg)</span>
-                  <input
-                    inputMode="decimal"
-                    value={fatPerKgOverride}
-                    onChange={(e) => setFatPerKgOverride(e.target.value)}
-                    placeholder="ex: 0.8"
-                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
-                  />
-                </label>
-              </div>
-              {(proteinPerKgOverride || fatPerKgOverride) && studentCtx?.peso && (
-                <p className="text-[10px] text-primary">
-                  Override ativo: P {proteinPerKgOverride || '—'} g/kg, G {fatPerKgOverride || '—'} g/kg
-                  {' '}({Math.round((Number(proteinPerKgOverride.replace(',', '.')) || 0) * Number(studentCtx.peso)) || '—'}g P,
-                  {' '}{Math.round((Number(fatPerKgOverride.replace(',', '.')) || 0) * Number(studentCtx.peso)) || '—'}g G).
-                </p>
+          </CardContent>
+        </Card>
               )}
+
+              {currentStep === 1 && (
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-4">
+            <StepHeader step={2} title="Base da Dieta" />
+            <p className="text-[11px] text-muted-foreground -mt-2">
+              A "dieta-mãe": estrutura base do plano alimentar.
+            </p>
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Escolha a base da dieta</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {DIET_STYLES.map(d => (
+                  <SelectionButton key={d.value} selected={dietStyle === d.value} onClick={() => setDietStyle(d.value)}>
+                    <span className="font-semibold text-sm block">{d.label}</span>
+                    <span className="text-xs text-muted-foreground">{d.desc}</span>
+                  </SelectionButton>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+              )}
+
+              {currentStep === 2 && (
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-4">
+            <StepHeader step={3} title="Estratégia da Dieta" />
+            <p className="text-[11px] text-muted-foreground -mt-2">
+              Como a dieta será conduzida ao longo do tempo. Sem nenhum marcado = condução <strong>linear</strong>.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {STRATEGY_ADJUSTMENTS.map(adj => {
+                const isSelected = selectedAdjustments.includes(adj.id);
+                return (
+                  <button
+                    key={adj.id}
+                    onClick={() => toggleAdjustment(adj.id)}
+                    className={`flex items-center gap-3 rounded-xl border-2 p-3 text-left transition-all ${
+                      isSelected ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <adj.icon className={`h-4 w-4 shrink-0 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
+                    <div>
+                      <span className="font-semibold text-sm block">{adj.label}</span>
+                      <span className="text-xs text-muted-foreground">{adj.desc}</span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -1878,7 +1869,10 @@ ${generated}`;
               {currentStep === 3 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-4">
-            <StepHeader step={4} title="Refeições e Preferências" />
+            <StepHeader step={4} title="Estrutura Alimentar do Dia" />
+            <p className="text-[11px] text-muted-foreground -mt-2">
+              Como o dia alimentar é montado: refeições, jejum e organização prática.
+            </p>
             <div>
               <p className="text-xs text-muted-foreground mb-2">Número de refeições por dia</p>
               <div className="flex gap-2 flex-wrap">
@@ -1889,6 +1883,41 @@ ${generated}`;
                 ))}
               </div>
             </div>
+            <div className={`flex items-center justify-between rounded-xl border-2 p-3 transition-all hover:border-primary/50 ${enableJejumIntermitente ? 'border-primary bg-primary/10' : 'border-border'}`}>
+              <div className="flex items-center gap-3">
+                <Clock className="h-5 w-5 text-amber-500" />
+                <div>
+                  <span className="font-semibold text-sm block">Jejum Intermitente</span>
+                  <span className="text-xs text-muted-foreground">Janela alimentar (ex: 16/8, 18/6). Organiza estrutura, não é "extra".</span>
+                </div>
+              </div>
+              <Switch checked={enableJejumIntermitente} onCheckedChange={setEnableJejumIntermitente} />
+            </div>
+            {STRUCTURE_ADJUSTMENTS.length > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">Reorganização de refeições</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {STRUCTURE_ADJUSTMENTS.map(adj => {
+                    const isSelected = selectedAdjustments.includes(adj.id);
+                    return (
+                      <button
+                        key={adj.id}
+                        onClick={() => toggleAdjustment(adj.id)}
+                        className={`flex items-center gap-3 rounded-xl border-2 p-3 text-left transition-all ${
+                          isSelected ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+                        }`}
+                      >
+                        <adj.icon className={`h-4 w-4 shrink-0 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
+                        <div>
+                          <span className="font-semibold text-sm block">{adj.label}</span>
+                          <span className="text-xs text-muted-foreground">{adj.desc}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <div>
               <p className="text-xs text-muted-foreground mb-2">Restrições alimentares</p>
               <div className="flex gap-2 flex-wrap">
@@ -1944,10 +1973,10 @@ ${generated}`;
               {currentStep === 4 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-3">
-            <StepHeader step={5} title="Ajustes do Protocolo (opcional)" />
-            <p className="text-xs text-muted-foreground">Selecione os ajustes que deseja incluir no plano</p>
+            <StepHeader step={5} title="Ajustes Finos do Protocolo (opcional)" />
+            <p className="text-xs text-muted-foreground">Refinamentos numéricos que não mudam a base nem a estratégia.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {PROTOCOL_ADJUSTMENTS.map(adj => {
+              {FINE_TUNE_ADJUSTMENTS.map(adj => {
                 const isSelected = selectedAdjustments.includes(adj.id);
                 return (
                   <button
@@ -1966,6 +1995,44 @@ ${generated}`;
                 );
               })}
             </div>
+
+            {/* Macros por g/kg (override opcional) — mantém comportamento, agora em "Ajustes Finos" */}
+            <div className="rounded-xl border border-border bg-secondary/30 p-3 space-y-2">
+              <p className="text-xs font-semibold">Macros por g/kg (opcional)</p>
+              <p className="text-[10px] text-muted-foreground">
+                Deixe em branco para usar os valores automáticos por fase/estratégia. Preencha para
+                sobrescrever apenas proteína e/ou gordura — carboidrato é recalculado para fechar a meta calórica.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="text-[10px] text-muted-foreground">Proteína (g/kg)</span>
+                  <input
+                    inputMode="decimal"
+                    value={proteinPerKgOverride}
+                    onChange={(e) => setProteinPerKgOverride(e.target.value)}
+                    placeholder="ex: 2.2"
+                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[10px] text-muted-foreground">Gordura (g/kg)</span>
+                  <input
+                    inputMode="decimal"
+                    value={fatPerKgOverride}
+                    onChange={(e) => setFatPerKgOverride(e.target.value)}
+                    placeholder="ex: 0.8"
+                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
+                  />
+                </label>
+              </div>
+              {(proteinPerKgOverride || fatPerKgOverride) && studentCtx?.peso && (
+                <p className="text-[10px] text-primary">
+                  Override ativo: P {proteinPerKgOverride || '—'} g/kg, G {fatPerKgOverride || '—'} g/kg
+                  {' '}({Math.round((Number(proteinPerKgOverride.replace(',', '.')) || 0) * Number(studentCtx.peso)) || '—'}g P,
+                  {' '}{Math.round((Number(fatPerKgOverride.replace(',', '.')) || 0) * Number(studentCtx.peso)) || '—'}g G).
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
               )}
@@ -1973,7 +2040,8 @@ ${generated}`;
               {currentStep === 5 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-3">
-            <StepHeader step={6} title="Extras (opcional)" />
+            <StepHeader step={6} title="Extras e Observações (opcional)" />
+            <p className="text-xs text-muted-foreground">Complementos que não afetam a lógica central da dieta.</p>
             <div className="space-y-3">
               <div className={`flex items-center justify-between rounded-xl border-2 p-3 transition-all hover:border-primary/50 ${enableFitoterapia ? 'border-primary bg-primary/10' : 'border-border'}`}>
                 <div className="flex items-center gap-3">
@@ -2001,22 +2069,20 @@ ${generated}`;
                 <div className="flex items-center gap-3">
                   <Zap className="h-5 w-5 text-amber-500" />
                   <div>
-                    <span className="font-semibold text-sm block">Emagrecimento Rápido</span>
-                    <span className="text-xs text-muted-foreground">Jejum intermitente, carb cycling, termogênicos</span>
+                    <span className="font-semibold text-sm block">HIIT + Termogênicos</span>
+                    <span className="text-xs text-muted-foreground">Estratégias avançadas de emagrecimento (HIIT, termogênicos). Jejum agora vive na "Estrutura Alimentar do Dia".</span>
                   </div>
                 </div>
                 <Switch checked={enableEmagrecimentoRapido} onCheckedChange={setEnableEmagrecimentoRapido} />
               </div>
             </div>
-          </CardContent>
-        </Card>
-              )}
 
-              {currentStep === 6 && (
-        <Card className="glass-card">
-          <CardContent className="p-4 space-y-3">
-            <StepHeader step={7} title="Alimentos para Substituição (opcional)" />
-            <p className="text-xs text-muted-foreground">Adicione alimentos que o aluno pode usar como substituição. Serão incluídos no plano.</p>
+            <div className="pt-2 border-t border-border/50 space-y-3">
+              <p className="text-xs font-semibold flex items-center gap-1.5">
+                <Plus className="h-3.5 w-3.5" />
+                Alimentos para substituição (opcional)
+              </p>
+              <p className="text-xs text-muted-foreground">Adicione alimentos que o aluno pode usar como substituição. Serão incluídos no plano.</p>
             
             <div className="flex gap-2">
               <input
@@ -2072,6 +2138,7 @@ ${generated}`;
                 rows={6}
                 className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none resize-y min-h-[100px]"
               />
+            </div>
             </div>
           </CardContent>
         </Card>
