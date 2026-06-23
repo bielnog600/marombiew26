@@ -876,13 +876,16 @@ export type Database = {
           applied_at: string
           applied_by: string | null
           checkin_id: string
+          completed_at: string | null
           confidence: number | null
           created_at: string
+          failure_reason: string | null
           id: string
           notes: string | null
           rationale: string | null
           result_plan_id: string | null
           scenario: string
+          status: string
           student_id: string
           suggested_action: string
           target_plan_id: string | null
@@ -892,13 +895,16 @@ export type Database = {
           applied_at?: string
           applied_by?: string | null
           checkin_id: string
+          completed_at?: string | null
           confidence?: number | null
           created_at?: string
+          failure_reason?: string | null
           id?: string
           notes?: string | null
           rationale?: string | null
           result_plan_id?: string | null
           scenario: string
+          status?: string
           student_id: string
           suggested_action: string
           target_plan_id?: string | null
@@ -908,13 +914,16 @@ export type Database = {
           applied_at?: string
           applied_by?: string | null
           checkin_id?: string
+          completed_at?: string | null
           confidence?: number | null
           created_at?: string
+          failure_reason?: string | null
           id?: string
           notes?: string | null
           rationale?: string | null
           result_plan_id?: string | null
           scenario?: string
+          status?: string
           student_id?: string
           suggested_action?: string
           target_plan_id?: string | null
