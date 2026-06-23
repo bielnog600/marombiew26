@@ -1967,7 +1967,20 @@ ${generated}`;
                 )}
               </h3>
               <div className="flex gap-2 flex-wrap">
-                <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan({ regenerateIntent: true }); }}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  title={DIET_INTENT_LABELS.update.desc}
+                  onClick={() => { setResult(''); generatePlan({ intent: 'update' }); }}
+                >
+                  <SlidersHorizontal className="h-3 w-3 mr-1" /> Atualizar
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  title={DIET_INTENT_LABELS.regenerate.desc}
+                  onClick={() => { setResult(''); generatePlan({ intent: 'regenerate' }); }}
+                >
                   <RotateCcw className="h-3 w-3 mr-1" /> Regenerar
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => generateDietPDF(result, studentName)}>
