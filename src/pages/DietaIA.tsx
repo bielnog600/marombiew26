@@ -1239,6 +1239,17 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
           const report = validateDietMacros(md, currentTargets, foodRecords);
           setMacroReport(report);
         }
+        // Compute viability score from generated plan + questionnaire + adherence.
+        try {
+          const adherencePct = studentCtx.historico_processo?.aderencia_recente?.percentual_aderencia ?? null;
+          const v = computeViabilityScore({
+            plan: structured,
+            questionnaire: studentCtx.questionario_dieta ?? null,
+            adherencePct,
+            mealCount,
+          });
+          setViability(v);
+        } catch (e) { console.warn('viability score failed', e); }
         const status = structured.validation?.status;
         if (status === 'ok') toast.success('Dieta gerada (JSON canônico).');
         else if (status === 'warning') toast('Dieta gerada — revisar avisos.', { icon: '⚠️' });
