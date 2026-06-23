@@ -214,9 +214,12 @@ const DietCheckinDialog: React.FC<Props> = ({
         setAppliedAction(action);
         setConfirmAction(null);
         onOpenChange(false);
-        navigate(
-          `/dieta-ia?student=${studentId}&intent=${meta.intent}&checkin=${checkinId}&application=${histRow?.id ?? ''}`
-        );
+        const params = new URLSearchParams({
+          intent: meta.intent,
+          checkin: checkinId,
+        });
+        if (histRow?.id) params.set('application', histRow.id);
+        navigate(`/dieta-ia/${studentId}?${params.toString()}`);
         return;
       }
 
