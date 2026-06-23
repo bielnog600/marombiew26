@@ -1389,8 +1389,13 @@ ${generated}`;
         migration_status: (validation.success ? 'completed' : 'failed') as any,
         migration_error: validation.error || null,
       }).eq('id', editPlanId);
-      if (error) toast.error('Erro: ' + error.message);
-      else toast.success('Dieta atualizada!');
+      if (error) {
+        toast.error('Erro: ' + error.message);
+        await failDietApplication(applicationId, error.message);
+      } else {
+        toast.success('Dieta atualizada!');
+        await closeDietApplication(applicationId, editPlanId);
+      }
     } else {
       let canonicalPlan: any = null;
       if (structuredPlan) {
