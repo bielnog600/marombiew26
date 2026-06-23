@@ -276,6 +276,58 @@ const DietaIA = () => {
     if (editPlanId && studentId) loadEditPlan();
   }, [editPlanId]);
 
+  // ===== Fase 5: lifecycle of diet_decision_applications =====
+  useEffect(() => {
+    if (!studentId) return;
+    // Opportunistic orphan dismissal: pending_generation older than the threshold
+    // for this student are auto-marked as dismissed so the history never lies.
+    (async () => {
+      try {
+        const cutoff = orphanCutoffISO();
+        await (supabase as any)
+          .from('diet_decision_applications')
+          .update({
+            status: 'dismissed',
+            failure_reason: 'orphan_pending_timeout',
+            completed_at: new Date().toISOString(),
+          })
+          .eq('student_id', studentId)
+          .eq('status', 'pending_generation')
+          .lt('applied_at', cutoff);
+      } catch (e) {
+        console.warn('orphan dismissal skipped:', e);
+      }
+    })();
+  }, [studentId]);
+
+  const closeDietApplication = async (appId: string | null, planId: string | null) => {
+    if (!appId || !planId) return;
+    try {
+      const patch = buildClosePatch({ applicationId: appId, resultPlanId: planId });
+      await (supabase as any)
+        .from('diet_decision_applications')
+        .update(patch)
+        .eq('id', appId)
+        .eq('status', 'pending_generation'); // only close if still pending
+    } catch (e) {
+      console.warn('closeDietApplication failed:', e);
+    }
+  };
+
+  const failDietApplication = async (appId: string | null, reason: string) => {
+    if (!appId) return;
+    try {
+      const patch = buildFailPatch({ applicationId: appId, reason });
+      await (supabase as any)
+        .from('diet_decision_applications')
+        .update(patch)
+        .eq('id', appId)
+        .eq('status', 'pending_generation');
+    } catch (e) {
+      console.warn('failDietApplication failed:', e);
+    }
+  };
+
   const loadEditPlan = async () => {
     const { data } = await supabase.from('ai_plans').select('*').eq('id', editPlanId!).maybeSingle();
     if (data) {
