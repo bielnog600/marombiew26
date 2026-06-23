@@ -33,6 +33,7 @@ import {
   type DietIntent,
 } from '@/lib/variationProfiles';
 import { computeViabilityScore, describeViability, type ViabilityBreakdown } from '@/lib/dietViability';
+import { buildClosePatch, buildFailPatch, orphanCutoffISO } from '@/lib/dietActionApplier';
 import { buildCarbCyclePlan } from '@/lib/carbCycling';
 import DietValidationBadge from '@/components/diet/DietValidationBadge';
 import ReactMarkdown from 'react-markdown';
