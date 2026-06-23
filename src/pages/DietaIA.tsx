@@ -1430,6 +1430,7 @@ ${generated}`;
         fitoterapia: enableFitoterapia,
         suplementos: enableSuplementos,
         emagrecimento_rapido: enableEmagrecimentoRapido,
+        jejum_intermitente: enableJejumIntermitente,
       },
     };
     if (editPlanId) {
