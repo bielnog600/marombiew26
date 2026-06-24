@@ -456,8 +456,46 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
     toast.success(`Refeição alterada para ${newName}`);
   }, [updateMeals]);
 
+  /**
+   * Rebuild the canonical DietPlan from the latest meals after a manual
+   * mutation (add/remove/portion edit) so that on save the JSON in
+   * conteudo_json reflects the edit. Without this, a previous AI edit /
+   * substitution would leave a stale canonical plan around and the save
+   * handler would serialize that stale plan, silently dropping the new
+   * food / removal / portion change.
+   */
+  const syncCanonicalPlan = useCallback((nextMeals: ParsedMeal[]) => {
+    if (!currentPlan || !onPlanChange) return;
+    try {
+      const baseTargets = currentPlan.targets;
+      const rebuilt = parsedMealsToDietPlan(nextMeals, baseTargets, {
+        ...currentPlan.meta,
+        generatedAt: new Date().toISOString(),
+      });
+      const nextPlan = finalizeDietPlan(
+        { ...rebuilt, trainingContext: currentPlan.trainingContext, tips: currentPlan.tips, notes: currentPlan.notes },
+        baseTargets,
+      );
+      onPlanChange(nextPlan);
+      const prevStatus = currentPlan.validation?.status;
+      const newStatus = nextPlan.validation?.status;
+      if (newStatus === 'invalid' && prevStatus !== 'invalid') {
+        toast.warning('O ajuste tirou o plano da meta. Reveja porções/macros.');
+      } else if (newStatus === 'warning' && prevStatus === 'ok') {
+        toast('Ajuste aplicado com aviso de validação.', { icon: '⚠️' });
+      }
+    } catch (e) {
+      console.warn('canonical plan sync failed', e);
+    }
+  }, [currentPlan, onPlanChange]);
+
   const removeFood = (mealIdx: number, foodIdx: number) => {
-    updateMeals((prev) => prev.map((m, mi) => mi !== mealIdx ? m : { ...m, foods: m.foods.filter((_, fi) => fi !== foodIdx) }));
+    let next: ParsedMeal[] = [];
+    updateMeals((prev) => {
+      next = prev.map((m, mi) => mi !== mealIdx ? m : { ...m, foods: m.foods.filter((_, fi) => fi !== foodIdx) });
+      return next;
+    });
+    syncCanonicalPlan(next);
   };
 
   const handleSubstitute = (newFood: ParsedFood) => {
@@ -500,8 +538,14 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
   };
 
   const handleAddFood = (mealIdx: number, food: ParsedFood) => {
-    updateMeals((prev) => prev.map((m, mi) => mi !== mealIdx ? m : { ...m, foods: [...m.foods, food] }));
+    let next: ParsedMeal[] = [];
+    updateMeals((prev) => {
+      next = prev.map((m, mi) => mi !== mealIdx ? m : { ...m, foods: [...m.foods, food] });
+      return next;
+    });
+    syncCanonicalPlan(next);
     setAddingForMeal(null);
+    toast.success(`${food.food} adicionado`);
   };
 
    const handleAdjustPortions = useCallback(() => {
@@ -520,6 +564,7 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
       density: MacroDensity,
    ) => {
      if (!Number.isFinite(newQty) || newQty <= 0) return;
+     let next: ParsedMeal[] = [];
      updateMeals((prev) => {
        const updated = [...prev];
        const meal = { ...updated[mealIdx] };
@@ -533,9 +578,11 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
        foods[foodIdx] = food;
        meal.foods = foods;
        updated[mealIdx] = meal;
+       next = updated;
        return updated;
      });
-   }, [updateMeals]);
+     syncCanonicalPlan(next);
+   }, [updateMeals, syncCanonicalPlan]);
 
   if (days.length === 0) {
     return (
