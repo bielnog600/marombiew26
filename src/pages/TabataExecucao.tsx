@@ -157,9 +157,21 @@ const TabataExecucao: React.FC = () => {
     video.muted = true;
     video.loop = true;
     video.playsInline = true;
+    video.volume = 0;
+    (video as any).disableRemotePlayback = true;
     video.setAttribute('muted', '');
     video.setAttribute('playsinline', '');
     video.setAttribute('webkit-playsinline', '');
+    video.setAttribute('disableRemotePlayback', '');
+    const disableAudioTracks = () => {
+      const tracks = (video as any).audioTracks;
+      if (tracks && tracks.length) {
+        for (let i = 0; i < tracks.length; i++) {
+          try { tracks[i].enabled = false; } catch { /* noop */ }
+        }
+      }
+    };
+    video.addEventListener('loadedmetadata', disableAudioTracks);
 
     if (hlsRef.current) {
       hlsRef.current.destroy();
