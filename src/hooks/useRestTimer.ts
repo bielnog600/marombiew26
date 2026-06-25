@@ -1,111 +1,69 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 /**
- * Generate a WAV (PCM 16-bit mono) Blob containing the full countdown audio:
- * mostly silence with short beeps at the last 3,2,1 seconds and a longer beep at 0.
+ * Rest-timer countdown beeps via Web Audio API.
  *
- * We bake the entire sequence into a single HTMLAudioElement playback because
- * iOS Safari/WebKit suspends Web Audio (AudioContext) when the tab goes to
- * background. HTMLMediaElement playback, however, is allowed to continue in
- * background when started from a user gesture — so beeps fire even minimized.
+ * Importante (iOS): usamos Web Audio em vez de HTMLAudioElement de propósito.
+ * HTMLAudio no iOS assume a sessão de áudio "playback" e PAUSA a música que o
+ * usuário está ouvindo (Spotify/Apple Music). Web Audio usa a sessão "ambient",
+ * que MISTURA com a música — a contrapartida é que o iOS suspende o
+ * AudioContext quando o app vai pro background, então beeps com tela
+ * bloqueada/app minimizado não são garantidos no Safari iOS.
  */
-function buildCountdownWav(totalSeconds: number): string {
-  const sampleRate = 22050;
-  const totalSamples = Math.ceil(totalSeconds * sampleRate) + sampleRate; // +1s tail
-  const buffer = new Int16Array(totalSamples);
-
-  const writeBeep = (atSec: number, freq: number, durSec: number, volume = 0.6) => {
-    const start = Math.floor(atSec * sampleRate);
-    const len = Math.floor(durSec * sampleRate);
-    const fade = Math.floor(0.01 * sampleRate);
-    for (let i = 0; i < len; i++) {
-      const idx = start + i;
-      if (idx < 0 || idx >= totalSamples) continue;
-      // Fade in/out envelope to avoid clicks
-      let env = 1;
-      if (i < fade) env = i / fade;
-      else if (i > len - fade) env = Math.max(0, (len - i) / fade);
-      const sample = Math.sin((2 * Math.PI * freq * i) / sampleRate) * volume * env;
-      buffer[idx] = Math.max(-1, Math.min(1, sample)) * 0x7fff;
-    }
-  };
-
-  // Last 3, 2, 1 seconds: short high beeps. At 0: longer lower beep.
-  if (totalSeconds >= 3) writeBeep(totalSeconds - 3, 880, 0.15);
-  if (totalSeconds >= 2) writeBeep(totalSeconds - 2, 880, 0.15);
-  if (totalSeconds >= 1) writeBeep(totalSeconds - 1, 880, 0.15);
-  writeBeep(totalSeconds, 1320, 0.4);
-
-  // Build WAV header
-  const dataSize = buffer.length * 2;
-  const wav = new ArrayBuffer(44 + dataSize);
-  const view = new DataView(wav);
-  const writeStr = (offset: number, s: string) => {
-    for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i));
-  };
-  writeStr(0, 'RIFF');
-  view.setUint32(4, 36 + dataSize, true);
-  writeStr(8, 'WAVE');
-  writeStr(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true); // PCM
-  view.setUint16(22, 1, true); // mono
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  writeStr(36, 'data');
-  view.setUint32(40, dataSize, true);
-  const bytes = new Uint8Array(wav, 44);
-  const src = new Uint8Array(buffer.buffer);
-  bytes.set(src);
-
-  const blob = new Blob([wav], { type: 'audio/wav' });
-  return URL.createObjectURL(blob);
-}
-
 export function useRestTimer() {
   const [restTimer, setRestTimer] = useState<{ total: number; remaining: number; exIdx: number; startTime: number } | null>(null);
   const intervalRef = useRef<number | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const audioUrlRef = useRef<string | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const scheduledNodesRef = useRef<{ osc: OscillatorNode; gain: GainNode }[]>([]);
 
-  const stopAudio = useCallback(() => {
-    if (audioRef.current) {
-      try { audioRef.current.pause(); } catch { /* noop */ }
-      try { audioRef.current.removeAttribute('src'); audioRef.current.load(); } catch { /* noop */ }
-    }
-    if (audioUrlRef.current) {
-      try { URL.revokeObjectURL(audioUrlRef.current); } catch { /* noop */ }
-      audioUrlRef.current = null;
-    }
+  const getAudioCtx = useCallback((): AudioContext | null => {
+    try {
+      if (!audioCtxRef.current) {
+        const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
+        if (!Ctx) return null;
+        audioCtxRef.current = new Ctx();
+      }
+      const ctx = audioCtxRef.current!;
+      if (ctx.state === 'suspended') ctx.resume().catch(() => { /* noop */ });
+      return ctx;
+    } catch { return null; }
   }, []);
 
-  const playCountdownAudio = useCallback((seconds: number) => {
-    stopAudio();
-    if (seconds <= 0) return;
-    try {
-      const url = buildCountdownWav(seconds);
-      audioUrlRef.current = url;
-      if (!audioRef.current) {
-        const a = new Audio();
-        a.preload = 'auto';
-        // iOS: keep audio playing when screen locks / app minimized
-        (a as any).playsInline = true;
-        a.setAttribute('playsinline', 'true');
-        a.setAttribute('webkit-playsinline', 'true');
-        audioRef.current = a;
-      }
-      audioRef.current.src = url;
-      audioRef.current.currentTime = 0;
-      // play() MUST be invoked synchronously inside the original user gesture
-      // for iOS to allow background playback.
-      const p = audioRef.current.play();
-      if (p && typeof p.catch === 'function') p.catch(() => { /* user gesture missing, ignore */ });
-    } catch {
-      /* noop */
+  const clearScheduledBeeps = useCallback(() => {
+    for (const { osc, gain } of scheduledNodesRef.current) {
+      try { osc.stop(); } catch { /* noop */ }
+      try { osc.disconnect(); } catch { /* noop */ }
+      try { gain.disconnect(); } catch { /* noop */ }
     }
-  }, [stopAudio]);
+    scheduledNodesRef.current = [];
+  }, []);
+
+  const scheduleBeep = useCallback((ctx: AudioContext, atTime: number, freq: number, durSec: number, volume = 0.25) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, atTime);
+    gain.gain.setValueAtTime(0.0001, atTime);
+    gain.gain.exponentialRampToValueAtTime(volume, atTime + 0.01);
+    gain.gain.setValueAtTime(volume, atTime + durSec - 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, atTime + durSec);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(atTime);
+    osc.stop(atTime + durSec + 0.05);
+    scheduledNodesRef.current.push({ osc, gain });
+  }, []);
+
+  const scheduleCountdownBeeps = useCallback((seconds: number) => {
+    clearScheduledBeeps();
+    if (seconds <= 0) return;
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    if (seconds >= 3) scheduleBeep(ctx, now + (seconds - 3), 880, 0.12);
+    if (seconds >= 2) scheduleBeep(ctx, now + (seconds - 2), 880, 0.12);
+    if (seconds >= 1) scheduleBeep(ctx, now + (seconds - 1), 880, 0.12);
+    scheduleBeep(ctx, now + seconds, 1320, 0.35, 0.3);
+  }, [clearScheduledBeeps, getAudioCtx, scheduleBeep]);
 
   const startTimer = useCallback((seconds: number, exIdx: number) => {
     setRestTimer({
@@ -114,13 +72,13 @@ export function useRestTimer() {
       exIdx,
       startTime: Date.now()
     });
-    playCountdownAudio(seconds);
-  }, [playCountdownAudio]);
+    scheduleCountdownBeeps(seconds);
+  }, [scheduleCountdownBeeps]);
 
   const stopTimer = useCallback(() => {
     setRestTimer(null);
-    stopAudio();
-  }, [stopAudio]);
+    clearScheduledBeeps();
+  }, [clearScheduledBeeps]);
 
   const adjustTimer = useCallback((seconds: number) => {
     setRestTimer(prev => {
@@ -128,9 +86,7 @@ export function useRestTimer() {
       const newTotal = prev.total + (seconds > 0 ? seconds : 0);
       const newRemaining = Math.max(0, prev.remaining + seconds);
       const elapsedSoFar = (newTotal - newRemaining) * 1000;
-      // Re-bake audio for the new remaining time. This still runs inside the
-      // click handler that called adjust(), preserving the user-gesture chain.
-      playCountdownAudio(newRemaining);
+      scheduleCountdownBeeps(newRemaining);
       return {
         ...prev,
         total: newTotal,
@@ -138,7 +94,7 @@ export function useRestTimer() {
         startTime: Date.now() - elapsedSoFar
       };
     });
-  }, [playCountdownAudio]);
+  }, [scheduleCountdownBeeps]);
 
   useEffect(() => {
     if (!restTimer || restTimer.remaining <= -60) {
@@ -179,10 +135,13 @@ export function useRestTimer() {
 
   useEffect(() => {
     return () => {
-      stopAudio();
-      audioRef.current = null;
+      clearScheduledBeeps();
+      if (audioCtxRef.current) {
+        try { audioCtxRef.current.close(); } catch { /* noop */ }
+        audioCtxRef.current = null;
+      }
     };
-  }, [stopAudio]);
+  }, [clearScheduledBeeps]);
 
   return {
     restTimer,
