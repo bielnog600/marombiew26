@@ -735,10 +735,24 @@ const TreinoExecucao = () => {
     video.autoplay = true;
     video.loop = true;
     video.playsInline = true;
+    video.volume = 0;
+    (video as any).disableRemotePlayback = true;
     video.setAttribute('muted', '');
     video.setAttribute('autoplay', '');
     video.setAttribute('playsinline', '');
     video.setAttribute('webkit-playsinline', '');
+    video.setAttribute('disableRemotePlayback', '');
+    // iOS: silence/disable embedded audio track so it doesn't steal the
+    // audio session from Spotify/Apple Music playing in the background.
+    const disableAudioTracks = () => {
+      const tracks = (video as any).audioTracks;
+      if (tracks && tracks.length) {
+        for (let i = 0; i < tracks.length; i++) {
+          try { tracks[i].enabled = false; } catch { /* noop */ }
+        }
+      }
+    };
+    video.addEventListener('loadedmetadata', disableAudioTracks);
 
     if (hlsRef.current) {
       hlsRef.current.destroy();
