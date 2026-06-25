@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Sparkles, Plus, Trash2, Save, Search, ChevronDown, ChevronRight, X } from "lucide-react";
 import { toast } from "sonner";
 
