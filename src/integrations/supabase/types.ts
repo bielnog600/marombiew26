@@ -1867,6 +1867,77 @@ export type Database = {
         }
         Relationships: []
       }
+      run_sessions: {
+        Row: {
+          avg_pace_s_per_km: number | null
+          calories: number | null
+          completed_at: string | null
+          created_at: string
+          distance_m: number
+          duration_s: number
+          elevation_gain_m: number | null
+          encoded_polyline: string | null
+          id: string
+          last_active_at: string | null
+          plan_id: string | null
+          session_state: Json | null
+          source: string
+          splits: Json
+          started_at: string | null
+          status: string
+          student_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          avg_pace_s_per_km?: number | null
+          calories?: number | null
+          completed_at?: string | null
+          created_at?: string
+          distance_m?: number
+          duration_s?: number
+          elevation_gain_m?: number | null
+          encoded_polyline?: string | null
+          id: string
+          last_active_at?: string | null
+          plan_id?: string | null
+          session_state?: Json | null
+          source?: string
+          splits?: Json
+          started_at?: string | null
+          status?: string
+          student_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          avg_pace_s_per_km?: number | null
+          calories?: number | null
+          completed_at?: string | null
+          created_at?: string
+          distance_m?: number
+          duration_s?: number
+          elevation_gain_m?: number | null
+          encoded_polyline?: string | null
+          id?: string
+          last_active_at?: string | null
+          plan_id?: string | null
+          session_state?: Json | null
+          source?: string
+          splits?: Json
+          started_at?: string | null
+          status?: string
+          student_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "run_sessions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "ai_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scheduled_notifications: {
         Row: {
           created_at: string
