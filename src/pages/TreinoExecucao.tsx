@@ -400,8 +400,19 @@ const TreinoExecucao = () => {
         const { days: allDays, isFromJSON } = getSafeWorkoutDays({ ...treino, tipo: 'treino' });
         trackPlanAccess({ ...treino, tipo: 'treino' }, isFromJSON);
         if (allDays.length > 0) {
-          const todayIndex = (new Date().getDay() + 6) % 7 % allDays.length;
-          const today = allDays[todayIndex];
+          // Se há uma sessão em andamento, prioriza o day_name dela
+          // (evita carregar o treino "de hoje" quando a sessão foi iniciada
+          // ontem à noite e o usuário reabre o app no dia seguinte).
+          let today = null as (typeof allDays)[number] | null;
+          const activeDayName = activeSession?.day_name?.trim();
+          if (activeDayName) {
+            const norm = (s: string) => s.toLowerCase().trim();
+            today = allDays.find((d) => norm(d.day) === norm(activeDayName)) ?? null;
+          }
+          if (!today) {
+            const todayIndex = (new Date().getDay() + 6) % 7 % allDays.length;
+            today = allDays[todayIndex];
+          }
           setLoadedExercises(today.exercises);
           setLoadedDayName(today.day);
 
@@ -435,7 +446,7 @@ const TreinoExecucao = () => {
       }
     };
     loadPlan();
-  }, [user, loadedExercises.length]);
+  }, [user, loadedExercises.length, activeSession?.day_name]);
 
   const exercise = exercises[currentIndex];
   const setPlan: PlannedSet[] = useMemo(
