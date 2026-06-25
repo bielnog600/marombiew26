@@ -20,8 +20,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Pencil, Search, Check, Plus, Trash2, Upload, Download, X, ImageIcon, Loader2, Video } from 'lucide-react';
+import { Pencil, Search, Check, Plus, Trash2, Upload, Download, X, ImageIcon, Loader2, Video, Layers } from 'lucide-react';
 import { toast } from 'sonner';
+import ExerciseVariationsDialog from '@/components/admin/ExerciseVariationsDialog';
 
 const STANDARD_FIELDS = [
   'Banco',
@@ -73,6 +74,7 @@ const Exercicios: React.FC = () => {
   const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0 });
   const [videoUploading, setVideoUploading] = useState(false);
   const [videoProgress, setVideoProgress] = useState(0);
+  const [variationsOpen, setVariationsOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const videoFileRef = useRef<HTMLInputElement>(null);
 
@@ -351,11 +353,20 @@ const Exercicios: React.FC = () => {
                 )}
               </Button>
             )}
+            <Button
+              variant="outline"
+              onClick={() => setVariationsOpen(true)}
+              className="gap-2"
+            >
+              <Layers className="h-4 w-4" /> Variações
+            </Button>
             <Button onClick={openCreate} className="gap-2">
               <Plus className="h-4 w-4" /> Novo exercício
             </Button>
           </div>
         </div>
+
+        <ExerciseVariationsDialog open={variationsOpen} onOpenChange={setVariationsOpen} />
 
         <Card>
           <CardContent className="p-4">
