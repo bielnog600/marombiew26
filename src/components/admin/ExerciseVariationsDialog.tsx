@@ -311,7 +311,7 @@ const ExerciseVariationsDialog: React.FC<Props> = ({ open, onOpenChange }) => {
           </div>
         </div>
 
-        <ScrollArea className="flex-1 px-6">
+        <ScrollArea className="flex-1 min-h-0 px-6">
           <div className="space-y-2 py-3">
             {loadingGroups ? (
               <p className="text-sm text-muted-foreground text-center py-8">Carregando...</p>
