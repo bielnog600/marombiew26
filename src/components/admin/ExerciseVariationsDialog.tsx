@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Sparkles, Plus, Trash2, Save, Search, ChevronDown, ChevronRight, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -275,7 +274,7 @@ const ExerciseVariationsDialog: React.FC<Props> = ({ open, onOpenChange }) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
+      <DialogContent className="max-w-4xl h-[90dvh] max-h-[90dvh] overflow-hidden flex flex-col gap-0 p-0">
         <DialogHeader className="px-6 pt-6">
           <DialogTitle>Grupos de variações de exercícios</DialogTitle>
           <p className="text-sm text-muted-foreground">
@@ -311,8 +310,8 @@ const ExerciseVariationsDialog: React.FC<Props> = ({ open, onOpenChange }) => {
           </div>
         </div>
 
-        <ScrollArea className="flex-1 min-h-0 px-6">
-          <div className="space-y-2 py-3">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6">
+          <div className="space-y-2 py-3 pr-1">
             {loadingGroups ? (
               <p className="text-sm text-muted-foreground text-center py-8">Carregando...</p>
             ) : filteredGroups.length === 0 ? (
@@ -436,7 +435,7 @@ const ExerciseVariationsDialog: React.FC<Props> = ({ open, onOpenChange }) => {
               })
             )}
           </div>
-        </ScrollArea>
+        </div>
 
         <DialogFooter className="px-6 py-4 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
@@ -450,7 +449,7 @@ const ExerciseVariationsDialog: React.FC<Props> = ({ open, onOpenChange }) => {
 
         {/* Exercise picker sub-dialog */}
         <Dialog open={pickerIdx !== null} onOpenChange={(o) => !o && setPickerIdx(null)}>
-          <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+          <DialogContent className="max-w-lg h-[80dvh] max-h-[80dvh] overflow-hidden flex flex-col">
             <DialogHeader>
               <DialogTitle>Adicionar exercícios ao grupo</DialogTitle>
             </DialogHeader>
@@ -463,8 +462,8 @@ const ExerciseVariationsDialog: React.FC<Props> = ({ open, onOpenChange }) => {
                 className="pl-9"
               />
             </div>
-            <ScrollArea className="flex-1 -mx-6 px-6">
-              <div className="space-y-1 py-2">
+            <div className="flex-1 min-h-0 -mx-6 overflow-y-auto overscroll-contain px-6">
+              <div className="space-y-1 py-2 pr-1">
                 {pickerExercises.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-6">
                     Nenhum exercício disponível.
@@ -489,7 +488,7 @@ const ExerciseVariationsDialog: React.FC<Props> = ({ open, onOpenChange }) => {
                   ))
                 )}
               </div>
-            </ScrollArea>
+            </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setPickerIdx(null)}>
                 Concluir
