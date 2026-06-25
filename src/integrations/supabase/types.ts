@@ -1318,6 +1318,33 @@ export type Database = {
         }
         Relationships: []
       }
+      exercise_variation_groups: {
+        Row: {
+          created_at: string
+          descricao: string | null
+          exercise_ids: string[]
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          descricao?: string | null
+          exercise_ids?: string[]
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          descricao?: string | null
+          exercise_ids?: string[]
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       exercises: {
         Row: {
           ajustes: string[] | null
