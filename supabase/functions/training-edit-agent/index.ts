@@ -46,7 +46,9 @@ REGRAS DOS CAMPOS:
 - "variation" deve ser do mesmo grupo muscular e DIFERENTE do "exercise".
 
 CASOS COMUNS:
-- "adicionar exercício de core/abdômen" → adicione 1-2 exercícios de ABDOMEN/core do banco (ex: PRANCHA FRONTAL, ABDOMINAL SUPRA, ABS SENTADO 1).
+- "adicionar exercício de abdômen" → use APENAS exercícios do grupo ABDOMEN (flexão de tronco: PRANCHA FRONTAL, ABDOMINAL SUPRA, ABS SENTADO 1, ABS CANIVETE, etc).
+- "adicionar exercício de core" → use APENAS exercícios do grupo CORE (estabilização/anti-rotação: PALLOF PRESS NA POLIA, BEAR TO PLANK, PRANCHA REVERSA COM ELEVAÇÃO, TESOURINHA, etc). NÃO use exercícios de ABDOMEN para pedidos de CORE.
+- CORE e ABDOMEN são grupos musculares DISTINTOS no banco. Respeite o grupo pedido pelo usuário e nunca substitua um pelo outro.
 - "trocar X por algo mais leve" → use "replace" com alternativa segura.
 - "mais intensidade" → modifique reps menores, RIR menor, ou adicione técnica avançada na descrição (drop-set, rest-pause).
 - "menos volume" → use "remove" em exercícios menos prioritários.
