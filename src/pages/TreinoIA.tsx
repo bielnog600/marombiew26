@@ -693,7 +693,7 @@ GERE TUDO DE UMA VEZ:
                     const MUSCLE_GROUPS = [
                       'Peito', 'Costas', 'Ombro', 'Bíceps', 'Tríceps',
                       'Antebraço', 'Quadríceps', 'Posterior', 'Glúteo',
-                      'Panturrilha', 'Abdômen', 'Lombar', 'Trapézio', 'Cardio',
+                      'Panturrilha', 'Abdômen', 'Core', 'Lombar', 'Trapézio', 'Cardio',
                     ];
                     const WEEKDAYS = [
                       'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira',
