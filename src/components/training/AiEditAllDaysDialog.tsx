@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Sparkles, Loader2, Wand2, Settings2, Activity, Dumbbell, Repeat, ArrowRight } from 'lucide-react';
+import { Sparkles, Loader2, Wand2, Settings2, Activity, Dumbbell, Repeat, ArrowRight, Plus, Replace, Trash2, Pencil, ArrowLeft, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -79,6 +79,18 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
    const [batchAiLoading, setBatchAiLoading] = useState(false);
    const [aiLoadingKey, setAiLoadingKey] = useState<string | null>(null);
    const isMobile = useIsMobile();
+
+   // Preview de ações da IA antes de aplicar
+   const [pendingByDay, setPendingByDay] = useState<Record<number, any[]>>({});
+   const [pendingSelByDay, setPendingSelByDay] = useState<Record<number, Record<number, boolean>>>({});
+   const [pendingSummary, setPendingSummary] = useState<string>('');
+   const hasPreview = Object.values(pendingByDay).some((arr) => Array.isArray(arr) && arr.length > 0);
+
+   const resetPreview = () => {
+     setPendingByDay({});
+     setPendingSelByDay({});
+     setPendingSummary('');
+   };
 
    useEffect(() => {
      if (!open) return;
@@ -302,11 +314,12 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
         .select('nome, grupo_muscular')
         .order('nome');
 
-      const updatedDays = [...allDays];
+      const newPending: Record<number, any[]> = {};
+      const newSel: Record<number, Record<number, boolean>> = {};
       let totalActions = 0;
       let lastSummary = '';
 
-      // Call AI for each day sequentially
+      // Call AI for each day sequentially — colecta ações para PRÉVIA, não aplica ainda
       for (let i = 0; i < allDays.length; i++) {
         const day = allDays[i];
         const { data, error } = await supabase.functions.invoke('training-edit-agent', {
@@ -324,9 +337,12 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
 
         const actions = Array.isArray((data as any)?.actions) ? (data as any).actions : [];
         if (actions.length > 0) {
-          updatedDays[i] = applyActionsToDay(day, actions);
+          newPending[i] = actions;
+          const sel: Record<number, boolean> = {};
+          actions.forEach((_a: any, k: number) => { sel[k] = true; });
+          newSel[i] = sel;
           totalActions += actions.length;
-          lastSummary = (data as any)?.summary || '';
+          lastSummary = (data as any)?.summary || lastSummary;
         }
       }
 
@@ -335,11 +351,10 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
         return;
       }
 
-       onApply(updatedDays);
-       toast.success(`${totalActions} alteração(ões) em ${allDays.length} dias. ${lastSummary}`);
-       setInstruction('');
-       setSelectedOptions([]);
-       onOpenChange(false);
+      setPendingByDay(newPending);
+      setPendingSelByDay(newSel);
+      setPendingSummary(lastSummary);
+      toast.success(`${totalActions} alteração(ões) sugerida(s). Revise antes de aplicar.`);
     } catch (e: any) {
       console.error(e);
       toast.error('Erro: ' + (e?.message || 'falha ao chamar IA'));
@@ -347,6 +362,136 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
       setLoading(false);
     }
   };
+
+   const togglePendingAction = (dayIdx: number, actionIdx: number) => {
+     setPendingSelByDay((prev) => {
+       const cur = { ...(prev[dayIdx] || {}) };
+       cur[actionIdx] = !cur[actionIdx];
+       return { ...prev, [dayIdx]: cur };
+     });
+   };
+
+   const totalPendingSelected = Object.entries(pendingByDay).reduce((acc, [dIdx, actions]) => {
+     const sel = pendingSelByDay[Number(dIdx)] || {};
+     return acc + (actions || []).filter((_, k) => sel[k]).length;
+   }, 0);
+
+   const confirmAndApplyPreview = () => {
+     if (totalPendingSelected === 0) {
+       toast.error('Selecione ao menos uma alteração para aplicar.');
+       return;
+     }
+     const updatedDays = allDays.map((day, i) => {
+       const acts = pendingByDay[i] || [];
+       const sel = pendingSelByDay[i] || {};
+       const filtered = acts.filter((_, k) => sel[k]);
+       if (filtered.length === 0) return day;
+       return applyActionsToDay(day, filtered);
+     });
+     onApply(updatedDays);
+     toast.success(`${totalPendingSelected} alteração(ões) aplicada(s).`);
+     setInstruction('');
+     setSelectedOptions([]);
+     resetPreview();
+     onOpenChange(false);
+   };
+
+   const opMeta = (op: string) => {
+     switch (op) {
+       case 'add': return { label: 'Adicionar', icon: Plus, color: 'text-emerald-600 bg-emerald-500/10 border-emerald-500/30' };
+       case 'replace': return { label: 'Substituir', icon: Replace, color: 'text-blue-600 bg-blue-500/10 border-blue-500/30' };
+       case 'remove': return { label: 'Remover', icon: Trash2, color: 'text-red-600 bg-red-500/10 border-red-500/30' };
+       case 'modify': return { label: 'Modificar', icon: Pencil, color: 'text-amber-600 bg-amber-500/10 border-amber-500/30' };
+       default: return { label: op, icon: Pencil, color: 'text-muted-foreground bg-muted/40 border-border' };
+     }
+   };
+
+   const renderPreview = () => (
+     <div className="space-y-3">
+       <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-foreground">
+         <p className="font-bold uppercase tracking-wider text-primary mb-1">Prévia das alterações</p>
+         <p className="text-muted-foreground">
+           Revise abaixo o que a IA sugere para cada dia. Desmarque o que não quiser e clique em <strong>Confirmar e aplicar</strong>.
+         </p>
+         {pendingSummary && <p className="mt-2 italic">"{pendingSummary}"</p>}
+       </div>
+       <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-1">
+         {allDays.map((day, dIdx) => {
+           const acts = pendingByDay[dIdx] || [];
+           if (acts.length === 0) return null;
+           const sel = pendingSelByDay[dIdx] || {};
+           return (
+             <div key={dIdx} className="rounded-lg border border-border/60 bg-card/40 p-3 space-y-2">
+               <div className="flex items-center justify-between">
+                 <span className="text-xs font-bold uppercase tracking-wider">{day.day}</span>
+                 <span className="text-[10px] text-muted-foreground">
+                   {acts.filter((_, k) => sel[k]).length}/{acts.length} selecionadas
+                 </span>
+               </div>
+               <div className="space-y-1.5">
+                 {acts.map((a, k) => {
+                   const meta = opMeta(a.op);
+                   const Icon = meta.icon;
+                   const targetName = (typeof a.index === 'number' && day.exercises[a.index]?.exercise)
+                     || a.match || '';
+                   const newName = a?.exercise?.exercise || '';
+                   const isChecked = !!sel[k];
+                   return (
+                     <label key={k}
+                       className={`flex items-start gap-2 rounded-md border p-2 cursor-pointer transition-colors ${isChecked ? 'border-primary/50 bg-primary/5' : 'border-border/60 bg-background/40 opacity-60'}`}>
+                       <Checkbox checked={isChecked} onCheckedChange={() => togglePendingAction(dIdx, k)} className="mt-0.5" />
+                       <span className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-bold uppercase ${meta.color}`}>
+                         <Icon className="h-3 w-3" /> {meta.label}
+                       </span>
+                       <div className="flex-1 min-w-0 text-xs">
+                         {a.op === 'add' && newName && (
+                           <div className="flex items-center gap-1.5">
+                             <Thumb name={newName} size="xs" />
+                             <span className="font-medium truncate">{newName}</span>
+                           </div>
+                         )}
+                         {a.op === 'replace' && (
+                           <div className="flex items-center gap-1.5 flex-wrap">
+                             {targetName && <><Thumb name={targetName} size="xs" /><span className="line-through text-muted-foreground truncate">{targetName}</span></>}
+                             <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                             {newName && <><Thumb name={newName} size="xs" /><span className="font-medium truncate">{newName}</span></>}
+                           </div>
+                         )}
+                         {a.op === 'remove' && (
+                           <div className="flex items-center gap-1.5">
+                             {targetName && <Thumb name={targetName} size="xs" />}
+                             <span className="line-through text-muted-foreground truncate">{targetName || `posição ${a.index ?? '?'}`}</span>
+                           </div>
+                         )}
+                         {a.op === 'modify' && (
+                           <div className="space-y-0.5">
+                             <div className="flex items-center gap-1.5">
+                               {targetName && <Thumb name={targetName} size="xs" />}
+                               <span className="font-medium truncate">{targetName || `posição ${a.index ?? '?'}`}</span>
+                             </div>
+                             {a.exercise && (
+                               <div className="text-[10px] text-muted-foreground flex flex-wrap gap-x-2">
+                                 {Object.entries(a.exercise).filter(([k]) => k !== 'exercise').map(([k, v]) => v ? (
+                                   <span key={k}><strong className="uppercase">{k}:</strong> {String(v)}</span>
+                                 ) : null)}
+                               </div>
+                             )}
+                           </div>
+                         )}
+                         {a?.exercise?.description && a.op !== 'modify' && (
+                           <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{a.exercise.description}</p>
+                         )}
+                       </div>
+                     </label>
+                   );
+                 })}
+               </div>
+             </div>
+           );
+         })}
+       </div>
+     </div>
+   );
 
   // ---- Cross-day helpers (desktop variations view) ----
   const totalSelected = allDays.reduce((acc, _d, i) => {
@@ -570,7 +715,8 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
           </Button>
         </div>
 
-        {tab === 'ai' && (
+        {tab === 'ai' && hasPreview && renderPreview()}
+        {tab === 'ai' && !hasPreview && (
         <div className="space-y-4">
           <div className="bg-violet-500/5 border border-violet-500/20 rounded-xl p-4 space-y-4">
             <div className="flex items-center gap-2">
@@ -800,11 +946,21 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancelar
           </Button>
-          {tab === 'ai' ? (
+          {tab === 'ai' && hasPreview ? (
+            <>
+              <Button variant="outline" onClick={resetPreview} disabled={loading}>
+                <ArrowLeft className="h-4 w-4 mr-1" /> Voltar
+              </Button>
+              <Button onClick={confirmAndApplyPreview} disabled={loading || totalPendingSelected === 0}>
+                <Check className="h-4 w-4 mr-1" />
+                Confirmar e aplicar{totalPendingSelected > 0 ? ` (${totalPendingSelected})` : ''}
+              </Button>
+            </>
+          ) : tab === 'ai' ? (
             <Button onClick={() => runWithInstruction()}
               disabled={loading || (selectedOptions.length === 0 && !instruction.trim())}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
-              Aplicar em todos os dias
+              Gerar prévia
             </Button>
           ) : (
             <Button onClick={applyAllVariations} disabled={batchAiLoading || totalSubs === 0}>
