@@ -621,7 +621,7 @@ const TabataExecucao: React.FC = () => {
             </p>
           )}
         </div>
-        <Button variant="ghost" size="icon" onClick={() => setMuted(m => !m)}>
+        <Button variant="ghost" size="icon" onClick={toggleMute}>
           {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
         </Button>
       </div>
@@ -838,7 +838,7 @@ const TabataExecucao: React.FC = () => {
             </Button>
             <Button
               size="icon"
-              onClick={() => setPaused(p => !p)}
+              onClick={togglePause}
               aria-label={paused ? 'Retomar' : 'Pausar'}
               className="h-20 w-20 rounded-full bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_10px_40px_-4px_hsl(var(--primary)/0.7)] hover:shadow-[0_14px_48px_-4px_hsl(var(--primary)/0.9)] hover:scale-105 active:scale-95 transition-all border-2 border-primary-foreground/10"
             >
