@@ -398,6 +398,16 @@ const TabataExecucao: React.FC = () => {
     done: 'CONCLUÍDO!',
   }[phase];
 
+  // Frases dinâmicas por fase — sorteadas a cada nova entrada de fase/etapa
+  const PHRASES: Record<Phase, string[]> = {
+    idle: ['PRONTO?'],
+    prep: ['PREPARE-SE', 'VAMOS LÁ!', 'FOCO TOTAL', 'RESPIRE E CONCENTRE', 'BORA COMEÇAR!'],
+    work: ['VAI COM TUDO!', 'FORÇA TOTAL!', 'NÃO PARE!', 'ACELERA!', 'DÁ TUDO DE SI!'],
+    rest: ['RESPIRE FUNDO', 'DESCANSE AGORA', 'RECUPERE-SE', 'INSPIRE… EXPIRE', 'RELAXA E VOLTA'],
+    block_rest: ['PAUSA ESTRATÉGICA', 'RESPIRE FUNDO', 'QUASE LÁ!', 'RECUPERE O FÔLEGO'],
+    done: ['CONCLUÍDO!'],
+  };
+
   const phaseColor = {
     idle: 'from-primary/20 to-primary/5',
     prep: 'from-yellow-500/30 to-yellow-500/5',
