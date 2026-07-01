@@ -656,20 +656,20 @@ const TabataExecucao: React.FC = () => {
 
             {/* Next exercise preview during rest */}
             {(phase === 'rest' || phase === 'block_rest') && nextStep && (
-              <div className="mt-4 flex items-center gap-3 bg-card/70 backdrop-blur-md border border-primary/30 rounded-2xl p-3 pr-5 shadow-lg max-w-sm animate-fade-in">
-                <div className="h-16 w-16 rounded-xl bg-muted overflow-hidden shrink-0 ring-2 ring-primary/40">
+              <div className="mt-6 flex items-center gap-4 bg-card/85 backdrop-blur-md border-2 border-primary/40 rounded-3xl p-5 pr-7 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.6)] max-w-md w-[92%] animate-fade-in">
+                <div className="h-24 w-24 sm:h-28 sm:w-28 rounded-2xl bg-muted overflow-hidden shrink-0 ring-2 ring-primary/50">
                   {nextMedia?.imageUrl ? (
                     <img src={nextMedia.imageUrl} alt="" className="h-full w-full object-cover" />
                   ) : (
-                    <div className="h-full w-full flex items-center justify-center text-primary font-black text-xl">→</div>
+                    <div className="h-full w-full flex items-center justify-center text-primary font-black text-3xl">→</div>
                   )}
                 </div>
                 <div className="text-left flex-1 min-w-0">
-                  <p className="text-[10px] uppercase tracking-widest text-primary font-bold">A seguir</p>
-                  <p className="text-sm font-bold leading-tight line-clamp-2">
+                  <p className="text-xs uppercase tracking-widest text-primary font-black">A seguir</p>
+                  <p className="text-lg sm:text-xl font-black leading-tight line-clamp-2 mt-1">
                     {nextStep.exercise.name.replace(/\*+/g, '').trim()}
                   </p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                  <p className="text-xs text-muted-foreground mt-1.5 font-semibold">
                     {nextStep.exercise.workSeconds}s de execução
                   </p>
                 </div>
