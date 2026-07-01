@@ -5,6 +5,7 @@ import { X, Play, Pause, SkipForward, RotateCcw, Volume2, VolumeX, HeartPulse } 
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { calcKarvonenZones } from '@/components/KarvonenZones';
 import {
   parseCardioProtocol,
   MODALITY_LABEL,
@@ -83,20 +84,60 @@ const CardioExecucao: React.FC = () => {
 
   // Karvonen zones from student's profile, used to derive BPM when block has only "Zona X"
   const [hrZones, setHrZones] = useState<Array<{ zona: string; min: number; max: number }>>([]);
+  const [fcMaxEst, setFcMaxEst] = useState<number | null>(null);
+  const [fcRepousoEst, setFcRepousoEst] = useState<number | null>(null);
   useEffect(() => {
     if (!user) return;
     (async () => {
+      // 1) Try saved Karvonen zones
       const { data } = await supabase
         .from('hr_zones')
-        .select('zonas_karvonen')
+        .select('zonas_karvonen, fcmax_estimada, fc_repouso')
         .eq('student_id', user.id)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
       const z = (data?.zonas_karvonen as any[]) || [];
-      if (Array.isArray(z)) {
+      if (Array.isArray(z) && z.length) {
         setHrZones(z.map((it: any) => ({ zona: String(it.zona || '').toUpperCase(), min: it.min, max: it.max })));
+        if (data?.fcmax_estimada) setFcMaxEst(data.fcmax_estimada);
+        if (data?.fc_repouso) setFcRepousoEst(data.fc_repouso);
+        return;
       }
+      // 2) Fallback: compute from student's birthdate (+ last known FC repouso if any)
+      try {
+        const { data: prof } = await supabase
+          .from('students_profile')
+          .select('data_nascimento')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        let fcRepouso: number | null = null;
+        const { data: aval } = await supabase
+          .from('assessments')
+          .select('id, data_avaliacao')
+          .eq('student_id', user.id)
+          .order('data_avaliacao', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (aval?.id) {
+          const { data: v } = await supabase
+            .from('vitals')
+            .select('fc_repouso')
+            .eq('assessment_id', aval.id)
+            .maybeSingle();
+          if (v?.fc_repouso) fcRepouso = v.fc_repouso;
+        }
+        if (prof?.data_nascimento) {
+          const age = Math.floor(
+            (Date.now() - new Date(prof.data_nascimento).getTime()) / (365.25 * 24 * 3600 * 1000)
+          );
+          const restEst = fcRepouso ?? 65; // estimativa padrão quando não medida
+          const { fcMax, zones } = calcKarvonenZones(age, restEst, 'tanaka');
+          setHrZones(zones.map(z => ({ zona: z.zona, min: z.min, max: z.max })));
+          setFcMaxEst(fcMax);
+          setFcRepousoEst(restEst);
+        }
+      } catch { /* ignore fallback errors */ }
     })();
   }, [user]);
 
@@ -104,15 +145,32 @@ const CardioExecucao: React.FC = () => {
   // from the student's Karvonen zones using the zone label/number found in targetZone.
   const resolveBpmRange = (block: CardioBlock | undefined): string | null => {
     if (!block) return null;
-    if (block.targetHrRange) return block.targetHrRange;
+    if (block.targetHrRange && /\d/.test(block.targetHrRange)) return block.targetHrRange;
     const src = `${block.targetZone || ''} ${block.name || ''}`.toLowerCase();
-    // Match Z1..Z5 or "zona 1..5"
+    // 1) Match Z1..Z5 or "zona 1..5"
     const m = src.match(/z(?:ona)?\s*([1-5])/);
-    if (!m) return null;
-    const key = `Z${m[1]}`;
-    const zone = hrZones.find(z => z.zona === key);
-    if (!zone || zone.min == null || zone.max == null) return null;
-    return `${zone.min}-${zone.max} bpm`;
+    if (m) {
+      const key = `Z${m[1]}`;
+      const zone = hrZones.find(z => z.zona === key);
+      if (zone?.min != null && zone?.max != null) return `${zone.min}-${zone.max} bpm`;
+    }
+    // 2) Match "70-80% FCmax" or "70%-80%"
+    const p = src.match(/(\d{2,3})\s*%?\s*[-–a]\s*(\d{2,3})\s*%/);
+    if (p && fcMaxEst) {
+      const lo = Math.round((parseInt(p[1]) / 100) * fcMaxEst);
+      const hi = Math.round((parseInt(p[2]) / 100) * fcMaxEst);
+      return `${lo}-${hi} bpm`;
+    }
+    // 3) Fallback pela intensidade do bloco
+    const intensityToZone: Record<string, string> = {
+      leve: 'Z2', moderada: 'Z3', forte: 'Z4', maxima: 'Z5',
+    };
+    const key = intensityToZone[block.intensityLabel];
+    if (key) {
+      const zone = hrZones.find(z => z.zona === key);
+      if (zone?.min != null && zone?.max != null) return `${zone.min}-${zone.max} bpm`;
+    }
+    return null;
   };
 
   const audioCtxRef = useRef<AudioContext | null>(null);
