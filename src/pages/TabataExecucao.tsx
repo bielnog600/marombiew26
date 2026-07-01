@@ -198,6 +198,8 @@ const TabataExecucao: React.FC = () => {
 
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = hlsUrl;
+      video.preload = 'auto';
+      try { video.load(); } catch { /* noop */ }
       const tryPlay = () => { video.play().catch(() => {}); };
       video.addEventListener('loadedmetadata', tryPlay);
       video.addEventListener('loadeddata', tryPlay);
@@ -215,12 +217,19 @@ const TabataExecucao: React.FC = () => {
     }
 
     if (Hls.isSupported()) {
-      const hls = new Hls({ autoStartLoad: true, startLevel: -1, enableWorker: true });
+      const hls = new Hls({ autoStartLoad: true, startLevel: -1, enableWorker: true, lowLatencyMode: false });
       hlsRef.current = hls;
       hls.loadSource(hlsUrl);
       hls.attachMedia(video);
       const tryPlay = () => { video.play().catch(() => {}); };
       hls.on(Hls.Events.MANIFEST_PARSED, tryPlay);
+      hls.on(Hls.Events.LEVEL_LOADED, tryPlay);
+      hls.on(Hls.Events.FRAG_LOADED, tryPlay);
+      hls.on(Hls.Events.ERROR, (_ev, data) => {
+        if (data?.fatal) {
+          try { hls.startLoad(); } catch { /* noop */ }
+        }
+      });
       video.addEventListener('loadeddata', tryPlay);
       video.addEventListener('canplay', tryPlay);
       const retryId = window.setInterval(() => {
