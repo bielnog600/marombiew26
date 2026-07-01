@@ -63,6 +63,8 @@ const TabataExecucao: React.FC = () => {
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
   const [mediaMap, setMediaMap] = useState<Record<string, { videoEmbed?: string | null; imageUrl?: string | null }>>({});
+  const [phraseKey, setPhraseKey] = useState<number>(0);
+  const [phrase, setPhrase] = useState<string>('');
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
