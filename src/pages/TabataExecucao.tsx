@@ -198,9 +198,20 @@ const TabataExecucao: React.FC = () => {
 
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = hlsUrl;
-      const tryPlay = () => video.play().catch(() => {});
-      video.addEventListener('loadedmetadata', tryPlay, { once: true });
-      return () => video.removeEventListener('loadedmetadata', tryPlay);
+      const tryPlay = () => { video.play().catch(() => {}); };
+      video.addEventListener('loadedmetadata', tryPlay);
+      video.addEventListener('loadeddata', tryPlay);
+      video.addEventListener('canplay', tryPlay);
+      const retryId = window.setInterval(() => {
+        if (video.paused) video.play().catch(() => {});
+        else window.clearInterval(retryId);
+      }, 500);
+      return () => {
+        video.removeEventListener('loadedmetadata', tryPlay);
+        video.removeEventListener('loadeddata', tryPlay);
+        video.removeEventListener('canplay', tryPlay);
+        window.clearInterval(retryId);
+      };
     }
 
     if (Hls.isSupported()) {
@@ -208,10 +219,18 @@ const TabataExecucao: React.FC = () => {
       hlsRef.current = hls;
       hls.loadSource(hlsUrl);
       hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        video.play().catch(() => {});
-      });
+      const tryPlay = () => { video.play().catch(() => {}); };
+      hls.on(Hls.Events.MANIFEST_PARSED, tryPlay);
+      video.addEventListener('loadeddata', tryPlay);
+      video.addEventListener('canplay', tryPlay);
+      const retryId = window.setInterval(() => {
+        if (video.paused) video.play().catch(() => {});
+        else window.clearInterval(retryId);
+      }, 500);
       return () => {
+        video.removeEventListener('loadeddata', tryPlay);
+        video.removeEventListener('canplay', tryPlay);
+        window.clearInterval(retryId);
         hls.destroy();
         hlsRef.current = null;
       };
