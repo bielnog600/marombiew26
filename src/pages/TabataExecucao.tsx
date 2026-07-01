@@ -67,7 +67,8 @@ const TabataExecucao: React.FC = () => {
   const [phrase, setPhrase] = useState<string>('');
 
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const htmlBeepCacheRef = useRef<Record<string, HTMLAudioElement>>({});
+  const htmlBeepRef = useRef<HTMLAudioElement | null>(null);
+  const beepDataUriCacheRef = useRef<Record<string, string>>({});
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
 
@@ -318,13 +319,19 @@ const TabataExecucao: React.FC = () => {
   const playHtmlBeep = (frequency: number, duration: number, volume = 0.9) => {
     try {
       const key = `${Math.round(frequency)}-${Math.round(duration * 1000)}`;
-      if (!htmlBeepCacheRef.current[key]) {
-        const audio = new Audio(makeBeepDataUri(frequency, duration));
-        audio.preload = 'auto';
-        htmlBeepCacheRef.current[key] = audio;
+      if (!beepDataUriCacheRef.current[key]) {
+        beepDataUriCacheRef.current[key] = makeBeepDataUri(frequency, duration);
       }
-      const audio = htmlBeepCacheRef.current[key];
+      if (!htmlBeepRef.current) {
+        htmlBeepRef.current = new Audio();
+        htmlBeepRef.current.preload = 'auto';
+      }
+      const audio = htmlBeepRef.current;
       audio.pause();
+      if (audio.src !== beepDataUriCacheRef.current[key]) {
+        audio.src = beepDataUriCacheRef.current[key];
+        audio.load();
+      }
       audio.currentTime = 0;
       audio.volume = volume;
       audio.play().catch(() => { /* Safari may still block if audio was not primed */ });
