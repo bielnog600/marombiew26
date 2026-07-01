@@ -88,7 +88,7 @@ const TabataExecucao: React.FC = () => {
   useEffect(() => {
     const PHRASES_MAP: Record<Phase, string[]> = {
       idle: ['PRONTO?'],
-      prep: ['PREPARE-SE', 'VAMOS LÁ!', 'FOCO TOTAL', 'RESPIRE E CONCENTRE', 'BORA COMEÇAR!'],
+      prep: ['PREPARE-SE', 'POSICIONE-SE', 'FIQUE PRONTO', 'AJUSTE A POSTURA', 'RESPIRE E CONCENTRE'],
       work: ['VAI COM TUDO!', 'FORÇA TOTAL!', 'NÃO PARE!', 'ACELERA!', 'DÁ TUDO DE SI!'],
       rest: ['RESPIRE FUNDO', 'DESCANSE AGORA', 'RECUPERE-SE', 'INSPIRE… EXPIRE', 'RELAXA E VOLTA'],
       block_rest: ['PAUSA ESTRATÉGICA', 'RESPIRE FUNDO', 'QUASE LÁ!', 'RECUPERE O FÔLEGO'],
@@ -198,9 +198,20 @@ const TabataExecucao: React.FC = () => {
 
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = hlsUrl;
-      const tryPlay = () => video.play().catch(() => {});
-      video.addEventListener('loadedmetadata', tryPlay, { once: true });
-      return () => video.removeEventListener('loadedmetadata', tryPlay);
+      const tryPlay = () => { video.play().catch(() => {}); };
+      video.addEventListener('loadedmetadata', tryPlay);
+      video.addEventListener('loadeddata', tryPlay);
+      video.addEventListener('canplay', tryPlay);
+      const retryId = window.setInterval(() => {
+        if (video.paused) video.play().catch(() => {});
+        else window.clearInterval(retryId);
+      }, 500);
+      return () => {
+        video.removeEventListener('loadedmetadata', tryPlay);
+        video.removeEventListener('loadeddata', tryPlay);
+        video.removeEventListener('canplay', tryPlay);
+        window.clearInterval(retryId);
+      };
     }
 
     if (Hls.isSupported()) {
@@ -208,10 +219,18 @@ const TabataExecucao: React.FC = () => {
       hlsRef.current = hls;
       hls.loadSource(hlsUrl);
       hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        video.play().catch(() => {});
-      });
+      const tryPlay = () => { video.play().catch(() => {}); };
+      hls.on(Hls.Events.MANIFEST_PARSED, tryPlay);
+      video.addEventListener('loadeddata', tryPlay);
+      video.addEventListener('canplay', tryPlay);
+      const retryId = window.setInterval(() => {
+        if (video.paused) video.play().catch(() => {});
+        else window.clearInterval(retryId);
+      }, 500);
       return () => {
+        video.removeEventListener('loadeddata', tryPlay);
+        video.removeEventListener('canplay', tryPlay);
+        window.clearInterval(retryId);
         hls.destroy();
         hlsRef.current = null;
       };
@@ -235,11 +254,14 @@ const TabataExecucao: React.FC = () => {
       oscillator.connect(gain);
       gain.connect(ctx.destination);
       oscillator.frequency.value = frequency;
-      oscillator.type = 'sine';
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
-      oscillator.start();
-      oscillator.stop(ctx.currentTime + duration);
+      oscillator.type = 'square';
+      const now = ctx.currentTime;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.6, now + 0.01);
+      gain.gain.setValueAtTime(0.6, now + Math.max(0.05, duration - 0.02));
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      oscillator.start(now);
+      oscillator.stop(now + duration + 0.05);
     } catch {
       // Context might be in a bad state — drop it so next beep recreates it
       try { audioCtxRef.current?.close(); } catch { /* ignore */ }
@@ -634,20 +656,20 @@ const TabataExecucao: React.FC = () => {
 
             {/* Next exercise preview during rest */}
             {(phase === 'rest' || phase === 'block_rest') && nextStep && (
-              <div className="mt-4 flex items-center gap-3 bg-card/70 backdrop-blur-md border border-primary/30 rounded-2xl p-3 pr-5 shadow-lg max-w-sm animate-fade-in">
-                <div className="h-16 w-16 rounded-xl bg-muted overflow-hidden shrink-0 ring-2 ring-primary/40">
+              <div className="mt-6 flex items-center gap-4 bg-card/85 backdrop-blur-md border-2 border-primary/40 rounded-3xl p-5 pr-7 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.6)] max-w-md w-[92%] animate-fade-in">
+                <div className="h-24 w-24 sm:h-28 sm:w-28 rounded-2xl bg-muted overflow-hidden shrink-0 ring-2 ring-primary/50">
                   {nextMedia?.imageUrl ? (
                     <img src={nextMedia.imageUrl} alt="" className="h-full w-full object-cover" />
                   ) : (
-                    <div className="h-full w-full flex items-center justify-center text-primary font-black text-xl">→</div>
+                    <div className="h-full w-full flex items-center justify-center text-primary font-black text-3xl">→</div>
                   )}
                 </div>
                 <div className="text-left flex-1 min-w-0">
-                  <p className="text-[10px] uppercase tracking-widest text-primary font-bold">A seguir</p>
-                  <p className="text-sm font-bold leading-tight line-clamp-2">
+                  <p className="text-xs uppercase tracking-widest text-primary font-black">A seguir</p>
+                  <p className="text-lg sm:text-xl font-black leading-tight line-clamp-2 mt-1">
                     {nextStep.exercise.name.replace(/\*+/g, '').trim()}
                   </p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                  <p className="text-xs text-muted-foreground mt-1.5 font-semibold">
                     {nextStep.exercise.workSeconds}s de execução
                   </p>
                 </div>
