@@ -489,6 +489,7 @@ const TabataExecucao: React.FC = () => {
               playsInline
               loop
               autoPlay
+              preload="auto"
             />
           ) : fallbackImage ? (
             <img
