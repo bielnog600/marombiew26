@@ -63,6 +63,8 @@ const TabataExecucao: React.FC = () => {
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
   const [mediaMap, setMediaMap] = useState<Record<string, { videoEmbed?: string | null; imageUrl?: string | null }>>({});
+  const [phraseKey, setPhraseKey] = useState<number>(0);
+  const [phrase, setPhrase] = useState<string>('');
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -81,6 +83,22 @@ const TabataExecucao: React.FC = () => {
 
   const currentStep = steps[stepIndex];
   const totalSteps = steps.length;
+
+  // Sorteia uma nova frase sempre que a fase ou o exercício mudar
+  useEffect(() => {
+    const PHRASES_MAP: Record<Phase, string[]> = {
+      idle: ['PRONTO?'],
+      prep: ['PREPARE-SE', 'VAMOS LÁ!', 'FOCO TOTAL', 'RESPIRE E CONCENTRE', 'BORA COMEÇAR!'],
+      work: ['VAI COM TUDO!', 'FORÇA TOTAL!', 'NÃO PARE!', 'ACELERA!', 'DÁ TUDO DE SI!'],
+      rest: ['RESPIRE FUNDO', 'DESCANSE AGORA', 'RECUPERE-SE', 'INSPIRE… EXPIRE', 'RELAXA E VOLTA'],
+      block_rest: ['PAUSA ESTRATÉGICA', 'RESPIRE FUNDO', 'QUASE LÁ!', 'RECUPERE O FÔLEGO'],
+      done: ['CONCLUÍDO!'],
+    };
+    const list = PHRASES_MAP[phase] || [phase];
+    const pick = list[Math.floor(Math.random() * list.length)];
+    setPhrase(pick);
+    setPhraseKey(k => k + 1);
+  }, [phase, stepIndex]);
 
   // Load exercise media from DB and fuzzy-match by name
   useEffect(() => {
@@ -396,6 +414,13 @@ const TabataExecucao: React.FC = () => {
     done: 'CONCLUÍDO!',
   }[phase];
 
+  const phraseColorClass =
+    phase === 'work' ? 'text-red-400'
+    : phase === 'rest' ? 'text-emerald-300'
+    : phase === 'block_rest' ? 'text-sky-300'
+    : phase === 'prep' ? 'text-amber-300'
+    : 'text-primary';
+
   const phaseColor = {
     idle: 'from-primary/20 to-primary/5',
     prep: 'from-yellow-500/30 to-yellow-500/5',
@@ -477,8 +502,26 @@ const TabataExecucao: React.FC = () => {
 
       {/* Main timer */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
-        {phase !== 'work' && (
-          <p className="text-sm uppercase tracking-[0.3em] text-white mb-4 [text-shadow:0_1px_3px_rgba(0,0,0,0.4)]">{phaseLabel}</p>
+        {phase !== 'idle' && phase !== 'done' && (
+          <div
+            key={`phrase-${phase}-${phraseKey}`}
+            className="mb-4 sm:mb-6 animate-phrase-zoom"
+          >
+            <p
+              className={cn(
+                'font-black uppercase tracking-[0.05em] leading-none',
+                'text-4xl sm:text-6xl md:text-7xl',
+                'bg-clip-text text-transparent bg-[linear-gradient(110deg,currentColor_25%,rgba(255,255,255,0.95)_45%,currentColor_65%)] bg-[length:200%_100%] animate-shine',
+                phraseColorClass,
+              )}
+              style={{
+                textShadow: '0 4px 24px rgba(0,0,0,0.55), 0 0 40px currentColor',
+                WebkitTextStroke: '1px rgba(0,0,0,0.15)',
+              }}
+            >
+              {phrase}
+            </p>
+          </div>
         )}
 
         {phase === 'idle' && (
