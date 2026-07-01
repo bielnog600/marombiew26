@@ -235,11 +235,14 @@ const TabataExecucao: React.FC = () => {
       oscillator.connect(gain);
       gain.connect(ctx.destination);
       oscillator.frequency.value = frequency;
-      oscillator.type = 'sine';
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
-      oscillator.start();
-      oscillator.stop(ctx.currentTime + duration);
+      oscillator.type = 'square';
+      const now = ctx.currentTime;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.6, now + 0.01);
+      gain.gain.setValueAtTime(0.6, now + Math.max(0.05, duration - 0.02));
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      oscillator.start(now);
+      oscillator.stop(now + duration + 0.05);
     } catch {
       // Context might be in a bad state — drop it so next beep recreates it
       try { audioCtxRef.current?.close(); } catch { /* ignore */ }
