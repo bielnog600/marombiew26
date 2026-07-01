@@ -84,6 +84,22 @@ const TabataExecucao: React.FC = () => {
   const currentStep = steps[stepIndex];
   const totalSteps = steps.length;
 
+  // Sorteia uma nova frase sempre que a fase ou o exercício mudar
+  useEffect(() => {
+    const PHRASES_MAP: Record<Phase, string[]> = {
+      idle: ['PRONTO?'],
+      prep: ['PREPARE-SE', 'VAMOS LÁ!', 'FOCO TOTAL', 'RESPIRE E CONCENTRE', 'BORA COMEÇAR!'],
+      work: ['VAI COM TUDO!', 'FORÇA TOTAL!', 'NÃO PARE!', 'ACELERA!', 'DÁ TUDO DE SI!'],
+      rest: ['RESPIRE FUNDO', 'DESCANSE AGORA', 'RECUPERE-SE', 'INSPIRE… EXPIRE', 'RELAXA E VOLTA'],
+      block_rest: ['PAUSA ESTRATÉGICA', 'RESPIRE FUNDO', 'QUASE LÁ!', 'RECUPERE O FÔLEGO'],
+      done: ['CONCLUÍDO!'],
+    };
+    const list = PHRASES_MAP[phase] || [phase];
+    const pick = list[Math.floor(Math.random() * list.length)];
+    setPhrase(pick);
+    setPhraseKey(k => k + 1);
+  }, [phase, stepIndex]);
+
   // Load exercise media from DB and fuzzy-match by name
   useEffect(() => {
     let cancelled = false;
