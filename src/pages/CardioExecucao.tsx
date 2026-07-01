@@ -114,9 +114,9 @@ const CardioExecucao: React.FC = () => {
         let fcRepouso: number | null = null;
         const { data: aval } = await supabase
           .from('assessments')
-          .select('id, data_avaliacao')
+          .select('id')
           .eq('student_id', user.id)
-          .order('data_avaliacao', { ascending: false })
+          .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
         if (aval?.id) {
