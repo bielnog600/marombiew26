@@ -67,7 +67,6 @@ const TabataExecucao: React.FC = () => {
   const [phrase, setPhrase] = useState<string>('');
 
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const audioUnlockedRef = useRef(false);
   const htmlBeepCacheRef = useRef<Record<string, HTMLAudioElement>>({});
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -458,15 +457,15 @@ const TabataExecucao: React.FC = () => {
 
   // Safari/iOS unlock: must be called synchronously inside a user gesture.
   // We start a real short tone here because silent buffers are often ignored by Safari/PWA.
-  const unlockAudio = () => {
+  const unlockAudio = (forceSound = false) => {
     try {
       const ctx = getAudioContext();
       if (!ctx) {
-        if (!muted) playHtmlBeep(880, 0.09, 0.65);
+        if (forceSound || !muted) playHtmlBeep(880, 0.09, 0.65);
         return;
       }
       if (ctx.state === 'suspended') {
-        ctx.resume().then(() => { audioUnlockedRef.current = true; }).catch(() => { /* ignore */ });
+        ctx.resume().catch(() => { /* ignore */ });
       }
       const oscillator = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -476,15 +475,14 @@ const TabataExecucao: React.FC = () => {
       oscillator.type = 'square';
       const now = ctx.currentTime;
       gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(muted ? 0.0001 : 0.55, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime((forceSound || !muted) ? 0.55 : 0.0001, now + 0.01);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
       oscillator.start(now);
       oscillator.stop(now + 0.12);
       oscillator.onended = () => {
-        audioUnlockedRef.current = true;
         try { oscillator.disconnect(); gain.disconnect(); } catch { /* noop */ }
       };
-      if (!muted) playHtmlBeep(880, 0.09, 0.65);
+      if (forceSound || !muted) playHtmlBeep(880, 0.09, 0.65);
     } catch {
       /* ignore */
     }
@@ -492,7 +490,7 @@ const TabataExecucao: React.FC = () => {
 
   const start = () => {
     if (!steps.length) return;
-    unlockAudio();
+    unlockAudio(true);
     setStepIndex(0);
     setPhase('prep');
     setPhaseTotalSeconds(PREP_SECONDS);
@@ -521,11 +519,9 @@ const TabataExecucao: React.FC = () => {
   };
 
   const toggleMute = () => {
-    setMuted(m => {
-      const next = !m;
-      if (!next) unlockAudio();
-      return next;
-    });
+    const willUnmute = muted;
+    setMuted(!muted);
+    if (willUnmute) unlockAudio(true);
   };
 
   if (!tabata) {
