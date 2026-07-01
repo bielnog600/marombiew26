@@ -239,16 +239,9 @@ const TabataExecucao: React.FC = () => {
 
   const beep = (frequency: number, duration: number) => {
     if (muted) return;
-    try {
-      // Recreate context if it was closed/interrupted (e.g. iOS headphone disconnect)
-      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
-        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-      }
+    const play = () => {
       const ctx = audioCtxRef.current;
-      // iOS Safari suspends the context on audio route changes — resume it
-      if (ctx.state === 'suspended') {
-        ctx.resume().catch(() => { /* ignore */ });
-      }
+      if (!ctx || ctx.state !== 'running') return;
       const oscillator = ctx.createOscillator();
       const gain = ctx.createGain();
       oscillator.connect(gain);
@@ -262,6 +255,19 @@ const TabataExecucao: React.FC = () => {
       gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
       oscillator.start(now);
       oscillator.stop(now + duration + 0.05);
+    };
+    try {
+      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') {
+        // Resume is async — schedule beep AFTER it resolves, otherwise
+        // the oscillator fires while the context is still suspended and no sound is output.
+        ctx.resume().then(play).catch(() => { /* ignore */ });
+      } else {
+        play();
+      }
     } catch {
       // Context might be in a bad state — drop it so next beep recreates it
       try { audioCtxRef.current?.close(); } catch { /* ignore */ }
