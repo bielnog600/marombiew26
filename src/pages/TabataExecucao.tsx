@@ -67,6 +67,8 @@ const TabataExecucao: React.FC = () => {
   const [phrase, setPhrase] = useState<string>('');
 
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const audioUnlockedRef = useRef(false);
+  const htmlBeepCacheRef = useRef<Record<string, HTMLAudioElement>>({});
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
 
@@ -246,41 +248,110 @@ const TabataExecucao: React.FC = () => {
     }
   }, [hlsUrl, showVideoBg]);
 
+  const getAudioContext = () => {
+    const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextCtor) return null;
+    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+      audioCtxRef.current = new AudioContextCtor();
+    }
+    return audioCtxRef.current;
+  };
+
+  const playWebAudioTone = (frequency: number, duration: number, volume = 0.75) => {
+    const ctx = audioCtxRef.current;
+    if (!ctx || ctx.state !== 'running') return false;
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
+    oscillator.type = 'square';
+    const now = ctx.currentTime;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(volume, now + 0.008);
+    gain.gain.setValueAtTime(volume, now + Math.max(0.04, duration - 0.025));
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    oscillator.start(now);
+    oscillator.stop(now + duration + 0.04);
+    oscillator.onended = () => {
+      try { oscillator.disconnect(); gain.disconnect(); } catch { /* noop */ }
+    };
+    return true;
+  };
+
+  const makeBeepDataUri = (frequency: number, duration: number) => {
+    const sampleRate = 22050;
+    const samples = Math.max(1, Math.floor(sampleRate * duration));
+    const bytesPerSample = 2;
+    const blockAlign = bytesPerSample;
+    const buffer = new ArrayBuffer(44 + samples * bytesPerSample);
+    const view = new DataView(buffer);
+    const writeString = (offset: number, value: string) => {
+      for (let i = 0; i < value.length; i++) view.setUint8(offset + i, value.charCodeAt(i));
+    };
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + samples * bytesPerSample, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true);
+    writeString(36, 'data');
+    view.setUint32(40, samples * bytesPerSample, true);
+    for (let i = 0; i < samples; i++) {
+      const t = i / sampleRate;
+      const fadeIn = Math.min(1, i / (sampleRate * 0.01));
+      const fadeOut = Math.min(1, (samples - i) / (sampleRate * 0.03));
+      const envelope = Math.min(fadeIn, fadeOut);
+      const square = Math.sin(2 * Math.PI * frequency * t) >= 0 ? 1 : -1;
+      view.setInt16(44 + i * bytesPerSample, square * envelope * 0x5fff, true);
+    }
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return `data:audio/wav;base64,${btoa(binary)}`;
+  };
+
+  const playHtmlBeep = (frequency: number, duration: number, volume = 0.9) => {
+    try {
+      const key = `${Math.round(frequency)}-${Math.round(duration * 1000)}`;
+      if (!htmlBeepCacheRef.current[key]) {
+        const audio = new Audio(makeBeepDataUri(frequency, duration));
+        audio.preload = 'auto';
+        htmlBeepCacheRef.current[key] = audio;
+      }
+      const audio = htmlBeepCacheRef.current[key];
+      audio.pause();
+      audio.currentTime = 0;
+      audio.volume = volume;
+      audio.play().catch(() => { /* Safari may still block if audio was not primed */ });
+    } catch {
+      /* noop */
+    }
+  };
+
   const beep = (frequency: number, duration: number) => {
     if (muted) return;
-    const play = () => {
-      const ctx = audioCtxRef.current;
-      if (!ctx || ctx.state !== 'running') return;
-      const oscillator = ctx.createOscillator();
-      const gain = ctx.createGain();
-      oscillator.connect(gain);
-      gain.connect(ctx.destination);
-      oscillator.frequency.value = frequency;
-      oscillator.type = 'square';
-      const now = ctx.currentTime;
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(0.6, now + 0.01);
-      gain.gain.setValueAtTime(0.6, now + Math.max(0.05, duration - 0.02));
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-      oscillator.start(now);
-      oscillator.stop(now + duration + 0.05);
-    };
     try {
-      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
-        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const ctx = getAudioContext();
+      if (ctx?.state === 'running' && playWebAudioTone(frequency, duration)) return;
+      if (ctx?.state === 'suspended') {
+        ctx.resume()
+          .then(() => {
+            if (!playWebAudioTone(frequency, duration)) playHtmlBeep(frequency, duration);
+          })
+          .catch(() => playHtmlBeep(frequency, duration));
+        return;
       }
-      const ctx = audioCtxRef.current;
-      if (ctx.state === 'suspended') {
-        // Resume is async — schedule beep AFTER it resolves, otherwise
-        // the oscillator fires while the context is still suspended and no sound is output.
-        ctx.resume().then(play).catch(() => { /* ignore */ });
-      } else {
-        play();
-      }
+      playHtmlBeep(frequency, duration);
     } catch {
-      // Context might be in a bad state — drop it so next beep recreates it
       try { audioCtxRef.current?.close(); } catch { /* ignore */ }
       audioCtxRef.current = null;
+      playHtmlBeep(frequency, duration);
     }
   };
 
@@ -385,24 +456,35 @@ const TabataExecucao: React.FC = () => {
     if (secondsLeft > 0 && secondsLeft <= 3) beep(660, 0.15);
   }, [secondsLeft]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // iOS unlock: must be called SYNCHRONOUSLY inside a user gesture.
-  // Creates the AudioContext (or resumes it) and plays a silent buffer
-  // so subsequent beeps fired from timers/effects are allowed to play.
+  // Safari/iOS unlock: must be called synchronously inside a user gesture.
+  // We start a real short tone here because silent buffers are often ignored by Safari/PWA.
   const unlockAudio = () => {
     try {
-      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
-        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const ctx = getAudioContext();
+      if (!ctx) {
+        if (!muted) playHtmlBeep(880, 0.09, 0.65);
+        return;
       }
-      const ctx = audioCtxRef.current;
       if (ctx.state === 'suspended') {
-        ctx.resume().catch(() => { /* ignore */ });
+        ctx.resume().then(() => { audioUnlockedRef.current = true; }).catch(() => { /* ignore */ });
       }
-      // Silent buffer to fully unlock on iOS
-      const buffer = ctx.createBuffer(1, 1, 22050);
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(ctx.destination);
-      source.start(0);
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+      oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+      oscillator.type = 'square';
+      const now = ctx.currentTime;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(muted ? 0.0001 : 0.55, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
+      oscillator.start(now);
+      oscillator.stop(now + 0.12);
+      oscillator.onended = () => {
+        audioUnlockedRef.current = true;
+        try { oscillator.disconnect(); gain.disconnect(); } catch { /* noop */ }
+      };
+      if (!muted) playHtmlBeep(880, 0.09, 0.65);
     } catch {
       /* ignore */
     }
@@ -431,6 +513,19 @@ const TabataExecucao: React.FC = () => {
     setPhaseTotalSeconds(PREP_SECONDS);
     setPhaseStartTime(Date.now());
     setPaused(false);
+  };
+
+  const togglePause = () => {
+    unlockAudio();
+    setPaused(p => !p);
+  };
+
+  const toggleMute = () => {
+    setMuted(m => {
+      const next = !m;
+      if (!next) unlockAudio();
+      return next;
+    });
   };
 
   if (!tabata) {
