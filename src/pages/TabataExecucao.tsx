@@ -88,7 +88,7 @@ const TabataExecucao: React.FC = () => {
   useEffect(() => {
     const PHRASES_MAP: Record<Phase, string[]> = {
       idle: ['PRONTO?'],
-      prep: ['PREPARE-SE', 'VAMOS LÁ!', 'FOCO TOTAL', 'RESPIRE E CONCENTRE', 'BORA COMEÇAR!'],
+      prep: ['PREPARE-SE', 'POSICIONE-SE', 'FIQUE PRONTO', 'AJUSTE A POSTURA', 'RESPIRE E CONCENTRE'],
       work: ['VAI COM TUDO!', 'FORÇA TOTAL!', 'NÃO PARE!', 'ACELERA!', 'DÁ TUDO DE SI!'],
       rest: ['RESPIRE FUNDO', 'DESCANSE AGORA', 'RECUPERE-SE', 'INSPIRE… EXPIRE', 'RELAXA E VOLTA'],
       block_rest: ['PAUSA ESTRATÉGICA', 'RESPIRE FUNDO', 'QUASE LÁ!', 'RECUPERE O FÔLEGO'],
