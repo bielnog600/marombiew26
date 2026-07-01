@@ -131,11 +131,29 @@ const CardioExecucao: React.FC = () => {
           const age = Math.floor(
             (Date.now() - new Date(prof.data_nascimento).getTime()) / (365.25 * 24 * 3600 * 1000)
           );
-          const restEst = fcRepouso ?? 65; // estimativa padrão quando não medida
-          const { fcMax, zones } = calcKarvonenZones(age, restEst, 'tanaka');
-          setHrZones(zones.map(z => ({ zona: z.zona, min: z.min, max: z.max })));
-          setFcMaxEst(fcMax);
-          setFcRepousoEst(restEst);
+          if (fcRepouso) {
+            // Com FC repouso conhecida: usa Karvonen (mais preciso)
+            const { fcMax, zones } = calcKarvonenZones(age, fcRepouso, 'tanaka');
+            setHrZones(zones.map(z => ({ zona: z.zona, min: z.min, max: z.max })));
+            setFcMaxEst(fcMax);
+            setFcRepousoEst(fcRepouso);
+          } else {
+            // Sem FC repouso: usa fórmula simples 220 - idade e zonas por %FCmax
+            const fcMax = 220 - age;
+            const ZONE_PCTS = [
+              { zona: 'Z1', lo: 0.50, hi: 0.60 },
+              { zona: 'Z2', lo: 0.60, hi: 0.70 },
+              { zona: 'Z3', lo: 0.70, hi: 0.80 },
+              { zona: 'Z4', lo: 0.80, hi: 0.90 },
+              { zona: 'Z5', lo: 0.90, hi: 1.00 },
+            ];
+            setHrZones(ZONE_PCTS.map(z => ({
+              zona: z.zona,
+              min: Math.round(fcMax * z.lo),
+              max: Math.round(fcMax * z.hi),
+            })));
+            setFcMaxEst(fcMax);
+          }
         }
       } catch { /* ignore fallback errors */ }
     })();
