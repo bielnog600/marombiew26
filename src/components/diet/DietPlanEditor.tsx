@@ -257,7 +257,15 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
       return next;
     });
   }, []);
-  const [target, setTarget] = useState<number>(() => Math.round(computeDayTotals(initialDays[0]?.meals ?? []).kcal));
+  // Meta calórica ancorada: prioriza o alvo definido pela IA (targets.kcal do
+  // plano canônico) — que representa a meta do aluno (TMB/GET). Só cai pro
+  // total do dia atual quando o plano não tem targets (planos legados
+  // markdown-only). Isso garante que ao editar alimentos e reduzir kcal, o
+  // banner "Faltam X kcal" apareça em vez de reancorar silenciosamente.
+  const planTargetKcal = Math.round(Number(currentPlan?.targets?.kcal) || 0);
+  const [target, setTarget] = useState<number>(() =>
+    planTargetKcal > 0 ? planTargetKcal : Math.round(computeDayTotals(initialDays[0]?.meals ?? []).kcal),
+  );
   const [subTarget, setSubTarget] = useState<{ mealIdx: number; foodIdx: number } | null>(null);
   const [addingForMeal, setAddingForMeal] = useState<number | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
@@ -372,12 +380,16 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
     return mergeDensity(getIndexedDensity(foodName, planDensityIndex), getFoodDbDensity(foodName));
   }, [getFoodDbDensity, getIndexedDensity, planDensityIndex]);
 
-  // Reset when source markdown changes
+  // Reset when source markdown changes — mantém a meta ancorada no plano.
   useEffect(() => {
     const fresh = extractDays(markdown);
     setDays(fresh);
     setActiveDayIdx(0);
-    setTarget(Math.round(computeDayTotals(fresh[0]?.meals ?? []).kcal));
+    if (planTargetKcal > 0) {
+      setTarget(planTargetKcal);
+    } else {
+      setTarget(Math.round(computeDayTotals(fresh[0]?.meals ?? []).kcal));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [markdown]);
 
@@ -388,9 +400,12 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
     if (onDaysChangeRef.current) onDaysChangeRef.current(days);
   }, [days]);
 
-  // When user switches day tab, sync the "Meta diária" input with that
-  // day's actual kcal so carb-cycle days don't show false "ultrapassou".
+  // Quando trocar de dia: se o plano tem meta oficial, mantém a meta fixa
+  // (não reancorar por dia esconderia déficit em edições). Só reancoramos
+  // por dia em planos legados sem targets — comum em ciclo de carboidratos
+  // markdown-only, onde cada dia tem kcal próprio.
   useEffect(() => {
+    if (planTargetKcal > 0) return;
     setTarget(Math.round(computeDayTotals(days[activeDayIdx]?.meals ?? []).kcal));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDayIdx]);
