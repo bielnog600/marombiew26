@@ -215,7 +215,31 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
       .eq('student_id', studentId)
       .eq('tipo', 'dieta')
       .order('created_at', { ascending: false });
-    setPlans(data ?? []);
+    const rows = data ?? [];
+    // Dedupe by normalized título: consecutive saves/regenerations of the
+    // same diet were producing 2-3 identical rows ("Dieta - 03/07/2026").
+    // Keep the most recent per título and hard-delete the older twins so
+    // the list — and the student portal — always show a single source of
+    // truth for that plan.
+    const seen = new Map<string, any>();
+    const dupIds: string[] = [];
+    for (const p of rows) {
+      const key = String(p.titulo || '').trim().toLowerCase().replace(/\s*\(c[óo]pia[^)]*\)\s*/gi, '').trim();
+      if (!key) { seen.set(String(p.id), p); continue; }
+      if (seen.has(key)) {
+        dupIds.push(p.id);
+      } else {
+        seen.set(key, p);
+      }
+    }
+    const deduped = rows.filter(p => !dupIds.includes(p.id));
+    setPlans(deduped);
+    if (dupIds.length > 0) {
+      // Fire-and-forget cleanup; failure is non-fatal (RLS/network).
+      supabase.from('ai_plans').delete().in('id', dupIds).then(({ error }) => {
+        if (error) console.warn('duplicate cleanup skipped:', error.message);
+      });
+    }
   };
 
   const handleMealsChange = (planId: string, meals: ParsedMeal[]) => {

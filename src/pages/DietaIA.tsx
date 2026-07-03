@@ -1482,6 +1482,49 @@ ${generated}`;
           if (lifted) canonicalPlan = finalizeDietPlan(lifted);
         }
       } catch (e) { console.error('lift to DietPlan failed', e); }
+      // Guard against duplicate rows: if there's already a plan created today
+      // for this student, treat this save as an update to that row rather
+      // than inserting a new one. Prevents the "Dieta triplicada" bug where
+      // repeated regenerations/saves produced multiple identical rows.
+      let sameDayId: string | null = null;
+      try {
+        const startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
+        const { data: sameDay } = await supabase
+          .from('ai_plans')
+          .select('id, created_at')
+          .eq('student_id', studentId!)
+          .eq('tipo', 'dieta')
+          .gte('created_at', startOfDay.toISOString())
+          .order('created_at', { ascending: false })
+          .limit(1);
+        sameDayId = sameDay?.[0]?.id ?? null;
+      } catch (e) { /* fall through to insert */ }
+
+      if (sameDayId) {
+        const { error } = await supabase.from('ai_plans').update({
+          conteudo: result,
+          titulo: `Dieta - ${new Date().toLocaleDateString('pt-BR')}`,
+          protocols,
+          conteudo_json: canonicalPlan ?? null,
+          migration_status: canonicalPlan ? 'completed' : 'pending',
+          diet_strategy: strategy || null,
+          strategy_source: 'manual',
+          generation_intent: lastIntent,
+          viability_score: viability?.score ?? null,
+          viability_breakdown: viability?.breakdown ?? null,
+          whatsapp_notified_at: null,
+        } as any).eq('id', sameDayId);
+        if (error) {
+          toast.error('Erro: ' + error.message);
+          await failDietApplication(applicationId, error.message);
+        } else {
+          toast.success('Dieta atualizada!');
+          await closeDietApplication(applicationId, sameDayId);
+        }
+        setSaving(false);
+        return;
+      }
+
       const { data: insertedPlan, error } = await supabase.from('ai_plans').insert({
         student_id: studentId!,
         tipo: 'dieta',
