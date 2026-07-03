@@ -70,6 +70,9 @@ const TabataExecucao: React.FC = () => {
   const htmlBeepRef = useRef<HTMLAudioElement | null>(null);
   const beepDataUriCacheRef = useRef<Record<string, string>>({});
   const scheduledBeepTimeoutsRef = useRef<number[]>([]);
+  const scheduledAudioNodesRef = useRef<{ oscillator: OscillatorNode; gain: GainNode }[]>([]);
+  const audioKeepAliveRef = useRef<{ oscillator: OscillatorNode; gain: GainNode } | null>(null);
+  const audioUnlockedRef = useRef(false);
   const phaseRef = useRef<Phase>(phase);
   const pausedRef = useRef(paused);
   const mutedRef = useRef(muted);
@@ -267,9 +270,63 @@ const TabataExecucao: React.FC = () => {
     return audioCtxRef.current;
   };
 
+  const startAudioKeepAlive = (ctx: AudioContext) => {
+    if (audioKeepAliveRef.current) return;
+    try {
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(18, ctx.currentTime);
+      gain.gain.setValueAtTime(0.00001, ctx.currentTime);
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+      oscillator.start();
+      audioKeepAliveRef.current = { oscillator, gain };
+    } catch {
+      audioKeepAliveRef.current = null;
+    }
+  };
+
+  const stopScheduledAudioNodes = () => {
+    scheduledAudioNodesRef.current.forEach(({ oscillator, gain }) => {
+      try { oscillator.stop(); } catch { /* noop */ }
+      try { oscillator.disconnect(); } catch { /* noop */ }
+      try { gain.disconnect(); } catch { /* noop */ }
+    });
+    scheduledAudioNodesRef.current = [];
+  };
+
+  const scheduleWebAudioTone = (ctx: AudioContext, delaySeconds: number, frequency: number, duration: number, volume = 0.75) => {
+    try {
+      startAudioKeepAlive(ctx);
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const at = ctx.currentTime + Math.max(0.03, delaySeconds);
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+      oscillator.frequency.setValueAtTime(frequency, at);
+      oscillator.type = 'square';
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.exponentialRampToValueAtTime(volume, at + 0.008);
+      gain.gain.setValueAtTime(volume, at + Math.max(0.04, duration - 0.025));
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + duration);
+      oscillator.start(at);
+      oscillator.stop(at + duration + 0.04);
+      oscillator.onended = () => {
+        try { oscillator.disconnect(); gain.disconnect(); } catch { /* noop */ }
+        scheduledAudioNodesRef.current = scheduledAudioNodesRef.current.filter(node => node.oscillator !== oscillator);
+      };
+      scheduledAudioNodesRef.current.push({ oscillator, gain });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const playWebAudioTone = (frequency: number, duration: number, volume = 0.75) => {
     const ctx = audioCtxRef.current;
     if (!ctx || ctx.state !== 'running') return false;
+    startAudioKeepAlive(ctx);
     const oscillator = ctx.createOscillator();
     const gain = ctx.createGain();
     oscillator.connect(gain);
@@ -351,9 +408,10 @@ const TabataExecucao: React.FC = () => {
   };
 
   const beep = (frequency: number, duration: number) => {
-    if (muted) return;
+    if (mutedRef.current) return;
     try {
       const ctx = getAudioContext();
+      if (ctx) startAudioKeepAlive(ctx);
       if (ctx?.state === 'running' && playWebAudioTone(frequency, duration)) return;
       if (ctx?.state === 'suspended') {
         ctx.resume()
@@ -374,6 +432,7 @@ const TabataExecucao: React.FC = () => {
   const clearScheduledBeeps = () => {
     scheduledBeepTimeoutsRef.current.forEach(timeoutId => window.clearTimeout(timeoutId));
     scheduledBeepTimeoutsRef.current = [];
+    stopScheduledAudioNodes();
   };
 
   // Pre-schedule the 3-2-1 countdown with native timers, independent from React
@@ -381,16 +440,24 @@ const TabataExecucao: React.FC = () => {
   // reliable on iOS after muted exercise videos start loading.
   const scheduleCountdownFor = (seconds: number) => {
     clearScheduledBeeps();
-    if (muted || seconds <= 0) return;
+    if (mutedRef.current || seconds <= 0) return;
     const ctx = getAudioContext();
-    if (ctx?.state === 'suspended') ctx.resume().catch(() => { /* noop */ });
+    if (ctx) {
+      startAudioKeepAlive(ctx);
+      if (ctx.state === 'suspended') ctx.resume().catch(() => { /* noop */ });
+    }
 
     const scheduleSecond = (remainingSecond: 3 | 2 | 1) => {
       if (seconds < remainingSecond) return;
-      const delayMs = Math.max(0, Math.round((seconds - remainingSecond) * 1000));
+      const delaySeconds = Math.max(0, seconds - remainingSecond);
+      const delayMs = Math.round(delaySeconds * 1000);
+      if (ctx) scheduleWebAudioTone(ctx, delaySeconds, 660, 0.15);
       const timeoutId = window.setTimeout(() => {
         if (mutedRef.current || pausedRef.current) return;
         if (phaseRef.current === 'idle' || phaseRef.current === 'done') return;
+        if (audioCtxRef.current?.state === 'suspended') {
+          audioCtxRef.current.resume().catch(() => { /* noop */ });
+        }
         beep(660, 0.15);
       }, delayMs);
       scheduledBeepTimeoutsRef.current.push(timeoutId);
@@ -519,9 +586,11 @@ const TabataExecucao: React.FC = () => {
     try {
       const ctx = getAudioContext();
       if (!ctx) {
-        if (forceSound || !muted) playHtmlBeep(880, 0.09, 0.65);
+        if (forceSound || !mutedRef.current) playHtmlBeep(880, 0.09, 0.65);
+        audioUnlockedRef.current = true;
         return;
       }
+      startAudioKeepAlive(ctx);
       if (ctx.state === 'suspended') {
         ctx.resume().catch(() => { /* ignore */ });
       }
@@ -533,22 +602,31 @@ const TabataExecucao: React.FC = () => {
       oscillator.type = 'square';
       const now = ctx.currentTime;
       gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime((forceSound || !muted) ? 0.55 : 0.0001, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime((forceSound || !mutedRef.current) ? 0.55 : 0.0001, now + 0.01);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
       oscillator.start(now);
       oscillator.stop(now + 0.12);
       oscillator.onended = () => {
         try { oscillator.disconnect(); gain.disconnect(); } catch { /* noop */ }
       };
-      if (forceSound || !muted) playHtmlBeep(880, 0.09, 0.65);
+      audioUnlockedRef.current = true;
+      if (forceSound || !mutedRef.current) playHtmlBeep(880, 0.09, 0.65);
     } catch {
       /* ignore */
     }
   };
 
+  const armAudioFromGesture = () => {
+    if (audioUnlockedRef.current) return;
+    unlockAudio(true);
+  };
+
   const start = () => {
     if (!steps.length) return;
-    unlockAudio(true);
+    if (!audioUnlockedRef.current) unlockAudio(true);
+    else unlockAudio(false);
+    phaseRef.current = 'prep';
+    pausedRef.current = false;
     setStepIndex(0);
     setPhase('prep');
     setPhaseTotalSeconds(PREP_SECONDS);
@@ -561,11 +639,14 @@ const TabataExecucao: React.FC = () => {
   const skip = () => {
     unlockAudio();
     clearScheduledBeeps();
+    phaseRef.current = phase;
     setSecondsLeft(0);
   };
 
   const restart = () => {
     clearScheduledBeeps();
+    phaseRef.current = 'idle';
+    pausedRef.current = false;
     setPhase('idle');
     setStepIndex(0);
     setSecondsLeft(PREP_SECONDS);
@@ -578,6 +659,7 @@ const TabataExecucao: React.FC = () => {
     unlockAudio();
     setPaused(p => {
       const next = !p;
+      pausedRef.current = next;
       if (next) {
         clearScheduledBeeps();
       } else {
@@ -872,6 +954,7 @@ const TabataExecucao: React.FC = () => {
         {phase === 'idle' && (
           <Button
             size="lg"
+            onPointerDown={armAudioFromGesture}
             onClick={start}
             className="gap-3 px-12 h-16 text-lg font-black uppercase tracking-wider rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_8px_32px_-4px_hsl(var(--primary)/0.6)] hover:shadow-[0_12px_40px_-4px_hsl(var(--primary)/0.8)] hover:scale-[1.03] active:scale-95 transition-all"
           >
