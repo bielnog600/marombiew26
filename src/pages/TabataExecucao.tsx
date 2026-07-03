@@ -296,6 +296,15 @@ const TabataExecucao: React.FC = () => {
     scheduledAudioNodesRef.current = [];
   };
 
+  const stopAudioKeepAlive = () => {
+    const keepAlive = audioKeepAliveRef.current;
+    if (!keepAlive) return;
+    try { keepAlive.oscillator.stop(); } catch { /* noop */ }
+    try { keepAlive.oscillator.disconnect(); } catch { /* noop */ }
+    try { keepAlive.gain.disconnect(); } catch { /* noop */ }
+    audioKeepAliveRef.current = null;
+  };
+
   const scheduleWebAudioTone = (ctx: AudioContext, delaySeconds: number, frequency: number, duration: number, volume = 0.75) => {
     try {
       startAudioKeepAlive(ctx);
@@ -483,6 +492,10 @@ const TabataExecucao: React.FC = () => {
     return () => {
       document.removeEventListener('visibilitychange', recover);
       window.removeEventListener('focus', recover);
+      clearScheduledBeeps();
+      stopAudioKeepAlive();
+      try { audioCtxRef.current?.close(); } catch { /* noop */ }
+      audioCtxRef.current = null;
     };
   }, []);
 
@@ -955,6 +968,8 @@ const TabataExecucao: React.FC = () => {
           <Button
             size="lg"
             onPointerDown={armAudioFromGesture}
+            onTouchStart={armAudioFromGesture}
+            onMouseDown={armAudioFromGesture}
             onClick={start}
             className="gap-3 px-12 h-16 text-lg font-black uppercase tracking-wider rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_8px_32px_-4px_hsl(var(--primary)/0.6)] hover:shadow-[0_12px_40px_-4px_hsl(var(--primary)/0.8)] hover:scale-[1.03] active:scale-95 transition-all"
           >
