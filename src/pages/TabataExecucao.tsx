@@ -69,6 +69,7 @@ const TabataExecucao: React.FC = () => {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const htmlBeepRef = useRef<HTMLAudioElement | null>(null);
   const beepDataUriCacheRef = useRef<Record<string, string>>({});
+  const scheduledBeepNodesRef = useRef<{ osc: OscillatorNode; gain: GainNode }[]>([]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
 
