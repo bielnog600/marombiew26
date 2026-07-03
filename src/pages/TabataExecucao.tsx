@@ -67,7 +67,7 @@ const TabataExecucao: React.FC = () => {
   const [phrase, setPhrase] = useState<string>('');
 
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const htmlBeepRef = useRef<HTMLAudioElement | null>(null);
+  const htmlBeepPoolRef = useRef<Record<string, HTMLAudioElement>>({});
   const beepDataUriCacheRef = useRef<Record<string, string>>({});
   const scheduledBeepTimeoutsRef = useRef<number[]>([]);
   const scheduledAudioNodesRef = useRef<{ oscillator: OscillatorNode; gain: GainNode }[]>([]);
@@ -392,22 +392,49 @@ const TabataExecucao: React.FC = () => {
     return `data:audio/wav;base64,${btoa(binary)}`;
   };
 
+  const getHtmlBeepAudio = (frequency: number, duration: number) => {
+    const key = `${Math.round(frequency)}-${Math.round(duration * 1000)}`;
+    if (!beepDataUriCacheRef.current[key]) {
+      beepDataUriCacheRef.current[key] = makeBeepDataUri(frequency, duration);
+    }
+    if (!htmlBeepPoolRef.current[key]) {
+      const audio = new Audio(beepDataUriCacheRef.current[key]);
+      audio.preload = 'auto';
+      audio.load();
+      htmlBeepPoolRef.current[key] = audio;
+    }
+    return htmlBeepPoolRef.current[key];
+  };
+
+  const primeHtmlBeeps = () => {
+    const tones: Array<[number, number]> = [
+      [660, 0.15],
+      [880, 0.09],
+      [880, 0.3],
+      [1320, 0.6],
+      [440, 0.3],
+      [660, 0.5],
+    ];
+    tones.forEach(([frequency, duration]) => {
+      try {
+        const audio = getHtmlBeepAudio(frequency, duration);
+        audio.pause();
+        audio.currentTime = 0;
+        audio.volume = 0.001;
+        audio.play()
+          .then(() => {
+            audio.pause();
+            audio.currentTime = 0;
+          })
+          .catch(() => { /* Safari may still block individual media unlocks */ });
+      } catch { /* noop */ }
+    });
+  };
+
   const playHtmlBeep = (frequency: number, duration: number, volume = 0.9) => {
     try {
-      const key = `${Math.round(frequency)}-${Math.round(duration * 1000)}`;
-      if (!beepDataUriCacheRef.current[key]) {
-        beepDataUriCacheRef.current[key] = makeBeepDataUri(frequency, duration);
-      }
-      if (!htmlBeepRef.current) {
-        htmlBeepRef.current = new Audio();
-        htmlBeepRef.current.preload = 'auto';
-      }
-      const audio = htmlBeepRef.current;
+      const audio = getHtmlBeepAudio(frequency, duration);
       audio.pause();
-      if (audio.src !== beepDataUriCacheRef.current[key]) {
-        audio.src = beepDataUriCacheRef.current[key];
-        audio.load();
-      }
       audio.currentTime = 0;
       audio.volume = volume;
       audio.play().catch(() => { /* Safari may still block if audio was not primed */ });
@@ -599,10 +626,12 @@ const TabataExecucao: React.FC = () => {
     try {
       const ctx = getAudioContext();
       if (!ctx) {
+        primeHtmlBeeps();
         if (forceSound || !mutedRef.current) playHtmlBeep(880, 0.09, 0.65);
         audioUnlockedRef.current = true;
         return;
       }
+      primeHtmlBeeps();
       startAudioKeepAlive(ctx);
       if (ctx.state === 'suspended') {
         ctx.resume().catch(() => { /* ignore */ });
