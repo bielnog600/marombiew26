@@ -362,6 +362,54 @@ const TabataExecucao: React.FC = () => {
     }
   };
 
+  const clearScheduledBeeps = () => {
+    for (const { osc, gain } of scheduledBeepNodesRef.current) {
+      try { osc.stop(); } catch { /* noop */ }
+      try { osc.disconnect(); } catch { /* noop */ }
+      try { gain.disconnect(); } catch { /* noop */ }
+    }
+    scheduledBeepNodesRef.current = [];
+  };
+
+  const scheduleBeepAt = (ctx: AudioContext, atTime: number, frequency: number, duration: number, volume = 0.6) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(frequency, atTime);
+    gain.gain.setValueAtTime(0.0001, atTime);
+    gain.gain.exponentialRampToValueAtTime(volume, atTime + 0.01);
+    gain.gain.setValueAtTime(volume, atTime + Math.max(0.04, duration - 0.025));
+    gain.gain.exponentialRampToValueAtTime(0.0001, atTime + duration);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(atTime);
+    osc.stop(atTime + duration + 0.05);
+    osc.onended = () => {
+      try { osc.disconnect(); gain.disconnect(); } catch { /* noop */ }
+    };
+    scheduledBeepNodesRef.current.push({ osc, gain });
+  };
+
+  // Pre-schedule the 3-2-1 countdown beeps for a phase of `seconds` seconds.
+  // Uses AudioContext scheduling so beeps fire on the audio clock regardless
+  // of React tick timing, tab throttling, or video playback interference.
+  const scheduleCountdownFor = (seconds: number) => {
+    clearScheduledBeeps();
+    if (muted || seconds <= 0) return;
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const kick = () => {
+      const now = ctx.currentTime;
+      if (seconds > 3) scheduleBeepAt(ctx, now + (seconds - 3), 660, 0.15, 0.55);
+      if (seconds > 2) scheduleBeepAt(ctx, now + (seconds - 2), 660, 0.15, 0.55);
+      if (seconds > 1) scheduleBeepAt(ctx, now + (seconds - 1), 660, 0.15, 0.55);
+    };
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(kick).catch(() => { /* noop */ });
+    } else {
+      kick();
+    }
+  };
+
   // iOS Safari: resume/recreate audio context when tab returns to foreground
   // or when audio route changes (headphones plugged/unplugged)
   useEffect(() => {
