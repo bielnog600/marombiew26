@@ -468,6 +468,7 @@ const TabataExecucao: React.FC = () => {
       setPhaseTotalSeconds(secs);
       setSecondsLeft(secs);
       setPhaseStartTime(Date.now());
+      scheduleCountdownFor(secs);
     };
 
     if (phase === 'prep') {
@@ -505,10 +506,20 @@ const TabataExecucao: React.FC = () => {
     }
   }, [secondsLeft, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Countdown beeps in last 3 seconds
+  // Countdown beeps are pre-scheduled via AudioContext at each phase start
+  // (scheduleCountdownFor). Kept as a defensive fallback in case scheduling
+  // fails (e.g. AudioContext still suspended when phase begins).
+  const lastBeepedSecondRef = useRef<number>(-1);
   useEffect(() => {
     if (phase === 'idle' || phase === 'done' || paused) return;
-    if (secondsLeft > 0 && secondsLeft <= 3) beep(660, 0.15);
+    if (secondsLeft > 0 && secondsLeft <= 3 && scheduledBeepNodesRef.current.length === 0) {
+      if (lastBeepedSecondRef.current !== secondsLeft) {
+        lastBeepedSecondRef.current = secondsLeft;
+        beep(660, 0.15);
+      }
+    } else if (secondsLeft > 3) {
+      lastBeepedSecondRef.current = -1;
+    }
   }, [secondsLeft]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Safari/iOS unlock: must be called synchronously inside a user gesture.
