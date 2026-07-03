@@ -73,17 +73,24 @@ const TabataExecucao: React.FC = () => {
   const scheduledAudioNodesRef = useRef<{ oscillator: OscillatorNode; gain: GainNode }[]>([]);
   const audioKeepAliveRef = useRef<{ oscillator: OscillatorNode; gain: GainNode } | null>(null);
   const audioUnlockedRef = useRef(false);
+  const lastBeepedSecondRef = useRef<number>(-1);
   const phaseRef = useRef<Phase>(phase);
+  const stepIndexRef = useRef(stepIndex);
   const pausedRef = useRef(paused);
   const mutedRef = useRef(muted);
+  const phaseStartTimeRef = useRef(phaseStartTime);
+  const phaseTotalSecondsRef = useRef(phaseTotalSeconds);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
 
   useEffect(() => {
     phaseRef.current = phase;
+    stepIndexRef.current = stepIndex;
     pausedRef.current = paused;
     mutedRef.current = muted;
-  }, [phase, paused, muted]);
+    phaseStartTimeRef.current = phaseStartTime;
+    phaseTotalSecondsRef.current = phaseTotalSeconds;
+  }, [phase, stepIndex, paused, muted, phaseStartTime, phaseTotalSeconds]);
 
   const steps: Step[] = useMemo(() => {
     if (!tabata) return [];
@@ -494,7 +501,9 @@ const TabataExecucao: React.FC = () => {
         if (audioCtxRef.current?.state === 'suspended') {
           audioCtxRef.current.resume().catch(() => { /* noop */ });
         }
+        lastBeepedSecondRef.current = remainingSecond;
         beep(660, 0.15);
+        scheduledBeepTimeoutsRef.current = scheduledBeepTimeoutsRef.current.filter(id => id !== timeoutId);
       }, delayMs);
       scheduledBeepTimeoutsRef.current.push(timeoutId);
     };
@@ -557,27 +566,37 @@ const TabataExecucao: React.FC = () => {
     };
   }, [paused, phase, phaseStartTime, phaseTotalSeconds]);
 
-  // Phase transitions when seconds hit 0
-  useEffect(() => {
-    if (phase === 'idle' || phase === 'done' || secondsLeft > 0) return;
+  const startPhase = (newPhase: Phase, secs: number) => {
+    const now = Date.now();
+    phaseRef.current = newPhase;
+    phaseStartTimeRef.current = now;
+    phaseTotalSecondsRef.current = secs;
+    setPhase(newPhase);
+    setPhaseTotalSeconds(secs);
+    setSecondsLeft(secs);
+    setPhaseStartTime(now);
+    scheduleCountdownFor(secs);
+  };
 
-    const startPhase = (newPhase: Phase, secs: number) => {
-      setPhase(newPhase);
-      setPhaseTotalSeconds(secs);
-      setSecondsLeft(secs);
-      setPhaseStartTime(Date.now());
-      scheduleCountdownFor(secs);
-    };
+  const transitionToNextPhase = (sourcePhase = phaseRef.current, sourceStepIndex = stepIndexRef.current) => {
+    if (!steps.length || sourcePhase === 'idle' || sourcePhase === 'done') return;
 
-    if (phase === 'prep') {
-      beep(880, 0.3);
-      startPhase('work', currentStep.exercise.workSeconds);
+    const step = steps[sourceStepIndex];
+    if (!step) {
+      beep(1320, 0.6);
+      startPhase('done', 0);
       return;
     }
 
-    if (phase === 'work') {
-      const isLastInBlock = currentStep.exerciseIndex === currentStep.block.exercises.length - 1;
-      const isLastStep = stepIndex === totalSteps - 1;
+    if (sourcePhase === 'prep') {
+      beep(880, 0.3);
+      startPhase('work', step.exercise.workSeconds);
+      return;
+    }
+
+    if (sourcePhase === 'work') {
+      const isLastInBlock = step.exerciseIndex === step.block.exercises.length - 1;
+      const isLastStep = sourceStepIndex === totalSteps - 1;
 
       if (isLastStep) {
         beep(1320, 0.6);
@@ -587,30 +606,42 @@ const TabataExecucao: React.FC = () => {
 
       if (isLastInBlock) {
         beep(660, 0.5);
-        startPhase('block_rest', currentStep.block.restAfterBlock);
+        startPhase('block_rest', step.block.restAfterBlock);
       } else {
         beep(440, 0.3);
-        startPhase('rest', currentStep.exercise.restSeconds);
+        startPhase('rest', step.exercise.restSeconds);
       }
       return;
     }
 
-    if (phase === 'rest' || phase === 'block_rest') {
+    if (sourcePhase === 'rest' || sourcePhase === 'block_rest') {
+      const nextIndex = sourceStepIndex + 1;
+      const next = steps[nextIndex];
+      if (!next) {
+        beep(1320, 0.6);
+        startPhase('done', 0);
+        return;
+      }
       beep(880, 0.3);
-      const nextIndex = stepIndex + 1;
+      stepIndexRef.current = nextIndex;
       setStepIndex(nextIndex);
-      startPhase('work', steps[nextIndex].exercise.workSeconds);
-      return;
+      startPhase('work', next.exercise.workSeconds);
     }
+  };
+
+  // Phase transitions when seconds hit 0
+  useEffect(() => {
+    if (phase === 'idle' || phase === 'done' || secondsLeft > 0) return;
+    if (phaseRef.current !== phase || stepIndexRef.current !== stepIndex) return;
+    transitionToNextPhase(phase, stepIndex);
   }, [secondsLeft, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Countdown beeps are pre-scheduled via native timers at each phase start
   // (scheduleCountdownFor). Kept as a defensive fallback in case scheduling
   // fails or gets cleared unexpectedly.
-  const lastBeepedSecondRef = useRef<number>(-1);
   useEffect(() => {
     if (phase === 'idle' || phase === 'done' || paused) return;
-    if (secondsLeft > 0 && secondsLeft <= 3 && scheduledBeepTimeoutsRef.current.length === 0) {
+    if (secondsLeft > 0 && secondsLeft <= 3) {
       if (lastBeepedSecondRef.current !== secondsLeft) {
         lastBeepedSecondRef.current = secondsLeft;
         beep(660, 0.15);
@@ -667,13 +698,17 @@ const TabataExecucao: React.FC = () => {
     if (!steps.length) return;
     if (!audioUnlockedRef.current) unlockAudio(true);
     else unlockAudio(false);
+    const now = Date.now();
     phaseRef.current = 'prep';
+    stepIndexRef.current = 0;
     pausedRef.current = false;
+    phaseStartTimeRef.current = now;
+    phaseTotalSecondsRef.current = PREP_SECONDS;
     setStepIndex(0);
     setPhase('prep');
     setPhaseTotalSeconds(PREP_SECONDS);
     setSecondsLeft(PREP_SECONDS);
-    setPhaseStartTime(Date.now());
+    setPhaseStartTime(now);
     setPaused(false);
     scheduleCountdownFor(PREP_SECONDS);
   };
@@ -681,8 +716,7 @@ const TabataExecucao: React.FC = () => {
   const skip = () => {
     unlockAudio();
     clearScheduledBeeps();
-    phaseRef.current = phase;
-    setSecondsLeft(0);
+    transitionToNextPhase(phaseRef.current, stepIndexRef.current);
   };
 
   const restart = () => {
