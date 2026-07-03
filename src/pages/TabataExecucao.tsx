@@ -192,11 +192,14 @@ const TabataExecucao: React.FC = () => {
     if (!video || !showVideoBg || !hlsUrl) return;
 
     video.muted = true;
+    video.defaultMuted = true;
+    video.autoplay = true;
     video.loop = true;
     video.playsInline = true;
     video.volume = 0;
     (video as any).disableRemotePlayback = true;
     video.setAttribute('muted', '');
+    video.setAttribute('autoplay', '');
     video.setAttribute('playsinline', '');
     video.setAttribute('webkit-playsinline', '');
     video.setAttribute('disableRemotePlayback', '');
@@ -219,19 +222,20 @@ const TabataExecucao: React.FC = () => {
       video.src = hlsUrl;
       video.preload = 'auto';
       try { video.load(); } catch { /* noop */ }
-      const tryPlay = () => { video.play().catch(() => {}); };
+      const tryPlay = () => {
+        video.muted = true;
+        video.defaultMuted = true;
+        video.volume = 0;
+        disableAudioTracks();
+        video.play().catch(() => {});
+      };
       video.addEventListener('loadedmetadata', tryPlay);
       video.addEventListener('loadeddata', tryPlay);
       video.addEventListener('canplay', tryPlay);
-      const retryId = window.setInterval(() => {
-        if (video.paused) video.play().catch(() => {});
-        else window.clearInterval(retryId);
-      }, 500);
       return () => {
         video.removeEventListener('loadedmetadata', tryPlay);
         video.removeEventListener('loadeddata', tryPlay);
         video.removeEventListener('canplay', tryPlay);
-        window.clearInterval(retryId);
       };
     }
 
@@ -240,7 +244,13 @@ const TabataExecucao: React.FC = () => {
       hlsRef.current = hls;
       hls.loadSource(hlsUrl);
       hls.attachMedia(video);
-      const tryPlay = () => { video.play().catch(() => {}); };
+      const tryPlay = () => {
+        video.muted = true;
+        video.defaultMuted = true;
+        video.volume = 0;
+        disableAudioTracks();
+        video.play().catch(() => {});
+      };
       hls.on(Hls.Events.MANIFEST_PARSED, tryPlay);
       hls.on(Hls.Events.LEVEL_LOADED, tryPlay);
       hls.on(Hls.Events.FRAG_LOADED, tryPlay);
@@ -251,14 +261,9 @@ const TabataExecucao: React.FC = () => {
       });
       video.addEventListener('loadeddata', tryPlay);
       video.addEventListener('canplay', tryPlay);
-      const retryId = window.setInterval(() => {
-        if (video.paused) video.play().catch(() => {});
-        else window.clearInterval(retryId);
-      }, 500);
       return () => {
         video.removeEventListener('loadeddata', tryPlay);
         video.removeEventListener('canplay', tryPlay);
-        window.clearInterval(retryId);
         hls.destroy();
         hlsRef.current = null;
       };
@@ -291,7 +296,7 @@ const TabataExecucao: React.FC = () => {
     }
   };
 
-  const scheduleAudioBeep = (ctx: AudioContext, atTime: number, freq: number, durSec: number, volume = 0.25) => {
+  const scheduleAudioBeep = (ctx: AudioContext, atTime: number, freq: number, durSec: number, volume = 0.25, trackForCancel = true) => {
     try {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -308,7 +313,7 @@ const TabataExecucao: React.FC = () => {
         try { osc.disconnect(); gain.disconnect(); } catch { /* noop */ }
         scheduledAudioNodesRef.current = scheduledAudioNodesRef.current.filter(node => node.osc !== osc);
       };
-      scheduledAudioNodesRef.current.push({ osc, gain });
+      if (trackForCancel) scheduledAudioNodesRef.current.push({ osc, gain });
       return true;
     } catch {
       return false;
@@ -319,7 +324,7 @@ const TabataExecucao: React.FC = () => {
     if (mutedRef.current) return;
     const ctx = getAudioContext();
     if (!ctx) return;
-    scheduleAudioBeep(ctx, ctx.currentTime + 0.01, frequency, duration, volume);
+    scheduleAudioBeep(ctx, ctx.currentTime + 0.01, frequency, duration, volume, false);
   };
 
   const clearScheduledBeeps = () => {
@@ -332,6 +337,7 @@ const TabataExecucao: React.FC = () => {
   // relógio do Web Audio, com timer JS apenas como fallback visual/operacional.
   const scheduleCountdownFor = (seconds: number) => {
     clearScheduledBeeps();
+    lastBeepedSecondRef.current = -1;
     if (mutedRef.current || seconds <= 0) return;
     const ctx = getAudioContext();
     const now = ctx?.currentTime ?? 0;
@@ -344,7 +350,10 @@ const TabataExecucao: React.FC = () => {
       const timeoutId = window.setTimeout(() => {
         if (mutedRef.current || pausedRef.current) return;
         if (phaseRef.current === 'idle' || phaseRef.current === 'done') return;
-        lastBeepedSecondRef.current = remainingSecond;
+        if (lastBeepedSecondRef.current !== remainingSecond) {
+          lastBeepedSecondRef.current = remainingSecond;
+          beep(880, 0.12, 0.28);
+        }
         scheduledBeepTimeoutsRef.current = scheduledBeepTimeoutsRef.current.filter(id => id !== timeoutId);
       }, delayMs);
       scheduledBeepTimeoutsRef.current.push(timeoutId);
@@ -499,7 +508,10 @@ const TabataExecucao: React.FC = () => {
       const ctx = getAudioContext();
       if (!ctx) return;
       audioUnlockedRef.current = true;
-      if (forceSound && !mutedRef.current) beep(880, 0.09, 0.25);
+      scheduleAudioBeep(ctx, ctx.currentTime + 0.01, 18, 0.03, 0.0001, false);
+      if (forceSound && !mutedRef.current) {
+        scheduleAudioBeep(ctx, ctx.currentTime + 0.05, 880, 0.11, 0.3, false);
+      }
     } catch {
       /* ignore */
     }
@@ -513,8 +525,7 @@ const TabataExecucao: React.FC = () => {
   const start = () => {
     if (!steps.length) return;
     if (phaseRef.current !== 'idle') return;
-    if (!audioUnlockedRef.current) unlockAudio(true);
-    else unlockAudio(false);
+    unlockAudio(true);
     const now = Date.now();
     phaseRef.current = 'prep';
     stepIndexRef.current = 0;
@@ -567,6 +578,7 @@ const TabataExecucao: React.FC = () => {
 
   const toggleMute = () => {
     const willUnmute = muted;
+    mutedRef.current = !muted;
     setMuted(!muted);
     if (willUnmute) {
       unlockAudio(true);
