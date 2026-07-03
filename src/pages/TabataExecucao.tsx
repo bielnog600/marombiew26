@@ -602,7 +602,16 @@ const TabataExecucao: React.FC = () => {
   const toggleMute = () => {
     const willUnmute = muted;
     setMuted(!muted);
-    if (willUnmute) unlockAudio(true);
+    if (willUnmute) {
+      unlockAudio(true);
+      if (!paused && phase !== 'idle' && phase !== 'done') {
+        const elapsed = Math.floor((Date.now() - phaseStartTime) / 1000);
+        const remaining = Math.max(0, phaseTotalSeconds - elapsed);
+        scheduleCountdownFor(remaining);
+      }
+    } else {
+      clearScheduledBeeps();
+    }
   };
 
   if (!tabata) {
