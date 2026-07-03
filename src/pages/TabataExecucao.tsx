@@ -564,14 +564,17 @@ const TabataExecucao: React.FC = () => {
     setSecondsLeft(PREP_SECONDS);
     setPhaseStartTime(Date.now());
     setPaused(false);
+    scheduleCountdownFor(PREP_SECONDS);
   };
 
   const skip = () => {
     unlockAudio();
+    clearScheduledBeeps();
     setSecondsLeft(0);
   };
 
   const restart = () => {
+    clearScheduledBeeps();
     setPhase('idle');
     setStepIndex(0);
     setSecondsLeft(PREP_SECONDS);
@@ -582,7 +585,18 @@ const TabataExecucao: React.FC = () => {
 
   const togglePause = () => {
     unlockAudio();
-    setPaused(p => !p);
+    setPaused(p => {
+      const next = !p;
+      if (next) {
+        clearScheduledBeeps();
+      } else {
+        // On resume, reschedule countdown based on remaining time.
+        const elapsed = Math.floor((Date.now() - phaseStartTime) / 1000);
+        const remaining = Math.max(0, phaseTotalSeconds - elapsed);
+        scheduleCountdownFor(remaining);
+      }
+      return next;
+    });
   };
 
   const toggleMute = () => {
