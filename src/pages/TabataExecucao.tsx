@@ -711,7 +711,7 @@ const TabataExecucao: React.FC = () => {
             </p>
           )}
         </div>
-        <Button variant="ghost" size="icon" onClick={toggleMute}>
+        <Button variant="ghost" size="icon" onPointerDown={armAudioFromGesture} onClick={toggleMute}>
           {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
         </Button>
       </div>
@@ -888,6 +888,7 @@ const TabataExecucao: React.FC = () => {
         {phase === 'idle' && (
           <Button
             size="lg"
+            onPointerDown={armAudioFromGesture}
             onClick={start}
             className="gap-3 px-12 h-16 text-lg font-black uppercase tracking-wider rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_8px_32px_-4px_hsl(var(--primary)/0.6)] hover:shadow-[0_12px_40px_-4px_hsl(var(--primary)/0.8)] hover:scale-[1.03] active:scale-95 transition-all"
           >
@@ -920,6 +921,7 @@ const TabataExecucao: React.FC = () => {
             <Button
               variant="ghost"
               size="icon"
+              onPointerDown={armAudioFromGesture}
               onClick={restart}
               aria-label="Reiniciar"
               className="h-14 w-14 rounded-full backdrop-blur-md bg-background/40 border border-border/40 hover:bg-background/60 active:scale-90 transition-all"
@@ -928,6 +930,7 @@ const TabataExecucao: React.FC = () => {
             </Button>
             <Button
               size="icon"
+              onPointerDown={armAudioFromGesture}
               onClick={togglePause}
               aria-label={paused ? 'Retomar' : 'Pausar'}
               className="h-20 w-20 rounded-full bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_10px_40px_-4px_hsl(var(--primary)/0.7)] hover:shadow-[0_14px_48px_-4px_hsl(var(--primary)/0.9)] hover:scale-105 active:scale-95 transition-all border-2 border-primary-foreground/10"
@@ -937,6 +940,7 @@ const TabataExecucao: React.FC = () => {
             <Button
               variant="ghost"
               size="icon"
+              onPointerDown={armAudioFromGesture}
               onClick={skip}
               aria-label="Avançar"
               className="h-14 w-14 rounded-full backdrop-blur-md bg-background/40 border border-border/40 hover:bg-background/60 active:scale-90 transition-all"
