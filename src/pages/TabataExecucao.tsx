@@ -189,7 +189,7 @@ const TabataExecucao: React.FC = () => {
 
   const streamVideoId = extractStreamVideoId(displayMedia?.videoEmbed);
   const rawHlsUrl = streamVideoId ? `https://customer-vqfal80lir76xyf0.cloudflarestream.com/${streamVideoId}/manifest/video.m3u8` : null;
-  const hlsUrl = isIOSAudioSafeMode ? null : rawHlsUrl;
+  const hlsUrl = rawHlsUrl;
   const fallbackImage = displayMedia?.imageUrl || null;
   const hasMediaBg = !!hlsUrl || !!fallbackImage;
   const showVideoBg = (phase === 'prep' || phase === 'work' || phase === 'rest' || phase === 'block_rest') && hasMediaBg;
