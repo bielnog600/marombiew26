@@ -231,6 +231,7 @@ interface Props {
   studentId: string;
   days: ParsedTrainingDay[];
   phase?: string | null;
+  initialDayName?: string | null;
 }
 
 export interface ExerciseState {
@@ -253,12 +254,38 @@ export interface SessionState {
   calendarEventId?: string | null;
 }
 
-export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId, days, phase }) => {
+export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId, days, phase, initialDayName }) => {
   const { user } = useAuth();
   const { active, close, cancel, finish, patchState } = useAdminTrainerSession();
   const [state, setState] = useState<Record<number, ExerciseState>>({});
   const [loading, setLoading] = useState(true);
-  const [activeDayIdx, setActiveDayIdx] = useState(0);
+  const resolveInitialDayIdx = React.useCallback(() => {
+    if (!days || days.length === 0) return 0;
+    const target = (initialDayName || '').toLowerCase().trim();
+    if (target) {
+      const exact = days.findIndex((d) => d.day.toLowerCase().trim() === target);
+      if (exact >= 0) return exact;
+      const partial = days.findIndex((d) => d.day.toLowerCase().includes(target) || target.includes(d.day.toLowerCase()));
+      if (partial >= 0) return partial;
+    }
+    const weekdays = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+    const today = weekdays[new Date().getDay()];
+    const todayAlt = today === 'terça' ? 'terca' : today === 'sábado' ? 'sabado' : today;
+    const todayIdx = days.findIndex((d) => {
+      const s = d.day.toLowerCase();
+      return s.includes(today) || s.includes(todayAlt);
+    });
+    return todayIdx >= 0 ? todayIdx : 0;
+  }, [days, initialDayName]);
+  const [activeDayIdx, setActiveDayIdx] = useState<number>(resolveInitialDayIdx);
+  const initialDaySyncedRef = React.useRef(false);
+  useEffect(() => {
+    if (!open) { initialDaySyncedRef.current = false; return; }
+    if (initialDaySyncedRef.current) return;
+    if (!days || days.length === 0) return;
+    setActiveDayIdx(resolveInitialDayIdx());
+    initialDaySyncedRef.current = true;
+  }, [open, days, resolveInitialDayIdx]);
   const [exercisesList, setExercisesList] = useState<{ id: string; nome: string; grupo_muscular: string; imagem_url?: string | null }[]>([]);
   const [currentExercises, setCurrentExercises] = useState<ParsedExercise[]>([]);
   const [aiOpen, setAiOpen] = useState(false);
