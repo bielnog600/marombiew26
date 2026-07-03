@@ -629,6 +629,7 @@ const TabataExecucao: React.FC = () => {
   // Phase transitions when seconds hit 0
   useEffect(() => {
     if (phase === 'idle' || phase === 'done' || secondsLeft > 0) return;
+    if (phaseRef.current !== phase || stepIndexRef.current !== stepIndex) return;
     transitionToNextPhase(phase, stepIndex);
   }, [secondsLeft, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
