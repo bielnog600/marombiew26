@@ -61,7 +61,7 @@ const WhatsAppNotifyPlanButton: React.FC<Props> = ({ plan, studentId, onNotified
     // Fetch fresh plan data to get full content for macro extraction if it's a diet
     const { data: freshPlan, error: fetchError } = await supabase
       .from('ai_plans')
-      .select('conteudo, tipo, titulo, whatsapp_notified_count')
+      .select('conteudo, conteudo_json, tipo, titulo, whatsapp_notified_count')
       .eq('id', plan.id)
       .maybeSingle();
 
@@ -99,13 +99,31 @@ const WhatsAppNotifyPlanButton: React.FC<Props> = ({ plan, studentId, onNotified
 
     let macroInfo = '';
     if (freshPlan.tipo === 'dieta' && freshPlan.conteudo) {
-      const sections = parseSections(freshPlan.conteudo);
-      const meals = sections.flatMap(s => s.type === 'meal' && s.meals ? s.meals : []);
-      if (meals.length > 0) {
-        const t = computeDayTotals(meals);
-        if (t.kcal > 0) {
-          macroInfo = `\n\n📊 *Meta diária:*\n🔥 ${Math.round(t.kcal)} kcal\n🥩 ${Math.round(t.p)}g Proteína\n🍞 ${Math.round(t.c)}g Carbo\n🥑 ${Math.round(t.g)}g Gordura`;
+      // Prefer canonical macro target from conteudo_json (single day),
+      // fallback to parsing markdown but only using the FIRST meal
+      // section — parsing all "meal" sections would sum every CARDÁPIO
+      // option (or every day of a weekly plan) and inflate the totals
+      // by 3–7x, which is what caused the 23k kcal WhatsApp message.
+      let t: { kcal: number; p: number; c: number; g: number } | null = null;
+      const cj: any = (freshPlan as any).conteudo_json;
+      const tgt = cj?.dailyTarget || cj?.target || cj?.macros;
+      if (tgt && (tgt.calories || tgt.kcal)) {
+        t = {
+          kcal: Number(tgt.calories ?? tgt.kcal) || 0,
+          p: Number(tgt.protein ?? tgt.p) || 0,
+          c: Number(tgt.carbs ?? tgt.c) || 0,
+          g: Number(tgt.fats ?? tgt.fat ?? tgt.g) || 0,
+        };
+      }
+      if (!t || t.kcal <= 0) {
+        const sections = parseSections(freshPlan.conteudo);
+        const firstMealSection = sections.find(s => s.type === 'meal' && s.meals && s.meals.length > 0);
+        if (firstMealSection?.meals) {
+          t = computeDayTotals(firstMealSection.meals);
         }
+      }
+      if (t && t.kcal > 0) {
+        macroInfo = `\n\n📊 *Meta diária:*\n🔥 ${Math.round(t.kcal)} kcal\n🥩 ${Math.round(t.p)}g Proteína\n🍞 ${Math.round(t.c)}g Carbo\n🥑 ${Math.round(t.g)}g Gordura`;
       }
     }
 
