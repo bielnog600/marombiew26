@@ -73,6 +73,7 @@ const TabataExecucao: React.FC = () => {
   const scheduledAudioNodesRef = useRef<{ oscillator: OscillatorNode; gain: GainNode }[]>([]);
   const audioKeepAliveRef = useRef<{ oscillator: OscillatorNode; gain: GainNode } | null>(null);
   const audioUnlockedRef = useRef(false);
+  const lastBeepedSecondRef = useRef<number>(-1);
   const phaseRef = useRef<Phase>(phase);
   const stepIndexRef = useRef(stepIndex);
   const pausedRef = useRef(paused);
@@ -500,7 +501,9 @@ const TabataExecucao: React.FC = () => {
         if (audioCtxRef.current?.state === 'suspended') {
           audioCtxRef.current.resume().catch(() => { /* noop */ });
         }
+        lastBeepedSecondRef.current = remainingSecond;
         beep(660, 0.15);
+        scheduledBeepTimeoutsRef.current = scheduledBeepTimeoutsRef.current.filter(id => id !== timeoutId);
       }, delayMs);
       scheduledBeepTimeoutsRef.current.push(timeoutId);
     };
@@ -636,10 +639,9 @@ const TabataExecucao: React.FC = () => {
   // Countdown beeps are pre-scheduled via native timers at each phase start
   // (scheduleCountdownFor). Kept as a defensive fallback in case scheduling
   // fails or gets cleared unexpectedly.
-  const lastBeepedSecondRef = useRef<number>(-1);
   useEffect(() => {
     if (phase === 'idle' || phase === 'done' || paused) return;
-    if (secondsLeft > 0 && secondsLeft <= 3 && scheduledBeepTimeoutsRef.current.length === 0) {
+    if (secondsLeft > 0 && secondsLeft <= 3) {
       if (lastBeepedSecondRef.current !== secondsLeft) {
         lastBeepedSecondRef.current = secondsLeft;
         beep(660, 0.15);
