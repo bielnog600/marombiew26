@@ -66,6 +66,13 @@ const TabataExecucao: React.FC = () => {
   const [phraseKey, setPhraseKey] = useState<number>(0);
   const [phrase, setPhrase] = useState<string>('');
 
+  const isIOSAudioSafeMode = useMemo(() => {
+    if (typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent || '';
+    const platform = navigator.platform || '';
+    return /iPad|iPhone|iPod/i.test(ua) || (platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }, []);
+
   const audioCtxRef = useRef<AudioContext | null>(null);
   const scheduledBeepTimeoutsRef = useRef<number[]>([]);
   const scheduledAudioNodesRef = useRef<{ osc: OscillatorNode; gain: GainNode }[]>([]);
@@ -181,8 +188,9 @@ const TabataExecucao: React.FC = () => {
   );
 
   const streamVideoId = extractStreamVideoId(displayMedia?.videoEmbed);
-  const hlsUrl = streamVideoId ? `https://customer-vqfal80lir76xyf0.cloudflarestream.com/${streamVideoId}/manifest/video.m3u8` : null;
-  const fallbackImage = !streamVideoId && displayMedia?.imageUrl ? displayMedia.imageUrl : null;
+  const rawHlsUrl = streamVideoId ? `https://customer-vqfal80lir76xyf0.cloudflarestream.com/${streamVideoId}/manifest/video.m3u8` : null;
+  const hlsUrl = isIOSAudioSafeMode ? null : rawHlsUrl;
+  const fallbackImage = displayMedia?.imageUrl || null;
   const hasMediaBg = !!hlsUrl || !!fallbackImage;
   const showVideoBg = (phase === 'prep' || phase === 'work' || phase === 'rest' || phase === 'block_rest') && hasMediaBg;
 
@@ -281,8 +289,12 @@ const TabataExecucao: React.FC = () => {
 
   // Mesmo mecanismo do cronômetro de descanso da musculação: Web Audio simples,
   // sem HTMLAudioElement, para misturar com música no iPhone e evitar bloqueios.
-  const getAudioContext = () => {
+  const getAudioContext = (freshFromGesture = false) => {
     try {
+      if (freshFromGesture && audioCtxRef.current) {
+        try { audioCtxRef.current.close(); } catch { /* noop */ }
+        audioCtxRef.current = null;
+      }
       if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
         const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
         if (!AudioContextCtor) return null;
@@ -503,29 +515,26 @@ const TabataExecucao: React.FC = () => {
 
   // Safari/iOS unlock: must be called synchronously inside a user gesture.
   // Igual ao descanso da musculação: cria/resume Web Audio no toque do usuário.
-  const unlockAudio = (forceSound = false) => {
+  const unlockAudio = (forceSound = false, freshFromGesture = false) => {
     try {
-      const ctx = getAudioContext();
+      const ctx = getAudioContext(freshFromGesture);
       if (!ctx) return;
       audioUnlockedRef.current = true;
-      scheduleAudioBeep(ctx, ctx.currentTime + 0.01, 18, 0.03, 0.0001, false);
+      scheduleAudioBeep(ctx, ctx.currentTime, 18, 0.03, 0.0001, false);
       if (forceSound && !mutedRef.current) {
-        scheduleAudioBeep(ctx, ctx.currentTime + 0.05, 880, 0.11, 0.3, false);
+        scheduleAudioBeep(ctx, ctx.currentTime + 0.005, 880, 0.16, 0.35, false);
       }
     } catch {
       /* ignore */
     }
   };
 
-  const armAudioFromGesture = () => {
-    if (audioUnlockedRef.current) return;
-    unlockAudio(true);
-  };
-
   const start = () => {
     if (!steps.length) return;
     if (phaseRef.current !== 'idle') return;
-    unlockAudio(true);
+    // No iOS, criar o AudioContext exatamente no clique evita o contexto ficar
+    // preso/suspenso por eventos anteriores como pointerdown/touchstart.
+    unlockAudio(true, true);
     const now = Date.now();
     phaseRef.current = 'prep';
     stepIndexRef.current = 0;
@@ -859,9 +868,6 @@ const TabataExecucao: React.FC = () => {
         {phase === 'idle' && (
           <Button
             size="lg"
-            onPointerDown={armAudioFromGesture}
-            onTouchStart={armAudioFromGesture}
-            onMouseDown={armAudioFromGesture}
             onClick={start}
             className="gap-3 px-12 h-16 text-lg font-black uppercase tracking-wider rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_8px_32px_-4px_hsl(var(--primary)/0.6)] hover:shadow-[0_12px_40px_-4px_hsl(var(--primary)/0.8)] hover:scale-[1.03] active:scale-95 transition-all"
           >
