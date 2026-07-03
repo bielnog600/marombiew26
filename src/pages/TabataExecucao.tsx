@@ -499,10 +499,15 @@ const TabataExecucao: React.FC = () => {
       const ctx = getAudioContext();
       if (!ctx) return;
       audioUnlockedRef.current = true;
-      if (forceSound || !mutedRef.current) beep(880, 0.09, 0.25);
+      if (forceSound && !mutedRef.current) beep(880, 0.09, 0.25);
     } catch {
       /* ignore */
     }
+  };
+
+  const armAudioFromGesture = () => {
+    if (audioUnlockedRef.current) return;
+    unlockAudio(true);
   };
 
   const start = () => {
