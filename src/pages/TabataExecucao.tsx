@@ -69,9 +69,18 @@ const TabataExecucao: React.FC = () => {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const htmlBeepRef = useRef<HTMLAudioElement | null>(null);
   const beepDataUriCacheRef = useRef<Record<string, string>>({});
-  const scheduledBeepNodesRef = useRef<{ osc: OscillatorNode; gain: GainNode }[]>([]);
+  const scheduledBeepTimeoutsRef = useRef<number[]>([]);
+  const phaseRef = useRef<Phase>(phase);
+  const pausedRef = useRef(paused);
+  const mutedRef = useRef(muted);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+
+  useEffect(() => {
+    phaseRef.current = phase;
+    pausedRef.current = paused;
+    mutedRef.current = muted;
+  }, [phase, paused, muted]);
 
   const steps: Step[] = useMemo(() => {
     if (!tabata) return [];
@@ -363,51 +372,33 @@ const TabataExecucao: React.FC = () => {
   };
 
   const clearScheduledBeeps = () => {
-    for (const { osc, gain } of scheduledBeepNodesRef.current) {
-      try { osc.stop(); } catch { /* noop */ }
-      try { osc.disconnect(); } catch { /* noop */ }
-      try { gain.disconnect(); } catch { /* noop */ }
-    }
-    scheduledBeepNodesRef.current = [];
+    scheduledBeepTimeoutsRef.current.forEach(timeoutId => window.clearTimeout(timeoutId));
+    scheduledBeepTimeoutsRef.current = [];
   };
 
-  const scheduleBeepAt = (ctx: AudioContext, atTime: number, frequency: number, duration: number, volume = 0.6) => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'square';
-    osc.frequency.setValueAtTime(frequency, atTime);
-    gain.gain.setValueAtTime(0.0001, atTime);
-    gain.gain.exponentialRampToValueAtTime(volume, atTime + 0.01);
-    gain.gain.setValueAtTime(volume, atTime + Math.max(0.04, duration - 0.025));
-    gain.gain.exponentialRampToValueAtTime(0.0001, atTime + duration);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(atTime);
-    osc.stop(atTime + duration + 0.05);
-    osc.onended = () => {
-      try { osc.disconnect(); gain.disconnect(); } catch { /* noop */ }
-    };
-    scheduledBeepNodesRef.current.push({ osc, gain });
-  };
-
-  // Pre-schedule the 3-2-1 countdown beeps for a phase of `seconds` seconds.
-  // Uses AudioContext scheduling so beeps fire on the audio clock regardless
-  // of React tick timing, tab throttling, or video playback interference.
+  // Pre-schedule the 3-2-1 countdown with native timers, independent from React
+  // re-renders. Each timeout calls the same unlocked beep path, which is more
+  // reliable on iOS after muted exercise videos start loading.
   const scheduleCountdownFor = (seconds: number) => {
     clearScheduledBeeps();
     if (muted || seconds <= 0) return;
     const ctx = getAudioContext();
-    if (!ctx) return;
-    const kick = () => {
-      const now = ctx.currentTime;
-      if (seconds > 3) scheduleBeepAt(ctx, now + (seconds - 3), 660, 0.15, 0.55);
-      if (seconds > 2) scheduleBeepAt(ctx, now + (seconds - 2), 660, 0.15, 0.55);
-      if (seconds > 1) scheduleBeepAt(ctx, now + (seconds - 1), 660, 0.15, 0.55);
+    if (ctx?.state === 'suspended') ctx.resume().catch(() => { /* noop */ });
+
+    const scheduleSecond = (remainingSecond: 3 | 2 | 1) => {
+      if (seconds < remainingSecond) return;
+      const delayMs = Math.max(0, Math.round((seconds - remainingSecond) * 1000));
+      const timeoutId = window.setTimeout(() => {
+        if (mutedRef.current || pausedRef.current) return;
+        if (phaseRef.current === 'idle' || phaseRef.current === 'done') return;
+        beep(660, 0.15);
+      }, delayMs);
+      scheduledBeepTimeoutsRef.current.push(timeoutId);
     };
-    if (ctx.state === 'suspended') {
-      ctx.resume().then(kick).catch(() => { /* noop */ });
-    } else {
-      kick();
-    }
+
+    scheduleSecond(3);
+    scheduleSecond(2);
+    scheduleSecond(1);
   };
 
   // iOS Safari: resume/recreate audio context when tab returns to foreground
@@ -506,13 +497,13 @@ const TabataExecucao: React.FC = () => {
     }
   }, [secondsLeft, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Countdown beeps are pre-scheduled via AudioContext at each phase start
+  // Countdown beeps are pre-scheduled via native timers at each phase start
   // (scheduleCountdownFor). Kept as a defensive fallback in case scheduling
-  // fails (e.g. AudioContext still suspended when phase begins).
+  // fails or gets cleared unexpectedly.
   const lastBeepedSecondRef = useRef<number>(-1);
   useEffect(() => {
     if (phase === 'idle' || phase === 'done' || paused) return;
-    if (secondsLeft > 0 && secondsLeft <= 3 && scheduledBeepNodesRef.current.length === 0) {
+    if (secondsLeft > 0 && secondsLeft <= 3 && scheduledBeepTimeoutsRef.current.length === 0) {
       if (lastBeepedSecondRef.current !== secondsLeft) {
         lastBeepedSecondRef.current = secondsLeft;
         beep(660, 0.15);
