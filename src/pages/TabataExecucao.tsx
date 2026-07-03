@@ -67,11 +67,8 @@ const TabataExecucao: React.FC = () => {
   const [phrase, setPhrase] = useState<string>('');
 
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const htmlBeepPoolRef = useRef<Record<string, HTMLAudioElement>>({});
-  const beepDataUriCacheRef = useRef<Record<string, string>>({});
   const scheduledBeepTimeoutsRef = useRef<number[]>([]);
-  const scheduledAudioNodesRef = useRef<{ oscillator: OscillatorNode; gain: GainNode }[]>([]);
-  const audioKeepAliveRef = useRef<{ oscillator: OscillatorNode; gain: GainNode } | null>(null);
+  const scheduledAudioNodesRef = useRef<{ osc: OscillatorNode; gain: GainNode }[]>([]);
   const audioUnlockedRef = useRef(false);
   const lastBeepedSecondRef = useRef<number>(-1);
   const phaseRef = useRef<Phase>(phase);
@@ -268,208 +265,61 @@ const TabataExecucao: React.FC = () => {
     }
   }, [hlsUrl, showVideoBg]);
 
-  const getAudioContext = () => {
-    const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContextCtor) return null;
-    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
-      audioCtxRef.current = new AudioContextCtor();
-    }
-    return audioCtxRef.current;
-  };
-
-  const startAudioKeepAlive = (ctx: AudioContext) => {
-    if (audioKeepAliveRef.current) return;
-    try {
-      const oscillator = ctx.createOscillator();
-      const gain = ctx.createGain();
-      oscillator.type = 'sine';
-      oscillator.frequency.setValueAtTime(18, ctx.currentTime);
-      gain.gain.setValueAtTime(0.00001, ctx.currentTime);
-      oscillator.connect(gain);
-      gain.connect(ctx.destination);
-      oscillator.start();
-      audioKeepAliveRef.current = { oscillator, gain };
-    } catch {
-      audioKeepAliveRef.current = null;
-    }
-  };
-
   const stopScheduledAudioNodes = () => {
-    scheduledAudioNodesRef.current.forEach(({ oscillator, gain }) => {
-      try { oscillator.stop(); } catch { /* noop */ }
-      try { oscillator.disconnect(); } catch { /* noop */ }
+    scheduledAudioNodesRef.current.forEach(({ osc, gain }) => {
+      try { osc.stop(); } catch { /* noop */ }
+      try { osc.disconnect(); } catch { /* noop */ }
       try { gain.disconnect(); } catch { /* noop */ }
     });
     scheduledAudioNodesRef.current = [];
   };
 
-  const stopAudioKeepAlive = () => {
-    const keepAlive = audioKeepAliveRef.current;
-    if (!keepAlive) return;
-    try { keepAlive.oscillator.stop(); } catch { /* noop */ }
-    try { keepAlive.oscillator.disconnect(); } catch { /* noop */ }
-    try { keepAlive.gain.disconnect(); } catch { /* noop */ }
-    audioKeepAliveRef.current = null;
+  // Mesmo mecanismo do cronômetro de descanso da musculação: Web Audio simples,
+  // sem HTMLAudioElement, para misturar com música no iPhone e evitar bloqueios.
+  const getAudioContext = () => {
+    try {
+      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+        const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioContextCtor) return null;
+        audioCtxRef.current = new AudioContextCtor();
+      }
+      const ctx = audioCtxRef.current!;
+      if (ctx.state === 'suspended') ctx.resume().catch(() => { /* noop */ });
+      return ctx;
+    } catch {
+      return null;
+    }
   };
 
-  const scheduleWebAudioTone = (ctx: AudioContext, delaySeconds: number, frequency: number, duration: number, volume = 0.75) => {
+  const scheduleAudioBeep = (ctx: AudioContext, atTime: number, freq: number, durSec: number, volume = 0.25) => {
     try {
-      startAudioKeepAlive(ctx);
-      const oscillator = ctx.createOscillator();
+      const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      const at = ctx.currentTime + Math.max(0.03, delaySeconds);
-      oscillator.connect(gain);
-      gain.connect(ctx.destination);
-      oscillator.frequency.setValueAtTime(frequency, at);
-      oscillator.type = 'square';
-      gain.gain.setValueAtTime(0.0001, at);
-      gain.gain.exponentialRampToValueAtTime(volume, at + 0.008);
-      gain.gain.setValueAtTime(volume, at + Math.max(0.04, duration - 0.025));
-      gain.gain.exponentialRampToValueAtTime(0.0001, at + duration);
-      oscillator.start(at);
-      oscillator.stop(at + duration + 0.04);
-      oscillator.onended = () => {
-        try { oscillator.disconnect(); gain.disconnect(); } catch { /* noop */ }
-        scheduledAudioNodesRef.current = scheduledAudioNodesRef.current.filter(node => node.oscillator !== oscillator);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, atTime);
+      gain.gain.setValueAtTime(0.0001, atTime);
+      gain.gain.exponentialRampToValueAtTime(volume, atTime + 0.01);
+      gain.gain.setValueAtTime(volume, atTime + Math.max(0.02, durSec - 0.02));
+      gain.gain.exponentialRampToValueAtTime(0.0001, atTime + durSec);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(atTime);
+      osc.stop(atTime + durSec + 0.05);
+      osc.onended = () => {
+        try { osc.disconnect(); gain.disconnect(); } catch { /* noop */ }
+        scheduledAudioNodesRef.current = scheduledAudioNodesRef.current.filter(node => node.osc !== osc);
       };
-      scheduledAudioNodesRef.current.push({ oscillator, gain });
+      scheduledAudioNodesRef.current.push({ osc, gain });
       return true;
     } catch {
       return false;
     }
   };
 
-  const playWebAudioTone = (frequency: number, duration: number, volume = 0.75) => {
-    const ctx = audioCtxRef.current;
-    if (!ctx || ctx.state !== 'running') return false;
-    startAudioKeepAlive(ctx);
-    const oscillator = ctx.createOscillator();
-    const gain = ctx.createGain();
-    oscillator.connect(gain);
-    gain.connect(ctx.destination);
-    oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
-    oscillator.type = 'square';
-    const now = ctx.currentTime;
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(volume, now + 0.008);
-    gain.gain.setValueAtTime(volume, now + Math.max(0.04, duration - 0.025));
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-    oscillator.start(now);
-    oscillator.stop(now + duration + 0.04);
-    oscillator.onended = () => {
-      try { oscillator.disconnect(); gain.disconnect(); } catch { /* noop */ }
-    };
-    return true;
-  };
-
-  const makeBeepDataUri = (frequency: number, duration: number) => {
-    const sampleRate = 22050;
-    const samples = Math.max(1, Math.floor(sampleRate * duration));
-    const bytesPerSample = 2;
-    const blockAlign = bytesPerSample;
-    const buffer = new ArrayBuffer(44 + samples * bytesPerSample);
-    const view = new DataView(buffer);
-    const writeString = (offset: number, value: string) => {
-      for (let i = 0; i < value.length; i++) view.setUint8(offset + i, value.charCodeAt(i));
-    };
-    writeString(0, 'RIFF');
-    view.setUint32(4, 36 + samples * bytesPerSample, true);
-    writeString(8, 'WAVE');
-    writeString(12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
-    view.setUint16(22, 1, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * blockAlign, true);
-    view.setUint16(32, blockAlign, true);
-    view.setUint16(34, 16, true);
-    writeString(36, 'data');
-    view.setUint32(40, samples * bytesPerSample, true);
-    for (let i = 0; i < samples; i++) {
-      const t = i / sampleRate;
-      const fadeIn = Math.min(1, i / (sampleRate * 0.01));
-      const fadeOut = Math.min(1, (samples - i) / (sampleRate * 0.03));
-      const envelope = Math.min(fadeIn, fadeOut);
-      const square = Math.sin(2 * Math.PI * frequency * t) >= 0 ? 1 : -1;
-      view.setInt16(44 + i * bytesPerSample, square * envelope * 0x5fff, true);
-    }
-    let binary = '';
-    const bytes = new Uint8Array(buffer);
-    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-    return `data:audio/wav;base64,${btoa(binary)}`;
-  };
-
-  const getHtmlBeepAudio = (frequency: number, duration: number) => {
-    const key = `${Math.round(frequency)}-${Math.round(duration * 1000)}`;
-    if (!beepDataUriCacheRef.current[key]) {
-      beepDataUriCacheRef.current[key] = makeBeepDataUri(frequency, duration);
-    }
-    if (!htmlBeepPoolRef.current[key]) {
-      const audio = new Audio(beepDataUriCacheRef.current[key]);
-      audio.preload = 'auto';
-      audio.load();
-      htmlBeepPoolRef.current[key] = audio;
-    }
-    return htmlBeepPoolRef.current[key];
-  };
-
-  const primeHtmlBeeps = () => {
-    const tones: Array<[number, number]> = [
-      [660, 0.15],
-      [880, 0.09],
-      [880, 0.3],
-      [1320, 0.6],
-      [440, 0.3],
-      [660, 0.5],
-    ];
-    tones.forEach(([frequency, duration]) => {
-      try {
-        const audio = getHtmlBeepAudio(frequency, duration);
-        audio.pause();
-        audio.currentTime = 0;
-        audio.volume = 0.001;
-        audio.play()
-          .then(() => {
-            audio.pause();
-            audio.currentTime = 0;
-          })
-          .catch(() => { /* Safari may still block individual media unlocks */ });
-      } catch { /* noop */ }
-    });
-  };
-
-  const playHtmlBeep = (frequency: number, duration: number, volume = 0.9) => {
-    try {
-      const audio = getHtmlBeepAudio(frequency, duration);
-      audio.pause();
-      audio.currentTime = 0;
-      audio.volume = volume;
-      audio.play().catch(() => { /* Safari may still block if audio was not primed */ });
-    } catch {
-      /* noop */
-    }
-  };
-
-  const beep = (frequency: number, duration: number) => {
+  const beep = (frequency: number, duration: number, volume = 0.25) => {
     if (mutedRef.current) return;
-    try {
-      const ctx = getAudioContext();
-      if (ctx) startAudioKeepAlive(ctx);
-      if (ctx?.state === 'running' && playWebAudioTone(frequency, duration)) return;
-      if (ctx?.state === 'suspended') {
-        ctx.resume()
-          .then(() => {
-            if (!playWebAudioTone(frequency, duration)) playHtmlBeep(frequency, duration);
-          })
-          .catch(() => playHtmlBeep(frequency, duration));
-        return;
-      }
-      playHtmlBeep(frequency, duration);
-    } catch {
-      try { audioCtxRef.current?.close(); } catch { /* ignore */ }
-      audioCtxRef.current = null;
-      playHtmlBeep(frequency, duration);
-    }
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    scheduleAudioBeep(ctx, ctx.currentTime + 0.01, frequency, duration, volume);
   };
 
   const clearScheduledBeeps = () => {
@@ -478,31 +328,23 @@ const TabataExecucao: React.FC = () => {
     stopScheduledAudioNodes();
   };
 
-  // Pre-schedule the 3-2-1 countdown with native timers, independent from React
-  // re-renders. Each timeout calls the same unlocked beep path, which is more
-  // reliable on iOS after muted exercise videos start loading.
+  // Pré-agenda o 3-2-1 do mesmo jeito do descanso da musculação, direto no
+  // relógio do Web Audio, com timer JS apenas como fallback visual/operacional.
   const scheduleCountdownFor = (seconds: number) => {
     clearScheduledBeeps();
     if (mutedRef.current || seconds <= 0) return;
     const ctx = getAudioContext();
-    if (ctx) {
-      startAudioKeepAlive(ctx);
-      if (ctx.state === 'suspended') ctx.resume().catch(() => { /* noop */ });
-    }
+    const now = ctx?.currentTime ?? 0;
 
     const scheduleSecond = (remainingSecond: 3 | 2 | 1) => {
       if (seconds < remainingSecond) return;
       const delaySeconds = Math.max(0, seconds - remainingSecond);
       const delayMs = Math.round(delaySeconds * 1000);
-      if (ctx) scheduleWebAudioTone(ctx, delaySeconds, 660, 0.15);
+      if (ctx) scheduleAudioBeep(ctx, now + delaySeconds, 880, 0.12);
       const timeoutId = window.setTimeout(() => {
         if (mutedRef.current || pausedRef.current) return;
         if (phaseRef.current === 'idle' || phaseRef.current === 'done') return;
-        if (audioCtxRef.current?.state === 'suspended') {
-          audioCtxRef.current.resume().catch(() => { /* noop */ });
-        }
         lastBeepedSecondRef.current = remainingSecond;
-        beep(660, 0.15);
         scheduledBeepTimeoutsRef.current = scheduledBeepTimeoutsRef.current.filter(id => id !== timeoutId);
       }, delayMs);
       scheduledBeepTimeoutsRef.current.push(timeoutId);
@@ -529,7 +371,6 @@ const TabataExecucao: React.FC = () => {
       document.removeEventListener('visibilitychange', recover);
       window.removeEventListener('focus', recover);
       clearScheduledBeeps();
-      stopAudioKeepAlive();
       try { audioCtxRef.current?.close(); } catch { /* noop */ }
       audioCtxRef.current = null;
     };
@@ -583,13 +424,13 @@ const TabataExecucao: React.FC = () => {
 
     const step = steps[sourceStepIndex];
     if (!step) {
-      beep(1320, 0.6);
+      beep(1320, 0.35, 0.3);
       startPhase('done', 0);
       return;
     }
 
     if (sourcePhase === 'prep') {
-      beep(880, 0.3);
+      beep(1320, 0.35, 0.3);
       startPhase('work', step.exercise.workSeconds);
       return;
     }
@@ -599,16 +440,16 @@ const TabataExecucao: React.FC = () => {
       const isLastStep = sourceStepIndex === totalSteps - 1;
 
       if (isLastStep) {
-        beep(1320, 0.6);
+        beep(1320, 0.35, 0.3);
         startPhase('done', 0);
         return;
       }
 
       if (isLastInBlock) {
-        beep(660, 0.5);
+        beep(1320, 0.35, 0.3);
         startPhase('block_rest', step.block.restAfterBlock);
       } else {
-        beep(440, 0.3);
+        beep(1320, 0.35, 0.3);
         startPhase('rest', step.exercise.restSeconds);
       }
       return;
@@ -618,11 +459,11 @@ const TabataExecucao: React.FC = () => {
       const nextIndex = sourceStepIndex + 1;
       const next = steps[nextIndex];
       if (!next) {
-        beep(1320, 0.6);
+        beep(1320, 0.35, 0.3);
         startPhase('done', 0);
         return;
       }
-      beep(880, 0.3);
+      beep(1320, 0.35, 0.3);
       stepIndexRef.current = nextIndex;
       setStepIndex(nextIndex);
       startPhase('work', next.exercise.workSeconds);
@@ -652,38 +493,13 @@ const TabataExecucao: React.FC = () => {
   }, [secondsLeft]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Safari/iOS unlock: must be called synchronously inside a user gesture.
-  // We start a real short tone here because silent buffers are often ignored by Safari/PWA.
+  // Igual ao descanso da musculação: cria/resume Web Audio no toque do usuário.
   const unlockAudio = (forceSound = false) => {
     try {
       const ctx = getAudioContext();
-      if (!ctx) {
-        primeHtmlBeeps();
-        if (forceSound || !mutedRef.current) playHtmlBeep(880, 0.09, 0.65);
-        audioUnlockedRef.current = true;
-        return;
-      }
-      primeHtmlBeeps();
-      startAudioKeepAlive(ctx);
-      if (ctx.state === 'suspended') {
-        ctx.resume().catch(() => { /* ignore */ });
-      }
-      const oscillator = ctx.createOscillator();
-      const gain = ctx.createGain();
-      oscillator.connect(gain);
-      gain.connect(ctx.destination);
-      oscillator.frequency.setValueAtTime(880, ctx.currentTime);
-      oscillator.type = 'square';
-      const now = ctx.currentTime;
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime((forceSound || !mutedRef.current) ? 0.55 : 0.0001, now + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
-      oscillator.start(now);
-      oscillator.stop(now + 0.12);
-      oscillator.onended = () => {
-        try { oscillator.disconnect(); gain.disconnect(); } catch { /* noop */ }
-      };
+      if (!ctx) return;
       audioUnlockedRef.current = true;
-      if (forceSound || !mutedRef.current) playHtmlBeep(880, 0.09, 0.65);
+      if (forceSound && !mutedRef.current) beep(880, 0.09, 0.25);
     } catch {
       /* ignore */
     }
@@ -696,6 +512,7 @@ const TabataExecucao: React.FC = () => {
 
   const start = () => {
     if (!steps.length) return;
+    if (phaseRef.current !== 'idle') return;
     if (!audioUnlockedRef.current) unlockAudio(true);
     else unlockAudio(false);
     const now = Date.now();
