@@ -69,6 +69,7 @@ const TabataExecucao: React.FC = () => {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const htmlBeepRef = useRef<HTMLAudioElement | null>(null);
   const beepDataUriCacheRef = useRef<Record<string, string>>({});
+  const scheduledBeepNodesRef = useRef<{ osc: OscillatorNode; gain: GainNode }[]>([]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
 
@@ -361,6 +362,54 @@ const TabataExecucao: React.FC = () => {
     }
   };
 
+  const clearScheduledBeeps = () => {
+    for (const { osc, gain } of scheduledBeepNodesRef.current) {
+      try { osc.stop(); } catch { /* noop */ }
+      try { osc.disconnect(); } catch { /* noop */ }
+      try { gain.disconnect(); } catch { /* noop */ }
+    }
+    scheduledBeepNodesRef.current = [];
+  };
+
+  const scheduleBeepAt = (ctx: AudioContext, atTime: number, frequency: number, duration: number, volume = 0.6) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(frequency, atTime);
+    gain.gain.setValueAtTime(0.0001, atTime);
+    gain.gain.exponentialRampToValueAtTime(volume, atTime + 0.01);
+    gain.gain.setValueAtTime(volume, atTime + Math.max(0.04, duration - 0.025));
+    gain.gain.exponentialRampToValueAtTime(0.0001, atTime + duration);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(atTime);
+    osc.stop(atTime + duration + 0.05);
+    osc.onended = () => {
+      try { osc.disconnect(); gain.disconnect(); } catch { /* noop */ }
+    };
+    scheduledBeepNodesRef.current.push({ osc, gain });
+  };
+
+  // Pre-schedule the 3-2-1 countdown beeps for a phase of `seconds` seconds.
+  // Uses AudioContext scheduling so beeps fire on the audio clock regardless
+  // of React tick timing, tab throttling, or video playback interference.
+  const scheduleCountdownFor = (seconds: number) => {
+    clearScheduledBeeps();
+    if (muted || seconds <= 0) return;
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const kick = () => {
+      const now = ctx.currentTime;
+      if (seconds > 3) scheduleBeepAt(ctx, now + (seconds - 3), 660, 0.15, 0.55);
+      if (seconds > 2) scheduleBeepAt(ctx, now + (seconds - 2), 660, 0.15, 0.55);
+      if (seconds > 1) scheduleBeepAt(ctx, now + (seconds - 1), 660, 0.15, 0.55);
+    };
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(kick).catch(() => { /* noop */ });
+    } else {
+      kick();
+    }
+  };
+
   // iOS Safari: resume/recreate audio context when tab returns to foreground
   // or when audio route changes (headphones plugged/unplugged)
   useEffect(() => {
@@ -419,6 +468,7 @@ const TabataExecucao: React.FC = () => {
       setPhaseTotalSeconds(secs);
       setSecondsLeft(secs);
       setPhaseStartTime(Date.now());
+      scheduleCountdownFor(secs);
     };
 
     if (phase === 'prep') {
@@ -456,10 +506,20 @@ const TabataExecucao: React.FC = () => {
     }
   }, [secondsLeft, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Countdown beeps in last 3 seconds
+  // Countdown beeps are pre-scheduled via AudioContext at each phase start
+  // (scheduleCountdownFor). Kept as a defensive fallback in case scheduling
+  // fails (e.g. AudioContext still suspended when phase begins).
+  const lastBeepedSecondRef = useRef<number>(-1);
   useEffect(() => {
     if (phase === 'idle' || phase === 'done' || paused) return;
-    if (secondsLeft > 0 && secondsLeft <= 3) beep(660, 0.15);
+    if (secondsLeft > 0 && secondsLeft <= 3 && scheduledBeepNodesRef.current.length === 0) {
+      if (lastBeepedSecondRef.current !== secondsLeft) {
+        lastBeepedSecondRef.current = secondsLeft;
+        beep(660, 0.15);
+      }
+    } else if (secondsLeft > 3) {
+      lastBeepedSecondRef.current = -1;
+    }
   }, [secondsLeft]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Safari/iOS unlock: must be called synchronously inside a user gesture.
@@ -504,14 +564,17 @@ const TabataExecucao: React.FC = () => {
     setSecondsLeft(PREP_SECONDS);
     setPhaseStartTime(Date.now());
     setPaused(false);
+    scheduleCountdownFor(PREP_SECONDS);
   };
 
   const skip = () => {
     unlockAudio();
+    clearScheduledBeeps();
     setSecondsLeft(0);
   };
 
   const restart = () => {
+    clearScheduledBeeps();
     setPhase('idle');
     setStepIndex(0);
     setSecondsLeft(PREP_SECONDS);
@@ -522,13 +585,33 @@ const TabataExecucao: React.FC = () => {
 
   const togglePause = () => {
     unlockAudio();
-    setPaused(p => !p);
+    setPaused(p => {
+      const next = !p;
+      if (next) {
+        clearScheduledBeeps();
+      } else {
+        // On resume, reschedule countdown based on remaining time.
+        const elapsed = Math.floor((Date.now() - phaseStartTime) / 1000);
+        const remaining = Math.max(0, phaseTotalSeconds - elapsed);
+        scheduleCountdownFor(remaining);
+      }
+      return next;
+    });
   };
 
   const toggleMute = () => {
     const willUnmute = muted;
     setMuted(!muted);
-    if (willUnmute) unlockAudio(true);
+    if (willUnmute) {
+      unlockAudio(true);
+      if (!paused && phase !== 'idle' && phase !== 'done') {
+        const elapsed = Math.floor((Date.now() - phaseStartTime) / 1000);
+        const remaining = Math.max(0, phaseTotalSeconds - elapsed);
+        scheduleCountdownFor(remaining);
+      }
+    } else {
+      clearScheduledBeeps();
+    }
   };
 
   if (!tabata) {
