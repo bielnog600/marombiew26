@@ -296,7 +296,7 @@ const TabataExecucao: React.FC = () => {
     }
   };
 
-  const scheduleAudioBeep = (ctx: AudioContext, atTime: number, freq: number, durSec: number, volume = 0.25) => {
+  const scheduleAudioBeep = (ctx: AudioContext, atTime: number, freq: number, durSec: number, volume = 0.25, trackForCancel = true) => {
     try {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -313,7 +313,7 @@ const TabataExecucao: React.FC = () => {
         try { osc.disconnect(); gain.disconnect(); } catch { /* noop */ }
         scheduledAudioNodesRef.current = scheduledAudioNodesRef.current.filter(node => node.osc !== osc);
       };
-      scheduledAudioNodesRef.current.push({ osc, gain });
+      if (trackForCancel) scheduledAudioNodesRef.current.push({ osc, gain });
       return true;
     } catch {
       return false;
@@ -324,7 +324,7 @@ const TabataExecucao: React.FC = () => {
     if (mutedRef.current) return;
     const ctx = getAudioContext();
     if (!ctx) return;
-    scheduleAudioBeep(ctx, ctx.currentTime + 0.01, frequency, duration, volume);
+    scheduleAudioBeep(ctx, ctx.currentTime + 0.01, frequency, duration, volume, false);
   };
 
   const clearScheduledBeeps = () => {
@@ -508,9 +508,9 @@ const TabataExecucao: React.FC = () => {
       const ctx = getAudioContext();
       if (!ctx) return;
       audioUnlockedRef.current = true;
-      scheduleAudioBeep(ctx, ctx.currentTime + 0.01, 18, 0.03, 0.0001);
+      scheduleAudioBeep(ctx, ctx.currentTime + 0.01, 18, 0.03, 0.0001, false);
       if (forceSound && !mutedRef.current) {
-        scheduleAudioBeep(ctx, ctx.currentTime + 0.05, 880, 0.11, 0.3);
+        scheduleAudioBeep(ctx, ctx.currentTime + 0.05, 880, 0.11, 0.3, false);
       }
     } catch {
       /* ignore */
