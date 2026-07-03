@@ -74,16 +74,22 @@ const TabataExecucao: React.FC = () => {
   const audioKeepAliveRef = useRef<{ oscillator: OscillatorNode; gain: GainNode } | null>(null);
   const audioUnlockedRef = useRef(false);
   const phaseRef = useRef<Phase>(phase);
+  const stepIndexRef = useRef(stepIndex);
   const pausedRef = useRef(paused);
   const mutedRef = useRef(muted);
+  const phaseStartTimeRef = useRef(phaseStartTime);
+  const phaseTotalSecondsRef = useRef(phaseTotalSeconds);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
 
   useEffect(() => {
     phaseRef.current = phase;
+    stepIndexRef.current = stepIndex;
     pausedRef.current = paused;
     mutedRef.current = muted;
-  }, [phase, paused, muted]);
+    phaseStartTimeRef.current = phaseStartTime;
+    phaseTotalSecondsRef.current = phaseTotalSeconds;
+  }, [phase, stepIndex, paused, muted, phaseStartTime, phaseTotalSeconds]);
 
   const steps: Step[] = useMemo(() => {
     if (!tabata) return [];
