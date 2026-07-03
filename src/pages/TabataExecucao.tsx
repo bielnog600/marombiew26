@@ -75,7 +75,7 @@ const TabataExecucao: React.FC = () => {
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const scheduledBeepTimeoutsRef = useRef<number[]>([]);
-  const scheduledAudioNodesRef = useRef<{ osc: OscillatorNode; gain: GainNode }[]>([]);
+  const scheduledAudioNodesRef = useRef<{ osc: OscillatorNode; gain: GainNode; cancelable: boolean }[]>([]);
   const audioUnlockedRef = useRef(false);
   const lastBeepedSecondRef = useRef<number>(-1);
   const phaseRef = useRef<Phase>(phase);
@@ -278,23 +278,24 @@ const TabataExecucao: React.FC = () => {
     }
   }, [hlsUrl, showVideoBg]);
 
-  const stopScheduledAudioNodes = () => {
-    scheduledAudioNodesRef.current.forEach(({ osc, gain }) => {
+  const stopScheduledAudioNodes = (onlyCancelable = true) => {
+    const keepAlive: { osc: OscillatorNode; gain: GainNode; cancelable: boolean }[] = [];
+    scheduledAudioNodesRef.current.forEach(({ osc, gain, cancelable }) => {
+      if (onlyCancelable && !cancelable) {
+        keepAlive.push({ osc, gain, cancelable });
+        return;
+      }
       try { osc.stop(); } catch { /* noop */ }
       try { osc.disconnect(); } catch { /* noop */ }
       try { gain.disconnect(); } catch { /* noop */ }
     });
-    scheduledAudioNodesRef.current = [];
+    scheduledAudioNodesRef.current = keepAlive;
   };
 
   // Mesmo mecanismo do cronômetro de descanso da musculação: Web Audio simples,
   // sem HTMLAudioElement, para misturar com música no iPhone e evitar bloqueios.
-  const getAudioContext = (freshFromGesture = false) => {
+  const getAudioContext = () => {
     try {
-      if (freshFromGesture && audioCtxRef.current) {
-        try { audioCtxRef.current.close(); } catch { /* noop */ }
-        audioCtxRef.current = null;
-      }
       if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
         const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
         if (!AudioContextCtor) return null;
@@ -308,24 +309,37 @@ const TabataExecucao: React.FC = () => {
     }
   };
 
-  const scheduleAudioBeep = (ctx: AudioContext, atTime: number, freq: number, durSec: number, volume = 0.25, trackForCancel = true) => {
+  const primeAudioContext = (ctx: AudioContext) => {
     try {
+      const source = ctx.createBufferSource();
+      source.buffer = ctx.createBuffer(1, 1, ctx.sampleRate || 44100);
+      source.connect(ctx.destination);
+      source.start(0);
+      source.onended = () => {
+        try { source.disconnect(); } catch { /* noop */ }
+      };
+    } catch { /* noop */ }
+  };
+
+  const scheduleAudioBeep = (ctx: AudioContext, atTime: number, freq: number, durSec: number, volume = 0.25, cancelable = true) => {
+    try {
+      const safeAtTime = Math.max(atTime, ctx.currentTime + 0.01);
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, atTime);
-      gain.gain.setValueAtTime(0.0001, atTime);
-      gain.gain.exponentialRampToValueAtTime(volume, atTime + 0.01);
-      gain.gain.setValueAtTime(volume, atTime + Math.max(0.02, durSec - 0.02));
-      gain.gain.exponentialRampToValueAtTime(0.0001, atTime + durSec);
+      osc.frequency.setValueAtTime(freq, safeAtTime);
+      gain.gain.setValueAtTime(0.0001, safeAtTime);
+      gain.gain.exponentialRampToValueAtTime(volume, safeAtTime + 0.01);
+      gain.gain.setValueAtTime(volume, safeAtTime + Math.max(0.02, durSec - 0.02));
+      gain.gain.exponentialRampToValueAtTime(0.0001, safeAtTime + durSec);
       osc.connect(gain).connect(ctx.destination);
-      osc.start(atTime);
-      osc.stop(atTime + durSec + 0.05);
+      osc.start(safeAtTime);
+      osc.stop(safeAtTime + durSec + 0.05);
       osc.onended = () => {
         try { osc.disconnect(); gain.disconnect(); } catch { /* noop */ }
         scheduledAudioNodesRef.current = scheduledAudioNodesRef.current.filter(node => node.osc !== osc);
       };
-      if (trackForCancel) scheduledAudioNodesRef.current.push({ osc, gain });
+      scheduledAudioNodesRef.current.push({ osc, gain, cancelable });
       return true;
     } catch {
       return false;
@@ -358,13 +372,13 @@ const TabataExecucao: React.FC = () => {
       if (seconds < remainingSecond) return;
       const delaySeconds = Math.max(0, seconds - remainingSecond);
       const delayMs = Math.round(delaySeconds * 1000);
-      if (ctx) scheduleAudioBeep(ctx, now + delaySeconds, 880, 0.12);
+      const scheduledOnAudioClock = ctx ? scheduleAudioBeep(ctx, now + delaySeconds, 880, 0.12, 0.28, true) : false;
       const timeoutId = window.setTimeout(() => {
         if (mutedRef.current || pausedRef.current) return;
         if (phaseRef.current === 'idle' || phaseRef.current === 'done') return;
         if (lastBeepedSecondRef.current !== remainingSecond) {
           lastBeepedSecondRef.current = remainingSecond;
-          beep(880, 0.12, 0.28);
+          if (!scheduledOnAudioClock) beep(880, 0.12, 0.28);
         }
         scheduledBeepTimeoutsRef.current = scheduledBeepTimeoutsRef.current.filter(id => id !== timeoutId);
       }, delayMs);
@@ -392,6 +406,7 @@ const TabataExecucao: React.FC = () => {
       document.removeEventListener('visibilitychange', recover);
       window.removeEventListener('focus', recover);
       clearScheduledBeeps();
+      stopScheduledAudioNodes(false);
       try { audioCtxRef.current?.close(); } catch { /* noop */ }
       audioCtxRef.current = null;
     };
@@ -515,18 +530,23 @@ const TabataExecucao: React.FC = () => {
 
   // Safari/iOS unlock: must be called synchronously inside a user gesture.
   // Igual ao descanso da musculação: cria/resume Web Audio no toque do usuário.
-  const unlockAudio = (forceSound = false, freshFromGesture = false) => {
+  const unlockAudio = (forceSound = false) => {
     try {
-      const ctx = getAudioContext(freshFromGesture);
+      const ctx = getAudioContext();
       if (!ctx) return;
+      if (ctx.state === 'suspended') ctx.resume().catch(() => { /* noop */ });
+      primeAudioContext(ctx);
       audioUnlockedRef.current = true;
-      scheduleAudioBeep(ctx, ctx.currentTime, 18, 0.03, 0.0001, false);
       if (forceSound && !mutedRef.current) {
-        scheduleAudioBeep(ctx, ctx.currentTime + 0.005, 880, 0.16, 0.35, false);
+        scheduleAudioBeep(ctx, ctx.currentTime + 0.02, 880, 0.16, 0.35, false);
       }
     } catch {
       /* ignore */
     }
+  };
+
+  const armAudioFromGesture = () => {
+    unlockAudio(false);
   };
 
   const start = () => {
@@ -534,7 +554,7 @@ const TabataExecucao: React.FC = () => {
     if (phaseRef.current !== 'idle') return;
     // No iOS, criar o AudioContext exatamente no clique evita o contexto ficar
     // preso/suspenso por eventos anteriores como pointerdown/touchstart.
-    unlockAudio(true, true);
+    unlockAudio(true);
     const now = Date.now();
     phaseRef.current = 'prep';
     stepIndexRef.current = 0;
