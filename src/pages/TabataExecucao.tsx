@@ -345,13 +345,13 @@ const TabataExecucao: React.FC = () => {
       countdown: Array.from({ length: 4 }, () => {
         const audio = new Audio(countdownSrc);
         audio.preload = 'auto';
-        audio.playsInline = true;
+        audio.setAttribute('playsinline', '');
         return audio;
       }),
       transition: Array.from({ length: 3 }, () => {
         const audio = new Audio(transitionSrc);
         audio.preload = 'auto';
-        audio.playsInline = true;
+        audio.setAttribute('playsinline', '');
         return audio;
       }),
     };
