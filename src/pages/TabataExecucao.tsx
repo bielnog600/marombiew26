@@ -473,6 +473,9 @@ const TabataExecucao: React.FC = () => {
   };
 
   const requestWakeLockAfterAudioStarts = () => {
+    // No iPhone, o Wake Lock nativo está silenciando o Web Audio.
+    // Mantemos os beeps funcionando e deixamos o vídeo de fundo ajudar a tela a ficar ativa.
+    if (isIOSAudioSafeMode) return;
     wakeLockDesiredRef.current = true;
     if (wakeLockRequestTimeoutRef.current !== null) {
       window.clearTimeout(wakeLockRequestTimeoutRef.current);
@@ -951,8 +954,8 @@ const TabataExecucao: React.FC = () => {
         {phase === 'idle' && (
           <Button
             size="lg"
-            onPointerDown={start}
-            onTouchStart={start}
+            onPointerDown={armAudioFromGesture}
+            onTouchStart={armAudioFromGesture}
             onClick={start}
             className="gap-3 px-12 h-16 text-lg font-black uppercase tracking-wider rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_8px_32px_-4px_hsl(var(--primary)/0.6)] hover:shadow-[0_12px_40px_-4px_hsl(var(--primary)/0.8)] hover:scale-[1.03] active:scale-95 transition-all"
           >
