@@ -86,6 +86,9 @@ const TabataExecucao: React.FC = () => {
   const phaseTotalSecondsRef = useRef(phaseTotalSeconds);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  type WakeLockSentinelLike = { released: boolean; release: () => Promise<void>; addEventListener: (ev: string, cb: () => void) => void };
+  const wakeLockRef = useRef<WakeLockSentinelLike | null>(null);
+  const wakeLockDesiredRef = useRef(false);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -443,40 +446,44 @@ const TabataExecucao: React.FC = () => {
     };
   }, [paused, phase, phaseStartTime, phaseTotalSeconds]);
 
-  // Mantém a tela ligada enquanto o Tabata estiver rodando (Screen Wake Lock API).
-  useEffect(() => {
-    const active = phase !== 'idle' && phase !== 'done';
-    if (!active) return;
-
-    type WakeLockSentinelLike = { released: boolean; release: () => Promise<void>; addEventListener: (ev: string, cb: () => void) => void };
-    let sentinel: WakeLockSentinelLike | null = null;
-    let cancelled = false;
+  // Screen Wake Lock: precisa ser solicitado dentro do gesto do usuário (start).
+  const acquireWakeLock = async () => {
     const nav = navigator as Navigator & { wakeLock?: { request: (type: 'screen') => Promise<WakeLockSentinelLike> } };
     if (!nav.wakeLock) return;
+    if (wakeLockRef.current && !wakeLockRef.current.released) return;
+    try {
+      const s = await nav.wakeLock.request('screen');
+      wakeLockRef.current = s;
+      s.addEventListener('release', () => {
+        if (wakeLockRef.current === s) wakeLockRef.current = null;
+      });
+    } catch { /* ignore */ }
+  };
 
-    const acquire = async () => {
-      try {
-        const s = await nav.wakeLock!.request('screen');
-        if (cancelled) { s.release().catch(() => {}); return; }
-        sentinel = s;
-        s.addEventListener('release', () => { sentinel = null; });
-      } catch {}
-    };
+  const releaseWakeLock = () => {
+    wakeLockDesiredRef.current = false;
+    const s = wakeLockRef.current;
+    wakeLockRef.current = null;
+    if (s && !s.released) s.release().catch(() => {});
+  };
 
-    void acquire();
-
+  useEffect(() => {
     const onVisibility = () => {
-      if (document.visibilityState === 'visible' && !sentinel) void acquire();
+      if (document.visibilityState === 'visible' && wakeLockDesiredRef.current && !wakeLockRef.current) {
+        void acquireWakeLock();
+      }
     };
     document.addEventListener('visibilitychange', onVisibility);
-
     return () => {
-      cancelled = true;
       document.removeEventListener('visibilitychange', onVisibility);
-      if (sentinel && !sentinel.released) sentinel.release().catch(() => {});
-      sentinel = null;
+      releaseWakeLock();
     };
+  }, []);
+
+  useEffect(() => {
+    if (phase === 'done' || phase === 'idle') releaseWakeLock();
   }, [phase]);
+
 
   const startPhase = (newPhase: Phase, secs: number) => {
     const now = Date.now();
@@ -590,6 +597,8 @@ const TabataExecucao: React.FC = () => {
     // No iOS, criar o AudioContext exatamente no clique evita o contexto ficar
     // preso/suspenso por eventos anteriores como pointerdown/touchstart.
     unlockAudio(true);
+    wakeLockDesiredRef.current = true;
+    void acquireWakeLock();
     const now = Date.now();
     phaseRef.current = 'prep';
     stepIndexRef.current = 0;
@@ -613,6 +622,7 @@ const TabataExecucao: React.FC = () => {
 
   const restart = () => {
     clearScheduledBeeps();
+    releaseWakeLock();
     phaseRef.current = 'idle';
     pausedRef.current = false;
     setPhase('idle');
