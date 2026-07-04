@@ -86,6 +86,9 @@ const TabataExecucao: React.FC = () => {
   const phaseTotalSecondsRef = useRef(phaseTotalSeconds);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  type WakeLockSentinelLike = { released: boolean; release: () => Promise<void>; addEventListener: (ev: string, cb: () => void) => void };
+  const wakeLockRef = useRef<WakeLockSentinelLike | null>(null);
+  const wakeLockDesiredRef = useRef(false);
 
   useEffect(() => {
     phaseRef.current = phase;
