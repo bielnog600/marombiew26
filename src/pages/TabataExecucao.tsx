@@ -593,6 +593,8 @@ const TabataExecucao: React.FC = () => {
     // No iOS, criar o AudioContext exatamente no clique evita o contexto ficar
     // preso/suspenso por eventos anteriores como pointerdown/touchstart.
     unlockAudio(true);
+    wakeLockDesiredRef.current = true;
+    void acquireWakeLock();
     const now = Date.now();
     phaseRef.current = 'prep';
     stepIndexRef.current = 0;
