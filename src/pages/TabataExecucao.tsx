@@ -618,6 +618,7 @@ const TabataExecucao: React.FC = () => {
 
   const restart = () => {
     clearScheduledBeeps();
+    releaseWakeLock();
     phaseRef.current = 'idle';
     pausedRef.current = false;
     setPhase('idle');
