@@ -443,6 +443,41 @@ const TabataExecucao: React.FC = () => {
     };
   }, [paused, phase, phaseStartTime, phaseTotalSeconds]);
 
+  // Mantém a tela ligada enquanto o Tabata estiver rodando (Screen Wake Lock API).
+  useEffect(() => {
+    const active = phase !== 'idle' && phase !== 'done';
+    if (!active) return;
+
+    type WakeLockSentinelLike = { released: boolean; release: () => Promise<void>; addEventListener: (ev: string, cb: () => void) => void };
+    let sentinel: WakeLockSentinelLike | null = null;
+    let cancelled = false;
+    const nav = navigator as Navigator & { wakeLock?: { request: (type: 'screen') => Promise<WakeLockSentinelLike> } };
+    if (!nav.wakeLock) return;
+
+    const acquire = async () => {
+      try {
+        const s = await nav.wakeLock!.request('screen');
+        if (cancelled) { s.release().catch(() => {}); return; }
+        sentinel = s;
+        s.addEventListener('release', () => { sentinel = null; });
+      } catch {}
+    };
+
+    void acquire();
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && !sentinel) void acquire();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVisibility);
+      if (sentinel && !sentinel.released) sentinel.release().catch(() => {});
+      sentinel = null;
+    };
+  }, [phase]);
+
   const startPhase = (newPhase: Phase, secs: number) => {
     const now = Date.now();
     phaseRef.current = newPhase;
