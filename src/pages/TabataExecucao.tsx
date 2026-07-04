@@ -89,6 +89,7 @@ const TabataExecucao: React.FC = () => {
   type WakeLockSentinelLike = { released: boolean; release: () => Promise<void>; addEventListener: (ev: string, cb: () => void) => void };
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null);
   const wakeLockDesiredRef = useRef(false);
+  const wakeLockRequestTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -462,9 +463,27 @@ const TabataExecucao: React.FC = () => {
 
   const releaseWakeLock = () => {
     wakeLockDesiredRef.current = false;
+    if (wakeLockRequestTimeoutRef.current !== null) {
+      window.clearTimeout(wakeLockRequestTimeoutRef.current);
+      wakeLockRequestTimeoutRef.current = null;
+    }
     const s = wakeLockRef.current;
     wakeLockRef.current = null;
     if (s && !s.released) s.release().catch(() => {});
+  };
+
+  const requestWakeLockAfterAudioStarts = () => {
+    wakeLockDesiredRef.current = true;
+    if (wakeLockRequestTimeoutRef.current !== null) {
+      window.clearTimeout(wakeLockRequestTimeoutRef.current);
+    }
+    // No iPhone, pedir o Wake Lock no mesmo instante do desbloqueio de áudio
+    // pode fazer o Web Audio silenciar. Primeiro armamos/tocamos os beeps,
+    // depois mantemos a tela ligada.
+    wakeLockRequestTimeoutRef.current = window.setTimeout(() => {
+      wakeLockRequestTimeoutRef.current = null;
+      if (wakeLockDesiredRef.current) void acquireWakeLock();
+    }, 650);
   };
 
   useEffect(() => {
@@ -597,8 +616,6 @@ const TabataExecucao: React.FC = () => {
     // No iOS, criar o AudioContext exatamente no clique evita o contexto ficar
     // preso/suspenso por eventos anteriores como pointerdown/touchstart.
     unlockAudio(true);
-    wakeLockDesiredRef.current = true;
-    void acquireWakeLock();
     const now = Date.now();
     phaseRef.current = 'prep';
     stepIndexRef.current = 0;
@@ -612,6 +629,7 @@ const TabataExecucao: React.FC = () => {
     setPhaseStartTime(now);
     setPaused(false);
     scheduleCountdownFor(PREP_SECONDS);
+    requestWakeLockAfterAudioStarts();
   };
 
   const skip = () => {
@@ -933,8 +951,8 @@ const TabataExecucao: React.FC = () => {
         {phase === 'idle' && (
           <Button
             size="lg"
-            onPointerDown={armAudioFromGesture}
-            onTouchStart={armAudioFromGesture}
+            onPointerDown={start}
+            onTouchStart={start}
             onClick={start}
             className="gap-3 px-12 h-16 text-lg font-black uppercase tracking-wider rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_8px_32px_-4px_hsl(var(--primary)/0.6)] hover:shadow-[0_12px_40px_-4px_hsl(var(--primary)/0.8)] hover:scale-[1.03] active:scale-95 transition-all"
           >
