@@ -480,6 +480,10 @@ const TabataExecucao: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (phase === 'done' || phase === 'idle') releaseWakeLock();
+  }, [phase]);
+
 
   const startPhase = (newPhase: Phase, secs: number) => {
     const now = Date.now();
