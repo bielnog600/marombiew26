@@ -86,10 +86,6 @@ const TabataExecucao: React.FC = () => {
   const phaseTotalSecondsRef = useRef(phaseTotalSeconds);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
-  type WakeLockSentinelLike = { released: boolean; release: () => Promise<void>; addEventListener: (ev: string, cb: () => void) => void };
-  const wakeLockRef = useRef<WakeLockSentinelLike | null>(null);
-  const wakeLockDesiredRef = useRef(false);
-  const wakeLockRequestTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -447,66 +443,6 @@ const TabataExecucao: React.FC = () => {
     };
   }, [paused, phase, phaseStartTime, phaseTotalSeconds]);
 
-  // Screen Wake Lock: precisa ser solicitado dentro do gesto do usuário (start).
-  const acquireWakeLock = async () => {
-    const nav = navigator as Navigator & { wakeLock?: { request: (type: 'screen') => Promise<WakeLockSentinelLike> } };
-    if (!nav.wakeLock) return;
-    if (wakeLockRef.current && !wakeLockRef.current.released) return;
-    try {
-      const s = await nav.wakeLock.request('screen');
-      wakeLockRef.current = s;
-      s.addEventListener('release', () => {
-        if (wakeLockRef.current === s) wakeLockRef.current = null;
-      });
-    } catch { /* ignore */ }
-  };
-
-  const releaseWakeLock = () => {
-    wakeLockDesiredRef.current = false;
-    if (wakeLockRequestTimeoutRef.current !== null) {
-      window.clearTimeout(wakeLockRequestTimeoutRef.current);
-      wakeLockRequestTimeoutRef.current = null;
-    }
-    const s = wakeLockRef.current;
-    wakeLockRef.current = null;
-    if (s && !s.released) s.release().catch(() => {});
-  };
-
-  const requestWakeLockAfterAudioStarts = () => {
-    // No iPhone, o Wake Lock nativo está silenciando o Web Audio.
-    // Mantemos os beeps funcionando e deixamos o vídeo de fundo ajudar a tela a ficar ativa.
-    if (isIOSAudioSafeMode) return;
-    wakeLockDesiredRef.current = true;
-    if (wakeLockRequestTimeoutRef.current !== null) {
-      window.clearTimeout(wakeLockRequestTimeoutRef.current);
-    }
-    // No iPhone, pedir o Wake Lock no mesmo instante do desbloqueio de áudio
-    // pode fazer o Web Audio silenciar. Primeiro armamos/tocamos os beeps,
-    // depois mantemos a tela ligada.
-    wakeLockRequestTimeoutRef.current = window.setTimeout(() => {
-      wakeLockRequestTimeoutRef.current = null;
-      if (wakeLockDesiredRef.current) void acquireWakeLock();
-    }, 650);
-  };
-
-  useEffect(() => {
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible' && wakeLockDesiredRef.current && !wakeLockRef.current) {
-        void acquireWakeLock();
-      }
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibility);
-      releaseWakeLock();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (phase === 'done' || phase === 'idle') releaseWakeLock();
-  }, [phase]);
-
-
   const startPhase = (newPhase: Phase, secs: number) => {
     const now = Date.now();
     phaseRef.current = newPhase;
@@ -632,7 +568,6 @@ const TabataExecucao: React.FC = () => {
     setPhaseStartTime(now);
     setPaused(false);
     scheduleCountdownFor(PREP_SECONDS);
-    requestWakeLockAfterAudioStarts();
   };
 
   const skip = () => {
@@ -643,7 +578,6 @@ const TabataExecucao: React.FC = () => {
 
   const restart = () => {
     clearScheduledBeeps();
-    releaseWakeLock();
     phaseRef.current = 'idle';
     pausedRef.current = false;
     setPhase('idle');
