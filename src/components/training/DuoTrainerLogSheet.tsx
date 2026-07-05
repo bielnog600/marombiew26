@@ -583,11 +583,24 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                             saveDraft(p.studentId, p.days[p.activeDayIdx].day, makeDaySignature(p.days[p.activeDayIdx]), ns);
                             return { ...p, state: ns };
                           })}
+                          onAddSet={(idx) => addSet('A', idx)}
+                          onRemoveSet={(idx, sIdx) => removeSet('A', idx, sIdx)}
+                          onRemoveExercise={(idx) => removeExercise('A', idx)}
+                          onUpdateMeta={(patch) => updateExerciseMeta('A', i, patch)}
                           ExerciseNamePicker={ExerciseNamePicker}
                           HistoryPopover={HistoryPopover}
                           parsePauseSeconds={parsePauseSeconds}
                         />
                       ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full gap-2 h-10 border-dashed border-primary/40 text-primary hover:bg-primary/10"
+                        onClick={() => addExercise('A')}
+                      >
+                        <Plus className="h-4 w-4" />
+                        Adicionar exercício
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -648,11 +661,24 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                             saveDraft(p.studentId, p.days[p.activeDayIdx].day, makeDaySignature(p.days[p.activeDayIdx]), ns);
                             return { ...p, state: ns };
                           })}
+                          onAddSet={(idx) => addSet('B', idx)}
+                          onRemoveSet={(idx, sIdx) => removeSet('B', idx, sIdx)}
+                          onRemoveExercise={(idx) => removeExercise('B', idx)}
+                          onUpdateMeta={(patch) => updateExerciseMeta('B', i, patch)}
                           ExerciseNamePicker={ExerciseNamePicker}
                           HistoryPopover={HistoryPopover}
                           parsePauseSeconds={(p) => 60}
                         />
                       ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full gap-2 h-10 border-dashed border-primary/40 text-primary hover:bg-primary/10"
+                        onClick={() => addExercise('B')}
+                      >
+                        <Plus className="h-4 w-4" />
+                        Adicionar exercício
+                      </Button>
                     </div>
                   )}
                 </div>
