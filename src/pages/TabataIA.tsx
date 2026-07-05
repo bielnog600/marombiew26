@@ -262,11 +262,14 @@ const TabataIA = () => {
       // Whitelist estrito: só exercícios que fazem sentido em TABATA / HIIT / cross training.
       // Nada de máquinas, barras, cadeiras, polias, isolados de musculação (stiff, elevação pélvica
       // unilateral, sumô com halter, remada curvada com halteres, etc.).
-      const FORBIDDEN = /\b(SMITH|HACK|MÁQ|MAQ|MACHINE|GRAVITON|PECK|CROSSOVER|MESA|CADEIRA|POLIA|CABO|LEG PRESS|PULL DOWN|PULLDOWN|BARRA|FIXA|STIFF|SUMO|SUMÔ|REMADA|ELEVAÇÃO PÉLVICA|PELVICA UNILATERAL|HIP THRUST|CRUCIFIXO|VOADOR|ROSCA|TRICEPS TESTA|TRÍCEPS TESTA|DESENVOLVIMENTO|ARNOLD|SHRUG|ENCOLHIMENTO|PANTURRILHA)\b/i;
+      // Exclui também cardio de MÁQUINA (air bike, remo, esteira, bike, elíptico, ski, escada) —
+      // no TABATA o aluno deve fazer tudo no mesmo espaço, sem depender de aparelhos distantes.
+      const FORBIDDEN = /\b(SMITH|HACK|MÁQ|MAQ|MACHINE|GRAVITON|PECK|CROSSOVER|MESA|CADEIRA|POLIA|CABO|LEG PRESS|PULL DOWN|PULLDOWN|BARRA|FIXA|STIFF|SUMO|SUMÔ|REMADA|ELEVAÇÃO PÉLVICA|PELVICA UNILATERAL|HIP THRUST|CRUCIFIXO|VOADOR|ROSCA|TRICEPS TESTA|TRÍCEPS TESTA|DESENVOLVIMENTO|ARNOLD|SHRUG|ENCOLHIMENTO|PANTURRILHA|AIR BIKE|BIKE EM PÉ|BIKE SENTADO|REMO|ESTEIRA|PASSADEIRA|ELÍPTICO|ELIPTICO|ESCADA|\bSKI\b|CORRIDA INTERVALADA)\b/i;
       // Grupos "TABATA-friendly" — dinâmicos, funcionais, cardio, core.
       const TABATA_GROUPS = new Set(['CARDIO', 'ABDOMEN', 'CORE', 'MOBILIDADE']);
       // Movimentos funcionais/pliométricos aceitos mesmo fora dos grupos acima.
-      const FUNCTIONAL_ALLOW = /\b(BURPEE|MOUTAIN|MOUNTAIN|POLICHINELO|SKIP|JUMPING|PRANCHA|FLEXÃO|FLEXAO|AGACHAMENTO(?!\s+SMITH)|AFUNDO(?!\s+SMITH)(?!\s+BARRA)(?!\s+C\/\s*BARRA)|JUMPS|SALTO|SWING|KETTLEBELL|CORDA NAVAL|BIKE|REMO|ESCADA|ESTEIRA|PASSADEIRA|ELÍPTICO|ELIPTICO|SKI|AIR BIKE|BEAR TO PLANK|TESOURINHA|PALLOF|ABS|ABDOMINAL|ALONGAMENTO)\b/i;
+      // Sem cardio de máquina — só o que dá para fazer no lugar (corda naval, saltos, corpo, halter).
+      const FUNCTIONAL_ALLOW = /\b(BURPEE|MOUTAIN|MOUNTAIN|POLICHINELO|SKIP|JUMPING|PRANCHA|FLEXÃO|FLEXAO|AGACHAMENTO(?!\s+SMITH)|AFUNDO(?!\s+SMITH)(?!\s+BARRA)(?!\s+C\/\s*BARRA)|JUMPS|SALTO|SWING|KETTLEBELL|CORDA NAVAL|BEAR TO PLANK|TESOURINHA|PALLOF|ABS|ABDOMINAL|ALONGAMENTO)\b/i;
 
       const availableExercises = (allEx || []).filter(ex => {
         if (!ex?.nome || !ex?.video_embed) return false;
