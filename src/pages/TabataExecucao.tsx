@@ -102,6 +102,13 @@ const TabataExecucao: React.FC = () => {
     phaseTotalSecondsRef.current = phaseTotalSeconds;
   }, [phase, stepIndex, paused, muted, phaseStartTime, phaseTotalSeconds]);
 
+  // Freeze the total session duration once TABATA is done
+  useEffect(() => {
+    if (phase === 'done' && sessionStartMs) {
+      setSessionDurationSec(Math.max(1, Math.round((Date.now() - sessionStartMs) / 1000)));
+    }
+  }, [phase, sessionStartMs]);
+
   const steps: Step[] = useMemo(() => {
     if (!tabata) return [];
     const list: Step[] = [];
