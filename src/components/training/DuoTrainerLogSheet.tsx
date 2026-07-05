@@ -269,6 +269,129 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
   };
 
   const saveExercise = async (slot: 'A' | 'B', exIdx: number) => {
+    // handled below
+  }
+  // helper wrappers
+  const mutateSlot = (
+    slot: 'A' | 'B',
+    mutator: (st: StudentSessionState) => StudentSessionState,
+  ) => {
+    const setFn = slot === 'A' ? setStudentA : setStudentB;
+    setFn((prev) => (prev ? mutator(prev) : prev));
+  };
+
+  const persistSlot = (st: StudentSessionState) => {
+    const day = st.days[st.activeDayIdx];
+    if (!day) return;
+    saveDraft(st.studentId, day.day, makeDaySignature(day), st.state);
+  };
+
+  const addSet = (slot: 'A' | 'B', exIdx: number) => {
+    mutateSlot(slot, (prev) => {
+      const cur = prev.state[exIdx];
+      if (!cur) return prev;
+      const lastPlan = cur.plan[cur.plan.length - 1];
+      const newPlan = [...cur.plan, { kind: 'work', targetReps: lastPlan?.targetReps || '' }];
+      const newSets = [...cur.sets, { weight: '', reps: '' }];
+      const nextState = { ...prev.state, [exIdx]: { ...cur, plan: newPlan, sets: newSets } };
+      const next = { ...prev, state: nextState };
+      persistSlot(next);
+      return next;
+    });
+  };
+
+  const removeSet = (slot: 'A' | 'B', exIdx: number, setIdx: number) => {
+    mutateSlot(slot, (prev) => {
+      const cur = prev.state[exIdx];
+      if (!cur || cur.sets.length <= 1) return prev;
+      const newPlan = cur.plan.filter((_: any, i: number) => i !== setIdx);
+      const newSets = cur.sets.filter((_: any, i: number) => i !== setIdx);
+      const nextState = { ...prev.state, [exIdx]: { ...cur, plan: newPlan, sets: newSets } };
+      const next = { ...prev, state: nextState };
+      persistSlot(next);
+      return next;
+    });
+  };
+
+  const removeExercise = (slot: 'A' | 'B', exIdx: number) => {
+    mutateSlot(slot, (prev) => {
+      const day = prev.days[prev.activeDayIdx];
+      const newExercises = day.exercises.filter((_, i) => i !== exIdx);
+      const newState: Record<number, any> = {};
+      day.exercises.forEach((_, i) => {
+        if (i < exIdx) newState[i] = prev.state[i];
+        else if (i > exIdx) newState[i - 1] = prev.state[i];
+      });
+      const newDays = prev.days.map((d, i) => (i === prev.activeDayIdx ? { ...d, exercises: newExercises } : d));
+      const next = { ...prev, days: newDays, state: newState };
+      persistSlot(next);
+      return next;
+    });
+  };
+
+  const updateExerciseMeta = (
+    slot: 'A' | 'B',
+    exIdx: number,
+    patch: Partial<Pick<ParsedExercise, 'pause' | 'variation' | 'reps' | 'rir'>>,
+  ) => {
+    mutateSlot(slot, (prev) => {
+      const day = prev.days[prev.activeDayIdx];
+      const newExercises = day.exercises.map((e, i) => (i === exIdx ? { ...e, ...patch } : e));
+      let nextState = prev.state;
+      if (patch.reps !== undefined) {
+        const ex = newExercises[exIdx];
+        const newPlan = buildSetPlan(ex.series, ex.series2, ex.reps);
+        const cur = prev.state[exIdx];
+        if (cur) {
+          const sets = newPlan.map((_, i) => cur.sets[i] ?? { weight: '', reps: '' });
+          nextState = { ...prev.state, [exIdx]: { ...cur, plan: newPlan, sets } };
+        }
+      }
+      const newDays = prev.days.map((d, i) => (i === prev.activeDayIdx ? { ...d, exercises: newExercises } : d));
+      const next = { ...prev, days: newDays, state: nextState };
+      persistSlot(next);
+      return next;
+    });
+  };
+
+  const addExercise = (slot: 'A' | 'B') => {
+    mutateSlot(slot, (prev) => {
+      const day = prev.days[prev.activeDayIdx];
+      const newEx: ParsedExercise = {
+        exercise: '',
+        series: '3',
+        series2: '',
+        reps: '8-12',
+        rir: '',
+        pause: '60s',
+        description: '',
+        variation: '',
+      };
+      const newExercises = [...day.exercises, newEx];
+      const newIdx = newExercises.length - 1;
+      const plan = buildSetPlan(newEx.series, newEx.series2, newEx.reps);
+      const nextState = {
+        ...prev.state,
+        [newIdx]: {
+          sets: plan.map(() => ({ weight: '', reps: '' })),
+          plan,
+          notes: '',
+          saving: false,
+          lastWeight: null,
+          lastReps: null,
+          lastDate: null,
+          savedSets: 0,
+          exerciseName: '',
+        },
+      };
+      const newDays = prev.days.map((d, i) => (i === prev.activeDayIdx ? { ...d, exercises: newExercises } : d));
+      const next = { ...prev, days: newDays, state: nextState };
+      persistSlot(next);
+      return next;
+    });
+  };
+
+  const saveExerciseImpl = async (slot: 'A' | 'B', exIdx: number) => {
     const st = slot === 'A' ? studentA : studentB;
     const setFn = slot === 'A' ? setStudentA : setStudentB;
     if (!st) return;
