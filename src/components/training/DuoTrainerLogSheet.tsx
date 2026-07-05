@@ -59,6 +59,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
   const [studentB, setStudentB] = useState<StudentSessionState | null>(null);
   const [allStudents, setAllStudents] = useState<{ user_id: string; nome: string }[]>([]);
   const [selectingStudentB, setSelectingStudentB] = useState(false);
+  const [studentBQuery, setStudentBQuery] = useState('');
   const [exercisesList, setExercisesList] = useState<any[]>([]);
   const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer } = useRestTimer();
   const sessionId = active?.id || '';
