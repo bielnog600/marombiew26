@@ -494,7 +494,19 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       i === exIdx ? { ...e, ...patch } : e,
     );
     setCurrentExercises(newExercises);
-    saveDraft(studentId, day.day, daySignature, state, newExercises);
+    let nextState = state;
+    // Se as reps alvo mudaram, reconstrói o plano preservando séries já preenchidas
+    if (patch.reps !== undefined) {
+      const ex = newExercises[exIdx];
+      const newPlan = buildSetPlan(ex.series, ex.series2, ex.reps);
+      const prev = state[exIdx];
+      if (prev) {
+        const sets = newPlan.map((_, i) => prev.sets[i] ?? { weight: '', reps: '' });
+        nextState = { ...state, [exIdx]: { ...prev, plan: newPlan, sets } };
+        setState(nextState);
+      }
+    }
+    saveDraft(studentId, day.day, daySignature, nextState, newExercises);
   };
 
   const addExercise = () => {

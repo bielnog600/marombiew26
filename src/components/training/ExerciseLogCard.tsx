@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dumbbell, Save, Loader2, Check, Timer, Plus, Minus, Trash2, X, Settings2 } from 'lucide-react';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
+import { ExercisePicker } from '@/components/tabata/ExercisePicker';
 
 interface SetEntry {
   weight: string;
@@ -180,11 +181,11 @@ const ExerciseLogCard: React.FC<Props> = ({
               </div>
               <div className="space-y-1">
                 <label className="text-[9px] uppercase text-muted-foreground font-semibold">Variação</label>
-                <Input
-                  defaultValue={ex.variation || ''}
-                  onBlur={(e) => onUpdateMeta({ variation: e.target.value })}
+                <ExercisePicker
+                  value={ex.variation || ''}
+                  onChange={(name) => onUpdateMeta({ variation: name })}
+                  placeholder="Selecionar variação"
                   className="h-7 text-xs"
-                  placeholder="ex: pegada fechada"
                 />
               </div>
               <p className="col-span-2 text-[9px] text-muted-foreground">
