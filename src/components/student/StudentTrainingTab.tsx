@@ -580,6 +580,33 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
             }}
           />
         )}
+
+        {templatesFor && (
+          <TemplatesDialog
+            open={!!templatesFor}
+            onOpenChange={(v) => !v && setTemplatesFor(null)}
+            plan={templatesFor}
+            studentId={studentId}
+            onApplyTemplate={async (tpl) => {
+              const planId = templatesFor.id;
+              const updates: Record<string, any> = {
+                conteudo: tpl.conteudo,
+                conteudo_json: tpl.conteudo_json ?? null,
+              };
+              if (tpl.fase) updates.fase = tpl.fase;
+              if (tpl.mobility_count != null) updates.mobility_count = tpl.mobility_count;
+              if (tpl.main_exercises_count != null) updates.main_exercises_count = tpl.main_exercises_count;
+              const { error } = await supabase.from('ai_plans').update(updates).eq('id', planId);
+              if (error) throw error;
+              setPlans(prev => prev.map(p => p.id === planId ? { ...p, ...updates } : p));
+              // clear any local edits so displayed content reflects the applied template
+              const nextRef = { ...editedMarkdownsRef.current };
+              delete nextRef[planId];
+              editedMarkdownsRef.current = nextRef;
+              setEditedMarkdowns(prev => { const c = { ...prev }; delete c[planId]; return c; });
+            }}
+          />
+        )}
     </>
   );
 };
