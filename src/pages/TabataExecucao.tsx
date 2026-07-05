@@ -2,10 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Hls from 'hls.js';
 import { Button } from '@/components/ui/button';
-import { X, Play, Pause, SkipForward, RotateCcw, Volume2, VolumeX } from 'lucide-react';
+import { X, Play, Pause, SkipForward, RotateCcw, Volume2, VolumeX, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import type { ParsedTabata, TabataBlock, TabataExercise } from '@/lib/tabataParser';
+import { TabataSummaryShare } from '@/components/tabata/TabataSummaryShare';
 
 type Phase = 'idle' | 'prep' | 'work' | 'rest' | 'block_rest' | 'done';
 
@@ -65,6 +66,9 @@ const TabataExecucao: React.FC = () => {
   const [mediaMap, setMediaMap] = useState<Record<string, { videoEmbed?: string | null; imageUrl?: string | null }>>({});
   const [phraseKey, setPhraseKey] = useState<number>(0);
   const [phrase, setPhrase] = useState<string>('');
+  const [sessionStartMs, setSessionStartMs] = useState<number | null>(null);
+  const [sessionDurationSec, setSessionDurationSec] = useState<number>(0);
+  const [showShare, setShowShare] = useState(false);
 
   const isIOSAudioSafeMode = useMemo(() => {
     if (typeof navigator === 'undefined') return false;
@@ -672,6 +676,8 @@ const TabataExecucao: React.FC = () => {
     // preso/suspenso por eventos anteriores como pointerdown/touchstart.
     unlockAudio(true);
     const now = Date.now();
+    setSessionStartMs(now);
+    setSessionDurationSec(0);
     phaseRef.current = 'prep';
     stepIndexRef.current = 0;
     pausedRef.current = false;
@@ -702,6 +708,9 @@ const TabataExecucao: React.FC = () => {
     setPhaseTotalSeconds(PREP_SECONDS);
     setPhaseStartTime(Date.now());
     setPaused(false);
+    setSessionStartMs(null);
+    setSessionDurationSec(0);
+    setShowShare(false);
   };
 
   const togglePause = () => {
