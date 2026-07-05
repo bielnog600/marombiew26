@@ -28,18 +28,12 @@ SE NÃO houver restrições e o nível permitir:
 REGRA ABSOLUTA — USAR APENAS EXERCÍCIOS DA LISTA OFICIAL
 ═══════════════════════════════════════════════
 Você DEVE usar EXCLUSIVAMENTE os exercícios da "LISTA OFICIAL DE EXERCÍCIOS DISPONÍVEIS" fornecida pelo sistema.
-- Use o NOME EXATAMENTE como aparece na lista (mesma grafia, acentuação e maiúsculas).
-- NÃO invente exercícios que não estão na lista.
-- NÃO use exercícios com BARRA, máquinas (smith, hack, leg press, peck deck, polia, graviton, mesa flexora, cadeira extensora/flexora, crossover, cabos).
-- PROIBIDO: "Agachamento Livre", "Agachamento com Barra", "Levantamento Terra", "Stiff com Barra", "Supino com Barra", "Remada com Barra", "Desenvolvimento com Barra" — qualquer variação com BARRA está BANIDA do TABATA.
-- SUBSTITUIÇÕES OBRIGATÓRIAS para o TABATA:
-  • Agachamento Livre / com Barra → **GOBLET SQUAT** (com halter) ou Agachamento com peso corporal / Jump Squat
-  • Stiff com Barra → Stiff com Halteres ou Good Morning com peso corporal
-  • Supino com Barra → Supino com Halteres ou Flexão de braço
-  • Remada com Barra → Remada Curvada com Halteres ou Renegade Row
-  • Desenvolvimento com Barra → Desenvolvimento com Halteres ou Push Press com Halteres
-- Priorize exercícios com PESO CORPORAL, HALTERES, KETTLEBELL, CORDA, e funcionais livres (CARDIO, ABDOMEN).
-- Se a lista não tiver opção ideal para uma posição, escolha a alternativa mais próxima da lista (sempre halter/peso corporal) — NUNCA invente e NUNCA use barra.
+- Use o NOME EXATAMENTE como aparece na lista (mesma grafia, acentuação e maiúsculas). Cópia literal.
+- É ABSOLUTAMENTE PROIBIDO inventar, adaptar, traduzir ou criar variações de exercícios que NÃO estão na lista. Se o nome não aparece na lista, ele NÃO EXISTE para este treino.
+- A lista já foi pré-filtrada pelo sistema para conter APENAS exercícios adequados a TABATA / HIIT / CROSS TRAINING (funcionais, dinâmicos, pliométricos, cardio, core, peso corporal, halteres/kettlebell explosivos).
+- Movimentos típicos de MUSCULAÇÃO/hipertrofia isolada NÃO PODEM ser usados no TABATA, mesmo que apareçam na lista por acaso. Exemplos PROIBIDOS no TABATA: STIFF, ELEVAÇÃO PÉLVICA UNILATERAL, HIP THRUST, AGACHAMENTO SUMÔ COM HALTER, REMADA CURVADA COM HALTERES, CRUCIFIXO, VOADOR, ROSCA DIRETA, TRÍCEPS TESTA, DESENVOLVIMENTO ARNOLD, PANTURRILHA SENTADA, qualquer exercício em MÁQUINA, SMITH, POLIA, CABO, CADEIRA, MESA, ou com BARRA olímpica.
+- PRIORIZE (nesta ordem): exercícios de CARDIO (burpees, mountain climbers, polichinelo, skips, corda naval, bike, remo, ski, escada, esteira), ABDOMEN/CORE (pranchas, abs, bear to plank), pliométricos (jumps, saltos laterais), peso corporal (flexão de braço, agachamento, afundo alternado) e explosivos com halter/kettlebell (swing, thrusters, snatch — se estiverem na lista).
+- Se a lista não tiver opção ideal para uma posição, escolha o exercício da lista MAIS PRÓXIMO em padrão de movimento — NUNCA invente e NUNCA use um exercício de musculação isolada só para "preencher".
 
 ═══════════════════════════════════════════════
 ESTRUTURA TABATA PADRÃO
