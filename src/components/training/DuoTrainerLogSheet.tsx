@@ -268,9 +268,6 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     });
   };
 
-  const saveExercise = async (slot: 'A' | 'B', exIdx: number) => {
-    // handled below
-  }
   // helper wrappers
   const mutateSlot = (
     slot: 'A' | 'B',
