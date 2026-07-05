@@ -4,7 +4,7 @@ import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Loader2, Save, Dumbbell, RotateCcw, AlertTriangle, ChevronDown, ChevronUp, Settings2, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Dumbbell, RotateCcw, AlertTriangle, ChevronDown, ChevronUp, Settings2, ChevronLeft, ChevronRight, Sparkles, Copy } from 'lucide-react';
  import { Switch } from '@/components/ui/switch';
  import { Label } from '@/components/ui/label';
  import {
@@ -314,6 +314,116 @@ const TreinoIA = () => {
   };
 
   const canGenerate = level && daysPerWeek && split && week && equipment;
+
+  const buildContextSummary = (): string => {
+    const lines: string[] = [];
+    lines.push(`ALUNO: ${studentName}`);
+    if (studentCtx) {
+      const c = studentCtx;
+      if (c.idade) lines.push(`Idade: ${c.idade}`);
+      if (c.sexo) lines.push(`Sexo: ${c.sexo}`);
+      if (c.peso) lines.push(`Peso: ${c.peso} kg`);
+      if (c.altura) lines.push(`Altura: ${c.altura} cm`);
+      if (c.percentual_gordura) lines.push(`% Gordura: ${c.percentual_gordura}%`);
+      if (c.massa_magra) lines.push(`Massa magra: ${c.massa_magra} kg`);
+      if (c.imc) lines.push(`IMC: ${c.imc}`);
+      if (c.objetivo) lines.push(`Objetivo: ${c.objetivo}`);
+      if (c.lesoes) lines.push(`Lesões: ${c.lesoes}`);
+      if (c.observacoes) lines.push(`Observações: ${c.observacoes}`);
+      if (c.anamnese) {
+        const a = c.anamnese || {};
+        const anaLines: string[] = [];
+        Object.entries(a).forEach(([k, v]) => {
+          if (v && String(v).trim()) anaLines.push(`  - ${k}: ${v}`);
+        });
+        if (anaLines.length) {
+          lines.push('Anamnese:');
+          lines.push(...anaLines);
+        }
+      }
+      if (Array.isArray(c.performance_tests) && c.performance_tests.length) {
+        lines.push('Testes de performance:');
+        c.performance_tests.slice(0, 10).forEach((t: any) => {
+          lines.push(`  - ${t.tipo || t.type || 'teste'}: ${t.valor ?? t.value ?? ''} ${t.unidade || t.unit || ''}`.trim());
+        });
+      }
+    }
+
+    lines.push('');
+    lines.push('=== CONFIGURAÇÕES DO PROTOCOLO ===');
+    lines.push(`1) Nível: ${LEVELS.find(l => l.value === level)?.label || '—'}`);
+    lines.push(`2) Dias por semana: ${daysPerWeek || '—'}`);
+    lines.push(`   Divisão: ${SPLITS.find(s => s.value === split)?.label || '—'}`);
+    const numDays = parseInt(daysPerWeek || '0', 10);
+    const WEEKDAYS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+    for (let i = 0; i < numDays; i++) {
+      const groups = customSplit[i];
+      if (groups && groups.length) lines.push(`     ${WEEKDAYS[i] ?? `Dia ${i + 1}`}: ${groups.join(' + ')}`);
+    }
+    lines.push(`3) Semana do ciclo: ${week || '—'} de 4`);
+    lines.push(`   Equipamento: ${EQUIPMENT.find(e => e.value === equipment)?.label || '—'}`);
+    if (selectedMachines.length) {
+      const names = selectedMachines.map(id => AVAILABLE_MACHINES.find(m => m.id === id)?.label).filter(Boolean);
+      lines.push(`   Máquinas disponíveis: ${names.join(', ')}`);
+    }
+
+    lines.push('');
+    lines.push('4) Restrições estruturadas:');
+    lines.push(`   Caso adaptado: ${casoAdaptado ? 'Sim' : 'Não'}`);
+    if (objetivosTerapeuticos.trim()) lines.push(`   Objetivos terapêuticos: ${objetivosTerapeuticos.trim()}`);
+    if (exerciciosProibidos.trim()) lines.push(`   Exercícios proibidos: ${exerciciosProibidos.trim()}`);
+    if (padroesProibidos.length) {
+      const labels = padroesProibidos.map(id => FORBIDDEN_PATTERNS.find(p => p.id === id)?.label).filter(Boolean);
+      lines.push(`   Padrões proibidos: ${labels.join(', ')}`);
+    }
+    if (exerciciosPermitidos.trim()) lines.push(`   Exercícios permitidos/prioritários: ${exerciciosPermitidos.trim()}`);
+    if (regrasExecucao.length) {
+      const labels = regrasExecucao.map(id => EXECUTION_RULES.find(r => r.id === id)?.label).filter(Boolean);
+      lines.push(`   Regras de execução: ${labels.join(', ')}`);
+    }
+
+    lines.push('');
+    lines.push('5) Saúde e restrições:');
+    if (hasLesao) lines.push(`   Lesão: ${lesaoLocal.length ? lesaoLocal.join(', ') : 'Sim'}`);
+    if (hasDor) lines.push(`   Dor: ${dorLocal || 'Sim'}`);
+    if (limitacaoArticular) lines.push(`   Limitação articular: ${limitacaoLocal || 'Sim'}`);
+    const posturas: string[] = [];
+    if (hipercifose) posturas.push('Hipercifose');
+    if (escoliose) posturas.push('Escoliose');
+    if (hiperlordose) posturas.push('Hiperlordose');
+    if (protrusaoOmbro) posturas.push('Protrusão de ombros');
+    if (valgoJoelho) posturas.push('Valgo de joelho');
+    if (posturas.length) lines.push(`   Desvios posturais: ${posturas.join(', ')}`);
+    const habitos: string[] = [];
+    if (tabagismo) habitos.push('Tabagismo');
+    if (stressAlto) habitos.push('Stress alto');
+    if (sonoRuim) habitos.push('Sono ruim');
+    if (habitos.length) lines.push(`   Hábitos: ${habitos.join(', ')}`);
+
+    lines.push('');
+    lines.push('6) Referência de treino:');
+    lines.push(treinoReferencia.trim() ? treinoReferencia.trim() : '   (nenhuma)');
+
+    lines.push('');
+    lines.push('=== ESTRUTURA DA SESSÃO ===');
+    lines.push(`Mobilidade: ${mobilityCount === 'auto' ? 'Automático (IA decide)' : `${mobilityCount} exercícios`}`);
+    lines.push(`Exercícios principais: ${mainExercisesCount === 'auto' ? 'Automático (IA decide)' : `${mainExercisesCount} exercícios`}`);
+    if (notes.trim()) {
+      lines.push('');
+      lines.push(`Observações adicionais: ${notes.trim()}`);
+    }
+
+    return lines.join('\n');
+  };
+
+  const copyAllInfo = async () => {
+    try {
+      await navigator.clipboard.writeText(buildContextSummary());
+      toast.success('Informações copiadas!');
+    } catch {
+      toast.error('Não foi possível copiar');
+    }
+  };
 
   const generatePlan = async () => {
     if (!canGenerate || !studentCtx) return;
@@ -1058,10 +1168,23 @@ GERE TUDO DE UMA VEZ:
               {currentStep === 5 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-3">
-            <h3 className="font-bold text-sm flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">6</span>
-              Referência de Treino (opcional)
-            </h3>
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="font-bold text-sm flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">6</span>
+                Referência de Treino (opcional)
+              </h3>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 text-[11px]"
+                onClick={copyAllInfo}
+                title="Copiar todas as informações do aluno e do protocolo"
+              >
+                <Copy className="h-3 w-3" />
+                Copiar tudo
+              </Button>
+            </div>
             <p className="text-xs text-muted-foreground">
               Cole aqui um treino base, estrutura de divisão, faixa de volume ou dicas para a IA seguir como referência exata.
             </p>
