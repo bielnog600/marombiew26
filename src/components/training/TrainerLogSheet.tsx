@@ -19,6 +19,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useAdminTrainerSession } from '@/contexts/AdminTrainerSessionContext';
 import AiEditExerciseDialog, { type AiEditAction } from './AiEditExerciseDialog';
 import { applyActionsToDay } from './AiEditAllDaysDialog';
+import { normalizeWorkoutPlan, parsedDaysToWorkoutPlan, type WorkoutPlan } from '@/lib/workoutSchema';
+import { workoutPlanToMarkdown } from '@/lib/workoutMarkdownSerializer';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -232,6 +234,7 @@ interface Props {
   days: ParsedTrainingDay[];
   phase?: string | null;
   initialDayName?: string | null;
+  planId?: string | null;
 }
 
 export interface ExerciseState {
@@ -254,7 +257,7 @@ export interface SessionState {
   calendarEventId?: string | null;
 }
 
-export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId, days, phase, initialDayName }) => {
+export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId, days, phase, initialDayName, planId }) => {
   const { user } = useAuth();
   const { active, close, cancel, finish, patchState } = useAdminTrainerSession();
   const [state, setState] = useState<Record<number, ExerciseState>>({});
