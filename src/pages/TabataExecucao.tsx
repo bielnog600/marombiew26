@@ -1041,8 +1041,16 @@ const TabataExecucao: React.FC = () => {
             </Button>
             <Button
               size="lg"
+              onClick={() => setShowShare(true)}
+              className="gap-2 h-14 px-6 font-black uppercase tracking-wider rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_8px_32px_-4px_hsl(var(--primary)/0.6)]"
+            >
+              <Share2 className="!h-5 !w-5" /> Compartilhar
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
               onClick={() => navigate(-1)}
-              className="gap-2 h-14 px-8 font-black uppercase tracking-wider rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_8px_32px_-4px_hsl(var(--primary)/0.6)]"
+              className="gap-2 h-14 px-6 rounded-2xl font-bold border-2 backdrop-blur-md bg-background/60"
             >
               Voltar
             </Button>
@@ -1086,6 +1094,19 @@ const TabataExecucao: React.FC = () => {
           </>
         )}
       </div>
+
+      {showShare && (
+        <TabataSummaryShare
+          title={tabata.title || 'Treino TABATA'}
+          durationSeconds={sessionDurationSec}
+          blocksCount={tabata.blocks.length}
+          exercises={steps.map((s) => {
+            const media = findMedia(s.exercise.name);
+            return { name: s.exercise.name, imageUrl: media?.imageUrl || null };
+          })}
+          onClose={() => setShowShare(false)}
+        />
+      )}
     </div>
   );
 };
