@@ -63,6 +63,11 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
   const [studentBQuery, setStudentBQuery] = useState('');
   const [exercisesList, setExercisesList] = useState<any[]>([]);
   const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer } = useRestTimer();
+  const [restSlot, setRestSlot] = useState<'A' | 'B' | null>(null);
+  const startRestFor = (slot: 'A' | 'B') => (secs: number, exIdx: number) => {
+    setRestSlot(slot);
+    setRestTimer(secs, exIdx);
+  };
   const sessionId = active?.id || '';
   const sessionStartedAt = active?.startedAtReal || new Date().toISOString();
   const [now, setNow] = useState(() => Date.now());
@@ -576,7 +581,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                           onUpdateSet={(idx, sIdx, f, v) => updateSet('A', idx, sIdx, f, v)}
                           onUpdateNotes={(idx, v) => updateNotes('A', idx, v)}
                           onSaveExercise={(idx) => saveExerciseImpl('A', idx)}
-                          onStartRestTimer={setRestTimer}
+                          onStartRestTimer={startRestFor('A')}
                           onExerciseNameChange={(name) => setStudentA(p => {
                             if (!p) return null;
                             const ns = { ...p.state, [i]: { ...p.state[i], exerciseName: name } };
@@ -654,7 +659,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                           onUpdateSet={(idx, sIdx, f, v) => updateSet('B', idx, sIdx, f, v)}
                           onUpdateNotes={(idx, v) => updateNotes('B', idx, v)}
                           onSaveExercise={(idx) => saveExerciseImpl('B', idx)}
-                          onStartRestTimer={setRestTimer}
+                          onStartRestTimer={startRestFor('B')}
                           onExerciseNameChange={(name) => setStudentB(p => {
                             if (!p) return null;
                             const ns = { ...p.state, [i]: { ...p.state[i], exerciseName: name } };
@@ -726,17 +731,113 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
 
         {/* Rest timer modal */}
         {restTimer && (
-          <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center">
-            {/* Same rest timer UI as TrainerLogSheet */}
-            <Button variant="ghost" className="absolute top-4 right-4" onClick={() => stopTimer()}><X /></Button>
-            <div className="text-4xl font-bold mb-8">
-              {Math.floor(restTimer.remaining / 60)}:{String(restTimer.remaining % 60).padStart(2, '0')}
+          <div
+            className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => { stopTimer(); setRestSlot(null); }}
+              className="absolute top-4 right-4 p-2 rounded-full bg-secondary hover:bg-secondary/80"
+              aria-label="Fechar"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2 font-semibold">
+              Descanso {restSlot ? `· Aluno ${restSlot}` : ''}
+            </p>
+            <div className="relative w-40 h-40 flex items-center justify-center">
+              <svg className="absolute inset-0 -rotate-90 pointer-events-none" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="46" fill="none" stroke="hsl(var(--secondary))" strokeWidth="6" />
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="46"
+                  fill="none"
+                  stroke="hsl(var(--primary))"
+                  strokeWidth="6"
+                  strokeLinecap="round"
+                  strokeDasharray={2 * Math.PI * 46}
+                  strokeDashoffset={
+                    2 * Math.PI * 46 * (1 - (restTimer.total > 0 ? restTimer.remaining / restTimer.total : 0))
+                  }
+                  style={{ transition: 'stroke-dashoffset 1s linear' }}
+                />
+              </svg>
+              {restTimer.remaining > 0 ? (
+                <span className="text-4xl font-bold tabular-nums">
+                  {Math.floor(restTimer.remaining / 60)}:
+                  {String(restTimer.remaining % 60).padStart(2, '0')}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setRestTimer(restTimer.total, restTimer.exIdx)}
+                  className="relative z-10 flex items-center justify-center w-16 h-16 rounded-full bg-primary/20 hover:bg-primary/30 transition-colors"
+                  aria-label="Reiniciar descanso"
+                >
+                  <Play className="h-8 w-8 text-primary ml-1" />
+                </button>
+              )}
             </div>
-            <div className="flex gap-2">
-              <Button onClick={() => adjustTimer(-15)}>-15s</Button>
-              <Button onClick={() => adjustTimer(15)}>+15s</Button>
-              <Button variant="default" onClick={() => stopTimer()}>Pular</Button>
+            <div className="mt-4 flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => adjustTimer(-15)}>-15s</Button>
+              <Button variant="outline" size="sm" onClick={() => adjustTimer(15)}>+15s</Button>
+              <Button size="sm" onClick={() => { stopTimer(); setRestSlot(null); }}>Pular</Button>
             </div>
+
+            {/* Campos de registro de séries do exercício atual */}
+            {(() => {
+              const st = restSlot === 'A' ? studentA : restSlot === 'B' ? studentB : null;
+              if (!st) return null;
+              const day = st.days[st.activeDayIdx];
+              const timerExIdx = restTimer.exIdx;
+              const timerSt = st.state[timerExIdx];
+              const timerEx = day?.exercises[timerExIdx];
+              if (!timerSt || !timerEx) return null;
+              return (
+                <div className="mt-6 w-full max-w-sm px-4 space-y-2">
+                  <p className="text-[11px] font-semibold text-center text-muted-foreground truncate">
+                    {timerSt.exerciseName || timerEx.exercise}
+                  </p>
+                  <div className="space-y-1.5 max-h-[30vh] overflow-y-auto">
+                    {timerSt.sets.map((s: any, setIdx: number) => {
+                      const p = timerSt.plan?.[setIdx] ?? { kind: 'work' as const, targetReps: '' };
+                      const isRecon = p?.kind === 'recon';
+                      return (
+                        <div key={setIdx} className="grid grid-cols-[60px_1fr_1fr] items-center gap-2">
+                          <span
+                            className={`text-[9px] font-bold text-center px-1 py-0.5 rounded ${
+                              isRecon
+                                ? 'bg-primary/15 text-primary border border-primary/30'
+                                : 'bg-secondary text-foreground'
+                            }`}
+                          >
+                            {isRecon ? `REC #${setIdx + 1}` : `#${setIdx + 1}`}
+                          </span>
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            placeholder="kg"
+                            value={s.weight}
+                            onChange={(e) => updateSet(restSlot!, timerExIdx, setIdx, 'weight', e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                          <Input
+                            type="number"
+                            inputMode="numeric"
+                            placeholder={p?.targetReps ? `${p.targetReps}` : 'reps'}
+                            value={s.reps}
+                            onChange={(e) => updateSet(restSlot!, timerExIdx, setIdx, 'reps', e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
       </SheetContent>
