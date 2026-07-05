@@ -2,10 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Hls from 'hls.js';
 import { Button } from '@/components/ui/button';
-import { X, Play, Pause, SkipForward, RotateCcw, Volume2, VolumeX } from 'lucide-react';
+import { X, Play, Pause, SkipForward, RotateCcw, Volume2, VolumeX, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import type { ParsedTabata, TabataBlock, TabataExercise } from '@/lib/tabataParser';
+import { TabataSummaryShare } from '@/components/tabata/TabataSummaryShare';
 
 type Phase = 'idle' | 'prep' | 'work' | 'rest' | 'block_rest' | 'done';
 
@@ -65,6 +66,9 @@ const TabataExecucao: React.FC = () => {
   const [mediaMap, setMediaMap] = useState<Record<string, { videoEmbed?: string | null; imageUrl?: string | null }>>({});
   const [phraseKey, setPhraseKey] = useState<number>(0);
   const [phrase, setPhrase] = useState<string>('');
+  const [sessionStartMs, setSessionStartMs] = useState<number | null>(null);
+  const [sessionDurationSec, setSessionDurationSec] = useState<number>(0);
+  const [showShare, setShowShare] = useState(false);
 
   const isIOSAudioSafeMode = useMemo(() => {
     if (typeof navigator === 'undefined') return false;
@@ -97,6 +101,13 @@ const TabataExecucao: React.FC = () => {
     phaseStartTimeRef.current = phaseStartTime;
     phaseTotalSecondsRef.current = phaseTotalSeconds;
   }, [phase, stepIndex, paused, muted, phaseStartTime, phaseTotalSeconds]);
+
+  // Freeze the total session duration once TABATA is done
+  useEffect(() => {
+    if (phase === 'done' && sessionStartMs) {
+      setSessionDurationSec(Math.max(1, Math.round((Date.now() - sessionStartMs) / 1000)));
+    }
+  }, [phase, sessionStartMs]);
 
   const steps: Step[] = useMemo(() => {
     if (!tabata) return [];
@@ -672,6 +683,8 @@ const TabataExecucao: React.FC = () => {
     // preso/suspenso por eventos anteriores como pointerdown/touchstart.
     unlockAudio(true);
     const now = Date.now();
+    setSessionStartMs(now);
+    setSessionDurationSec(0);
     phaseRef.current = 'prep';
     stepIndexRef.current = 0;
     pausedRef.current = false;
@@ -702,6 +715,9 @@ const TabataExecucao: React.FC = () => {
     setPhaseTotalSeconds(PREP_SECONDS);
     setPhaseStartTime(Date.now());
     setPaused(false);
+    setSessionStartMs(null);
+    setSessionDurationSec(0);
+    setShowShare(false);
   };
 
   const togglePause = () => {
@@ -1025,8 +1041,16 @@ const TabataExecucao: React.FC = () => {
             </Button>
             <Button
               size="lg"
+              onClick={() => setShowShare(true)}
+              className="gap-2 h-14 px-6 font-black uppercase tracking-wider rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_8px_32px_-4px_hsl(var(--primary)/0.6)]"
+            >
+              <Share2 className="!h-5 !w-5" /> Compartilhar
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
               onClick={() => navigate(-1)}
-              className="gap-2 h-14 px-8 font-black uppercase tracking-wider rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_8px_32px_-4px_hsl(var(--primary)/0.6)]"
+              className="gap-2 h-14 px-6 rounded-2xl font-bold border-2 backdrop-blur-md bg-background/60"
             >
               Voltar
             </Button>
@@ -1070,6 +1094,19 @@ const TabataExecucao: React.FC = () => {
           </>
         )}
       </div>
+
+      {showShare && (
+        <TabataSummaryShare
+          title={tabata.title || 'Treino TABATA'}
+          durationSeconds={sessionDurationSec}
+          blocksCount={tabata.blocks.length}
+          exercises={steps.map((s) => {
+            const media = findMedia(s.exercise.name);
+            return { name: s.exercise.name, imageUrl: media?.imageUrl || null };
+          })}
+          onClose={() => setShowShare(false)}
+        />
+      )}
     </div>
   );
 };
