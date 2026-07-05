@@ -670,15 +670,14 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     // Reconstrói exercises a partir de currentExercises + state (para séries/notas)
     const rebuiltExercises = currentExercises.map((ex, i) => {
       const st = state[i];
-      const plan = st?.plan || [];
-      const reconCount = plan.filter((p) => p.kind === 'recon').length;
-      const workCount = plan.filter((p) => p.kind === 'work').length;
-      const totalCount = plan.length || (parseInt(ex.series2 || '', 10) || parseInt(ex.series || '', 10) || 0);
+      const setPlan = st?.plan || [];
+      const reconCount = setPlan.filter((p) => p.kind === 'recon').length;
+      const workCount = setPlan.filter((p) => p.kind === 'work').length;
+      const totalCount = setPlan.length || (parseInt(ex.series2 || '', 10) || parseInt(ex.series || '', 10) || 0);
       const series = reconCount > 0 ? String(reconCount) : String(totalCount || ex.series || '');
       const series2 = reconCount > 0 ? String(workCount) : (ex.series2 || '');
-      const existing = plan[dayIdx] as any;
-      // preserve stable id when possible
-      const prevEx = (existing?.exercises || [])[i];
+      const existingDay = plan!.days[dayIdx] as any;
+      const prevEx = (existingDay?.exercises || [])[i];
       return {
         id: prevEx?.id || (crypto as any)?.randomUUID?.() || `ex_${Date.now()}_${i}`,
         exercise: (st?.exerciseName || ex.exercise || '').trim(),
