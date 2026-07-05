@@ -28,8 +28,6 @@ import OtherAlertsSection from '@/components/consultoria/OtherAlertsSection';
 import { useStudentsWeeklySummary } from '@/hooks/useStudentsWeeklySummary';
 import { useStudentFollowups, bucketFor, type FollowupBucket } from '@/hooks/useStudentFollowups';
 import ConsultoriaStudentSearch from '@/components/consultoria/ConsultoriaStudentSearch';
-import DietRenewalPanel from '@/components/consultoria/DietRenewalPanel';
-import WorkoutRenewalPanel from '@/components/consultoria/WorkoutRenewalPanel';
 import PushNotificationsToday from '@/components/consultoria/PushNotificationsToday';
 import AllExecutionVideos from '@/components/consultoria/AllExecutionVideos';
 
@@ -909,7 +907,6 @@ const Consultoria = () => {
 
         {tab === 'dietas' && (
           <div className="space-y-4">
-          <DietRenewalPanel />
           <Card className="glass-card">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
@@ -938,7 +935,6 @@ const Consultoria = () => {
 
         {tab === 'treinos' && (
           <div className="space-y-4">
-          <WorkoutRenewalPanel />
           <Card className="glass-card">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
