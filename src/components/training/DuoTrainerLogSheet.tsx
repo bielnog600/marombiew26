@@ -59,6 +59,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
   const [studentB, setStudentB] = useState<StudentSessionState | null>(null);
   const [allStudents, setAllStudents] = useState<{ user_id: string; nome: string }[]>([]);
   const [selectingStudentB, setSelectingStudentB] = useState(false);
+  const [studentBQuery, setStudentBQuery] = useState('');
   const [exercisesList, setExercisesList] = useState<any[]>([]);
   const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer } = useRestTimer();
   const sessionId = active?.id || '';
@@ -539,23 +540,35 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                   <UserPlus className="h-8 w-8 text-muted-foreground mb-4" />
                   <p className="text-sm font-medium mb-4">Selecione o segundo aluno</p>
                   <div className="w-full max-w-xs space-y-2">
-                    <Input 
-                      placeholder="Buscar aluno..." 
+                    <Input
+                      placeholder="Buscar aluno..."
                       className="h-9"
-                      onChange={(e) => {
-                        // local filter
-                      }}
+                      value={studentBQuery}
+                      onChange={(e) => setStudentBQuery(e.target.value)}
                     />
                     <div className="max-h-48 overflow-y-auto border rounded-lg bg-background">
-                      {allStudents.map(s => (
-                        <button
-                          key={s.user_id}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
-                          onClick={() => loadStudentData(s.user_id, s.nome, 'B')}
-                        >
-                          {s.nome}
-                        </button>
-                      ))}
+                      {allStudents
+                        .filter((s) => {
+                          const q = studentBQuery.trim().toLowerCase();
+                          if (!q) return true;
+                          return (s.nome || '').toLowerCase().includes(q);
+                        })
+                        .map((s) => (
+                          <button
+                            key={s.user_id}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+                            onClick={() => loadStudentData(s.user_id, s.nome, 'B')}
+                          >
+                            {s.nome}
+                          </button>
+                        ))}
+                      {allStudents.filter((s) =>
+                        (s.nome || '').toLowerCase().includes(studentBQuery.trim().toLowerCase()),
+                      ).length === 0 && (
+                        <p className="px-3 py-4 text-xs text-muted-foreground text-center">
+                          Nenhum aluno encontrado.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
