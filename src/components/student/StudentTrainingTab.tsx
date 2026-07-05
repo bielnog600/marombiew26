@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar, Send, ClipboardList, Plus, Sparkles, Activity, Wand2, Zap, GitCompare, RefreshCw, Users, Settings2 } from 'lucide-react';
 import { Trash2, Copy, User } from 'lucide-react';
+import { BookMarked } from 'lucide-react';
 import { toast } from 'sonner';
 import TrainingResultCards from '@/components/TrainingResultCards';
 import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
@@ -14,6 +15,7 @@ import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingRes
 import { rebuildTrainingMarkdown } from '@/lib/trainingResultParser';
 import { saveWorkoutPlanFromMarkdown } from '@/lib/workoutPlanRepo';
 import AiEditAllDaysDialog from '@/components/training/AiEditAllDaysDialog';
+import TemplatesDialog from '@/components/training/TemplatesDialog';
 import WeeklyAdherenceBanner from '@/components/training/WeeklyAdherenceBanner';
 import { useWeeklyAdherence } from '@/hooks/useWeeklyAdherence';
 import { resolveActiveWeek } from '@/lib/weeklyProgression';
@@ -57,6 +59,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   const [trainModeChoice, setTrainModeChoice] = useState<any | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [aiAllDaysOpen, setAiAllDaysOpen] = useState<string | null>(null);
+  const [templatesFor, setTemplatesFor] = useState<any | null>(null);
   const editedMarkdownsRef = useRef<Record<string, string>>({});
   const [starting, setStarting] = useState(false);
 
@@ -417,6 +420,18 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                         )}
                         Duplicar
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1.5 text-xs rounded-xl bg-amber-500/5 border-amber-500/20 text-amber-600"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTemplatesFor(getEffectivePlan(plan));
+                        }}
+                      >
+                        <BookMarked className="h-3.5 w-3.5" />
+                        Templates
+                      </Button>
                     </div>
 
 
@@ -562,6 +577,33 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                     : p
                 ));
               }
+            }}
+          />
+        )}
+
+        {templatesFor && (
+          <TemplatesDialog
+            open={!!templatesFor}
+            onOpenChange={(v) => !v && setTemplatesFor(null)}
+            plan={templatesFor}
+            studentId={studentId}
+            onApplyTemplate={async (tpl) => {
+              const planId = templatesFor.id;
+              const updates: Record<string, any> = {
+                conteudo: tpl.conteudo,
+                conteudo_json: tpl.conteudo_json ?? null,
+              };
+              if (tpl.fase) updates.fase = tpl.fase;
+              if (tpl.mobility_count != null) updates.mobility_count = tpl.mobility_count;
+              if (tpl.main_exercises_count != null) updates.main_exercises_count = tpl.main_exercises_count;
+              const { error } = await supabase.from('ai_plans').update(updates).eq('id', planId);
+              if (error) throw error;
+              setPlans(prev => prev.map(p => p.id === planId ? { ...p, ...updates } : p));
+              // clear any local edits so displayed content reflects the applied template
+              const nextRef = { ...editedMarkdownsRef.current };
+              delete nextRef[planId];
+              editedMarkdownsRef.current = nextRef;
+              setEditedMarkdowns(prev => { const c = { ...prev }; delete c[planId]; return c; });
             }}
           />
         )}
