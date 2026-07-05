@@ -1168,10 +1168,23 @@ GERE TUDO DE UMA VEZ:
               {currentStep === 5 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-3">
-            <h3 className="font-bold text-sm flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">6</span>
-              Referência de Treino (opcional)
-            </h3>
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="font-bold text-sm flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">6</span>
+                Referência de Treino (opcional)
+              </h3>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 text-[11px]"
+                onClick={copyAllInfo}
+                title="Copiar todas as informações do aluno e do protocolo"
+              >
+                <Copy className="h-3 w-3" />
+                Copiar tudo
+              </Button>
+            </div>
             <p className="text-xs text-muted-foreground">
               Cole aqui um treino base, estrutura de divisão, faixa de volume ou dicas para a IA seguir como referência exata.
             </p>
