@@ -66,6 +66,7 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
 }) => {
    const [instruction, setInstruction] = useState('');
    const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+  const [reference, setReference] = useState('');
    const [loading, setLoading] = useState(false);
    const [tab, setTab] = useState<'ai' | 'variations'>('ai');
    const [activeDayIdx, setActiveDayIdx] = useState(0);
@@ -286,10 +287,15 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
    };
  
    const runWithInstruction = async () => {
-     const combinedInstruction = [
-       ...selectedOptions,
-       instruction.trim()
-     ].filter(Boolean).join('. ');
+    const refText = reference.trim();
+    const refBlock = refText
+      ? `Use o treino abaixo (colado do ChatGPT) como REFERÊNCIA PRINCIPAL para ajustar o treino atual. Aplique as mudanças correspondentes (adicionar, substituir, remover, modificar) para que o resultado fique alinhado a essa referência, respeitando o banco de exercícios.\n\n--- TREINO DE REFERÊNCIA ---\n${refText}\n--- FIM DA REFERÊNCIA ---`
+      : '';
+    const combinedInstruction = [
+      ...selectedOptions,
+      instruction.trim(),
+      refBlock,
+    ].filter(Boolean).join('\n\n');
  
      if (!combinedInstruction) {
        toast.error('Selecione uma opção ou escreva uma instrução.');
@@ -393,6 +399,7 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
      toast.success(`${totalPendingSelected} alteração(ões) aplicada(s).`);
      setInstruction('');
      setSelectedOptions([]);
+    setReference('');
      resetPreview();
      onOpenChange(false);
    };
