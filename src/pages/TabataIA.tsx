@@ -259,15 +259,22 @@ const TabataIA = () => {
         .select('nome, grupo_muscular, video_embed')
         .not('video_embed', 'is', null);
 
-      const FORBIDDEN = /\b(SMITH|HACK|MÁQ|MAQ|MACHINE|GRAVITON|PECK|CROSSOVER|MESA FLEXORA|CADEIRA|POLIA|CABO|LEG PRESS|PULL DOWN|PULLDOWN|BARRA(?!\s+W$)|FIXA)\b/i;
-      const ALLOWED_GROUPS = new Set(['CARDIO', 'ABDOMEN', 'ADUTORES', 'GLÚTEOS', 'GLUTEOS', 'POSTERIOR', 'QUADRÍCEPS', 'QUADRICEPS', 'PEITORAL', 'DORSAL', 'DELTÓIDES', 'DELTOIDES', 'BÍCEPS', 'BICEPS', 'TRÍCEPS', 'TRICEPS', 'PANTURRILHA']);
+      // Whitelist estrito: só exercícios que fazem sentido em TABATA / HIIT / cross training.
+      // Nada de máquinas, barras, cadeiras, polias, isolados de musculação (stiff, elevação pélvica
+      // unilateral, sumô com halter, remada curvada com halteres, etc.).
+      const FORBIDDEN = /\b(SMITH|HACK|MÁQ|MAQ|MACHINE|GRAVITON|PECK|CROSSOVER|MESA|CADEIRA|POLIA|CABO|LEG PRESS|PULL DOWN|PULLDOWN|BARRA|FIXA|STIFF|SUMO|SUMÔ|REMADA|ELEVAÇÃO PÉLVICA|PELVICA UNILATERAL|HIP THRUST|CRUCIFIXO|VOADOR|ROSCA|TRICEPS TESTA|TRÍCEPS TESTA|DESENVOLVIMENTO|ARNOLD|SHRUG|ENCOLHIMENTO|PANTURRILHA)\b/i;
+      // Grupos "TABATA-friendly" — dinâmicos, funcionais, cardio, core.
+      const TABATA_GROUPS = new Set(['CARDIO', 'ABDOMEN', 'CORE', 'MOBILIDADE']);
+      // Movimentos funcionais/pliométricos aceitos mesmo fora dos grupos acima.
+      const FUNCTIONAL_ALLOW = /\b(BURPEE|MOUTAIN|MOUNTAIN|POLICHINELO|SKIP|JUMPING|PRANCHA|FLEXÃO|FLEXAO|AGACHAMENTO(?!\s+SMITH)|AFUNDO(?!\s+SMITH)(?!\s+BARRA)(?!\s+C\/\s*BARRA)|JUMPS|SALTO|SWING|KETTLEBELL|CORDA NAVAL|BIKE|REMO|ESCADA|ESTEIRA|PASSADEIRA|ELÍPTICO|ELIPTICO|SKI|AIR BIKE|BEAR TO PLANK|TESOURINHA|PALLOF|ABS|ABDOMINAL|ALONGAMENTO)\b/i;
 
       const availableExercises = (allEx || []).filter(ex => {
         if (!ex?.nome || !ex?.video_embed) return false;
-        if (FORBIDDEN.test(ex.nome)) return false;
-        // Allow halteres/kettlebell/peso corporal/livre/cardio/abdomen
-        const isFunctional = /HALTER|KETTLEBELL|CORDA|SWING|BURPEE|MOUTAIN|MOUNTAIN|POLICHINELO|SKIP|JUMPING|PRANCHA|FLEX|AGACH|AFUNDO|ABDOMINAL|ABS|ALONGAMENTO|MOBILIDADE|BIKE|REMO|ESCADA|ESTEIRA|PASSADEIRA|ELÍPTICO|ELIPTICO|SKI|AIR BIKE/i.test(ex.nome);
-        return isFunctional || ALLOWED_GROUPS.has((ex.grupo_muscular || '').toUpperCase());
+        const nome = ex.nome.toUpperCase();
+        if (FORBIDDEN.test(nome)) return false;
+        const grupoOk = TABATA_GROUPS.has((ex.grupo_muscular || '').toUpperCase());
+        const nomeOk = FUNCTIONAL_ALLOW.test(nome);
+        return grupoOk || nomeOk;
       });
 
       const results: { dayLabel: string; content: string }[] = [];
