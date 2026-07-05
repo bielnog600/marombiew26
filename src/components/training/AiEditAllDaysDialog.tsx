@@ -66,6 +66,7 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
 }) => {
    const [instruction, setInstruction] = useState('');
    const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+  const [reference, setReference] = useState('');
    const [loading, setLoading] = useState(false);
    const [tab, setTab] = useState<'ai' | 'variations'>('ai');
    const [activeDayIdx, setActiveDayIdx] = useState(0);
@@ -286,10 +287,15 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
    };
  
    const runWithInstruction = async () => {
-     const combinedInstruction = [
-       ...selectedOptions,
-       instruction.trim()
-     ].filter(Boolean).join('. ');
+    const refText = reference.trim();
+    const refBlock = refText
+      ? `Use o treino abaixo (colado do ChatGPT) como REFERÊNCIA PRINCIPAL para ajustar o treino atual. Aplique as mudanças correspondentes (adicionar, substituir, remover, modificar) para que o resultado fique alinhado a essa referência, respeitando o banco de exercícios.\n\n--- TREINO DE REFERÊNCIA ---\n${refText}\n--- FIM DA REFERÊNCIA ---`
+      : '';
+    const combinedInstruction = [
+      ...selectedOptions,
+      instruction.trim(),
+      refBlock,
+    ].filter(Boolean).join('\n\n');
  
      if (!combinedInstruction) {
        toast.error('Selecione uma opção ou escreva uma instrução.');
@@ -393,6 +399,7 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
      toast.success(`${totalPendingSelected} alteração(ões) aplicada(s).`);
      setInstruction('');
      setSelectedOptions([]);
+    setReference('');
      resetPreview();
      onOpenChange(false);
    };
@@ -811,6 +818,21 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
               className="text-sm resize-none"
             />
           </div>
+
+          <div className="space-y-1.5 pt-2 border-t border-border/60">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Wand2 className="h-3.5 w-3.5" />
+              Colar treino do ChatGPT (referência)
+            </p>
+            <Textarea
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              placeholder="Cole aqui o treino ajustado que o ChatGPT te devolveu. A IA vai usar como referência para adaptar o treino atual."
+              rows={6}
+              disabled={loading}
+              className="text-sm resize-y"
+            />
+          </div>
         </div>
         )}
 
@@ -959,7 +981,7 @@ const AiEditAllDaysDialog: React.FC<Props> = ({
             </>
           ) : tab === 'ai' ? (
             <Button onClick={() => runWithInstruction()}
-              disabled={loading || (selectedOptions.length === 0 && !instruction.trim())}>
+              disabled={loading || (selectedOptions.length === 0 && !instruction.trim() && !reference.trim())}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
               Gerar prévia
             </Button>

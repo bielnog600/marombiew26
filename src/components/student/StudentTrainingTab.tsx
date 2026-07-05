@@ -394,14 +394,24 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                         <Sparkles className="h-3.5 w-3.5" />
                         IA: Ajuste Geral
                       </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
+                      <Button
+                        size="sm"
+                        variant="outline"
                         className="h-8 gap-1.5 text-xs rounded-xl bg-blue-500/5 border-blue-500/20 text-blue-600"
-                        onClick={() => navigate(`/treino-ia/${studentId}`)}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            const header = `Treino atual${studentName ? ` de ${studentName}` : ''}${plan.titulo ? ` — ${plan.titulo}` : ''}\n\n`;
+                            await navigator.clipboard.writeText(header + (currentMarkdown || ''));
+                            toast.success('Treino copiado. Cole no ChatGPT para analisar.');
+                          } catch {
+                            toast.error('Não foi possível copiar.');
+                          }
+                        }}
+                        title="Copiar treino completo para colar no ChatGPT"
                       >
-                        <RefreshCw className="h-3.5 w-3.5" />
-                        Renovar Bloco
+                        <Copy className="h-3.5 w-3.5" />
+                        Copiar treino
                       </Button>
                       <Button
                         size="sm"
