@@ -271,6 +271,7 @@ const TabataIA = () => {
       });
 
       const results: { dayLabel: string; content: string }[] = [];
+      const usedExercises: string[] = [];
 
       for (let i = 0; i < tabataDays.length; i++) {
         const day = tabataDays[i];
@@ -320,6 +321,7 @@ const TabataIA = () => {
               restSec,
               totalDuration,
               rounds,
+              avoidExercises: usedExercises,
             }),
           }
         );
@@ -366,6 +368,15 @@ const TabataIA = () => {
         }
 
         results.push({ dayLabel: day.dayLabel, content: accumulated });
+        try {
+          const parsedDay = parseTabata(accumulated);
+          for (const b of parsedDay.blocks) {
+            for (const ex of b.exercises) {
+              const n = (ex.name || '').trim();
+              if (n && !usedExercises.includes(n)) usedExercises.push(n);
+            }
+          }
+        } catch { /* ignore */ }
         setMultiResults([...results]);
         setResult('');
       }
