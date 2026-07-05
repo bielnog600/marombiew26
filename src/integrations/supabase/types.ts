@@ -2630,6 +2630,54 @@ export type Database = {
           },
         ]
       }
+      workout_templates: {
+        Row: {
+          conteudo: string
+          conteudo_json: Json | null
+          created_at: string
+          descricao: string | null
+          fase: string | null
+          id: string
+          main_exercises_count: number | null
+          mobility_count: number | null
+          nome: string
+          owner_id: string
+          source_plan_id: string | null
+          source_student_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          conteudo: string
+          conteudo_json?: Json | null
+          created_at?: string
+          descricao?: string | null
+          fase?: string | null
+          id?: string
+          main_exercises_count?: number | null
+          mobility_count?: number | null
+          nome: string
+          owner_id: string
+          source_plan_id?: string | null
+          source_student_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          conteudo?: string
+          conteudo_json?: Json | null
+          created_at?: string
+          descricao?: string | null
+          fase?: string | null
+          id?: string
+          main_exercises_count?: number | null
+          mobility_count?: number | null
+          nome?: string
+          owner_id?: string
+          source_plan_id?: string | null
+          source_student_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
