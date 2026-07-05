@@ -2,12 +2,13 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Dumbbell, Check, Timer, X, Users, UserPlus, Play } from 'lucide-react';
+import { Loader2, Dumbbell, Check, Timer, X, Users, UserPlus, Play, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { useRestTimer } from '@/hooks/useRestTimer';
 import ExerciseLogCard from './ExerciseLogCard';
+import type { ParsedExercise } from '@/lib/trainingResultParser';
 import { 
   ExerciseNamePicker, 
   HistoryPopover, 
@@ -267,7 +268,127 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     });
   };
 
-  const saveExercise = async (slot: 'A' | 'B', exIdx: number) => {
+  // helper wrappers
+  const mutateSlot = (
+    slot: 'A' | 'B',
+    mutator: (st: StudentSessionState) => StudentSessionState,
+  ) => {
+    const setFn = slot === 'A' ? setStudentA : setStudentB;
+    setFn((prev) => (prev ? mutator(prev) : prev));
+  };
+
+  const persistSlot = (st: StudentSessionState) => {
+    const day = st.days[st.activeDayIdx];
+    if (!day) return;
+    saveDraft(st.studentId, day.day, makeDaySignature(day), st.state);
+  };
+
+  const addSet = (slot: 'A' | 'B', exIdx: number) => {
+    mutateSlot(slot, (prev) => {
+      const cur = prev.state[exIdx];
+      if (!cur) return prev;
+      const lastPlan = cur.plan[cur.plan.length - 1];
+      const newPlan = [...cur.plan, { kind: 'work', targetReps: lastPlan?.targetReps || '' }];
+      const newSets = [...cur.sets, { weight: '', reps: '' }];
+      const nextState = { ...prev.state, [exIdx]: { ...cur, plan: newPlan, sets: newSets } };
+      const next = { ...prev, state: nextState };
+      persistSlot(next);
+      return next;
+    });
+  };
+
+  const removeSet = (slot: 'A' | 'B', exIdx: number, setIdx: number) => {
+    mutateSlot(slot, (prev) => {
+      const cur = prev.state[exIdx];
+      if (!cur || cur.sets.length <= 1) return prev;
+      const newPlan = cur.plan.filter((_: any, i: number) => i !== setIdx);
+      const newSets = cur.sets.filter((_: any, i: number) => i !== setIdx);
+      const nextState = { ...prev.state, [exIdx]: { ...cur, plan: newPlan, sets: newSets } };
+      const next = { ...prev, state: nextState };
+      persistSlot(next);
+      return next;
+    });
+  };
+
+  const removeExercise = (slot: 'A' | 'B', exIdx: number) => {
+    mutateSlot(slot, (prev) => {
+      const day = prev.days[prev.activeDayIdx];
+      const newExercises = day.exercises.filter((_, i) => i !== exIdx);
+      const newState: Record<number, any> = {};
+      day.exercises.forEach((_, i) => {
+        if (i < exIdx) newState[i] = prev.state[i];
+        else if (i > exIdx) newState[i - 1] = prev.state[i];
+      });
+      const newDays = prev.days.map((d, i) => (i === prev.activeDayIdx ? { ...d, exercises: newExercises } : d));
+      const next = { ...prev, days: newDays, state: newState };
+      persistSlot(next);
+      return next;
+    });
+  };
+
+  const updateExerciseMeta = (
+    slot: 'A' | 'B',
+    exIdx: number,
+    patch: Partial<Pick<ParsedExercise, 'pause' | 'variation' | 'reps' | 'rir'>>,
+  ) => {
+    mutateSlot(slot, (prev) => {
+      const day = prev.days[prev.activeDayIdx];
+      const newExercises = day.exercises.map((e, i) => (i === exIdx ? { ...e, ...patch } : e));
+      let nextState = prev.state;
+      if (patch.reps !== undefined) {
+        const ex = newExercises[exIdx];
+        const newPlan = buildSetPlan(ex.series, ex.series2, ex.reps);
+        const cur = prev.state[exIdx];
+        if (cur) {
+          const sets = newPlan.map((_, i) => cur.sets[i] ?? { weight: '', reps: '' });
+          nextState = { ...prev.state, [exIdx]: { ...cur, plan: newPlan, sets } };
+        }
+      }
+      const newDays = prev.days.map((d, i) => (i === prev.activeDayIdx ? { ...d, exercises: newExercises } : d));
+      const next = { ...prev, days: newDays, state: nextState };
+      persistSlot(next);
+      return next;
+    });
+  };
+
+  const addExercise = (slot: 'A' | 'B') => {
+    mutateSlot(slot, (prev) => {
+      const day = prev.days[prev.activeDayIdx];
+      const newEx: ParsedExercise = {
+        exercise: '',
+        series: '3',
+        series2: '',
+        reps: '8-12',
+        rir: '',
+        pause: '60s',
+        description: '',
+        variation: '',
+      };
+      const newExercises = [...day.exercises, newEx];
+      const newIdx = newExercises.length - 1;
+      const plan = buildSetPlan(newEx.series, newEx.series2, newEx.reps);
+      const nextState = {
+        ...prev.state,
+        [newIdx]: {
+          sets: plan.map(() => ({ weight: '', reps: '' })),
+          plan,
+          notes: '',
+          saving: false,
+          lastWeight: null,
+          lastReps: null,
+          lastDate: null,
+          savedSets: 0,
+          exerciseName: '',
+        },
+      };
+      const newDays = prev.days.map((d, i) => (i === prev.activeDayIdx ? { ...d, exercises: newExercises } : d));
+      const next = { ...prev, days: newDays, state: nextState };
+      persistSlot(next);
+      return next;
+    });
+  };
+
+  const saveExerciseImpl = async (slot: 'A' | 'B', exIdx: number) => {
     const st = slot === 'A' ? studentA : studentB;
     const setFn = slot === 'A' ? setStudentA : setStudentB;
     if (!st) return;
@@ -454,7 +575,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                           studentId={studentA.studentId}
                           onUpdateSet={(idx, sIdx, f, v) => updateSet('A', idx, sIdx, f, v)}
                           onUpdateNotes={(idx, v) => updateNotes('A', idx, v)}
-                          onSaveExercise={(idx) => saveExercise('A', idx)}
+                          onSaveExercise={(idx) => saveExerciseImpl('A', idx)}
                           onStartRestTimer={setRestTimer}
                           onExerciseNameChange={(name) => setStudentA(p => {
                             if (!p) return null;
@@ -462,11 +583,24 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                             saveDraft(p.studentId, p.days[p.activeDayIdx].day, makeDaySignature(p.days[p.activeDayIdx]), ns);
                             return { ...p, state: ns };
                           })}
+                          onAddSet={(idx) => addSet('A', idx)}
+                          onRemoveSet={(idx, sIdx) => removeSet('A', idx, sIdx)}
+                          onRemoveExercise={(idx) => removeExercise('A', idx)}
+                          onUpdateMeta={(patch) => updateExerciseMeta('A', i, patch)}
                           ExerciseNamePicker={ExerciseNamePicker}
                           HistoryPopover={HistoryPopover}
                           parsePauseSeconds={parsePauseSeconds}
                         />
                       ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full gap-2 h-10 border-dashed border-primary/40 text-primary hover:bg-primary/10"
+                        onClick={() => addExercise('A')}
+                      >
+                        <Plus className="h-4 w-4" />
+                        Adicionar exercício
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -519,7 +653,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                           studentId={studentB.studentId}
                           onUpdateSet={(idx, sIdx, f, v) => updateSet('B', idx, sIdx, f, v)}
                           onUpdateNotes={(idx, v) => updateNotes('B', idx, v)}
-                          onSaveExercise={(idx) => saveExercise('B', idx)}
+                          onSaveExercise={(idx) => saveExerciseImpl('B', idx)}
                           onStartRestTimer={setRestTimer}
                           onExerciseNameChange={(name) => setStudentB(p => {
                             if (!p) return null;
@@ -527,11 +661,24 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                             saveDraft(p.studentId, p.days[p.activeDayIdx].day, makeDaySignature(p.days[p.activeDayIdx]), ns);
                             return { ...p, state: ns };
                           })}
+                          onAddSet={(idx) => addSet('B', idx)}
+                          onRemoveSet={(idx, sIdx) => removeSet('B', idx, sIdx)}
+                          onRemoveExercise={(idx) => removeExercise('B', idx)}
+                          onUpdateMeta={(patch) => updateExerciseMeta('B', i, patch)}
                           ExerciseNamePicker={ExerciseNamePicker}
                           HistoryPopover={HistoryPopover}
                           parsePauseSeconds={(p) => 60}
                         />
                       ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full gap-2 h-10 border-dashed border-primary/40 text-primary hover:bg-primary/10"
+                        onClick={() => addExercise('B')}
+                      >
+                        <Plus className="h-4 w-4" />
+                        Adicionar exercício
+                      </Button>
                     </div>
                   )}
                 </div>
