@@ -120,6 +120,7 @@ serve(async (req) => {
       restSec = 'auto',
       totalDuration = 'auto',
       rounds = 'auto',
+      avoidExercises = [],
     } = await req.json();
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not configured");
@@ -217,18 +218,25 @@ serve(async (req) => {
       ? `\n\nESTRUTURA OBRIGATÓRIA SOLICITADA PELO COACH:\n${structureLines.join('\n')}\n`
       : '';
 
+    const avoidBlock = Array.isArray(avoidExercises) && avoidExercises.length > 0
+      ? `\n\n═══════════════════════════════════════════════\nDIVERSIFICAÇÃO OBRIGATÓRIA — NÃO REPETIR EXERCÍCIOS JÁ USADOS\n═══════════════════════════════════════════════\nOs exercícios abaixo JÁ FORAM USADOS em outros dias do plano semanal deste aluno. É PROIBIDO usá-los novamente neste dia. Escolha OUTROS exercícios equivalentes da Lista Oficial para garantir variedade semanal:\n- ${avoidExercises.join('\n- ')}\n\nSe absolutamente não houver alternativa segura na lista (ex.: única opção compatível com uma restrição específica), você pode reutilizar no máximo 1 exercício, mas priorize sempre a variação.\n`
+      : '';
+
     const userPrompt = `Gere o TABATA agora baseado no perfil completo do aluno.
 
 INTENSIDADE SOLICITADA: ${intensity.toUpperCase()} — ${intensityInstruction}
 
 ${styleInstruction}
 ${structureBlock}
+${avoidBlock}
 ${notes ? `OBSERVAÇÕES ADICIONAIS DO COACH: ${notes}\n` : ''}
 
 Lembre-se:
 - Cruze CADA exercício com as lesões/restrições reportadas
 - Se houver patologias, prefira sempre a versão adaptada
 - Inclua aquecimento, blocos principais com tabela detalhada e desaquecimento
+- Garanta VARIEDADE de exercícios ao longo da semana: não repita exercícios já listados como usados
+- Escolha SEMPRE exercícios que fazem sentido no contexto TABATA (funcionais, dinâmicos, alta intensidade adequada ao perfil)
 - Gere tudo de uma vez no formato markdown especificado`;
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
