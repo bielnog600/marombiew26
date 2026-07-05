@@ -2,12 +2,13 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Dumbbell, Check, Timer, X, Users, UserPlus, Play } from 'lucide-react';
+import { Loader2, Dumbbell, Check, Timer, X, Users, UserPlus, Play, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { useRestTimer } from '@/hooks/useRestTimer';
 import ExerciseLogCard from './ExerciseLogCard';
+import type { ParsedExercise } from '@/lib/trainingResultParser';
 import { 
   ExerciseNamePicker, 
   HistoryPopover, 
