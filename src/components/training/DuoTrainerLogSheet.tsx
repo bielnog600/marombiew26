@@ -63,6 +63,11 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
   const [studentBQuery, setStudentBQuery] = useState('');
   const [exercisesList, setExercisesList] = useState<any[]>([]);
   const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer } = useRestTimer();
+  const [restSlot, setRestSlot] = useState<'A' | 'B' | null>(null);
+  const startRestFor = (slot: 'A' | 'B') => (secs: number, exIdx: number) => {
+    setRestSlot(slot);
+    setRestTimer(secs, exIdx);
+  };
   const sessionId = active?.id || '';
   const sessionStartedAt = active?.startedAtReal || new Date().toISOString();
   const [now, setNow] = useState(() => Date.now());
@@ -576,7 +581,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                           onUpdateSet={(idx, sIdx, f, v) => updateSet('A', idx, sIdx, f, v)}
                           onUpdateNotes={(idx, v) => updateNotes('A', idx, v)}
                           onSaveExercise={(idx) => saveExerciseImpl('A', idx)}
-                          onStartRestTimer={setRestTimer}
+                          onStartRestTimer={startRestFor('A')}
                           onExerciseNameChange={(name) => setStudentA(p => {
                             if (!p) return null;
                             const ns = { ...p.state, [i]: { ...p.state[i], exerciseName: name } };
@@ -654,7 +659,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                           onUpdateSet={(idx, sIdx, f, v) => updateSet('B', idx, sIdx, f, v)}
                           onUpdateNotes={(idx, v) => updateNotes('B', idx, v)}
                           onSaveExercise={(idx) => saveExerciseImpl('B', idx)}
-                          onStartRestTimer={setRestTimer}
+                          onStartRestTimer={startRestFor('B')}
                           onExerciseNameChange={(name) => setStudentB(p => {
                             if (!p) return null;
                             const ns = { ...p.state, [i]: { ...p.state[i], exerciseName: name } };
