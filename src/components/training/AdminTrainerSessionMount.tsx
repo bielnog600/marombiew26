@@ -40,6 +40,7 @@ const AdminTrainerSessionMount: React.FC = () => {
           days={parseTrainingSections(plan.conteudo || '').flatMap((s) => s.days || [])}
           phase={plan.fase}
           initialDayName={active.students[0].dayName || null}
+          planId={plan.id}
         />
       )}
       {isOpen && plan && active.mode === 'duo' && (
