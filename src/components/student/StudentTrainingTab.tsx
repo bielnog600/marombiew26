@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar, Send, ClipboardList, Plus, Sparkles, Activity, Wand2, Zap, GitCompare, RefreshCw, Users, Settings2 } from 'lucide-react';
 import { Trash2, Copy, User } from 'lucide-react';
+import { BookMarked } from 'lucide-react';
 import { toast } from 'sonner';
 import TrainingResultCards from '@/components/TrainingResultCards';
 import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
@@ -14,6 +15,7 @@ import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingRes
 import { rebuildTrainingMarkdown } from '@/lib/trainingResultParser';
 import { saveWorkoutPlanFromMarkdown } from '@/lib/workoutPlanRepo';
 import AiEditAllDaysDialog from '@/components/training/AiEditAllDaysDialog';
+import TemplatesDialog from '@/components/training/TemplatesDialog';
 import WeeklyAdherenceBanner from '@/components/training/WeeklyAdherenceBanner';
 import { useWeeklyAdherence } from '@/hooks/useWeeklyAdherence';
 import { resolveActiveWeek } from '@/lib/weeklyProgression';
@@ -57,6 +59,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   const [trainModeChoice, setTrainModeChoice] = useState<any | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [aiAllDaysOpen, setAiAllDaysOpen] = useState<string | null>(null);
+  const [templatesFor, setTemplatesFor] = useState<any | null>(null);
   const editedMarkdownsRef = useRef<Record<string, string>>({});
   const [starting, setStarting] = useState(false);
 
@@ -416,6 +419,18 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                           <Copy className="h-3.5 w-3.5" />
                         )}
                         Duplicar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1.5 text-xs rounded-xl bg-amber-500/5 border-amber-500/20 text-amber-600"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTemplatesFor(getEffectivePlan(plan));
+                        }}
+                      >
+                        <BookMarked className="h-3.5 w-3.5" />
+                        Templates
                       </Button>
                     </div>
 
