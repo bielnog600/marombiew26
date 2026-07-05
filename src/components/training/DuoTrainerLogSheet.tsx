@@ -575,7 +575,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                           studentId={studentA.studentId}
                           onUpdateSet={(idx, sIdx, f, v) => updateSet('A', idx, sIdx, f, v)}
                           onUpdateNotes={(idx, v) => updateNotes('A', idx, v)}
-                          onSaveExercise={(idx) => saveExercise('A', idx)}
+                          onSaveExercise={(idx) => saveExerciseImpl('A', idx)}
                           onStartRestTimer={setRestTimer}
                           onExerciseNameChange={(name) => setStudentA(p => {
                             if (!p) return null;
@@ -640,7 +640,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                           studentId={studentB.studentId}
                           onUpdateSet={(idx, sIdx, f, v) => updateSet('B', idx, sIdx, f, v)}
                           onUpdateNotes={(idx, v) => updateNotes('B', idx, v)}
-                          onSaveExercise={(idx) => saveExercise('B', idx)}
+                          onSaveExercise={(idx) => saveExerciseImpl('B', idx)}
                           onStartRestTimer={setRestTimer}
                           onExerciseNameChange={(name) => setStudentB(p => {
                             if (!p) return null;
