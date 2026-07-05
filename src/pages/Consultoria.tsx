@@ -671,7 +671,7 @@ const Consultoria = () => {
       <div
         key={s.userId}
         className="p-3 rounded-lg bg-secondary/50 cursor-pointer hover:bg-secondary transition-colors"
-        onClick={() => navigate(`/alunos/${s.userId}?tab=ia`)}
+        onClick={() => navigate(`/alunos/${s.userId}?tab=${tipo === 'dieta' ? 'dietas' : 'treinos'}`)}
       >
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-3 min-w-0">
