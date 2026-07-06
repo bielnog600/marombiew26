@@ -411,6 +411,26 @@ const DietaIA = () => {
       posture = postureRes.data;
     }
 
+    // Peso mais recente: prioriza weight_logs se for mais novo que a última avaliação
+    try {
+      const { data: latestWeightLog } = await supabase
+        .from('weight_logs')
+        .select('peso, data')
+        .eq('student_id', studentId!)
+        .order('data', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (latestWeightLog?.peso != null) {
+        const logDate = latestWeightLog.data;
+        const assessDate = anthro && latestAssessmentId
+          ? (await supabase.from('assessments').select('created_at').eq('id', latestAssessmentId).maybeSingle()).data?.created_at?.slice(0, 10)
+          : null;
+        if (!anthro || !assessDate || logDate >= assessDate) {
+          anthro = { ...(anthro || {}), peso: Number(latestWeightLog.peso) };
+        }
+      }
+    } catch { /* ignore */ }
+
     // ── HISTÓRICO LONGITUDINAL: última dieta, tendência, aderência, reajuste ──
     const since14 = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const [lastDietRes, trendAssessRes, trackingRes, lastReadjustRes] = await Promise.all([
