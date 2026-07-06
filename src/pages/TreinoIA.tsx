@@ -657,7 +657,7 @@ GERE TUDO DE UMA VEZ:
   return (
     <AppLayout title={`Treino IA - ${studentName}`}>
       <div className="space-y-6 animate-fade-in">
-        <Button variant="ghost" onClick={() => navigate(`/alunos/${studentId}`)} className="mb-2">
+        <Button variant="ghost" onClick={() => navigate(-1)} className="mb-2">
           <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
         </Button>
 
