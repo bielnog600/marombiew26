@@ -233,6 +233,9 @@ const AlunoDetail = () => {
                 <Button onClick={() => navigate(`/nova-avaliacao/${id}`)} className="font-semibold">
                   <Plus className="mr-2 h-4 w-4" /> Nova Avaliação
                 </Button>
+                <Button variant="outline" className="font-semibold" onClick={() => setWeightDialogOpen(true)}>
+                  <Scale className="mr-2 h-4 w-4" /> Registrar peso
+                </Button>
                 <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
                   <DialogTrigger asChild>
                     <Button variant="outline" className="font-semibold">
