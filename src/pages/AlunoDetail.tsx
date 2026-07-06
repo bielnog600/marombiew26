@@ -469,6 +469,12 @@ const AlunoDetail = () => {
           </TabsContent>
         </Tabs>
       </div>
+      <AdminWeightTrackingDialog
+        open={weightDialogOpen}
+        onOpenChange={setWeightDialogOpen}
+        studentId={id!}
+        studentName={profile?.nome}
+      />
     </AppLayout>
   );
 };
