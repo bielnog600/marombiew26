@@ -7,8 +7,9 @@ import { toast } from 'sonner';
 import { BarChart3, Loader2, FileDown, ImageDown } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
+  BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LabelList,
 } from 'recharts';
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { generateComparisonPDF } from '@/lib/generateComparisonPDF';
 import { generateComparisonImage } from '@/lib/generateComparisonImage';
 
@@ -107,6 +108,75 @@ const AssessmentComparison: React.FC<Props> = ({ studentId, studentName, assessm
       };
     });
 
+    // Per-metric evolution series (peso, %gordura, massa magra, massa gorda, imc)
+    const metricSeries = [
+      { key: 'peso', label: 'Evolução do Peso', unit: 'kg', color: 'hsl(0, 75%, 55%)', source: 'anthro' as const },
+      { key: 'percentual_gordura', label: 'Evolução do % de Gordura', unit: '%', color: 'hsl(210, 85%, 55%)', source: 'comp' as const },
+      { key: 'massa_magra', label: 'Evolução da Massa Magra', unit: 'kg', color: 'hsl(140, 60%, 45%)', source: 'comp' as const },
+      { key: 'massa_gorda', label: 'Evolução da Massa Gorda', unit: 'kg', color: 'hsl(30, 90%, 55%)', source: 'comp' as const },
+      { key: 'imc', label: 'Evolução do IMC', unit: '', color: 'hsl(280, 70%, 55%)', source: 'anthro' as const },
+    ];
+    const metricCharts = metricSeries.map(m => {
+      const data = sortedAssessments.map((a, i) => {
+        const src = m.source === 'anthro' ? anthroMap.get(a.id) : compMap.get(a.id);
+        const raw = src?.[m.key];
+        const value = raw == null ? null : Number(raw);
+        return { name: `${i + 1}º`, date: dateLabels[i], value };
+      });
+      const valid = data.filter(d => d.value != null) as { name: string; value: number }[];
+      const first = valid[0]?.value ?? null;
+      const last = valid[valid.length - 1]?.value ?? null;
+      const delta = first != null && last != null ? Number((last - first).toFixed(1)) : null;
+      // convention: for %gordura and peso desirable to decrease? we let UI decide neutrally
+      return { ...m, data, first, last, delta, hasData: valid.length > 0 };
+    });
+
+    // RCC (cintura / quadril) per assessment
+    const rccData = sortedAssessments.map((a, i) => {
+      const d = anthroMap.get(a.id);
+      const cintura = d?.cintura ? Number(d.cintura) : null;
+      const quadril = d?.quadril ? Number(d.quadril) : null;
+      const value = cintura && quadril ? Number((cintura / quadril).toFixed(2)) : null;
+      return { name: `${i + 1}º`, date: dateLabels[i], value };
+    });
+    const rccValid = rccData.filter(d => d.value != null) as { name: string; value: number }[];
+    const rccFirst = rccValid[0]?.value ?? null;
+    const rccLast = rccValid[rccValid.length - 1]?.value ?? null;
+    const rccDelta = rccFirst != null && rccLast != null ? Number((rccLast - rccFirst).toFixed(2)) : null;
+    const rccRisk = rccLast == null
+      ? null
+      : rccLast >= 0.90
+        ? { label: 'Alto', color: 'text-red-500' }
+        : rccLast >= 0.85
+          ? { label: 'Moderado', color: 'text-yellow-500' }
+          : { label: 'Baixo', color: 'text-green-500' };
+
+    // Perimetria (antes vs depois) — todas as circunferências
+    const perimetryFields = [
+      { key: 'pescoco', label: 'Pescoço' },
+      { key: 'ombro', label: 'Ombros' },
+      { key: 'torax', label: 'Peitoral' },
+      { key: 'cintura', label: 'Cintura' },
+      { key: 'abdomen', label: 'Abdominal' },
+      { key: 'quadril', label: 'Quadril' },
+      { key: 'braco_direito', label: 'Braço Dir.' },
+      { key: 'braco_esquerdo', label: 'Braço Esq.' },
+      { key: 'coxa_direita', label: 'Coxa Dir.' },
+      { key: 'coxa_esquerda', label: 'Coxa Esq.' },
+      { key: 'panturrilha_direita', label: 'Panturrilha Dir.' },
+      { key: 'panturrilha_esquerda', label: 'Panturrilha Esq.' },
+    ];
+    const firstA = sortedAssessments[0];
+    const lastA = sortedAssessments[sortedAssessments.length - 1];
+    const firstAnthro = firstA ? anthroMap.get(firstA.id) : null;
+    const lastAnthro = lastA ? anthroMap.get(lastA.id) : null;
+    const perimetryRows = perimetryFields.map(f => {
+      const antes = firstAnthro?.[f.key] != null ? Number(firstAnthro[f.key]) : null;
+      const depois = lastAnthro?.[f.key] != null ? Number(lastAnthro[f.key]) : null;
+      const delta = antes != null && depois != null ? Number((depois - antes).toFixed(1)) : null;
+      return { ...f, antes, depois, delta };
+    }).filter(r => r.antes != null || r.depois != null);
+
     // Skinfolds comparison
     const skinfoldFields = [
       { key: 'subescapular', label: 'Subescapular' },
@@ -172,6 +242,15 @@ const AssessmentComparison: React.FC<Props> = ({ studentId, studentName, assessm
       photosGrouped,
       postureGrouped,
       sortedAssessments,
+      metricCharts,
+      rccData,
+      rccFirst,
+      rccLast,
+      rccDelta,
+      rccRisk,
+      perimetryRows,
+      periodStart: dateLabels[0],
+      periodEnd: dateLabels[dateLabels.length - 1],
     });
     setLoading(false);
   };
