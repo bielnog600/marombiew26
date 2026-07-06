@@ -355,70 +355,139 @@ const AssessmentComparison: React.FC<Props> = ({ studentId, studentName, assessm
               Exportar PDF
             </Button>
           </div>
-          {/* Composition Evolution */}
+          {/* Header period */}
           <Card className="glass-card">
-            <CardContent className="p-4 space-y-3">
-              <h4 className="font-semibold text-sm">Composição Corporal</h4>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={compData.compositionChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                    <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                    <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, color: 'hsl(var(--foreground))' }} />
-                    <Legend />
-                    <Line type="monotone" dataKey="% Gordura" stroke={COLORS[0]} strokeWidth={2} dot={{ r: 4 }} />
-                    <Line type="monotone" dataKey="Massa Gorda (kg)" stroke={COLORS[1]} strokeWidth={2} dot={{ r: 4 }} />
-                    <Line type="monotone" dataKey="Massa Magra (kg)" stroke={COLORS[2]} strokeWidth={2} dot={{ r: 4 }} />
-                    <Line type="monotone" dataKey="IMC" stroke={COLORS[3]} strokeWidth={2} dot={{ r: 4 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+            <CardContent className="p-4">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Período comparado</p>
+              <p className="text-base font-bold text-foreground">
+                De <span className="text-primary">{compData.periodStart}</span> até <span className="text-primary">{compData.periodEnd}</span>
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">{compData.dateLabels.length} avaliações selecionadas</p>
             </CardContent>
           </Card>
 
-          {/* Measurements Evolution */}
-          <Card className="glass-card">
-            <CardContent className="p-4 space-y-3">
-              <h4 className="font-semibold text-sm">Evolução de Medidas</h4>
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={compData.measurementChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                    <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                    <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, color: 'hsl(var(--foreground))' }} />
-                    <Legend />
-                    <Line type="monotone" dataKey="Peso (kg)" stroke={COLORS[0]} strokeWidth={2} dot={{ r: 3 }} />
-                    <Line type="monotone" dataKey="Cintura (cm)" stroke={COLORS[1]} strokeWidth={2} dot={{ r: 3 }} />
-                    <Line type="monotone" dataKey="Braço D (cm)" stroke={COLORS[2]} strokeWidth={2} dot={{ r: 3 }} />
-                    <Line type="monotone" dataKey="Coxa D (cm)" stroke={COLORS[3]} strokeWidth={2} dot={{ r: 3 }} />
-                    <Line type="monotone" dataKey="Tórax (cm)" stroke={COLORS[4]} strokeWidth={2} dot={{ r: 3 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Per-metric evolution cards */}
+          {compData.metricCharts.filter((m: any) => m.hasData).map((m: any) => {
+            const up = m.delta != null && m.delta > 0;
+            const down = m.delta != null && m.delta < 0;
+            const badgeColor = up ? 'text-red-500 bg-red-500/10' : down ? 'text-green-500 bg-green-500/10' : 'text-muted-foreground bg-muted';
+            const Icon = up ? TrendingUp : down ? TrendingDown : Minus;
+            return (
+              <Card key={m.key} className="glass-card">
+                <CardContent className="p-4 space-y-3">
+                  <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">{m.label}</h4>
+                  <div className="h-56">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={m.data} margin={{ top: 24, right: 24, left: 8, bottom: 8 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                        <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" domain={['dataMin - 1', 'dataMax + 1']} />
+                        <Tooltip
+                          contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, color: 'hsl(var(--foreground))' }}
+                          formatter={(v: any) => [`${v}${m.unit ? ' ' + m.unit : ''}`, m.label.replace(/^Evolução (do|da) /, '')]}
+                          labelFormatter={(_l, p) => (p?.[0]?.payload?.date ?? '')}
+                        />
+                        <Line type="monotone" dataKey="value" stroke={m.color} strokeWidth={3} dot={{ r: 5, fill: m.color, strokeWidth: 0 }} activeDot={{ r: 7 }} connectNulls>
+                          <LabelList dataKey="value" position="top" style={{ fontSize: 11, fontWeight: 700, fill: 'hsl(var(--foreground))' }} formatter={(v: any) => v == null ? '' : `${v}${m.unit ? ' ' + m.unit : ''}`} />
+                        </Line>
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  {m.delta != null && (
+                    <div className="flex items-center gap-3 rounded-lg bg-secondary/40 p-3">
+                      <div className={`flex flex-col items-center justify-center rounded-md px-3 py-1.5 min-w-[70px] ${badgeColor}`}>
+                        <Icon className="h-4 w-4" />
+                        <span className="text-sm font-extrabold">{m.delta > 0 ? '+' : ''}{m.delta}{m.unit}</span>
+                      </div>
+                      <p className="text-sm text-foreground flex-1">
+                        Neste período, {up ? <>houve <b>aumento de {m.delta} {m.unit}</b></> : down ? <>houve <b>redução de {Math.abs(m.delta)} {m.unit}</b></> : <>não houve variação</>}.
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
 
-          {/* Radar Chart - Perimeters */}
-          <Card className="glass-card">
-            <CardContent className="p-4 space-y-3">
-              <h4 className="font-semibold text-sm">Radar de Perímetros</h4>
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart data={compData.radarData}>
-                    <PolarGrid stroke="hsl(var(--border))" />
-                    <PolarAngleAxis dataKey="metric" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-                    <PolarRadiusAxis tick={{ fontSize: 9 }} />
-                    {compData.dateLabels.map((label: string, i: number) => (
-                      <Radar key={label} name={label} dataKey={label} stroke={COLORS[i % COLORS.length]} fill={COLORS[i % COLORS.length]} fillOpacity={0.15} strokeWidth={2} />
-                    ))}
-                    <Legend />
-                  </RadarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
+          {/* RCC — Relação Cintura-Quadril */}
+          {compData.rccLast != null && (
+            <Card className="glass-card">
+              <CardContent className="p-4 space-y-3">
+                <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Relação Cintura-Quadril (RCC)</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Cálculo RCC</p>
+                    <p className="text-base"><span className="text-muted-foreground">Antes:</span> <b>{compData.rccFirst ?? '-'}</b></p>
+                    <p className="text-base"><span className="text-muted-foreground">Depois:</span> <b>{compData.rccLast}</b></p>
+                    {compData.rccRisk && (
+                      <p className="text-base">
+                        <span className="text-muted-foreground">Risco: </span>
+                        <b className={compData.rccRisk.color}>{compData.rccRisk.label}</b>
+                      </p>
+                    )}
+                  </div>
+                  <div className="h-32">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={compData.rccData} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
+                        <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" domain={['dataMin - 0.02', 'dataMax + 0.02']} />
+                        <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
+                        <Line type="monotone" dataKey="value" stroke="hsl(30, 90%, 55%)" strokeWidth={2.5} dot={{ r: 4 }} connectNulls>
+                          <LabelList dataKey="value" position="top" style={{ fontSize: 10, fontWeight: 700, fill: 'hsl(var(--foreground))' }} />
+                        </Line>
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+                {compData.rccDelta != null && (
+                  <div className="flex items-center gap-3 rounded-lg bg-secondary/40 p-3">
+                    <span className={`text-lg font-extrabold ${compData.rccDelta < 0 ? 'text-green-500' : compData.rccDelta > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                      {compData.rccDelta > 0 ? '▲' : compData.rccDelta < 0 ? '▼' : '■'} {Math.abs(compData.rccDelta)}
+                    </span>
+                    <p className="text-sm text-foreground">
+                      Neste período, {compData.rccDelta < 0 ? 'houve redução' : compData.rccDelta > 0 ? 'houve aumento' : 'não houve variação'} de <b>{Math.abs(compData.rccDelta)}</b> na Relação Cintura-Quadril.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Perimetria list — antes → depois com delta colorido */}
+          {compData.perimetryRows.length > 0 && (
+            <Card className="glass-card">
+              <CardContent className="p-4 space-y-2">
+                <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Medidas de Perimetria (Circunferências em cm)</h4>
+                <div className="divide-y divide-border">
+                  {compData.perimetryRows.map((r: any) => {
+                    const up = r.delta != null && r.delta > 0;
+                    const down = r.delta != null && r.delta < 0;
+                    // Waist-like measurements: decrease is better
+                    const waistLike = ['cintura', 'abdomen', 'quadril', 'pescoco'].includes(r.key);
+                    const positive = waistLike ? down : up;
+                    const negative = waistLike ? up : down;
+                    const badge = positive ? 'text-green-600 bg-green-500/15' : negative ? 'text-red-600 bg-red-500/15' : 'text-muted-foreground bg-muted';
+                    return (
+                      <div key={r.key} className="flex items-center justify-between py-2.5">
+                        <span className="text-sm font-medium text-foreground">{r.label}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-muted-foreground">
+                            {r.antes != null ? `${r.antes} cm` : '-'} <span className="mx-1">→</span> {r.depois != null ? `${r.depois} cm` : '-'}
+                          </span>
+                          {r.delta != null && (
+                            <span className={`text-xs font-bold rounded-md px-2 py-0.5 min-w-[52px] text-center ${badge}`}>
+                              {r.delta > 0 ? '+' : ''}{r.delta}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Skinfolds Bar Chart */}
           {compData.skinfoldChartData.some((d: any) => compData.dateLabels.some((l: string) => d[l] != null)) && (
