@@ -24,6 +24,8 @@ import KarvonenZones from '@/components/KarvonenZones';
 import StudentFinancialTab from '@/components/financial/StudentFinancialTab';
 import StudentExerciseVideos from '@/components/admin/StudentExerciseVideos';
 import { Wallet } from 'lucide-react';
+import AdminWeightTrackingDialog from '@/components/admin/AdminWeightTrackingDialog';
+import { Scale } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -46,6 +48,7 @@ const AlunoDetail = () => {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importUrl, setImportUrl] = useState('');
   const [importLoading, setImportLoading] = useState(false);
+  const [weightDialogOpen, setWeightDialogOpen] = useState(false);
 
   useEffect(() => {
     if (id) loadData();
@@ -229,6 +232,9 @@ const AlunoDetail = () => {
               <div className="flex flex-wrap gap-2">
                 <Button onClick={() => navigate(`/nova-avaliacao/${id}`)} className="font-semibold">
                   <Plus className="mr-2 h-4 w-4" /> Nova Avaliação
+                </Button>
+                <Button variant="outline" className="font-semibold" onClick={() => setWeightDialogOpen(true)}>
+                  <Scale className="mr-2 h-4 w-4" /> Registrar peso
                 </Button>
                 <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
                   <DialogTrigger asChild>
@@ -463,6 +469,12 @@ const AlunoDetail = () => {
           </TabsContent>
         </Tabs>
       </div>
+      <AdminWeightTrackingDialog
+        open={weightDialogOpen}
+        onOpenChange={setWeightDialogOpen}
+        studentId={id!}
+        studentName={profile?.nome}
+      />
     </AppLayout>
   );
 };
