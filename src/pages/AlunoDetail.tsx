@@ -24,6 +24,8 @@ import KarvonenZones from '@/components/KarvonenZones';
 import StudentFinancialTab from '@/components/financial/StudentFinancialTab';
 import StudentExerciseVideos from '@/components/admin/StudentExerciseVideos';
 import { Wallet } from 'lucide-react';
+import AdminWeightTrackingDialog from '@/components/admin/AdminWeightTrackingDialog';
+import { Scale } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -46,6 +48,7 @@ const AlunoDetail = () => {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importUrl, setImportUrl] = useState('');
   const [importLoading, setImportLoading] = useState(false);
+  const [weightDialogOpen, setWeightDialogOpen] = useState(false);
 
   useEffect(() => {
     if (id) loadData();
