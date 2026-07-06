@@ -153,7 +153,7 @@ const AdminWeightTrackingDialog: React.FC<Props> = ({ open, onOpenChange, studen
           {/* Registrar novo peso */}
           <div className="rounded-lg border border-border/60 p-3 space-y-3">
             <p className="text-sm font-semibold">Registrar novo peso</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="peso">Peso (kg)</Label>
                 <Input
@@ -166,15 +166,16 @@ const AdminWeightTrackingDialog: React.FC<Props> = ({ open, onOpenChange, studen
                   placeholder="Ex: 78.5"
                   value={peso}
                   onChange={(e) => setPeso(e.target.value)}
+                  className="w-full"
                 />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="data">Data</Label>
-                <Input id="data" type="date" value={data} max={todayStr()} onChange={(e) => setData(e.target.value)} />
+                <Input id="data" type="date" value={data} max={todayStr()} onChange={(e) => setData(e.target.value)} className="w-full" />
               </div>
-              <div className="space-y-1.5 sm:col-span-1">
+              <div className="space-y-1.5">
                 <Label htmlFor="obs">Observação</Label>
-                <Input id="obs" value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Opcional" />
+                <Input id="obs" value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Opcional" className="w-full" />
               </div>
             </div>
             <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto font-semibold">
