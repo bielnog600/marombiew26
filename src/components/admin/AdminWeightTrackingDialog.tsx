@@ -153,7 +153,7 @@ const AdminWeightTrackingDialog: React.FC<Props> = ({ open, onOpenChange, studen
           {/* Registrar novo peso */}
           <div className="rounded-lg border border-border/60 p-3 space-y-3">
             <p className="text-sm font-semibold">Registrar novo peso</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="peso">Peso (kg)</Label>
                 <Input
