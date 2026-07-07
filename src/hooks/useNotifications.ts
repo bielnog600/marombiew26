@@ -26,6 +26,7 @@ export interface Notification {
     hasDietaPlan: boolean;
     totalSetsLogged: number;
     trackingDays: number;
+    presencial?: boolean;
     progression?: {
       tone: 'progress' | 'maintain' | 'caution';
       avgRpe: number;
