@@ -176,6 +176,11 @@ const StudentWeeklyCard: React.FC<Props> = ({ summary, followup, onMarkDone, onR
           <div className="flex flex-col items-end gap-1 shrink-0">
             <Badge variant="outline" className={`text-[10px] ${status.cls}`}>{status.label}</Badge>
             <Badge variant="outline" className={`text-[10px] ${att.cls}`}>{att.label}</Badge>
+            {summary.presencial && (
+              <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/30">
+                Presencial
+              </Badge>
+            )}
             {a && (
               <Badge variant="outline" className={`text-[10px] ${ADHERENCE_BADGE_CLASS[a.status]}`}>
                 {ADHERENCE_SHORT_LABEL[a.status]}
