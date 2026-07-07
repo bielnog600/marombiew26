@@ -21,6 +21,27 @@ export type AttentionKind =
   | 'reanalisar'
   | 'ok';
 
+export interface DietWellnessSummary {
+  // últimos 7 dias de daily_tracking
+  daysTracked: number;
+  daysWithMeals: number;      // dias em que marcou ao menos 1 refeição
+  totalMealsMarked: number;
+  avgWaterGlasses: number;    // média de copos/dia nos dias registrados
+  daysBelowWaterGoal: number; // dias abaixo de 6 copos
+  hasDietPlan: boolean;
+  // último diet_checkin respondido
+  lastCheckin: {
+    completed_at: string;
+    fome: string | null;
+    energia: string | null;
+    saciedade: string | null;
+    digestao: string | null;
+    facilidade: string | null; // dificil | media | facil (dificuldade de ingerir)
+    adesao: string | null;
+    observacoes: string | null;
+  } | null;
+}
+
 export interface StudentWeeklySummary {
   studentId: string;
   studentName: string;
@@ -29,6 +50,7 @@ export interface StudentWeeklySummary {
   planContent: string | null;
   adherence: AdherenceReport | null;
   progression: ProgressionReport | null;
+  diet: DietWellnessSummary;
   attention: AttentionKind;
   priority: number; // menor = mais urgente
   actionLabel: string;
