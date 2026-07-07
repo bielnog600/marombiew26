@@ -115,14 +115,33 @@ export const useStudentsWeeklySummary = () => {
         .select('user_id, nome, telefone')
         .in('user_id', ids);
 
-      // 2b. flag "presencial" (aluno não usa o app — só treina com o admin)
-      const { data: profilesFlags } = await supabase
-        .from('students_profile')
-        .select('user_id, presencial')
-        .in('user_id', ids);
-      const presencialMap = new Map<string, boolean>(
-        (profilesFlags ?? []).map((r: any) => [r.user_id, !!r.presencial]),
-      );
+      // 2b. Detecta automaticamente alunos "presenciais": aqueles cujos
+      // registros recentes vieram do admin (Modo Treino) e não do próprio
+      // aluno pelo app. Última janela: 30 dias.
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const { data: sourceLogs } = await supabase
+        .from('exercise_set_logs')
+        .select('student_id, source')
+        .in('student_id', ids)
+        .gte('performed_at', thirtyDaysAgo.toISOString());
+      const adminCount = new Map<string, number>();
+      const studentCount = new Map<string, number>();
+      for (const l of sourceLogs ?? []) {
+        if ((l as any).source === 'admin') {
+          adminCount.set(l.student_id, (adminCount.get(l.student_id) ?? 0) + 1);
+        } else {
+          studentCount.set(l.student_id, (studentCount.get(l.student_id) ?? 0) + 1);
+        }
+      }
+      const presencialMap = new Map<string, boolean>();
+      for (const id of ids) {
+        const a = adminCount.get(id) ?? 0;
+        const s = studentCount.get(id) ?? 0;
+        // Considera presencial se, nos últimos 30 dias, houve registros do
+        // admin e o aluno não registrou nada pelo app.
+        presencialMap.set(id, a > 0 && s === 0);
+      }
 
       // 3. último plano de treino ativo de cada aluno
       const { data: plans } = await supabase

@@ -119,7 +119,7 @@ export function useNotifications() {
       // Fetch students with profiles
       const { data: students } = await supabase
         .from('students_profile')
-        .select('id, user_id, data_nascimento, ativo, presencial')
+        .select('id, user_id, data_nascimento, ativo')
         .eq('ativo', true);
 
       if (!students?.length) { setLoading(false); return; }
@@ -292,7 +292,7 @@ export function useNotifications() {
             .gte('completed_at', sevenDaysAgoISO),
           supabase
             .from('exercise_set_logs')
-            .select('student_id, weight_kg, reps, rpe, performed_at')
+            .select('student_id, weight_kg, reps, rpe, performed_at, source')
             .in('student_id', userIds)
             .gte('performed_at', sevenDaysAgoISO),
           supabase
@@ -335,7 +335,11 @@ export function useNotifications() {
             hasDietaPlan: studentPlanTypes.has('dieta'),
             totalSetsLogged: logs.length,
             trackingDays: tracking.length,
-            presencial: !!(students.find(s => s.user_id === uid) as any)?.presencial,
+            presencial: (() => {
+              const adminLogs = logs.filter((l: any) => l.source === 'admin').length;
+              const studentLogs = logs.filter((l: any) => (l.source ?? 'student') !== 'admin').length;
+              return adminLogs > 0 && studentLogs === 0;
+            })(),
             progression: progressionMap.get(uid) ?? null,
           });
         }
