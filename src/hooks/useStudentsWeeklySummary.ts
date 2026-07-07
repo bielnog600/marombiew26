@@ -46,6 +46,7 @@ export interface StudentWeeklySummary {
   studentId: string;
   studentName: string;
   studentPhone: string | null;
+  presencial: boolean;
   planId: string | null;
   planContent: string | null;
   adherence: AdherenceReport | null;
@@ -59,6 +60,7 @@ export interface StudentWeeklySummary {
 const classify = (
   adherence: AdherenceReport | null,
   progression: ProgressionReport | null,
+  presencial = false,
 ): { kind: AttentionKind; priority: number; action: string } => {
   if (!adherence || !progression) {
     return { kind: 'dados_insuficientes', priority: 3, action: 'Sem plano de treino ativo ou sem registros.' };
@@ -70,6 +72,10 @@ const classify = (
     return { kind: 'reanalisar', priority: 1, action: 'Reanalisar plano — registros confusos.' };
   }
   if (adherence.status === 'dados_insuficientes') {
+    // Presencial: falta de registros pelo app é esperada — não cobrar do aluno.
+    if (presencial) {
+      return { kind: 'ok', priority: 4, action: 'Aluno presencial — registrar cargas/reps direto no Modo Treino.' };
+    }
     return { kind: 'dados_insuficientes', priority: 1, action: 'Cobrar registro de carga/reps.' };
   }
   if (adherence.status === 'repetir_semana') {
@@ -108,6 +114,15 @@ export const useStudentsWeeklySummary = () => {
         .from('profiles')
         .select('user_id, nome, telefone')
         .in('user_id', ids);
+
+      // 2b. flag "presencial" (aluno não usa o app — só treina com o admin)
+      const { data: profilesFlags } = await supabase
+        .from('students_profile')
+        .select('user_id, presencial')
+        .in('user_id', ids);
+      const presencialMap = new Map<string, boolean>(
+        (profilesFlags ?? []).map((r: any) => [r.user_id, !!r.presencial]),
+      );
 
       // 3. último plano de treino ativo de cada aluno
       const { data: plans } = await supabase
@@ -206,6 +221,8 @@ export const useStudentsWeeklySummary = () => {
         }
 
         const c = classify(adherence, progression);
+        const isPresencial = presencialMap.get(p.user_id) ?? false;
+        const cFinal = classify(adherence, progression, isPresencial);
 
         // Construir resumo de dieta/hidratação
         const trk = (trackingByStudent.get(p.user_id) as any[] | undefined) ?? [];
@@ -243,14 +260,15 @@ export const useStudentsWeeklySummary = () => {
           studentId: p.user_id,
           studentName: p.nome || 'Sem nome',
           studentPhone: p.telefone ?? null,
+          presencial: isPresencial,
           planId: plan?.id ?? null,
           planContent: plan?.conteudo ?? null,
           adherence,
           progression,
           diet,
-          attention: c.kind,
-          priority: c.priority,
-          actionLabel: c.action,
+          attention: cFinal.kind,
+          priority: cFinal.priority,
+          actionLabel: cFinal.action,
         });
       }
 
