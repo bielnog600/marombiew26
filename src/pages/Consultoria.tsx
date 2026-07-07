@@ -253,6 +253,7 @@ const Consultoria = () => {
         const treinouAlgo = (s?.workoutsCompleted ?? 0) > 0;
         const registrouSets = (s?.totalSetsLogged ?? 0) > 0;
         const usouTracking = (s?.trackingDays ?? 0) > 0;
+        const presencial = !!s?.presencial;
 
         // ============================================================
         // VARIANTE: SUGESTÃO DO DIA (antes de treinar — progressão de carga)
