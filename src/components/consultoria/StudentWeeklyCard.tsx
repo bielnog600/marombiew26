@@ -8,7 +8,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import {
   ExternalLink, MessageSquare, Copy, TrendingUp, TrendingDown, AlertTriangle,
-  Check, RotateCcw, Mic, ChevronDown, Sparkles,
+  Check, RotateCcw, Mic, ChevronDown, Sparkles, UtensilsCrossed, Droplets,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { buildWhatsAppUrl } from '@/hooks/useNotifications';
@@ -44,6 +44,7 @@ const formatSnoozeDate = (iso: string) => {
 const buildAudioSummary = (s: StudentWeeklySummary): string => {
   const a = s.adherence;
   const p = s.progression;
+  const d = s.diet;
   const lines: string[] = [];
   if (a) {
     lines.push(`• Fez ${a.sessionsExecuted} de ${a.sessionsPlanned || '?'} treinos na semana`);
@@ -54,6 +55,21 @@ const buildAudioSummary = (s: StudentWeeklySummary): string => {
   if (p?.improved?.length) lines.push(`• Evoluiu em: ${p.improved.map(formatDelta).join(' • ')}`);
   if (p?.regressed?.length) lines.push(`• Caiu em: ${p.regressed.map(formatDelta).join(' • ')}`);
   if (p?.missing?.length) lines.push(`• Sem registro em: ${p.missing.join(', ')}`);
+  if (d.hasDietPlan) {
+    lines.push(`• Refeições marcadas em ${d.daysWithMeals}/7 dias (${d.totalMealsMarked} refeições)`);
+    lines.push(`• Água: média de ${d.avgWaterGlasses} copos/dia${d.daysBelowWaterGoal > 0 ? ` (${d.daysBelowWaterGoal} dia(s) abaixo de 6)` : ''}`);
+  }
+  if (d.lastCheckin) {
+    const c = d.lastCheckin;
+    const bits = [
+      c.facilidade ? `ingestão: ${c.facilidade}` : null,
+      c.fome ? `fome: ${c.fome}` : null,
+      c.saciedade ? `saciedade: ${c.saciedade}` : null,
+      c.digestao ? `digestão: ${c.digestao}` : null,
+      c.adesao ? `adesão: ${c.adesao}` : null,
+    ].filter(Boolean).join(' • ');
+    if (bits) lines.push(`• Último check-in de dieta — ${bits}`);
+  }
   lines.push(`• Decisão: ${s.actionLabel}`);
   return lines.join('\n');
 };
