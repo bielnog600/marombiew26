@@ -2172,6 +2172,7 @@ export type Database = {
           low_cost: boolean
           objetivo: string | null
           observacoes: string | null
+          presencial: boolean
           raca: string | null
           restricoes: string | null
           sexo: string | null
@@ -2189,6 +2190,7 @@ export type Database = {
           low_cost?: boolean
           objetivo?: string | null
           observacoes?: string | null
+          presencial?: boolean
           raca?: string | null
           restricoes?: string | null
           sexo?: string | null
@@ -2206,6 +2208,7 @@ export type Database = {
           low_cost?: boolean
           objetivo?: string | null
           observacoes?: string | null
+          presencial?: boolean
           raca?: string | null
           restricoes?: string | null
           sexo?: string | null

@@ -1,0 +1,1 @@
+ALTER TABLE public.students_profile ADD COLUMN IF NOT EXISTS presencial boolean NOT NULL DEFAULT false;
