@@ -333,7 +333,8 @@ const Consultoria = () => {
         // ============================================================
         if (weeklyVariant === 'registros') {
           const tipsR: string[] = [];
-          if (s) {
+          // Presencial: aluno não usa o app pra registrar — não cobrar registros
+          if (s && !presencial) {
             if (hasTreino && registrouSets && s.setsWithoutLoad > 0) {
               tipsR.push('🏋️ *Cargas* — algumas séries ficaram sem o peso anotado.\n👉 *Treino de hoje → tocar no exercício → Carga (kg)*.');
             }
@@ -352,6 +353,9 @@ const Consultoria = () => {
             if (hasDieta && usouTracking && s.avgWaterGlasses < 6) {
               tipsR.push('💧 *Água* — vai marcando os copos no dia.\n👉 *Home → card Água → +*.');
             }
+          }
+          if (presencial) {
+            return `Oi ${firstName}! 🙌\n\nComo você treina comigo direto, não precisa se preocupar com registros no app. Se tiver algo pra me contar (dores, cansaço, alimentação fora do plano), manda aqui! 💙`;
           }
           if (tipsR.length === 0) {
             return `Oi ${firstName}! 🙌\n\nTá tudo em dia com seus registros essa semana — parabéns pelo capricho! Continua assim. 💪`;
@@ -388,7 +392,7 @@ const Consultoria = () => {
         // VARIANTE: COMPLETA (padrão atual — check-in + tips)
         // ============================================================
         const tips: string[] = [];
-        if (s) {
+        if (s && !presencial) {
           // === Bloco TREINO — só se tem plano de treino ===
           if (hasTreino && registrouSets && s.setsWithoutLoad > 0) {
             tips.push(
