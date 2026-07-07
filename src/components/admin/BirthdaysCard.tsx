@@ -54,10 +54,20 @@ const BirthdaysCard: React.FC = () => {
       const ids = (roles ?? []).map((r) => r.user_id);
       if (ids.length === 0) return;
 
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, user_id, nome, telefone, data_nascimento')
-        .in('user_id', ids);
+      const [{ data: profiles }, { data: sprofiles }] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('user_id, nome, telefone')
+          .in('user_id', ids),
+        supabase
+          .from('students_profile')
+          .select('user_id, data_nascimento')
+          .in('user_id', ids),
+      ]);
+
+      const bdayById = new Map<string, string | null>(
+        (sprofiles ?? []).map((s) => [s.user_id, s.data_nascimento]),
+      );
 
       const now = new Date();
       const currentMonth = now.getMonth() + 1;
@@ -66,8 +76,9 @@ const BirthdaysCard: React.FC = () => {
 
       const list: Birthday[] = [];
       for (const p of profiles ?? []) {
-        if (!p.data_nascimento) continue;
-        const [y, m, d] = p.data_nascimento.split('T')[0].split('-').map(Number);
+        const dn = bdayById.get(p.user_id);
+        if (!dn) continue;
+        const [y, m, d] = dn.split('T')[0].split('-').map(Number);
         if (!m || !d) continue;
         if (m !== currentMonth) continue;
 
