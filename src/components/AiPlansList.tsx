@@ -33,6 +33,21 @@ const AiPlansList = ({ studentId, tipos }: AiPlansListProps) => {
     loadPlans();
   }, [studentId, tipos?.join(',')]);
 
+  // Realtime: refresh list when any ai_plan for this student changes
+  // (e.g., admin edits from the trainer session modal write back to the plan)
+  useEffect(() => {
+    if (!studentId) return;
+    const channel = supabase
+      .channel(`ai_plans_${studentId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'ai_plans', filter: `student_id=eq.${studentId}` },
+        () => { loadPlans(); },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [studentId]);
+
   const loadPlans = async () => {
     let query = supabase
       .from('ai_plans')
