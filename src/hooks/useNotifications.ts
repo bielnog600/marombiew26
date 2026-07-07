@@ -119,7 +119,7 @@ export function useNotifications() {
       // Fetch students with profiles
       const { data: students } = await supabase
         .from('students_profile')
-        .select('id, user_id, data_nascimento, ativo')
+        .select('id, user_id, data_nascimento, ativo, presencial')
         .eq('ativo', true);
 
       if (!students?.length) { setLoading(false); return; }
@@ -335,6 +335,7 @@ export function useNotifications() {
             hasDietaPlan: studentPlanTypes.has('dieta'),
             totalSetsLogged: logs.length,
             trackingDays: tracking.length,
+            presencial: !!(students.find(s => s.user_id === uid) as any)?.presencial,
             progression: progressionMap.get(uid) ?? null,
           });
         }
