@@ -92,6 +92,7 @@ const StudentWeeklyCard: React.FC<Props> = ({ summary, followup, onMarkDone, onR
   const att = ATTENTION_BADGE[summary.attention];
   const a = summary.adherence;
   const p = summary.progression;
+  const d = summary.diet;
   const bucket = bucketFor(followup);
 
   const statusKey = followup
@@ -212,6 +213,83 @@ const StudentWeeklyCard: React.FC<Props> = ({ summary, followup, onMarkDone, onR
                   {p.missing.join(', ')}
                 </p>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* Dieta & Hidratação */}
+        {(d.hasDietPlan || d.lastCheckin) && (
+          <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-2 space-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <UtensilsCrossed className="h-3 w-3 text-emerald-500" />
+              <p className="text-[10px] uppercase tracking-wide text-emerald-500 font-semibold">
+                Dieta & hidratação
+              </p>
+            </div>
+
+            {d.hasDietPlan && (
+              <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                <div className="flex items-center gap-1.5">
+                  <UtensilsCrossed className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-foreground/90">
+                    {d.daysWithMeals}/7 dias
+                    <span className="text-muted-foreground"> ({d.totalMealsMarked} ref.)</span>
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Droplets className={`h-3 w-3 ${d.avgWaterGlasses < 6 ? 'text-amber-500' : 'text-sky-500'}`} />
+                  <span className="text-foreground/90">
+                    {d.avgWaterGlasses} copos/dia
+                    {d.daysBelowWaterGoal > 0 && (
+                      <span className="text-amber-500"> · {d.daysBelowWaterGoal} dia(s) &lt;6</span>
+                    )}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {d.lastCheckin && (
+              <div className="flex flex-wrap gap-1 pt-0.5">
+                {d.lastCheckin.facilidade && (
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] ${
+                      d.lastCheckin.facilidade === 'dificil'
+                        ? 'bg-destructive/15 text-destructive border-destructive/30'
+                        : d.lastCheckin.facilidade === 'media'
+                        ? 'bg-amber-500/15 text-amber-500 border-amber-500/30'
+                        : 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30'
+                    }`}
+                  >
+                    Ingestão: {d.lastCheckin.facilidade}
+                  </Badge>
+                )}
+                {d.lastCheckin.fome && (
+                  <Badge variant="outline" className="text-[10px]">Fome: {d.lastCheckin.fome}</Badge>
+                )}
+                {d.lastCheckin.saciedade && (
+                  <Badge variant="outline" className="text-[10px]">Saciedade: {d.lastCheckin.saciedade}</Badge>
+                )}
+                {d.lastCheckin.digestao && (
+                  <Badge variant="outline" className="text-[10px]">Digestão: {d.lastCheckin.digestao}</Badge>
+                )}
+                {d.lastCheckin.energia && (
+                  <Badge variant="outline" className="text-[10px]">Energia: {d.lastCheckin.energia}</Badge>
+                )}
+                {d.lastCheckin.adesao && (
+                  <Badge variant="outline" className="text-[10px]">Adesão: {d.lastCheckin.adesao}</Badge>
+                )}
+              </div>
+            )}
+            {d.lastCheckin?.observacoes && (
+              <p className="text-[11px] text-foreground/80 italic leading-tight">
+                “{d.lastCheckin.observacoes}”
+              </p>
+            )}
+            {!d.lastCheckin && d.hasDietPlan && (
+              <p className="text-[10px] text-muted-foreground italic">
+                Sem check-in de dieta respondido ainda.
+              </p>
             )}
           </div>
         )}
