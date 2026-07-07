@@ -21,6 +21,27 @@ export type AttentionKind =
   | 'reanalisar'
   | 'ok';
 
+export interface DietWellnessSummary {
+  // últimos 7 dias de daily_tracking
+  daysTracked: number;
+  daysWithMeals: number;      // dias em que marcou ao menos 1 refeição
+  totalMealsMarked: number;
+  avgWaterGlasses: number;    // média de copos/dia nos dias registrados
+  daysBelowWaterGoal: number; // dias abaixo de 6 copos
+  hasDietPlan: boolean;
+  // último diet_checkin respondido
+  lastCheckin: {
+    completed_at: string;
+    fome: string | null;
+    energia: string | null;
+    saciedade: string | null;
+    digestao: string | null;
+    facilidade: string | null; // dificil | media | facil (dificuldade de ingerir)
+    adesao: string | null;
+    observacoes: string | null;
+  } | null;
+}
+
 export interface StudentWeeklySummary {
   studentId: string;
   studentName: string;
@@ -29,6 +50,7 @@ export interface StudentWeeklySummary {
   planContent: string | null;
   adherence: AdherenceReport | null;
   progression: ProgressionReport | null;
+  diet: DietWellnessSummary;
   attention: AttentionKind;
   priority: number; // menor = mais urgente
   actionLabel: string;
@@ -123,6 +145,42 @@ export const useStudentsWeeklySummary = () => {
         });
       }
 
+      // 5. dieta ativa (existência)
+      const { data: dietPlans } = await supabase
+        .from('ai_plans')
+        .select('student_id')
+        .eq('tipo', 'dieta')
+        .eq('is_draft', false)
+        .in('student_id', ids);
+      const hasDietSet = new Set<string>((dietPlans ?? []).map((d) => d.student_id));
+
+      // 6. daily_tracking dos últimos 7 dias (água + refeições)
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const sevenDaysAgoDate = sevenDaysAgo.toISOString().slice(0, 10);
+      const { data: tracking } = await supabase
+        .from('daily_tracking')
+        .select('student_id, date, water_glasses, meals_completed')
+        .in('student_id', ids)
+        .gte('date', sevenDaysAgoDate);
+      const trackingByStudent = new Map<string, typeof tracking>();
+      for (const t of tracking ?? []) {
+        if (!trackingByStudent.has(t.student_id)) trackingByStudent.set(t.student_id, [] as any);
+        (trackingByStudent.get(t.student_id) as any[]).push(t);
+      }
+
+      // 7. último diet_checkin respondido de cada aluno
+      const { data: checkins } = await supabase
+        .from('diet_checkins')
+        .select('student_id, completed_at, fome, energia, saciedade, digestao, facilidade, adesao, observacoes')
+        .in('student_id', ids)
+        .not('completed_at', 'is', null)
+        .order('completed_at', { ascending: false });
+      const lastCheckinByStudent = new Map<string, any>();
+      for (const ch of checkins ?? []) {
+        if (!lastCheckinByStudent.has(ch.student_id)) lastCheckinByStudent.set(ch.student_id, ch);
+      }
+
       const result: StudentWeeklySummary[] = [];
       for (const p of profiles ?? []) {
         const plan = latestPlan.get(p.user_id) ?? null;
@@ -149,6 +207,38 @@ export const useStudentsWeeklySummary = () => {
 
         const c = classify(adherence, progression);
 
+        // Construir resumo de dieta/hidratação
+        const trk = (trackingByStudent.get(p.user_id) as any[] | undefined) ?? [];
+        const waterVals = trk.map((t) => Number(t.water_glasses) || 0);
+        const daysWithMeals = trk.filter((t) => Array.isArray(t.meals_completed) && t.meals_completed.length > 0).length;
+        const totalMealsMarked = trk.reduce(
+          (acc, t) => acc + (Array.isArray(t.meals_completed) ? t.meals_completed.length : 0),
+          0,
+        );
+        const avgWaterGlasses = waterVals.length > 0
+          ? Math.round((waterVals.reduce((a, b) => a + b, 0) / waterVals.length) * 10) / 10
+          : 0;
+        const daysBelowWaterGoal = waterVals.filter((v) => v < 6).length;
+        const lastCheckin = lastCheckinByStudent.get(p.user_id) ?? null;
+        const diet: DietWellnessSummary = {
+          daysTracked: trk.length,
+          daysWithMeals,
+          totalMealsMarked,
+          avgWaterGlasses,
+          daysBelowWaterGoal,
+          hasDietPlan: hasDietSet.has(p.user_id),
+          lastCheckin: lastCheckin ? {
+            completed_at: lastCheckin.completed_at,
+            fome: lastCheckin.fome,
+            energia: lastCheckin.energia,
+            saciedade: lastCheckin.saciedade,
+            digestao: lastCheckin.digestao,
+            facilidade: lastCheckin.facilidade,
+            adesao: lastCheckin.adesao,
+            observacoes: lastCheckin.observacoes,
+          } : null,
+        };
+
         result.push({
           studentId: p.user_id,
           studentName: p.nome || 'Sem nome',
@@ -157,6 +247,7 @@ export const useStudentsWeeklySummary = () => {
           planContent: plan?.conteudo ?? null,
           adherence,
           progression,
+          diet,
           attention: c.kind,
           priority: c.priority,
           actionLabel: c.action,
