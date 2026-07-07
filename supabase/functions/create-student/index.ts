@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { email, password, nome, telefone, sexo, raca, low_cost } = await req.json();
+    const { email, password, nome, telefone, sexo, raca, low_cost, presencial } = await req.json();
 
     if (!email || !password || !nome) {
       return new Response(
@@ -101,6 +101,7 @@ Deno.serve(async (req) => {
           sexo: sexo || null,
           raca: raca || null,
           low_cost: low_cost === true,
+          presencial: presencial === true,
         });
 
       if (studentProfileError) {
