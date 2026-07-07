@@ -292,7 +292,7 @@ export function useNotifications() {
             .gte('completed_at', sevenDaysAgoISO),
           supabase
             .from('exercise_set_logs')
-            .select('student_id, weight_kg, reps, rpe, performed_at')
+            .select('student_id, weight_kg, reps, rpe, performed_at, source')
             .in('student_id', userIds)
             .gte('performed_at', sevenDaysAgoISO),
           supabase
