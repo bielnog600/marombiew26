@@ -125,8 +125,11 @@ export default function ExerciseMetadataReview() {
 
   const approveMutation = useMutation({
     mutationFn: async ({ id, fields }: { id: string; fields: string[] | null }) => {
-      const { data, error } = await supabase.rpc(
-        'approve_exercise_metadata_suggestion' as never,
+      const { data, error } = await (supabase.rpc as unknown as (
+        fn: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: Error | null }>)(
+        'approve_exercise_metadata_suggestion',
         { _suggestion_id: id, _fields: fields },
       );
       if (error) throw error;
@@ -142,8 +145,11 @@ export default function ExerciseMetadataReview() {
 
   const rejectMutation = useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      const { data, error } = await supabase.rpc(
-        'reject_exercise_metadata_suggestion' as never,
+      const { data, error } = await (supabase.rpc as unknown as (
+        fn: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: Error | null }>)(
+        'reject_exercise_metadata_suggestion',
         { _suggestion_id: id, _reason: reason },
       );
       if (error) throw error;
