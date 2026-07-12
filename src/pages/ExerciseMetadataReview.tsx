@@ -65,6 +65,52 @@ type Completeness = {
   canBeUsedForMethodSelection: boolean;
 };
 
+function REQUIRED_FIELDS_MET(
+  ex: Exercise | undefined,
+  meta: Record<string, unknown>,
+  applying: string[],
+): boolean {
+  const applied = new Set(applying);
+  for (const f of REQUIRED_FIELDS) {
+    if (applied.has(f) && meta[f] != null) continue;
+    const v = ex ? (ex as Record<string, unknown>)[f] : null;
+    if (v == null) return false;
+  }
+  return true;
+}
+
+function CompletenessBadge({ exerciseId }: { exerciseId: string }) {
+  const { data } = useQuery({
+    queryKey: ['ems-completeness', exerciseId],
+    queryFn: async () => {
+      const rpc = supabase.rpc as unknown as (
+        fn: string, args: Record<string, unknown>,
+      ) => Promise<{ data: Completeness | null; error: Error | null }>;
+      const { data, error } = await rpc('evaluate_metadata_completeness', {
+        _exercise_id: exerciseId,
+      });
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 30_000,
+  });
+  if (!data) return null;
+  const pct = Math.round(data.completionPercentage);
+  const variant =
+    data.status === 'complete' ? 'default'
+    : data.status === 'partial' ? 'secondary' : 'outline';
+  return (
+    <div className="flex items-center gap-1">
+      <Badge variant={variant} className="text-[10px]">
+        {data.status} · {pct}%
+      </Badge>
+      {data.canBeUsedForMethodSelection && (
+        <Badge className="text-[10px] bg-emerald-600">motor OK</Badge>
+      )}
+    </div>
+  );
+}
+
 export default function ExerciseMetadataReview() {
   const qc = useQueryClient();
   const [filterStatus, setFilterStatus] = useState<string>('pending');
