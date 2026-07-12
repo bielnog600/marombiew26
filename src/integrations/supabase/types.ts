@@ -1269,6 +1269,9 @@ export type Database = {
       }
       exercise_metadata_suggestions: {
         Row: {
+          applied_metadata: Json | null
+          approval_type: string | null
+          approved_fields: string[] | null
           classifier_run_id: string | null
           classifier_version: string | null
           confidence: number | null
@@ -1277,16 +1280,22 @@ export type Database = {
           field_confidence: Json | null
           id: string
           matched_rules: string[] | null
+          partially_approved_at: string | null
           proposed_metadata: Json
           reasoning: string | null
           rejection_reason: string | null
+          remaining_fields: string[] | null
           reviewed_at: string | null
           reviewed_by: string | null
+          reviewer_changes: Json | null
           rules_version: string | null
           source: string | null
           status: string
         }
         Insert: {
+          applied_metadata?: Json | null
+          approval_type?: string | null
+          approved_fields?: string[] | null
           classifier_run_id?: string | null
           classifier_version?: string | null
           confidence?: number | null
@@ -1295,16 +1304,22 @@ export type Database = {
           field_confidence?: Json | null
           id?: string
           matched_rules?: string[] | null
+          partially_approved_at?: string | null
           proposed_metadata: Json
           reasoning?: string | null
           rejection_reason?: string | null
+          remaining_fields?: string[] | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          reviewer_changes?: Json | null
           rules_version?: string | null
           source?: string | null
           status?: string
         }
         Update: {
+          applied_metadata?: Json | null
+          approval_type?: string | null
+          approved_fields?: string[] | null
           classifier_run_id?: string | null
           classifier_version?: string | null
           confidence?: number | null
@@ -1313,11 +1328,14 @@ export type Database = {
           field_confidence?: Json | null
           id?: string
           matched_rules?: string[] | null
+          partially_approved_at?: string | null
           proposed_metadata?: Json
           reasoning?: string | null
           rejection_reason?: string | null
+          remaining_fields?: string[] | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          reviewer_changes?: Json | null
           rules_version?: string | null
           source?: string | null
           status?: string
@@ -1425,6 +1443,7 @@ export type Database = {
           imagem_url: string | null
           lumbar_load: string | null
           metadata_confidence: number | null
+          metadata_field_confidence: Json | null
           metadata_reviewed_at: string | null
           metadata_reviewed_by: string | null
           metadata_source: string | null
@@ -1454,6 +1473,7 @@ export type Database = {
           imagem_url?: string | null
           lumbar_load?: string | null
           metadata_confidence?: number | null
+          metadata_field_confidence?: Json | null
           metadata_reviewed_at?: string | null
           metadata_reviewed_by?: string | null
           metadata_source?: string | null
@@ -1483,6 +1503,7 @@ export type Database = {
           imagem_url?: string | null
           lumbar_load?: string | null
           metadata_confidence?: number | null
+          metadata_field_confidence?: Json | null
           metadata_reviewed_at?: string | null
           metadata_reviewed_by?: string | null
           metadata_source?: string | null
@@ -2863,7 +2884,7 @@ export type Database = {
     }
     Functions: {
       approve_exercise_metadata_suggestion: {
-        Args: { _fields?: string[]; _suggestion_id: string }
+        Args: { _fields?: string[]; _overrides?: Json; _suggestion_id: string }
         Returns: {
           ajustes: string[] | null
           axial_load: string | null
@@ -2878,6 +2899,7 @@ export type Database = {
           imagem_url: string | null
           lumbar_load: string | null
           metadata_confidence: number | null
+          metadata_field_confidence: Json | null
           metadata_reviewed_at: string | null
           metadata_reviewed_by: string | null
           metadata_source: string | null
@@ -2900,6 +2922,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      evaluate_metadata_completeness: {
+        Args: { _exercise_id: string }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -2910,6 +2936,9 @@ export type Database = {
       reject_exercise_metadata_suggestion: {
         Args: { _reason: string; _suggestion_id: string }
         Returns: {
+          applied_metadata: Json | null
+          approval_type: string | null
+          approved_fields: string[] | null
           classifier_run_id: string | null
           classifier_version: string | null
           confidence: number | null
@@ -2918,11 +2947,14 @@ export type Database = {
           field_confidence: Json | null
           id: string
           matched_rules: string[] | null
+          partially_approved_at: string | null
           proposed_metadata: Json
           reasoning: string | null
           rejection_reason: string | null
+          remaining_fields: string[] | null
           reviewed_at: string | null
           reviewed_by: string | null
+          reviewer_changes: Json | null
           rules_version: string | null
           source: string | null
           status: string
