@@ -152,8 +152,8 @@ const Dashboard = () => {
                   Tente novamente em instantes.
                 </p>
               </div>
-              <Button size="sm" variant="outline" onClick={loadStats} disabled={state === 'loading'}>
-                <RefreshCw className={`h-3.5 w-3.5 mr-1 ${state === 'loading' ? 'animate-spin' : ''}`} />
+              <Button size="sm" variant="outline" onClick={loadStats}>
+                <RefreshCw className="h-3.5 w-3.5 mr-1" />
                 Tentar novamente
               </Button>
             </CardContent>
