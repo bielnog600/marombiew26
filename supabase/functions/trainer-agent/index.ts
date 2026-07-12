@@ -11,6 +11,7 @@ import {
   summarizeWorkoutForPrompt,
   type HistoryPlan,
 } from "../_shared/planHistory.ts";
+import { buildSplitContextBlock } from "../_shared/splitSlugs.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
