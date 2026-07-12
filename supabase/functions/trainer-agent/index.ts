@@ -11,6 +11,7 @@ import {
   summarizeWorkoutForPrompt,
   type HistoryPlan,
 } from "../_shared/planHistory.ts";
+import { buildSplitContextBlock } from "../_shared/splitSlugs.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -819,6 +820,11 @@ serve(async (req) => {
       outputMode,
       studentId,
       variationIntensity,
+      // Phase 1 — additive, optional fields. Legacy callers omit these.
+      split_slug,
+      split_slug_legacy,
+      days_available,
+      requested_strength_days,
     } = await req.json();
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
@@ -983,6 +989,16 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
 
       contextMessage += "\n=== FIM DOS DADOS ===\n\nIMPORTANTE: Todos os dados acima já são conhecidos. Comece perguntando APENAS o que falta (nível, dias/semana, semana do ciclo, divisão, equipamentos, preferências alimentares, etc). UMA PERGUNTA POR VEZ.\n\nATENÇÃO MÁXIMA: ANTES de gerar o treino, releia TODOS os campos de lesões, dores, cirurgias, restrições, desvios posturais e histórico de saúde. CRUZE cada exercício escolhido contra essas condições. Se um exercício pode agravar qualquer condição reportada, SUBSTITUA por uma alternativa segura do banco de exercícios. Se houver dados de análise postural, CONSIDERE-OS ao montar o treino: priorize exercícios corretivos para desvios identificados, inclua mobilidade específica e evite exercícios que possam agravar problemas posturais detectados.";
     }
+
+    // Phase 1 — Structured split context (additive, safe when fields are absent)
+    const splitBlock = buildSplitContextBlock({
+      split_slug,
+      split_slug_legacy,
+      days_available: typeof days_available === "number" ? days_available : null,
+      requested_strength_days:
+        typeof requested_strength_days === "number" ? requested_strength_days : null,
+    });
+    if (splitBlock) contextMessage += splitBlock;
 
     // ============================================================
     // STRUCTURED MODE — JSON-FIRST (workout schema v2)

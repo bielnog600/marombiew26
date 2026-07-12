@@ -31,6 +31,12 @@ import {
   type SimilarityFeedback,
   type VariationIntensity,
 } from '@/lib/variationProfiles';
+import {
+  normalizeSplitSlug,
+  isRecommended,
+  SPLIT_LABELS,
+  type CanonicalSplitSlug,
+} from '@/lib/splitSlugs';
 
 type StudentCtx = Record<string, any>;
 
@@ -41,6 +47,7 @@ const LEVELS = [
 ];
 
 const DAYS_PER_WEEK = [
+  { value: '2', label: '2 dias' },
   { value: '3', label: '3 dias' },
   { value: '4', label: '4 dias' },
   { value: '5', label: '5 dias' },
@@ -49,12 +56,16 @@ const DAYS_PER_WEEK = [
 ];
 
 const SPLITS = [
-  { value: 'fullbody', label: 'Full Body', desc: 'Corpo inteiro por sessão' },
+  { value: 'full_body', label: 'Full Body', desc: 'Corpo inteiro por sessão' },
   { value: 'upper_lower', label: 'Upper/Lower', desc: 'Superior e inferior alternados' },
-  { value: 'push_pull_legs', label: 'Push/Pull/Legs', desc: 'Empurrar/Puxar/Pernas' },
-  { value: 'abcde', label: 'ABCDE', desc: 'Um grupo muscular por dia' },
-  { value: 'decida', label: 'Decida por mim', desc: 'IA escolhe a melhor divisão' },
-  { value: 'custom', label: 'Selecione grupos', desc: 'Escolher grupos por dia' },
+  { value: 'push_pull_legs', label: 'Push/Pull/Legs', desc: 'Empurrar / Puxar / Pernas' },
+  { value: 'push_pull', label: 'Push/Pull', desc: 'Empurrar e Puxar alternados' },
+  { value: 'upper_lower_ppl', label: 'Upper/Lower + PPL', desc: 'Híbrido para 5 dias' },
+  { value: 'torso_limbs', label: 'Torso / Membros', desc: 'Tronco e membros alternados' },
+  { value: 'specialization', label: 'Especialização', desc: 'Foco em grupo(s) prioritário(s)' },
+  { value: 'body_part', label: 'Divisão por grupos musculares', desc: 'Maior concentração de volume por sessão' },
+  { value: 'custom', label: 'Selecionar grupos', desc: 'Escolher grupos por dia' },
+  { value: 'ai_decides', label: 'Decida por mim', desc: 'IA escolhe a melhor divisão' },
 ];
 
 const WEEKS = [
@@ -435,6 +446,8 @@ const TreinoIA = () => {
     const selectedLevel = LEVELS.find(l => l.value === level);
     const selectedSplit = SPLITS.find(s => s.value === split);
     const selectedEquip = EQUIPMENT.find(e => e.value === equipment);
+    const canonicalSplit = normalizeSplitSlug(split);
+    const daysAvailableNum = parseInt(daysPerWeek || '0', 10) || null;
 
     // Build health conditions string
     const healthLines: string[] = [];
@@ -505,8 +518,8 @@ const TreinoIA = () => {
     const prompt = `Gere o TREINO COMPLETO agora com as seguintes configurações:
 
 - Nível: ${selectedLevel?.label}
-- Dias por semana: ${daysPerWeek}
-- Divisão: ${split === 'decida'
+- Dias disponíveis para treinar: ${daysPerWeek}
+- Divisão: ${canonicalSplit === 'ai_decides'
       ? 'IA DEVE ESCOLHER a melhor divisão (Full Body, Upper/Lower, Push/Pull/Legs ou ABCDE) com base no nível, dias por semana, objetivo e condições de saúde do aluno. Justifique brevemente a escolha no Resumo do protocolo.'
       : selectedSplit?.label}
 - Semana do ciclo: ${week} de 4
@@ -548,6 +561,10 @@ GERE TUDO DE UMA VEZ:
             outputMode: 'json',
             studentId,
             variationIntensity,
+            // Phase 1 — additive, optional fields
+            split_slug: canonicalSplit,
+            split_slug_legacy: split && split !== canonicalSplit ? split : null,
+            days_available: daysAvailableNum,
           }),
         }
       );
@@ -760,7 +777,7 @@ GERE TUDO DE UMA VEZ:
               Frequência e Divisão
             </h3>
             <div>
-              <p className="text-xs text-muted-foreground mb-2">Dias por semana</p>
+              <p className="text-xs text-muted-foreground mb-2">Dias disponíveis para treinar</p>
               <div className="flex gap-2 flex-wrap">
                 {DAYS_PER_WEEK.map(d => (
                   <button key={d.value} onClick={() => setDaysPerWeek(d.value)}
@@ -773,13 +790,23 @@ GERE TUDO DE UMA VEZ:
             <div>
               <p className="text-xs text-muted-foreground mb-2">Divisão de treino</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {SPLITS.map(s => (
-                  <button key={s.value} onClick={() => setSplit(s.value)}
-                    className={`rounded-xl border-2 p-3 text-left transition-all ${split === s.value ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
-                    <span className="font-semibold text-sm block">{s.label}</span>
-                    <span className="text-xs text-muted-foreground">{s.desc}</span>
-                  </button>
-                ))}
+                {SPLITS.map(s => {
+                  const canonical = normalizeSplitSlug(s.value);
+                  const daysNum = parseInt(daysPerWeek || '0', 10) || null;
+                  const recommended = canonical ? isRecommended(canonical, daysNum) : false;
+                  return (
+                    <button key={s.value} onClick={() => setSplit(s.value)}
+                      className={`relative rounded-xl border-2 p-3 text-left transition-all ${split === s.value ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
+                      {recommended && (
+                        <span className="absolute top-1.5 right-1.5 rounded-full bg-primary/20 text-primary text-[10px] font-semibold px-2 py-0.5">
+                          Recomendado
+                        </span>
+                      )}
+                      <span className="font-semibold text-sm block pr-16">{s.label}</span>
+                      <span className="text-xs text-muted-foreground">{s.desc}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
             {daysPerWeek && split === 'custom' && (
