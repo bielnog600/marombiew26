@@ -1,0 +1,478 @@
+{
+  "pilot_selection_id": "pilot-2c-2026-07-12-01",
+  "created_at": "2026-07-12T15:39:38.053730Z",
+  "classifier_version": "rules-1.0.0",
+  "rules_version": "1.0.0",
+  "sample_size": 30,
+  "criteria": {
+    "stratification": [
+      "iso_maquina>=4",
+      "iso_cabo>=4",
+      "comp_maquina>=4",
+      "comp_pesos_livres>=4",
+      "unilateral>=3",
+      "core>=2",
+      "mobilidade>=2",
+      "ambiguo_nome>=2",
+      "potencia_pliometria>=1",
+      "lombar_alto>=2",
+      "axial_alto>=2",
+      "equilibrio_alto>=2",
+      "safe_to_failure_false_provavel>=2",
+      "safe_to_failure_true_provavel>=2"
+    ],
+    "muscle_groups_required": [
+      "quadríceps",
+      "posterior de coxa",
+      "glúteos",
+      "panturrilha",
+      "peitoral",
+      "costas",
+      "deltoides",
+      "bíceps",
+      "tríceps",
+      "core",
+      "mobilidade"
+    ],
+    "notes": "categoria_presumida é apenas justificativa da amostra e NÃO deve ser gravada."
+  },
+  "exercise_ids": [
+    "5d0c6d96-279b-44da-b088-8fc1e903048f",
+    "cf04e183-f08a-422c-a7bb-4ce19ec0b972",
+    "63293174-8cce-471f-bb22-53cb235b5097",
+    "d007a1fd-b7d1-4d10-bc8c-5e6863d6daa4",
+    "6e38cf0c-5272-4331-b0fc-25d1ea48b657",
+    "3a68757a-d15e-4616-9af4-50670941c27b",
+    "30301dfc-4322-4e10-bf3d-c8f894094fda",
+    "df0af1a3-7212-4ea0-ac1e-21caea6106f2",
+    "41b013f3-7bc3-4310-a384-81d9b6660a96",
+    "43020c6c-df98-4abd-b5d2-997a4a07d056",
+    "3377e82c-a840-4577-98e5-3eb2fb043a09",
+    "a09de707-9329-4be8-80b6-1a8caba1c381",
+    "f4ea80fb-c839-44ce-8166-64ae9bcb90cb",
+    "3b02cfd9-54ba-4eea-8652-063f1f3f3da1",
+    "db8fe23d-4322-46b3-b874-d853eb8cc5a0",
+    "537d53a4-e60b-4ece-addf-f1581ffa3f8b",
+    "d4cb31da-da30-4e99-8059-2cc341e01118",
+    "b05c8e79-483b-4e37-a08a-18da7bf02653",
+    "818b563e-150d-43cf-a018-cffa5490d663",
+    "6035e0ca-6443-4850-a6b9-464174fa15e7",
+    "bddbded1-70df-45c0-a1b0-539b16e205d9",
+    "f460782f-42ae-488d-90ed-a446ef03635a",
+    "48e92cba-dee0-43dc-aa45-bd14cbc87741",
+    "d7cc670e-7252-4b6f-a033-76fb87486c80",
+    "068ca0a6-6286-497b-9899-c5f26e85714a",
+    "366a2dc8-188e-4ae5-b015-b9913777a1b5",
+    "848ec532-a595-4ee3-945d-8d23809a5a13",
+    "3190d203-b56e-45dc-9245-5edd218742ca",
+    "64814ec6-bd0c-41a9-9bd5-706350301d66",
+    "385a3b9f-2cbd-4b98-bf4b-e83b17573764"
+  ],
+  "items": [
+    {
+      "exercise_id": "5d0c6d96-279b-44da-b088-8fc1e903048f",
+      "nome": "CADEIRA EXTENSORA",
+      "grupo_muscular": "QUADRÍCEPS",
+      "ajustes": [
+        "Banco",
+        "Apoio dos pés",
+        "Observação"
+      ],
+      "categorias_piloto": [
+        "iso_maquina",
+        "safe_to_failure_true_provavel"
+      ],
+      "ambiguidade": "baixo",
+      "risco_esperado": "baixo",
+      "motivo_inclusao": "isolador guiado, referência de safe_to_failure=true"
+    },
+    {
+      "exercise_id": "cf04e183-f08a-422c-a7bb-4ce19ec0b972",
+      "nome": "MESA FLEXORA",
+      "grupo_muscular": "ISQUIOTIBIAIS",
+      "ajustes": [],
+      "categorias_piloto": [
+        "iso_maquina",
+        "safe_to_failure_true_provavel"
+      ],
+      "ambiguidade": "baixo",
+      "risco_esperado": "baixo",
+      "motivo_inclusao": "isolador guiado, ancoragem para isquios"
+    },
+    {
+      "exercise_id": "63293174-8cce-471f-bb22-53cb235b5097",
+      "nome": "FLY MACHINE",
+      "grupo_muscular": "PEITORAL",
+      "ajustes": [],
+      "categorias_piloto": [
+        "iso_maquina"
+      ],
+      "ambiguidade": "baixo",
+      "risco_esperado": "baixo",
+      "motivo_inclusao": "isolador peitoral guiado"
+    },
+    {
+      "exercise_id": "d007a1fd-b7d1-4d10-bc8c-5e6863d6daa4",
+      "nome": "CADEIRA ABDUTORA",
+      "grupo_muscular": "GLÚTEOS",
+      "ajustes": [],
+      "categorias_piloto": [
+        "iso_maquina"
+      ],
+      "ambiguidade": "baixo",
+      "risco_esperado": "baixo",
+      "motivo_inclusao": "isolador abdutor guiado"
+    },
+    {
+      "exercise_id": "6e38cf0c-5272-4331-b0fc-25d1ea48b657",
+      "nome": "TRÍCEPS CORDA",
+      "grupo_muscular": "TRÍCEPS",
+      "ajustes": [],
+      "categorias_piloto": [
+        "iso_cabo"
+      ],
+      "ambiguidade": "baixo",
+      "risco_esperado": "baixo",
+      "motivo_inclusao": "isolador em polia"
+    },
+    {
+      "exercise_id": "3a68757a-d15e-4616-9af4-50670941c27b",
+      "nome": "BICEPS CORDA",
+      "grupo_muscular": "BÍCEPS",
+      "ajustes": [],
+      "categorias_piloto": [
+        "iso_cabo"
+      ],
+      "ambiguidade": "baixo",
+      "risco_esperado": "baixo",
+      "motivo_inclusao": "isolador em polia"
+    },
+    {
+      "exercise_id": "30301dfc-4322-4e10-bf3d-c8f894094fda",
+      "nome": "CROSS OVER",
+      "grupo_muscular": "PEITORAL",
+      "ajustes": [],
+      "categorias_piloto": [
+        "iso_cabo"
+      ],
+      "ambiguidade": "baixo",
+      "risco_esperado": "baixo",
+      "motivo_inclusao": "isolador peitoral em polia"
+    },
+    {
+      "exercise_id": "df0af1a3-7212-4ea0-ac1e-21caea6106f2",
+      "nome": "KICK BACK",
+      "grupo_muscular": "GLÚTEOS",
+      "ajustes": [],
+      "categorias_piloto": [
+        "iso_cabo",
+        "ambiguo_nome"
+      ],
+      "ambiguidade": "alto",
+      "risco_esperado": "baixo",
+      "motivo_inclusao": "equipamento não indicado — pode ser cabo ou halter"
+    },
+    {
+      "exercise_id": "41b013f3-7bc3-4310-a384-81d9b6660a96",
+      "nome": "LEG PRESS",
+      "grupo_muscular": "QUADRÍCEPS",
+      "ajustes": [
+        "Banco",
+        "Apoio dos pés",
+        "Observação"
+      ],
+      "categorias_piloto": [
+        "comp_maquina",
+        "axial_alto"
+      ],
+      "ambiguidade": "moderado",
+      "risco_esperado": "moderado",
+      "motivo_inclusao": "composto guiado, ângulo do banco altera padrão"
+    },
+    {
+      "exercise_id": "43020c6c-df98-4abd-b5d2-997a4a07d056",
+      "nome": "HACK MACHINE",
+      "grupo_muscular": "QUADRÍCEPS",
+      "ajustes": [
+        "Observação"
+      ],
+      "categorias_piloto": [
+        "comp_maquina",
+        "axial_alto"
+      ],
+      "ambiguidade": "baixo",
+      "risco_esperado": "moderado",
+      "motivo_inclusao": "composto guiado com carga axial"
+    },
+    {
+      "exercise_id": "3377e82c-a840-4577-98e5-3eb2fb043a09",
+      "nome": "PUXADA ALTA NEUTRA",
+      "grupo_muscular": "DORSAL",
+      "ajustes": [],
+      "categorias_piloto": [
+        "comp_maquina"
+      ],
+      "ambiguidade": "baixo",
+      "risco_esperado": "baixo",
+      "motivo_inclusao": "composto guiado vertical"
+    },
+    {
+      "exercise_id": "a09de707-9329-4be8-80b6-1a8caba1c381",
+      "nome": "REMADA MÁQUINA",
+      "grupo_muscular": "DORSAL",
+      "ajustes": [],
+      "categorias_piloto": [
+        "comp_maquina"
+      ],
+      "ambiguidade": "baixo",
+      "risco_esperado": "baixo",
+      "motivo_inclusao": "composto guiado horizontal"
+    },
+    {
+      "exercise_id": "f4ea80fb-c839-44ce-8166-64ae9bcb90cb",
+      "nome": "SUPINO RETO SMITH",
+      "grupo_muscular": "PEITORAL",
+      "ajustes": [],
+      "categorias_piloto": [
+        "comp_maquina",
+        "axial_alto"
+      ],
+      "ambiguidade": "moderado",
+      "risco_esperado": "moderado",
+      "motivo_inclusao": "smith é máquina guiada — testa regra 'barra vs máquina'"
+    },
+    {
+      "exercise_id": "3b02cfd9-54ba-4eea-8652-063f1f3f3da1",
+      "nome": "AGACHAMENTO LIVRE",
+      "grupo_muscular": "QUADRÍCEPS",
+      "ajustes": [
+        "Observação"
+      ],
+      "categorias_piloto": [
+        "comp_pesos_livres",
+        "axial_alto",
+        "lombar_alto",
+        "safe_to_failure_false_provavel"
+      ],
+      "ambiguidade": "baixo",
+      "risco_esperado": "alto",
+      "motivo_inclusao": "referência canônica de risco alto"
+    },
+    {
+      "exercise_id": "db8fe23d-4322-46b3-b874-d853eb8cc5a0",
+      "nome": "SUPINO RETO HALTERES",
+      "grupo_muscular": "PEITORAL",
+      "ajustes": [],
+      "categorias_piloto": [
+        "comp_pesos_livres"
+      ],
+      "ambiguidade": "baixo",
+      "risco_esperado": "moderado",
+      "motivo_inclusao": "composto com estabilidade unilateral"
+    },
+    {
+      "exercise_id": "537d53a4-e60b-4ece-addf-f1581ffa3f8b",
+      "nome": "STIFF HALTERES",
+      "grupo_muscular": "ISQUIOTIBIAIS",
+      "ajustes": [],
+      "categorias_piloto": [
+        "comp_pesos_livres",
+        "lombar_alto"
+      ],
+      "ambiguidade": "moderado",
+      "risco_esperado": "alto",
+      "motivo_inclusao": "alta carga lombar excêntrica"
+    },
+    {
+      "exercise_id": "d4cb31da-da30-4e99-8059-2cc341e01118",
+      "nome": "PESO MORTO",
+      "grupo_muscular": "GLÚTEOS",
+      "ajustes": [],
+      "categorias_piloto": [
+        "comp_pesos_livres",
+        "lombar_alto",
+        "axial_alto",
+        "safe_to_failure_false_provavel"
+      ],
+      "ambiguidade": "baixo",
+      "risco_esperado": "alto",
+      "motivo_inclusao": "referência canônica de peso morto"
+    },
+    {
+      "exercise_id": "b05c8e79-483b-4e37-a08a-18da7bf02653",
+      "nome": "DESENV. OMBRO BARRA",
+      "grupo_muscular": "DELTÓIDES",
+      "ajustes": [],
+      "categorias_piloto": [
+        "comp_pesos_livres",
+        "axial_alto",
+        "safe_to_failure_false_provavel"
+      ],
+      "ambiguidade": "baixo",
+      "risco_esperado": "alto",
+      "motivo_inclusao": "overhead com barra livre"
+    },
+    {
+      "exercise_id": "818b563e-150d-43cf-a018-cffa5490d663",
+      "nome": "BÚLGARO",
+      "grupo_muscular": "QUADRÍCEPS",
+      "ajustes": [
+        "Observação"
+      ],
+      "categorias_piloto": [
+        "unilateral",
+        "equilibrio_alto"
+      ],
+      "ambiguidade": "moderado",
+      "risco_esperado": "moderado",
+      "motivo_inclusao": "unilateral, alta demanda de equilíbrio"
+    },
+    {
+      "exercise_id": "6035e0ca-6443-4850-a6b9-464174fa15e7",
+      "nome": "REMADA UNIL. POLIA",
+      "grupo_muscular": "DORSAL",
+      "ajustes": [],
+      "categorias_piloto": [
+        "unilateral",
+        "iso_cabo"
+      ],
+      "ambiguidade": "baixo",
+      "risco_esperado": "baixo",
+      "motivo_inclusao": "unilateral em polia"
+    },
+    {
+      "exercise_id": "bddbded1-70df-45c0-a1b0-539b16e205d9",
+      "nome": "GÊMEOS UNILATERAL",
+      "grupo_muscular": "GASTROCNEMIUS",
+      "ajustes": [],
+      "categorias_piloto": [
+        "unilateral"
+      ],
+      "ambiguidade": "moderado",
+      "risco_esperado": "baixo",
+      "motivo_inclusao": "unilateral, equipamento não indicado"
+    },
+    {
+      "exercise_id": "f460782f-42ae-488d-90ed-a446ef03635a",
+      "nome": "PALLOF PRESS NA POLIA",
+      "grupo_muscular": "CORE",
+      "ajustes": [
+        "Observação"
+      ],
+      "categorias_piloto": [
+        "core"
+      ],
+      "ambiguidade": "baixo",
+      "risco_esperado": "baixo",
+      "motivo_inclusao": "anti-rotação em polia"
+    },
+    {
+      "exercise_id": "48e92cba-dee0-43dc-aa45-bd14cbc87741",
+      "nome": "PRANCHA FRONTAL",
+      "grupo_muscular": "ABDOMEN",
+      "ajustes": [],
+      "categorias_piloto": [
+        "core",
+        "safe_to_failure_true_provavel"
+      ],
+      "ambiguidade": "baixo",
+      "risco_esperado": "baixo",
+      "motivo_inclusao": "isometria de core, peso corporal"
+    },
+    {
+      "exercise_id": "d7cc670e-7252-4b6f-a033-76fb87486c80",
+      "nome": "MOBILIDADE TORÁCICA",
+      "grupo_muscular": "PEITORAL",
+      "ajustes": [
+        "Observação"
+      ],
+      "categorias_piloto": [
+        "mobilidade"
+      ],
+      "ambiguidade": "baixo",
+      "risco_esperado": "baixo",
+      "motivo_inclusao": "mobilidade — deve mapear para exercise_class=mobility"
+    },
+    {
+      "exercise_id": "068ca0a6-6286-497b-9899-c5f26e85714a",
+      "nome": "MOBILIDADE QUADRIL 3",
+      "grupo_muscular": "ADUTORES",
+      "ajustes": [
+        "Observação"
+      ],
+      "categorias_piloto": [
+        "mobilidade"
+      ],
+      "ambiguidade": "moderado",
+      "risco_esperado": "baixo",
+      "motivo_inclusao": "mobilidade — nome numerado sem detalhes"
+    },
+    {
+      "exercise_id": "366a2dc8-188e-4ae5-b015-b9913777a1b5",
+      "nome": "SALTO LATERAL",
+      "grupo_muscular": "QUADRÍCEPS",
+      "ajustes": [
+        "Observação"
+      ],
+      "categorias_piloto": [
+        "potencia_pliometria",
+        "equilibrio_alto"
+      ],
+      "ambiguidade": "moderado",
+      "risco_esperado": "moderado",
+      "motivo_inclusao": "único candidato de pliometria disponível"
+    },
+    {
+      "exercise_id": "848ec532-a595-4ee3-945d-8d23809a5a13",
+      "nome": "FLEXÃO NORDICA",
+      "grupo_muscular": "ISQUIOTIBIAIS",
+      "ajustes": [],
+      "categorias_piloto": [
+        "safe_to_failure_false_provavel",
+        "equilibrio_alto"
+      ],
+      "ambiguidade": "baixo",
+      "risco_esperado": "alto",
+      "motivo_inclusao": "excêntrico extremo — safe_to_failure=false"
+    },
+    {
+      "exercise_id": "3190d203-b56e-45dc-9245-5edd218742ca",
+      "nome": "REMADA UNIL. ART.",
+      "grupo_muscular": "DORSAL",
+      "ajustes": [],
+      "categorias_piloto": [
+        "ambiguo_nome",
+        "unilateral"
+      ],
+      "ambiguidade": "alto",
+      "risco_esperado": "baixo",
+      "motivo_inclusao": "'art.' = articulada (máquina) — testa desambiguação"
+    },
+    {
+      "exercise_id": "64814ec6-bd0c-41a9-9bd5-706350301d66",
+      "nome": "CAVALINHO NEUTRA",
+      "grupo_muscular": "DORSAL",
+      "ajustes": [],
+      "categorias_piloto": [
+        "ambiguo_nome"
+      ],
+      "ambiguidade": "alto",
+      "risco_esperado": "moderado",
+      "motivo_inclusao": "termo regional — equipamento ambíguo"
+    },
+    {
+      "exercise_id": "385a3b9f-2cbd-4b98-bf4b-e83b17573764",
+      "nome": "GOOD MORNING",
+      "grupo_muscular": "GLÚTEOS",
+      "ajustes": [],
+      "categorias_piloto": [
+        "lombar_alto",
+        "ambiguo_nome"
+      ],
+      "ambiguidade": "moderado",
+      "risco_esperado": "alto",
+      "motivo_inclusao": "equipamento (barra/halter/smith) não indicado; lombar alta"
+    }
+  ],
+  "sample_hash": "f6e4b4779f9cff95"
+}
