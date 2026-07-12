@@ -31,6 +31,12 @@ import {
   type SimilarityFeedback,
   type VariationIntensity,
 } from '@/lib/variationProfiles';
+import {
+  normalizeSplitSlug,
+  isRecommended,
+  SPLIT_LABELS,
+  type CanonicalSplitSlug,
+} from '@/lib/splitSlugs';
 
 type StudentCtx = Record<string, any>;
 
@@ -41,6 +47,7 @@ const LEVELS = [
 ];
 
 const DAYS_PER_WEEK = [
+  { value: '2', label: '2 dias' },
   { value: '3', label: '3 dias' },
   { value: '4', label: '4 dias' },
   { value: '5', label: '5 dias' },
@@ -49,12 +56,16 @@ const DAYS_PER_WEEK = [
 ];
 
 const SPLITS = [
-  { value: 'fullbody', label: 'Full Body', desc: 'Corpo inteiro por sessão' },
+  { value: 'full_body', label: 'Full Body', desc: 'Corpo inteiro por sessão' },
   { value: 'upper_lower', label: 'Upper/Lower', desc: 'Superior e inferior alternados' },
-  { value: 'push_pull_legs', label: 'Push/Pull/Legs', desc: 'Empurrar/Puxar/Pernas' },
-  { value: 'abcde', label: 'ABCDE', desc: 'Um grupo muscular por dia' },
-  { value: 'decida', label: 'Decida por mim', desc: 'IA escolhe a melhor divisão' },
-  { value: 'custom', label: 'Selecione grupos', desc: 'Escolher grupos por dia' },
+  { value: 'push_pull_legs', label: 'Push/Pull/Legs', desc: 'Empurrar / Puxar / Pernas' },
+  { value: 'push_pull', label: 'Push/Pull', desc: 'Empurrar e Puxar alternados' },
+  { value: 'upper_lower_ppl', label: 'Upper/Lower + PPL', desc: 'Híbrido para 5 dias' },
+  { value: 'torso_limbs', label: 'Torso / Membros', desc: 'Tronco e membros alternados' },
+  { value: 'specialization', label: 'Especialização', desc: 'Foco em grupo(s) prioritário(s)' },
+  { value: 'body_part', label: 'Divisão por grupos musculares', desc: 'Maior concentração de volume por sessão' },
+  { value: 'custom', label: 'Selecionar grupos', desc: 'Escolher grupos por dia' },
+  { value: 'ai_decides', label: 'Decida por mim', desc: 'IA escolhe a melhor divisão' },
 ];
 
 const WEEKS = [
