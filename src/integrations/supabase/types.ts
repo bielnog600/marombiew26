@@ -1444,6 +1444,8 @@ export type Database = {
           lumbar_load: string | null
           metadata_confidence: number | null
           metadata_field_confidence: Json | null
+          metadata_field_source: Json | null
+          metadata_field_verified: Json | null
           metadata_reviewed_at: string | null
           metadata_reviewed_by: string | null
           metadata_source: string | null
@@ -1474,6 +1476,8 @@ export type Database = {
           lumbar_load?: string | null
           metadata_confidence?: number | null
           metadata_field_confidence?: Json | null
+          metadata_field_source?: Json | null
+          metadata_field_verified?: Json | null
           metadata_reviewed_at?: string | null
           metadata_reviewed_by?: string | null
           metadata_source?: string | null
@@ -1504,6 +1508,8 @@ export type Database = {
           lumbar_load?: string | null
           metadata_confidence?: number | null
           metadata_field_confidence?: Json | null
+          metadata_field_source?: Json | null
+          metadata_field_verified?: Json | null
           metadata_reviewed_at?: string | null
           metadata_reviewed_by?: string | null
           metadata_source?: string | null
@@ -2884,7 +2890,12 @@ export type Database = {
     }
     Functions: {
       approve_exercise_metadata_suggestion: {
-        Args: { _fields?: string[]; _overrides?: Json; _suggestion_id: string }
+        Args: {
+          _fields?: string[]
+          _override_confidences?: Json
+          _overrides?: Json
+          _suggestion_id: string
+        }
         Returns: {
           ajustes: string[] | null
           axial_load: string | null
@@ -2900,6 +2911,8 @@ export type Database = {
           lumbar_load: string | null
           metadata_confidence: number | null
           metadata_field_confidence: Json | null
+          metadata_field_source: Json | null
+          metadata_field_verified: Json | null
           metadata_reviewed_at: string | null
           metadata_reviewed_by: string | null
           metadata_source: string | null
