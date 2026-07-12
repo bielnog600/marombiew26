@@ -1269,41 +1269,56 @@ export type Database = {
       }
       exercise_metadata_suggestions: {
         Row: {
+          classifier_run_id: string | null
+          classifier_version: string | null
           confidence: number | null
           created_at: string
           exercise_id: string
+          field_confidence: Json | null
           id: string
+          matched_rules: string[] | null
           proposed_metadata: Json
           reasoning: string | null
           rejection_reason: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          rules_version: string | null
           source: string | null
           status: string
         }
         Insert: {
+          classifier_run_id?: string | null
+          classifier_version?: string | null
           confidence?: number | null
           created_at?: string
           exercise_id: string
+          field_confidence?: Json | null
           id?: string
+          matched_rules?: string[] | null
           proposed_metadata: Json
           reasoning?: string | null
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          rules_version?: string | null
           source?: string | null
           status?: string
         }
         Update: {
+          classifier_run_id?: string | null
+          classifier_version?: string | null
           confidence?: number | null
           created_at?: string
           exercise_id?: string
+          field_confidence?: Json | null
           id?: string
+          matched_rules?: string[] | null
           proposed_metadata?: Json
           reasoning?: string | null
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          rules_version?: string | null
           source?: string | null
           status?: string
         }
@@ -2847,12 +2862,77 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      approve_exercise_metadata_suggestion: {
+        Args: { _fields?: string[]; _suggestion_id: string }
+        Returns: {
+          ajustes: string[] | null
+          axial_load: string | null
+          balance_requirement: string | null
+          contraindications: string[] | null
+          created_at: string
+          equipment_type: string | null
+          exercise_class: string | null
+          fatigue_cost: string | null
+          grupo_muscular: string
+          id: string
+          imagem_url: string | null
+          lumbar_load: string | null
+          metadata_confidence: number | null
+          metadata_reviewed_at: string | null
+          metadata_reviewed_by: string | null
+          metadata_source: string | null
+          metadata_status: string | null
+          metadata_version: number | null
+          movement_pattern: string | null
+          nome: string
+          primary_muscles: string[] | null
+          requires_load_logging: boolean
+          safe_to_failure: boolean | null
+          secondary_muscles: string[] | null
+          stability_level: string | null
+          technical_complexity: string | null
+          video_embed: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "exercises"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      reject_exercise_metadata_suggestion: {
+        Args: { _reason: string; _suggestion_id: string }
+        Returns: {
+          classifier_run_id: string | null
+          classifier_version: string | null
+          confidence: number | null
+          created_at: string
+          exercise_id: string
+          field_confidence: Json | null
+          id: string
+          matched_rules: string[] | null
+          proposed_metadata: Json
+          reasoning: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          rules_version: string | null
+          source: string | null
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "exercise_metadata_suggestions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
     }
     Enums: {
