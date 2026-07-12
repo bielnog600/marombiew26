@@ -85,6 +85,33 @@ const T_CALL = 15_000;
 const T_CONCURRENCY = 25_000;
 const T_CLEANUP = 15_000;
 
+// ---------------- Release-Gate preset ----------------
+const RUNNER_VERSION = "1.2C-release-gate.1";
+const RELEASE_GATE_SET = new Set<string>([
+  "A1","A2","A3","A4","A5","A6","A7",
+  "D1","D2","D3","D4","D5",
+  "C1",
+  "F1","F2","F3","F4","F5","F6",
+  "M1","M2","M3","M4","M5","M6",
+  "I1","I2","I3",
+  "Z1","Z2",
+  "F7",
+]);
+// Estes SEMPRE rodam no bloco finally, mesmo com o breaker aberto,
+// desde que a Data API esteja acessível (o próprio teste vai timeoutar
+// e cair em INCONCLUSIVE se não estiver).
+const ALWAYS_RUN_IN_FINALLY = new Set<string>(["I1","I2","I3","Z1","Z2"]);
+
+function sleep(ms: number) { return new Promise(res => setTimeout(res, ms)); }
+function jitterDelayMs() { return 500 + Math.floor(Math.random() * 500); }
+function looksLikePgrstOr5xx(text: string | undefined): string | null {
+  if (!text) return null;
+  if (/PGRST002/i.test(text)) return "PGRST002";
+  if (/PGRST003/i.test(text)) return "PGRST003";
+  if (/\b(503|504)\b/.test(text)) return "http_5xx";
+  return null;
+}
+
 function maskUUID(uuid: string): string {
   if (!uuid || uuid.length < 20) return "***";
   return `${uuid.slice(0,4)}…${uuid.slice(-4)}`;
@@ -237,6 +264,9 @@ export default function HumanFirstReviewPreflight() {
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState("");
   const [featureEnabled] = useState(() => new URLSearchParams(window.location.search).get("enabled") === "1");
+  const [mode] = useState<"full" | "release-gate">(() =>
+    new URLSearchParams(window.location.search).get("mode") === "release-gate" ? "release-gate" : "full"
+  );
   const lastPilotIdRef = useRef<string | null>(null);
   const [manualCleaning, setManualCleaning] = useState(false);
 
@@ -261,6 +291,10 @@ export default function HumanFirstReviewPreflight() {
     if (!user || role !== "admin") { toast.error("Admin required"); return; }
     setRunning(true); setResults([]); setReport(null);
     setProgress(0); setProgressLabel("Preparando");
+    const runStartedAt = new Date().toISOString();
+    let consecTimeouts = 0;
+    let circuitOpen = false;
+    let circuitReason: string | null = null;
 
     const push = (r: TestResult) => setResults(prev => [...prev, r]);
 
@@ -272,6 +306,22 @@ export default function HumanFirstReviewPreflight() {
       critical: boolean;
       execute: () => Promise<{ status: Status; detail?: string; reason?: string; evidence?: unknown }>;
     }) => {
+      // Release-gate: filtro fixo do subset. Nada de filtros manuais.
+      if (mode === "release-gate" && !RELEASE_GATE_SET.has(cfg.id)) {
+        return; // silenciosamente omitido do relatório
+      }
+      // Breaker aberto: só permitimos isolamento/cleanup do finally.
+      if (circuitOpen && !ALWAYS_RUN_IN_FINALLY.has(cfg.id)) {
+        const skipped: TestResult = {
+          id: cfg.id, group: cfg.group, name: cfg.name,
+          status: "skip", critical: cfg.critical,
+          reason: `circuit_open:${circuitReason ?? "unknown"}`,
+          detail: "release-gate interrompeu novas chamadas",
+          ms: 0,
+        };
+        push(skipped);
+        return skipped;
+      }
       const t0 = performance.now();
       let outcome: TestResult;
       try {
@@ -296,6 +346,28 @@ export default function HumanFirstReviewPreflight() {
         // no-op: state is captured above; push happens once
       }
       push(outcome);
+
+      // Circuit-breaker: atualizado só no modo release-gate.
+      if (mode === "release-gate") {
+        const isTimeout = outcome.reason === "gateway_timeout";
+        const pg = looksLikePgrstOr5xx(outcome.detail);
+        if (isTimeout) {
+          consecTimeouts += 1;
+          if (consecTimeouts >= 2) {
+            circuitOpen = true;
+            circuitReason = "2_consecutive_timeouts";
+          }
+        } else {
+          consecTimeouts = 0;
+        }
+        if (pg) {
+          circuitOpen = true;
+          circuitReason = pg;
+        }
+        // Intervalo entre chamadas (jitter 500–1000ms).
+        await sleep(jitterDelayMs());
+      }
+
       return outcome;
     };
 
@@ -989,6 +1061,16 @@ export default function HumanFirstReviewPreflight() {
 
       setReport(r => ({
         ...(r ?? {}),
+        mode,
+        runner_version: RUNNER_VERSION,
+        run_started_at: runStartedAt,
+        run_finished_at: new Date().toISOString(),
+        release_gate: mode === "release-gate" ? {
+          subset: Array.from(RELEASE_GATE_SET),
+          circuit_open: circuitOpen,
+          circuit_reason: circuitReason,
+          consecutive_timeouts_at_end: consecTimeouts,
+        } : null,
         preflight_run_id: ctx?.preflightRunId,
         pilot_selection_id: ctx?.pilotSelectionId,
         classifier_run_id: ctx?.classifierRunId,
@@ -1072,9 +1154,16 @@ export default function HumanFirstReviewPreflight() {
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-lg">
               <ShieldCheck className="w-5 h-5" /> Etapa 1.2C — Preflight Autenticado (Hardened)
+              <Badge variant={mode === "release-gate" ? "default" : "outline"} className="ml-2 text-[10px]">
+                mode: {mode}
+              </Badge>
+              <span className="text-[10px] text-muted-foreground">v{RUNNER_VERSION}</span>
             </CardTitle>
             <div className="text-xs text-muted-foreground">
               Timeout por teste · try/catch/finally · reconciliação DB pós-timeout · cleanup obrigatório.
+              {mode === "release-gate" && (
+                <> · subset fixo (A1–A7, D1–D5, C1, F1–F6, M1–M6, I1–I3, Z1–Z2, F7 por último) · jitter 500–1000ms · circuit-breaker (2 timeouts / PGRST002/003 / 503-504) · filtros manuais desabilitados.</>
+              )}
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
