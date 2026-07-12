@@ -1267,6 +1267,80 @@ export type Database = {
         }
         Relationships: []
       }
+      exercise_metadata_ground_truth: {
+        Row: {
+          adjudicated_at: string | null
+          adjudication_changes: Json
+          adjudicator_id: string | null
+          classifier_run_id: string | null
+          comparison_revealed_at: string | null
+          created_at: string
+          evidence: Json
+          exercise_id: string
+          field_notes: Json
+          field_review_status: Json
+          id: string
+          pilot_selection_id: string
+          review_version: number
+          reviewed_at: string | null
+          reviewed_metadata: Json
+          reviewer_id: string | null
+          reviewer_kind: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          adjudicated_at?: string | null
+          adjudication_changes?: Json
+          adjudicator_id?: string | null
+          classifier_run_id?: string | null
+          comparison_revealed_at?: string | null
+          created_at?: string
+          evidence?: Json
+          exercise_id: string
+          field_notes?: Json
+          field_review_status?: Json
+          id?: string
+          pilot_selection_id: string
+          review_version?: number
+          reviewed_at?: string | null
+          reviewed_metadata?: Json
+          reviewer_id?: string | null
+          reviewer_kind?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          adjudicated_at?: string | null
+          adjudication_changes?: Json
+          adjudicator_id?: string | null
+          classifier_run_id?: string | null
+          comparison_revealed_at?: string | null
+          created_at?: string
+          evidence?: Json
+          exercise_id?: string
+          field_notes?: Json
+          field_review_status?: Json
+          id?: string
+          pilot_selection_id?: string
+          review_version?: number
+          reviewed_at?: string | null
+          reviewed_metadata?: Json
+          reviewer_id?: string | null
+          reviewer_kind?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exercise_metadata_ground_truth_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercises"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exercise_metadata_suggestions: {
         Row: {
           applied_metadata: Json | null
