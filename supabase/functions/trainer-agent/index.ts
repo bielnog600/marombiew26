@@ -819,6 +819,11 @@ serve(async (req) => {
       outputMode,
       studentId,
       variationIntensity,
+      // Phase 1 — additive, optional fields. Legacy callers omit these.
+      split_slug,
+      split_slug_legacy,
+      days_available,
+      requested_strength_days,
     } = await req.json();
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
