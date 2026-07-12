@@ -777,7 +777,7 @@ GERE TUDO DE UMA VEZ:
               Frequência e Divisão
             </h3>
             <div>
-              <p className="text-xs text-muted-foreground mb-2">Dias por semana</p>
+              <p className="text-xs text-muted-foreground mb-2">Dias disponíveis para treinar</p>
               <div className="flex gap-2 flex-wrap">
                 {DAYS_PER_WEEK.map(d => (
                   <button key={d.value} onClick={() => setDaysPerWeek(d.value)}
@@ -790,13 +790,23 @@ GERE TUDO DE UMA VEZ:
             <div>
               <p className="text-xs text-muted-foreground mb-2">Divisão de treino</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {SPLITS.map(s => (
-                  <button key={s.value} onClick={() => setSplit(s.value)}
-                    className={`rounded-xl border-2 p-3 text-left transition-all ${split === s.value ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
-                    <span className="font-semibold text-sm block">{s.label}</span>
-                    <span className="text-xs text-muted-foreground">{s.desc}</span>
-                  </button>
-                ))}
+                {SPLITS.map(s => {
+                  const canonical = normalizeSplitSlug(s.value);
+                  const daysNum = parseInt(daysPerWeek || '0', 10) || null;
+                  const recommended = canonical ? isRecommended(canonical, daysNum) : false;
+                  return (
+                    <button key={s.value} onClick={() => setSplit(s.value)}
+                      className={`relative rounded-xl border-2 p-3 text-left transition-all ${split === s.value ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
+                      {recommended && (
+                        <span className="absolute top-1.5 right-1.5 rounded-full bg-primary/20 text-primary text-[10px] font-semibold px-2 py-0.5">
+                          Recomendado
+                        </span>
+                      )}
+                      <span className="font-semibold text-sm block pr-16">{s.label}</span>
+                      <span className="text-xs text-muted-foreground">{s.desc}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
             {daysPerWeek && split === 'custom' && (
