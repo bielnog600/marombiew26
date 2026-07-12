@@ -392,16 +392,14 @@ Deno.serve(async (req) => {
     const v = validateFields(reviewed_metadata, field_review_status, vocab, requireAll, field_notes, evidence);
     if (!v.ok) return j(422, { error: "validation_failed", details: v.errors });
 
-    // Delegate to the transactional RPC (SECURITY DEFINER, service_role-only).
+    // Delegate to the transactional RPC (SECURITY DEFINER, authenticated-only).
     // The RPC re-validates admin via auth.uid(), takes SELECT FOR UPDATE on the
-    // current row, validates version + vocabulary, computes the diff, supersedes
-    // the previous version and inserts the new one — all in one transaction.
-    // We must send the caller's JWT so the RPC sees the real auth.uid().
-    const rpcClient = createClient(url, service, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    const { data: rpcData, error: rpcErr } = await rpcClient.rpc(
+    // current row, validates version + vocabulary, computes the diff and
+    // changed_fields server-side, supersedes the previous version and inserts
+    // the new one — all in one transaction. We call it with the user's JWT
+    // (user-scoped client) so auth.uid() = the real admin. service_role is
+    // NOT used for this call and has been revoked from the RPC ACL.
+    const { data: rpcData, error: rpcErr } = await userClient.rpc(
       "save_human_first_review",
       {
         _action: action,
@@ -417,7 +415,7 @@ Deno.serve(async (req) => {
         _vocabulary_version: String(clientVocab ?? VOCABULARY_VERSION),
         _server_vocabulary_version: VOCABULARY_VERSION,
         _change_reason: change_reason,
-        _changed_fields: changed_fields,
+        _changed_fields: null, // server derives — client value is ignored
       },
     );
 
@@ -440,6 +438,7 @@ Deno.serve(async (req) => {
       new_version: row?.review_version,
       previous_version: row?.previous_review_version ?? 0,
       diff: row?.diff ?? {},
+      changed_fields: row?.changed_fields ?? [],
       vocabulary_version: VOCABULARY_VERSION,
     });
   }
