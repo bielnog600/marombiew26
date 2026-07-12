@@ -1267,6 +1267,56 @@ export type Database = {
         }
         Relationships: []
       }
+      exercise_metadata_suggestions: {
+        Row: {
+          confidence: number | null
+          created_at: string
+          exercise_id: string
+          id: string
+          proposed_metadata: Json
+          reasoning: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          source: string | null
+          status: string
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string
+          exercise_id: string
+          id?: string
+          proposed_metadata: Json
+          reasoning?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source?: string | null
+          status?: string
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string
+          exercise_id?: string
+          id?: string
+          proposed_metadata?: Json
+          reasoning?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exercise_metadata_suggestions_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercises"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exercise_set_logs: {
         Row: {
           created_at: string
@@ -1348,32 +1398,89 @@ export type Database = {
       exercises: {
         Row: {
           ajustes: string[] | null
+          axial_load: string | null
+          balance_requirement: string | null
+          contraindications: string[] | null
           created_at: string
+          equipment_type: string | null
+          exercise_class: string | null
+          fatigue_cost: string | null
           grupo_muscular: string
           id: string
           imagem_url: string | null
+          lumbar_load: string | null
+          metadata_confidence: number | null
+          metadata_reviewed_at: string | null
+          metadata_reviewed_by: string | null
+          metadata_source: string | null
+          metadata_status: string | null
+          metadata_version: number | null
+          movement_pattern: string | null
           nome: string
+          primary_muscles: string[] | null
           requires_load_logging: boolean
+          safe_to_failure: boolean | null
+          secondary_muscles: string[] | null
+          stability_level: string | null
+          technical_complexity: string | null
           video_embed: string | null
         }
         Insert: {
           ajustes?: string[] | null
+          axial_load?: string | null
+          balance_requirement?: string | null
+          contraindications?: string[] | null
           created_at?: string
+          equipment_type?: string | null
+          exercise_class?: string | null
+          fatigue_cost?: string | null
           grupo_muscular: string
           id?: string
           imagem_url?: string | null
+          lumbar_load?: string | null
+          metadata_confidence?: number | null
+          metadata_reviewed_at?: string | null
+          metadata_reviewed_by?: string | null
+          metadata_source?: string | null
+          metadata_status?: string | null
+          metadata_version?: number | null
+          movement_pattern?: string | null
           nome: string
+          primary_muscles?: string[] | null
           requires_load_logging?: boolean
+          safe_to_failure?: boolean | null
+          secondary_muscles?: string[] | null
+          stability_level?: string | null
+          technical_complexity?: string | null
           video_embed?: string | null
         }
         Update: {
           ajustes?: string[] | null
+          axial_load?: string | null
+          balance_requirement?: string | null
+          contraindications?: string[] | null
           created_at?: string
+          equipment_type?: string | null
+          exercise_class?: string | null
+          fatigue_cost?: string | null
           grupo_muscular?: string
           id?: string
           imagem_url?: string | null
+          lumbar_load?: string | null
+          metadata_confidence?: number | null
+          metadata_reviewed_at?: string | null
+          metadata_reviewed_by?: string | null
+          metadata_source?: string | null
+          metadata_status?: string | null
+          metadata_version?: number | null
+          movement_pattern?: string | null
           nome?: string
+          primary_muscles?: string[] | null
           requires_load_logging?: boolean
+          safe_to_failure?: boolean | null
+          secondary_muscles?: string[] | null
+          stability_level?: string | null
+          technical_complexity?: string | null
           video_embed?: string | null
         }
         Relationships: []
@@ -2214,6 +2321,60 @@ export type Database = {
           sexo?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      training_methods: {
+        Row: {
+          active: boolean
+          category: string | null
+          created_at: string
+          default_parameters: Json | null
+          description: string | null
+          fatigue_score: number | null
+          id: string
+          min_level: string | null
+          name: string
+          requires_professional_supervision: boolean
+          requires_special_equipment: boolean
+          safety_notes: string[] | null
+          slug: string
+          technical_risk_score: number | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          category?: string | null
+          created_at?: string
+          default_parameters?: Json | null
+          description?: string | null
+          fatigue_score?: number | null
+          id?: string
+          min_level?: string | null
+          name: string
+          requires_professional_supervision?: boolean
+          requires_special_equipment?: boolean
+          safety_notes?: string[] | null
+          slug: string
+          technical_risk_score?: number | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          category?: string | null
+          created_at?: string
+          default_parameters?: Json | null
+          description?: string | null
+          fatigue_score?: number | null
+          id?: string
+          min_level?: string | null
+          name?: string
+          requires_professional_supervision?: boolean
+          requires_special_equipment?: boolean
+          safety_notes?: string[] | null
+          slug?: string
+          technical_risk_score?: number | null
+          updated_at?: string
         }
         Relationships: []
       }
