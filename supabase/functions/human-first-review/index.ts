@@ -5,6 +5,8 @@
 //   - "get_exercise"    → single whitelisted exercise + this-reviewer's latest draft/final
 //   - "save_draft"      → upsert human_review_draft (optimistic lock by review_version)
 //   - "finalize"        → validates and creates status=human_first_review row
+//   - "amend_after_final" → creates a new version after a finalized row; requires
+//                           change_reason + changed_fields; RPC computes structured diff.
 //
 // STRICT BLINDING RULES:
 //   - Reads from public.exercises use an explicit whitelist of columns.
@@ -26,6 +28,22 @@ const VOCABULARY_VERSION = "v1.0";
 const REVIEWER_KIND = "human_blinded_v1"; // stored as reviewer_kind
 const DRAFT_STATUS = "human_review_draft";
 const FINAL_STATUS = "human_first_review";
+
+const ALLOWED_EVIDENCE = new Set<string>([
+  "exercise_name",
+  "legacy_muscle_group",
+  "image",
+  "video",
+  "adjustments",
+  "professional_knowledge",
+  "equipment_documentation",
+  "insufficient_evidence",
+]);
+const NOTE_REQUIRED_STATES = new Set<string>([
+  "insufficient_information",
+  "requires_video_review",
+  "requires_equipment_confirmation",
+]);
 
 const PILOT_EXERCISE_IDS = new Set<string>([
   "5d0c6d96-279b-44da-b088-8fc1e903048f",
@@ -127,6 +145,8 @@ function validateFields(
     movement: Set<string>;
   },
   requireAll: boolean,
+  field_notes: Record<string, string>,
+  evidence: Record<string, unknown>,
 ): { ok: true } | { ok: false; errors: string[] } {
   const errors: string[] = [];
   for (const field of REQUIRED_FIELDS) {
@@ -181,6 +201,25 @@ function validateFields(
       // insufficient_information / requires_video_review / requires_equipment_confirmation
       if (has && value !== null) {
         errors.push(`${field}: unresolved states require null value`);
+      }
+    }
+
+    // Evidence / note compliance
+    const evList = Array.isArray(evidence?.[field]) ? (evidence[field] as unknown[]) : [];
+    for (const e of evList) {
+      if (typeof e !== "string" || !ALLOWED_EVIDENCE.has(e)) {
+        errors.push(`${field}: invalid evidence "${String(e)}"`);
+      }
+    }
+    if (NOTE_REQUIRED_STATES.has(state)) {
+      const hasNote = typeof field_notes?.[field] === "string" && field_notes[field].trim().length > 0;
+      const hasCompatibleEv = evList.some((e) =>
+        e === "insufficient_evidence" ||
+        (state === "requires_video_review" && e === "video") ||
+        (state === "requires_equipment_confirmation" && e === "equipment_documentation")
+      );
+      if (!hasNote && !hasCompatibleEv) {
+        errors.push(`${field}: state "${state}" requires a note or compatible evidence`);
       }
     }
   }
@@ -335,7 +374,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  if (action === "save_draft" || action === "finalize") {
+  if (action === "save_draft" || action === "finalize" || action === "amend_after_final") {
     const exercise_id = String(body.exercise_id ?? "");
     if (!PILOT_EXERCISE_IDS.has(exercise_id)) return j(404, { error: "not_in_pilot" });
 
@@ -344,71 +383,63 @@ Deno.serve(async (req) => {
     const field_notes = (body.field_notes ?? {}) as Record<string, string>;
     const evidence = (body.evidence ?? {}) as Record<string, unknown>;
     const expected_version = Number(body.expected_version ?? 0);
+    const change_reason = typeof body.change_reason === "string" ? body.change_reason : null;
+    const changed_fields = Array.isArray(body.changed_fields)
+      ? (body.changed_fields as unknown[]).filter((s) => typeof s === "string") as string[]
+      : null;
 
-    const requireAll = action === "finalize";
-    const v = validateFields(reviewed_metadata, field_review_status, vocab, requireAll);
+    const requireAll = action === "finalize" || action === "amend_after_final";
+    const v = validateFields(reviewed_metadata, field_review_status, vocab, requireAll, field_notes, evidence);
     if (!v.ok) return j(422, { error: "validation_failed", details: v.errors });
 
-    // Optimistic lock — check latest existing version for this reviewer+exercise
-    const { data: existing } = await admin
-      .from("exercise_metadata_ground_truth")
-      .select("id,status,review_version")
-      .eq("reviewer_id", uid)
-      .eq("reviewer_kind", REVIEWER_KIND)
-      .eq("pilot_selection_id", PILOT_SELECTION_ID)
-      .eq("exercise_id", exercise_id)
-      .order("review_version", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // Delegate to the transactional RPC (SECURITY DEFINER, service_role-only).
+    // The RPC re-validates admin via auth.uid(), takes SELECT FOR UPDATE on the
+    // current row, validates version + vocabulary, computes the diff, supersedes
+    // the previous version and inserts the new one — all in one transaction.
+    // We must send the caller's JWT so the RPC sees the real auth.uid().
+    const rpcClient = createClient(url, service, {
+      global: { headers: { Authorization: authHeader } },
+    });
 
-    const currentVersion = existing?.review_version ?? 0;
-    if (currentVersion !== expected_version) {
-      return j(409, {
-        error: "version_conflict",
-        server_version: currentVersion,
-        client_version: expected_version,
-      });
+    const { data: rpcData, error: rpcErr } = await rpcClient.rpc(
+      "save_human_first_review",
+      {
+        _action: action,
+        _exercise_id: exercise_id,
+        _pilot_selection_id: PILOT_SELECTION_ID,
+        _classifier_run_id: CLASSIFIER_RUN_ID,
+        _reviewer_kind: REVIEWER_KIND,
+        _reviewed_metadata: reviewed_metadata,
+        _field_review_status: field_review_status,
+        _field_notes: field_notes,
+        _evidence: evidence,
+        _expected_version: expected_version,
+        _vocabulary_version: String(clientVocab ?? VOCABULARY_VERSION),
+        _server_vocabulary_version: VOCABULARY_VERSION,
+        _change_reason: change_reason,
+        _changed_fields: changed_fields,
+      },
+    );
+
+    if (rpcErr) {
+      const msg = rpcErr.message ?? String(rpcErr);
+      const status = /version_conflict|vocabulary_version_mismatch/i.test(msg)
+        ? 409
+        : /change_reason_required|changed_fields_required|cannot_draft_after_finalize/i.test(msg)
+        ? 422
+        : /not_authorized/.test(msg) ? 403
+        : /not_authenticated/.test(msg) ? 401
+        : 500;
+      return j(status, { error: "rpc_failed", detail: msg });
     }
 
-    // If existing is a FINAL row, any change bumps a NEW review_version.
-    // If existing is a DRAFT, we UPDATE in place (still increments? spec: bump on change).
-    // Simpler: always insert a NEW row with review_version = currentVersion + 1.
-    // Prior draft (if any) transitions to 'superseded'.
-    const newVersion = currentVersion + 1;
-
-    if (existing && existing.status === DRAFT_STATUS) {
-      await admin
-        .from("exercise_metadata_ground_truth")
-        .update({ status: "superseded" })
-        .eq("id", existing.id);
-    }
-
-    const insertRow = {
-      pilot_selection_id: PILOT_SELECTION_ID,
-      classifier_run_id: CLASSIFIER_RUN_ID,
-      exercise_id,
-      reviewed_metadata,
-      field_review_status,
-      field_notes,
-      evidence,
-      reviewer_id: uid, // server-defined
-      reviewer_kind: REVIEWER_KIND, // server-defined; never trust client
-      review_version: newVersion,
-      status: action === "finalize" ? FINAL_STATUS : DRAFT_STATUS,
-      reviewed_at: new Date().toISOString(),
-    };
-
-    const { data: inserted, error: insErr } = await admin
-      .from("exercise_metadata_ground_truth")
-      .insert(insertRow)
-      .select("id,status,review_version,reviewed_at")
-      .single();
-    if (insErr) return j(500, { error: "insert_failed", detail: insErr.message });
-
+    const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
     return j(200, {
       ok: true,
-      review: inserted,
-      new_version: newVersion,
+      review: row,
+      new_version: row?.review_version,
+      previous_version: row?.previous_review_version ?? 0,
+      diff: row?.diff ?? {},
       vocabulary_version: VOCABULARY_VERSION,
     });
   }
