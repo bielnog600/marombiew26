@@ -1,0 +1,543 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import AppLayout from '@/components/AppLayout';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Progress } from '@/components/ui/progress';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import { Loader2, ShieldCheck, EyeOff, Save, Lock } from 'lucide-react';
+import { toast } from 'sonner';
+import {
+  VOCABULARY_VERSION as LOCAL_VOCAB_VERSION,
+  type ReviewFieldState,
+} from '@/lib/metadataVocabularies';
+
+type ListItem = {
+  exercise_id: string;
+  nome: string;
+  grupo_muscular: string;
+  imagem_url: string | null;
+  video_embed: string | null;
+  ajustes: string | null;
+  requires_load_logging: boolean | null;
+  review_status: 'not_started' | 'human_review_draft' | 'human_first_review';
+  review_version: number;
+  resolved_count: number;
+  total_fields: number;
+};
+
+type Bootstrap = {
+  pilot_selection_id: string;
+  vocabulary_version: string;
+  reviewer_kind: string;
+  required_fields: string[];
+  field_states: ReviewFieldState[];
+  na_allowed_fields: string[];
+  array_fields: string[];
+  boolean_fields: string[];
+  vocabulary: {
+    equipment_hierarchy: { roots: string[]; parents: Record<string, string[]> };
+    muscles_canonical: { canonical: string[]; forbidden_in_muscle_fields: string[] };
+    movement_patterns: string[];
+    not_applicable_rules: Record<string, string[]>;
+    aliases: Record<string, string>;
+  };
+  items: ListItem[];
+};
+
+type ReviewRow = {
+  id: string;
+  status: string;
+  review_version: number;
+  reviewed_metadata: Record<string, unknown> | null;
+  field_review_status: Record<string, ReviewFieldState> | null;
+  field_notes: Record<string, string> | null;
+  evidence: Record<string, unknown> | null;
+};
+
+const FIELD_LABELS: Record<string, string> = {
+  movement_pattern: 'movement_pattern',
+  exercise_class: 'exercise_class',
+  equipment_type: 'equipment_type',
+  primary_muscles: 'primary_muscles',
+  secondary_muscles: 'secondary_muscles',
+  stability_level: 'stability_level',
+  technical_complexity: 'technical_complexity',
+  axial_load: 'axial_load',
+  lumbar_load: 'lumbar_load',
+  balance_requirement: 'balance_requirement',
+  fatigue_cost: 'fatigue_cost',
+  safe_to_failure: 'safe_to_failure',
+  contraindications: 'contraindications',
+};
+
+const FIELD_HELP: Record<string, string> = {
+  movement_pattern: 'Padrão biomecânico principal. Não confundir com músculo alvo.',
+  exercise_class: 'Classe funcional (ex.: compound, isolation, cardio, mobility) — usar vocabulário canônico.',
+  equipment_type: 'Equipamento específico. Se nome não define, escolher requires_equipment_confirmation.',
+  primary_muscles: 'Somente músculos canônicos v1.0. Regiões anatômicas (knee, thoracic_spine, core) são PROIBIDAS aqui.',
+  secondary_muscles: '[] = revisto e nenhum secundário identificado. null exige estado não resolvido.',
+  stability_level: 'Estabilidade externa oferecida. Unilateralidade sozinha não define balance alto.',
+  technical_complexity: 'Complexidade técnica ≠ dificuldade. Refere-se à aprendizagem do movimento.',
+  axial_load: 'Carga sobre coluna. NÃO é sinônimo de exercício pesado. Nunca N/A — mínimo é "none".',
+  lumbar_load: 'Depende do momento externo, posição e suporte, não apenas do peso.',
+  balance_requirement: 'Exigência de equilíbrio. Halteres bilaterais NÃO tornam o exercício unilateral.',
+  fatigue_cost: 'Custo sistêmico. Considerar demanda cardiorrespiratória, não só carga.',
+  safe_to_failure: 'Seguro para prescrição AUTOMÁTICA até a falha. ≠ segurança geral. N/A permitido em cardio contínuo, mobilidade e alguns isométricos.',
+  contraindications: '[] = revisto e nenhuma contraindicação estrutural. Não inventar diagnóstico.',
+};
+
+const EVIDENCE_OPTIONS = [
+  'exercise_name', 'legacy_muscle_group', 'image', 'video',
+  'adjustments', 'professional_knowledge', 'equipment_documentation', 'insufficient_evidence',
+];
+
+const EXERCISE_CLASS_OPTIONS = [
+  'compound', 'isolation', 'cardio_cyclic', 'metabolic_conditioning',
+  'mobility', 'core_stability', 'plyometric', 'other',
+];
+
+const LEVEL_OPTIONS = ['none', 'low', 'moderate', 'high', 'very_high'];
+
+async function callFn(action: string, payload: Record<string, unknown> = {}) {
+  const { data, error } = await supabase.functions.invoke('human-first-review', {
+    body: { action, ...payload },
+  });
+  if (error) throw new Error(error.message);
+  if (data?.error) throw new Error(String(data.error) + (data.details ? ': ' + JSON.stringify(data.details) : ''));
+  return data;
+}
+
+export default function HumanFirstReview() {
+  const qc = useQueryClient();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<'all' | 'pending' | 'draft' | 'done'>('all');
+
+  const bootstrap = useQuery({
+    queryKey: ['human-first-review', 'bootstrap'],
+    queryFn: () => callFn('bootstrap') as Promise<Bootstrap>,
+  });
+
+  const data = bootstrap.data;
+
+  // Blocking guard: vocabulary version mismatch
+  const vocabMismatch = data && data.vocabulary_version !== LOCAL_VOCAB_VERSION;
+
+  const filteredItems = useMemo(() => {
+    if (!data) return [];
+    return data.items.filter((it) => {
+      if (filter === 'pending') return it.review_status === 'not_started';
+      if (filter === 'draft') return it.review_status === 'human_review_draft';
+      if (filter === 'done') return it.review_status === 'human_first_review';
+      return true;
+    });
+  }, [data, filter]);
+
+  useEffect(() => {
+    if (!selectedId && data?.items.length) setSelectedId(data.items[0].exercise_id);
+  }, [data, selectedId]);
+
+  const totalResolved = data?.items.reduce((s, it) => s + it.resolved_count, 0) ?? 0;
+  const totalFields = data ? data.items.length * data.required_fields.length : 0;
+
+  return (
+    <AppLayout>
+      <div className="container mx-auto p-4 space-y-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <EyeOff className="w-5 h-5" /> Revisão Humana Cega — Etapa 1
+            </CardTitle>
+            <div className="text-xs text-muted-foreground">
+              Piloto: pilot-2c-2026-07-12-02 · Vocabulário: {data?.vocabulary_version ?? '—'} ·
+              Revisor: {data?.reviewer_kind ?? '—'}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="text-xs">
+              Progresso global:{' '}
+              <span className="font-mono">{totalResolved} / {totalFields}</span> campos resolvidos
+            </div>
+            <Progress value={totalFields ? (totalResolved / totalFields) * 100 : 0} />
+            {vocabMismatch && (
+              <div className="rounded-md bg-destructive/10 text-destructive p-2 text-xs">
+                Versão de vocabulário divergente (servidor: {data?.vocabulary_version}, cliente: {LOCAL_VOCAB_VERSION}).
+                Salvamento bloqueado.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Exercícios ({data?.items.length ?? 0})</CardTitle>
+              <div className="flex gap-1 flex-wrap pt-1">
+                {(['all','pending','draft','done'] as const).map(f => (
+                  <Button key={f} size="sm" variant={filter===f?'default':'outline'}
+                          className="h-6 text-[10px] px-2" onClick={() => setFilter(f)}>{f}</Button>
+                ))}
+              </div>
+            </CardHeader>
+            <CardContent className="p-2 max-h-[70vh] overflow-y-auto space-y-1">
+              {bootstrap.isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {filteredItems.map(it => (
+                <button key={it.exercise_id}
+                        onClick={() => setSelectedId(it.exercise_id)}
+                        className={`w-full text-left rounded-md p-2 text-xs border transition-colors ${
+                          selectedId === it.exercise_id ? 'bg-muted border-primary' : 'border-transparent hover:bg-muted/50'
+                        }`}>
+                  <div className="font-medium truncate">{it.nome}</div>
+                  <div className="flex items-center justify-between gap-2 mt-1">
+                    <Badge variant="outline" className="text-[9px]">{it.grupo_muscular}</Badge>
+                    <span className="text-[9px] text-muted-foreground">
+                      {it.resolved_count}/{it.total_fields}
+                    </span>
+                  </div>
+                  <StatusPill status={it.review_status} />
+                </button>
+              ))}
+            </CardContent>
+          </Card>
+
+          {selectedId && data ? (
+            <ExerciseReviewer key={selectedId}
+              exerciseId={selectedId}
+              bootstrap={data}
+              blocked={!!vocabMismatch}
+              onSaved={() => qc.invalidateQueries({ queryKey: ['human-first-review'] })}
+            />
+          ) : (
+            <Card><CardContent className="p-6 text-sm text-muted-foreground">Selecione um exercício.</CardContent></Card>
+          )}
+        </div>
+      </div>
+    </AppLayout>
+  );
+}
+
+function StatusPill({ status }: { status: ListItem['review_status'] }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    not_started: { label: 'não iniciado', cls: 'bg-muted text-muted-foreground' },
+    human_review_draft: { label: 'draft', cls: 'bg-amber-500/20 text-amber-700 dark:text-amber-300' },
+    human_first_review: { label: 'finalizado', cls: 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' },
+  };
+  const s = map[status] ?? map.not_started;
+  return <div className={`inline-block mt-1 rounded px-1.5 py-0.5 text-[9px] ${s.cls}`}>{s.label}</div>;
+}
+
+function ExerciseReviewer({
+  exerciseId, bootstrap, blocked, onSaved,
+}: {
+  exerciseId: string;
+  bootstrap: Bootstrap;
+  blocked: boolean;
+  onSaved: () => void;
+}) {
+  const qc = useQueryClient();
+  const detail = useQuery({
+    queryKey: ['human-first-review', 'exercise', exerciseId],
+    queryFn: () => callFn('get_exercise', { exercise_id: exerciseId }) as Promise<{
+      exercise: {
+        id: string; nome: string; grupo_muscular: string;
+        imagem_url: string | null; video_embed: string | null;
+        ajustes: string | null; requires_load_logging: boolean | null;
+      };
+      review: ReviewRow | null;
+      vocabulary_version: string;
+    }>,
+  });
+
+  const [metadata, setMetadata] = useState<Record<string, unknown>>({});
+  const [status, setStatus] = useState<Record<string, ReviewFieldState>>({});
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [evidence, setEvidence] = useState<Record<string, string[]>>({});
+  const [generalNote, setGeneralNote] = useState('');
+  const [version, setVersion] = useState(0);
+  const isFinalized = detail.data?.review?.status === 'human_first_review';
+
+  useEffect(() => {
+    const r = detail.data?.review;
+    setMetadata((r?.reviewed_metadata ?? {}) as Record<string, unknown>);
+    setStatus((r?.field_review_status ?? {}) as Record<string, ReviewFieldState>);
+    setNotes((r?.field_notes ?? {}) as Record<string, string>);
+    const ev = (r?.evidence ?? {}) as Record<string, unknown>;
+    setEvidence(Object.fromEntries(Object.entries(ev).filter(([k]) => k !== '_general').map(([k,v]) => [k, Array.isArray(v) ? v as string[] : []])));
+    setGeneralNote(typeof (ev as any)?._general === 'string' ? (ev as any)._general : '');
+    setVersion(r?.review_version ?? 0);
+  }, [detail.data?.review]);
+
+  const setField = (field: string, value: unknown) =>
+    setMetadata(m => ({ ...m, [field]: value }));
+  const setState = (field: string, s: ReviewFieldState) => {
+    setStatus(st => ({ ...st, [field]: s }));
+    if (s !== 'resolved' && s !== 'not_applicable') setField(field, null);
+    if (s === 'not_applicable') setField(field, null);
+  };
+
+  const save = useMutation({
+    mutationFn: async (finalize: boolean) => {
+      const payload = {
+        exercise_id: exerciseId,
+        reviewed_metadata: metadata,
+        field_review_status: status,
+        field_notes: notes,
+        evidence: { ...evidence, _general: generalNote },
+        expected_version: version,
+        vocabulary_version: LOCAL_VOCAB_VERSION,
+      };
+      return callFn(finalize ? 'finalize' : 'save_draft', payload);
+    },
+    onSuccess: (d) => {
+      toast.success(`Salvo · versão ${d.new_version}`);
+      setVersion(d.new_version);
+      qc.invalidateQueries({ queryKey: ['human-first-review'] });
+      onSaved();
+    },
+    onError: (e: any) => toast.error(e.message ?? 'Falha ao salvar'),
+  });
+
+  if (detail.isLoading || !detail.data) {
+    return <Card><CardContent className="p-6"><Loader2 className="w-5 h-5 animate-spin" /></CardContent></Card>;
+  }
+  const ex = detail.data.exercise;
+  const eqOptions = [
+    ...bootstrap.vocabulary.equipment_hierarchy.roots,
+    ...Object.values(bootstrap.vocabulary.equipment_hierarchy.parents).flat(),
+  ];
+  const muscles = bootstrap.vocabulary.muscles_canonical.canonical;
+  const forbidden = new Set(bootstrap.vocabulary.muscles_canonical.forbidden_in_muscle_fields);
+  const movementPatterns = bootstrap.vocabulary.movement_patterns;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          {ex.nome}
+          <Badge variant="outline">{ex.grupo_muscular}</Badge>
+          {isFinalized && (
+            <Badge className="bg-emerald-600 text-white gap-1"><Lock className="w-3 h-3" />finalizado v{version}</Badge>
+          )}
+        </CardTitle>
+        <div className="text-[11px] text-muted-foreground">
+          Nenhuma previsão do classificador é exibida. Julgue apenas com nome, grupo, imagem, vídeo e ajustes.
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+          <div className="space-y-2">
+            {ex.imagem_url && <img src={ex.imagem_url} alt={ex.nome} className="rounded max-h-48 object-contain bg-muted" />}
+            <div><span className="text-muted-foreground">Ajustes: </span>{ex.ajustes || '—'}</div>
+            <div><span className="text-muted-foreground">requires_load_logging: </span>{String(ex.requires_load_logging)}</div>
+          </div>
+          {ex.video_embed && (
+            <div className="aspect-video">
+              <iframe src={ex.video_embed} className="w-full h-full rounded" allowFullScreen />
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          {bootstrap.required_fields.map(field => (
+            <FieldRow key={field}
+              field={field}
+              state={status[field]}
+              value={metadata[field]}
+              note={notes[field] ?? ''}
+              evidence={evidence[field] ?? []}
+              vocab={{ eqOptions, muscles, forbidden: Array.from(forbidden), movementPatterns }}
+              naAllowed={bootstrap.na_allowed_fields.includes(field)}
+              disabled={isFinalized}
+              onState={(s) => setState(field, s)}
+              onValue={(v) => setField(field, v)}
+              onNote={(n) => setNotes(nn => ({ ...nn, [field]: n }))}
+              onEvidence={(ev) => setEvidence(e => ({ ...e, [field]: ev }))}
+            />
+          ))}
+        </div>
+
+        <div>
+          <div className="text-xs text-muted-foreground mb-1">Nota geral do exercício</div>
+          <Textarea value={generalNote} disabled={isFinalized}
+            onChange={(e) => setGeneralNote(e.target.value)}
+            placeholder="Observações gerais, dúvidas, evidências transversais…" />
+        </div>
+
+        <div className="flex gap-2 items-center">
+          <Button variant="outline" size="sm" disabled={blocked || save.isPending || isFinalized}
+                  onClick={() => save.mutate(false)}>
+            <Save className="w-4 h-4 mr-1" /> Salvar rascunho
+          </Button>
+          <Button size="sm" disabled={blocked || save.isPending || isFinalized}
+                  onClick={() => save.mutate(true)}>
+            <ShieldCheck className="w-4 h-4 mr-1" /> Finalizar como human_first_review
+          </Button>
+          <span className="text-[10px] text-muted-foreground ml-2">versão atual: v{version}</span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function FieldRow({
+  field, state, value, note, evidence, vocab, naAllowed, disabled,
+  onState, onValue, onNote, onEvidence,
+}: {
+  field: string;
+  state: ReviewFieldState | undefined;
+  value: unknown;
+  note: string;
+  evidence: string[];
+  vocab: { eqOptions: string[]; muscles: string[]; forbidden: string[]; movementPatterns: string[] };
+  naAllowed: boolean;
+  disabled: boolean;
+  onState: (s: ReviewFieldState) => void;
+  onValue: (v: unknown) => void;
+  onNote: (n: string) => void;
+  onEvidence: (ev: string[]) => void;
+}) {
+  return (
+    <div className="rounded-md border p-3 space-y-2 text-xs">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-mono font-semibold">{FIELD_LABELS[field]}</div>
+          <div className="text-[10px] text-muted-foreground">{FIELD_HELP[field]}</div>
+        </div>
+        <Select value={state ?? ''} onValueChange={(v) => onState(v as ReviewFieldState)} disabled={disabled}>
+          <SelectTrigger className="w-[240px] h-8 text-xs"><SelectValue placeholder="estado…" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="resolved">resolved</SelectItem>
+            {naAllowed && <SelectItem value="not_applicable">not_applicable</SelectItem>}
+            <SelectItem value="insufficient_information">insufficient_information</SelectItem>
+            <SelectItem value="requires_video_review">requires_video_review</SelectItem>
+            <SelectItem value="requires_equipment_confirmation">requires_equipment_confirmation</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {state === 'resolved' && (
+        <FieldValueEditor field={field} value={value} vocab={vocab} disabled={disabled} onValue={onValue} />
+      )}
+
+      <div>
+        <div className="text-[10px] text-muted-foreground mb-1">Evidência</div>
+        <div className="flex gap-1 flex-wrap">
+          {EVIDENCE_OPTIONS.map(opt => {
+            const active = evidence.includes(opt);
+            return (
+              <Button key={opt} size="sm" variant={active ? 'default' : 'outline'}
+                      className="h-6 text-[10px] px-2" disabled={disabled}
+                      onClick={() => onEvidence(active ? evidence.filter(e => e !== opt) : [...evidence, opt])}>
+                {opt}
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+
+      <Input placeholder="Nota do campo (opcional)" value={note} disabled={disabled}
+             onChange={(e) => onNote(e.target.value)} className="h-8 text-xs" />
+    </div>
+  );
+}
+
+function FieldValueEditor({
+  field, value, vocab, disabled, onValue,
+}: {
+  field: string;
+  value: unknown;
+  vocab: { eqOptions: string[]; muscles: string[]; forbidden: string[]; movementPatterns: string[] };
+  disabled: boolean;
+  onValue: (v: unknown) => void;
+}) {
+  if (field === 'safe_to_failure') {
+    return (
+      <Select value={value === true ? 'true' : value === false ? 'false' : ''}
+              onValueChange={(v) => onValue(v === 'true')} disabled={disabled}>
+        <SelectTrigger className="h-8 text-xs w-40"><SelectValue placeholder="true / false" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="true">true</SelectItem>
+          <SelectItem value="false">false</SelectItem>
+        </SelectContent>
+      </Select>
+    );
+  }
+  if (field === 'equipment_type') {
+    return <SingleSelect options={vocab.eqOptions} value={value as string} disabled={disabled} onValue={onValue} />;
+  }
+  if (field === 'movement_pattern') {
+    return <SingleSelect options={vocab.movementPatterns} value={value as string} disabled={disabled} onValue={onValue} />;
+  }
+  if (field === 'exercise_class') {
+    return <SingleSelect options={EXERCISE_CLASS_OPTIONS} value={value as string} disabled={disabled} onValue={onValue} />;
+  }
+  if (['stability_level','technical_complexity','axial_load','lumbar_load','balance_requirement','fatigue_cost'].includes(field)) {
+    return <SingleSelect options={LEVEL_OPTIONS} value={value as string} disabled={disabled} onValue={onValue} />;
+  }
+  if (field === 'primary_muscles' || field === 'secondary_muscles') {
+    const arr = Array.isArray(value) ? value as string[] : [];
+    return (
+      <div className="space-y-1">
+        <div className="flex gap-1 flex-wrap">
+          {vocab.muscles.map(m => {
+            const active = arr.includes(m);
+            return (
+              <Button key={m} size="sm" variant={active ? 'default' : 'outline'}
+                      className="h-6 text-[10px] px-2" disabled={disabled}
+                      onClick={() => onValue(active ? arr.filter(x => x !== m) : [...arr, m])}>
+                {m}
+              </Button>
+            );
+          })}
+        </div>
+        <div className="text-[9px] text-muted-foreground">
+          Proibidos (regiões anatômicas): {vocab.forbidden.join(', ')}
+        </div>
+        <div className="text-[9px] text-muted-foreground">
+          [] = revisto e vazio. Clique nos músculos aplicáveis. Selecionados: [{arr.join(', ')}]
+        </div>
+      </div>
+    );
+  }
+  if (field === 'contraindications') {
+    const arr = Array.isArray(value) ? value as string[] : [];
+    return (
+      <div className="space-y-1">
+        <Input placeholder="digite e Enter para adicionar (ou deixe vazio)" disabled={disabled}
+               onKeyDown={(e) => {
+                 if (e.key === 'Enter') {
+                   const v = (e.target as HTMLInputElement).value.trim();
+                   if (v) { onValue([...arr, v]); (e.target as HTMLInputElement).value = ''; }
+                 }
+               }} className="h-8 text-xs" />
+        <div className="flex gap-1 flex-wrap">
+          {arr.length === 0 && <span className="text-[10px] text-muted-foreground">[] — revisto e sem contraindicações</span>}
+          {arr.map((c, i) => (
+            <Badge key={i} variant="secondary" className="text-[10px] cursor-pointer"
+                   onClick={() => !disabled && onValue(arr.filter((_, j) => j !== i))}>{c} ✕</Badge>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  return <Input value={String(value ?? '')} disabled={disabled} onChange={(e) => onValue(e.target.value)} className="h-8 text-xs" />;
+}
+
+function SingleSelect({ options, value, disabled, onValue }: {
+  options: string[]; value: string | undefined; disabled: boolean; onValue: (v: string) => void;
+}) {
+  return (
+    <Select value={value ?? ''} onValueChange={onValue} disabled={disabled}>
+      <SelectTrigger className="h-8 text-xs w-60"><SelectValue placeholder="selecione…" /></SelectTrigger>
+      <SelectContent>
+        {options.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  );
+}

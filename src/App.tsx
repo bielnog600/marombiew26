@@ -33,6 +33,7 @@ import CardioExecucao from "./pages/CardioExecucao";
 import Alimentos from "./pages/Alimentos";
 import Exercicios from "./pages/Exercicios";
 import ExerciseMetadataReview from "./pages/ExerciseMetadataReview";
+import HumanFirstReview from "./pages/HumanFirstReview";
 import DietQuestionnaire from "./pages/DietQuestionnaire";
 import Notificacoes from "./pages/Notificacoes";
 import Consultoria from "./pages/Consultoria";
@@ -104,6 +105,7 @@ const App = () => {
               <Route path="/alimentos" element={<ProtectedRoute requiredRole="admin"><Alimentos /></ProtectedRoute>} />
               <Route path="/exercicios" element={<ProtectedRoute requiredRole="admin"><Exercicios /></ProtectedRoute>} />
               <Route path="/exercicios/metadados" element={<ProtectedRoute requiredRole="admin"><ExerciseMetadataReview /></ProtectedRoute>} />
+              <Route path="/exercicios/metadados/human-first" element={<ProtectedRoute requiredRole="admin"><HumanFirstReview /></ProtectedRoute>} />
               <Route path="/questionario-dieta" element={<DietQuestionnaire />} />
               <Route path="/notificacoes" element={<Navigate to="/consultoria" replace />} />
               <Route path="/consultoria" element={<ProtectedRoute requiredRole="admin"><Consultoria /></ProtectedRoute>} />
