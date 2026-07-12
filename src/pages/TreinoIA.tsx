@@ -446,6 +446,8 @@ const TreinoIA = () => {
     const selectedLevel = LEVELS.find(l => l.value === level);
     const selectedSplit = SPLITS.find(s => s.value === split);
     const selectedEquip = EQUIPMENT.find(e => e.value === equipment);
+    const canonicalSplit = normalizeSplitSlug(split);
+    const daysAvailableNum = parseInt(daysPerWeek || '0', 10) || null;
 
     // Build health conditions string
     const healthLines: string[] = [];
@@ -516,8 +518,8 @@ const TreinoIA = () => {
     const prompt = `Gere o TREINO COMPLETO agora com as seguintes configurações:
 
 - Nível: ${selectedLevel?.label}
-- Dias por semana: ${daysPerWeek}
-- Divisão: ${split === 'decida'
+- Dias disponíveis para treinar: ${daysPerWeek}
+- Divisão: ${canonicalSplit === 'ai_decides'
       ? 'IA DEVE ESCOLHER a melhor divisão (Full Body, Upper/Lower, Push/Pull/Legs ou ABCDE) com base no nível, dias por semana, objetivo e condições de saúde do aluno. Justifique brevemente a escolha no Resumo do protocolo.'
       : selectedSplit?.label}
 - Semana do ciclo: ${week} de 4
@@ -559,6 +561,10 @@ GERE TUDO DE UMA VEZ:
             outputMode: 'json',
             studentId,
             variationIntensity,
+            // Phase 1 — additive, optional fields
+            split_slug: canonicalSplit,
+            split_slug_legacy: canonicalSplit && canonicalSplit !== normalizeSplitSlug(split) ? split : null,
+            days_available: daysAvailableNum,
           }),
         }
       );
