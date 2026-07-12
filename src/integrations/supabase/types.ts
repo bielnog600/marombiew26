@@ -3190,6 +3190,7 @@ export type Database = {
           _vocabulary_version: string
         }
         Returns: {
+          changed_fields: string[]
           diff: Json
           id: string
           is_current: boolean
