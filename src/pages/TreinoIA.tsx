@@ -563,7 +563,7 @@ GERE TUDO DE UMA VEZ:
             variationIntensity,
             // Phase 1 — additive, optional fields
             split_slug: canonicalSplit,
-            split_slug_legacy: canonicalSplit && canonicalSplit !== normalizeSplitSlug(split) ? split : null,
+            split_slug_legacy: split && split !== canonicalSplit ? split : null,
             days_available: daysAvailableNum,
           }),
         }
