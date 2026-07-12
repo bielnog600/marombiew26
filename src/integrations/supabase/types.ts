@@ -1334,15 +1334,20 @@ export type Database = {
           adjudicated_at: string | null
           adjudication_changes: Json
           adjudicator_id: string | null
+          change_reason: string | null
+          changed_fields: string[] | null
           classifier_run_id: string | null
           comparison_revealed_at: string | null
           created_at: string
+          diff: Json
           evidence: Json
           exercise_id: string
           field_notes: Json
           field_review_status: Json
           id: string
+          is_current: boolean
           pilot_selection_id: string
+          previous_review_version: number | null
           review_version: number
           reviewed_at: string | null
           reviewed_metadata: Json
@@ -1350,20 +1355,26 @@ export type Database = {
           reviewer_kind: string
           status: string
           updated_at: string
+          vocabulary_version: string | null
         }
         Insert: {
           adjudicated_at?: string | null
           adjudication_changes?: Json
           adjudicator_id?: string | null
+          change_reason?: string | null
+          changed_fields?: string[] | null
           classifier_run_id?: string | null
           comparison_revealed_at?: string | null
           created_at?: string
+          diff?: Json
           evidence?: Json
           exercise_id: string
           field_notes?: Json
           field_review_status?: Json
           id?: string
+          is_current?: boolean
           pilot_selection_id: string
+          previous_review_version?: number | null
           review_version?: number
           reviewed_at?: string | null
           reviewed_metadata?: Json
@@ -1371,20 +1382,26 @@ export type Database = {
           reviewer_kind?: string
           status?: string
           updated_at?: string
+          vocabulary_version?: string | null
         }
         Update: {
           adjudicated_at?: string | null
           adjudication_changes?: Json
           adjudicator_id?: string | null
+          change_reason?: string | null
+          changed_fields?: string[] | null
           classifier_run_id?: string | null
           comparison_revealed_at?: string | null
           created_at?: string
+          diff?: Json
           evidence?: Json
           exercise_id?: string
           field_notes?: Json
           field_review_status?: Json
           id?: string
+          is_current?: boolean
           pilot_selection_id?: string
+          previous_review_version?: number | null
           review_version?: number
           reviewed_at?: string | null
           reviewed_metadata?: Json
@@ -1392,6 +1409,7 @@ export type Database = {
           reviewer_kind?: string
           status?: string
           updated_at?: string
+          vocabulary_version?: string | null
         }
         Relationships: [
           {
@@ -3153,6 +3171,33 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      save_human_first_review: {
+        Args: {
+          _action: string
+          _change_reason?: string
+          _changed_fields?: string[]
+          _classifier_run_id: string
+          _evidence: Json
+          _exercise_id: string
+          _expected_version: number
+          _field_notes: Json
+          _field_review_status: Json
+          _pilot_selection_id: string
+          _reviewed_metadata: Json
+          _reviewer_kind: string
+          _server_vocabulary_version: string
+          _vocabulary_version: string
+        }
+        Returns: {
+          diff: Json
+          id: string
+          is_current: boolean
+          previous_review_version: number
+          review_version: number
+          reviewed_at: string
+          status: string
+        }[]
       }
     }
     Enums: {
