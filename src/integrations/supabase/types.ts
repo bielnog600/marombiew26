@@ -1267,6 +1267,68 @@ export type Database = {
         }
         Relationships: []
       }
+      exercise_metadata_adjudications: {
+        Row: {
+          adjudicated_at: string
+          adjudicator_id: string | null
+          changed_from_first_human_review: Json | null
+          changed_from_safety_review: Json | null
+          classifier_run_id: string | null
+          created_at: string
+          exercise_id: string
+          field_final_status: Json
+          final_metadata: Json
+          id: string
+          pilot_selection_id: string
+          reason: string | null
+          sources_considered: Json
+          updated_at: string
+          vocabulary_version: string
+        }
+        Insert: {
+          adjudicated_at?: string
+          adjudicator_id?: string | null
+          changed_from_first_human_review?: Json | null
+          changed_from_safety_review?: Json | null
+          classifier_run_id?: string | null
+          created_at?: string
+          exercise_id: string
+          field_final_status?: Json
+          final_metadata?: Json
+          id?: string
+          pilot_selection_id: string
+          reason?: string | null
+          sources_considered?: Json
+          updated_at?: string
+          vocabulary_version?: string
+        }
+        Update: {
+          adjudicated_at?: string
+          adjudicator_id?: string | null
+          changed_from_first_human_review?: Json | null
+          changed_from_safety_review?: Json | null
+          classifier_run_id?: string | null
+          created_at?: string
+          exercise_id?: string
+          field_final_status?: Json
+          final_metadata?: Json
+          id?: string
+          pilot_selection_id?: string
+          reason?: string | null
+          sources_considered?: Json
+          updated_at?: string
+          vocabulary_version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exercise_metadata_adjudications_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercises"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exercise_metadata_ground_truth: {
         Row: {
           adjudicated_at: string | null
@@ -1745,6 +1807,45 @@ export type Database = {
           student_id?: string
           updated_at?: string
           zonas_karvonen?: Json
+        }
+        Relationships: []
+      }
+      metadata_vocabularies: {
+        Row: {
+          aliases: Json
+          created_at: string
+          equipment_hierarchy: Json
+          frozen_at: string
+          id: string
+          movement_patterns: Json
+          muscles_canonical: Json
+          not_applicable_rules: Json
+          notes: string | null
+          version: string
+        }
+        Insert: {
+          aliases?: Json
+          created_at?: string
+          equipment_hierarchy: Json
+          frozen_at?: string
+          id?: string
+          movement_patterns: Json
+          muscles_canonical: Json
+          not_applicable_rules: Json
+          notes?: string | null
+          version: string
+        }
+        Update: {
+          aliases?: Json
+          created_at?: string
+          equipment_hierarchy?: Json
+          frozen_at?: string
+          id?: string
+          movement_patterns?: Json
+          muscles_canonical?: Json
+          not_applicable_rules?: Json
+          notes?: string | null
+          version?: string
         }
         Relationships: []
       }
