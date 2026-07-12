@@ -1,0 +1,1397 @@
+{
+  "classifier_run_id": "793c8800-a0c2-4acc-ac4d-2d374ecd2076",
+  "pilot_selection_id": "pilot-2c-2026-07-12-02",
+  "sample_hash": "ab6b0b19420c8cec",
+  "classifier_version": "rules-1.0.0",
+  "rules_version": "1.0.0",
+  "started_at": "2026-07-12T15:59:50.408Z",
+  "finished_at": "2026-07-12T15:59:50.411Z",
+  "results": [
+    {
+      "exercise_id": "5d0c6d96-279b-44da-b088-8fc1e903048f",
+      "nome": "CADEIRA EXTENSORA",
+      "grupo_muscular": "QUADRÍCEPS",
+      "status": "ok",
+      "elapsed_ms": 1,
+      "snapshot": {
+        "nome": "CADEIRA EXTENSORA",
+        "grupo_muscular": "QUADRÍCEPS",
+        "ajustes": [
+          "Banco",
+          "Apoio dos pés",
+          "Observação"
+        ],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "equipment_type": "machine",
+          "exercise_class": "isolation",
+          "movement_pattern": "knee_extension",
+          "primary_muscles": [
+            "quadriceps"
+          ],
+          "safe_to_failure": true,
+          "stability_level": "high",
+          "technical_complexity": "low",
+          "axial_load": "none",
+          "lumbar_load": "low",
+          "balance_requirement": "none",
+          "fatigue_cost": "low"
+        },
+        "fieldConfidence": {
+          "equipment_type": 0.9,
+          "exercise_class": 0.9,
+          "movement_pattern": 0.97,
+          "primary_muscles": 0.85,
+          "safe_to_failure": 0.75,
+          "stability_level": 0.8,
+          "technical_complexity": 0.75,
+          "axial_load": 0.85,
+          "lumbar_load": 0.75,
+          "balance_requirement": 0.85,
+          "fatigue_cost": 0.7
+        },
+        "overallConfidence": 0.82,
+        "matchedRules": [
+          "equipment:machine",
+          "class:isolation",
+          "movement:knee_extension",
+          "muscles:quadriceps",
+          "safe_isolation_machine_combo"
+        ],
+        "unresolvedFields": [
+          "contraindications"
+        ],
+        "warnings": [
+          "high_risk_fields_require_human_review"
+        ],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "818b563e-150d-43cf-a018-cffa5490d663",
+      "nome": "BÚLGARO",
+      "grupo_muscular": "QUADRÍCEPS",
+      "status": "ok",
+      "elapsed_ms": 1,
+      "snapshot": {
+        "nome": "BÚLGARO",
+        "grupo_muscular": "QUADRÍCEPS",
+        "ajustes": [
+          "Observação"
+        ],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "primary_muscles": [
+            "quadriceps"
+          ]
+        },
+        "fieldConfidence": {
+          "primary_muscles": 0.85
+        },
+        "overallConfidence": 0.85,
+        "matchedRules": [
+          "muscles:quadriceps"
+        ],
+        "unresolvedFields": [
+          "equipment_type",
+          "exercise_class",
+          "movement_pattern",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "cf04e183-f08a-422c-a7bb-4ce19ec0b972",
+      "nome": "MESA FLEXORA",
+      "grupo_muscular": "ISQUIOTIBIAIS",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "MESA FLEXORA",
+        "grupo_muscular": "ISQUIOTIBIAIS",
+        "ajustes": [],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "exercise_class": "isolation",
+          "movement_pattern": "knee_flexion"
+        },
+        "fieldConfidence": {
+          "exercise_class": 0.9,
+          "movement_pattern": 0.95
+        },
+        "overallConfidence": 0.93,
+        "matchedRules": [
+          "class:isolation",
+          "movement:knee_flexion"
+        ],
+        "unresolvedFields": [
+          "equipment_type",
+          "primary_muscles",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "6e38cf0c-5272-4331-b0fc-25d1ea48b657",
+      "nome": "TRÍCEPS CORDA",
+      "grupo_muscular": "TRÍCEPS",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "TRÍCEPS CORDA",
+        "grupo_muscular": "TRÍCEPS",
+        "ajustes": [],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "exercise_class": "isolation",
+          "movement_pattern": "elbow_extension",
+          "primary_muscles": [
+            "triceps"
+          ]
+        },
+        "fieldConfidence": {
+          "exercise_class": 0.9,
+          "movement_pattern": 0.9,
+          "primary_muscles": 0.85
+        },
+        "overallConfidence": 0.88,
+        "matchedRules": [
+          "class:isolation",
+          "movement:elbow_extension",
+          "muscles:triceps"
+        ],
+        "unresolvedFields": [
+          "equipment_type",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "3a68757a-d15e-4616-9af4-50670941c27b",
+      "nome": "BICEPS CORDA",
+      "grupo_muscular": "BÍCEPS",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "BICEPS CORDA",
+        "grupo_muscular": "BÍCEPS",
+        "ajustes": [],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "primary_muscles": [
+            "biceps"
+          ]
+        },
+        "fieldConfidence": {
+          "primary_muscles": 0.85
+        },
+        "overallConfidence": 0.85,
+        "matchedRules": [
+          "muscles:biceps"
+        ],
+        "unresolvedFields": [
+          "equipment_type",
+          "exercise_class",
+          "movement_pattern",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "48e92cba-dee0-43dc-aa45-bd14cbc87741",
+      "nome": "PRANCHA FRONTAL",
+      "grupo_muscular": "ABDOMEN",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "PRANCHA FRONTAL",
+        "grupo_muscular": "ABDOMEN",
+        "ajustes": [],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "exercise_class": "core",
+          "primary_muscles": [
+            "abs"
+          ]
+        },
+        "fieldConfidence": {
+          "exercise_class": 0.85,
+          "primary_muscles": 0.85
+        },
+        "overallConfidence": 0.85,
+        "matchedRules": [
+          "class:core",
+          "muscles:abdomen"
+        ],
+        "unresolvedFields": [
+          "equipment_type",
+          "movement_pattern",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "db8fe23d-4322-46b3-b874-d853eb8cc5a0",
+      "nome": "SUPINO RETO HALTERES",
+      "grupo_muscular": "PEITORAL",
+      "status": "ok",
+      "elapsed_ms": 1,
+      "snapshot": {
+        "nome": "SUPINO RETO HALTERES",
+        "grupo_muscular": "PEITORAL",
+        "ajustes": [],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "equipment_type": "dumbbell",
+          "exercise_class": "compound",
+          "movement_pattern": "horizontal_push",
+          "primary_muscles": [
+            "chest"
+          ]
+        },
+        "fieldConfidence": {
+          "equipment_type": 0.9,
+          "exercise_class": 0.85,
+          "movement_pattern": 0.88,
+          "primary_muscles": 0.85
+        },
+        "overallConfidence": 0.87,
+        "matchedRules": [
+          "equipment:dumbbell",
+          "class:compound",
+          "movement:horizontal_push",
+          "muscles:peito"
+        ],
+        "unresolvedFields": [
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "30301dfc-4322-4e10-bf3d-c8f894094fda",
+      "nome": "CROSS OVER",
+      "grupo_muscular": "PEITORAL",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "CROSS OVER",
+        "grupo_muscular": "PEITORAL",
+        "ajustes": [],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "equipment_type": "cable",
+          "primary_muscles": [
+            "chest"
+          ]
+        },
+        "fieldConfidence": {
+          "equipment_type": 0.92,
+          "primary_muscles": 0.85
+        },
+        "overallConfidence": 0.89,
+        "matchedRules": [
+          "equipment:cable",
+          "muscles:peito"
+        ],
+        "unresolvedFields": [
+          "exercise_class",
+          "movement_pattern",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "a09de707-9329-4be8-80b6-1a8caba1c381",
+      "nome": "REMADA MÁQUINA",
+      "grupo_muscular": "DORSAL",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "REMADA MÁQUINA",
+        "grupo_muscular": "DORSAL",
+        "ajustes": [],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "equipment_type": "machine",
+          "exercise_class": "compound",
+          "movement_pattern": "horizontal_pull"
+        },
+        "fieldConfidence": {
+          "equipment_type": 0.9,
+          "exercise_class": 0.85,
+          "movement_pattern": 0.9
+        },
+        "overallConfidence": 0.88,
+        "matchedRules": [
+          "equipment:machine",
+          "class:compound",
+          "movement:horizontal_pull"
+        ],
+        "unresolvedFields": [
+          "primary_muscles",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "41b013f3-7bc3-4310-a384-81d9b6660a96",
+      "nome": "LEG PRESS",
+      "grupo_muscular": "QUADRÍCEPS",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "LEG PRESS",
+        "grupo_muscular": "QUADRÍCEPS",
+        "ajustes": [
+          "Banco",
+          "Apoio dos pés",
+          "Observação"
+        ],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "equipment_type": "machine",
+          "exercise_class": "compound",
+          "movement_pattern": "squat",
+          "primary_muscles": [
+            "quadriceps"
+          ]
+        },
+        "fieldConfidence": {
+          "equipment_type": 0.9,
+          "exercise_class": 0.85,
+          "movement_pattern": 0.88,
+          "primary_muscles": 0.85
+        },
+        "overallConfidence": 0.87,
+        "matchedRules": [
+          "equipment:machine",
+          "class:compound",
+          "movement:squat",
+          "muscles:quadriceps"
+        ],
+        "unresolvedFields": [
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "d007a1fd-b7d1-4d10-bc8c-5e6863d6daa4",
+      "nome": "CADEIRA ABDUTORA",
+      "grupo_muscular": "GLÚTEOS",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "CADEIRA ABDUTORA",
+        "grupo_muscular": "GLÚTEOS",
+        "ajustes": [],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "equipment_type": "machine",
+          "primary_muscles": [
+            "glutes"
+          ]
+        },
+        "fieldConfidence": {
+          "equipment_type": 0.9,
+          "primary_muscles": 0.85
+        },
+        "overallConfidence": 0.88,
+        "matchedRules": [
+          "equipment:machine",
+          "muscles:gluteos"
+        ],
+        "unresolvedFields": [
+          "exercise_class",
+          "movement_pattern",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "3b02cfd9-54ba-4eea-8652-063f1f3f3da1",
+      "nome": "AGACHAMENTO LIVRE",
+      "grupo_muscular": "QUADRÍCEPS",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "AGACHAMENTO LIVRE",
+        "grupo_muscular": "QUADRÍCEPS",
+        "ajustes": [
+          "Observação"
+        ],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "exercise_class": "compound",
+          "movement_pattern": "squat",
+          "primary_muscles": [
+            "quadriceps"
+          ]
+        },
+        "fieldConfidence": {
+          "exercise_class": 0.85,
+          "movement_pattern": 0.88,
+          "primary_muscles": 0.85
+        },
+        "overallConfidence": 0.86,
+        "matchedRules": [
+          "class:compound",
+          "movement:squat",
+          "muscles:quadriceps"
+        ],
+        "unresolvedFields": [
+          "equipment_type",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "d4cb31da-da30-4e99-8059-2cc341e01118",
+      "nome": "PESO MORTO",
+      "grupo_muscular": "GLÚTEOS",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "PESO MORTO",
+        "grupo_muscular": "GLÚTEOS",
+        "ajustes": [],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "primary_muscles": [
+            "glutes"
+          ]
+        },
+        "fieldConfidence": {
+          "primary_muscles": 0.85
+        },
+        "overallConfidence": 0.85,
+        "matchedRules": [
+          "muscles:gluteos"
+        ],
+        "unresolvedFields": [
+          "equipment_type",
+          "exercise_class",
+          "movement_pattern",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "7d9bf4f6-65c4-49e8-9eaa-a93e34f1eecc",
+      "nome": "PASSADEIRA (CORRIDA)",
+      "grupo_muscular": "CARDIO",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "PASSADEIRA (CORRIDA)",
+        "grupo_muscular": "CARDIO",
+        "ajustes": [],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "exercise_class": "cardio"
+        },
+        "fieldConfidence": {
+          "exercise_class": 0.95
+        },
+        "overallConfidence": 0.95,
+        "matchedRules": [
+          "class:cardio"
+        ],
+        "unresolvedFields": [
+          "equipment_type",
+          "movement_pattern",
+          "primary_muscles",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "b957aa12-f74f-4d40-97ed-4566102eadd0",
+      "nome": "CORDA NAVAL (BI)",
+      "grupo_muscular": "CARDIO",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "CORDA NAVAL (BI)",
+        "grupo_muscular": "CARDIO",
+        "ajustes": [],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {},
+        "fieldConfidence": {},
+        "overallConfidence": 0,
+        "matchedRules": [],
+        "unresolvedFields": [
+          "equipment_type",
+          "exercise_class",
+          "movement_pattern",
+          "primary_muscles",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "068ca0a6-6286-497b-9899-c5f26e85714a",
+      "nome": "MOBILIDADE QUADRIL 3",
+      "grupo_muscular": "ADUTORES",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "MOBILIDADE QUADRIL 3",
+        "grupo_muscular": "ADUTORES",
+        "ajustes": [
+          "Observação"
+        ],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "exercise_class": "mobility"
+        },
+        "fieldConfidence": {
+          "exercise_class": 0.95
+        },
+        "overallConfidence": 0.95,
+        "matchedRules": [
+          "class:mobility"
+        ],
+        "unresolvedFields": [
+          "equipment_type",
+          "movement_pattern",
+          "primary_muscles",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "d7cc670e-7252-4b6f-a033-76fb87486c80",
+      "nome": "MOBILIDADE TORÁCICA",
+      "grupo_muscular": "PEITORAL",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "MOBILIDADE TORÁCICA",
+        "grupo_muscular": "PEITORAL",
+        "ajustes": [
+          "Observação"
+        ],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "exercise_class": "mobility",
+          "primary_muscles": [
+            "chest"
+          ]
+        },
+        "fieldConfidence": {
+          "exercise_class": 0.95,
+          "primary_muscles": 0.85
+        },
+        "overallConfidence": 0.9,
+        "matchedRules": [
+          "class:mobility",
+          "muscles:peito"
+        ],
+        "unresolvedFields": [
+          "equipment_type",
+          "movement_pattern",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "df0af1a3-7212-4ea0-ac1e-21caea6106f2",
+      "nome": "KICK BACK",
+      "grupo_muscular": "GLÚTEOS",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "KICK BACK",
+        "grupo_muscular": "GLÚTEOS",
+        "ajustes": [],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "primary_muscles": [
+            "glutes"
+          ]
+        },
+        "fieldConfidence": {
+          "primary_muscles": 0.85
+        },
+        "overallConfidence": 0.85,
+        "matchedRules": [
+          "muscles:gluteos"
+        ],
+        "unresolvedFields": [
+          "equipment_type",
+          "exercise_class",
+          "movement_pattern",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "f4ea80fb-c839-44ce-8166-64ae9bcb90cb",
+      "nome": "SUPINO RETO SMITH",
+      "grupo_muscular": "PEITORAL",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "SUPINO RETO SMITH",
+        "grupo_muscular": "PEITORAL",
+        "ajustes": [],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "equipment_type": "machine",
+          "exercise_class": "compound",
+          "movement_pattern": "horizontal_push",
+          "primary_muscles": [
+            "chest"
+          ]
+        },
+        "fieldConfidence": {
+          "equipment_type": 0.9,
+          "exercise_class": 0.85,
+          "movement_pattern": 0.88,
+          "primary_muscles": 0.85
+        },
+        "overallConfidence": 0.87,
+        "matchedRules": [
+          "equipment:machine",
+          "class:compound",
+          "movement:horizontal_push",
+          "muscles:peito"
+        ],
+        "unresolvedFields": [
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "848ec532-a595-4ee3-945d-8d23809a5a13",
+      "nome": "FLEXÃO NORDICA",
+      "grupo_muscular": "ISQUIOTIBIAIS",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "FLEXÃO NORDICA",
+        "grupo_muscular": "ISQUIOTIBIAIS",
+        "ajustes": [],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "movement_pattern": "horizontal_push"
+        },
+        "fieldConfidence": {
+          "movement_pattern": 0.88
+        },
+        "overallConfidence": 0.88,
+        "matchedRules": [
+          "movement:horizontal_push"
+        ],
+        "unresolvedFields": [
+          "equipment_type",
+          "exercise_class",
+          "primary_muscles",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "ba76ba3c-407b-4158-acc8-bd6cd219f019",
+      "nome": "ELEVAÇÃO FRONTAL POLIA",
+      "grupo_muscular": "DELTÓIDES",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "ELEVAÇÃO FRONTAL POLIA",
+        "grupo_muscular": "DELTÓIDES",
+        "ajustes": [],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "equipment_type": "cable",
+          "exercise_class": "isolation",
+          "safe_to_failure": true,
+          "stability_level": "high",
+          "technical_complexity": "low",
+          "axial_load": "none",
+          "lumbar_load": "low",
+          "balance_requirement": "none",
+          "fatigue_cost": "low"
+        },
+        "fieldConfidence": {
+          "equipment_type": 0.92,
+          "exercise_class": 0.9,
+          "safe_to_failure": 0.75,
+          "stability_level": 0.8,
+          "technical_complexity": 0.75,
+          "axial_load": 0.85,
+          "lumbar_load": 0.75,
+          "balance_requirement": 0.85,
+          "fatigue_cost": 0.7
+        },
+        "overallConfidence": 0.81,
+        "matchedRules": [
+          "equipment:cable",
+          "class:isolation",
+          "safe_isolation_machine_combo"
+        ],
+        "unresolvedFields": [
+          "movement_pattern",
+          "primary_muscles",
+          "contraindications"
+        ],
+        "warnings": [
+          "high_risk_fields_require_human_review"
+        ],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "537d53a4-e60b-4ece-addf-f1581ffa3f8b",
+      "nome": "STIFF HALTERES",
+      "grupo_muscular": "ISQUIOTIBIAIS",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "STIFF HALTERES",
+        "grupo_muscular": "ISQUIOTIBIAIS",
+        "ajustes": [],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "equipment_type": "dumbbell",
+          "exercise_class": "compound",
+          "movement_pattern": "hip_hinge"
+        },
+        "fieldConfidence": {
+          "equipment_type": 0.9,
+          "exercise_class": 0.85,
+          "movement_pattern": 0.9
+        },
+        "overallConfidence": 0.88,
+        "matchedRules": [
+          "equipment:dumbbell",
+          "class:compound",
+          "movement:hip_hinge"
+        ],
+        "unresolvedFields": [
+          "primary_muscles",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "6035e0ca-6443-4850-a6b9-464174fa15e7",
+      "nome": "REMADA UNIL. POLIA",
+      "grupo_muscular": "DORSAL",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "REMADA UNIL. POLIA",
+        "grupo_muscular": "DORSAL",
+        "ajustes": [],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "equipment_type": "cable",
+          "exercise_class": "compound",
+          "movement_pattern": "horizontal_pull"
+        },
+        "fieldConfidence": {
+          "equipment_type": 0.92,
+          "exercise_class": 0.85,
+          "movement_pattern": 0.9
+        },
+        "overallConfidence": 0.89,
+        "matchedRules": [
+          "equipment:cable",
+          "class:compound",
+          "movement:horizontal_pull"
+        ],
+        "unresolvedFields": [
+          "primary_muscles",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "366a2dc8-188e-4ae5-b015-b9913777a1b5",
+      "nome": "SALTO LATERAL",
+      "grupo_muscular": "QUADRÍCEPS",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "SALTO LATERAL",
+        "grupo_muscular": "QUADRÍCEPS",
+        "ajustes": [
+          "Observação"
+        ],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "exercise_class": "plyometric",
+          "primary_muscles": [
+            "quadriceps"
+          ]
+        },
+        "fieldConfidence": {
+          "exercise_class": 0.9,
+          "primary_muscles": 0.85
+        },
+        "overallConfidence": 0.88,
+        "matchedRules": [
+          "class:plyometric",
+          "muscles:quadriceps"
+        ],
+        "unresolvedFields": [
+          "equipment_type",
+          "movement_pattern",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "63293174-8cce-471f-bb22-53cb235b5097",
+      "nome": "FLY MACHINE",
+      "grupo_muscular": "PEITORAL",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "FLY MACHINE",
+        "grupo_muscular": "PEITORAL",
+        "ajustes": [],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "primary_muscles": [
+            "chest"
+          ]
+        },
+        "fieldConfidence": {
+          "primary_muscles": 0.85
+        },
+        "overallConfidence": 0.85,
+        "matchedRules": [
+          "muscles:peito"
+        ],
+        "unresolvedFields": [
+          "equipment_type",
+          "exercise_class",
+          "movement_pattern",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "3377e82c-a840-4577-98e5-3eb2fb043a09",
+      "nome": "PUXADA ALTA NEUTRA",
+      "grupo_muscular": "DORSAL",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "PUXADA ALTA NEUTRA",
+        "grupo_muscular": "DORSAL",
+        "ajustes": [],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "exercise_class": "compound",
+          "movement_pattern": "vertical_pull"
+        },
+        "fieldConfidence": {
+          "exercise_class": 0.85,
+          "movement_pattern": 0.9
+        },
+        "overallConfidence": 0.88,
+        "matchedRules": [
+          "class:compound",
+          "movement:vertical_pull"
+        ],
+        "unresolvedFields": [
+          "equipment_type",
+          "primary_muscles",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "f460782f-42ae-488d-90ed-a446ef03635a",
+      "nome": "PALLOF PRESS NA POLIA",
+      "grupo_muscular": "CORE",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "PALLOF PRESS NA POLIA",
+        "grupo_muscular": "CORE",
+        "ajustes": [
+          "Observação"
+        ],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "equipment_type": "cable",
+          "primary_muscles": [
+            "abs",
+            "obliques"
+          ]
+        },
+        "fieldConfidence": {
+          "equipment_type": 0.92,
+          "primary_muscles": 0.85
+        },
+        "overallConfidence": 0.89,
+        "matchedRules": [
+          "equipment:cable",
+          "muscles:core"
+        ],
+        "unresolvedFields": [
+          "exercise_class",
+          "movement_pattern",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "bddbded1-70df-45c0-a1b0-539b16e205d9",
+      "nome": "GÊMEOS UNILATERAL",
+      "grupo_muscular": "GASTROCNEMIUS",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "GÊMEOS UNILATERAL",
+        "grupo_muscular": "GASTROCNEMIUS",
+        "ajustes": [],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {},
+        "fieldConfidence": {},
+        "overallConfidence": 0,
+        "matchedRules": [],
+        "unresolvedFields": [
+          "equipment_type",
+          "exercise_class",
+          "movement_pattern",
+          "primary_muscles",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "385a3b9f-2cbd-4b98-bf4b-e83b17573764",
+      "nome": "GOOD MORNING",
+      "grupo_muscular": "GLÚTEOS",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "GOOD MORNING",
+        "grupo_muscular": "GLÚTEOS",
+        "ajustes": [],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {
+          "movement_pattern": "hip_hinge",
+          "primary_muscles": [
+            "glutes"
+          ]
+        },
+        "fieldConfidence": {
+          "movement_pattern": 0.9,
+          "primary_muscles": 0.85
+        },
+        "overallConfidence": 0.88,
+        "matchedRules": [
+          "movement:hip_hinge",
+          "muscles:gluteos"
+        ],
+        "unresolvedFields": [
+          "equipment_type",
+          "exercise_class",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    },
+    {
+      "exercise_id": "b4d26e26-c989-4cd6-9e80-9659ff8cf362",
+      "nome": "HIPEREXTENSÃO LOMBAR 2",
+      "grupo_muscular": "LOMBAR",
+      "status": "ok",
+      "elapsed_ms": 0,
+      "snapshot": {
+        "nome": "HIPEREXTENSÃO LOMBAR 2",
+        "grupo_muscular": "LOMBAR",
+        "ajustes": [],
+        "requires_load_logging": true,
+        "classifier_version": "rules-1.0.0",
+        "rules_version": "1.0.0"
+      },
+      "output": {
+        "proposedMetadata": {},
+        "fieldConfidence": {},
+        "overallConfidence": 0,
+        "matchedRules": [],
+        "unresolvedFields": [
+          "equipment_type",
+          "exercise_class",
+          "movement_pattern",
+          "primary_muscles",
+          "safe_to_failure",
+          "stability_level",
+          "technical_complexity",
+          "axial_load",
+          "lumbar_load",
+          "balance_requirement",
+          "fatigue_cost",
+          "contraindications"
+        ],
+        "warnings": [],
+        "classifierVersion": "rules-1.0.0"
+      }
+    }
+  ]
+}
