@@ -33,6 +33,13 @@ const FINAL_STATUS = "human_first_review";
 // from the 30-exercise pilot by using a distinct pilot_selection_id.
 const FIXTURE_PILOT_ID = "fixture-final-test-2026-07-13";
 
+// Levels vocabulary (mirrors client LEVEL_OPTIONS)
+const LEVEL_OPTIONS = ["none", "low", "moderate", "high", "very_high"] as const;
+const EXERCISE_CLASS_OPTIONS = [
+  "compound", "isolation", "cardio_cyclic", "metabolic_conditioning",
+  "mobility", "core_stability", "plyometric", "other",
+] as const;
+
 const ALLOWED_EVIDENCE = new Set<string>([
   "exercise_name",
   "legacy_muscle_group",
