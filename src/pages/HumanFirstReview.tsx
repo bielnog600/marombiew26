@@ -35,7 +35,7 @@ type ListItem = {
   total_fields: number;
 };
 
-type Bootstrap = {
+export type Bootstrap = {
   pilot_selection_id: string;
   vocabulary_version: string;
   reviewer_kind: string;
