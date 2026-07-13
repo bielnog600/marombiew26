@@ -17,6 +17,9 @@ import {
   VOCABULARY_VERSION as LOCAL_VOCAB_VERSION,
   type ReviewFieldState,
 } from '@/lib/metadataVocabularies';
+import FixtureFinalTest from '@/components/human-first/FixtureFinalTest';
+
+const FIXTURE_STORAGE_KEY = 'human-first:fixture-passed:v1';
 
 type ListItem = {
   exercise_id: string;
@@ -59,6 +62,9 @@ type ReviewRow = {
   field_review_status: Record<string, ReviewFieldState> | null;
   field_notes: Record<string, string> | null;
   evidence: Record<string, unknown> | null;
+  previous_review_version?: number | null;
+  changed_fields?: string[] | null;
+  diff?: Record<string, unknown> | null;
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -105,7 +111,7 @@ const EXERCISE_CLASS_OPTIONS = [
 
 const LEVEL_OPTIONS = ['none', 'low', 'moderate', 'high', 'very_high'];
 
-async function callFn(action: string, payload: Record<string, unknown> = {}) {
+export async function callFn(action: string, payload: Record<string, unknown> = {}) {
   const { data, error } = await supabase.functions.invoke('human-first-review', {
     body: { action, ...payload },
   });
@@ -118,6 +124,14 @@ export default function HumanFirstReview() {
   const qc = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'pending' | 'draft' | 'done'>('all');
+  const [fixturePassed, setFixturePassed] = useState<boolean>(() => {
+    try { return localStorage.getItem(FIXTURE_STORAGE_KEY) === 'true'; } catch { return false; }
+  });
+
+  const markFixturePassed = () => {
+    try { localStorage.setItem(FIXTURE_STORAGE_KEY, 'true'); } catch {}
+    setFixturePassed(true);
+  };
 
   const bootstrap = useQuery({
     queryKey: ['human-first-review', 'bootstrap'],
@@ -149,6 +163,17 @@ export default function HumanFirstReview() {
   return (
     <AppLayout>
       <div className="container mx-auto p-4 space-y-4">
+        <FixtureFinalTest
+          passed={fixturePassed}
+          onPassed={markFixturePassed}
+          onReset={() => {
+            try { localStorage.removeItem(FIXTURE_STORAGE_KEY); } catch {}
+            setFixturePassed(false);
+          }}
+          vocabularyVersion={data?.vocabulary_version ?? '—'}
+          bootstrap={data ?? null}
+        />
+
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-lg">
@@ -171,10 +196,22 @@ export default function HumanFirstReview() {
                 Salvamento bloqueado.
               </div>
             )}
+            {!fixturePassed && (
+              <div className="rounded-md bg-amber-500/10 text-amber-800 dark:text-amber-300 p-2 text-xs border border-amber-500/30">
+                🔒 Conclua o <strong>Teste Final</strong> acima antes de iniciar a revisão dos 30 exercícios.
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-4">
+        <div className={`grid grid-cols-1 md:grid-cols-[280px_1fr] gap-4 relative ${!fixturePassed ? 'pointer-events-none opacity-50 select-none' : ''}`}>
+          {!fixturePassed && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-auto">
+              <div className="bg-background/90 border rounded-lg px-4 py-2 text-xs font-medium shadow">
+                Conclua o teste final antes de iniciar
+              </div>
+            </div>
+          )}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Exercícios ({data?.items.length ?? 0})</CardTitle>
