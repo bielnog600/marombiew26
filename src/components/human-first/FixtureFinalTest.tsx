@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, FlaskConical, CheckCircle2, Circle, ShieldCheck, Trash2 } from 'lucide-react';
+import { Loader2, FlaskConical, CheckCircle2, Circle, ShieldCheck, Trash2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { callFn, ExerciseReviewer, type Bootstrap } from '@/pages/HumanFirstReview';
 
@@ -54,6 +54,7 @@ export default function FixtureFinalTest({ passed, onPassed, onReset, vocabulary
   const [isolation, setIsolation] = useState<any>(null);
   const [blockCheck, setBlockCheck] = useState<{ ok: boolean; msg: string } | null>(null);
   const [collapsed, setCollapsed] = useState(passed);
+  const [aiSummary, setAiSummary] = useState<any>(null);
 
   useEffect(() => { setCollapsed(passed); }, [passed]);
 
@@ -164,6 +165,18 @@ export default function FixtureFinalTest({ passed, onPassed, onReset, vocabulary
     onError: (e: any) => toast.error(e.message ?? 'Falha no cleanup'),
   });
 
+  const aiFill = useMutation({
+    mutationFn: () => callFn('fixture_ai_fill', { exercise_id: exercise!.id }),
+    onSuccess: (d: any) => {
+      setAiSummary(d.ai_summary);
+      qc.invalidateQueries({ queryKey: ['fixture'] });
+      const resolved = d.ai_summary?.resolved_fields?.length ?? 0;
+      const unresolved = d.ai_summary?.unresolved_fields?.length ?? 0;
+      toast.success(`IA preencheu: ${resolved} resolvidos, ${unresolved} incertos. Revise antes de finalizar.`);
+    },
+    onError: (e: any) => toast.error(e.message ?? 'Falha ao preencher com IA'),
+  });
+
   const allChecked = STEPS.every((s) => checks[s.id]);
 
   if (passed && collapsed) {
@@ -229,6 +242,12 @@ export default function FixtureFinalTest({ passed, onPassed, onReset, vocabulary
                 ))}
 
                 <div className="pt-2 space-y-1">
+                  <Button size="sm" variant="secondary" className="w-full h-7 text-[11px]"
+                          onClick={() => aiFill.mutate()}
+                          disabled={aiFill.isPending || !exercise || (reviewQ.data as any)?.review?.status === 'human_first_review'}>
+                    {aiFill.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                    Preencher fixture com IA
+                  </Button>
                   <Button size="sm" variant="outline" className="w-full h-7 text-[11px]"
                           onClick={() => verifyBlock.mutate()}
                           disabled={verifyBlock.isPending || (reviewQ.data as any)?.review?.status !== 'human_first_review'}>
@@ -254,6 +273,27 @@ export default function FixtureFinalTest({ passed, onPassed, onReset, vocabulary
                   <details className="pt-2">
                     <summary className="text-[11px] cursor-pointer">Snapshot isolamento</summary>
                     <pre className="text-[9px] max-h-40 overflow-auto bg-muted/40 p-1 rounded">{JSON.stringify(isolation, null, 2)}</pre>
+                  </details>
+                )}
+
+                {aiSummary && (
+                  <details className="pt-2" open>
+                    <summary className="text-[11px] cursor-pointer font-medium">
+                      Sugestão IA · {aiSummary.resolved_fields?.length ?? 0} resolvidos / {aiSummary.unresolved_fields?.length ?? 0} incertos
+                    </summary>
+                    <div className="text-[10px] space-y-1 mt-1">
+                      {Object.entries(aiSummary.field_reasoning ?? {}).map(([f, r]) => (
+                        <div key={f} className="border-l-2 border-muted pl-1.5">
+                          <div className="font-mono text-[9px] text-muted-foreground">
+                            {f} · conf {aiSummary.field_confidence?.[f] != null ? Math.round(aiSummary.field_confidence[f] * 100) + '%' : 'n/d'}
+                          </div>
+                          <div>{String(r)}</div>
+                        </div>
+                      ))}
+                      {(aiSummary.warnings ?? []).length > 0 && (
+                        <div className="text-amber-600 mt-1">⚠ {aiSummary.warnings.join('; ')}</div>
+                      )}
+                    </div>
                   </details>
                 )}
               </div>
