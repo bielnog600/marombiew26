@@ -33,6 +33,13 @@ const FINAL_STATUS = "human_first_review";
 // from the 30-exercise pilot by using a distinct pilot_selection_id.
 const FIXTURE_PILOT_ID = "fixture-final-test-2026-07-13";
 
+// Levels vocabulary (mirrors client LEVEL_OPTIONS)
+const LEVEL_OPTIONS = ["none", "low", "moderate", "high", "very_high"] as const;
+const EXERCISE_CLASS_OPTIONS = [
+  "compound", "isolation", "cardio_cyclic", "metabolic_conditioning",
+  "mobility", "core_stability", "plyometric", "other",
+] as const;
+
 const ALLOWED_EVIDENCE = new Set<string>([
   "exercise_name",
   "legacy_muscle_group",
@@ -604,6 +611,227 @@ Deno.serve(async (req) => {
       .eq("reviewer_kind", REVIEWER_KIND)
       .eq("pilot_selection_id", FIXTURE_PILOT_ID);
     return j(200, { deleted: rows?.length ?? 0, remaining: remaining ?? 0 });
+  }
+
+  if (action === "fixture_ai_fill") {
+    const exercise_id = String(body.exercise_id ?? "");
+    if (PILOT_EXERCISE_IDS.has(exercise_id))
+      return j(400, { error: "pilot_id_not_allowed_for_fixture" });
+
+    const { data: ex, error: exErr } = await admin
+      .from("exercises")
+      .select("id,nome,grupo_muscular,ajustes,requires_load_logging,imagem_url,video_embed")
+      .eq("id", exercise_id).single();
+    if (exErr || !ex) return j(404, { error: "exercise_not_found" });
+
+    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+    if (!lovableKey) return j(500, { error: "missing_lovable_api_key" });
+
+    const equipmentList = Array.from(equipmentSet);
+    const musclesList = Array.from(musclesSet);
+    const movementList = Array.from(movementSet);
+
+    const systemPrompt = `Você é um classificador especializado de exercícios de musculação/treinamento.
+Sua tarefa é preencher 13 metadados canónicos para um exercício, escolhendo APENAS valores dos vocabulários fornecidos abaixo (slugs em inglês).
+
+Regras estritas:
+- Retorne JSON exato no formato solicitado, sem texto adicional.
+- Se você não tem confiança suficiente (< 0.6) para um campo, use null e liste em unresolved_fields.
+- NUNCA invente valores fora dos vocabulários.
+- Para músculos, use apenas slugs canônicos (nunca "knee", "core", "spine", "back" — são regiões proibidas).
+- primary_muscles não pode ser vazio se você resolveu o campo (a menos que seja cardio genérico).
+- Campos de segurança (safe_to_failure, contraindications, axial_load, lumbar_load, stability_level, technical_complexity) exigem cuidado extra. Se em dúvida, retorne null.
+- Justificativas curtas em português (máx 200 chars).
+
+Vocabulários canónicos v1.0:
+movement_pattern: ${movementList.join(", ")}
+exercise_class: ${EXERCISE_CLASS_OPTIONS.join(", ")}
+equipment_type: ${equipmentList.join(", ")}
+muscles (para primary_muscles e secondary_muscles): ${musclesList.join(", ")}
+níveis (para stability_level, technical_complexity, axial_load, lumbar_load, balance_requirement, fatigue_cost): ${LEVEL_OPTIONS.join(", ")}
+safe_to_failure: true | false | null
+contraindications: array de strings livres (deixe [] se nenhuma) ou null se em dúvida
+
+Formato de resposta (JSON):
+{
+  "metadata": { "movement_pattern": string|null, "exercise_class": string|null, "equipment_type": string|null,
+    "primary_muscles": string[]|null, "secondary_muscles": string[]|null,
+    "stability_level": string|null, "technical_complexity": string|null,
+    "axial_load": string|null, "lumbar_load": string|null, "balance_requirement": string|null,
+    "fatigue_cost": string|null, "safe_to_failure": boolean|null, "contraindications": string[]|null },
+  "field_confidence": { "<field>": number (0..1) },
+  "field_reasoning": { "<field>": string curta em pt-BR },
+  "unresolved_fields": string[],
+  "warnings": string[]
+}`;
+
+    const userPrompt = `Exercício:
+- Nome: ${ex.nome}
+- Grupo muscular cadastrado: ${ex.grupo_muscular}
+- Ajustes / observações: ${ex.ajustes ?? "—"}
+- requires_load_logging: ${ex.requires_load_logging}
+
+Classifique os 13 campos conforme o formato JSON descrito.`;
+
+    let aiJson: any = null;
+    let aiError: string | null = null;
+    try {
+      const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Lovable-API-Key": lovableKey,
+        },
+        body: JSON.stringify({
+          model: "openai/gpt-5.5",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          response_format: { type: "json_object" },
+        }),
+      });
+      if (!resp.ok) {
+        const detail = await resp.text();
+        return j(resp.status === 429 ? 429 : resp.status === 402 ? 402 : 502,
+          { error: "ai_gateway_failed", status: resp.status, detail: detail.slice(0, 500) });
+      }
+      const data = await resp.json();
+      const content = data?.choices?.[0]?.message?.content ?? "{}";
+      aiJson = JSON.parse(content);
+    } catch (e: any) {
+      aiError = e.message ?? String(e);
+      return j(502, { error: "ai_parse_failed", detail: aiError });
+    }
+
+    // Validate against vocabulary; downgrade invalid fields to insufficient_information
+    const proposedMeta: Record<string, unknown> = {};
+    const proposedState: Record<string, string> = {};
+    const proposedNotes: Record<string, string> = {};
+    const proposedEvidence: Record<string, string[]> = {};
+    const perFieldConfidence: Record<string, number | null> = {};
+    const perFieldReasoning: Record<string, string> = {};
+    const warnings: string[] = Array.isArray(aiJson.warnings) ? aiJson.warnings : [];
+
+    const rawMeta = (aiJson.metadata ?? {}) as Record<string, unknown>;
+    const rawConf = (aiJson.field_confidence ?? {}) as Record<string, unknown>;
+    const rawReason = (aiJson.field_reasoning ?? {}) as Record<string, unknown>;
+
+    for (const field of REQUIRED_FIELDS) {
+      const rawVal = rawMeta[field];
+      const conf = typeof rawConf[field] === "number" ? (rawConf[field] as number) : null;
+      const reason = typeof rawReason[field] === "string" ? String(rawReason[field]).slice(0, 400) : "";
+      perFieldConfidence[field] = conf;
+      perFieldReasoning[field] = reason;
+
+      let valid = false;
+      let value: unknown = null;
+
+      if (rawVal === null || rawVal === undefined) {
+        valid = false;
+      } else if (BOOLEAN_FIELDS.has(field)) {
+        valid = typeof rawVal === "boolean";
+        value = valid ? rawVal : null;
+      } else if (ARRAY_FIELDS.has(field)) {
+        if (Array.isArray(rawVal)) {
+          if (field === "primary_muscles" || field === "secondary_muscles") {
+            const arr = (rawVal as unknown[]).filter((m) =>
+              typeof m === "string" && musclesSet.has(m) && !forbiddenMuscles.has(m)) as string[];
+            value = arr;
+            valid = true;
+          } else {
+            // contraindications: any string list
+            value = (rawVal as unknown[]).filter((c) => typeof c === "string") as string[];
+            valid = true;
+          }
+        }
+      } else if (typeof rawVal === "string") {
+        if (field === "equipment_type") {
+          valid = equipmentSet.has(rawVal); value = rawVal;
+        } else if (field === "movement_pattern") {
+          valid = movementSet.has(rawVal); value = rawVal;
+        } else if (field === "exercise_class") {
+          valid = (EXERCISE_CLASS_OPTIONS as readonly string[]).includes(rawVal); value = rawVal;
+        } else if (["stability_level","technical_complexity","axial_load","lumbar_load","balance_requirement","fatigue_cost"].includes(field)) {
+          valid = (LEVEL_OPTIONS as readonly string[]).includes(rawVal); value = rawVal;
+        }
+        if (!valid && rawVal) warnings.push(`${field}: valor "${rawVal}" fora do vocabulário — ignorado.`);
+      }
+
+      if (valid && (conf === null || conf >= 0.6)) {
+        proposedMeta[field] = value;
+        proposedState[field] = "resolved";
+        proposedEvidence[field] = ["professional_knowledge"];
+        if (reason) proposedNotes[field] = `IA (conf ${((conf ?? 1) * 100).toFixed(0)}%): ${reason}`;
+      } else {
+        proposedMeta[field] = null;
+        proposedState[field] = "insufficient_information";
+        proposedEvidence[field] = ["insufficient_evidence"];
+        proposedNotes[field] = reason
+          ? `IA sem confiança (${conf !== null ? (conf * 100).toFixed(0) + "%" : "n/d"}): ${reason}`
+          : "IA sem confiança suficiente para preencher este campo.";
+      }
+    }
+
+    // Load current fixture review to get expected_version (if any)
+    const { data: existing } = await admin
+      .from("exercise_metadata_ground_truth")
+      .select("review_version,status")
+      .eq("reviewer_id", uid)
+      .eq("reviewer_kind", REVIEWER_KIND)
+      .eq("pilot_selection_id", FIXTURE_PILOT_ID)
+      .eq("exercise_id", exercise_id)
+      .eq("is_current", true)
+      .maybeSingle();
+
+    // Do not overwrite a finalized fixture automatically
+    if (existing?.status === FINAL_STATUS) {
+      return j(409, { error: "fixture_already_finalized", detail: "Execute cleanup antes de re-preencher com IA." });
+    }
+    const expected_version = existing?.review_version ?? 0;
+
+    const evidenceObj: Record<string, unknown> = { ...proposedEvidence, _general: "Preenchimento inicial por IA (revisão obrigatória)." };
+    const validation = validateFields(proposedMeta, proposedState, vocab, false, proposedNotes, evidenceObj);
+    if (!validation.ok) {
+      return j(422, { error: "ai_validation_failed", details: validation.errors, ai_output: aiJson });
+    }
+
+    const { data: rpcData, error: rpcErr } = await userClient.rpc(
+      "save_human_first_review",
+      {
+        _action: "save_draft",
+        _exercise_id: exercise_id,
+        _pilot_selection_id: FIXTURE_PILOT_ID,
+        _classifier_run_id: CLASSIFIER_RUN_ID,
+        _reviewer_kind: REVIEWER_KIND,
+        _reviewed_metadata: proposedMeta,
+        _field_review_status: proposedState,
+        _field_notes: proposedNotes,
+        _evidence: evidenceObj,
+        _expected_version: expected_version,
+        _vocabulary_version: VOCABULARY_VERSION,
+        _server_vocabulary_version: VOCABULARY_VERSION,
+        _change_reason: null,
+        _changed_fields: null,
+      },
+    );
+    if (rpcErr) {
+      const msg = rpcErr.message ?? String(rpcErr);
+      return j(500, { error: "rpc_failed", detail: msg });
+    }
+    const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+    return j(200, {
+      ok: true,
+      review: row,
+      new_version: row?.review_version,
+      ai_summary: {
+        field_confidence: perFieldConfidence,
+        field_reasoning: perFieldReasoning,
+        unresolved_fields: Object.entries(proposedState).filter(([, s]) => s !== "resolved").map(([f]) => f),
+        resolved_fields: Object.entries(proposedState).filter(([, s]) => s === "resolved").map(([f]) => f),
+        warnings,
+      },
+    });
   }
 
   return j(400, { error: "unknown_action", action });
