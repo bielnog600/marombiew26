@@ -269,18 +269,25 @@ function StatusPill({ status }: { status: ListItem['review_status'] }) {
   return <div className={`inline-block mt-1 rounded px-1.5 py-0.5 text-[9px] ${s.cls}`}>{s.label}</div>;
 }
 
-function ExerciseReviewer({
-  exerciseId, bootstrap, blocked, onSaved,
+export function ExerciseReviewer({
+  exerciseId, bootstrap, blocked, onSaved, mode = 'pilot', hideHeader = false,
 }: {
   exerciseId: string;
   bootstrap: Bootstrap;
   blocked: boolean;
   onSaved: () => void;
+  mode?: 'pilot' | 'fixture';
+  hideHeader?: boolean;
 }) {
   const qc = useQueryClient();
+  const getAction = mode === 'fixture' ? 'fixture_get' : 'get_exercise';
+  const saveDraftAction = mode === 'fixture' ? 'fixture_save_draft' : 'save_draft';
+  const finalizeAction = mode === 'fixture' ? 'fixture_finalize' : 'finalize';
+  const amendAction = mode === 'fixture' ? 'fixture_amend_after_final' : 'amend_after_final';
+  const queryKeyRoot = mode === 'fixture' ? 'human-first-fixture' : 'human-first-review';
   const detail = useQuery({
-    queryKey: ['human-first-review', 'exercise', exerciseId],
-    queryFn: () => callFn('get_exercise', { exercise_id: exerciseId }) as Promise<{
+    queryKey: [queryKeyRoot, 'exercise', exerciseId],
+    queryFn: () => callFn(getAction, { exercise_id: exerciseId }) as Promise<{
       exercise: {
         id: string; nome: string; grupo_muscular: string;
         imagem_url: string | null; video_embed: string | null;
@@ -297,7 +304,11 @@ function ExerciseReviewer({
   const [evidence, setEvidence] = useState<Record<string, string[]>>({});
   const [generalNote, setGeneralNote] = useState('');
   const [version, setVersion] = useState(0);
+  const [amendMode, setAmendMode] = useState(false);
+  const [changeReason, setChangeReason] = useState('');
+  const [lastSaveResult, setLastSaveResult] = useState<any>(null);
   const isFinalized = detail.data?.review?.status === 'human_first_review';
+  const editingDisabled = isFinalized && !amendMode;
 
   useEffect(() => {
     const r = detail.data?.review;
@@ -319,7 +330,7 @@ function ExerciseReviewer({
   };
 
   const save = useMutation({
-    mutationFn: async (finalize: boolean) => {
+    mutationFn: async (kind: 'draft' | 'finalize' | 'amend') => {
       const payload = {
         exercise_id: exerciseId,
         reviewed_metadata: metadata,
@@ -328,13 +339,20 @@ function ExerciseReviewer({
         evidence: { ...evidence, _general: generalNote },
         expected_version: version,
         vocabulary_version: LOCAL_VOCAB_VERSION,
+        ...(kind === 'amend' ? { change_reason: changeReason } : {}),
       };
-      return callFn(finalize ? 'finalize' : 'save_draft', payload);
+      const action = kind === 'draft' ? saveDraftAction
+        : kind === 'finalize' ? finalizeAction
+        : amendAction;
+      return callFn(action, payload);
     },
     onSuccess: (d) => {
       toast.success(`Salvo · versão ${d.new_version}`);
       setVersion(d.new_version);
-      qc.invalidateQueries({ queryKey: ['human-first-review'] });
+      setLastSaveResult(d);
+      setAmendMode(false);
+      setChangeReason('');
+      qc.invalidateQueries({ queryKey: [queryKeyRoot] });
       onSaved();
     },
     onError: (e: any) => toast.error(e.message ?? 'Falha ao salvar'),
@@ -354,7 +372,7 @@ function ExerciseReviewer({
 
   return (
     <Card>
-      <CardHeader>
+      {!hideHeader && <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           {ex.nome}
           <Badge variant="outline">{ex.grupo_muscular}</Badge>
@@ -365,8 +383,17 @@ function ExerciseReviewer({
         <div className="text-[11px] text-muted-foreground">
           Nenhuma previsão do classificador é exibida. Julgue apenas com nome, grupo, imagem, vídeo e ajustes.
         </div>
-      </CardHeader>
+      </CardHeader>}
       <CardContent className="space-y-4">
+        {hideHeader && (
+          <div className="flex items-center gap-2 text-sm font-medium">
+            {ex.nome}
+            <Badge variant="outline">{ex.grupo_muscular}</Badge>
+            {isFinalized && (
+              <Badge className="bg-emerald-600 text-white gap-1"><Lock className="w-3 h-3" />finalizado v{version}</Badge>
+            )}
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
           <div className="space-y-2">
             {ex.imagem_url && <img src={ex.imagem_url} alt={ex.nome} className="rounded max-h-48 object-contain bg-muted" />}
@@ -390,7 +417,7 @@ function ExerciseReviewer({
               evidence={evidence[field] ?? []}
               vocab={{ eqOptions, muscles, forbidden: Array.from(forbidden), movementPatterns }}
               naAllowed={bootstrap.na_allowed_fields.includes(field)}
-              disabled={isFinalized}
+              disabled={editingDisabled}
               onState={(s) => setState(field, s)}
               onValue={(v) => setField(field, v)}
               onNote={(n) => setNotes(nn => ({ ...nn, [field]: n }))}
@@ -401,22 +428,60 @@ function ExerciseReviewer({
 
         <div>
           <div className="text-xs text-muted-foreground mb-1">Nota geral do exercício</div>
-          <Textarea value={generalNote} disabled={isFinalized}
+          <Textarea value={generalNote} disabled={editingDisabled}
             onChange={(e) => setGeneralNote(e.target.value)}
             placeholder="Observações gerais, dúvidas, evidências transversais…" />
         </div>
 
-        <div className="flex gap-2 items-center">
-          <Button variant="outline" size="sm" disabled={blocked || save.isPending || isFinalized}
-                  onClick={() => save.mutate(false)}>
-            <Save className="w-4 h-4 mr-1" /> Salvar rascunho
-          </Button>
-          <Button size="sm" disabled={blocked || save.isPending || isFinalized}
-                  onClick={() => save.mutate(true)}>
-            <ShieldCheck className="w-4 h-4 mr-1" /> Finalizar como human_first_review
-          </Button>
+        {isFinalized && amendMode && (
+          <div className="space-y-1">
+            <div className="text-xs font-medium">Motivo do amendment (mínimo 10 caracteres)</div>
+            <Textarea value={changeReason} onChange={(e) => setChangeReason(e.target.value)}
+              placeholder="Descreva o motivo desta alteração após finalização…" />
+          </div>
+        )}
+
+        <div className="flex gap-2 items-center flex-wrap">
+          {!isFinalized && (
+            <>
+              <Button variant="outline" size="sm" disabled={blocked || save.isPending}
+                      onClick={() => save.mutate('draft')}>
+                <Save className="w-4 h-4 mr-1" /> Salvar rascunho
+              </Button>
+              <Button size="sm" disabled={blocked || save.isPending}
+                      onClick={() => save.mutate('finalize')}>
+                <ShieldCheck className="w-4 h-4 mr-1" /> Finalizar como human_first_review
+              </Button>
+            </>
+          )}
+          {isFinalized && !amendMode && (
+            <Button variant="outline" size="sm" onClick={() => setAmendMode(true)}>
+              Iniciar amendment
+            </Button>
+          )}
+          {isFinalized && amendMode && (
+            <>
+              <Button size="sm" disabled={blocked || save.isPending || changeReason.trim().length < 10}
+                      onClick={() => save.mutate('amend')}>
+                <Save className="w-4 h-4 mr-1" /> Salvar amendment
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => { setAmendMode(false); setChangeReason(''); }}>
+                Cancelar
+              </Button>
+            </>
+          )}
           <span className="text-[10px] text-muted-foreground ml-2">versão atual: v{version}</span>
         </div>
+
+        {lastSaveResult && (lastSaveResult.changed_fields?.length || lastSaveResult.diff) && (
+          <div className="rounded-md border p-2 text-[11px] bg-muted/40 space-y-1">
+            <div>Última operação: v{lastSaveResult.previous_version ?? 0} → v{lastSaveResult.new_version}</div>
+            <div>changed_fields: <span className="font-mono">{JSON.stringify(lastSaveResult.changed_fields ?? [])}</span></div>
+            <details><summary className="cursor-pointer">diff (clique para expandir)</summary>
+              <pre className="whitespace-pre-wrap max-h-48 overflow-auto">{JSON.stringify(lastSaveResult.diff, null, 2)}</pre>
+            </details>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
