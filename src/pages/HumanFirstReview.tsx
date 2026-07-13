@@ -54,7 +54,7 @@ export type Bootstrap = {
   items: ListItem[];
 };
 
-type ReviewRow = {
+export type ReviewRow = {
   id: string;
   status: string;
   review_version: number;
