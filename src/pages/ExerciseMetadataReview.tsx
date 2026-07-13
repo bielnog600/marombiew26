@@ -299,6 +299,12 @@ export default function ExerciseMetadataReview() {
           </div>
           <div className="flex gap-2">
             <Button
+              onClick={() => window.location.assign('/exercicios/metadados/human-first')}
+              className="bg-yellow-400 text-black hover:bg-yellow-300"
+            >
+              Continuar para revisão humana
+            </Button>
+            <Button
               variant="outline"
               onClick={() => classifyMutation.mutate('classify_unclassified')}
               disabled={classifyMutation.isPending}
