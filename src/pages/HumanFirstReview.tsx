@@ -20,6 +20,12 @@ import {
   type ReviewFieldState,
 } from '@/lib/metadataVocabularies';
 import FixtureFinalTest from '@/components/human-first/FixtureFinalTest';
+import {
+  labelForValue,
+  labelForField,
+  labelChangedFields,
+  displayValue,
+} from '@/lib/metadataLabels';
 
 const FIXTURE_STORAGE_KEY = 'human-first:fixture-passed:v1';
 
@@ -161,6 +167,7 @@ const VALUE_LABELS: Record<string, string> = {
   unknown: 'Não identificado',
 };
 
+// labelFor legado — mantido para retrocompatibilidade de evidências/estados.
 const labelFor = (raw: string) => VALUE_LABELS[raw] ?? raw.replace(/_/g, ' ');
 
 const EXERCISE_CLASS_OPTIONS = [
