@@ -565,37 +565,56 @@ function FieldRow({
 }) {
   return (
     <div className="rounded-md border p-3 space-y-2 text-xs">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="font-mono font-semibold">{FIELD_LABELS[field]}</div>
-          <div className="text-[10px] text-muted-foreground">{FIELD_HELP[field]}</div>
+      <div>
+        <div className="flex items-center gap-1.5">
+          <div className="font-semibold text-sm">{FIELD_LABELS[field] ?? field}</div>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="text-muted-foreground hover:text-foreground">
+                  <HelpCircle className="w-3.5 h-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs text-xs">
+                {FIELD_HELP[field]}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
+      </div>
+
+      <div className="space-y-1">
+        <div className="text-[11px] font-medium">Consegue avaliar este campo?</div>
         <Select value={state ?? ''} onValueChange={(v) => onState(v as ReviewFieldState)} disabled={disabled}>
-          <SelectTrigger className="w-[240px] h-8 text-xs"><SelectValue placeholder="estado…" /></SelectTrigger>
+          <SelectTrigger className="w-full max-w-md h-8 text-xs"><SelectValue placeholder="Selecione uma opção…" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="resolved">resolved</SelectItem>
-            {naAllowed && <SelectItem value="not_applicable">not_applicable</SelectItem>}
-            <SelectItem value="insufficient_information">insufficient_information</SelectItem>
-            <SelectItem value="requires_video_review">requires_video_review</SelectItem>
-            <SelectItem value="requires_equipment_confirmation">requires_equipment_confirmation</SelectItem>
+            <SelectItem value="resolved">{STATE_LABELS.resolved}</SelectItem>
+            {naAllowed && <SelectItem value="not_applicable">{STATE_LABELS.not_applicable}</SelectItem>}
+            <SelectItem value="insufficient_information">{STATE_LABELS.insufficient_information}</SelectItem>
+            <SelectItem value="requires_video_review">{STATE_LABELS.requires_video_review}</SelectItem>
+            <SelectItem value="requires_equipment_confirmation">{STATE_LABELS.requires_equipment_confirmation}</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       {state === 'resolved' && (
-        <FieldValueEditor field={field} value={value} vocab={vocab} disabled={disabled} onValue={onValue} />
+        <div className="space-y-1">
+          <div className="text-[11px] font-medium">Valor</div>
+          <FieldValueEditor field={field} value={value} vocab={vocab} disabled={disabled} onValue={onValue} />
+        </div>
       )}
 
       <div>
-        <div className="text-[10px] text-muted-foreground mb-1">Evidência</div>
+        <div className="text-[11px] font-medium">Em que informação você se baseou?</div>
+        <div className="text-[10px] text-muted-foreground mb-1">Pode selecionar mais de uma opção.</div>
         <div className="flex gap-1 flex-wrap">
           {EVIDENCE_OPTIONS.map(opt => {
             const active = evidence.includes(opt);
             return (
               <Button key={opt} size="sm" variant={active ? 'default' : 'outline'}
-                      className="h-6 text-[10px] px-2" disabled={disabled}
+                      className="h-7 text-[11px] px-2" disabled={disabled}
                       onClick={() => onEvidence(active ? evidence.filter(e => e !== opt) : [...evidence, opt])}>
-                {opt}
+                {EVIDENCE_LABELS[opt] ?? opt}
               </Button>
             );
           })}
