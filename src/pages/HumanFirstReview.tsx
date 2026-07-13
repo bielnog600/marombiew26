@@ -20,6 +20,12 @@ import {
   type ReviewFieldState,
 } from '@/lib/metadataVocabularies';
 import FixtureFinalTest from '@/components/human-first/FixtureFinalTest';
+import {
+  labelForValue,
+  labelForField,
+  labelChangedFields,
+  displayValue,
+} from '@/lib/metadataLabels';
 
 const FIXTURE_STORAGE_KEY = 'human-first:fixture-passed:v1';
 
@@ -161,6 +167,7 @@ const VALUE_LABELS: Record<string, string> = {
   unknown: 'Não identificado',
 };
 
+// labelFor legado — mantido para retrocompatibilidade de evidências/estados.
 const labelFor = (raw: string) => VALUE_LABELS[raw] ?? raw.replace(/_/g, ' ');
 
 const EXERCISE_CLASS_OPTIONS = [
@@ -535,10 +542,35 @@ export function ExerciseReviewer({
         {lastSaveResult && (lastSaveResult.changed_fields?.length || lastSaveResult.diff) && (
           <div className="rounded-md border p-2 text-[11px] bg-muted/40 space-y-1">
             <div>Última operação: v{lastSaveResult.previous_version ?? 0} → v{lastSaveResult.new_version}</div>
-            <div>changed_fields: <span className="font-mono">{JSON.stringify(lastSaveResult.changed_fields ?? [])}</span></div>
-            <details><summary className="cursor-pointer">diff (clique para expandir)</summary>
-              <pre className="whitespace-pre-wrap max-h-48 overflow-auto">{JSON.stringify(lastSaveResult.diff, null, 2)}</pre>
-            </details>
+            <div>
+              Campos alterados:{' '}
+              {labelChangedFields(lastSaveResult.changed_fields).length > 0 ? (
+                <span>{labelChangedFields(lastSaveResult.changed_fields).join(', ')}</span>
+              ) : (
+                <span className="text-muted-foreground">nenhum</span>
+              )}
+            </div>
+            {lastSaveResult.diff && (
+              <details>
+                <summary className="cursor-pointer">Diferenças (clique para expandir)</summary>
+                <div className="space-y-1 mt-1">
+                  {Object.entries(lastSaveResult.diff as Record<string, any>).map(([field, change]) => {
+                    const before = (change as any)?.before;
+                    const after = (change as any)?.after;
+                    return (
+                      <div key={field} className="border-l-2 border-muted pl-2">
+                        <div className="font-medium">{labelForField(field)}</div>
+                        <div className="text-muted-foreground">
+                          <span className="line-through">{displayValue(field, before)}</span>
+                          {' → '}
+                          <span className="text-foreground">{displayValue(field, after)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </details>
+            )}
           </div>
         )}
       </CardContent>
@@ -649,16 +681,16 @@ function FieldValueEditor({
     );
   }
   if (field === 'equipment_type') {
-    return <SingleSelect options={vocab.eqOptions} value={value as string} disabled={disabled} onValue={onValue} />;
+    return <SingleSelect field={field} options={vocab.eqOptions} value={value as string} disabled={disabled} onValue={onValue} />;
   }
   if (field === 'movement_pattern') {
-    return <SingleSelect options={vocab.movementPatterns} value={value as string} disabled={disabled} onValue={onValue} />;
+    return <SingleSelect field={field} options={vocab.movementPatterns} value={value as string} disabled={disabled} onValue={onValue} />;
   }
   if (field === 'exercise_class') {
-    return <SingleSelect options={EXERCISE_CLASS_OPTIONS} value={value as string} disabled={disabled} onValue={onValue} />;
+    return <SingleSelect field={field} options={EXERCISE_CLASS_OPTIONS} value={value as string} disabled={disabled} onValue={onValue} />;
   }
   if (['stability_level','technical_complexity','axial_load','lumbar_load','balance_requirement','fatigue_cost'].includes(field)) {
-    return <SingleSelect options={LEVEL_OPTIONS} value={value as string} disabled={disabled} onValue={onValue} />;
+    return <SingleSelect field={field} options={LEVEL_OPTIONS} value={value as string} disabled={disabled} onValue={onValue} />;
   }
   if (field === 'primary_muscles' || field === 'secondary_muscles') {
     const arr = Array.isArray(value) ? value as string[] : [];
@@ -671,16 +703,16 @@ function FieldValueEditor({
               <Button key={m} size="sm" variant={active ? 'default' : 'outline'}
                       className="h-6 text-[10px] px-2" disabled={disabled}
                       onClick={() => onValue(active ? arr.filter(x => x !== m) : [...arr, m])}>
-                {labelFor(m)}
+                {labelForValue(field, m)}
               </Button>
             );
           })}
         </div>
         <div className="text-[9px] text-muted-foreground">
-          Proibidos (regiões anatômicas): {vocab.forbidden.map(labelFor).join(', ')}
+          Proibidos (regiões anatômicas): {vocab.forbidden.map((f) => labelForValue(field, f)).join(', ')}
         </div>
         <div className="text-[9px] text-muted-foreground">
-          Vazio = revisto e sem músculos identificados. Clique nos músculos aplicáveis. Selecionados: [{arr.map(labelFor).join(', ')}]
+          Vazio = revisto e sem músculos identificados. Clique nos músculos aplicáveis. Selecionados: [{arr.map((m) => labelForValue(field, m)).join(', ')}]
         </div>
       </div>
     );
@@ -709,14 +741,15 @@ function FieldValueEditor({
   return <Input value={String(value ?? '')} disabled={disabled} onChange={(e) => onValue(e.target.value)} className="h-8 text-xs" />;
 }
 
-function SingleSelect({ options, value, disabled, onValue }: {
+function SingleSelect({ field, options, value, disabled, onValue }: {
+  field: string;
   options: string[]; value: string | undefined; disabled: boolean; onValue: (v: string) => void;
 }) {
   return (
     <Select value={value ?? ''} onValueChange={onValue} disabled={disabled}>
       <SelectTrigger className="h-8 text-xs w-60"><SelectValue placeholder="Selecione…" /></SelectTrigger>
       <SelectContent>
-        {options.map(o => <SelectItem key={o} value={o}>{labelFor(o)}</SelectItem>)}
+        {options.map(o => <SelectItem key={o} value={o}>{labelForValue(field, o)}</SelectItem>)}
       </SelectContent>
     </Select>
   );
