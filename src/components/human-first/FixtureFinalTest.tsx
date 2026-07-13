@@ -174,7 +174,10 @@ export default function FixtureFinalTest({ passed, onPassed, onReset, vocabulary
       const unresolved = d.ai_summary?.unresolved_fields?.length ?? 0;
       toast.success(`IA preencheu: ${resolved} resolvidos, ${unresolved} incertos. Revise antes de finalizar.`);
     },
-    onError: (e: any) => toast.error(e.message ?? 'Falha ao preencher com IA'),
+    onError: (e: any) => {
+      const msg = e?.message ?? 'Falha ao preencher com IA';
+      toast.error(`Erro na IA: ${msg}`, { duration: 8000 });
+    },
   });
 
   const allChecked = STEPS.every((s) => checks[s.id]);
@@ -242,12 +245,44 @@ export default function FixtureFinalTest({ passed, onPassed, onReset, vocabulary
                 ))}
 
                 <div className="pt-2 space-y-1">
-                  <Button size="sm" variant="secondary" className="w-full h-7 text-[11px]"
-                          onClick={() => aiFill.mutate()}
-                          disabled={aiFill.isPending || !exercise || (reviewQ.data as any)?.review?.status === 'human_first_review'}>
-                    {aiFill.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
-                    Preencher fixture com IA
-                  </Button>
+                  {(() => {
+                    const reviewStatus = (reviewQ.data as any)?.review?.status;
+                    const isFinalized = reviewStatus === 'human_first_review';
+                    const hasFixture = !!exercise?.id;
+                    const aiDisabled = aiFill.isPending || !hasFixture || isFinalized;
+                    return (
+                      <>
+                        <Button size="sm" variant="secondary" className="w-full h-7 text-[11px]"
+                                onClick={() => aiFill.mutate()}
+                                disabled={aiDisabled}
+                                title={
+                                  !hasFixture ? 'Aguardando fixture ativa…'
+                                  : isFinalized ? 'Fixture já finalizada — execute cleanup para refazer'
+                                  : aiFill.isPending ? 'A IA está analisando o exercício…'
+                                  : 'Preencher os 13 campos com sugestão da IA'
+                                }>
+                          {aiFill.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                          {aiFill.isPending ? 'A IA está analisando o exercício…' : 'Preencher fixture com IA'}
+                        </Button>
+                        {aiFill.isPending && (
+                          <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                            <Loader2 className="w-3 h-3 animate-spin" /> Aguarde, isso pode levar até 30 segundos.
+                          </div>
+                        )}
+                        {aiFill.isError && !aiFill.isPending && (
+                          <div className="text-[10px] text-destructive">
+                            Falha ao chamar a IA: {(aiFill.error as any)?.message ?? 'erro desconhecido'}. Tente novamente.
+                          </div>
+                        )}
+                        {!hasFixture && started && (
+                          <div className="text-[10px] text-muted-foreground">Carregando fixture ativa…</div>
+                        )}
+                        {isFinalized && (
+                          <div className="text-[10px] text-muted-foreground">Fixture finalizada — não é possível reexecutar a IA.</div>
+                        )}
+                      </>
+                    );
+                  })()}
                   <Button size="sm" variant="outline" className="w-full h-7 text-[11px]"
                           onClick={() => verifyBlock.mutate()}
                           disabled={verifyBlock.isPending || (reviewQ.data as any)?.review?.status !== 'human_first_review'}>
