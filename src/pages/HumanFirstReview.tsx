@@ -640,10 +640,10 @@ function FieldValueEditor({
     return (
       <Select value={value === true ? 'true' : value === false ? 'false' : ''}
               onValueChange={(v) => onValue(v === 'true')} disabled={disabled}>
-        <SelectTrigger className="h-8 text-xs w-40"><SelectValue placeholder="true / false" /></SelectTrigger>
+        <SelectTrigger className="h-8 text-xs w-40"><SelectValue placeholder="Sim / Não" /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="true">true</SelectItem>
-          <SelectItem value="false">false</SelectItem>
+          <SelectItem value="true">Sim</SelectItem>
+          <SelectItem value="false">Não</SelectItem>
         </SelectContent>
       </Select>
     );
@@ -671,16 +671,16 @@ function FieldValueEditor({
               <Button key={m} size="sm" variant={active ? 'default' : 'outline'}
                       className="h-6 text-[10px] px-2" disabled={disabled}
                       onClick={() => onValue(active ? arr.filter(x => x !== m) : [...arr, m])}>
-                {m}
+                {labelFor(m)}
               </Button>
             );
           })}
         </div>
         <div className="text-[9px] text-muted-foreground">
-          Proibidos (regiões anatômicas): {vocab.forbidden.join(', ')}
+          Proibidos (regiões anatômicas): {vocab.forbidden.map(labelFor).join(', ')}
         </div>
         <div className="text-[9px] text-muted-foreground">
-          [] = revisto e vazio. Clique nos músculos aplicáveis. Selecionados: [{arr.join(', ')}]
+          Vazio = revisto e sem músculos identificados. Clique nos músculos aplicáveis. Selecionados: [{arr.map(labelFor).join(', ')}]
         </div>
       </div>
     );
@@ -714,9 +714,9 @@ function SingleSelect({ options, value, disabled, onValue }: {
 }) {
   return (
     <Select value={value ?? ''} onValueChange={onValue} disabled={disabled}>
-      <SelectTrigger className="h-8 text-xs w-60"><SelectValue placeholder="selecione…" /></SelectTrigger>
+      <SelectTrigger className="h-8 text-xs w-60"><SelectValue placeholder="Selecione…" /></SelectTrigger>
       <SelectContent>
-        {options.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+        {options.map(o => <SelectItem key={o} value={o}>{labelFor(o)}</SelectItem>)}
       </SelectContent>
     </Select>
   );
