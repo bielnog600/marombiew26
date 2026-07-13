@@ -367,6 +367,12 @@ const Exercicios: React.FC = () => {
             >
               <Layers className="h-4 w-4" /> Metadados
             </Button>
+            <Button
+              onClick={() => window.location.assign('/exercicios/metadados/human-first')}
+              className="gap-2 bg-yellow-400 text-black hover:bg-yellow-300"
+            >
+              <Layers className="h-4 w-4" /> Revisão humana
+            </Button>
             <Button onClick={openCreate} className="gap-2">
               <Plus className="h-4 w-4" /> Novo exercício
             </Button>
