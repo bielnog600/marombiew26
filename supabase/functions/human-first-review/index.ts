@@ -29,6 +29,10 @@ const REVIEWER_KIND = "human_blinded_v1"; // stored as reviewer_kind
 const DRAFT_STATUS = "human_review_draft";
 const FINAL_STATUS = "human_first_review";
 
+// Fixture (final smoke test with a single non-pilot exercise). Fully isolated
+// from the 30-exercise pilot by using a distinct pilot_selection_id.
+const FIXTURE_PILOT_ID = "fixture-final-test-2026-07-13";
+
 const ALLOWED_EVIDENCE = new Set<string>([
   "exercise_name",
   "legacy_muscle_group",
