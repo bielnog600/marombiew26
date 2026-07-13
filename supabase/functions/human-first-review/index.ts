@@ -447,5 +447,164 @@ Deno.serve(async (req) => {
     });
   }
 
+  // -------- FIXTURE FINAL TEST (isolated from pilot) --------
+  if (action === "fixture_pick") {
+    // Reuse existing fixture exercise for this reviewer, if any
+    const { data: existing } = await admin
+      .from("exercise_metadata_ground_truth")
+      .select("exercise_id")
+      .eq("reviewer_id", uid)
+      .eq("reviewer_kind", REVIEWER_KIND)
+      .eq("pilot_selection_id", FIXTURE_PILOT_ID)
+      .order("reviewed_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    let exId: string | null = existing?.exercise_id ?? null;
+    if (!exId) {
+      const pilotIds = Array.from(PILOT_EXERCISE_IDS);
+      const { data: candidates, error: cErr } = await admin
+        .from("exercises")
+        .select("id")
+        .not("id", "in", `(${pilotIds.join(",")})`)
+        .limit(500);
+      if (cErr) return j(500, { error: "candidate_read_failed", detail: cErr.message });
+      const pool = candidates ?? [];
+      if (pool.length === 0) return j(404, { error: "no_candidate_outside_pilot" });
+      exId = pool[Math.floor(Math.random() * pool.length)].id as string;
+    }
+    const { data: ex, error: exErr } = await admin
+      .from("exercises").select(EXERCISE_BLIND_COLUMNS).eq("id", exId!).single();
+    if (exErr || !ex) return j(404, { error: "exercise_not_found" });
+    return j(200, {
+      exercise: ex,
+      pilot_selection_id: FIXTURE_PILOT_ID,
+      reused: !!existing?.exercise_id,
+    });
+  }
+
+  if (action === "fixture_get") {
+    const exercise_id = String(body.exercise_id ?? "");
+    if (PILOT_EXERCISE_IDS.has(exercise_id))
+      return j(400, { error: "pilot_id_not_allowed_for_fixture" });
+    const { data: ex, error: exErr } = await admin
+      .from("exercises").select(EXERCISE_BLIND_COLUMNS).eq("id", exercise_id).single();
+    if (exErr || !ex) return j(404, { error: "exercise_not_found" });
+    const { data: rev } = await admin
+      .from("exercise_metadata_ground_truth")
+      .select("id,status,review_version,reviewed_metadata,field_review_status,field_notes,evidence,reviewed_at,changed_fields,diff,previous_review_version")
+      .eq("reviewer_id", uid)
+      .eq("reviewer_kind", REVIEWER_KIND)
+      .eq("pilot_selection_id", FIXTURE_PILOT_ID)
+      .eq("exercise_id", exercise_id)
+      .eq("is_current", true)
+      .maybeSingle();
+    return j(200, { exercise: ex, review: rev ?? null, vocabulary_version: VOCABULARY_VERSION });
+  }
+
+  if (
+    action === "fixture_save_draft" ||
+    action === "fixture_finalize" ||
+    action === "fixture_amend_after_final"
+  ) {
+    const realAction = action.replace("fixture_", "");
+    const exercise_id = String(body.exercise_id ?? "");
+    if (PILOT_EXERCISE_IDS.has(exercise_id))
+      return j(400, { error: "pilot_id_not_allowed_for_fixture" });
+
+    const reviewed_metadata = (body.reviewed_metadata ?? {}) as ReviewedMetadata;
+    const field_review_status = (body.field_review_status ?? {}) as FieldStatusMap;
+    const field_notes = (body.field_notes ?? {}) as Record<string, string>;
+    const evidence = (body.evidence ?? {}) as Record<string, unknown>;
+    const expected_version = Number(body.expected_version ?? 0);
+    const change_reason = typeof body.change_reason === "string" ? body.change_reason : null;
+
+    const requireAll = realAction !== "save_draft";
+    const v = validateFields(reviewed_metadata, field_review_status, vocab, requireAll, field_notes, evidence);
+    if (!v.ok) return j(422, { error: "validation_failed", details: v.errors });
+
+    const { data: rpcData, error: rpcErr } = await userClient.rpc(
+      "save_human_first_review",
+      {
+        _action: realAction,
+        _exercise_id: exercise_id,
+        _pilot_selection_id: FIXTURE_PILOT_ID,
+        _classifier_run_id: CLASSIFIER_RUN_ID,
+        _reviewer_kind: REVIEWER_KIND,
+        _reviewed_metadata: reviewed_metadata,
+        _field_review_status: field_review_status,
+        _field_notes: field_notes,
+        _evidence: evidence,
+        _expected_version: expected_version,
+        _vocabulary_version: String(clientVocab ?? VOCABULARY_VERSION),
+        _server_vocabulary_version: VOCABULARY_VERSION,
+        _change_reason: change_reason,
+        _changed_fields: null,
+      },
+    );
+    if (rpcErr) {
+      const msg = rpcErr.message ?? String(rpcErr);
+      const status = /version_conflict|vocabulary_version_mismatch/i.test(msg) ? 409
+        : /change_reason_required|changed_fields_required|cannot_draft_after_finalize|amendment_without_changes/i.test(msg) ? 422
+        : /not_authorized/.test(msg) ? 403
+        : /not_authenticated/.test(msg) ? 401
+        : 500;
+      return j(status, { error: "rpc_failed", detail: msg });
+    }
+    const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+    return j(200, {
+      ok: true,
+      review: row,
+      new_version: row?.review_version,
+      previous_version: row?.previous_review_version ?? 0,
+      diff: row?.diff ?? {},
+      changed_fields: row?.changed_fields ?? [],
+    });
+  }
+
+  if (action === "fixture_isolation_check") {
+    const exercise_id = String(body.exercise_id ?? "");
+    if (PILOT_EXERCISE_IDS.has(exercise_id))
+      return j(400, { error: "pilot_id_not_allowed_for_fixture" });
+    const { data: ex } = await admin
+      .from("exercises")
+      .select("id,movement_pattern,exercise_class,equipment_type,primary_muscles,secondary_muscles,stability_level,technical_complexity,axial_load,lumbar_load,balance_requirement,fatigue_cost,safe_to_failure,contraindications,metadata_status,metadata_version,metadata_reviewed_at")
+      .eq("id", exercise_id)
+      .maybeSingle();
+    const { count: suggestionCount } = await admin
+      .from("exercise_metadata_suggestions")
+      .select("id", { count: "exact", head: true })
+      .eq("exercise_id", exercise_id);
+    const { count: fixtureCount } = await admin
+      .from("exercise_metadata_ground_truth")
+      .select("id", { count: "exact", head: true })
+      .eq("reviewer_id", uid)
+      .eq("reviewer_kind", REVIEWER_KIND)
+      .eq("pilot_selection_id", FIXTURE_PILOT_ID)
+      .eq("exercise_id", exercise_id);
+    return j(200, {
+      exercise_snapshot: ex,
+      suggestion_count: suggestionCount ?? 0,
+      fixture_review_count: fixtureCount ?? 0,
+    });
+  }
+
+  if (action === "fixture_cleanup") {
+    const { data: rows, error: delErr } = await admin
+      .from("exercise_metadata_ground_truth")
+      .delete()
+      .eq("reviewer_id", uid)
+      .eq("reviewer_kind", REVIEWER_KIND)
+      .eq("pilot_selection_id", FIXTURE_PILOT_ID)
+      .select("id");
+    if (delErr) return j(500, { error: "cleanup_failed", detail: delErr.message });
+    const { count: remaining } = await admin
+      .from("exercise_metadata_ground_truth")
+      .select("id", { count: "exact", head: true })
+      .eq("reviewer_id", uid)
+      .eq("reviewer_kind", REVIEWER_KIND)
+      .eq("pilot_selection_id", FIXTURE_PILOT_ID);
+    return j(200, { deleted: rows?.length ?? 0, remaining: remaining ?? 0 });
+  }
+
   return j(400, { error: "unknown_action", action });
 });
