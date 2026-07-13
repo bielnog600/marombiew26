@@ -509,7 +509,7 @@ export function ExerciseReviewer({
               </Button>
               <Button size="sm" disabled={blocked || save.isPending}
                       onClick={() => save.mutate('finalize')}>
-                <ShieldCheck className="w-4 h-4 mr-1" /> Finalizar como human_first_review
+                <ShieldCheck className="w-4 h-4 mr-1" /> Finalizar revisão
               </Button>
             </>
           )}
