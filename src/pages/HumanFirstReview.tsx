@@ -13,6 +13,8 @@ import {
 } from '@/components/ui/select';
 import { Loader2, ShieldCheck, EyeOff, Save, Lock } from 'lucide-react';
 import { toast } from 'sonner';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { HelpCircle } from 'lucide-react';
 import {
   VOCABULARY_VERSION as LOCAL_VOCAB_VERSION,
   type ReviewFieldState,
@@ -68,41 +70,98 @@ export type ReviewRow = {
 };
 
 const FIELD_LABELS: Record<string, string> = {
-  movement_pattern: 'movement_pattern',
-  exercise_class: 'exercise_class',
-  equipment_type: 'equipment_type',
-  primary_muscles: 'primary_muscles',
-  secondary_muscles: 'secondary_muscles',
-  stability_level: 'stability_level',
-  technical_complexity: 'technical_complexity',
-  axial_load: 'axial_load',
-  lumbar_load: 'lumbar_load',
-  balance_requirement: 'balance_requirement',
-  fatigue_cost: 'fatigue_cost',
-  safe_to_failure: 'safe_to_failure',
-  contraindications: 'contraindications',
+  movement_pattern: 'Padrão de movimento',
+  exercise_class: 'Classe do exercício',
+  equipment_type: 'Tipo de equipamento',
+  primary_muscles: 'Músculos principais',
+  secondary_muscles: 'Músculos secundários',
+  stability_level: 'Nível de estabilidade',
+  technical_complexity: 'Complexidade técnica',
+  axial_load: 'Carga axial',
+  lumbar_load: 'Exigência sobre a lombar',
+  balance_requirement: 'Exigência de equilíbrio',
+  fatigue_cost: 'Custo de fadiga',
+  safe_to_failure: 'Pode ser realizado até à falha?',
+  contraindications: 'Contraindicações',
 };
 
 const FIELD_HELP: Record<string, string> = {
-  movement_pattern: 'Padrão biomecânico principal. Não confundir com músculo alvo.',
-  exercise_class: 'Classe funcional (ex.: compound, isolation, cardio, mobility) — usar vocabulário canônico.',
-  equipment_type: 'Equipamento específico. Se nome não define, escolher requires_equipment_confirmation.',
-  primary_muscles: 'Somente músculos canônicos v1.0. Regiões anatômicas (knee, thoracic_spine, core) são PROIBIDAS aqui.',
-  secondary_muscles: '[] = revisto e nenhum secundário identificado. null exige estado não resolvido.',
-  stability_level: 'Estabilidade externa oferecida. Unilateralidade sozinha não define balance alto.',
-  technical_complexity: 'Complexidade técnica ≠ dificuldade. Refere-se à aprendizagem do movimento.',
-  axial_load: 'Carga sobre coluna. NÃO é sinônimo de exercício pesado. Nunca N/A — mínimo é "none".',
-  lumbar_load: 'Depende do momento externo, posição e suporte, não apenas do peso.',
-  balance_requirement: 'Exigência de equilíbrio. Halteres bilaterais NÃO tornam o exercício unilateral.',
-  fatigue_cost: 'Custo sistêmico. Considerar demanda cardiorrespiratória, não só carga.',
-  safe_to_failure: 'Seguro para prescrição AUTOMÁTICA até a falha. ≠ segurança geral. N/A permitido em cardio contínuo, mobilidade e alguns isométricos.',
-  contraindications: '[] = revisto e nenhuma contraindicação estrutural. Não inventar diagnóstico.',
+  movement_pattern: 'Movimento principal realizado. Ex.: flexão do cotovelo, extensão do joelho, empurrar horizontalmente.',
+  exercise_class: 'Composto utiliza várias articulações. Isolador concentra-se principalmente numa articulação.',
+  equipment_type: 'Equipamento específico usado. Se o nome não define claramente, escolha "Preciso confirmar o equipamento".',
+  primary_muscles: 'Músculos que realizam o movimento principal. Use apenas nomes canônicos; regiões anatômicas (joelho, coluna, core) não são permitidas.',
+  secondary_muscles: 'Músculos que assistem o movimento. Deixe vazio se revisto e nenhum foi identificado.',
+  stability_level: 'Quanto o equipamento e a posição estabilizam o corpo durante o exercício.',
+  technical_complexity: 'Dificuldade de executar corretamente. Não é o mesmo que exercício pesado.',
+  axial_load: 'Carga transmitida verticalmente através da coluna.',
+  lumbar_load: 'Quanto a lombar precisa suportar ou estabilizar durante o movimento.',
+  balance_requirement: 'Exigência de equilíbrio. Halteres bilaterais não tornam o exercício unilateral.',
+  fatigue_cost: 'Custo sistêmico total. Considere a demanda cardiorrespiratória, não só a carga.',
+  safe_to_failure: 'Indica se o sistema pode prescrever falha muscular automaticamente neste exercício. Não significa segurança geral.',
+  contraindications: 'Condições em que o exercício não deve ser prescrito. Deixe vazio se revisto e sem contraindicações.',
 };
 
 const EVIDENCE_OPTIONS = [
   'exercise_name', 'legacy_muscle_group', 'image', 'video',
   'adjustments', 'professional_knowledge', 'equipment_documentation', 'insufficient_evidence',
 ];
+
+const EVIDENCE_LABELS: Record<string, string> = {
+  exercise_name: 'Nome do exercício',
+  legacy_muscle_group: 'Grupo muscular cadastrado',
+  image: 'Imagem',
+  video: 'Vídeo',
+  adjustments: 'Ajustes do equipamento',
+  professional_knowledge: 'Conhecimento profissional',
+  equipment_documentation: 'Documentação do equipamento',
+  insufficient_evidence: 'Evidência insuficiente',
+};
+
+const STATE_LABELS: Record<ReviewFieldState, string> = {
+  resolved: 'Sim, campo avaliado',
+  not_applicable: 'Não se aplica a este exercício',
+  insufficient_information: 'Não tenho informação suficiente',
+  requires_video_review: 'Preciso analisar o vídeo',
+  requires_equipment_confirmation: 'Preciso confirmar o equipamento',
+};
+
+const VALUE_LABELS: Record<string, string> = {
+  // Exercise class
+  compound: 'Composto',
+  isolation: 'Isolador',
+  cardio_cyclic: 'Cardio cíclico',
+  metabolic_conditioning: 'Condicionamento metabólico',
+  mobility: 'Mobilidade',
+  core_stability: 'Estabilidade de core',
+  plyometric: 'Pliométrico',
+  power: 'Potência',
+  cardio: 'Cardio',
+  core: 'Core',
+  rehabilitation: 'Reabilitação',
+  other: 'Outro',
+  // Levels
+  none: 'Nenhuma',
+  low: 'Baixa',
+  moderate: 'Moderada',
+  high: 'Alta',
+  very_high: 'Muito alta',
+  // Equipment
+  barbell: 'Barra',
+  dumbbell: 'Halteres',
+  cable: 'Polia/Cabo',
+  machine: 'Máquina',
+  smith_machine: 'Smith',
+  bodyweight: 'Peso corporal',
+  cardio_machine: 'Máquina de cardio',
+  kettlebell: 'Kettlebell',
+  band: 'Elástico',
+  medicine_ball: 'Medicine ball',
+  bench: 'Banco',
+  bar: 'Barra fixa',
+  unknown: 'Não identificado',
+};
+
+const labelFor = (raw: string) => VALUE_LABELS[raw] ?? raw.replace(/_/g, ' ');
 
 const EXERCISE_CLASS_OPTIONS = [
   'compound', 'isolation', 'cardio_cyclic', 'metabolic_conditioning',
@@ -450,7 +509,7 @@ export function ExerciseReviewer({
               </Button>
               <Button size="sm" disabled={blocked || save.isPending}
                       onClick={() => save.mutate('finalize')}>
-                <ShieldCheck className="w-4 h-4 mr-1" /> Finalizar como human_first_review
+                <ShieldCheck className="w-4 h-4 mr-1" /> Finalizar revisão
               </Button>
             </>
           )}
@@ -506,37 +565,56 @@ function FieldRow({
 }) {
   return (
     <div className="rounded-md border p-3 space-y-2 text-xs">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="font-mono font-semibold">{FIELD_LABELS[field]}</div>
-          <div className="text-[10px] text-muted-foreground">{FIELD_HELP[field]}</div>
+      <div>
+        <div className="flex items-center gap-1.5">
+          <div className="font-semibold text-sm">{FIELD_LABELS[field] ?? field}</div>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="text-muted-foreground hover:text-foreground">
+                  <HelpCircle className="w-3.5 h-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs text-xs">
+                {FIELD_HELP[field]}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
+      </div>
+
+      <div className="space-y-1">
+        <div className="text-[11px] font-medium">Consegue avaliar este campo?</div>
         <Select value={state ?? ''} onValueChange={(v) => onState(v as ReviewFieldState)} disabled={disabled}>
-          <SelectTrigger className="w-[240px] h-8 text-xs"><SelectValue placeholder="estado…" /></SelectTrigger>
+          <SelectTrigger className="w-full max-w-md h-8 text-xs"><SelectValue placeholder="Selecione uma opção…" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="resolved">resolved</SelectItem>
-            {naAllowed && <SelectItem value="not_applicable">not_applicable</SelectItem>}
-            <SelectItem value="insufficient_information">insufficient_information</SelectItem>
-            <SelectItem value="requires_video_review">requires_video_review</SelectItem>
-            <SelectItem value="requires_equipment_confirmation">requires_equipment_confirmation</SelectItem>
+            <SelectItem value="resolved">{STATE_LABELS.resolved}</SelectItem>
+            {naAllowed && <SelectItem value="not_applicable">{STATE_LABELS.not_applicable}</SelectItem>}
+            <SelectItem value="insufficient_information">{STATE_LABELS.insufficient_information}</SelectItem>
+            <SelectItem value="requires_video_review">{STATE_LABELS.requires_video_review}</SelectItem>
+            <SelectItem value="requires_equipment_confirmation">{STATE_LABELS.requires_equipment_confirmation}</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       {state === 'resolved' && (
-        <FieldValueEditor field={field} value={value} vocab={vocab} disabled={disabled} onValue={onValue} />
+        <div className="space-y-1">
+          <div className="text-[11px] font-medium">Valor</div>
+          <FieldValueEditor field={field} value={value} vocab={vocab} disabled={disabled} onValue={onValue} />
+        </div>
       )}
 
       <div>
-        <div className="text-[10px] text-muted-foreground mb-1">Evidência</div>
+        <div className="text-[11px] font-medium">Em que informação você se baseou?</div>
+        <div className="text-[10px] text-muted-foreground mb-1">Pode selecionar mais de uma opção.</div>
         <div className="flex gap-1 flex-wrap">
           {EVIDENCE_OPTIONS.map(opt => {
             const active = evidence.includes(opt);
             return (
               <Button key={opt} size="sm" variant={active ? 'default' : 'outline'}
-                      className="h-6 text-[10px] px-2" disabled={disabled}
+                      className="h-7 text-[11px] px-2" disabled={disabled}
                       onClick={() => onEvidence(active ? evidence.filter(e => e !== opt) : [...evidence, opt])}>
-                {opt}
+                {EVIDENCE_LABELS[opt] ?? opt}
               </Button>
             );
           })}
@@ -562,10 +640,10 @@ function FieldValueEditor({
     return (
       <Select value={value === true ? 'true' : value === false ? 'false' : ''}
               onValueChange={(v) => onValue(v === 'true')} disabled={disabled}>
-        <SelectTrigger className="h-8 text-xs w-40"><SelectValue placeholder="true / false" /></SelectTrigger>
+        <SelectTrigger className="h-8 text-xs w-40"><SelectValue placeholder="Sim / Não" /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="true">true</SelectItem>
-          <SelectItem value="false">false</SelectItem>
+          <SelectItem value="true">Sim</SelectItem>
+          <SelectItem value="false">Não</SelectItem>
         </SelectContent>
       </Select>
     );
@@ -593,16 +671,16 @@ function FieldValueEditor({
               <Button key={m} size="sm" variant={active ? 'default' : 'outline'}
                       className="h-6 text-[10px] px-2" disabled={disabled}
                       onClick={() => onValue(active ? arr.filter(x => x !== m) : [...arr, m])}>
-                {m}
+                {labelFor(m)}
               </Button>
             );
           })}
         </div>
         <div className="text-[9px] text-muted-foreground">
-          Proibidos (regiões anatômicas): {vocab.forbidden.join(', ')}
+          Proibidos (regiões anatômicas): {vocab.forbidden.map(labelFor).join(', ')}
         </div>
         <div className="text-[9px] text-muted-foreground">
-          [] = revisto e vazio. Clique nos músculos aplicáveis. Selecionados: [{arr.join(', ')}]
+          Vazio = revisto e sem músculos identificados. Clique nos músculos aplicáveis. Selecionados: [{arr.map(labelFor).join(', ')}]
         </div>
       </div>
     );
@@ -636,9 +714,9 @@ function SingleSelect({ options, value, disabled, onValue }: {
 }) {
   return (
     <Select value={value ?? ''} onValueChange={onValue} disabled={disabled}>
-      <SelectTrigger className="h-8 text-xs w-60"><SelectValue placeholder="selecione…" /></SelectTrigger>
+      <SelectTrigger className="h-8 text-xs w-60"><SelectValue placeholder="Selecione…" /></SelectTrigger>
       <SelectContent>
-        {options.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+        {options.map(o => <SelectItem key={o} value={o}>{labelFor(o)}</SelectItem>)}
       </SelectContent>
     </Select>
   );
