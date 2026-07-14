@@ -1708,6 +1708,7 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
 
       // ── 1) STRUCTURED MODE (primary path) ──
       let structured: DietPlan | null = null;
+      let structuredError: { status?: number; code?: string; message?: string } | null = null;
       if (currentTargets) {
         // Phase 2: build carb-cycle plan when the protocol is selected.
         const wantsCarbCycle = selectedAdjustments.includes('carb_cycling');
@@ -1723,7 +1724,7 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
             })
           : null;
         try {
-          structured = await generateStructuredPlan(
+          const structuredResult = await generateStructuredPlan(
             prompt,
             {
               objective: phase || undefined,
@@ -1764,8 +1765,17 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
             },
             intent,
           );
+          structured = structuredResult.plan;
+          if (!structured) {
+            structuredError = {
+              status: structuredResult.status,
+              code: structuredResult.errorCode,
+              message: structuredResult.message,
+            };
+          }
         } catch (e) {
           console.warn('structured generation threw, falling back to streaming:', e);
+          structuredError = { message: (e as any)?.message };
         }
       }
 
@@ -1792,6 +1802,21 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
         if (status === 'ok') toast.success('Dieta gerada (JSON canônico).');
         else if (status === 'warning') toast('Dieta gerada — revisar avisos.', { icon: '⚠️' });
         else if (status === 'invalid') toast('Dieta fora da meta. Revise antes de enviar.', { icon: '⚠️' });
+        return;
+      }
+
+      // Contrato formal: quando existe weeklyEnergySchedule, o servidor DEVE
+      // devolver dailyAdjustments válido. Se o structured falhou (ex.: 422
+      // daily_adjustments_invalid), NÃO cair no fallback markdown — o editor
+      // não pode exibir um plano sem os ajustes por dia.
+      if (weeklySchedule && structuredError) {
+        const isDailyAdj = structuredError.code === 'daily_adjustments_invalid';
+        console.warn('[DietaIA] structured_failed_with_schedule', structuredError);
+        toast.error(
+          isDailyAdj
+            ? 'A IA não devolveu os ajustes por dia (7 dias obrigatórios). Regere o plano.'
+            : structuredError.message || 'Falha ao gerar dieta estruturada. Regere o plano.',
+        );
         return;
       }
 
