@@ -1841,6 +1841,10 @@ ${generated}`;
 
   const savePlan = async (modeOverride?: 'draft' | 'publish') => {
     if (!result) return;
+    if (!weeklySchedule || baseKcal.base_daily_kcal == null || baseKcalIssues.length > 0) {
+      toast.error('Não é possível salvar: defina uma meta calórica base válida.');
+      return;
+    }
     const mode = modeOverride ?? saveMode;
     // Bloqueio duro: se o schedule tem qualquer dia diferente da base,
     // dailyAdjustments é obrigatório (contrato formal).
@@ -2175,7 +2179,7 @@ ${generated}`;
             true,
             !!mealCount,
             true,
-            validateSchedule(weeklySchedule).length === 0,
+            !!weeklySchedule && baseKcalIssues.length === 0 && validateSchedule(weeklySchedule).length === 0,
             true,
           ];
           return (
