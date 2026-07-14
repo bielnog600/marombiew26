@@ -26,6 +26,7 @@ export interface DailyAdjustment {
   status: AdjustmentStatus;
   instructions: AdjustmentInstruction[];
   summary: string;
+  validation_status?: 'base_day';
 }
 
 export type DailyAdjustments = Record<EnergyWeekday, DailyAdjustment>;
@@ -46,6 +47,21 @@ export function buildRequestedFromSchedule(schedule: any): Record<EnergyWeekday,
     out[wd] = { target_kcal: t, requested_adjustment_kcal: t - base };
   }
   return out;
+}
+
+export function hasDailyCalorieVariation(schedule: any): boolean {
+  if (!schedule || !schedule.days) return false;
+  const base = Math.round(Number(schedule.base_daily_kcal ?? 0));
+  for (const wd of ENERGY_WEEKDAYS) {
+    const d = schedule.days?.[wd];
+    if (!d) continue;
+    const adj = Number(d.adjustment_kcal ?? 0);
+    const fixed = d.fixed_kcal;
+    if (adj !== 0) return true;
+    if (fixed != null && Number(fixed) > 0 && Math.round(Number(fixed)) !== base) return true;
+    if (computeDayTarget(d) !== base) return true;
+  }
+  return false;
 }
 
 function sanitizeInstruction(raw: any): AdjustmentInstruction | null {
@@ -77,16 +93,29 @@ export function normalizeDailyAdjustments(modelAdjustments: unknown, schedule: a
     const req = requested[wd];
     const modelDay = raw[wd];
     if (!modelDay || typeof modelDay !== 'object') {
-      missing.push(wd);
-      out[wd] = {
-        target_kcal: req.target_kcal,
-        requested_adjustment_kcal: req.requested_adjustment_kcal,
-        estimated_adjustment_kcal: 0,
-        model_estimated_adjustment_kcal: 0,
-        status: req.requested_adjustment_kcal === 0 ? 'base' : 'adjusted',
-        instructions: [],
-        summary: '',
-      };
+      if (req.requested_adjustment_kcal !== 0) {
+        missing.push(wd);
+        out[wd] = {
+          target_kcal: req.target_kcal,
+          requested_adjustment_kcal: req.requested_adjustment_kcal,
+          estimated_adjustment_kcal: 0,
+          model_estimated_adjustment_kcal: 0,
+          status: 'adjusted',
+          instructions: [],
+          summary: '',
+        };
+      } else {
+        out[wd] = {
+          target_kcal: req.target_kcal,
+          requested_adjustment_kcal: 0,
+          estimated_adjustment_kcal: 0,
+          model_estimated_adjustment_kcal: 0,
+          status: 'base',
+          instructions: [],
+          summary: 'Manter plano base',
+          validation_status: 'base_day',
+        };
+      }
       continue;
     }
     const estRaw = Number(modelDay.estimated_adjustment_kcal);
