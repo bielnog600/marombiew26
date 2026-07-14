@@ -1241,6 +1241,57 @@ const DietaIA = () => {
     const data = await resp.json().catch(() => null);
     const raw = data?.plan;
     if (!raw) return null;
+    // Capture optional per-day adjustments and validate against requested schedule.
+    try {
+      const adjRaw = data?.dailyAdjustments ?? raw?.dailyAdjustments ?? null;
+      if (adjRaw && typeof adjRaw === 'object') {
+        const norm: Record<string, { target_kcal: number; estimated_adjustment_kcal: number; adjustment_text: string }> = {};
+        for (const wd of ENERGY_WEEKDAYS) {
+          const d: any = (adjRaw as any)[wd];
+          if (!d) continue;
+          const tgt = Number(d.target_kcal);
+          const est = Number(d.estimated_adjustment_kcal);
+          norm[wd] = {
+            target_kcal: Number.isFinite(tgt) ? Math.round(tgt) : 0,
+            estimated_adjustment_kcal: Number.isFinite(est) ? Math.round(est) : 0,
+            adjustment_text: typeof d.adjustment_text === 'string' ? d.adjustment_text : '',
+          };
+        }
+        setDailyAdjustments(norm);
+        // Post-generation validation: ±10% do ajuste diário, teto absoluto ±50 kcal.
+        const warnings: string[] = [];
+        for (const wd of ENERGY_WEEKDAYS) {
+          const entry = weeklySchedule.days[wd];
+          const requestedTarget = entry.fixed_kcal != null && entry.fixed_kcal > 0
+            ? Math.round(entry.fixed_kcal)
+            : Math.round((targets.kcal ?? 0) + entry.adjustment_kcal);
+          const requestedAdj = requestedTarget - (targets.kcal ?? 0);
+          const got = norm[wd];
+          if (!got) {
+            warnings.push(`${WEEKDAY_LABELS[wd]}: IA não retornou ajuste para o dia.`);
+            continue;
+          }
+          const tolerance = Math.min(50, Math.max(1, Math.round(Math.abs(requestedAdj) * 0.1)));
+          const diff = got.estimated_adjustment_kcal - requestedAdj;
+          if (Math.abs(diff) > tolerance) {
+            warnings.push(
+              `${WEEKDAY_LABELS[wd]}: ajuste fora da tolerância (solicitado ${requestedAdj >= 0 ? '+' : ''}${requestedAdj} kcal, gerado ${got.estimated_adjustment_kcal >= 0 ? '+' : ''}${got.estimated_adjustment_kcal} kcal, diferença ${diff >= 0 ? '+' : ''}${diff} kcal).`,
+            );
+          }
+          if (got.target_kcal !== requestedTarget) {
+            warnings.push(
+              `${WEEKDAY_LABELS[wd]}: target_kcal retornado (${got.target_kcal}) difere do solicitado (${requestedTarget}).`,
+            );
+          }
+        }
+        setScheduleWarnings(warnings);
+      } else {
+        setDailyAdjustments(null);
+        setScheduleWarnings([]);
+      }
+    } catch (e) {
+      console.warn('daily adjustments validation failed', e);
+    }
     if (data?.similarity) {
       const sim = {
         ...(data.similarity as SimilarityFeedback),
