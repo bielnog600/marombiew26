@@ -1554,15 +1554,15 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
     const currentBmr = baseKcal.calculation.bmr;
     const currentFormula = baseKcal.calculation.formula;
     const peso = parsePositiveNumber(studentCtx.peso) ?? 70;
-      const macros = calculateMacroTargets({
-        calories: currentCalories,
-        weight: peso,
-        strategyValue: strategy,
-        phaseValue: phase,
-        hormoneUse: hasHormoneUse(usesHormones),
-        proteinPerKgOverride: proteinPerKgOverride ? Number(proteinPerKgOverride.replace(',', '.')) : null,
-        fatPerKgOverride: fatPerKgOverride ? Number(fatPerKgOverride.replace(',', '.')) : null,
-      });
+    const macros = calculateMacroTargets({
+      calories: currentCalories,
+      weight: peso,
+      strategyValue: strategy,
+      phaseValue: phase,
+      hormoneUse: hasHormoneUse(usesHormones),
+      proteinPerKgOverride: proteinPerKgOverride ? Number(proteinPerKgOverride.replace(',', '.')) : null,
+      fatPerKgOverride: fatPerKgOverride ? Number(fatPerKgOverride.replace(',', '.')) : null,
+    });
     currentTargets = {
       calories: currentCalories,
       protein: macros.proteinGrams,
@@ -1754,7 +1754,8 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
               p: currentTargets.protein,
               c: currentTargets.carbs,
               g: currentTargets.fats,
-              tmb: studentCtx.recomendacao_ia?.tmb,
+              tmb: currentBmr ?? undefined,
+              get: currentGET ?? undefined,
             },
             intent,
           );
