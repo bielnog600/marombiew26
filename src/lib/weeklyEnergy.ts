@@ -47,9 +47,21 @@ export interface DayEnergyEntry {
   workout: DayWorkoutRef | null;
 }
 
+export type BaseKcalSource = 'automatic' | 'manual';
+
+export interface BaseKcalCalculationSnapshot {
+  bmr: number | null;
+  activity_factor: number | null;
+  tdee: number | null;
+  strategy_percent: number | null;
+  formula?: string | null;
+}
+
 export interface WeeklyEnergySchedule {
   version: 1;
   base_daily_kcal: number;
+  base_source?: BaseKcalSource;
+  calculation_snapshot?: BaseKcalCalculationSnapshot;
   days: Record<EnergyWeekday, DayEnergyEntry>;
 }
 
@@ -65,6 +77,8 @@ export function computeDayTarget(entry: DayEnergyEntry): number {
 export function buildDefaultSchedule(params: {
   baseDailyKcal: number;
   workoutByWeekday: Partial<Record<EnergyWeekday, DayWorkoutRef>>;
+  baseSource?: BaseKcalSource;
+  calculationSnapshot?: BaseKcalCalculationSnapshot;
 }): WeeklyEnergySchedule {
   const base = Math.round(params.baseDailyKcal);
   const days = {} as Record<EnergyWeekday, DayEnergyEntry>;
@@ -76,7 +90,13 @@ export function buildDefaultSchedule(params: {
       workout: params.workoutByWeekday[wd] ?? null,
     };
   }
-  return { version: 1, base_daily_kcal: base, days };
+  return {
+    version: 1,
+    base_daily_kcal: base,
+    ...(params.baseSource ? { base_source: params.baseSource } : {}),
+    ...(params.calculationSnapshot ? { calculation_snapshot: params.calculationSnapshot } : {}),
+    days,
+  };
 }
 
 export interface ScheduleTotals {
@@ -105,10 +125,18 @@ export function computeTotals(s: WeeklyEnergySchedule): ScheduleTotals {
 }
 
 /** Validação básica: metas positivas e não absurdamente baixas. */
-const MIN_DAILY_KCAL = 900;
+export const MIN_DAILY_KCAL = 900;
 
 export function validateSchedule(s: WeeklyEnergySchedule): string[] {
   const issues: string[] = [];
+  if (!Number.isFinite(s.base_daily_kcal) || s.base_daily_kcal <= 0) {
+    issues.push('Meta calórica base inválida.');
+  } else if (s.base_daily_kcal < MIN_DAILY_KCAL) {
+    issues.push(`Meta calórica base muito baixa (${s.base_daily_kcal} kcal, mínimo ${MIN_DAILY_KCAL}).`);
+  }
+  if (s.base_source != null && s.base_source !== 'automatic' && s.base_source !== 'manual') {
+    issues.push('Origem da meta calórica base inválida.');
+  }
   for (const wd of ENERGY_WEEKDAYS) {
     const target = computeDayTarget(s.days[wd]);
     if (!Number.isFinite(target) || target <= 0) {
