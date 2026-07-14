@@ -1538,17 +1538,22 @@ ${observationsList.length > 0 ? observationsList.map(item => `- ${item}`).join('
 IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os dados acima vencem.
 `;
 
-    // Recalculate recommendation using CURRENT wizard selections (not the initial suggestion)
+    if (!weeklySchedule || baseKcal.base_daily_kcal == null || baseKcalIssues.length > 0) {
+      toast.error('Defina uma meta calórica base válida antes de gerar a dieta.');
+      setGenerating(false);
+      return;
+    }
+
+    // Recalculate recommendation using the single base-kcal source selected in the wizard.
     let recText = '';
     let currentTargets: DietMacroTargets | null = null;
-    const baseRec = studentCtx.recomendacao_ia;
-    if (baseRec) {
-      const currentFA = parseFloat(activityLevel);
-      const currentStrategyPct = selectedStrategy?.pct ?? 0;
-      const currentGET = baseRec.tmb * currentFA;
-      const currentCalories = Math.round(currentGET * (1 + currentStrategyPct / 100));
-
-      const peso = studentCtx.peso || 70;
+    const currentCalories = baseKcal.base_daily_kcal;
+    const currentFA = baseKcal.calculation.activity_factor;
+    const currentStrategyPct = baseKcal.calculation.strategy_percent;
+    const currentGET = baseKcal.calculation.tdee;
+    const currentBmr = baseKcal.calculation.bmr;
+    const currentFormula = baseKcal.calculation.formula;
+    const peso = parsePositiveNumber(studentCtx.peso) ?? 70;
       const macros = calculateMacroTargets({
         calories: currentCalories,
         weight: peso,
@@ -1558,19 +1563,20 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
         proteinPerKgOverride: proteinPerKgOverride ? Number(proteinPerKgOverride.replace(',', '.')) : null,
         fatPerKgOverride: fatPerKgOverride ? Number(fatPerKgOverride.replace(',', '.')) : null,
       });
-      currentTargets = {
-        calories: currentCalories,
-        protein: macros.proteinGrams,
-        carbs: macros.carbGrams,
-        fats: macros.fatGrams,
-      };
+    currentTargets = {
+      calories: currentCalories,
+      protein: macros.proteinGrams,
+      carbs: macros.carbGrams,
+      fats: macros.fatGrams,
+    };
 
-      recText = `
+    recText = `
 === RECOMENDAÇÃO CALCULADA (VALORES OBRIGATÓRIOS — NÃO RECALCULE) ===
-- TMB: ${baseRec.tmb} kcal (calculado por ${baseRec.formula})
-- Fator de Atividade: ${currentFA}
-- GET: ${Math.round(currentGET)} kcal
-- Estratégia: ${selectedStrategy?.label} (${currentStrategyPct > 0 ? '+' : ''}${currentStrategyPct}%)
+- Origem da meta base: ${BASE_SOURCE_LABELS[baseKcal.source]}
+- TMB: ${currentBmr ?? 'não aplicada'} kcal${currentFormula ? ` (calculado por ${currentFormula})` : ''}
+- Fator de Atividade: ${currentFA ?? 'não aplicado'}
+- GET: ${currentGET ?? 'não aplicado'} kcal
+- Estratégia: ${selectedStrategy?.label} (${(currentStrategyPct ?? 0) > 0 ? '+' : ''}${currentStrategyPct ?? 0}%)
 - Calorias alvo EXATAS: ${currentCalories} kcal
 - Proteína EXATA: ${macros.proteinGrams}g (${macros.proteinPerKg}g/kg)
 - Carboidrato EXATO: ${macros.carbGrams}g
@@ -1579,7 +1585,6 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
 ⚠️ REGRA DE CORREÇÃO: Se faltar caloria para bater a meta, ajuste CARBOIDRATO. NÃO aumente proteína acima de ${macros.proteinGrams}g para completar calorias.
 ⚠️ VALIDAÇÃO FINAL: Antes de responder, some alimento por alimento. A dieta só é aceitável se ficar entre ${currentCalories - 50} e ${currentCalories + 50} kcal, proteína entre ${macros.proteinGrams - 10} e ${macros.proteinGrams + 10}g, carboidrato entre ${macros.carbGrams - 15} e ${macros.carbGrams + 15}g e gordura entre ${macros.fatGrams - 8} e ${macros.fatGrams + 8}g.
 `;
-    }
 
     const prompt = `Gere o plano alimentar COMPLETO para fisiculturismo com as seguintes configurações:
 ${criticalInputsText}
