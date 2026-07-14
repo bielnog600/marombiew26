@@ -1652,6 +1652,7 @@ ${generated}`;
         emagrecimento_rapido: enableEmagrecimentoRapido,
         jejum_intermitente: enableJejumIntermitente,
       },
+      weekly_energy_schedule: scheduleToJson(weeklySchedule),
     };
     if (editPlanId) {
       const validation = validateDietJSON(result);
