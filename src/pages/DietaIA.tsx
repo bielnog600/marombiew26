@@ -357,6 +357,9 @@ const DietaIA = () => {
 
   // Step 3 - Atividade & Estratégia
   const [activityLevel, setActivityLevel] = useState('');
+  // Marca se o admin já interagiu com o campo. Após true, nenhum efeito pode
+  // sobrescrever a escolha manual.
+  const [activityLevelTouched, setActivityLevelTouched] = useState(false);
   const [strategy, setStrategy] = useState('');
 
   // Step 4 - Refeições & Preferências
