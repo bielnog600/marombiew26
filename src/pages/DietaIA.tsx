@@ -115,13 +115,15 @@ const normalizeSex = (value: unknown): 'masculino' | 'feminino' | null => {
   return null;
 };
 
-const ACTIVITY_LEVELS = [
-  { value: '1.0', label: 'Sedentário', desc: 'Pouca ou nenhuma atividade no dia' },
-  { value: '1.2', label: 'Super Leve', desc: 'Trabalho leve, caminhadas curtas' },
-  { value: '1.4', label: 'Leve', desc: 'Trabalho em pé, atividades leves' },
-  { value: '1.6', label: 'Moderado', desc: 'Trabalho ativo, se movimenta bastante' },
-  { value: '1.8', label: 'Alto', desc: 'Trabalho físico pesado ou muito ativo' },
-  { value: '2.0', label: 'Extremo', desc: 'Atleta profissional, treina 2x/dia' },
+// Fatores de atividade diária (NEAT + rotina), alinhados à tabela clássica.
+// value === factor em string; nunca é sobrescrito por frequência de treino.
+export const ACTIVITY_LEVELS = [
+  { value: '1.2',   factor: 1.20,  label: 'Sedentário', desc: 'Rotina parada, quase sem deslocamento' },
+  { value: '1.3',   factor: 1.30,  label: 'Super Leve', desc: 'Trabalho sentado, pouca caminhada e rotina pouco ativa' },
+  { value: '1.375', factor: 1.375, label: 'Leve',       desc: 'Alguma caminhada ou rotina diária levemente ativa' },
+  { value: '1.55',  factor: 1.55,  label: 'Moderado',   desc: 'Rotina ativa ou trabalho com movimentação frequente' },
+  { value: '1.725', factor: 1.725, label: 'Alto',       desc: 'Trabalho físico ou rotina diária muito ativa' },
+  { value: '1.9',   factor: 1.90,  label: 'Extremo',    desc: 'Atividade física profissional ou trabalho físico muito intenso' },
 ];
 
 const STRATEGIES = [
