@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   normalizeDailyAdjustments,
+  validateDailyAdjustments,
+  hasDailyCalorieVariation,
   evaluateTolerance,
   TOLERANCE_KCAL,
 } from '@/lib/dailyAdjustments';
@@ -92,5 +94,56 @@ describe('evaluateTolerance — MVP ±75 kcal', () => {
   it('estimated ausente retorna missing_data', () => {
     const r = evaluateTolerance(250, null);
     expect(r.state).toBe('missing_data');
+  });
+});
+
+describe('hasDailyCalorieVariation + normalização sem variação', () => {
+  it('A) sete dias iguais à meta base → sem variação, 7 dias base_day, missing vazio', () => {
+    const sch = schedule(2200, {});
+    expect(hasDailyCalorieVariation(sch)).toBe(false);
+    const { adjustments, missing } = normalizeDailyAdjustments(null, sch);
+    expect(missing).toEqual([]);
+    for (const wd of ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'] as const) {
+      expect(adjustments[wd].status).toBe('base');
+      expect(adjustments[wd].summary).toBe('Manter plano base');
+      expect(adjustments[wd].validation_status).toBe('base_day');
+      expect(adjustments[wd].instructions).toEqual([]);
+    }
+    const v = validateDailyAdjustments(adjustments, missing);
+    expect(v.ok).toBe(true);
+  });
+
+  it('B) quatro dias ajustados; IA fornece só esses quatro → servidor completa os três base_day', () => {
+    const sch = schedule(2200, { seg: 250, qui: 250, sab: -200, dom: -300 });
+    expect(hasDailyCalorieVariation(sch)).toBe(true);
+    const model = {
+      seg: { summary: 'add', instructions: [{ action: 'add', food_name: 'x', quantity: 50, unit: 'g', estimated_kcal: 250 }] },
+      qui: { summary: 'add', instructions: [{ action: 'add', food_name: 'x', quantity: 50, unit: 'g', estimated_kcal: 250 }] },
+      sab: { summary: 'rm', instructions: [{ action: 'remove', food_name: 'y', quantity: 40, unit: 'g', estimated_kcal: 200 }] },
+      dom: { summary: 'rm', instructions: [{ action: 'remove', food_name: 'y', quantity: 60, unit: 'g', estimated_kcal: 300 }] },
+    };
+    const { adjustments, missing } = normalizeDailyAdjustments(model, sch);
+    expect(missing).toEqual([]);
+    // Dias base preenchidos pelo servidor
+    for (const wd of ['ter', 'qua', 'sex'] as const) {
+      expect(adjustments[wd].status).toBe('base');
+      expect(adjustments[wd].validation_status).toBe('base_day');
+      expect(adjustments[wd].summary).toBe('Manter plano base');
+    }
+    // Dias ajustados normalizados
+    expect(adjustments.seg.status).toBe('adjusted');
+    expect(adjustments.dom.estimated_adjustment_kcal).toBe(-300);
+    const v = validateDailyAdjustments(adjustments, missing);
+    expect(v.ok).toBe(true);
+  });
+
+  it('C) IA omite um dia ajustado → missing só contém o dia ausente', () => {
+    const sch = schedule(2200, { seg: 250, qui: 250 });
+    const model = {
+      seg: { summary: 'add', instructions: [{ action: 'add', food_name: 'x', quantity: 50, unit: 'g', estimated_kcal: 250 }] },
+      // qui omitido
+    };
+    const { missing } = normalizeDailyAdjustments(model, sch);
+    expect(missing).toEqual(['qui']);
   });
 });
