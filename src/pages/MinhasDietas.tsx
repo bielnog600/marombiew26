@@ -179,7 +179,7 @@ const MinhasDietas = () => {
 
   const loadDiet = async () => {
     const { data: dieta } = await fetchWithCache(`plan:dieta:full:${user!.id}`, async () => {
-      const { data } = await supabase.from('ai_plans').select('id, conteudo, created_at, protocols').eq('student_id', user!.id).eq('tipo', 'dieta').order('created_at', { ascending: false }).limit(1).maybeSingle();
+      const { data } = await supabase.from('ai_plans').select('id, conteudo, created_at, protocols').eq('student_id', user!.id).eq('tipo', 'dieta').eq('is_draft', false).order('created_at', { ascending: false }).limit(1).maybeSingle();
       return data;
     });
     if (dieta) {

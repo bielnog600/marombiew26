@@ -120,7 +120,7 @@ const MinhaArea = () => {
           return (await supabase.from('ai_plans').select('conteudo, titulo').eq('student_id', user!.id).eq('tipo', 'treino').order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
         }),
         fetchWithCache(`plan:dieta:${user!.id}`, async () => {
-          return (await supabase.from('ai_plans').select('conteudo, titulo').eq('student_id', user!.id).eq('tipo', 'dieta').order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
+          return (await supabase.from('ai_plans').select('conteudo, titulo').eq('student_id', user!.id).eq('tipo', 'dieta').eq('is_draft', false).order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
         }),
         fetchWithCache(`plan:tabata:${user!.id}`, async () => {
           return (await supabase.from('ai_plans').select('conteudo').eq('student_id', user!.id).eq('tipo', 'tabata').order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
