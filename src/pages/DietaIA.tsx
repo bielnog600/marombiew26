@@ -115,13 +115,15 @@ const normalizeSex = (value: unknown): 'masculino' | 'feminino' | null => {
   return null;
 };
 
-const ACTIVITY_LEVELS = [
-  { value: '1.0', label: 'Sedentário', desc: 'Pouca ou nenhuma atividade no dia' },
-  { value: '1.2', label: 'Super Leve', desc: 'Trabalho leve, caminhadas curtas' },
-  { value: '1.4', label: 'Leve', desc: 'Trabalho em pé, atividades leves' },
-  { value: '1.6', label: 'Moderado', desc: 'Trabalho ativo, se movimenta bastante' },
-  { value: '1.8', label: 'Alto', desc: 'Trabalho físico pesado ou muito ativo' },
-  { value: '2.0', label: 'Extremo', desc: 'Atleta profissional, treina 2x/dia' },
+// Fatores de atividade diária (NEAT + rotina), alinhados à tabela clássica.
+// value === factor em string; nunca é sobrescrito por frequência de treino.
+export const ACTIVITY_LEVELS = [
+  { value: '1.2',   factor: 1.20,  label: 'Sedentário', desc: 'Rotina parada, quase sem deslocamento' },
+  { value: '1.3',   factor: 1.30,  label: 'Super Leve', desc: 'Trabalho sentado, pouca caminhada e rotina pouco ativa' },
+  { value: '1.375', factor: 1.375, label: 'Leve',       desc: 'Alguma caminhada ou rotina diária levemente ativa' },
+  { value: '1.55',  factor: 1.55,  label: 'Moderado',   desc: 'Rotina ativa ou trabalho com movimentação frequente' },
+  { value: '1.725', factor: 1.725, label: 'Alto',       desc: 'Trabalho físico ou rotina diária muito ativa' },
+  { value: '1.9',   factor: 1.90,  label: 'Extremo',    desc: 'Atividade física profissional ou trabalho físico muito intenso' },
 ];
 
 const STRATEGIES = [
@@ -355,6 +357,9 @@ const DietaIA = () => {
 
   // Step 3 - Atividade & Estratégia
   const [activityLevel, setActivityLevel] = useState('');
+  // Marca se o admin já interagiu com o campo. Após true, nenhum efeito pode
+  // sobrescrever a escolha manual.
+  const [activityLevelTouched, setActivityLevelTouched] = useState(false);
   const [strategy, setStrategy] = useState('');
 
   // Step 4 - Refeições & Preferências
@@ -1189,21 +1194,14 @@ const DietaIA = () => {
       if (!phase) setPhase(suggestedPhase);
       if (!dietStyle) setDietStyle(suggestedDietStyle);
 
-      // Auto-suggest activity level from training days
-      const tDays = Number(trainingDays || latestQuestionnaire?.dias_treino?.replace('x', '') || 0);
-      let suggestedFA = 1.4;
-      if (tDays >= 6) suggestedFA = 1.8;
-      else if (tDays >= 5) suggestedFA = 1.6;
-      else if (tDays >= 3) suggestedFA = 1.4;
-      else suggestedFA = 1.2;
-      // If anamnese shows active routine, bump
-      if (anamnese?.rotina && (anamnese.rotina.toLowerCase().includes('pesado') || anamnese.rotina.toLowerCase().includes('físico'))) {
-        suggestedFA = Math.min(suggestedFA + 0.2, 2.0);
-      }
-      if (!activityLevel) setActivityLevel(String(suggestedFA));
-
+      // ⚠️ Frequência de treino NÃO altera o fator de atividade diária.
+      // O activityLevel só vem da escolha explícita do administrador na Etapa 1.
+      // Para a estimativa auxiliar `recomendacao_ia` (usada só como referência),
+      // usamos o valor já selecionado; se ausente, adotamos 1.55 (moderado) como
+      // neutro — SEM gravar em `activityLevel`.
+      const currentFA = parsePositiveNumber(activityLevel) ?? 1.55;
       const strategyPct = STRATEGIES.find(s => s.value === suggestedStrategy)?.pct ?? 0;
-      const get = bestTmb * suggestedFA;
+      const get = bestTmb * currentFA;
       const consumo = get * (1 + strategyPct / 100);
 
       const macros = calculateMacroTargets({
@@ -1217,7 +1215,7 @@ const DietaIA = () => {
       ctx.recomendacao_ia = {
         tmb: Math.round(bestTmb),
         formula: bestFormula,
-        fa: suggestedFA,
+        fa: currentFA,
         get: Math.round(get),
         consumo: Math.round(consumo),
         estrategia: suggestedStrategy,
@@ -2337,7 +2335,11 @@ ${generated}`;
               <p className="text-xs text-muted-foreground mb-2">Nível de atividade física</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {ACTIVITY_LEVELS.map(a => (
-                  <SelectionButton key={a.value} selected={activityLevel === a.value} onClick={() => setActivityLevel(a.value)}>
+                  <SelectionButton
+                    key={a.value}
+                    selected={activityLevel === a.value}
+                    onClick={() => { setActivityLevel(a.value); setActivityLevelTouched(true); }}
+                  >
                     <span className="font-semibold text-sm block">{a.label}</span>
                     <span className="text-xs text-muted-foreground">{a.desc}</span>
                   </SelectionButton>
@@ -2558,7 +2560,7 @@ ${generated}`;
                   </ul>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
                   <div className="rounded-lg border border-border bg-background p-2">
                     <span className="text-muted-foreground block">Fórmula</span>
                     <span className="font-medium">{automaticBaseKcal.calculation.formula}</span>
@@ -2568,8 +2570,12 @@ ${generated}`;
                     <span className="font-medium">{automaticBaseKcal.calculation.bmr?.toLocaleString('pt-BR')} kcal</span>
                   </div>
                   <div className="rounded-lg border border-border bg-background p-2">
-                    <span className="text-muted-foreground block">Fator de atividade</span>
-                    <span className="font-medium">{automaticBaseKcal.calculation.activity_factor}</span>
+                    <span className="text-muted-foreground block">Nível de atividade</span>
+                    <span className="font-medium">
+                      {ACTIVITY_LEVELS.find(a => a.value === activityLevel)?.label ?? '—'}
+                      {' · '}
+                      Fator {(automaticBaseKcal.calculation.activity_factor ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 3 })}
+                    </span>
                   </div>
                   <div className="rounded-lg border border-border bg-background p-2">
                     <span className="text-muted-foreground block">GET</span>
