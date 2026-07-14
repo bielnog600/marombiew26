@@ -244,28 +244,30 @@ function parseWeekdayWorkouts(md: string): Partial<Record<EnergyWeekday, DayWork
     const sections = parseTrainingSections(md);
     const result: Partial<Record<EnergyWeekday, DayWorkoutRef>> = {};
     for (const section of sections) {
-      const rawTitle = (section.day || '').trim();
-      if (!rawTitle) continue;
-      const match = WEEKDAY_KEY_PATTERNS.find(([, re]) => re.test(rawTitle));
-      if (!match) continue;
-      const [weekday, wdRe] = match;
-      const afterSeparator = rawTitle.replace(wdRe, '').replace(/^[\s–—:\-]+/, '').trim();
-      const label = afterSeparator || rawTitle;
-      const exList = Array.isArray(section.exercises) ? section.exercises : [];
-      const isRest = /\bdescanso|off\b/i.test(rawTitle) || exList.length === 0;
-      const musclesSet = new Set<string>();
-      const haystack = [
-        rawTitle,
-        ...exList.map((e: any) => String(e?.nome ?? e?.name ?? '')),
-      ].join(' | ');
-      for (const [muscle, re] of MUSCLE_KEYWORDS) {
-        if (re.test(haystack)) musclesSet.add(muscle);
+      if (section.type !== 'training' || !section.days) continue;
+      for (const trainingDay of section.days) {
+        const rawTitle = (trainingDay.day || '').trim();
+        if (!rawTitle) continue;
+        const match = WEEKDAY_KEY_PATTERNS.find(([, re]) => re.test(rawTitle));
+        if (!match) continue;
+        const [weekday, wdRe] = match;
+        const afterSeparator = rawTitle.replace(wdRe, '').replace(/^[\s–—:\-]+/, '').trim();
+        const label = afterSeparator || rawTitle;
+        const exList = Array.isArray(trainingDay.exercises) ? trainingDay.exercises : [];
+        const isRest = /\bdescanso|off\b/i.test(rawTitle) || exList.length === 0;
+        const musclesSet = new Set<string>();
+        const haystack = [rawTitle, ...exList.map((e) => e.exercise || '')].join(' | ');
+        for (const [muscle, re] of MUSCLE_KEYWORDS) {
+          if (re.test(haystack)) musclesSet.add(muscle);
+        }
+        if (!result[weekday]) {
+          result[weekday] = {
+            label: isRest ? 'Descanso' : label,
+            type: isRest ? 'rest' : null,
+            muscles: Array.from(musclesSet),
+          };
+        }
       }
-      result[weekday] = {
-        label: isRest ? 'Descanso' : label,
-        type: isRest ? 'rest' : null,
-        muscles: Array.from(musclesSet),
-      };
     }
     return result;
   } catch (e) {
