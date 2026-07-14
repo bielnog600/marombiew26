@@ -1693,8 +1693,16 @@ ${generated}`;
   const savePlan = async (modeOverride?: 'draft' | 'publish') => {
     if (!result) return;
     const mode = modeOverride ?? saveMode;
-    // Bloqueio duro: se o wizard usa weekly_energy_schedule, dailyAdjustments é obrigatório.
-    if (dietConfig?.weeklyEnergySchedule) {
+    // Bloqueio duro: se o schedule tem qualquer dia diferente da base,
+    // dailyAdjustments é obrigatório (contrato formal).
+    const scheduleHasAdjustments = ENERGY_WEEKDAYS.some((wd) => {
+      const d = weeklySchedule.days[wd];
+      const t = d.fixed_kcal != null && d.fixed_kcal > 0
+        ? Math.round(d.fixed_kcal)
+        : Math.round(weeklySchedule.base_daily_kcal + d.adjustment_kcal);
+      return t !== Math.round(weeklySchedule.base_daily_kcal);
+    });
+    if (scheduleHasAdjustments) {
       if (!dailyAdjustments) {
         toast.error('Não é possível salvar: os ajustes por dia da IA não foram recebidos. Regere o plano.');
         return;
@@ -1707,7 +1715,7 @@ ${generated}`;
       }
     }
     const isDraft = mode === 'draft';
-    console.log('[DietaIA] savePlan_start', { mode, isDraft, hasSchedule: !!dietConfig?.weeklyEnergySchedule });
+    console.log('[DietaIA] savePlan_start', { mode, isDraft, scheduleHasAdjustments });
     setSaving(true);
     const scheduleJson = scheduleToJson(weeklySchedule) as any;
     if (dailyAdjustments && scheduleJson && typeof scheduleJson === 'object') {
