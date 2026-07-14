@@ -2284,7 +2284,29 @@ ${generated}`;
               {currentStep === 5 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-3">
-            <StepHeader step={6} title="Extras e Observações (opcional)" />
+            <StepHeader step={6} title="Calorias por dia" />
+            <p className="text-xs text-muted-foreground">
+              Distribua a meta calórica entre os dias da semana. Preencha os passos anteriores
+              para calcular a meta base; ajustes são opcionais.
+            </p>
+            {baseDailyKcal == null && (
+              <p className="text-[11px] text-amber-600">
+                Aguardando dados para calcular a meta base (fase, atividade, estratégia).
+              </p>
+            )}
+            <WeeklyEnergyScheduleStep
+              schedule={weeklySchedule}
+              onChange={handleScheduleChange}
+              noActiveWorkout={noActiveWorkout}
+            />
+          </CardContent>
+        </Card>
+              )}
+
+              {currentStep === 6 && (
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-3">
+            <StepHeader step={7} title="Extras e Observações (opcional)" />
             <p className="text-xs text-muted-foreground">Complementos que não afetam a lógica central da dieta.</p>
             <div className="space-y-3">
               <div className={`flex items-center justify-between rounded-xl border-2 p-3 transition-all hover:border-primary/50 ${enableFitoterapia ? 'border-primary bg-primary/10' : 'border-border'}`}>
