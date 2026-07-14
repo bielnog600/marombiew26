@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,18 @@ import { finalizeDietPlan } from '@/lib/dietValidation';
 import { parseDietPlanStrict, parseDietPlanLoose, type DietPlan } from '@/lib/dietSchema';
 import { dietPlanToMarkdown } from '@/lib/dietMarkdownSerializer';
 import { extractTrainingContext } from '@/lib/trainingContextExtractor';
+import { parseTrainingSections } from '@/lib/trainingResultParser';
+import {
+  type WeeklyEnergySchedule,
+  type EnergyWeekday,
+  type DayWorkoutRef,
+  ENERGY_WEEKDAYS,
+  buildDefaultSchedule,
+  computeDayTarget,
+  scheduleToJson,
+  validateSchedule,
+} from '@/lib/weeklyEnergy';
+import WeeklyEnergyScheduleStep from '@/components/diet/WeeklyEnergyScheduleStep';
 import {
   DEFAULT_INTENSITY as DEFAULT_DIET_INTENSITY,
   VARIATION_OPTIONS as DIET_VARIATION_OPTIONS,
@@ -200,6 +212,70 @@ const calculateMacroTargets = ({
   };
 };
 
+// ─── Weekday parsing helpers for the Weekly Energy Schedule ──────
+// Maps free-form training-day headers ("Segunda", "Dia 1 - Peito + Costas",
+// "Terça — Peito/Tríceps") into a weekday key + label + muscle list.
+const WEEKDAY_KEY_PATTERNS: Array<[EnergyWeekday, RegExp]> = [
+  ['seg', /\bseg(?:unda)?\b/i],
+  ['ter', /\bter(?:ça|ca)?\b/i],
+  ['qua', /\bqua(?:rta)?\b/i],
+  ['qui', /\bqui(?:nta)?\b/i],
+  ['sex', /\bsex(?:ta)?\b/i],
+  ['sab', /\bs[áa]b(?:ado)?\b/i],
+  ['dom', /\bdom(?:ingo)?\b/i],
+];
+
+const MUSCLE_KEYWORDS: Array<[string, RegExp]> = [
+  ['peito', /\bpeito|peitoral|supino|crossover|crucifix/i],
+  ['costas', /\bcostas|dorsal|puxad|remada|pull|barra fixa/i],
+  ['ombros', /\bombro|deltoid|elevaç(ão|ao)|desenvolvim/i],
+  ['bíceps', /\bb[íi]ceps|rosca/i],
+  ['tríceps', /\btr[íi]ceps|test(a|ão)|fr(a|â)nc[eê]s|corda/i],
+  ['pernas', /\bperna|quadr[íi]ceps|leg press|agachamento|passada|extensora|hack/i],
+  ['posterior', /\bposterior|isquio|stiff|mesa flexora|flex(a|ão) de perna/i],
+  ['glúteos', /\bgl[úu]teo|hip thrust/i],
+  ['panturrilha', /\bpanturrilh|gastrocn[eê]mio|s[óo]leo/i],
+  ['abdômen', /\babdom(en|inal)|prancha|core/i],
+  ['cardio', /\bcardio|corrida|esteira|bike|elipt/i],
+];
+
+function parseWeekdayWorkouts(md: string): Partial<Record<EnergyWeekday, DayWorkoutRef>> {
+  try {
+    const sections = parseTrainingSections(md);
+    const result: Partial<Record<EnergyWeekday, DayWorkoutRef>> = {};
+    for (const section of sections) {
+      if (section.type !== 'training' || !section.days) continue;
+      for (const trainingDay of section.days) {
+        const rawTitle = (trainingDay.day || '').trim();
+        if (!rawTitle) continue;
+        const match = WEEKDAY_KEY_PATTERNS.find(([, re]) => re.test(rawTitle));
+        if (!match) continue;
+        const [weekday, wdRe] = match;
+        const afterSeparator = rawTitle.replace(wdRe, '').replace(/^[\s–—:\-]+/, '').trim();
+        const label = afterSeparator || rawTitle;
+        const exList = Array.isArray(trainingDay.exercises) ? trainingDay.exercises : [];
+        const isRest = /\bdescanso|off\b/i.test(rawTitle) || exList.length === 0;
+        const musclesSet = new Set<string>();
+        const haystack = [rawTitle, ...exList.map((e) => e.exercise || '')].join(' | ');
+        for (const [muscle, re] of MUSCLE_KEYWORDS) {
+          if (re.test(haystack)) musclesSet.add(muscle);
+        }
+        if (!result[weekday]) {
+          result[weekday] = {
+            label: isRest ? 'Descanso' : label,
+            type: isRest ? 'rest' : null,
+            muscles: Array.from(musclesSet),
+          };
+        }
+      }
+    }
+    return result;
+  } catch (e) {
+    console.warn('parseWeekdayWorkouts failed', e);
+    return {};
+  }
+}
+
 const DietaIA = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
@@ -283,6 +359,68 @@ const DietaIA = () => {
   const [fatPerKgOverride, setFatPerKgOverride] = useState<string>('');
   // Phase 2: enable structured carb cycling alongside the protocol checkbox.
 
+  // ─── Weekly Energy Schedule (MVP) ────────────────────────────
+  // Per-weekday user overrides. Kept minimal: signed adjustment or a fixed
+  // target. Combined with the base kcal (derived below) into the full
+  // schedule that is persisted at protocols.weekly_energy_schedule.
+  const [scheduleAdjustments, setScheduleAdjustments] = useState<
+    Record<EnergyWeekday, { adjustment_kcal: number; fixed_kcal: number | null }>
+  >(() => ({
+    seg: { adjustment_kcal: 0, fixed_kcal: null },
+    ter: { adjustment_kcal: 0, fixed_kcal: null },
+    qua: { adjustment_kcal: 0, fixed_kcal: null },
+    qui: { adjustment_kcal: 0, fixed_kcal: null },
+    sex: { adjustment_kcal: 0, fixed_kcal: null },
+    sab: { adjustment_kcal: 0, fixed_kcal: null },
+    dom: { adjustment_kcal: 0, fixed_kcal: null },
+  }));
+  const [workoutByWeekday, setWorkoutByWeekday] = useState<Partial<Record<EnergyWeekday, DayWorkoutRef>>>({});
+  const [noActiveWorkout, setNoActiveWorkout] = useState(true);
+
+  // Base kcal do dia (TMB × FA × (1 + estratégia%)) — mesma fórmula usada em
+  // generatePlan/currentTargets. Recomputada quando o wizard muda.
+  const baseDailyKcal = useMemo<number | null>(() => {
+    const tmb = studentCtx?.recomendacao_ia?.tmb;
+    if (!tmb) return null;
+    const fa = parseFloat(activityLevel);
+    if (!Number.isFinite(fa) || fa <= 0) return null;
+    const strat = STRATEGIES.find((s) => s.value === strategy);
+    const pct = strat?.pct ?? 0;
+    return Math.round(tmb * fa * (1 + pct / 100));
+  }, [studentCtx?.recomendacao_ia, activityLevel, strategy]);
+
+  const weeklySchedule = useMemo<WeeklyEnergySchedule>(() => {
+    const draft = buildDefaultSchedule({
+      baseDailyKcal: baseDailyKcal ?? 2000,
+      workoutByWeekday,
+    });
+    for (const wd of ENERGY_WEEKDAYS) {
+      const adj = scheduleAdjustments[wd];
+      draft.days[wd].adjustment_kcal = adj.adjustment_kcal;
+      draft.days[wd].fixed_kcal = adj.fixed_kcal;
+    }
+    return draft;
+  }, [baseDailyKcal, workoutByWeekday, scheduleAdjustments]);
+
+  const handleScheduleChange = (next: WeeklyEnergySchedule) => {
+    const nextAdj: typeof scheduleAdjustments = {
+      seg: { adjustment_kcal: 0, fixed_kcal: null },
+      ter: { adjustment_kcal: 0, fixed_kcal: null },
+      qua: { adjustment_kcal: 0, fixed_kcal: null },
+      qui: { adjustment_kcal: 0, fixed_kcal: null },
+      sex: { adjustment_kcal: 0, fixed_kcal: null },
+      sab: { adjustment_kcal: 0, fixed_kcal: null },
+      dom: { adjustment_kcal: 0, fixed_kcal: null },
+    };
+    for (const wd of ENERGY_WEEKDAYS) {
+      nextAdj[wd] = {
+        adjustment_kcal: next.days[wd].adjustment_kcal,
+        fixed_kcal: next.days[wd].fixed_kcal,
+      };
+    }
+    setScheduleAdjustments(nextAdj);
+  };
+
   useEffect(() => {
     if (studentId) loadStudentData();
   }, [studentId]);
@@ -290,6 +428,47 @@ const DietaIA = () => {
   useEffect(() => {
     if (editPlanId && studentId) loadEditPlan();
   }, [editPlanId]);
+
+  // ─── Load active workout for weekly energy schedule ─────────
+  // We map each parsed training day to its weekday key + a friendly label
+  // and a heuristic muscle-group list. Only the ACTIVE, published plan
+  // (tipo='treino', is_draft=false, most recent) is considered.
+  useEffect(() => {
+    if (!studentId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('ai_plans')
+          .select('conteudo')
+          .eq('student_id', studentId)
+          .eq('tipo', 'treino')
+          .eq('is_draft', false)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        const md = (data?.[0]?.conteudo as string | undefined) ?? '';
+        if (!md) {
+          if (!cancelled) {
+            setWorkoutByWeekday({});
+            setNoActiveWorkout(true);
+          }
+          return;
+        }
+        const map = parseWeekdayWorkouts(md);
+        if (!cancelled) {
+          setWorkoutByWeekday(map);
+          setNoActiveWorkout(Object.keys(map).length === 0);
+        }
+      } catch (e) {
+        console.warn('active workout load failed', e);
+        if (!cancelled) {
+          setWorkoutByWeekday({});
+          setNoActiveWorkout(true);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [studentId]);
 
   // ===== Fase 5: lifecycle of diet_decision_applications =====
   useEffect(() => {
@@ -1003,7 +1182,7 @@ const DietaIA = () => {
    */
   const generateStructuredPlan = async (
     userPrompt: string,
-    dietConfig: { objective?: string; strategy?: string; style?: string; carbCyclePlan?: any },
+    dietConfig: { objective?: string; strategy?: string; style?: string; carbCyclePlan?: any; weeklyEnergySchedule?: any },
     targets: { kcal: number; p: number; c: number; g: number; tmb?: number; get?: number },
     intent: DietIntent = 'new',
   ): Promise<DietPlan | null> => {
@@ -1348,6 +1527,27 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
               strategy: strategy || undefined,
               style: dietStyle || undefined,
               ...(cyclePlan ? { carbCyclePlan: cyclePlan } : {}),
+              weeklyEnergySchedule: {
+                base_daily_kcal: currentTargets.calories,
+                days: Object.fromEntries(
+                  ENERGY_WEEKDAYS.map((wd) => {
+                    const entry = weeklySchedule.days[wd];
+                    // Rebase adjustments over the definitive currentTargets.calories.
+                    const adj = entry.adjustment_kcal;
+                    const fixed = entry.fixed_kcal;
+                    const target = fixed != null && fixed > 0
+                      ? Math.round(fixed)
+                      : Math.round(currentTargets.calories + adj);
+                    return [wd, {
+                      base_kcal: currentTargets.calories,
+                      adjustment_kcal: adj,
+                      fixed_kcal: fixed,
+                      target_kcal: target,
+                      workout: entry.workout,
+                    }];
+                  }),
+                ),
+              },
             },
             {
               kcal: currentTargets.calories,
@@ -1452,6 +1652,7 @@ ${generated}`;
         emagrecimento_rapido: enableEmagrecimentoRapido,
         jejum_intermitente: enableJejumIntermitente,
       },
+      weekly_energy_schedule: scheduleToJson(weeklySchedule),
     };
     if (editPlanId) {
       const validation = validateDietJSON(result);
@@ -1736,6 +1937,7 @@ ${generated}`;
             'Estratégia da Dieta',
             'Estrutura Alimentar do Dia',
             'Ajustes Finos do Protocolo',
+            'Calorias por dia',
             'Extras e Observações',
           ];
           const stepValid = [
@@ -1743,6 +1945,7 @@ ${generated}`;
             !!dietStyle,
             true,
             !!mealCount,
+            true,
             true,
             true,
           ];
@@ -2103,7 +2306,29 @@ ${generated}`;
               {currentStep === 5 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-3">
-            <StepHeader step={6} title="Extras e Observações (opcional)" />
+            <StepHeader step={6} title="Calorias por dia" />
+            <p className="text-xs text-muted-foreground">
+              Distribua a meta calórica entre os dias da semana. Preencha os passos anteriores
+              para calcular a meta base; ajustes são opcionais.
+            </p>
+            {baseDailyKcal == null && (
+              <p className="text-[11px] text-amber-600">
+                Aguardando dados para calcular a meta base (fase, atividade, estratégia).
+              </p>
+            )}
+            <WeeklyEnergyScheduleStep
+              schedule={weeklySchedule}
+              onChange={handleScheduleChange}
+              noActiveWorkout={noActiveWorkout}
+            />
+          </CardContent>
+        </Card>
+              )}
+
+              {currentStep === 6 && (
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-3">
+            <StepHeader step={7} title="Extras e Observações (opcional)" />
             <p className="text-xs text-muted-foreground">Complementos que não afetam a lógica central da dieta.</p>
             <div className="space-y-3">
               <div className={`flex items-center justify-between rounded-xl border-2 p-3 transition-all hover:border-primary/50 ${enableFitoterapia ? 'border-primary bg-primary/10' : 'border-border'}`}>
