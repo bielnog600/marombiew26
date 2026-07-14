@@ -1727,6 +1727,8 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
               ...(cyclePlan ? { carbCyclePlan: cyclePlan } : {}),
               weeklyEnergySchedule: {
                 base_daily_kcal: currentTargets.calories,
+                base_source: weeklySchedule.base_source,
+                calculation_snapshot: weeklySchedule.calculation_snapshot,
                 days: Object.fromEntries(
                   ENERGY_WEEKDAYS.map((wd) => {
                     const entry = weeklySchedule.days[wd];
@@ -2474,6 +2476,91 @@ ${generated}`;
           <CardContent className="p-4 space-y-3">
             <StepHeader step={5} title="Ajustes Finos do Protocolo (opcional)" />
             <p className="text-xs text-muted-foreground">Refinamentos numéricos que não mudam a base nem a estratégia.</p>
+            <div className="rounded-xl border border-border bg-secondary/30 p-3 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-semibold">Meta calórica base</p>
+                  <p className="text-[10px] text-muted-foreground">Fonte única usada na etapa de calorias por dia, no payload e na persistência.</p>
+                </div>
+                <div className="flex rounded-lg border border-border bg-background p-1 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setBaseKcalMode('automatic')}
+                    disabled={automaticBaseKcal.missing.length > 0}
+                    className={`rounded-md px-3 py-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                      baseKcalMode === 'automatic' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
+                    }`}
+                  >
+                    Automática
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBaseKcalMode('manual')}
+                    className={`rounded-md px-3 py-1 transition-colors ${
+                      baseKcalMode === 'manual' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
+                    }`}
+                  >
+                    Manual
+                  </button>
+                </div>
+              </div>
+
+              {automaticBaseKcal.missing.length > 0 ? (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+                  <p className="text-xs font-medium text-amber-700">Não foi possível calcular automaticamente. Dados ausentes:</p>
+                  <ul className="list-disc pl-5 text-[11px] text-amber-700">
+                    {automaticBaseKcal.missing.map((item) => <li key={item}>{item}.</li>)}
+                  </ul>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+                  <div className="rounded-lg border border-border bg-background p-2">
+                    <span className="text-muted-foreground block">Fórmula</span>
+                    <span className="font-medium">{automaticBaseKcal.calculation.formula}</span>
+                  </div>
+                  <div className="rounded-lg border border-border bg-background p-2">
+                    <span className="text-muted-foreground block">TMB</span>
+                    <span className="font-medium">{automaticBaseKcal.calculation.bmr?.toLocaleString('pt-BR')} kcal</span>
+                  </div>
+                  <div className="rounded-lg border border-border bg-background p-2">
+                    <span className="text-muted-foreground block">Fator de atividade</span>
+                    <span className="font-medium">{automaticBaseKcal.calculation.activity_factor}</span>
+                  </div>
+                  <div className="rounded-lg border border-border bg-background p-2">
+                    <span className="text-muted-foreground block">GET</span>
+                    <span className="font-medium">{automaticBaseKcal.calculation.tdee?.toLocaleString('pt-BR')} kcal</span>
+                  </div>
+                  <div className="rounded-lg border border-border bg-background p-2">
+                    <span className="text-muted-foreground block">Meta base</span>
+                    <span className="font-medium">{automaticBaseKcal.base_daily_kcal?.toLocaleString('pt-BR')} kcal</span>
+                  </div>
+                </div>
+              )}
+
+              {baseKcalMode === 'manual' && (
+                <label className="block">
+                  <span className="text-[10px] text-muted-foreground">Meta manual (kcal/dia)</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={MIN_DAILY_KCAL}
+                    value={manualBaseKcalInput}
+                    onChange={(e) => setManualBaseKcalInput(e.target.value)}
+                    placeholder="ex: 2200"
+                    className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
+                  />
+                  {manualBaseKcal != null && (
+                    <span className="mt-1 block text-[10px] text-primary">Meta definida manualmente: {manualBaseKcal.toLocaleString('pt-BR')} kcal/dia.</span>
+                  )}
+                </label>
+              )}
+
+              {baseKcalIssues.length > 0 && (
+                <ul className="list-disc pl-5 text-[11px] text-rose-600">
+                  {baseKcalIssues.map((issue) => <li key={issue}>{issue}</li>)}
+                </ul>
+              )}
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {FINE_TUNE_ADJUSTMENTS.map(adj => {
                 const isSelected = selectedAdjustments.includes(adj.id);
@@ -2544,16 +2631,21 @@ ${generated}`;
               Distribua a meta calórica entre os dias da semana. Preencha os passos anteriores
               para calcular a meta base; ajustes são opcionais.
             </p>
-            {baseDailyKcal == null && (
-              <p className="text-[11px] text-amber-600">
-                Aguardando dados para calcular a meta base (fase, atividade, estratégia).
-              </p>
+            {!weeklySchedule ? (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+                <p className="text-xs font-medium text-amber-700">Não foi possível calcular automaticamente. Dados ausentes:</p>
+                <ul className="list-disc pl-5 text-[11px] text-amber-700">
+                  {(baseKcal.missing.length > 0 ? baseKcal.missing : baseKcalIssues).map((item) => <li key={item}>{item}.</li>)}
+                </ul>
+                <p className="mt-2 text-[11px] text-amber-700">Volte para “Ajustes Finos do Protocolo” e defina uma meta manual.</p>
+              </div>
+            ) : (
+              <WeeklyEnergyScheduleStep
+                schedule={weeklySchedule}
+                onChange={handleScheduleChange}
+                noActiveWorkout={noActiveWorkout}
+              />
             )}
-            <WeeklyEnergyScheduleStep
-              schedule={weeklySchedule}
-              onChange={handleScheduleChange}
-              noActiveWorkout={noActiveWorkout}
-            />
             {scheduleWarnings.length > 0 && (
               <div className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 space-y-1">
                 <p className="text-xs font-semibold text-amber-700">
