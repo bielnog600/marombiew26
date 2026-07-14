@@ -1690,8 +1690,24 @@ ${generated}`;
     }
   };
 
-  const savePlan = async () => {
+  const savePlan = async (modeOverride?: 'draft' | 'publish') => {
     if (!result) return;
+    const mode = modeOverride ?? saveMode;
+    // Bloqueio duro: se o wizard usa weekly_energy_schedule, dailyAdjustments é obrigatório.
+    if (dietConfig?.weeklyEnergySchedule) {
+      if (!dailyAdjustments) {
+        toast.error('Não é possível salvar: os ajustes por dia da IA não foram recebidos. Regere o plano.');
+        return;
+      }
+      const validation = validateDailyAdjustments(dailyAdjustments, []);
+      if (!validation.ok) {
+        console.warn('[DietaIA] savePlan_blocked_invalid_adjustments', validation.errors);
+        toast.error('Não é possível salvar: os ajustes por dia estão inválidos. Regere o plano.');
+        return;
+      }
+    }
+    const isDraft = mode === 'draft';
+    console.log('[DietaIA] savePlan_start', { mode, isDraft, hasSchedule: !!dietConfig?.weeklyEnergySchedule });
     setSaving(true);
     const scheduleJson = scheduleToJson(weeklySchedule) as any;
     if (dailyAdjustments && scheduleJson && typeof scheduleJson === 'object') {
@@ -1729,6 +1745,7 @@ ${generated}`;
         conteudo: result,
         titulo: `Dieta - ${new Date().toLocaleDateString('pt-BR')} (editada)`,
         protocols,
+        is_draft: isDraft,
         conteudo_json: canonicalPlan ?? (validation.success ? (validation.data as any) : null),
         migration_status: (validation.success ? 'completed' : 'failed') as any,
         migration_error: validation.error || null,
@@ -1779,6 +1796,7 @@ ${generated}`;
           conteudo: result,
           titulo: `Dieta - ${new Date().toLocaleDateString('pt-BR')}`,
           protocols,
+          is_draft: isDraft,
           conteudo_json: canonicalPlan ?? null,
           migration_status: canonicalPlan ? 'completed' : 'pending',
           diet_strategy: strategy || null,
@@ -1805,6 +1823,7 @@ ${generated}`;
         titulo: `Dieta - ${new Date().toLocaleDateString('pt-BR')}`,
         conteudo: result,
         protocols,
+        is_draft: isDraft,
         cycle_status: 'em_dia',
         conteudo_json: canonicalPlan ?? null,
         migration_status: canonicalPlan ? 'completed' : 'pending',
