@@ -23,6 +23,18 @@ import { finalizeDietPlan } from '@/lib/dietValidation';
 import { parseDietPlanStrict, parseDietPlanLoose, type DietPlan } from '@/lib/dietSchema';
 import { dietPlanToMarkdown } from '@/lib/dietMarkdownSerializer';
 import { extractTrainingContext } from '@/lib/trainingContextExtractor';
+import { parseTrainingSections } from '@/lib/trainingResultParser';
+import {
+  type WeeklyEnergySchedule,
+  type EnergyWeekday,
+  type DayWorkoutRef,
+  ENERGY_WEEKDAYS,
+  buildDefaultSchedule,
+  computeDayTarget,
+  scheduleToJson,
+  validateSchedule,
+} from '@/lib/weeklyEnergy';
+import WeeklyEnergyScheduleStep from '@/components/diet/WeeklyEnergyScheduleStep';
 import {
   DEFAULT_INTENSITY as DEFAULT_DIET_INTENSITY,
   VARIATION_OPTIONS as DIET_VARIATION_OPTIONS,
