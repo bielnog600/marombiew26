@@ -1194,21 +1194,14 @@ const DietaIA = () => {
       if (!phase) setPhase(suggestedPhase);
       if (!dietStyle) setDietStyle(suggestedDietStyle);
 
-      // Auto-suggest activity level from training days
-      const tDays = Number(trainingDays || latestQuestionnaire?.dias_treino?.replace('x', '') || 0);
-      let suggestedFA = 1.4;
-      if (tDays >= 6) suggestedFA = 1.8;
-      else if (tDays >= 5) suggestedFA = 1.6;
-      else if (tDays >= 3) suggestedFA = 1.4;
-      else suggestedFA = 1.2;
-      // If anamnese shows active routine, bump
-      if (anamnese?.rotina && (anamnese.rotina.toLowerCase().includes('pesado') || anamnese.rotina.toLowerCase().includes('físico'))) {
-        suggestedFA = Math.min(suggestedFA + 0.2, 2.0);
-      }
-      if (!activityLevel) setActivityLevel(String(suggestedFA));
-
+      // ⚠️ Frequência de treino NÃO altera o fator de atividade diária.
+      // O activityLevel só vem da escolha explícita do administrador na Etapa 1.
+      // Para a estimativa auxiliar `recomendacao_ia` (usada só como referência),
+      // usamos o valor já selecionado; se ausente, adotamos 1.55 (moderado) como
+      // neutro — SEM gravar em `activityLevel`.
+      const currentFA = parsePositiveNumber(activityLevel) ?? 1.55;
       const strategyPct = STRATEGIES.find(s => s.value === suggestedStrategy)?.pct ?? 0;
-      const get = bestTmb * suggestedFA;
+      const get = bestTmb * currentFA;
       const consumo = get * (1 + strategyPct / 100);
 
       const macros = calculateMacroTargets({
@@ -1222,7 +1215,7 @@ const DietaIA = () => {
       ctx.recomendacao_ia = {
         tmb: Math.round(bestTmb),
         formula: bestFormula,
-        fa: suggestedFA,
+        fa: currentFA,
         get: Math.round(get),
         consumo: Math.round(consumo),
         estrategia: suggestedStrategy,
