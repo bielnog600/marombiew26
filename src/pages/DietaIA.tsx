@@ -1344,7 +1344,7 @@ const DietaIA = () => {
     dietConfig: { objective?: string; strategy?: string; style?: string; carbCyclePlan?: any; weeklyEnergySchedule?: any },
     targets: { kcal: number; p: number; c: number; g: number; tmb?: number; get?: number },
     intent: DietIntent = 'new',
-  ): Promise<DietPlan | null> => {
+  ): Promise<{ plan: DietPlan | null; errorCode?: string; status?: number; message?: string }> => {
     // Latest training markdown → structured context
     let trainingContext: any = undefined;
     try {
@@ -1388,11 +1388,16 @@ const DietaIA = () => {
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
       console.warn('structured diet-agent non-200:', resp.status, err);
-      return null;
+      return {
+        plan: null,
+        status: resp.status,
+        errorCode: (err && typeof err === 'object' && (err as any).error_code) || undefined,
+        message: (err && typeof err === 'object' && (err as any).error) || undefined,
+      };
     }
     const data = await resp.json().catch(() => null);
     const raw = data?.plan;
-    if (!raw) return null;
+    if (!raw) return { plan: null, status: resp.status };
     // Normalized daily adjustments (7 dias garantidos pelo servidor).
     try {
       const adjRaw = data?.dailyAdjustments ?? null;
@@ -1451,11 +1456,11 @@ const DietaIA = () => {
       const loose = parseDietPlanLoose(raw);
       if (!loose) {
         console.warn('structured: schema rejected plan', parsed.error?.issues?.slice(0, 5));
-        return null;
+        return { plan: null, status: resp.status, errorCode: 'schema_rejected' };
       }
-      return finalizeDietPlan(loose, targets as any);
+      return { plan: finalizeDietPlan(loose, targets as any) };
     }
-    return finalizeDietPlan(parsed.data, targets as any);
+    return { plan: finalizeDietPlan(parsed.data, targets as any) };
   };
 
   const loadFoodMacroRecords = async (): Promise<FoodMacroRecord[]> => {
