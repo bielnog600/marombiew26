@@ -377,6 +377,50 @@ const DietaIA = () => {
   const [workoutByWeekday, setWorkoutByWeekday] = useState<Partial<Record<EnergyWeekday, DayWorkoutRef>>>({});
   const [noActiveWorkout, setNoActiveWorkout] = useState(true);
 
+  // Base kcal do dia (TMB × FA × (1 + estratégia%)) — mesma fórmula usada em
+  // generatePlan/currentTargets. Recomputada quando o wizard muda.
+  const baseDailyKcal = useMemo<number | null>(() => {
+    const tmb = studentCtx?.recomendacao_ia?.tmb;
+    if (!tmb) return null;
+    const fa = parseFloat(activityLevel);
+    if (!Number.isFinite(fa) || fa <= 0) return null;
+    const strat = STRATEGIES.find((s) => s.value === strategy);
+    const pct = strat?.pct ?? 0;
+    return Math.round(tmb * fa * (1 + pct / 100));
+  }, [studentCtx?.recomendacao_ia, activityLevel, strategy]);
+
+  const weeklySchedule = useMemo<WeeklyEnergySchedule>(() => {
+    const draft = buildDefaultSchedule({
+      baseDailyKcal: baseDailyKcal ?? 2000,
+      workoutByWeekday,
+    });
+    for (const wd of ENERGY_WEEKDAYS) {
+      const adj = scheduleAdjustments[wd];
+      draft.days[wd].adjustment_kcal = adj.adjustment_kcal;
+      draft.days[wd].fixed_kcal = adj.fixed_kcal;
+    }
+    return draft;
+  }, [baseDailyKcal, workoutByWeekday, scheduleAdjustments]);
+
+  const handleScheduleChange = (next: WeeklyEnergySchedule) => {
+    const nextAdj: typeof scheduleAdjustments = {
+      seg: { adjustment_kcal: 0, fixed_kcal: null },
+      ter: { adjustment_kcal: 0, fixed_kcal: null },
+      qua: { adjustment_kcal: 0, fixed_kcal: null },
+      qui: { adjustment_kcal: 0, fixed_kcal: null },
+      sex: { adjustment_kcal: 0, fixed_kcal: null },
+      sab: { adjustment_kcal: 0, fixed_kcal: null },
+      dom: { adjustment_kcal: 0, fixed_kcal: null },
+    };
+    for (const wd of ENERGY_WEEKDAYS) {
+      nextAdj[wd] = {
+        adjustment_kcal: next.days[wd].adjustment_kcal,
+        fixed_kcal: next.days[wd].fixed_kcal,
+      };
+    }
+    setScheduleAdjustments(nextAdj);
+  };
+
   useEffect(() => {
     if (studentId) loadStudentData();
   }, [studentId]);
