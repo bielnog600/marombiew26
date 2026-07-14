@@ -1812,7 +1812,7 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
         console.warn('[DietaIA] structured_failed_with_schedule', structuredError);
         toast.error(
           isDailyAdj
-            ? 'A IA não devolveu os ajustes por dia (7 dias obrigatórios). Regere o plano.'
+            ? (structuredError.message || 'A IA não devolveu os ajustes dos dias com variação calórica. Regere o plano.')
             : structuredError.message || 'Falha ao gerar dieta estruturada. Regere o plano.',
         );
         return;
