@@ -450,15 +450,17 @@ const DietaIA = () => {
     const leanMass = parsePositiveNumber(studentCtx?.massa_magra);
     const activityFactor = parsePositiveNumber(activityLevel);
     const selectedStrategy = STRATEGIES.find((s) => s.value === strategy);
+    const selectedPhase = PHASES.find((p) => p.value === phase);
 
     if (!weight) missing.push('peso');
     if (!height) missing.push('altura');
     if (!age) missing.push('idade');
     if (!sex) missing.push('sexo');
     if (!activityFactor) missing.push('nível de atividade');
+    if (!selectedPhase) missing.push('fase');
     if (!selectedStrategy) missing.push('estratégia');
 
-    if (missing.length > 0 || !weight || !height || !age || !sex || !activityFactor || !selectedStrategy) {
+    if (missing.length > 0 || !weight || !height || !age || !sex || !activityFactor || !selectedPhase || !selectedStrategy) {
       return {
         source: 'automatic',
         base_daily_kcal: null,
@@ -506,7 +508,7 @@ const DietaIA = () => {
       },
       missing: [],
     };
-  }, [studentCtx?.peso, studentCtx?.altura, studentCtx?.data_nascimento, studentCtx?.sexo, studentCtx?.percentual_gordura, studentCtx?.massa_magra, activityLevel, strategy]);
+  }, [studentCtx?.peso, studentCtx?.altura, studentCtx?.data_nascimento, studentCtx?.sexo, studentCtx?.percentual_gordura, studentCtx?.massa_magra, activityLevel, phase, strategy]);
 
   const manualBaseKcal = useMemo<number | null>(() => {
     const parsed = parsePositiveNumber(manualBaseKcalInput);
