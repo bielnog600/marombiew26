@@ -1705,6 +1705,10 @@ ${generated}`;
   const savePlan = async () => {
     if (!result) return;
     setSaving(true);
+    const scheduleJson = scheduleToJson(weeklySchedule) as any;
+    if (dailyAdjustments && scheduleJson && typeof scheduleJson === 'object') {
+      scheduleJson.generated_adjustments = dailyAdjustments;
+    }
     const protocols = {
       adjustments: selectedAdjustments,
       extras: {
@@ -1713,7 +1717,7 @@ ${generated}`;
         emagrecimento_rapido: enableEmagrecimentoRapido,
         jejum_intermitente: enableJejumIntermitente,
       },
-      weekly_energy_schedule: scheduleToJson(weeklySchedule),
+      weekly_energy_schedule: scheduleJson,
     };
     if (editPlanId) {
       const validation = validateDietJSON(result);
