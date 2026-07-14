@@ -22,6 +22,7 @@ export interface DailyAdjustment {
   target_kcal: number;
   requested_adjustment_kcal: number;
   estimated_adjustment_kcal: number;
+  model_estimated_adjustment_kcal?: number;
   status: AdjustmentStatus;
   instructions: AdjustmentInstruction[];
   summary: string;
@@ -81,6 +82,7 @@ export function normalizeDailyAdjustments(modelAdjustments: unknown, schedule: a
         target_kcal: req.target_kcal,
         requested_adjustment_kcal: req.requested_adjustment_kcal,
         estimated_adjustment_kcal: 0,
+        model_estimated_adjustment_kcal: 0,
         status: req.requested_adjustment_kcal === 0 ? 'base' : 'adjusted',
         instructions: [],
         summary: '',
@@ -95,10 +97,17 @@ export function normalizeDailyAdjustments(modelAdjustments: unknown, schedule: a
       : rawInstructions
           .map(sanitizeInstruction)
           .filter((x: AdjustmentInstruction | null): x is AdjustmentInstruction => x !== null);
+    const serverEstimated = isBaseDay
+      ? 0
+      : instructions.reduce((acc: number, inst: AdjustmentInstruction) => {
+          const kcal = Math.abs(inst.estimated_kcal);
+          return acc + (inst.action === 'add' ? kcal : -kcal);
+        }, 0);
     out[wd] = {
       target_kcal: req.target_kcal,
       requested_adjustment_kcal: req.requested_adjustment_kcal,
-      estimated_adjustment_kcal: isBaseDay ? 0 : (Number.isFinite(estRaw) ? Math.round(estRaw) : 0),
+      estimated_adjustment_kcal: serverEstimated,
+      model_estimated_adjustment_kcal: Number.isFinite(estRaw) ? Math.round(estRaw) : 0,
       status: isBaseDay ? 'base' : 'adjusted',
       instructions,
       summary: typeof modelDay.summary === 'string' ? modelDay.summary.slice(0, 500) : '',
