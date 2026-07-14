@@ -1879,8 +1879,9 @@ ${generated}`;
       return;
     }
     const mode = modeOverride ?? saveMode;
+    const isDraft = mode === 'draft';
     // Bloqueio duro: se o schedule tem qualquer dia diferente da base,
-    // dailyAdjustments é obrigatório (contrato formal).
+    // dailyAdjustments é obrigatório (contrato formal) apenas para PUBLICAÇÃO.
     const scheduleHasAdjustments = ENERGY_WEEKDAYS.some((wd) => {
       const d = weeklySchedule.days[wd];
       const t = d.fixed_kcal != null && d.fixed_kcal > 0
@@ -1888,19 +1889,32 @@ ${generated}`;
         : Math.round(weeklySchedule.base_daily_kcal + d.adjustment_kcal);
       return t !== Math.round(weeklySchedule.base_daily_kcal);
     });
-    if (scheduleHasAdjustments) {
+    if (scheduleHasAdjustments && !isDraft) {
       if (!dailyAdjustments) {
-        toast.error('Não é possível salvar: os ajustes por dia da IA não foram recebidos. Regere o plano.');
+        toast.error('Não é possível publicar: dados de ajuste ausentes. Salve como rascunho e regere o plano.');
         return;
       }
       const validation = validateDailyAdjustments(dailyAdjustments, []);
       if (!validation.ok) {
         console.warn('[DietaIA] savePlan_blocked_invalid_adjustments', validation.errors);
-        toast.error('Não é possível salvar: os ajustes por dia estão inválidos. Regere o plano.');
+        toast.error('Não é possível publicar: sinal incompatível ou dias faltando. Corrija antes de publicar.');
+        return;
+      }
+      // Tolerância ±75 kcal por dia — bloqueia publicação se algum dia estiver fora.
+      const outside: string[] = [];
+      for (const wd of ENERGY_WEEKDAYS) {
+        const d = dailyAdjustments[wd];
+        const tol = evaluateTolerance(d.requested_adjustment_kcal, d.estimated_adjustment_kcal);
+        if (tol.state === 'outside_tolerance') {
+          outside.push(`${WEEKDAY_LABELS[wd]} (diferença ${tol.difference_kcal >= 0 ? '+' : ''}${tol.difference_kcal} kcal)`);
+        }
+      }
+      if (outside.length > 0) {
+        console.warn('[DietaIA] savePlan_blocked_outside_tolerance', outside);
+        toast.error(`Não é possível publicar: ${outside.length} dia(s) fora da tolerância ±75 kcal — ${outside.join(', ')}. Regere ou edite manualmente.`);
         return;
       }
     }
-    const isDraft = mode === 'draft';
     console.log('[DietaIA] savePlan_start', { mode, isDraft, scheduleHasAdjustments });
     setSaving(true);
     const scheduleJson = scheduleToJson(weeklySchedule) as any;
