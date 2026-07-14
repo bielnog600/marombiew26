@@ -29,6 +29,7 @@ import {
   type EnergyWeekday,
   type DayWorkoutRef,
   ENERGY_WEEKDAYS,
+  WEEKDAY_LABELS,
   buildDefaultSchedule,
   computeDayTarget,
   scheduleToJson,
@@ -376,6 +377,13 @@ const DietaIA = () => {
   }));
   const [workoutByWeekday, setWorkoutByWeekday] = useState<Partial<Record<EnergyWeekday, DayWorkoutRef>>>({});
   const [noActiveWorkout, setNoActiveWorkout] = useState(true);
+  // Per-day adjustments returned by the AI (optional, complementary to days[]).
+  // Persisted at protocols.weekly_energy_schedule.generated_adjustments.
+  const [dailyAdjustments, setDailyAdjustments] = useState<
+    Record<string, { target_kcal: number; estimated_adjustment_kcal: number; adjustment_text: string }> | null
+  >(null);
+  // Post-generation warnings for per-day targets outside tolerance (±10% ou ±50 kcal máx).
+  const [scheduleWarnings, setScheduleWarnings] = useState<string[]>([]);
 
   // Base kcal do dia (TMB × FA × (1 + estratégia%)) — mesma fórmula usada em
   // generatePlan/currentTargets. Recomputada quando o wizard muda.
@@ -1234,6 +1242,57 @@ const DietaIA = () => {
     const data = await resp.json().catch(() => null);
     const raw = data?.plan;
     if (!raw) return null;
+    // Capture optional per-day adjustments and validate against requested schedule.
+    try {
+      const adjRaw = data?.dailyAdjustments ?? raw?.dailyAdjustments ?? null;
+      if (adjRaw && typeof adjRaw === 'object') {
+        const norm: Record<string, { target_kcal: number; estimated_adjustment_kcal: number; adjustment_text: string }> = {};
+        for (const wd of ENERGY_WEEKDAYS) {
+          const d: any = (adjRaw as any)[wd];
+          if (!d) continue;
+          const tgt = Number(d.target_kcal);
+          const est = Number(d.estimated_adjustment_kcal);
+          norm[wd] = {
+            target_kcal: Number.isFinite(tgt) ? Math.round(tgt) : 0,
+            estimated_adjustment_kcal: Number.isFinite(est) ? Math.round(est) : 0,
+            adjustment_text: typeof d.adjustment_text === 'string' ? d.adjustment_text : '',
+          };
+        }
+        setDailyAdjustments(norm);
+        // Post-generation validation: ±10% do ajuste diário, teto absoluto ±50 kcal.
+        const warnings: string[] = [];
+        for (const wd of ENERGY_WEEKDAYS) {
+          const entry = weeklySchedule.days[wd];
+          const requestedTarget = entry.fixed_kcal != null && entry.fixed_kcal > 0
+            ? Math.round(entry.fixed_kcal)
+            : Math.round((targets.kcal ?? 0) + entry.adjustment_kcal);
+          const requestedAdj = requestedTarget - (targets.kcal ?? 0);
+          const got = norm[wd];
+          if (!got) {
+            warnings.push(`${WEEKDAY_LABELS[wd]}: IA não retornou ajuste para o dia.`);
+            continue;
+          }
+          const tolerance = Math.min(50, Math.max(1, Math.round(Math.abs(requestedAdj) * 0.1)));
+          const diff = got.estimated_adjustment_kcal - requestedAdj;
+          if (Math.abs(diff) > tolerance) {
+            warnings.push(
+              `${WEEKDAY_LABELS[wd]}: ajuste fora da tolerância (solicitado ${requestedAdj >= 0 ? '+' : ''}${requestedAdj} kcal, gerado ${got.estimated_adjustment_kcal >= 0 ? '+' : ''}${got.estimated_adjustment_kcal} kcal, diferença ${diff >= 0 ? '+' : ''}${diff} kcal).`,
+            );
+          }
+          if (got.target_kcal !== requestedTarget) {
+            warnings.push(
+              `${WEEKDAY_LABELS[wd]}: target_kcal retornado (${got.target_kcal}) difere do solicitado (${requestedTarget}).`,
+            );
+          }
+        }
+        setScheduleWarnings(warnings);
+      } else {
+        setDailyAdjustments(null);
+        setScheduleWarnings([]);
+      }
+    } catch (e) {
+      console.warn('daily adjustments validation failed', e);
+    }
     if (data?.similarity) {
       const sim = {
         ...(data.similarity as SimilarityFeedback),
@@ -1293,6 +1352,8 @@ const DietaIA = () => {
     setStructuredPlan(null);
     setDietSimilarity(null);
     setViability(null);
+    setDailyAdjustments(null);
+    setScheduleWarnings([]);
 
     const selectedStrategy = STRATEGIES.find(s => s.value === strategy);
     const selectedActivity = ACTIVITY_LEVELS.find(a => a.value === activityLevel);
@@ -1644,6 +1705,10 @@ ${generated}`;
   const savePlan = async () => {
     if (!result) return;
     setSaving(true);
+    const scheduleJson = scheduleToJson(weeklySchedule) as any;
+    if (dailyAdjustments && scheduleJson && typeof scheduleJson === 'object') {
+      scheduleJson.generated_adjustments = dailyAdjustments;
+    }
     const protocols = {
       adjustments: selectedAdjustments,
       extras: {
@@ -1652,7 +1717,7 @@ ${generated}`;
         emagrecimento_rapido: enableEmagrecimentoRapido,
         jejum_intermitente: enableJejumIntermitente,
       },
-      weekly_energy_schedule: scheduleToJson(weeklySchedule),
+      weekly_energy_schedule: scheduleJson,
     };
     if (editPlanId) {
       const validation = validateDietJSON(result);
@@ -1946,7 +2011,7 @@ ${generated}`;
             true,
             !!mealCount,
             true,
-            true,
+            validateSchedule(weeklySchedule).length === 0,
             true,
           ];
           return (
@@ -2321,6 +2386,19 @@ ${generated}`;
               onChange={handleScheduleChange}
               noActiveWorkout={noActiveWorkout}
             />
+            {scheduleWarnings.length > 0 && (
+              <div className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 space-y-1">
+                <p className="text-xs font-semibold text-amber-700">
+                  Avisos pós-geração — ajustes fora da tolerância (±10% do ajuste diário, teto ±50 kcal):
+                </p>
+                <ul className="list-disc pl-5 text-[11px] text-amber-700">
+                  {scheduleWarnings.map((w, i) => <li key={i}>{w}</li>)}
+                </ul>
+                <p className="text-[11px] text-amber-700">
+                  Você pode regenerar a dieta para tentar novamente.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
               )}
