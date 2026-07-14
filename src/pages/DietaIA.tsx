@@ -321,6 +321,47 @@ const DietaIA = () => {
     if (editPlanId && studentId) loadEditPlan();
   }, [editPlanId]);
 
+  // ─── Load active workout for weekly energy schedule ─────────
+  // We map each parsed training day to its weekday key + a friendly label
+  // and a heuristic muscle-group list. Only the ACTIVE, published plan
+  // (tipo='treino', is_draft=false, most recent) is considered.
+  useEffect(() => {
+    if (!studentId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('ai_plans')
+          .select('conteudo')
+          .eq('student_id', studentId)
+          .eq('tipo', 'treino')
+          .eq('is_draft', false)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        const md = (data?.[0]?.conteudo as string | undefined) ?? '';
+        if (!md) {
+          if (!cancelled) {
+            setWorkoutByWeekday({});
+            setNoActiveWorkout(true);
+          }
+          return;
+        }
+        const map = parseWeekdayWorkouts(md);
+        if (!cancelled) {
+          setWorkoutByWeekday(map);
+          setNoActiveWorkout(Object.keys(map).length === 0);
+        }
+      } catch (e) {
+        console.warn('active workout load failed', e);
+        if (!cancelled) {
+          setWorkoutByWeekday({});
+          setNoActiveWorkout(true);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [studentId]);
+
   // ===== Fase 5: lifecycle of diet_decision_applications =====
   useEffect(() => {
     if (!studentId) return;
