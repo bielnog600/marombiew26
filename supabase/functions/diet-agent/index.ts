@@ -901,15 +901,63 @@ serve(async (req) => {
         }
       }
 
+      // === dailyAdjustments contract ===
+      // Quando o cliente enviou um weeklyEnergySchedule, os targets são
+      // determinísticos e vêm do schedule (fonte de verdade). A IA fornece
+      // apenas instructions / summary / estimated_adjustment_kcal.
+      const schedule = (dietConfig && typeof dietConfig === "object")
+        ? (dietConfig as any).weeklyEnergySchedule
+        : null;
+      let normalizedDailyAdjustments: any = null;
+      let dailyAdjustmentsError: string | null = null;
+      if (schedule && typeof schedule === "object" && schedule.days) {
+        console.log("[diet-agent] weekly_schedule_received=true", {
+          requested_day_count: ENERGY_WEEKDAYS.filter((wd) => schedule.days?.[wd]).length,
+          model_daily_adjustments_present:
+            !!(finalPlan && typeof finalPlan === "object" && (finalPlan as any).dailyAdjustments),
+        });
+        const modelAdj = (finalPlan && typeof finalPlan === "object")
+          ? (finalPlan as any).dailyAdjustments
+          : null;
+        const { adjustments, missing } = normalizeDailyAdjustments(modelAdj, schedule);
+        const requested = buildRequestedFromSchedule(schedule);
+        // Log divergências de target (nunca aceitas silenciosamente).
+        for (const wd of ENERGY_WEEKDAYS) {
+          const modelDay = modelAdj?.[wd];
+          if (modelDay && Number(modelDay.target_kcal) !== requested[wd].target_kcal) {
+            console.warn(`[diet-agent] target divergence on ${wd}: model=${modelDay.target_kcal} authoritative=${requested[wd].target_kcal}`);
+          }
+        }
+        const validation = validateDailyAdjustments(adjustments, missing);
+        console.log("[diet-agent] normalized_day_count", {
+          count: Object.keys(adjustments).length,
+          missing_count: missing.length,
+          validation_ok: validation.ok,
+        });
+        if (!validation.ok) {
+          dailyAdjustmentsError = validation.errors.join(" | ");
+        } else {
+          normalizedDailyAdjustments = adjustments;
+        }
+      }
+
+      if (schedule && !normalizedDailyAdjustments) {
+        return new Response(
+          JSON.stringify({
+            error:
+              "A dieta foi gerada, mas os ajustes calóricos por dia não foram devolvidos corretamente. Regere o plano.",
+            error_code: "daily_adjustments_invalid",
+            details: dailyAdjustmentsError,
+          }),
+          { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
       return new Response(
         JSON.stringify({
           plan: finalPlan,
           intent,
-          dailyAdjustments:
-            finalPlan && typeof finalPlan === "object" && finalPlan.dailyAdjustments &&
-            typeof finalPlan.dailyAdjustments === "object"
-              ? finalPlan.dailyAdjustments
-              : null,
+          dailyAdjustments: normalizedDailyAdjustments,
           similarity: {
             score: Number(similarity.score.toFixed(3)),
             threshold,
