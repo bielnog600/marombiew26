@@ -1352,6 +1352,8 @@ const DietaIA = () => {
     setStructuredPlan(null);
     setDietSimilarity(null);
     setViability(null);
+    setDailyAdjustments(null);
+    setScheduleWarnings([]);
 
     const selectedStrategy = STRATEGIES.find(s => s.value === strategy);
     const selectedActivity = ACTIVITY_LEVELS.find(a => a.value === activityLevel);
