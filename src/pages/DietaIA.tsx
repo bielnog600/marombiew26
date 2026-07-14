@@ -37,6 +37,13 @@ import {
 } from '@/lib/weeklyEnergy';
 import WeeklyEnergyScheduleStep from '@/components/diet/WeeklyEnergyScheduleStep';
 import {
+  type DailyAdjustments,
+  normalizeDailyAdjustments,
+  validateDailyAdjustments,
+  evaluateTolerance,
+  TOLERANCE_TEXT,
+} from '@/lib/dailyAdjustments';
+import {
   DEFAULT_INTENSITY as DEFAULT_DIET_INTENSITY,
   VARIATION_OPTIONS as DIET_VARIATION_OPTIONS,
   describeSimilarity,
@@ -379,9 +386,7 @@ const DietaIA = () => {
   const [noActiveWorkout, setNoActiveWorkout] = useState(true);
   // Per-day adjustments returned by the AI (optional, complementary to days[]).
   // Persisted at protocols.weekly_energy_schedule.generated_adjustments.
-  const [dailyAdjustments, setDailyAdjustments] = useState<
-    Record<string, { target_kcal: number; estimated_adjustment_kcal: number; adjustment_text: string }> | null
-  >(null);
+  const [dailyAdjustments, setDailyAdjustments] = useState<DailyAdjustments | null>(null);
   // Post-generation warnings for per-day targets outside tolerance (±10% ou ±50 kcal máx).
   const [scheduleWarnings, setScheduleWarnings] = useState<string[]>([]);
 
