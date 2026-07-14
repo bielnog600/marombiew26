@@ -1272,7 +1272,7 @@ const DietaIA = () => {
     return parts.join(', ');
   };
 
-  const canGenerate = activityLevel && strategy && mealCount && phase;
+  const canGenerate = Boolean(activityLevel && strategy && mealCount && phase && weeklySchedule && baseKcalIssues.length === 0);
 
   const streamDietAgent = async (
     messages: { role: 'user' | 'assistant'; content: string }[],
@@ -1394,7 +1394,7 @@ const DietaIA = () => {
     // Normalized daily adjustments (7 dias garantidos pelo servidor).
     try {
       const adjRaw = data?.dailyAdjustments ?? null;
-      if (dietConfig?.weeklyEnergySchedule && adjRaw && typeof adjRaw === 'object') {
+      if (dietConfig?.weeklyEnergySchedule && weeklySchedule && adjRaw && typeof adjRaw === 'object') {
         // Re-normaliza no cliente para blindar contra respostas alteradas em trânsito.
         const { adjustments, missing } = normalizeDailyAdjustments(adjRaw, weeklySchedule);
         const validation = validateDailyAdjustments(adjustments, missing);
