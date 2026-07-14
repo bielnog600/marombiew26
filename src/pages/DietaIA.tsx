@@ -212,6 +212,68 @@ const calculateMacroTargets = ({
   };
 };
 
+// ─── Weekday parsing helpers for the Weekly Energy Schedule ──────
+// Maps free-form training-day headers ("Segunda", "Dia 1 - Peito + Costas",
+// "Terça — Peito/Tríceps") into a weekday key + label + muscle list.
+const WEEKDAY_KEY_PATTERNS: Array<[EnergyWeekday, RegExp]> = [
+  ['seg', /\bseg(?:unda)?\b/i],
+  ['ter', /\bter(?:ça|ca)?\b/i],
+  ['qua', /\bqua(?:rta)?\b/i],
+  ['qui', /\bqui(?:nta)?\b/i],
+  ['sex', /\bsex(?:ta)?\b/i],
+  ['sab', /\bs[áa]b(?:ado)?\b/i],
+  ['dom', /\bdom(?:ingo)?\b/i],
+];
+
+const MUSCLE_KEYWORDS: Array<[string, RegExp]> = [
+  ['peito', /\bpeito|peitoral|supino|crossover|crucifix/i],
+  ['costas', /\bcostas|dorsal|puxad|remada|pull|barra fixa/i],
+  ['ombros', /\bombro|deltoid|elevaç(ão|ao)|desenvolvim/i],
+  ['bíceps', /\bb[íi]ceps|rosca/i],
+  ['tríceps', /\btr[íi]ceps|test(a|ão)|fr(a|â)nc[eê]s|corda/i],
+  ['pernas', /\bperna|quadr[íi]ceps|leg press|agachamento|passada|extensora|hack/i],
+  ['posterior', /\bposterior|isquio|stiff|mesa flexora|flex(a|ão) de perna/i],
+  ['glúteos', /\bgl[úu]teo|hip thrust/i],
+  ['panturrilha', /\bpanturrilh|gastrocn[eê]mio|s[óo]leo/i],
+  ['abdômen', /\babdom(en|inal)|prancha|core/i],
+  ['cardio', /\bcardio|corrida|esteira|bike|elipt/i],
+];
+
+function parseWeekdayWorkouts(md: string): Partial<Record<EnergyWeekday, DayWorkoutRef>> {
+  try {
+    const sections = parseTrainingSections(md);
+    const result: Partial<Record<EnergyWeekday, DayWorkoutRef>> = {};
+    for (const section of sections) {
+      const rawTitle = (section.day || '').trim();
+      if (!rawTitle) continue;
+      const match = WEEKDAY_KEY_PATTERNS.find(([, re]) => re.test(rawTitle));
+      if (!match) continue;
+      const [weekday, wdRe] = match;
+      const afterSeparator = rawTitle.replace(wdRe, '').replace(/^[\s–—:\-]+/, '').trim();
+      const label = afterSeparator || rawTitle;
+      const exList = Array.isArray(section.exercises) ? section.exercises : [];
+      const isRest = /\bdescanso|off\b/i.test(rawTitle) || exList.length === 0;
+      const musclesSet = new Set<string>();
+      const haystack = [
+        rawTitle,
+        ...exList.map((e: any) => String(e?.nome ?? e?.name ?? '')),
+      ].join(' | ');
+      for (const [muscle, re] of MUSCLE_KEYWORDS) {
+        if (re.test(haystack)) musclesSet.add(muscle);
+      }
+      result[weekday] = {
+        label: isRest ? 'Descanso' : label,
+        type: isRest ? 'rest' : null,
+        muscles: Array.from(musclesSet),
+      };
+    }
+    return result;
+  } catch (e) {
+    console.warn('parseWeekdayWorkouts failed', e);
+    return {};
+  }
+}
+
 const DietaIA = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
