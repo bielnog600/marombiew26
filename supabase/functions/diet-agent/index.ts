@@ -105,6 +105,19 @@ function buildLayeredInstructions(dietConfig: any, trainingContext: any): string
     lines.push("  3. A PROTEÍNA deve permanecer estável em todos os dias (mesma g total).");
     lines.push("  4. A GORDURA pode variar levemente, mas nunca abaixo de 0,6 g/kg de peso corporal.");
     lines.push("  5. Produza um plano base único + uma seção 'Ajustes por dia' listando, para cada dia com meta diferente da base, as trocas ou porções ajustadas para bater a meta.");
+    lines.push("");
+    lines.push("FORMATO OBRIGATÓRIO DA SEÇÃO 'Ajustes por dia' NO JSON:");
+    lines.push("Além dos campos padrão, inclua um campo raiz OPCIONAL chamado \"dailyAdjustments\" no objeto JSON de saída, com o seguinte shape:");
+    lines.push('  "dailyAdjustments": {');
+    lines.push('     "seg": { "target_kcal": <int>, "estimated_adjustment_kcal": <int, com sinal>, "adjustment_text": "<breve descrição das trocas/porções ajustadas em relação ao plano base>" },');
+    lines.push('     "ter": { ... }, "qua": { ... }, "qui": { ... }, "sex": { ... }, "sab": { ... }, "dom": { ... }');
+    lines.push("  }");
+    lines.push("Regras:");
+    lines.push("  - Inclua os 7 dias (seg..dom).");
+    lines.push("  - target_kcal deve ser IGUAL à meta final declarada acima para o dia.");
+    lines.push("  - estimated_adjustment_kcal = target_kcal − base_daily_kcal (positivo, zero ou negativo).");
+    lines.push("  - adjustment_text deve ser curto (máx 240 chars) e descrever a variação via carboidrato principalmente.");
+    lines.push("  - Este campo NÃO substitui days[]. É complementar.");
   }
   return lines.join("\n") + "\n";
 }
