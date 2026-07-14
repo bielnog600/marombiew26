@@ -32,8 +32,11 @@ import {
   WEEKDAY_LABELS,
   buildDefaultSchedule,
   computeDayTarget,
+  MIN_DAILY_KCAL,
   scheduleToJson,
   validateSchedule,
+  type BaseKcalCalculationSnapshot,
+  type BaseKcalSource,
 } from '@/lib/weeklyEnergy';
 import WeeklyEnergyScheduleStep from '@/components/diet/WeeklyEnergyScheduleStep';
 import {
@@ -68,6 +71,49 @@ import type { ParsedMeal } from '@/lib/dietResultParser';
 import { Percent } from 'lucide-react';
 
 type StudentCtx = Record<string, any>;
+
+type BaseKcalMode = BaseKcalSource;
+
+type BaseKcalState = {
+  source: BaseKcalSource;
+  base_daily_kcal: number | null;
+  calculation: BaseKcalCalculationSnapshot;
+  missing: string[];
+};
+
+const BASE_SOURCE_LABELS: Record<BaseKcalSource, string> = {
+  automatic: 'Cálculo automático',
+  manual: 'Manual',
+};
+
+const emptyCalculationSnapshot = (): BaseKcalCalculationSnapshot => ({
+  bmr: null,
+  activity_factor: null,
+  tdee: null,
+  strategy_percent: null,
+  formula: null,
+});
+
+const parsePositiveNumber = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null;
+  const n = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+
+const calculateAge = (birthDate: unknown): number | null => {
+  if (!birthDate) return null;
+  const time = new Date(String(birthDate)).getTime();
+  if (!Number.isFinite(time)) return null;
+  const age = Math.floor((Date.now() - time) / (365.25 * 24 * 60 * 60 * 1000));
+  return age > 0 ? age : null;
+};
+
+const normalizeSex = (value: unknown): 'masculino' | 'feminino' | null => {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (['masculino', 'm', 'male', 'homem'].includes(normalized)) return 'masculino';
+  if (['feminino', 'f', 'female', 'mulher'].includes(normalized)) return 'feminino';
+  return null;
+};
 
 const ACTIVITY_LEVELS = [
   { value: '1.0', label: 'Sedentário', desc: 'Pouca ou nenhuma atividade no dia' },
