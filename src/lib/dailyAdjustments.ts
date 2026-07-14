@@ -24,6 +24,8 @@ export interface DailyAdjustment {
   target_kcal: number;
   requested_adjustment_kcal: number;
   estimated_adjustment_kcal: number;
+  /** Valor declarado pela IA (não usado na validação; mantido como dado técnico). */
+  model_estimated_adjustment_kcal?: number;
   status: AdjustmentStatus;
   instructions: AdjustmentInstruction[];
   summary: string;
@@ -98,6 +100,7 @@ export function normalizeDailyAdjustments(
         target_kcal: req.target_kcal,
         requested_adjustment_kcal: req.requested_adjustment_kcal,
         estimated_adjustment_kcal: 0,
+        model_estimated_adjustment_kcal: 0,
         status: req.requested_adjustment_kcal === 0 ? 'base' : 'adjusted',
         instructions: [],
         summary: '',
@@ -112,14 +115,18 @@ export function normalizeDailyAdjustments(
       : rawInstructions
           .map(sanitizeInstruction)
           .filter((x): x is AdjustmentInstruction => x !== null);
+    // Fonte de verdade do estimado = soma assinada das instructions.
+    const serverEstimated = isBaseDay
+      ? 0
+      : instructions.reduce((acc, inst) => {
+          const kcal = Math.abs(inst.estimated_kcal);
+          return acc + (inst.action === 'add' ? kcal : -kcal);
+        }, 0);
     out[wd] = {
       target_kcal: req.target_kcal,
       requested_adjustment_kcal: req.requested_adjustment_kcal,
-      estimated_adjustment_kcal: isBaseDay
-        ? 0
-        : Number.isFinite(estRaw)
-          ? Math.round(estRaw)
-          : 0,
+      estimated_adjustment_kcal: serverEstimated,
+      model_estimated_adjustment_kcal: Number.isFinite(estRaw) ? Math.round(estRaw) : 0,
       status: isBaseDay ? 'base' : 'adjusted',
       instructions,
       summary: typeof modelDay.summary === 'string' ? modelDay.summary.slice(0, 500) : '',
@@ -197,11 +204,14 @@ export type ToleranceState =
   | 'missing_data';
 
 export const TOLERANCE_TEXT: Record<ToleranceState, string> = {
-  within_tolerance: 'Ajuste estimado dentro da tolerância',
-  outside_tolerance: 'Ajuste estimado fora da tolerância',
+  within_tolerance: 'Dentro da tolerância',
+  outside_tolerance: 'Fora da tolerância — regere ou edite manualmente',
   base_day: 'Manter plano base',
   missing_data: 'Dados de ajuste ausentes',
 };
+
+/** Tolerância fixa (MVP). */
+export const TOLERANCE_KCAL = 75;
 
 export interface ToleranceResult {
   state: ToleranceState;
@@ -219,7 +229,7 @@ export function evaluateTolerance(
   if (requested_adjustment_kcal === 0) {
     return { state: 'base_day', tolerance_kcal: 0, difference_kcal: estimated_adjustment_kcal };
   }
-  const tolerance = Math.min(50, Math.round(Math.abs(requested_adjustment_kcal) * 0.10));
+  const tolerance = TOLERANCE_KCAL;
   const diff = estimated_adjustment_kcal - requested_adjustment_kcal;
   return {
     state: Math.abs(diff) <= tolerance ? 'within_tolerance' : 'outside_tolerance',
