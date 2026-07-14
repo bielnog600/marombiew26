@@ -32,6 +32,7 @@ function parseIntOrNull(raw: string): number | null {
 export default function WeeklyEnergyScheduleStep({ schedule, onChange, noActiveWorkout }: Props) {
   const totals = computeTotals(schedule);
   const issues = validateSchedule(schedule);
+  const sourceLabel = schedule.base_source === 'manual' ? 'Manual' : 'Cálculo automático';
 
   const updateDay = (wd: EnergyWeekday, patch: Partial<{ adjustment_kcal: number; fixed_kcal: number | null }>) => {
     onChange({
@@ -48,6 +49,16 @@ export default function WeeklyEnergyScheduleStep({ schedule, onChange, noActiveW
       <Card className="glass-card">
         <CardContent className="p-4 space-y-1">
           <p className="text-sm font-medium">Calorias por dia</p>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="rounded-lg border border-border bg-background p-2">
+              <span className="block text-muted-foreground">Meta base</span>
+              <span className="font-semibold text-foreground">{schedule.base_daily_kcal.toLocaleString('pt-BR')} kcal</span>
+            </div>
+            <div className="rounded-lg border border-border bg-background p-2">
+              <span className="block text-muted-foreground">Origem</span>
+              <span className="font-semibold text-foreground">{sourceLabel}</span>
+            </div>
+          </div>
           <p className="text-xs text-muted-foreground">
             Ajuste a meta calórica de cada dia da semana. A dieta gerada terá um plano base e
             uma seção de ajustes por dia. A variação prioriza carboidratos; proteína permanece

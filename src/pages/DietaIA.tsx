@@ -32,8 +32,11 @@ import {
   WEEKDAY_LABELS,
   buildDefaultSchedule,
   computeDayTarget,
+  MIN_DAILY_KCAL,
   scheduleToJson,
   validateSchedule,
+  type BaseKcalCalculationSnapshot,
+  type BaseKcalSource,
 } from '@/lib/weeklyEnergy';
 import WeeklyEnergyScheduleStep from '@/components/diet/WeeklyEnergyScheduleStep';
 import {
@@ -68,6 +71,49 @@ import type { ParsedMeal } from '@/lib/dietResultParser';
 import { Percent } from 'lucide-react';
 
 type StudentCtx = Record<string, any>;
+
+type BaseKcalMode = BaseKcalSource;
+
+type BaseKcalState = {
+  source: BaseKcalSource;
+  base_daily_kcal: number | null;
+  calculation: BaseKcalCalculationSnapshot;
+  missing: string[];
+};
+
+const BASE_SOURCE_LABELS: Record<BaseKcalSource, string> = {
+  automatic: 'Cálculo automático',
+  manual: 'Manual',
+};
+
+const emptyCalculationSnapshot = (): BaseKcalCalculationSnapshot => ({
+  bmr: null,
+  activity_factor: null,
+  tdee: null,
+  strategy_percent: null,
+  formula: null,
+});
+
+const parsePositiveNumber = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null;
+  const n = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+
+const calculateAge = (birthDate: unknown): number | null => {
+  if (!birthDate) return null;
+  const time = new Date(String(birthDate)).getTime();
+  if (!Number.isFinite(time)) return null;
+  const age = Math.floor((Date.now() - time) / (365.25 * 24 * 60 * 60 * 1000));
+  return age > 0 ? age : null;
+};
+
+const normalizeSex = (value: unknown): 'masculino' | 'feminino' | null => {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (['masculino', 'm', 'male', 'homem'].includes(normalized)) return 'masculino';
+  if (['feminino', 'f', 'female', 'mulher'].includes(normalized)) return 'feminino';
+  return null;
+};
 
 const ACTIVITY_LEVELS = [
   { value: '1.0', label: 'Sedentário', desc: 'Pouca ou nenhuma atividade no dia' },
@@ -386,28 +432,126 @@ const DietaIA = () => {
   }));
   const [workoutByWeekday, setWorkoutByWeekday] = useState<Partial<Record<EnergyWeekday, DayWorkoutRef>>>({});
   const [noActiveWorkout, setNoActiveWorkout] = useState(true);
+  const [baseKcalMode, setBaseKcalMode] = useState<BaseKcalMode>('automatic');
+  const [manualBaseKcalInput, setManualBaseKcalInput] = useState('');
   // Per-day adjustments returned by the AI (optional, complementary to days[]).
   // Persisted at protocols.weekly_energy_schedule.generated_adjustments.
   const [dailyAdjustments, setDailyAdjustments] = useState<DailyAdjustments | null>(null);
   // Post-generation warnings for per-day targets outside tolerance (±10% ou ±50 kcal máx).
   const [scheduleWarnings, setScheduleWarnings] = useState<string[]>([]);
 
-  // Base kcal do dia (TMB × FA × (1 + estratégia%)) — mesma fórmula usada em
-  // generatePlan/currentTargets. Recomputada quando o wizard muda.
-  const baseDailyKcal = useMemo<number | null>(() => {
-    const tmb = studentCtx?.recomendacao_ia?.tmb;
-    if (!tmb) return null;
-    const fa = parseFloat(activityLevel);
-    if (!Number.isFinite(fa) || fa <= 0) return null;
-    const strat = STRATEGIES.find((s) => s.value === strategy);
-    const pct = strat?.pct ?? 0;
-    return Math.round(tmb * fa * (1 + pct / 100));
-  }, [studentCtx?.recomendacao_ia, activityLevel, strategy]);
+  const automaticBaseKcal = useMemo<BaseKcalState>(() => {
+    const missing: string[] = [];
+    const weight = parsePositiveNumber(studentCtx?.peso);
+    const height = parsePositiveNumber(studentCtx?.altura);
+    const age = calculateAge(studentCtx?.data_nascimento);
+    const sex = normalizeSex(studentCtx?.sexo);
+    const bodyFat = parsePositiveNumber(studentCtx?.percentual_gordura);
+    const leanMass = parsePositiveNumber(studentCtx?.massa_magra);
+    const activityFactor = parsePositiveNumber(activityLevel);
+    const selectedStrategy = STRATEGIES.find((s) => s.value === strategy);
+    const selectedPhase = PHASES.find((p) => p.value === phase);
 
-  const weeklySchedule = useMemo<WeeklyEnergySchedule>(() => {
+    if (!weight) missing.push('peso');
+    if (!height) missing.push('altura');
+    if (!age) missing.push('idade');
+    if (!sex) missing.push('sexo');
+    if (!activityFactor) missing.push('nível de atividade');
+    if (!selectedPhase) missing.push('fase');
+    if (!selectedStrategy) missing.push('estratégia');
+
+    if (missing.length > 0 || !weight || !height || !age || !sex || !activityFactor || !selectedPhase || !selectedStrategy) {
+      return {
+        source: 'automatic',
+        base_daily_kcal: null,
+        calculation: emptyCalculationSnapshot(),
+        missing,
+      };
+    }
+
+    const isMale = sex === 'masculino';
+    const harrisBenedict = isMale
+      ? 66.47 + 13.75 * weight + 5.003 * height - 6.755 * age
+      : 655.1 + 9.563 * weight + 1.85 * height - 4.676 * age;
+    const mifflin = isMale
+      ? 10 * weight + 6.25 * height - 5 * age + 5
+      : 10 * weight + 6.25 * height - 5 * age - 161;
+    const cunningham = leanMass ? 500 + 22 * leanMass : null;
+
+    let bmr: number;
+    let formula: string;
+    if (bodyFat !== null && bodyFat < (isMale ? 15 : 22) && leanMass && cunningham) {
+      bmr = cunningham;
+      formula = 'Cunningham (atleta, baixo %G)';
+    } else if (bodyFat !== null && bodyFat > (isMale ? 25 : 32)) {
+      bmr = mifflin;
+      formula = 'Mifflin (sobrepeso/obeso)';
+    } else {
+      bmr = harrisBenedict;
+      formula = 'Harris-Benedict (eutrófico)';
+    }
+
+    const roundedBmr = Math.round(bmr);
+    const tdee = Math.round(roundedBmr * activityFactor);
+    const strategyPercent = selectedStrategy.pct;
+    const base = Math.round(tdee * (1 + strategyPercent / 100));
+
+    return {
+      source: 'automatic',
+      base_daily_kcal: base,
+      calculation: {
+        bmr: roundedBmr,
+        activity_factor: activityFactor,
+        tdee,
+        strategy_percent: strategyPercent,
+        formula,
+      },
+      missing: [],
+    };
+  }, [studentCtx?.peso, studentCtx?.altura, studentCtx?.data_nascimento, studentCtx?.sexo, studentCtx?.percentual_gordura, studentCtx?.massa_magra, activityLevel, phase, strategy]);
+
+  const manualBaseKcal = useMemo<number | null>(() => {
+    const parsed = parsePositiveNumber(manualBaseKcalInput);
+    return parsed == null ? null : Math.round(parsed);
+  }, [manualBaseKcalInput]);
+
+  const baseKcal = useMemo<BaseKcalState>(() => {
+    if (baseKcalMode === 'manual') {
+      return {
+        source: 'manual',
+        base_daily_kcal: manualBaseKcal,
+        calculation: emptyCalculationSnapshot(),
+        missing: manualBaseKcal == null ? ['meta calórica base manual'] : [],
+      };
+    }
+    return automaticBaseKcal;
+  }, [automaticBaseKcal, baseKcalMode, manualBaseKcal]);
+
+  const baseKcalIssues = useMemo<string[]>(() => {
+    const issues: string[] = [];
+    if (baseKcal.source !== 'automatic' && baseKcal.source !== 'manual') {
+      issues.push('Origem da meta calórica base inválida.');
+    }
+    if (baseKcal.base_daily_kcal == null) {
+      issues.push('Meta calórica base ausente.');
+    } else if (!Number.isFinite(baseKcal.base_daily_kcal) || baseKcal.base_daily_kcal <= 0) {
+      issues.push('Meta calórica base inválida.');
+    } else if (baseKcal.base_daily_kcal < MIN_DAILY_KCAL) {
+      issues.push(`Meta calórica base abaixo do mínimo permitido (${MIN_DAILY_KCAL} kcal).`);
+    }
+    if (baseKcalMode === 'automatic' && automaticBaseKcal.missing.length > 0) {
+      issues.push(`Dados ausentes para cálculo automático: ${automaticBaseKcal.missing.join(', ')}.`);
+    }
+    return issues;
+  }, [automaticBaseKcal.missing, baseKcal, baseKcalMode]);
+
+  const weeklySchedule = useMemo<WeeklyEnergySchedule | null>(() => {
+    if (baseKcal.base_daily_kcal == null || baseKcalIssues.length > 0) return null;
     const draft = buildDefaultSchedule({
-      baseDailyKcal: baseDailyKcal ?? 2000,
+      baseDailyKcal: baseKcal.base_daily_kcal,
       workoutByWeekday,
+      baseSource: baseKcal.source,
+      calculationSnapshot: baseKcal.calculation,
     });
     for (const wd of ENERGY_WEEKDAYS) {
       const adj = scheduleAdjustments[wd];
@@ -415,7 +559,7 @@ const DietaIA = () => {
       draft.days[wd].fixed_kcal = adj.fixed_kcal;
     }
     return draft;
-  }, [baseDailyKcal, workoutByWeekday, scheduleAdjustments]);
+  }, [baseKcal, baseKcalIssues.length, workoutByWeekday, scheduleAdjustments]);
 
   const handleScheduleChange = (next: WeeklyEnergySchedule) => {
     const nextAdj: typeof scheduleAdjustments = {
@@ -1130,7 +1274,7 @@ const DietaIA = () => {
     return parts.join(', ');
   };
 
-  const canGenerate = activityLevel && strategy && mealCount && phase;
+  const canGenerate = Boolean(activityLevel && strategy && mealCount && phase && weeklySchedule && baseKcalIssues.length === 0);
 
   const streamDietAgent = async (
     messages: { role: 'user' | 'assistant'; content: string }[],
@@ -1252,7 +1396,7 @@ const DietaIA = () => {
     // Normalized daily adjustments (7 dias garantidos pelo servidor).
     try {
       const adjRaw = data?.dailyAdjustments ?? null;
-      if (dietConfig?.weeklyEnergySchedule && adjRaw && typeof adjRaw === 'object') {
+      if (dietConfig?.weeklyEnergySchedule && weeklySchedule && adjRaw && typeof adjRaw === 'object') {
         // Re-normaliza no cliente para blindar contra respostas alteradas em trânsito.
         const { adjustments, missing } = normalizeDailyAdjustments(adjRaw, weeklySchedule);
         const validation = validateDailyAdjustments(adjustments, missing);
@@ -1394,39 +1538,45 @@ ${observationsList.length > 0 ? observationsList.map(item => `- ${item}`).join('
 IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os dados acima vencem.
 `;
 
-    // Recalculate recommendation using CURRENT wizard selections (not the initial suggestion)
+    if (!weeklySchedule || baseKcal.base_daily_kcal == null || baseKcalIssues.length > 0) {
+      toast.error('Defina uma meta calórica base válida antes de gerar a dieta.');
+      setGenerating(false);
+      return;
+    }
+
+    // Recalculate recommendation using the single base-kcal source selected in the wizard.
     let recText = '';
     let currentTargets: DietMacroTargets | null = null;
-    const baseRec = studentCtx.recomendacao_ia;
-    if (baseRec) {
-      const currentFA = parseFloat(activityLevel);
-      const currentStrategyPct = selectedStrategy?.pct ?? 0;
-      const currentGET = baseRec.tmb * currentFA;
-      const currentCalories = Math.round(currentGET * (1 + currentStrategyPct / 100));
+    const currentCalories = baseKcal.base_daily_kcal;
+    const currentFA = baseKcal.calculation.activity_factor;
+    const currentStrategyPct = baseKcal.calculation.strategy_percent;
+    const currentGET = baseKcal.calculation.tdee;
+    const currentBmr = baseKcal.calculation.bmr;
+    const currentFormula = baseKcal.calculation.formula;
+    const peso = parsePositiveNumber(studentCtx.peso) ?? 70;
+    const macros = calculateMacroTargets({
+      calories: currentCalories,
+      weight: peso,
+      strategyValue: strategy,
+      phaseValue: phase,
+      hormoneUse: hasHormoneUse(usesHormones),
+      proteinPerKgOverride: proteinPerKgOverride ? Number(proteinPerKgOverride.replace(',', '.')) : null,
+      fatPerKgOverride: fatPerKgOverride ? Number(fatPerKgOverride.replace(',', '.')) : null,
+    });
+    currentTargets = {
+      calories: currentCalories,
+      protein: macros.proteinGrams,
+      carbs: macros.carbGrams,
+      fats: macros.fatGrams,
+    };
 
-      const peso = studentCtx.peso || 70;
-      const macros = calculateMacroTargets({
-        calories: currentCalories,
-        weight: peso,
-        strategyValue: strategy,
-        phaseValue: phase,
-        hormoneUse: hasHormoneUse(usesHormones),
-        proteinPerKgOverride: proteinPerKgOverride ? Number(proteinPerKgOverride.replace(',', '.')) : null,
-        fatPerKgOverride: fatPerKgOverride ? Number(fatPerKgOverride.replace(',', '.')) : null,
-      });
-      currentTargets = {
-        calories: currentCalories,
-        protein: macros.proteinGrams,
-        carbs: macros.carbGrams,
-        fats: macros.fatGrams,
-      };
-
-      recText = `
+    recText = `
 === RECOMENDAÇÃO CALCULADA (VALORES OBRIGATÓRIOS — NÃO RECALCULE) ===
-- TMB: ${baseRec.tmb} kcal (calculado por ${baseRec.formula})
-- Fator de Atividade: ${currentFA}
-- GET: ${Math.round(currentGET)} kcal
-- Estratégia: ${selectedStrategy?.label} (${currentStrategyPct > 0 ? '+' : ''}${currentStrategyPct}%)
+- Origem da meta base: ${BASE_SOURCE_LABELS[baseKcal.source]}
+- TMB: ${currentBmr ?? 'não aplicada'} kcal${currentFormula ? ` (calculado por ${currentFormula})` : ''}
+- Fator de Atividade: ${currentFA ?? 'não aplicado'}
+- GET: ${currentGET ?? 'não aplicado'} kcal
+- Estratégia: ${selectedStrategy?.label} (${(currentStrategyPct ?? 0) > 0 ? '+' : ''}${currentStrategyPct ?? 0}%)
 - Calorias alvo EXATAS: ${currentCalories} kcal
 - Proteína EXATA: ${macros.proteinGrams}g (${macros.proteinPerKg}g/kg)
 - Carboidrato EXATO: ${macros.carbGrams}g
@@ -1435,7 +1585,6 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
 ⚠️ REGRA DE CORREÇÃO: Se faltar caloria para bater a meta, ajuste CARBOIDRATO. NÃO aumente proteína acima de ${macros.proteinGrams}g para completar calorias.
 ⚠️ VALIDAÇÃO FINAL: Antes de responder, some alimento por alimento. A dieta só é aceitável se ficar entre ${currentCalories - 50} e ${currentCalories + 50} kcal, proteína entre ${macros.proteinGrams - 10} e ${macros.proteinGrams + 10}g, carboidrato entre ${macros.carbGrams - 15} e ${macros.carbGrams + 15}g e gordura entre ${macros.fatGrams - 8} e ${macros.fatGrams + 8}g.
 `;
-    }
 
     const prompt = `Gere o plano alimentar COMPLETO para fisiculturismo com as seguintes configurações:
 ${criticalInputsText}
@@ -1578,6 +1727,8 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
               ...(cyclePlan ? { carbCyclePlan: cyclePlan } : {}),
               weeklyEnergySchedule: {
                 base_daily_kcal: currentTargets.calories,
+                base_source: weeklySchedule.base_source,
+                calculation_snapshot: weeklySchedule.calculation_snapshot,
                 days: Object.fromEntries(
                   ENERGY_WEEKDAYS.map((wd) => {
                     const entry = weeklySchedule.days[wd];
@@ -1603,7 +1754,8 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
               p: currentTargets.protein,
               c: currentTargets.carbs,
               g: currentTargets.fats,
-              tmb: studentCtx.recomendacao_ia?.tmb,
+              tmb: currentBmr ?? undefined,
+              get: currentGET ?? undefined,
             },
             intent,
           );
@@ -1692,6 +1844,10 @@ ${generated}`;
 
   const savePlan = async (modeOverride?: 'draft' | 'publish') => {
     if (!result) return;
+    if (!weeklySchedule || baseKcal.base_daily_kcal == null || baseKcalIssues.length > 0) {
+      toast.error('Não é possível salvar: defina uma meta calórica base válida.');
+      return;
+    }
     const mode = modeOverride ?? saveMode;
     // Bloqueio duro: se o schedule tem qualquer dia diferente da base,
     // dailyAdjustments é obrigatório (contrato formal).
@@ -2026,7 +2182,7 @@ ${generated}`;
             true,
             !!mealCount,
             true,
-            validateSchedule(weeklySchedule).length === 0,
+            !!weeklySchedule && baseKcalIssues.length === 0 && validateSchedule(weeklySchedule).length === 0,
             true,
           ];
           return (
@@ -2321,6 +2477,95 @@ ${generated}`;
           <CardContent className="p-4 space-y-3">
             <StepHeader step={5} title="Ajustes Finos do Protocolo (opcional)" />
             <p className="text-xs text-muted-foreground">Refinamentos numéricos que não mudam a base nem a estratégia.</p>
+            <div className="rounded-xl border border-border bg-secondary/30 p-3 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-semibold">Meta calórica base</p>
+                  <p className="text-[10px] text-muted-foreground">Fonte única usada na etapa de calorias por dia, no payload e na persistência.</p>
+                </div>
+                <div className="flex rounded-lg border border-border bg-background p-1 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setBaseKcalMode('automatic')}
+                    disabled={automaticBaseKcal.missing.length > 0}
+                    className={`rounded-md px-3 py-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                      baseKcalMode === 'automatic' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
+                    }`}
+                  >
+                    Automática
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBaseKcalMode('manual')}
+                    className={`rounded-md px-3 py-1 transition-colors ${
+                      baseKcalMode === 'manual' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
+                    }`}
+                  >
+                    Manual
+                  </button>
+                </div>
+              </div>
+
+              {automaticBaseKcal.missing.length > 0 ? (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+                  <p className="text-xs font-medium text-amber-700">Não foi possível calcular automaticamente. Dados ausentes:</p>
+                  <ul className="list-disc pl-5 text-[11px] text-amber-700">
+                    {automaticBaseKcal.missing.map((item) => <li key={item}>{item}.</li>)}
+                  </ul>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+                  <div className="rounded-lg border border-border bg-background p-2">
+                    <span className="text-muted-foreground block">Fórmula</span>
+                    <span className="font-medium">{automaticBaseKcal.calculation.formula}</span>
+                  </div>
+                  <div className="rounded-lg border border-border bg-background p-2">
+                    <span className="text-muted-foreground block">TMB</span>
+                    <span className="font-medium">{automaticBaseKcal.calculation.bmr?.toLocaleString('pt-BR')} kcal</span>
+                  </div>
+                  <div className="rounded-lg border border-border bg-background p-2">
+                    <span className="text-muted-foreground block">Fator de atividade</span>
+                    <span className="font-medium">{automaticBaseKcal.calculation.activity_factor}</span>
+                  </div>
+                  <div className="rounded-lg border border-border bg-background p-2">
+                    <span className="text-muted-foreground block">GET</span>
+                    <span className="font-medium">{automaticBaseKcal.calculation.tdee?.toLocaleString('pt-BR')} kcal</span>
+                  </div>
+                  <div className="rounded-lg border border-border bg-background p-2">
+                    <span className="text-muted-foreground block">Ajuste da estratégia</span>
+                    <span className="font-medium">{(automaticBaseKcal.calculation.strategy_percent ?? 0) > 0 ? '+' : ''}{automaticBaseKcal.calculation.strategy_percent}%</span>
+                  </div>
+                  <div className="rounded-lg border border-border bg-background p-2">
+                    <span className="text-muted-foreground block">Meta base</span>
+                    <span className="font-medium">{automaticBaseKcal.base_daily_kcal?.toLocaleString('pt-BR')} kcal</span>
+                  </div>
+                </div>
+              )}
+
+              {baseKcalMode === 'manual' && (
+                <label className="block">
+                  <span className="text-[10px] text-muted-foreground">Meta manual (kcal/dia)</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={MIN_DAILY_KCAL}
+                    value={manualBaseKcalInput}
+                    onChange={(e) => setManualBaseKcalInput(e.target.value)}
+                    placeholder="ex: 2200"
+                    className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
+                  />
+                  {manualBaseKcal != null && (
+                    <span className="mt-1 block text-[10px] text-primary">Meta definida manualmente: {manualBaseKcal.toLocaleString('pt-BR')} kcal/dia.</span>
+                  )}
+                </label>
+              )}
+
+              {baseKcalIssues.length > 0 && (
+                <ul className="list-disc pl-5 text-[11px] text-rose-600">
+                  {baseKcalIssues.map((issue) => <li key={issue}>{issue}</li>)}
+                </ul>
+              )}
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {FINE_TUNE_ADJUSTMENTS.map(adj => {
                 const isSelected = selectedAdjustments.includes(adj.id);
@@ -2391,16 +2636,21 @@ ${generated}`;
               Distribua a meta calórica entre os dias da semana. Preencha os passos anteriores
               para calcular a meta base; ajustes são opcionais.
             </p>
-            {baseDailyKcal == null && (
-              <p className="text-[11px] text-amber-600">
-                Aguardando dados para calcular a meta base (fase, atividade, estratégia).
-              </p>
+            {!weeklySchedule ? (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+                <p className="text-xs font-medium text-amber-700">Não foi possível calcular automaticamente. Dados ausentes:</p>
+                <ul className="list-disc pl-5 text-[11px] text-amber-700">
+                  {(baseKcal.missing.length > 0 ? baseKcal.missing : baseKcalIssues).map((item) => <li key={item}>{item}.</li>)}
+                </ul>
+                <p className="mt-2 text-[11px] text-amber-700">Volte para “Ajustes Finos do Protocolo” e defina uma meta manual.</p>
+              </div>
+            ) : (
+              <WeeklyEnergyScheduleStep
+                schedule={weeklySchedule}
+                onChange={handleScheduleChange}
+                noActiveWorkout={noActiveWorkout}
+              />
             )}
-            <WeeklyEnergyScheduleStep
-              schedule={weeklySchedule}
-              onChange={handleScheduleChange}
-              noActiveWorkout={noActiveWorkout}
-            />
             {scheduleWarnings.length > 0 && (
               <div className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 space-y-1">
                 <p className="text-xs font-semibold text-amber-700">
@@ -2775,7 +3025,7 @@ ${generated}`;
                 { key: 'carbs' as const, label: 'Carboidrato' },
                 { key: 'fat' as const, label: 'Gordura' },
               ]).map(({ key, label }) => {
-                const kcalTotal = macroReport?.target.calories ?? 2000;
+                const kcalTotal = macroReport?.target.calories ?? baseKcal.base_daily_kcal ?? 0;
                 const kcalFromMacro = key === 'fat'
                   ? (kcalTotal * macroPct[key]) / 100
                   : (kcalTotal * macroPct[key]) / 100;
