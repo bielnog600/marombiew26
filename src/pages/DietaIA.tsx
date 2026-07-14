@@ -1182,7 +1182,7 @@ const DietaIA = () => {
    */
   const generateStructuredPlan = async (
     userPrompt: string,
-    dietConfig: { objective?: string; strategy?: string; style?: string; carbCyclePlan?: any },
+    dietConfig: { objective?: string; strategy?: string; style?: string; carbCyclePlan?: any; weeklyEnergySchedule?: any },
     targets: { kcal: number; p: number; c: number; g: number; tmb?: number; get?: number },
     intent: DietIntent = 'new',
   ): Promise<DietPlan | null> => {
