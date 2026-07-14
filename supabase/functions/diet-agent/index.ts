@@ -76,6 +76,36 @@ function buildLayeredInstructions(dietConfig: any, trainingContext: any): string
     }
     lines.push("Use essa estrutura para concentrar carbos nos dias de maior demanda (treinos pesados/lower/full) e reduzir em dias OFF/cardio leve. Posicione pré e pós-treino conforme o horário declarado.");
   }
+  // === Weekly Energy Schedule (MVP) — imutável para o modelo ===
+  const schedule = dietConfig?.weeklyEnergySchedule;
+  if (schedule && typeof schedule === "object" && schedule.days) {
+    lines.push("\n=== CALORIAS POR DIA (BLOCO IMUTÁVEL — NÃO ALTERE) ===");
+    lines.push(`Meta base do plano: ${schedule.base_daily_kcal} kcal/dia.`);
+    lines.push("Cada dia da semana possui uma meta calórica final obrigatória:");
+    const WD_ORDER = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"];
+    const WD_LABEL: Record<string, string> = {
+      seg: "Segunda", ter: "Terça", qua: "Quarta", qui: "Quinta",
+      sex: "Sexta", sab: "Sábado", dom: "Domingo",
+    };
+    for (const wd of WD_ORDER) {
+      const d: any = schedule.days?.[wd];
+      if (!d) continue;
+      const t = d.target_kcal ?? d.base_kcal;
+      const workoutBits: string[] = [];
+      if (d.workout?.label) workoutBits.push(String(d.workout.label));
+      if (Array.isArray(d.workout?.muscles) && d.workout.muscles.length > 0) {
+        workoutBits.push(`grupos: ${d.workout.muscles.join(", ")}`);
+      }
+      const workoutTxt = workoutBits.length > 0 ? ` — treino: ${workoutBits.join(" / ")}` : " — sem treino associado";
+      lines.push(`  - ${WD_LABEL[wd]}: ${t} kcal${workoutTxt}`);
+    }
+    lines.push("REGRAS OBRIGATÓRIAS para a seção 'Ajustes por dia':");
+    lines.push("  1. Respeite EXATAMENTE a meta calórica final de cada dia acima.");
+    lines.push("  2. A variação entre dias deve ocorrer preferencialmente via CARBOIDRATOS.");
+    lines.push("  3. A PROTEÍNA deve permanecer estável em todos os dias (mesma g total).");
+    lines.push("  4. A GORDURA pode variar levemente, mas nunca abaixo de 0,6 g/kg de peso corporal.");
+    lines.push("  5. Produza um plano base único + uma seção 'Ajustes por dia' listando, para cada dia com meta diferente da base, as trocas ou porções ajustadas para bater a meta.");
+  }
   return lines.join("\n") + "\n";
 }
 
