@@ -25,6 +25,12 @@ import {
   carbCyclePromptBlock,
   type CarbCyclePlan,
 } from "../_shared/satietyEngine.ts";
+import {
+  ENERGY_WEEKDAYS,
+  buildRequestedFromSchedule,
+  normalizeDailyAdjustments,
+  validateDailyAdjustments,
+} from "../_shared/dailyAdjustments.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -106,18 +112,26 @@ function buildLayeredInstructions(dietConfig: any, trainingContext: any): string
     lines.push("  4. A GORDURA pode variar levemente, mas nunca abaixo de 0,6 g/kg de peso corporal.");
     lines.push("  5. Produza um plano base único + uma seção 'Ajustes por dia' listando, para cada dia com meta diferente da base, as trocas ou porções ajustadas para bater a meta.");
     lines.push("");
-    lines.push("FORMATO OBRIGATÓRIO DA SEÇÃO 'Ajustes por dia' NO JSON:");
-    lines.push("Além dos campos padrão, inclua um campo raiz OPCIONAL chamado \"dailyAdjustments\" no objeto JSON de saída, com o seguinte shape:");
-    lines.push('  "dailyAdjustments": {');
-    lines.push('     "seg": { "target_kcal": <int>, "estimated_adjustment_kcal": <int, com sinal>, "adjustment_text": "<breve descrição das trocas/porções ajustadas em relação ao plano base>" },');
-    lines.push('     "ter": { ... }, "qua": { ... }, "qui": { ... }, "sex": { ... }, "sab": { ... }, "dom": { ... }');
-    lines.push("  }");
-    lines.push("Regras:");
-    lines.push("  - Inclua os 7 dias (seg..dom).");
-    lines.push("  - target_kcal deve ser IGUAL à meta final declarada acima para o dia.");
-    lines.push("  - estimated_adjustment_kcal = target_kcal − base_daily_kcal (positivo, zero ou negativo).");
-    lines.push("  - adjustment_text deve ser curto (máx 240 chars) e descrever a variação via carboidrato principalmente.");
-    lines.push("  - Este campo NÃO substitui days[]. É complementar.");
+    lines.push("FORMATO OBRIGATÓRIO — CAMPO RAIZ \"dailyAdjustments\" NO JSON DE SAÍDA:");
+    lines.push("Inclua um campo raiz OBRIGATÓRIO \"dailyAdjustments\" com EXATAMENTE 7 chaves (seg, ter, qua, qui, sex, sab, dom).");
+    lines.push("Cada dia DEVE ter o seguinte shape estrito:");
+    lines.push('  {');
+    lines.push('    "target_kcal": <int>,                       // igual à meta final declarada acima');
+    lines.push('    "requested_adjustment_kcal": <int, com sinal>, // = target_kcal − base_daily_kcal');
+    lines.push('    "estimated_adjustment_kcal": <int, com sinal>, // estimativa real das trocas propostas');
+    lines.push('    "status": "base" | "adjusted",              // "base" quando requested_adjustment_kcal = 0');
+    lines.push('    "instructions": [                            // vazio para dias base');
+    lines.push('      { "action": "add" | "remove", "food_name": "<nome do banco>", "quantity": <int>, "unit": "g", "estimated_kcal": <int> }');
+    lines.push('    ],');
+    lines.push('    "summary": "<frase curta descrevendo a mudança em relação ao plano base>"');
+    lines.push('  }');
+    lines.push("Regras estritas:");
+    lines.push('  - Dias com ajuste zero: status = "base", instructions = [], summary = "Manter plano base".');
+    lines.push('  - Ajuste positivo (dia com mais kcal): usar SOMENTE action = "add" nas instruções.');
+    lines.push('  - Ajuste negativo (dia com menos kcal): usar SOMENTE action = "remove" nas instruções.');
+    lines.push('  - unit deve ser "g" (gramas) sempre que possível.');
+    lines.push('  - Não invente propriedades adicionais. O servidor normaliza e valida antes de aceitar a resposta.');
+    lines.push('  - Este campo NÃO substitui days[]. É complementar.');
   }
   return lines.join("\n") + "\n";
 }
@@ -887,15 +901,63 @@ serve(async (req) => {
         }
       }
 
+      // === dailyAdjustments contract ===
+      // Quando o cliente enviou um weeklyEnergySchedule, os targets são
+      // determinísticos e vêm do schedule (fonte de verdade). A IA fornece
+      // apenas instructions / summary / estimated_adjustment_kcal.
+      const schedule = (dietConfig && typeof dietConfig === "object")
+        ? (dietConfig as any).weeklyEnergySchedule
+        : null;
+      let normalizedDailyAdjustments: any = null;
+      let dailyAdjustmentsError: string | null = null;
+      if (schedule && typeof schedule === "object" && schedule.days) {
+        console.log("[diet-agent] weekly_schedule_received=true", {
+          requested_day_count: ENERGY_WEEKDAYS.filter((wd) => schedule.days?.[wd]).length,
+          model_daily_adjustments_present:
+            !!(finalPlan && typeof finalPlan === "object" && (finalPlan as any).dailyAdjustments),
+        });
+        const modelAdj = (finalPlan && typeof finalPlan === "object")
+          ? (finalPlan as any).dailyAdjustments
+          : null;
+        const { adjustments, missing } = normalizeDailyAdjustments(modelAdj, schedule);
+        const requested = buildRequestedFromSchedule(schedule);
+        // Log divergências de target (nunca aceitas silenciosamente).
+        for (const wd of ENERGY_WEEKDAYS) {
+          const modelDay = modelAdj?.[wd];
+          if (modelDay && Number(modelDay.target_kcal) !== requested[wd].target_kcal) {
+            console.warn(`[diet-agent] target divergence on ${wd}: model=${modelDay.target_kcal} authoritative=${requested[wd].target_kcal}`);
+          }
+        }
+        const validation = validateDailyAdjustments(adjustments, missing);
+        console.log("[diet-agent] normalized_day_count", {
+          count: Object.keys(adjustments).length,
+          missing_count: missing.length,
+          validation_ok: validation.ok,
+        });
+        if (!validation.ok) {
+          dailyAdjustmentsError = validation.errors.join(" | ");
+        } else {
+          normalizedDailyAdjustments = adjustments;
+        }
+      }
+
+      if (schedule && !normalizedDailyAdjustments) {
+        return new Response(
+          JSON.stringify({
+            error:
+              "A dieta foi gerada, mas os ajustes calóricos por dia não foram devolvidos corretamente. Regere o plano.",
+            error_code: "daily_adjustments_invalid",
+            details: dailyAdjustmentsError,
+          }),
+          { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
       return new Response(
         JSON.stringify({
           plan: finalPlan,
           intent,
-          dailyAdjustments:
-            finalPlan && typeof finalPlan === "object" && finalPlan.dailyAdjustments &&
-            typeof finalPlan.dailyAdjustments === "object"
-              ? finalPlan.dailyAdjustments
-              : null,
+          dailyAdjustments: normalizedDailyAdjustments,
           similarity: {
             score: Number(similarity.score.toFixed(3)),
             threshold,
