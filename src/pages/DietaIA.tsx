@@ -432,28 +432,124 @@ const DietaIA = () => {
   }));
   const [workoutByWeekday, setWorkoutByWeekday] = useState<Partial<Record<EnergyWeekday, DayWorkoutRef>>>({});
   const [noActiveWorkout, setNoActiveWorkout] = useState(true);
+  const [baseKcalMode, setBaseKcalMode] = useState<BaseKcalMode>('automatic');
+  const [manualBaseKcalInput, setManualBaseKcalInput] = useState('');
   // Per-day adjustments returned by the AI (optional, complementary to days[]).
   // Persisted at protocols.weekly_energy_schedule.generated_adjustments.
   const [dailyAdjustments, setDailyAdjustments] = useState<DailyAdjustments | null>(null);
   // Post-generation warnings for per-day targets outside tolerance (±10% ou ±50 kcal máx).
   const [scheduleWarnings, setScheduleWarnings] = useState<string[]>([]);
 
-  // Base kcal do dia (TMB × FA × (1 + estratégia%)) — mesma fórmula usada em
-  // generatePlan/currentTargets. Recomputada quando o wizard muda.
-  const baseDailyKcal = useMemo<number | null>(() => {
-    const tmb = studentCtx?.recomendacao_ia?.tmb;
-    if (!tmb) return null;
-    const fa = parseFloat(activityLevel);
-    if (!Number.isFinite(fa) || fa <= 0) return null;
-    const strat = STRATEGIES.find((s) => s.value === strategy);
-    const pct = strat?.pct ?? 0;
-    return Math.round(tmb * fa * (1 + pct / 100));
-  }, [studentCtx?.recomendacao_ia, activityLevel, strategy]);
+  const automaticBaseKcal = useMemo<BaseKcalState>(() => {
+    const missing: string[] = [];
+    const weight = parsePositiveNumber(studentCtx?.peso);
+    const height = parsePositiveNumber(studentCtx?.altura);
+    const age = calculateAge(studentCtx?.data_nascimento);
+    const sex = normalizeSex(studentCtx?.sexo);
+    const bodyFat = parsePositiveNumber(studentCtx?.percentual_gordura);
+    const leanMass = parsePositiveNumber(studentCtx?.massa_magra);
+    const activityFactor = parsePositiveNumber(activityLevel);
+    const selectedStrategy = STRATEGIES.find((s) => s.value === strategy);
 
-  const weeklySchedule = useMemo<WeeklyEnergySchedule>(() => {
+    if (!weight) missing.push('peso');
+    if (!height) missing.push('altura');
+    if (!age) missing.push('idade');
+    if (!sex) missing.push('sexo');
+    if (!activityFactor) missing.push('nível de atividade');
+    if (!selectedStrategy) missing.push('estratégia');
+
+    if (missing.length > 0 || !weight || !height || !age || !sex || !activityFactor || !selectedStrategy) {
+      return {
+        source: 'automatic',
+        base_daily_kcal: null,
+        calculation: emptyCalculationSnapshot(),
+        missing,
+      };
+    }
+
+    const isMale = sex === 'masculino';
+    const harrisBenedict = isMale
+      ? 66.47 + 13.75 * weight + 5.003 * height - 6.755 * age
+      : 655.1 + 9.563 * weight + 1.85 * height - 4.676 * age;
+    const mifflin = isMale
+      ? 10 * weight + 6.25 * height - 5 * age + 5
+      : 10 * weight + 6.25 * height - 5 * age - 161;
+    const cunningham = leanMass ? 500 + 22 * leanMass : null;
+
+    let bmr: number;
+    let formula: string;
+    if (bodyFat !== null && bodyFat < (isMale ? 15 : 22) && leanMass && cunningham) {
+      bmr = cunningham;
+      formula = 'Cunningham (atleta, baixo %G)';
+    } else if (bodyFat !== null && bodyFat > (isMale ? 25 : 32)) {
+      bmr = mifflin;
+      formula = 'Mifflin (sobrepeso/obeso)';
+    } else {
+      bmr = harrisBenedict;
+      formula = 'Harris-Benedict (eutrófico)';
+    }
+
+    const roundedBmr = Math.round(bmr);
+    const tdee = Math.round(roundedBmr * activityFactor);
+    const strategyPercent = selectedStrategy.pct;
+    const base = Math.round(tdee * (1 + strategyPercent / 100));
+
+    return {
+      source: 'automatic',
+      base_daily_kcal: base,
+      calculation: {
+        bmr: roundedBmr,
+        activity_factor: activityFactor,
+        tdee,
+        strategy_percent: strategyPercent,
+        formula,
+      },
+      missing: [],
+    };
+  }, [studentCtx?.peso, studentCtx?.altura, studentCtx?.data_nascimento, studentCtx?.sexo, studentCtx?.percentual_gordura, studentCtx?.massa_magra, activityLevel, strategy]);
+
+  const manualBaseKcal = useMemo<number | null>(() => {
+    const parsed = parsePositiveNumber(manualBaseKcalInput);
+    return parsed == null ? null : Math.round(parsed);
+  }, [manualBaseKcalInput]);
+
+  const baseKcal = useMemo<BaseKcalState>(() => {
+    if (baseKcalMode === 'manual') {
+      return {
+        source: 'manual',
+        base_daily_kcal: manualBaseKcal,
+        calculation: emptyCalculationSnapshot(),
+        missing: manualBaseKcal == null ? ['meta calórica base manual'] : [],
+      };
+    }
+    return automaticBaseKcal;
+  }, [automaticBaseKcal, baseKcalMode, manualBaseKcal]);
+
+  const baseKcalIssues = useMemo<string[]>(() => {
+    const issues: string[] = [];
+    if (baseKcal.source !== 'automatic' && baseKcal.source !== 'manual') {
+      issues.push('Origem da meta calórica base inválida.');
+    }
+    if (baseKcal.base_daily_kcal == null) {
+      issues.push('Meta calórica base ausente.');
+    } else if (!Number.isFinite(baseKcal.base_daily_kcal) || baseKcal.base_daily_kcal <= 0) {
+      issues.push('Meta calórica base inválida.');
+    } else if (baseKcal.base_daily_kcal < MIN_DAILY_KCAL) {
+      issues.push(`Meta calórica base abaixo do mínimo permitido (${MIN_DAILY_KCAL} kcal).`);
+    }
+    if (baseKcalMode === 'automatic' && automaticBaseKcal.missing.length > 0) {
+      issues.push(`Dados ausentes para cálculo automático: ${automaticBaseKcal.missing.join(', ')}.`);
+    }
+    return issues;
+  }, [automaticBaseKcal.missing, baseKcal, baseKcalMode]);
+
+  const weeklySchedule = useMemo<WeeklyEnergySchedule | null>(() => {
+    if (baseKcal.base_daily_kcal == null || baseKcalIssues.length > 0) return null;
     const draft = buildDefaultSchedule({
-      baseDailyKcal: baseDailyKcal ?? 2000,
+      baseDailyKcal: baseKcal.base_daily_kcal,
       workoutByWeekday,
+      baseSource: baseKcal.source,
+      calculationSnapshot: baseKcal.calculation,
     });
     for (const wd of ENERGY_WEEKDAYS) {
       const adj = scheduleAdjustments[wd];
@@ -461,7 +557,7 @@ const DietaIA = () => {
       draft.days[wd].fixed_kcal = adj.fixed_kcal;
     }
     return draft;
-  }, [baseDailyKcal, workoutByWeekday, scheduleAdjustments]);
+  }, [baseKcal, baseKcalIssues.length, workoutByWeekday, scheduleAdjustments]);
 
   const handleScheduleChange = (next: WeeklyEnergySchedule) => {
     const nextAdj: typeof scheduleAdjustments = {
