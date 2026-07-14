@@ -1247,49 +1247,30 @@ const DietaIA = () => {
     const data = await resp.json().catch(() => null);
     const raw = data?.plan;
     if (!raw) return null;
-    // Capture optional per-day adjustments and validate against requested schedule.
+    // Normalized daily adjustments (7 dias garantidos pelo servidor).
     try {
-      const adjRaw = data?.dailyAdjustments ?? raw?.dailyAdjustments ?? null;
-      if (adjRaw && typeof adjRaw === 'object') {
-        const norm: Record<string, { target_kcal: number; estimated_adjustment_kcal: number; adjustment_text: string }> = {};
-        for (const wd of ENERGY_WEEKDAYS) {
-          const d: any = (adjRaw as any)[wd];
-          if (!d) continue;
-          const tgt = Number(d.target_kcal);
-          const est = Number(d.estimated_adjustment_kcal);
-          norm[wd] = {
-            target_kcal: Number.isFinite(tgt) ? Math.round(tgt) : 0,
-            estimated_adjustment_kcal: Number.isFinite(est) ? Math.round(est) : 0,
-            adjustment_text: typeof d.adjustment_text === 'string' ? d.adjustment_text : '',
-          };
-        }
-        setDailyAdjustments(norm);
-        // Post-generation validation: ±10% do ajuste diário, teto absoluto ±50 kcal.
+      const adjRaw = data?.dailyAdjustments ?? null;
+      if (dietConfig?.weeklyEnergySchedule && adjRaw && typeof adjRaw === 'object') {
+        // Re-normaliza no cliente para blindar contra respostas alteradas em trânsito.
+        const { adjustments, missing } = normalizeDailyAdjustments(adjRaw, weeklySchedule);
+        const validation = validateDailyAdjustments(adjustments, missing);
+        console.log('[DietaIA] client_daily_adjustments_received', {
+          days: Object.keys(adjustments).length,
+          missing_count: missing.length,
+          validation_ok: validation.ok,
+        });
+        setDailyAdjustments(adjustments);
         const warnings: string[] = [];
         for (const wd of ENERGY_WEEKDAYS) {
-          const entry = weeklySchedule.days[wd];
-          const requestedTarget = entry.fixed_kcal != null && entry.fixed_kcal > 0
-            ? Math.round(entry.fixed_kcal)
-            : Math.round((targets.kcal ?? 0) + entry.adjustment_kcal);
-          const requestedAdj = requestedTarget - (targets.kcal ?? 0);
-          const got = norm[wd];
-          if (!got) {
-            warnings.push(`${WEEKDAY_LABELS[wd]}: IA não retornou ajuste para o dia.`);
-            continue;
-          }
-          const tolerance = Math.min(50, Math.max(1, Math.round(Math.abs(requestedAdj) * 0.1)));
-          const diff = got.estimated_adjustment_kcal - requestedAdj;
-          if (Math.abs(diff) > tolerance) {
+          const d = adjustments[wd];
+          const tol = evaluateTolerance(d.requested_adjustment_kcal, d.estimated_adjustment_kcal);
+          if (tol.state === 'outside_tolerance') {
             warnings.push(
-              `${WEEKDAY_LABELS[wd]}: ajuste fora da tolerância (solicitado ${requestedAdj >= 0 ? '+' : ''}${requestedAdj} kcal, gerado ${got.estimated_adjustment_kcal >= 0 ? '+' : ''}${got.estimated_adjustment_kcal} kcal, diferença ${diff >= 0 ? '+' : ''}${diff} kcal).`,
-            );
-          }
-          if (got.target_kcal !== requestedTarget) {
-            warnings.push(
-              `${WEEKDAY_LABELS[wd]}: target_kcal retornado (${got.target_kcal}) difere do solicitado (${requestedTarget}).`,
+              `${WEEKDAY_LABELS[wd]}: ${TOLERANCE_TEXT.outside_tolerance} (solicitado ${d.requested_adjustment_kcal >= 0 ? '+' : ''}${d.requested_adjustment_kcal} kcal, estimado ${d.estimated_adjustment_kcal >= 0 ? '+' : ''}${d.estimated_adjustment_kcal} kcal, tolerância ±${tol.tolerance_kcal} kcal, diferença ${tol.difference_kcal >= 0 ? '+' : ''}${tol.difference_kcal} kcal).`,
             );
           }
         }
+        for (const err of validation.errors) warnings.push(err);
         setScheduleWarnings(warnings);
       } else {
         setDailyAdjustments(null);
