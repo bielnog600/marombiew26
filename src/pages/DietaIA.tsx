@@ -376,6 +376,13 @@ const DietaIA = () => {
   }));
   const [workoutByWeekday, setWorkoutByWeekday] = useState<Partial<Record<EnergyWeekday, DayWorkoutRef>>>({});
   const [noActiveWorkout, setNoActiveWorkout] = useState(true);
+  // Per-day adjustments returned by the AI (optional, complementary to days[]).
+  // Persisted at protocols.weekly_energy_schedule.generated_adjustments.
+  const [dailyAdjustments, setDailyAdjustments] = useState<
+    Record<string, { target_kcal: number; estimated_adjustment_kcal: number; adjustment_text: string }> | null
+  >(null);
+  // Post-generation warnings for per-day targets outside tolerance (±10% ou ±50 kcal máx).
+  const [scheduleWarnings, setScheduleWarnings] = useState<string[]>([]);
 
   // Base kcal do dia (TMB × FA × (1 + estratégia%)) — mesma fórmula usada em
   // generatePlan/currentTargets. Recomputada quando o wizard muda.
