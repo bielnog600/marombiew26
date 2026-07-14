@@ -2560,7 +2560,7 @@ ${generated}`;
                   </ul>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
                   <div className="rounded-lg border border-border bg-background p-2">
                     <span className="text-muted-foreground block">Fórmula</span>
                     <span className="font-medium">{automaticBaseKcal.calculation.formula}</span>
@@ -2570,8 +2570,12 @@ ${generated}`;
                     <span className="font-medium">{automaticBaseKcal.calculation.bmr?.toLocaleString('pt-BR')} kcal</span>
                   </div>
                   <div className="rounded-lg border border-border bg-background p-2">
-                    <span className="text-muted-foreground block">Fator de atividade</span>
-                    <span className="font-medium">{automaticBaseKcal.calculation.activity_factor}</span>
+                    <span className="text-muted-foreground block">Nível de atividade</span>
+                    <span className="font-medium">
+                      {ACTIVITY_LEVELS.find(a => a.value === activityLevel)?.label ?? '—'}
+                      {' · '}
+                      Fator {(automaticBaseKcal.calculation.activity_factor ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 3 })}
+                    </span>
                   </div>
                   <div className="rounded-lg border border-border bg-background p-2">
                     <span className="text-muted-foreground block">GET</span>
