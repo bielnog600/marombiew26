@@ -2386,6 +2386,19 @@ ${generated}`;
               onChange={handleScheduleChange}
               noActiveWorkout={noActiveWorkout}
             />
+            {scheduleWarnings.length > 0 && (
+              <div className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 space-y-1">
+                <p className="text-xs font-semibold text-amber-700">
+                  Avisos pós-geração — ajustes fora da tolerância (±10% do ajuste diário, teto ±50 kcal):
+                </p>
+                <ul className="list-disc pl-5 text-[11px] text-amber-700">
+                  {scheduleWarnings.map((w, i) => <li key={i}>{w}</li>)}
+                </ul>
+                <p className="text-[11px] text-amber-700">
+                  Você pode regenerar a dieta para tentar novamente.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
               )}
