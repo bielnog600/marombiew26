@@ -1915,6 +1915,7 @@ ${generated}`;
             'Estratégia da Dieta',
             'Estrutura Alimentar do Dia',
             'Ajustes Finos do Protocolo',
+            'Calorias por dia',
             'Extras e Observações',
           ];
           const stepValid = [
@@ -1922,6 +1923,7 @@ ${generated}`;
             !!dietStyle,
             true,
             !!mealCount,
+            true,
             true,
             true,
           ];
