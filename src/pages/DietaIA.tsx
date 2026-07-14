@@ -1946,7 +1946,7 @@ ${generated}`;
             true,
             !!mealCount,
             true,
-            true,
+            validateSchedule(weeklySchedule).length === 0,
             true,
           ];
           return (
