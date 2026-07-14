@@ -295,6 +295,24 @@ const DietaIA = () => {
   const [fatPerKgOverride, setFatPerKgOverride] = useState<string>('');
   // Phase 2: enable structured carb cycling alongside the protocol checkbox.
 
+  // ─── Weekly Energy Schedule (MVP) ────────────────────────────
+  // Per-weekday user overrides. Kept minimal: signed adjustment or a fixed
+  // target. Combined with the base kcal (derived below) into the full
+  // schedule that is persisted at protocols.weekly_energy_schedule.
+  const [scheduleAdjustments, setScheduleAdjustments] = useState<
+    Record<EnergyWeekday, { adjustment_kcal: number; fixed_kcal: number | null }>
+  >(() => ({
+    seg: { adjustment_kcal: 0, fixed_kcal: null },
+    ter: { adjustment_kcal: 0, fixed_kcal: null },
+    qua: { adjustment_kcal: 0, fixed_kcal: null },
+    qui: { adjustment_kcal: 0, fixed_kcal: null },
+    sex: { adjustment_kcal: 0, fixed_kcal: null },
+    sab: { adjustment_kcal: 0, fixed_kcal: null },
+    dom: { adjustment_kcal: 0, fixed_kcal: null },
+  }));
+  const [workoutByWeekday, setWorkoutByWeekday] = useState<Partial<Record<EnergyWeekday, DayWorkoutRef>>>({});
+  const [noActiveWorkout, setNoActiveWorkout] = useState(true);
+
   useEffect(() => {
     if (studentId) loadStudentData();
   }, [studentId]);
