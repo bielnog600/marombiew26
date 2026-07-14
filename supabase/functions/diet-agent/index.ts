@@ -25,6 +25,12 @@ import {
   carbCyclePromptBlock,
   type CarbCyclePlan,
 } from "../_shared/satietyEngine.ts";
+import {
+  ENERGY_WEEKDAYS,
+  buildRequestedFromSchedule,
+  normalizeDailyAdjustments,
+  validateDailyAdjustments,
+} from "../_shared/dailyAdjustments.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -106,18 +112,26 @@ function buildLayeredInstructions(dietConfig: any, trainingContext: any): string
     lines.push("  4. A GORDURA pode variar levemente, mas nunca abaixo de 0,6 g/kg de peso corporal.");
     lines.push("  5. Produza um plano base único + uma seção 'Ajustes por dia' listando, para cada dia com meta diferente da base, as trocas ou porções ajustadas para bater a meta.");
     lines.push("");
-    lines.push("FORMATO OBRIGATÓRIO DA SEÇÃO 'Ajustes por dia' NO JSON:");
-    lines.push("Além dos campos padrão, inclua um campo raiz OPCIONAL chamado \"dailyAdjustments\" no objeto JSON de saída, com o seguinte shape:");
-    lines.push('  "dailyAdjustments": {');
-    lines.push('     "seg": { "target_kcal": <int>, "estimated_adjustment_kcal": <int, com sinal>, "adjustment_text": "<breve descrição das trocas/porções ajustadas em relação ao plano base>" },');
-    lines.push('     "ter": { ... }, "qua": { ... }, "qui": { ... }, "sex": { ... }, "sab": { ... }, "dom": { ... }');
-    lines.push("  }");
-    lines.push("Regras:");
-    lines.push("  - Inclua os 7 dias (seg..dom).");
-    lines.push("  - target_kcal deve ser IGUAL à meta final declarada acima para o dia.");
-    lines.push("  - estimated_adjustment_kcal = target_kcal − base_daily_kcal (positivo, zero ou negativo).");
-    lines.push("  - adjustment_text deve ser curto (máx 240 chars) e descrever a variação via carboidrato principalmente.");
-    lines.push("  - Este campo NÃO substitui days[]. É complementar.");
+    lines.push("FORMATO OBRIGATÓRIO — CAMPO RAIZ \"dailyAdjustments\" NO JSON DE SAÍDA:");
+    lines.push("Inclua um campo raiz OBRIGATÓRIO \"dailyAdjustments\" com EXATAMENTE 7 chaves (seg, ter, qua, qui, sex, sab, dom).");
+    lines.push("Cada dia DEVE ter o seguinte shape estrito:");
+    lines.push('  {');
+    lines.push('    "target_kcal": <int>,                       // igual à meta final declarada acima');
+    lines.push('    "requested_adjustment_kcal": <int, com sinal>, // = target_kcal − base_daily_kcal');
+    lines.push('    "estimated_adjustment_kcal": <int, com sinal>, // estimativa real das trocas propostas');
+    lines.push('    "status": "base" | "adjusted",              // "base" quando requested_adjustment_kcal = 0');
+    lines.push('    "instructions": [                            // vazio para dias base');
+    lines.push('      { "action": "add" | "remove", "food_name": "<nome do banco>", "quantity": <int>, "unit": "g", "estimated_kcal": <int> }');
+    lines.push('    ],');
+    lines.push('    "summary": "<frase curta descrevendo a mudança em relação ao plano base>"');
+    lines.push('  }');
+    lines.push("Regras estritas:");
+    lines.push('  - Dias com ajuste zero: status = "base", instructions = [], summary = "Manter plano base".');
+    lines.push('  - Ajuste positivo (dia com mais kcal): usar SOMENTE action = "add" nas instruções.');
+    lines.push('  - Ajuste negativo (dia com menos kcal): usar SOMENTE action = "remove" nas instruções.');
+    lines.push('  - unit deve ser "g" (gramas) sempre que possível.');
+    lines.push('  - Não invente propriedades adicionais. O servidor normaliza e valida antes de aceitar a resposta.');
+    lines.push('  - Este campo NÃO substitui days[]. É complementar.');
   }
   return lines.join("\n") + "\n";
 }
