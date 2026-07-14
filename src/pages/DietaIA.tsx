@@ -1417,7 +1417,7 @@ const DietaIA = () => {
           const tol = evaluateTolerance(d.requested_adjustment_kcal, d.estimated_adjustment_kcal);
           if (tol.state === 'outside_tolerance') {
             warnings.push(
-              `${WEEKDAY_LABELS[wd]}: ${TOLERANCE_TEXT.outside_tolerance} (solicitado ${d.requested_adjustment_kcal >= 0 ? '+' : ''}${d.requested_adjustment_kcal} kcal, estimado ${d.estimated_adjustment_kcal >= 0 ? '+' : ''}${d.estimated_adjustment_kcal} kcal, tolerância ±${tol.tolerance_kcal} kcal, diferença ${tol.difference_kcal >= 0 ? '+' : ''}${tol.difference_kcal} kcal).`,
+              `${WEEKDAY_LABELS[wd]}: ${TOLERANCE_TEXT.outside_tolerance} — Ajuste calórico estimado (solicitado ${d.requested_adjustment_kcal >= 0 ? '+' : ''}${d.requested_adjustment_kcal} kcal, estimado ${d.estimated_adjustment_kcal >= 0 ? '+' : ''}${d.estimated_adjustment_kcal} kcal, tolerância ±${tol.tolerance_kcal} kcal, diferença ${tol.difference_kcal >= 0 ? '+' : ''}${tol.difference_kcal} kcal).`,
             );
           }
         }
