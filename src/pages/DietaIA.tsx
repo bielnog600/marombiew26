@@ -2532,6 +2532,10 @@ ${generated}`;
                     <span className="font-medium">{automaticBaseKcal.calculation.tdee?.toLocaleString('pt-BR')} kcal</span>
                   </div>
                   <div className="rounded-lg border border-border bg-background p-2">
+                    <span className="text-muted-foreground block">Ajuste da estratégia</span>
+                    <span className="font-medium">{(automaticBaseKcal.calculation.strategy_percent ?? 0) > 0 ? '+' : ''}{automaticBaseKcal.calculation.strategy_percent}%</span>
+                  </div>
+                  <div className="rounded-lg border border-border bg-background p-2">
                     <span className="text-muted-foreground block">Meta base</span>
                     <span className="font-medium">{automaticBaseKcal.base_daily_kcal?.toLocaleString('pt-BR')} kcal</span>
                   </div>
@@ -3021,7 +3025,7 @@ ${generated}`;
                 { key: 'carbs' as const, label: 'Carboidrato' },
                 { key: 'fat' as const, label: 'Gordura' },
               ]).map(({ key, label }) => {
-                const kcalTotal = macroReport?.target.calories ?? 2000;
+                const kcalTotal = macroReport?.target.calories ?? baseKcal.base_daily_kcal ?? 0;
                 const kcalFromMacro = key === 'fat'
                   ? (kcalTotal * macroPct[key]) / 100
                   : (kcalTotal * macroPct[key]) / 100;
