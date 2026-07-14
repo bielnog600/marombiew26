@@ -1527,6 +1527,27 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
               strategy: strategy || undefined,
               style: dietStyle || undefined,
               ...(cyclePlan ? { carbCyclePlan: cyclePlan } : {}),
+              weeklyEnergySchedule: {
+                base_daily_kcal: currentTargets.calories,
+                days: Object.fromEntries(
+                  ENERGY_WEEKDAYS.map((wd) => {
+                    const entry = weeklySchedule.days[wd];
+                    // Rebase adjustments over the definitive currentTargets.calories.
+                    const adj = entry.adjustment_kcal;
+                    const fixed = entry.fixed_kcal;
+                    const target = fixed != null && fixed > 0
+                      ? Math.round(fixed)
+                      : Math.round(currentTargets.calories + adj);
+                    return [wd, {
+                      base_kcal: currentTargets.calories,
+                      adjustment_kcal: adj,
+                      fixed_kcal: fixed,
+                      target_kcal: target,
+                      workout: entry.workout,
+                    }];
+                  }),
+                ),
+              },
             },
             {
               kcal: currentTargets.calories,
