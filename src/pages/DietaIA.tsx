@@ -29,6 +29,7 @@ import {
   type EnergyWeekday,
   type DayWorkoutRef,
   ENERGY_WEEKDAYS,
+  WEEKDAY_LABELS,
   buildDefaultSchedule,
   computeDayTarget,
   scheduleToJson,
