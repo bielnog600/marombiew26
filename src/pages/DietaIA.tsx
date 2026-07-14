@@ -2335,7 +2335,11 @@ ${generated}`;
               <p className="text-xs text-muted-foreground mb-2">Nível de atividade física</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {ACTIVITY_LEVELS.map(a => (
-                  <SelectionButton key={a.value} selected={activityLevel === a.value} onClick={() => setActivityLevel(a.value)}>
+                  <SelectionButton
+                    key={a.value}
+                    selected={activityLevel === a.value}
+                    onClick={() => { setActivityLevel(a.value); setActivityLevelTouched(true); }}
+                  >
                     <span className="font-semibold text-sm block">{a.label}</span>
                     <span className="text-xs text-muted-foreground">{a.desc}</span>
                   </SelectionButton>
