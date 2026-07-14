@@ -347,6 +347,8 @@ const DietaIA = () => {
   const [macroReport, setMacroReport] = useState<DietMacroValidationReport | null>(null);
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Fase 2 (QA): salvar como rascunho por padrão. UI expõe botões separados.
+  const [saveMode, setSaveMode] = useState<'draft' | 'publish'>('draft');
   const [adjusting, setAdjusting] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
   const [showMacroModal, setShowMacroModal] = useState(false);
