@@ -891,6 +891,11 @@ serve(async (req) => {
         JSON.stringify({
           plan: finalPlan,
           intent,
+          dailyAdjustments:
+            finalPlan && typeof finalPlan === "object" && finalPlan.dailyAdjustments &&
+            typeof finalPlan.dailyAdjustments === "object"
+              ? finalPlan.dailyAdjustments
+              : null,
           similarity: {
             score: Number(similarity.score.toFixed(3)),
             threshold,
