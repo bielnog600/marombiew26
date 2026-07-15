@@ -303,7 +303,12 @@ export const rebuildTrainingMarkdown = (
       lines.push('|---|---|---|---|---|---|---|---|---|');
       for (const day of sortedDays) {
         for (const ex of day.exercises) {
-          lines.push(`| ${day.day} | ${ex.exercise} | ${ex.series || '-'} | ${ex.series2 || '-'} | ${ex.reps || '-'} | ${ex.rir || '-'} | ${ex.pause || '-'} | ${ex.description || '-'} | ${ex.variation || '-'} |`);
+          const perSet = ex.setScheme?.mode === 'per_set' && ex.setScheme.sets.length > 0 ? ex.setScheme : null;
+          const seriesOut = perSet ? String(perSet.sets.length) : (ex.series || '-');
+          const repsOut = perSet
+            ? perSet.sets.map((s) => s.target_reps).join(' / ')
+            : (ex.reps || '-');
+          lines.push(`| ${day.day} | ${ex.exercise} | ${seriesOut} | ${ex.series2 || '-'} | ${repsOut} | ${ex.rir || '-'} | ${ex.pause || '-'} | ${ex.description || '-'} | ${ex.variation || '-'} |`);
         }
       }
       lines.push('');
