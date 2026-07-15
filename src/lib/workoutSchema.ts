@@ -128,6 +128,32 @@ const parsePauseToSeconds = (raw?: string): number | undefined => {
   return undefined;
 };
 
+/** Best-effort normalization for setScheme coming from external sources (IA JSON, legacy). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const normalizeSetScheme = (raw: any): SetScheme | undefined => {
+  if (!raw || typeof raw !== "object") return undefined;
+  const mode = raw.mode;
+  if (mode !== "uniform" && mode !== "recognition_work" && mode !== "per_set") return undefined;
+  const setsRaw = Array.isArray(raw.sets) ? raw.sets : [];
+  const sets: SetSchemeSet[] = [];
+  setsRaw.forEach((s: unknown, i: number) => {
+    if (!s || typeof s !== "object") return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const so = s as any;
+    const target = String(so.target_reps ?? so.reps ?? "").trim();
+    if (!target) return;
+    const setType = so.set_type === "recognition" ? "recognition" : "work";
+    const setNumber = Number(so.set_number);
+    sets.push({
+      set_number: Number.isFinite(setNumber) && setNumber > 0 ? Math.trunc(setNumber) : i + 1,
+      set_type: setType,
+      target_reps: target,
+    });
+  });
+  if (sets.length === 0) return undefined;
+  return { mode, sets };
+};
+
 /** Convert legacy markdown-parsed days to the v2 JSON shape (with stable ids). */
 export const parsedDaysToWorkoutPlan = (
   days: ParsedTrainingDay[],
