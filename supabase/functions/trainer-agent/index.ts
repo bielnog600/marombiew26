@@ -184,6 +184,31 @@ function parsePauseToSeconds(raw?: string): number | undefined {
 }
 
 // deno-lint-ignore no-explicit-any
+function normalizeSetSchemeSrv(raw: any) {
+  if (!raw || typeof raw !== "object") return undefined;
+  const mode = raw.mode;
+  if (mode !== "uniform" && mode !== "recognition_work" && mode !== "per_set") return undefined;
+  const setsRaw = Array.isArray(raw.sets) ? raw.sets : [];
+  const sets = setsRaw
+    // deno-lint-ignore no-explicit-any
+    .map((s: any, i: number) => {
+      if (!s || typeof s !== "object") return null;
+      const target = String(s.target_reps ?? s.reps ?? "").trim();
+      if (!target) return null;
+      const setType = s.set_type === "recognition" ? "recognition" : "work";
+      const setNumber = Number(s.set_number);
+      return {
+        set_number: Number.isFinite(setNumber) && setNumber > 0 ? Math.trunc(setNumber) : i + 1,
+        set_type: setType,
+        target_reps: target,
+      };
+    })
+    .filter((s: unknown) => s !== null);
+  if (sets.length === 0) return undefined;
+  return { mode, sets };
+}
+
+// deno-lint-ignore no-explicit-any
 function validateAndNormalizePlan(raw: any): { ok: true; data: any } | { ok: false; error: string } {
   if (!raw || typeof raw !== "object") return { ok: false, error: "Resposta não é um objeto JSON" };
   if (raw.type !== "workout") return { ok: false, error: "type deve ser \"workout\"" };
