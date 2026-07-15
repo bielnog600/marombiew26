@@ -27,7 +27,7 @@ const optionalString = z
  */
 export const SetSchemeSetSchema = z.object({
   set_number: z.number().int().positive(),
-  set_type: z.enum(["work", "recognition"]).default("work"),
+  set_type: z.enum(["work", "recognition"]),
   target_reps: z.string().min(1),
 });
 
