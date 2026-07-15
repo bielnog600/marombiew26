@@ -637,11 +637,55 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
                           <SelectContent>
                             <SelectItem value="standard" className="text-xs">Padrão</SelectItem>
                             <SelectItem value="recognition" className="text-xs">Reconhecimento + trabalho</SelectItem>
+                            <SelectItem value="per_set" className="text-xs">Repetições por série</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
 
-                      {mode === 'standard' ? (
+                      {mode === 'per_set' ? (
+                        <div className="space-y-2">
+                          <div className="space-y-1.5">
+                            {(ex.setScheme?.sets ?? []).map((s, sIdx) => (
+                              <div key={sIdx} className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold uppercase text-muted-foreground w-14 shrink-0">Série {sIdx + 1}</span>
+                                <Textarea
+                                  value={s.target_reps}
+                                  onChange={(e) => updatePerSetReps(exIndex, sIdx, e.target.value)}
+                                  placeholder="Reps (ex: 12, 8-10, AMRAP)"
+                                  className="text-xs h-7 min-h-[28px] flex-1 resize-none px-2 py-1"
+                                  rows={1}
+                                />
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 text-destructive"
+                                  onClick={() => removePerSetSlot(exIndex, sIdx)}
+                                  disabled={(ex.setScheme?.sets.length ?? 0) <= 1}
+                                  title="Remover série"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ))}
+                            <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => addPerSetSlot(exIndex)}>
+                              <Plus className="h-3 w-3" /> Adicionar série
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-0.5">
+                              <label className="text-[10px] text-muted-foreground uppercase tracking-wide">RIR</label>
+                              <QuickSelect value={ex.rir} options={RIR_OPTS} onChange={(v) => handleFieldChange(exIndex, 'rir', v)} width="w-full" />
+                            </div>
+                            <div className="space-y-0.5">
+                              <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Pausa</label>
+                              <QuickSelect value={ex.pause} options={PAUSE_OPTS} onChange={(v) => handleFieldChange(exIndex, 'pause', v)} width="w-full" />
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            Markdown: <span className="font-mono text-foreground">{(ex.setScheme?.sets.length ?? 0)} × ({(ex.setScheme?.sets ?? []).map((s) => s.target_reps || '?').join(' / ')})</span>
+                          </p>
+                        </div>
+                      ) : mode === 'standard' ? (
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                           <div className="space-y-0.5">
                             <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Séries</label>
