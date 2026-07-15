@@ -25,11 +25,12 @@ const WORK_REPS_OPTS = ['6', '8', '10', '12', '15', '6-8', '8-10', '8-12', '10-1
 const RIR_OPTS = ['', '0', '1', '2', '3', '1-2', '2-3'];
 const PAUSE_OPTS = ['10s', '15s', '30s', '45s', '60s', '90s', '120s', '180s'];
 
-type StructureMode = 'standard' | 'recognition';
+type StructureMode = 'standard' | 'recognition' | 'per_set';
 
 const isCompositeReps = (reps: string) => reps.includes('+');
 
 const detectMode = (ex: ParsedExercise): StructureMode => {
+  if (ex.setScheme?.mode === 'per_set') return 'per_set';
   const s1 = parseInt(ex.series || '0', 10) || 0;
   const s2 = parseInt(ex.series2 || '0', 10) || 0;
   if (s1 > 0 && s2 > 0) return 'recognition';
@@ -396,7 +397,31 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
     setLocalExercises((prev) => {
       const copy = [...prev];
       const ex = { ...copy[exIndex] };
-      if (mode === 'standard') {
+      if (mode === 'per_set') {
+        // Initialize per-set from current series count / reps if not already set
+        const currentPerSet = ex.setScheme?.mode === 'per_set' ? ex.setScheme.sets : null;
+        if (!currentPerSet) {
+          const s = Math.max(parseInt(ex.series || '3', 10) || 3, 1);
+          const baseReps = (ex.reps || '10').split('+')[0]?.trim() || '10';
+          const sets = Array.from({ length: s }, (_, i) => ({
+            set_number: i + 1,
+            set_type: 'work' as const,
+            target_reps: baseReps,
+          }));
+          ex.setScheme = { mode: 'per_set', sets };
+          ex.series = String(s);
+          ex.series2 = '';
+          ex.reps = sets.map((x) => x.target_reps).join(' / ');
+        }
+      } else if (mode === 'standard') {
+        // Collapse per_set/recognition down to standard uniform
+        if (ex.setScheme?.mode === 'per_set') {
+          const first = ex.setScheme.sets[0]?.target_reps || ex.reps || '8-10';
+          ex.series = String(ex.setScheme.sets.length);
+          ex.reps = first;
+          ex.series2 = '';
+          ex.setScheme = undefined;
+        }
         // Collapse: keep work portion only
         const [, workReps] = splitComposed(ex.reps || '');
         const s2 = parseInt(ex.series2 || '0', 10) || 0;
@@ -404,6 +429,11 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
         ex.series2 = '';
         ex.reps = workReps || ex.reps || '';
       } else {
+        // recognition
+        if (ex.setScheme?.mode === 'per_set') {
+          ex.setScheme = undefined;
+          ex.series = String(ex.setScheme ? 3 : parseInt(ex.series || '3', 10) || 3);
+        }
         // Expand to recognition + work
         if (!ex.series2 || parseInt(ex.series2, 10) <= 0) {
           ex.series2 = ex.series && parseInt(ex.series, 10) > 0 ? ex.series : '3';
@@ -414,6 +444,53 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
           ex.reps = `12 + ${r}`;
         }
       }
+      copy[exIndex] = ex;
+      return copy;
+    });
+  };
+
+  const updatePerSetReps = (exIndex: number, setIdx: number, val: string) => {
+    setLocalExercises((prev) => {
+      const copy = [...prev];
+      const ex = { ...copy[exIndex] };
+      if (ex.setScheme?.mode !== 'per_set') return copy;
+      const sets = ex.setScheme.sets.map((s, i) => (i === setIdx ? { ...s, target_reps: val } : s));
+      ex.setScheme = { mode: 'per_set', sets };
+      ex.series = String(sets.length);
+      ex.reps = sets.map((s) => s.target_reps).join(' / ');
+      copy[exIndex] = ex;
+      return copy;
+    });
+  };
+
+  const addPerSetSlot = (exIndex: number) => {
+    setLocalExercises((prev) => {
+      const copy = [...prev];
+      const ex = { ...copy[exIndex] };
+      if (ex.setScheme?.mode !== 'per_set') return copy;
+      const last = ex.setScheme.sets[ex.setScheme.sets.length - 1];
+      const sets = [
+        ...ex.setScheme.sets,
+        { set_number: ex.setScheme.sets.length + 1, set_type: 'work' as const, target_reps: last?.target_reps || '10' },
+      ];
+      ex.setScheme = { mode: 'per_set', sets };
+      ex.series = String(sets.length);
+      ex.reps = sets.map((s) => s.target_reps).join(' / ');
+      copy[exIndex] = ex;
+      return copy;
+    });
+  };
+
+  const removePerSetSlot = (exIndex: number, setIdx: number) => {
+    setLocalExercises((prev) => {
+      const copy = [...prev];
+      const ex = { ...copy[exIndex] };
+      if (ex.setScheme?.mode !== 'per_set') return copy;
+      if (ex.setScheme.sets.length <= 1) return copy;
+      const sets = ex.setScheme.sets.filter((_, i) => i !== setIdx).map((s, i) => ({ ...s, set_number: i + 1 }));
+      ex.setScheme = { mode: 'per_set', sets };
+      ex.series = String(sets.length);
+      ex.reps = sets.map((s) => s.target_reps).join(' / ');
       copy[exIndex] = ex;
       return copy;
     });
