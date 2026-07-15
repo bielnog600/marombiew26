@@ -139,7 +139,9 @@ const ExerciseLogCard: React.FC<Props> = ({
   };
   const togglePerSetType = (idx: number) => {
     const next = perSetSets.map((s, i) =>
-      i === idx ? { ...s, set_type: s.set_type === 'work' ? 'recognition' : 'work' } : s,
+      i === idx
+        ? { ...s, set_type: (s.set_type === 'work' ? 'recognition' : 'work') as 'work' | 'recognition' }
+        : s,
     );
     commitPerSet(next);
   };
