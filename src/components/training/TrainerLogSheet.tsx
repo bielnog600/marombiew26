@@ -491,15 +491,20 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
 
   const updateExerciseMeta = (
     exIdx: number,
-    patch: Partial<Pick<ParsedExercise, 'pause' | 'variation' | 'reps' | 'rir'>>,
+    patch: Partial<Pick<ParsedExercise, 'pause' | 'variation' | 'reps' | 'rir' | 'series' | 'series2' | 'setScheme'>>,
   ) => {
     const newExercises = currentExercises.map((e, i) =>
       i === exIdx ? { ...e, ...patch } : e,
     );
     setCurrentExercises(newExercises);
     let nextState = state;
-    // Se as reps alvo mudaram, reconstrói o plano preservando séries já preenchidas
-    if (patch.reps !== undefined) {
+    // Se algo que afeta o plano mudou, reconstrói preservando séries já preenchidas
+    if (
+      patch.reps !== undefined ||
+      patch.series !== undefined ||
+      patch.series2 !== undefined ||
+      patch.setScheme !== undefined
+    ) {
       const ex = newExercises[exIdx];
       const newPlan = buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme);
       const prev = state[exIdx];
