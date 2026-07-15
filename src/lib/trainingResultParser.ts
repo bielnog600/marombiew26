@@ -143,7 +143,7 @@ export const parseTrainingTable = (tableLines: string[], fallbackTitle = ''): Pa
 
     const normalizedExercise = normalizeText(exerciseCell);
     if (exerciseCell && exerciseCell !== '-' && exerciseCell !== '—' && normalizedExercise !== 'exercicio') {
-      currentDay.exercises.push({
+      const parsed: ParsedExercise = {
         exercise: exerciseCell,
         series: seriesCell,
         series2: series2Cell,
@@ -152,7 +152,25 @@ export const parseTrainingTable = (tableLines: string[], fallbackTitle = ''): Pa
         pause: pauseCell,
         description: descCell,
         variation: variationCell,
-      });
+      };
+      // Detect per-set reps "12 / 10 / 6"
+      const perSetMatch = repsCell.includes('/') && !repsCell.includes('+')
+        ? repsCell.split('/').map((p) => p.trim()).filter((p) => p.length > 0)
+        : null;
+      if (perSetMatch && perSetMatch.length >= 2) {
+        const seriesN = parseInt(seriesCell.replace(/\D/g, ''), 10) || perSetMatch.length;
+        if (seriesN === perSetMatch.length) {
+          parsed.setScheme = {
+            mode: 'per_set',
+            sets: perSetMatch.map((r, i) => ({
+              set_number: i + 1,
+              set_type: 'work',
+              target_reps: r,
+            })),
+          };
+        }
+      }
+      currentDay.exercises.push(parsed);
     }
   }
 
