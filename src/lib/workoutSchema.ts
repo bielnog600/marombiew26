@@ -21,6 +21,25 @@ const optionalString = z
   .transform((v): string => (v == null ? "" : String(v).trim()));
 
 /**
+ * Optional per-set prescription. When present, becomes the source of truth
+ * for the exercise; legacy `series`/`series2`/`reps` remain filled so old
+ * consumers (markdown, PDF, mobile app parser) continue to work.
+ */
+export const SetSchemeSetSchema = z.object({
+  set_number: z.number().int().positive(),
+  set_type: z.enum(["work", "recognition"]).default("work"),
+  target_reps: z.string().min(1),
+});
+
+export const SetSchemeSchema = z.object({
+  mode: z.enum(["uniform", "recognition_work", "per_set"]),
+  sets: z.array(SetSchemeSetSchema).min(1),
+});
+
+export type SetSchemeSet = z.infer<typeof SetSchemeSetSchema>;
+export type SetScheme = z.infer<typeof SetSchemeSchema>;
+
+/**
  * Reps / load are kept as strings because trainers use ranges ("8-12"),
  * tempos ("3-1-1"), or letters ("AMRAP"). We do, however, validate that
  * it is a string and trim it so consumers can rely on the shape.
@@ -47,6 +66,7 @@ export const WorkoutExerciseSchema = z.object({
   variation: optionalString.optional(),
   tempo: optionalString.optional(),
   notes: optionalString.optional(),
+  setScheme: SetSchemeSchema.optional(),
 });
 
 export type WorkoutExercise = z.infer<typeof WorkoutExerciseSchema>;
@@ -131,6 +151,7 @@ export const parsedDaysToWorkoutPlan = (
       restSeconds: parsePauseToSeconds(e.pause),
       description: e.description || "",
       variation: e.variation || "",
+      setScheme: e.setScheme,
     })),
   })),
 });
@@ -148,6 +169,7 @@ export const workoutPlanToParsedDays = (plan: WorkoutPlan): ParsedTrainingDay[] 
       pause: e.pause || (e.restSeconds ? `${e.restSeconds}s` : ""),
       description: e.description || "",
       variation: e.variation || "",
+      setScheme: e.setScheme,
     })),
   }));
 
@@ -193,6 +215,7 @@ export const normalizeWorkoutPlan = (raw: unknown): WorkoutPlan | null => {
                 variation: String(e.variation ?? "").trim(),
                 tempo: typeof e.tempo === "string" ? e.tempo : undefined,
                 notes: typeof e.notes === "string" ? e.notes : undefined,
+                setScheme: normalizeSetScheme(e.setScheme ?? e.set_scheme),
               }))
               .filter((e: WorkoutExercise) => e.exercise.length > 0)
           : [],
