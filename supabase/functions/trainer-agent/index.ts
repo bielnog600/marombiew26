@@ -155,6 +155,10 @@ Regras de preenchimento:
     • "rir" como "1-2", "2", "-" (use "-" para mobilidade/cardio).
     • "restSeconds" inteiro em segundos (ex.: 60, 90, 120). Use null APENAS para mobilidade leve.
     • "description" com técnica, postura, adaptações de segurança.
+    • "set_scheme" (opcional): use APENAS quando a prescrição exigir repetições diferentes por série (pirâmide, top-set + back-off, ondulatória).
+       - mode = "per_set"; sets = lista completa em ordem; set_number sequencial; set_type = "work" (ou "recognition" quando aplicável); target_reps é string ("12", "8-10", "AMRAP").
+       - Quando usar set_scheme mode=per_set: "series" = total de séries e "reps" = "12 / 10 / 6" (mesma ordem).
+       - Não é obrigatório em todos os exercícios; omita quando as reps forem iguais em todas as séries.
 
 NUNCA emita texto fora do JSON. NUNCA inclua mensagens de WhatsApp neste modo.
 `;
