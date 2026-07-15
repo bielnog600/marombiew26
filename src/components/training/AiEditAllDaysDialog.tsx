@@ -1050,7 +1050,7 @@ export function applyActionsToDay(day: ParsedTrainingDay, actions: any[]): Parse
         const patch: any = { ...action.exercise };
         // Preserve existing setScheme unless the action explicitly changes it
         if (patch.set_scheme !== undefined || patch.setScheme !== undefined) {
-          patch.setScheme = normalizeSetScheme(patch.set_scheme ?? patch.setScheme) ?? undefined;
+          patch.setScheme = (normalizeSetScheme(patch.set_scheme ?? patch.setScheme) as ParsedExercise['setScheme']) ?? undefined;
           delete patch.set_scheme;
         }
         list[idx] = { ...list[idx], ...patch } as ParsedExercise;
