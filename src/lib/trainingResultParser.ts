@@ -7,6 +7,11 @@ export interface ParsedExercise {
   pause: string;
   description: string;
   variation: string;
+  /** Optional structured per-set prescription. When present, source of truth for the set list. */
+  setScheme?: {
+    mode: 'uniform' | 'recognition_work' | 'per_set';
+    sets: Array<{ set_number: number; set_type: 'work' | 'recognition'; target_reps: string }>;
+  };
 }
 
 export interface ParsedTrainingDay {
