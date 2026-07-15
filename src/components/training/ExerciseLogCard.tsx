@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dumbbell, Save, Loader2, Check, Timer, Plus, Minus, Trash2, X, Settings2 } from 'lucide-react';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { ExercisePicker } from '@/components/tabata/ExercisePicker';
@@ -43,11 +44,30 @@ interface Props {
   onAddSet?: (exIdx: number) => void;
   onRemoveSet?: (exIdx: number, setIdx: number) => void;
   onRemoveExercise?: (exIdx: number) => void;
-  onUpdateMeta?: (patch: { pause?: string; variation?: string; reps?: string; rir?: string }) => void;
+  onUpdateMeta?: (patch: {
+    pause?: string;
+    variation?: string;
+    reps?: string;
+    rir?: string;
+    series?: string;
+    series2?: string;
+    setScheme?: any;
+  }) => void;
   ExerciseNamePicker: React.FC<any>;
   HistoryPopover: React.FC<any>;
   parsePauseSeconds: (raw?: string | null) => number;
 }
+
+type StructureMode = 'standard' | 'recognition' | 'per_set';
+
+const detectMode = (ex: any): StructureMode => {
+  if (ex?.setScheme?.mode === 'per_set') return 'per_set';
+  const s1 = parseInt(String(ex?.series ?? '0'), 10) || 0;
+  const s2 = parseInt(String(ex?.series2 ?? '0'), 10) || 0;
+  if (s1 > 0 && s2 > 0) return 'recognition';
+  if (String(ex?.reps || '').includes('+')) return 'recognition';
+  return 'standard';
+};
 
 const ExerciseLogCard: React.FC<Props> = ({
   exIdx,
@@ -69,6 +89,72 @@ const ExerciseLogCard: React.FC<Props> = ({
   parsePauseSeconds,
 }) => {
   const [editOpen, setEditOpen] = useState(false);
+  const mode: StructureMode = detectMode(ex);
+
+  const perSetSets: Array<{ set_number: number; set_type: 'work' | 'recognition'; target_reps: string }> =
+    mode === 'per_set' && ex?.setScheme?.sets
+      ? ex.setScheme.sets
+      : (st.plan || []).map((p, i) => ({
+          set_number: i + 1,
+          set_type: p.kind === 'recon' ? 'recognition' : 'work',
+          target_reps: p.targetReps || '',
+        }));
+
+  const commitPerSet = (next: typeof perSetSets) => {
+    if (!onUpdateMeta) return;
+    const renumbered = next.map((s, i) => ({ ...s, set_number: i + 1 }));
+    onUpdateMeta({ setScheme: { mode: 'per_set', sets: renumbered } });
+  };
+
+  const changeMode = (next: StructureMode) => {
+    if (!onUpdateMeta || next === mode) return;
+    if (next === 'standard') {
+      const [a] = String(ex.reps || '').split('+').map((p) => p.trim());
+      onUpdateMeta({
+        setScheme: undefined,
+        series: String(st.plan?.length || parseInt(ex.series || '3', 10) || 3),
+        series2: '',
+        reps: a || ex.reps || '',
+      });
+    } else if (next === 'recognition') {
+      const workCount = String(st.plan?.filter((p) => p.kind === 'work').length || 3);
+      const [a, b] = String(ex.reps || '').split('+').map((p) => p.trim());
+      const recReps = a || '12';
+      const workReps = b || a || '8-10';
+      onUpdateMeta({
+        setScheme: undefined,
+        series: '1',
+        series2: workCount,
+        reps: `${recReps} + ${workReps}`,
+      });
+    } else {
+      // per_set — semear a partir do plano atual
+      commitPerSet(perSetSets);
+    }
+  };
+
+  const updatePerSetReps = (idx: number, value: string) => {
+    const next = perSetSets.map((s, i) => (i === idx ? { ...s, target_reps: value } : s));
+    commitPerSet(next);
+  };
+  const togglePerSetType = (idx: number) => {
+    const next = perSetSets.map((s, i) =>
+      i === idx ? { ...s, set_type: s.set_type === 'work' ? 'recognition' : 'work' } : s,
+    );
+    commitPerSet(next);
+  };
+  const addPerSetSlot = () => {
+    const last = perSetSets[perSetSets.length - 1];
+    commitPerSet([
+      ...perSetSets,
+      { set_number: perSetSets.length + 1, set_type: 'work', target_reps: last?.target_reps || '' },
+    ]);
+  };
+  const removePerSetSlot = (idx: number) => {
+    if (perSetSets.length <= 1) return;
+    commitPerSet(perSetSets.filter((_, i) => i !== idx));
+  };
+
   return (
     <Card className="border-border/60">
       <CardContent className="p-3 space-y-3">
