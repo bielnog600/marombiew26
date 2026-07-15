@@ -195,7 +195,7 @@ export const workoutPlanToParsedDays = (plan: WorkoutPlan): ParsedTrainingDay[] 
       pause: e.pause || (e.restSeconds ? `${e.restSeconds}s` : ""),
       description: e.description || "",
       variation: e.variation || "",
-      setScheme: e.setScheme,
+      setScheme: e.setScheme as ParsedExercise["setScheme"],
     })),
   }));
 
