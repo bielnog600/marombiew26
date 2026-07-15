@@ -315,6 +315,23 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
   };
 
   const commitEdits = () => {
+    // Validate per-set entries before committing
+    for (const ex of localExercises) {
+      if (ex.setScheme?.mode === 'per_set') {
+        const invalid = ex.setScheme.sets.some((s) => !s.target_reps || s.target_reps.trim() === '');
+        if (invalid) {
+          // eslint-disable-next-line no-alert
+          alert(`Defina as repetições das ${ex.setScheme.sets.length} séries de "${ex.exercise || 'exercício sem nome'}".`);
+          return;
+        }
+        const expected = parseInt(ex.series || '0', 10) || ex.setScheme.sets.length;
+        if (expected !== ex.setScheme.sets.length) {
+          // eslint-disable-next-line no-alert
+          alert(`Número de séries (${expected}) diferente do número de metas (${ex.setScheme.sets.length}) em "${ex.exercise || 'exercício'}".`);
+          return;
+        }
+      }
+    }
     setEditing(false);
     if (onDayChange) {
       onDayChange({ ...day, exercises: localExercises });
