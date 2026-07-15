@@ -96,6 +96,28 @@ const WORKOUT_PLAN_JSON_SCHEMA = {
                   type: ["string", "null"],
                   description: "Equivalent exercise from the DB; null if none",
                 },
+                set_scheme: {
+                  type: ["object", "null"],
+                  description: "Optional per-set prescription. Use mode=per_set when the reps target differs per set (pyramid, top-set, back-off).",
+                  additionalProperties: false,
+                  required: ["mode", "sets"],
+                  properties: {
+                    mode: { type: "string", enum: ["uniform", "recognition_work", "per_set"] },
+                    sets: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        additionalProperties: false,
+                        required: ["set_number", "set_type", "target_reps"],
+                        properties: {
+                          set_number: { type: "integer", minimum: 1 },
+                          set_type: { type: "string", enum: ["work", "recognition"] },
+                          target_reps: { type: "string" },
+                        },
+                      },
+                    },
+                  },
+                },
               },
             },
           },
@@ -197,6 +219,7 @@ function validateAndNormalizePlan(raw: any): { ok: true; data: any } | { ok: fal
                 restSeconds: restSeconds ?? null,
                 description: String(e.description ?? "").trim(),
                 variation: String(e.variation ?? "").trim(),
+                setScheme: normalizeSetSchemeSrv(e.set_scheme ?? e.setScheme),
               };
             })
             // deno-lint-ignore no-explicit-any
