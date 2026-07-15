@@ -438,6 +438,8 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
           ex.reps = first;
           ex.series2 = '';
           ex.setScheme = undefined;
+          copy[exIndex] = ex;
+          return copy;
         }
         // Collapse: keep work portion only
         const [, workReps] = splitComposed(ex.reps || '');
