@@ -302,8 +302,16 @@ function workoutPlanToMarkdown(plan: any): string {
   lines.push("|---|---|---|---|---|---|---|---|---|");
   for (const day of plan.days) {
     for (const ex of day.exercises) {
+      const perSet = ex.setScheme?.mode === "per_set" && Array.isArray(ex.setScheme.sets) && ex.setScheme.sets.length > 0
+        ? ex.setScheme
+        : null;
+      const seriesOut = perSet ? String(perSet.sets.length) : cell(ex.series);
+      const repsOut = perSet
+        // deno-lint-ignore no-explicit-any
+        ? perSet.sets.map((s: any) => s.target_reps).join(" / ")
+        : cell(ex.reps);
       lines.push(
-        `| ${cell(day.day)} | ${cell(ex.exercise)} | ${cell(ex.series)} | ${cell(ex.series2)} | ${cell(ex.reps)} | ${cell(ex.rir)} | ${restCell(ex.restSeconds)} | ${cell(ex.description)} | ${cell(ex.variation)} |`,
+        `| ${cell(day.day)} | ${cell(ex.exercise)} | ${seriesOut} | ${cell(ex.series2)} | ${repsOut} | ${cell(ex.rir)} | ${restCell(ex.restSeconds)} | ${cell(ex.description)} | ${cell(ex.variation)} |`,
       );
     }
   }
