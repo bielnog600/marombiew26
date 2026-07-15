@@ -18,6 +18,21 @@ const restCell = (restSeconds?: number, pause?: string): string => {
   return cell(pause);
 };
 
+/** Serialize per-set reps as "12 / 10 / 6" for markdown retro-compatibility. */
+const repsForMarkdown = (ex: WorkoutPlan["days"][number]["exercises"][number]): string => {
+  if (ex.setScheme?.mode === "per_set" && ex.setScheme.sets.length > 0) {
+    return ex.setScheme.sets.map((s) => s.target_reps).join(" / ");
+  }
+  return cell(ex.reps);
+};
+
+const seriesForMarkdown = (ex: WorkoutPlan["days"][number]["exercises"][number]): string => {
+  if (ex.setScheme?.mode === "per_set" && ex.setScheme.sets.length > 0) {
+    return String(ex.setScheme.sets.length);
+  }
+  return cell(ex.series);
+};
+
 export const workoutPlanToMarkdown = (plan: WorkoutPlan): string => {
   const lines: string[] = [];
   if (plan.metadata?.goal) {
@@ -31,7 +46,7 @@ export const workoutPlanToMarkdown = (plan: WorkoutPlan): string => {
   for (const day of plan.days) {
     for (const ex of day.exercises) {
       lines.push(
-        `| ${cell(day.day)} | ${cell(ex.exercise)} | ${cell(ex.series)} | ${cell(ex.series2)} | ${cell(ex.reps)} | ${cell(ex.rir)} | ${restCell(ex.restSeconds, ex.pause)} | ${cell(ex.description)} | ${cell(ex.variation)} |`,
+        `| ${cell(day.day)} | ${cell(ex.exercise)} | ${seriesForMarkdown(ex)} | ${cell(ex.series2)} | ${repsForMarkdown(ex)} | ${cell(ex.rir)} | ${restCell(ex.restSeconds, ex.pause)} | ${cell(ex.description)} | ${cell(ex.variation)} |`,
       );
     }
   }

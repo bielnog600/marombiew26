@@ -25,11 +25,12 @@ const WORK_REPS_OPTS = ['6', '8', '10', '12', '15', '6-8', '8-10', '8-12', '10-1
 const RIR_OPTS = ['', '0', '1', '2', '3', '1-2', '2-3'];
 const PAUSE_OPTS = ['10s', '15s', '30s', '45s', '60s', '90s', '120s', '180s'];
 
-type StructureMode = 'standard' | 'recognition';
+type StructureMode = 'standard' | 'recognition' | 'per_set';
 
 const isCompositeReps = (reps: string) => reps.includes('+');
 
 const detectMode = (ex: ParsedExercise): StructureMode => {
+  if (ex.setScheme?.mode === 'per_set') return 'per_set';
   const s1 = parseInt(ex.series || '0', 10) || 0;
   const s2 = parseInt(ex.series2 || '0', 10) || 0;
   if (s1 > 0 && s2 > 0) return 'recognition';
@@ -314,6 +315,23 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
   };
 
   const commitEdits = () => {
+    // Validate per-set entries before committing
+    for (const ex of localExercises) {
+      if (ex.setScheme?.mode === 'per_set') {
+        const invalid = ex.setScheme.sets.some((s) => !s.target_reps || s.target_reps.trim() === '');
+        if (invalid) {
+          // eslint-disable-next-line no-alert
+          alert(`Defina as repetições das ${ex.setScheme.sets.length} séries de "${ex.exercise || 'exercício sem nome'}".`);
+          return;
+        }
+        const expected = parseInt(ex.series || '0', 10) || ex.setScheme.sets.length;
+        if (expected !== ex.setScheme.sets.length) {
+          // eslint-disable-next-line no-alert
+          alert(`Número de séries (${expected}) diferente do número de metas (${ex.setScheme.sets.length}) em "${ex.exercise || 'exercício'}".`);
+          return;
+        }
+      }
+    }
     setEditing(false);
     if (onDayChange) {
       onDayChange({ ...day, exercises: localExercises });
@@ -396,7 +414,33 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
     setLocalExercises((prev) => {
       const copy = [...prev];
       const ex = { ...copy[exIndex] };
-      if (mode === 'standard') {
+      if (mode === 'per_set') {
+        // Initialize per-set from current series count / reps if not already set
+        const currentPerSet = ex.setScheme?.mode === 'per_set' ? ex.setScheme.sets : null;
+        if (!currentPerSet) {
+          const s = Math.max(parseInt(ex.series || '3', 10) || 3, 1);
+          const baseReps = (ex.reps || '10').split('+')[0]?.trim() || '10';
+          const sets = Array.from({ length: s }, (_, i) => ({
+            set_number: i + 1,
+            set_type: 'work' as const,
+            target_reps: baseReps,
+          }));
+          ex.setScheme = { mode: 'per_set', sets };
+          ex.series = String(s);
+          ex.series2 = '';
+          ex.reps = sets.map((x) => x.target_reps).join(' / ');
+        }
+      } else if (mode === 'standard') {
+        // Collapse per_set/recognition down to standard uniform
+        if (ex.setScheme?.mode === 'per_set') {
+          const first = ex.setScheme.sets[0]?.target_reps || ex.reps || '8-10';
+          ex.series = String(ex.setScheme.sets.length);
+          ex.reps = first;
+          ex.series2 = '';
+          ex.setScheme = undefined;
+          copy[exIndex] = ex;
+          return copy;
+        }
         // Collapse: keep work portion only
         const [, workReps] = splitComposed(ex.reps || '');
         const s2 = parseInt(ex.series2 || '0', 10) || 0;
@@ -404,6 +448,11 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
         ex.series2 = '';
         ex.reps = workReps || ex.reps || '';
       } else {
+        // recognition
+        if (ex.setScheme?.mode === 'per_set') {
+          ex.setScheme = undefined;
+          ex.series = String(ex.setScheme ? 3 : parseInt(ex.series || '3', 10) || 3);
+        }
         // Expand to recognition + work
         if (!ex.series2 || parseInt(ex.series2, 10) <= 0) {
           ex.series2 = ex.series && parseInt(ex.series, 10) > 0 ? ex.series : '3';
@@ -414,6 +463,53 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
           ex.reps = `12 + ${r}`;
         }
       }
+      copy[exIndex] = ex;
+      return copy;
+    });
+  };
+
+  const updatePerSetReps = (exIndex: number, setIdx: number, val: string) => {
+    setLocalExercises((prev) => {
+      const copy = [...prev];
+      const ex = { ...copy[exIndex] };
+      if (ex.setScheme?.mode !== 'per_set') return copy;
+      const sets = ex.setScheme.sets.map((s, i) => (i === setIdx ? { ...s, target_reps: val } : s));
+      ex.setScheme = { mode: 'per_set', sets };
+      ex.series = String(sets.length);
+      ex.reps = sets.map((s) => s.target_reps).join(' / ');
+      copy[exIndex] = ex;
+      return copy;
+    });
+  };
+
+  const addPerSetSlot = (exIndex: number) => {
+    setLocalExercises((prev) => {
+      const copy = [...prev];
+      const ex = { ...copy[exIndex] };
+      if (ex.setScheme?.mode !== 'per_set') return copy;
+      const last = ex.setScheme.sets[ex.setScheme.sets.length - 1];
+      const sets = [
+        ...ex.setScheme.sets,
+        { set_number: ex.setScheme.sets.length + 1, set_type: 'work' as const, target_reps: last?.target_reps || '10' },
+      ];
+      ex.setScheme = { mode: 'per_set', sets };
+      ex.series = String(sets.length);
+      ex.reps = sets.map((s) => s.target_reps).join(' / ');
+      copy[exIndex] = ex;
+      return copy;
+    });
+  };
+
+  const removePerSetSlot = (exIndex: number, setIdx: number) => {
+    setLocalExercises((prev) => {
+      const copy = [...prev];
+      const ex = { ...copy[exIndex] };
+      if (ex.setScheme?.mode !== 'per_set') return copy;
+      if (ex.setScheme.sets.length <= 1) return copy;
+      const sets = ex.setScheme.sets.filter((_, i) => i !== setIdx).map((s, i) => ({ ...s, set_number: i + 1 }));
+      ex.setScheme = { mode: 'per_set', sets };
+      ex.series = String(sets.length);
+      ex.reps = sets.map((s) => s.target_reps).join(' / ');
       copy[exIndex] = ex;
       return copy;
     });
@@ -543,11 +639,55 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
                           <SelectContent>
                             <SelectItem value="standard" className="text-xs">Padrão</SelectItem>
                             <SelectItem value="recognition" className="text-xs">Reconhecimento + trabalho</SelectItem>
+                            <SelectItem value="per_set" className="text-xs">Repetições por série</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
 
-                      {mode === 'standard' ? (
+                      {mode === 'per_set' ? (
+                        <div className="space-y-2">
+                          <div className="space-y-1.5">
+                            {(ex.setScheme?.sets ?? []).map((s, sIdx) => (
+                              <div key={sIdx} className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold uppercase text-muted-foreground w-14 shrink-0">Série {sIdx + 1}</span>
+                                <Textarea
+                                  value={s.target_reps}
+                                  onChange={(e) => updatePerSetReps(exIndex, sIdx, e.target.value)}
+                                  placeholder="Reps (ex: 12, 8-10, AMRAP)"
+                                  className="text-xs h-7 min-h-[28px] flex-1 resize-none px-2 py-1"
+                                  rows={1}
+                                />
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 text-destructive"
+                                  onClick={() => removePerSetSlot(exIndex, sIdx)}
+                                  disabled={(ex.setScheme?.sets.length ?? 0) <= 1}
+                                  title="Remover série"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ))}
+                            <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => addPerSetSlot(exIndex)}>
+                              <Plus className="h-3 w-3" /> Adicionar série
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-0.5">
+                              <label className="text-[10px] text-muted-foreground uppercase tracking-wide">RIR</label>
+                              <QuickSelect value={ex.rir} options={RIR_OPTS} onChange={(v) => handleFieldChange(exIndex, 'rir', v)} width="w-full" />
+                            </div>
+                            <div className="space-y-0.5">
+                              <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Pausa</label>
+                              <QuickSelect value={ex.pause} options={PAUSE_OPTS} onChange={(v) => handleFieldChange(exIndex, 'pause', v)} width="w-full" />
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            Markdown: <span className="font-mono text-foreground">{(ex.setScheme?.sets.length ?? 0)} × ({(ex.setScheme?.sets ?? []).map((s) => s.target_reps || '?').join(' / ')})</span>
+                          </p>
+                        </div>
+                      ) : mode === 'standard' ? (
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                           <div className="space-y-0.5">
                             <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Séries</label>

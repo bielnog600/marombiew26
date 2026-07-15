@@ -23,7 +23,8 @@ REGRAS DE SAÍDA (OBRIGATÓRIAS — RETORNE APENAS JSON VÁLIDO, SEM TEXTO EXTRA
         "rir": "1-2",
         "pause": "60s",
         "description": "técnica/dica/adaptação",
-        "variation": "NOME DA VARIAÇÃO"
+        "variation": "NOME DA VARIAÇÃO",
+        "set_scheme": null
       }
     }
   ],
@@ -44,6 +45,7 @@ REGRAS DOS CAMPOS:
 - "pause" = SEMPRE no formato "<n>s" (ex: "60s", "90s"). Nunca aspas, nunca "seg".
 - Nomes de exercícios e variações devem ser do BANCO DE EXERCÍCIOS fornecido pelo sistema (em maiúsculas).
 - "variation" deve ser do mesmo grupo muscular e DIFERENTE do "exercise".
+- "set_scheme" (opcional): use APENAS quando o usuário pedir metas de repetição DIFERENTES por série (ex.: pirâmide, top-set + back-off, "3 séries: 12, 10 e 6"). Formato: { "mode": "per_set", "sets": [{ "set_number": 1, "set_type": "work", "target_reps": "12" }, ...] }. Preserve set_scheme existente se a instrução não envolver séries. Ao usar per_set: "series" = total de séries e "reps" = "12 / 10 / 6".
 
 CASOS COMUNS:
 - "adicionar exercício de abdômen" → use APENAS exercícios do grupo ABDOMEN (flexão de tronco: PRANCHA FRONTAL, ABDOMINAL SUPRA, ABS SENTADO 1, ABS CANIVETE, etc).

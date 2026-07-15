@@ -96,6 +96,28 @@ const WORKOUT_PLAN_JSON_SCHEMA = {
                   type: ["string", "null"],
                   description: "Equivalent exercise from the DB; null if none",
                 },
+                set_scheme: {
+                  type: ["object", "null"],
+                  description: "Optional per-set prescription. Use mode=per_set when the reps target differs per set (pyramid, top-set, back-off).",
+                  additionalProperties: false,
+                  required: ["mode", "sets"],
+                  properties: {
+                    mode: { type: "string", enum: ["uniform", "recognition_work", "per_set"] },
+                    sets: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        additionalProperties: false,
+                        required: ["set_number", "set_type", "target_reps"],
+                        properties: {
+                          set_number: { type: "integer", minimum: 1 },
+                          set_type: { type: "string", enum: ["work", "recognition"] },
+                          target_reps: { type: "string" },
+                        },
+                      },
+                    },
+                  },
+                },
               },
             },
           },
@@ -133,6 +155,10 @@ Regras de preenchimento:
     • "rir" como "1-2", "2", "-" (use "-" para mobilidade/cardio).
     • "restSeconds" inteiro em segundos (ex.: 60, 90, 120). Use null APENAS para mobilidade leve.
     • "description" com técnica, postura, adaptações de segurança.
+    • "set_scheme" (opcional): use APENAS quando a prescrição exigir repetições diferentes por série (pirâmide, top-set + back-off, ondulatória).
+       - mode = "per_set"; sets = lista completa em ordem; set_number sequencial; set_type = "work" (ou "recognition" quando aplicável); target_reps é string ("12", "8-10", "AMRAP").
+       - Quando usar set_scheme mode=per_set: "series" = total de séries e "reps" = "12 / 10 / 6" (mesma ordem).
+       - Não é obrigatório em todos os exercícios; omita quando as reps forem iguais em todas as séries.
 
 NUNCA emita texto fora do JSON. NUNCA inclua mensagens de WhatsApp neste modo.
 `;
@@ -159,6 +185,31 @@ function parsePauseToSeconds(raw?: string): number | undefined {
   const sec = s.match(/^(\d+)\s*(?:s|seg|segundos?|["''”″`])?$/);
   if (sec) return Number(sec[1]);
   return undefined;
+}
+
+// deno-lint-ignore no-explicit-any
+function normalizeSetSchemeSrv(raw: any) {
+  if (!raw || typeof raw !== "object") return undefined;
+  const mode = raw.mode;
+  if (mode !== "uniform" && mode !== "recognition_work" && mode !== "per_set") return undefined;
+  const setsRaw = Array.isArray(raw.sets) ? raw.sets : [];
+  const sets = setsRaw
+    // deno-lint-ignore no-explicit-any
+    .map((s: any, i: number) => {
+      if (!s || typeof s !== "object") return null;
+      const target = String(s.target_reps ?? s.reps ?? "").trim();
+      if (!target) return null;
+      const setType = s.set_type === "recognition" ? "recognition" : "work";
+      const setNumber = Number(s.set_number);
+      return {
+        set_number: Number.isFinite(setNumber) && setNumber > 0 ? Math.trunc(setNumber) : i + 1,
+        set_type: setType,
+        target_reps: target,
+      };
+    })
+    .filter((s: unknown) => s !== null);
+  if (sets.length === 0) return undefined;
+  return { mode, sets };
 }
 
 // deno-lint-ignore no-explicit-any
@@ -197,6 +248,7 @@ function validateAndNormalizePlan(raw: any): { ok: true; data: any } | { ok: fal
                 restSeconds: restSeconds ?? null,
                 description: String(e.description ?? "").trim(),
                 variation: String(e.variation ?? "").trim(),
+                setScheme: normalizeSetSchemeSrv(e.set_scheme ?? e.setScheme),
               };
             })
             // deno-lint-ignore no-explicit-any
@@ -254,8 +306,16 @@ function workoutPlanToMarkdown(plan: any): string {
   lines.push("|---|---|---|---|---|---|---|---|---|");
   for (const day of plan.days) {
     for (const ex of day.exercises) {
+      const perSet = ex.setScheme?.mode === "per_set" && Array.isArray(ex.setScheme.sets) && ex.setScheme.sets.length > 0
+        ? ex.setScheme
+        : null;
+      const seriesOut = perSet ? String(perSet.sets.length) : cell(ex.series);
+      const repsOut = perSet
+        // deno-lint-ignore no-explicit-any
+        ? perSet.sets.map((s: any) => s.target_reps).join(" / ")
+        : cell(ex.reps);
       lines.push(
-        `| ${cell(day.day)} | ${cell(ex.exercise)} | ${cell(ex.series)} | ${cell(ex.series2)} | ${cell(ex.reps)} | ${cell(ex.rir)} | ${restCell(ex.restSeconds)} | ${cell(ex.description)} | ${cell(ex.variation)} |`,
+        `| ${cell(day.day)} | ${cell(ex.exercise)} | ${seriesOut} | ${cell(ex.series2)} | ${repsOut} | ${cell(ex.rir)} | ${restCell(ex.restSeconds)} | ${cell(ex.description)} | ${cell(ex.variation)} |`,
       );
     }
   }

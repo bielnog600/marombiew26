@@ -15,12 +15,30 @@ export interface SetPlan {
   targetReps: string;
 }
 
+export interface SetSchemeInput {
+  mode: 'uniform' | 'recognition_work' | 'per_set';
+  sets: Array<{ set_number: number; set_type: 'work' | 'recognition'; target_reps: string }>;
+}
+
 export const splitComposed = (reps: string): [string, string] => {
   const parts = (reps || '').split('+').map((p) => p.trim());
   return [parts[0] || '', parts[1] || parts[0] || ''];
 };
 
-export const buildSetPlan = (series: string, series2: string, reps: string): SetPlan[] => {
+export const buildSetPlan = (
+  series: string,
+  series2: string,
+  reps: string,
+  setScheme?: SetSchemeInput | null,
+): SetPlan[] => {
+  if (setScheme && setScheme.mode === 'per_set' && Array.isArray(setScheme.sets) && setScheme.sets.length > 0) {
+    return [...setScheme.sets]
+      .sort((a, b) => (a.set_number || 0) - (b.set_number || 0))
+      .map((s) => ({
+        kind: (s.set_type === 'recognition' ? 'recon' : 'work') as 'recon' | 'work',
+        targetReps: String(s.target_reps || '').trim(),
+      }));
+  }
   const s1 = parseInt(String(series ?? '') || '0', 10) || 0;
   const s2 = parseInt(String(series2 ?? '') || '0', 10) || 0;
   const [reconReps, workReps] = splitComposed(reps ?? '');

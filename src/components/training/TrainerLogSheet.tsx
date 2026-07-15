@@ -370,7 +370,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
         ? draft.exercises
         : day.exercises;
       baseExercises.forEach((ex, i) => {
-        const plan = buildSetPlan(ex.series, ex.series2, ex.reps);
+        const plan = buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme);
         initial[i] = {
           sets: plan.map(() => ({ weight: '', reps: '' })),
           plan,
@@ -501,7 +501,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     // Se as reps alvo mudaram, reconstrói o plano preservando séries já preenchidas
     if (patch.reps !== undefined) {
       const ex = newExercises[exIdx];
-      const newPlan = buildSetPlan(ex.series, ex.series2, ex.reps);
+      const newPlan = buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme);
       const prev = state[exIdx];
       if (prev) {
         const sets = newPlan.map((_, i) => prev.sets[i] ?? { weight: '', reps: '' });
@@ -525,7 +525,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     };
     const newExercises = [...currentExercises, newEx];
     const newIdx = newExercises.length - 1;
-    const plan = buildSetPlan(newEx.series, newEx.series2, newEx.reps);
+    const plan = buildSetPlan(newEx.series, newEx.series2, newEx.reps, newEx.setScheme);
     const newState = {
       ...state,
       [newIdx]: {
@@ -558,7 +558,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       if (sameName) {
         newState[i] = { ...prev, exerciseName: ex.exercise || prev.exerciseName };
       } else {
-        const plan = buildSetPlan(ex.series, ex.series2, ex.reps);
+        const plan = buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme);
         newState[i] = {
           sets: plan.map(() => ({ weight: '', reps: '' })),
           plan,

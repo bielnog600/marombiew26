@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { normalizeSetScheme } from '@/lib/workoutSchema';
 import type { ParsedExercise, ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -1023,6 +1024,7 @@ export function applyActionsToDay(day: ParsedTrainingDay, actions: any[]): Parse
     pause: ex?.pause || '60s',
     description: ex?.description || '',
     variation: ex?.variation || '',
+    setScheme: (normalizeSetScheme(ex?.set_scheme ?? ex?.setScheme) as ParsedExercise['setScheme']) ?? undefined,
   });
 
   for (const action of actions) {
@@ -1045,7 +1047,13 @@ export function applyActionsToDay(day: ParsedTrainingDay, actions: any[]): Parse
     } else if (action.op === 'modify') {
       const idx = findIdx(action);
       if (idx >= 0 && action.exercise) {
-        list[idx] = { ...list[idx], ...action.exercise } as ParsedExercise;
+        const patch: any = { ...action.exercise };
+        // Preserve existing setScheme unless the action explicitly changes it
+        if (patch.set_scheme !== undefined || patch.setScheme !== undefined) {
+          patch.setScheme = (normalizeSetScheme(patch.set_scheme ?? patch.setScheme) as ParsedExercise['setScheme']) ?? undefined;
+          delete patch.set_scheme;
+        }
+        list[idx] = { ...list[idx], ...patch } as ParsedExercise;
       }
     }
   }

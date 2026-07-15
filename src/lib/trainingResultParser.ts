@@ -7,6 +7,11 @@ export interface ParsedExercise {
   pause: string;
   description: string;
   variation: string;
+  /** Optional structured per-set prescription. When present, source of truth for the set list. */
+  setScheme?: {
+    mode: 'uniform' | 'recognition_work' | 'per_set';
+    sets: Array<{ set_number: number; set_type: 'work' | 'recognition'; target_reps: string }>;
+  };
 }
 
 export interface ParsedTrainingDay {
@@ -138,7 +143,7 @@ export const parseTrainingTable = (tableLines: string[], fallbackTitle = ''): Pa
 
     const normalizedExercise = normalizeText(exerciseCell);
     if (exerciseCell && exerciseCell !== '-' && exerciseCell !== '—' && normalizedExercise !== 'exercicio') {
-      currentDay.exercises.push({
+      const parsed: ParsedExercise = {
         exercise: exerciseCell,
         series: seriesCell,
         series2: series2Cell,
@@ -147,7 +152,25 @@ export const parseTrainingTable = (tableLines: string[], fallbackTitle = ''): Pa
         pause: pauseCell,
         description: descCell,
         variation: variationCell,
-      });
+      };
+      // Detect per-set reps "12 / 10 / 6"
+      const perSetMatch = repsCell.includes('/') && !repsCell.includes('+')
+        ? repsCell.split('/').map((p) => p.trim()).filter((p) => p.length > 0)
+        : null;
+      if (perSetMatch && perSetMatch.length >= 2) {
+        const seriesN = parseInt(seriesCell.replace(/\D/g, ''), 10) || perSetMatch.length;
+        if (seriesN === perSetMatch.length) {
+          parsed.setScheme = {
+            mode: 'per_set',
+            sets: perSetMatch.map((r, i) => ({
+              set_number: i + 1,
+              set_type: 'work',
+              target_reps: r,
+            })),
+          };
+        }
+      }
+      currentDay.exercises.push(parsed);
     }
   }
 
@@ -280,7 +303,12 @@ export const rebuildTrainingMarkdown = (
       lines.push('|---|---|---|---|---|---|---|---|---|');
       for (const day of sortedDays) {
         for (const ex of day.exercises) {
-          lines.push(`| ${day.day} | ${ex.exercise} | ${ex.series || '-'} | ${ex.series2 || '-'} | ${ex.reps || '-'} | ${ex.rir || '-'} | ${ex.pause || '-'} | ${ex.description || '-'} | ${ex.variation || '-'} |`);
+          const perSet = ex.setScheme?.mode === 'per_set' && ex.setScheme.sets.length > 0 ? ex.setScheme : null;
+          const seriesOut = perSet ? String(perSet.sets.length) : (ex.series || '-');
+          const repsOut = perSet
+            ? perSet.sets.map((s) => s.target_reps).join(' / ')
+            : (ex.reps || '-');
+          lines.push(`| ${day.day} | ${ex.exercise} | ${seriesOut} | ${ex.series2 || '-'} | ${repsOut} | ${ex.rir || '-'} | ${ex.pause || '-'} | ${ex.description || '-'} | ${ex.variation || '-'} |`);
         }
       }
       lines.push('');

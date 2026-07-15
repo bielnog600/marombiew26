@@ -15,6 +15,11 @@ export interface PlannedSet {
   reps: string; // raw reps text for that set (e.g. "12" or "8-10")
 }
 
+export interface SetSchemeInput {
+  mode: 'uniform' | 'recognition_work' | 'per_set';
+  sets: Array<{ set_number: number; set_type: 'work' | 'recognition'; target_reps: string }>;
+}
+
 const toInt = (v?: string | null): number => {
   if (!v) return 0;
   const m = String(v).match(/\d+/);
@@ -40,7 +45,17 @@ export const buildSetPlan = (
   series?: string | null,
   series2?: string | null,
   reps?: string | null,
+  setScheme?: SetSchemeInput | null,
 ): PlannedSet[] => {
+  // 1) Per-set scheme wins when provided
+  if (setScheme && setScheme.mode === 'per_set' && Array.isArray(setScheme.sets) && setScheme.sets.length > 0) {
+    return [...setScheme.sets]
+      .sort((a, b) => (a.set_number || 0) - (b.set_number || 0))
+      .map((s) => ({
+        type: (s.set_type === 'recognition' ? 'recognition' : 'work') as PlannedSetType,
+        reps: String(s.target_reps || '').trim(),
+      }));
+  }
   const s1 = toInt(series);
   const s2 = toInt(series2);
   const repParts = splitComposedReps(reps);

@@ -21,6 +21,25 @@ const optionalString = z
   .transform((v): string => (v == null ? "" : String(v).trim()));
 
 /**
+ * Optional per-set prescription. When present, becomes the source of truth
+ * for the exercise; legacy `series`/`series2`/`reps` remain filled so old
+ * consumers (markdown, PDF, mobile app parser) continue to work.
+ */
+export const SetSchemeSetSchema = z.object({
+  set_number: z.number().int().positive(),
+  set_type: z.enum(["work", "recognition"]),
+  target_reps: z.string().min(1),
+});
+
+export const SetSchemeSchema = z.object({
+  mode: z.enum(["uniform", "recognition_work", "per_set"]),
+  sets: z.array(SetSchemeSetSchema).min(1),
+});
+
+export type SetSchemeSet = z.infer<typeof SetSchemeSetSchema>;
+export type SetScheme = z.infer<typeof SetSchemeSchema>;
+
+/**
  * Reps / load are kept as strings because trainers use ranges ("8-12"),
  * tempos ("3-1-1"), or letters ("AMRAP"). We do, however, validate that
  * it is a string and trim it so consumers can rely on the shape.
@@ -47,6 +66,7 @@ export const WorkoutExerciseSchema = z.object({
   variation: optionalString.optional(),
   tempo: optionalString.optional(),
   notes: optionalString.optional(),
+  setScheme: SetSchemeSchema.optional(),
 });
 
 export type WorkoutExercise = z.infer<typeof WorkoutExerciseSchema>;
@@ -108,6 +128,32 @@ const parsePauseToSeconds = (raw?: string): number | undefined => {
   return undefined;
 };
 
+/** Best-effort normalization for setScheme coming from external sources (IA JSON, legacy). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const normalizeSetScheme = (raw: any): SetScheme | undefined => {
+  if (!raw || typeof raw !== "object") return undefined;
+  const mode = raw.mode;
+  if (mode !== "uniform" && mode !== "recognition_work" && mode !== "per_set") return undefined;
+  const setsRaw = Array.isArray(raw.sets) ? raw.sets : [];
+  const sets: SetSchemeSet[] = [];
+  setsRaw.forEach((s: unknown, i: number) => {
+    if (!s || typeof s !== "object") return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const so = s as any;
+    const target = String(so.target_reps ?? so.reps ?? "").trim();
+    if (!target) return;
+    const setType = so.set_type === "recognition" ? "recognition" : "work";
+    const setNumber = Number(so.set_number);
+    sets.push({
+      set_number: Number.isFinite(setNumber) && setNumber > 0 ? Math.trunc(setNumber) : i + 1,
+      set_type: setType,
+      target_reps: target,
+    });
+  });
+  if (sets.length === 0) return undefined;
+  return { mode, sets };
+};
+
 /** Convert legacy markdown-parsed days to the v2 JSON shape (with stable ids). */
 export const parsedDaysToWorkoutPlan = (
   days: ParsedTrainingDay[],
@@ -131,6 +177,7 @@ export const parsedDaysToWorkoutPlan = (
       restSeconds: parsePauseToSeconds(e.pause),
       description: e.description || "",
       variation: e.variation || "",
+      setScheme: e.setScheme,
     })),
   })),
 });
@@ -148,6 +195,7 @@ export const workoutPlanToParsedDays = (plan: WorkoutPlan): ParsedTrainingDay[] 
       pause: e.pause || (e.restSeconds ? `${e.restSeconds}s` : ""),
       description: e.description || "",
       variation: e.variation || "",
+      setScheme: e.setScheme as ParsedExercise["setScheme"],
     })),
   }));
 
@@ -193,6 +241,7 @@ export const normalizeWorkoutPlan = (raw: unknown): WorkoutPlan | null => {
                 variation: String(e.variation ?? "").trim(),
                 tempo: typeof e.tempo === "string" ? e.tempo : undefined,
                 notes: typeof e.notes === "string" ? e.notes : undefined,
+                setScheme: normalizeSetScheme(e.setScheme ?? e.set_scheme),
               }))
               .filter((e: WorkoutExercise) => e.exercise.length > 0)
           : [],
