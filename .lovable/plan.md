@@ -1,139 +1,66 @@
+## Objetivo
 
-# Reorganização do Wizard da Dieta IA
+Adicionar um terceiro modo de séries (`per_set` — "Repetições por série") aos planos de treino, mantendo intactos os modos atuais (`uniform` e `recognition_work`), sem migration, com retrocompatibilidade total do markdown de 9 colunas.
 
-Antes de tocar em qualquer código, aqui está a nova estrutura proposta. Nada é removido — só **reagrupado, renomeado e remapeado**. O motor de geração (prompt do GPT), o decision engine, o check-in e o `dietActionApplier` continuam funcionando com o mesmo vocabulário interno.
+## Contrato estruturado (em `conteudo_json`)
 
----
+Adicionar campo opcional `set_scheme` em `WorkoutExerciseSchema`:
 
-## Estrutura atual (hoje, confusa)
-
-```text
-Step 1  Rotina e Treino
-Step 2  Estilo da Dieta, Fase e Hormônios   ← estilo misturado com fase
-Step 3  Atividade e Estratégia              ← "estratégia" = nível atividade
-Step 4  Refeições e Preferências            ← nº refeições isolado
-Step 5  Ajustes do Protocolo                ← refeed, carb cycling, diet break, platô, sódio, água, calorias, carbo
-Step 6  Extras                              ← jejum intermitente escondido aqui
-Step 7  Alimentos para Substituição
+```
+set_scheme?: {
+  mode: 'uniform' | 'recognition_work' | 'per_set',
+  sets?: Array<{
+    set_number: number,
+    set_type: 'work' | 'recognition',
+    target_reps: string   // "12", "8-10", "AMRAP", "falha"
+  }>
+}
 ```
 
-Problemas: jejum em "Extras", protocolos de condução (refeed/diet break) misturados com ajustes finos (sódio/água), nenhuma separação entre "o que a dieta é" e "como ela é conduzida".
+Sem `set_scheme` → comportamento atual permanece. Sem migration.
 
----
+## Arquivos alterados
 
-## Estrutura nova (proposta)
+**Schema/tipos**
+- `src/lib/workoutSchema.ts` — adicionar `SetSchemeSchema` opcional em `WorkoutExerciseSchema`; `normalizeWorkoutPlan` preserva o campo.
 
-```text
-Step 1  Objetivo do Plano
-        → fase: cutting | manutenção | bulking | recomp | performance
-        → hormônios (mantido aqui, pois muda meta proteica)
-        → rotina/treino (dias, horário, intensidade) — fica aqui porque
-          objetivo + treino definem juntos a direção do plano
+**Serialização/parsing markdown**
+- `src/lib/workoutMarkdownSerializer.ts` — para `per_set`, `SÉRIE = N` e `REPETIÇÕES = "12 / 10 / 6"`; demais modos inalterados.
+- `src/lib/trainingResultParser.ts` — detectar `X / Y / Z` em REPETIÇÕES e gerar `set_scheme.mode='per_set'` durante ingestão do markdown quando não houver JSON.
+- `src/lib/setPlanBuilder.ts` — `buildSetPlan` aceita `setScheme?` e prioriza-o sobre `series/series2/reps` quando presente.
 
-Step 2  Base da Dieta            (era "Estilo da Dieta")
-        → Convencional | Flexível/IIFYM | Low Carb | Cetogênica |
-          Mediterrânea | Paleolítica | Vegetariana | Vegana
-        → "a dieta-mãe"
+**Editor manual (Admin → Alunos → Treinos e wizard IA)**
+- `src/pages/TreinoIA.tsx` — no editor de exercício, seletor de modo (Padrão / Reconhecimento+Trabalho / Repetições por série). No modo `per_set`, renderizar lista `Série N | Repetições [_]` com botões Adicionar/Remover série. Ao alternar modo, converter valores existentes quando possível. Bloquear salvamento se `sets.length !== series` ou algum `target_reps` vazio, com mensagem "Defina as repetições das N séries."
+- `src/pages/TreinoPreview.tsx` — mostrar reps por série quando `per_set`.
 
-Step 3  Estratégia da Dieta      (NOVO agrupamento)
-        → Linear (default, sem toggle = linear)
-        → Refeed
-        → Diet Break
-        → Carb Cycling (mantém editor estruturado high/med/low)
-        → Estratégia para Platô
-        → Aliviar Agressividade (mapeado do decision engine)
-        → "como a dieta será conduzida ao longo do tempo"
+**IA (geração e edição)**
+- `supabase/functions/trainer-agent/index.ts` — expor `set_scheme` no JSON schema estruturado + instruir a IA quando usar `per_set` (pirâmides, top-set + back-off, etc.). Não obrigatório; default continua `uniform`. Validar servidor: `sets.length === series`, `set_number` sequencial, sem duplicatas, `target_reps` não vazio, sem zero/negativo.
+- `supabase/functions/training-edit-agent/index.ts` — aceitar/retornar `set_scheme`; preservar quando o pedido não envolver séries.
 
-Step 4  Estrutura Alimentar do Dia
-        → Número de refeições
-        → Distribuição de horários
-        → Distribuição treino / descanso
-        → Jejum Intermitente        ← MOVIDO de Extras
-        → Janela alimentar (se jejum ativo)
-        → Reorganização de refeições (meal_change movido para cá)
-        → "como o dia alimentar é montado"
+**Execução (Modo Treino)**
+- `src/components/training/TrainerLogSheet.tsx` — quando exercício tem `set_scheme.mode === 'per_set'`, renderizar uma linha por série com `Meta: X repetições`, campos Carga / Repetições realizadas / Concluído. Prescrição imutável para o aluno. Draft (localStorage) por série via `set_number`.
+- `src/components/training/TrainerLogSheetUtils.ts` — `buildSetPlan` recebe `setScheme` para expandir metas por série; `makeDaySignature` inclui hash do `set_scheme`.
+- `src/pages/TreinoExecucao.tsx` — passar `set_scheme` para o log sheet.
 
-Step 5  Ajustes Finos do Protocolo
-        → Ajuste de Calorias
-        → Ajuste de Carboidrato
-        → Ajuste de Sódio
-        → Ajuste de Água / Manipulação Hídrica
-        → Ajuste de densidade energética
-        → Overrides g/kg (proteína, gordura)
-        → "refinamentos numéricos que não mudam base nem estratégia"
+**Testes**
+- `src/test/setSchemePerSet.test.ts` (novo) — cobre: uniform preservado, recognition_work preservado, `per_set` roundtrip JSON→markdown→JSON (`12 / 10 / 6`), plano antigo sem `set_scheme` normalizado, validação bloqueando `sets.length !== series` e `target_reps` vazio.
 
-Step 6  Extras e Observações
-        → Suplementação
-        → Fitoterapia
-        → Observações livres / notas
-        → Alimentos para substituição (movido do antigo step 7)
-        → "complementos que não afetam a lógica central"
-```
+## Retrocompatibilidade
 
----
+1. Planos sem `set_scheme` → tratados como `uniform` implícito (comportamento atual, zero mudança visível).
+2. Modo `recognition_work` continua usando `series/series2/reps` como hoje; `set_scheme` é opcional e espelha, não substitui.
+3. Markdown mantém 9 colunas. `"12 / 10 / 6"` na coluna REPETIÇÕES é o único sinal do per_set no fallback textual.
+4. `conteudo_json` é fonte preferencial; markdown continua fallback.
 
-## Mapeamento das funções existentes → novos steps
+## Testes finais
 
-Nada some. Apenas muda de lugar.
+Executar:
+- `bunx tsgo --noEmit`
+- `bunx vitest run src/test/setSchemePerSet.test.ts src/test/workoutPlanMigration.test.ts`
+- `bun run build`
 
-| Função atual | Step antigo | Step novo |
-|---|---|---|
-| Estilo da Dieta (8 opções) | 2 | **2 (Base, renomeado)** |
-| Fase + Hormônios | 2 | **1 (Objetivo)** |
-| Rotina/Treino | 1 | **1 (Objetivo)** |
-| Nível de atividade | 3 | **1 (Objetivo)** |
-| Nº de refeições | 4 | **4 (Estrutura)** |
-| Preferências alimentares | 4 | **6 (Extras)** ou mantido em 4 se preferir — ver pergunta abaixo |
-| `refeed` | 5 | **3 (Estratégia)** |
-| `diet_break` | 5 | **3 (Estratégia)** |
-| `carb_cycling` + editor estruturado | 5 | **3 (Estratégia)** |
-| `plato` | 5 | **3 (Estratégia)** |
-| `meal_change` | 5 | **4 (Estrutura)** |
-| `calorie_adjust` | 5 | **5 (Ajustes Finos)** |
-| `carb_adjust` | 5 | **5 (Ajustes Finos)** |
-| `sodium_adjust` | 5 | **5 (Ajustes Finos)** |
-| `water_adjust` | 5 | **5 (Ajustes Finos)** |
-| Jejum intermitente | 6 (Extras → toggle "Emagrecimento rápido") | **4 (Estrutura)** — toggle dedicado |
-| Suplementos | 6 | **6 (Extras)** |
-| Fitoterapia | 6 | **6 (Extras)** |
-| Emagrecimento Rápido (toggle composto) | 6 | desmembrado: jejum → step 4, HIIT/termogênicos → step 6 |
-| Alimentos para Substituição | 7 | **6 (Extras)** |
+## Fora do escopo
 
----
+Métodos, progressão, RIR, pausa, periodização, dietas, banco de exercícios, publicação, histórico. Sem migration DB.
 
-## Compatibilidade preservada
-
-1. **IDs internos não mudam.** `refeed`, `carb_cycling`, `diet_break`, `plato`, `meal_change`, `calorie_adjust`, `carb_adjust`, `sodium_adjust`, `water_adjust` continuam com as mesmas chaves em `selectedAdjustments[]`. Só mudam de step visualmente.
-2. **Prompt do GPT inalterado** — as seções `=== ESTILO DE DIETA ===`, `=== AJUSTES DO PROTOCOLO ===`, `=== EXTRAS ===` continuam sendo montadas a partir dos mesmos arrays.
-3. **Decision Engine** continua emitindo as mesmas `decision_action`. O remapeamento de ação → step fica:
-   - `atualizar_dieta` → abre wizard no **Step 5 (Ajustes Finos)**
-   - `regenerar_dieta` → abre no **Step 2 (Base)**
-   - `aplicar_refeed` → abre no **Step 3 (Estratégia)** com refeed marcado
-   - `aliviar_agressividade` → abre no **Step 3 (Estratégia)** com diet_break
-   - `reduzir_densidade` → abre no **Step 5 (Ajustes Finos)**
-   - `manter` / `revisar_manual` → não abrem wizard
-4. **`dietActionApplier`** não muda — ele só usa IDs internos, não números de step.
-5. **Check-in / persistência** intactos.
-6. **Carb Cycling estruturado** continua disponível quando `carb_cycling` é marcado em Step 3.
-
----
-
-## Detalhes técnicos
-
-Arquivos afetados (apenas reorganização visual + renomeação):
-
-- `src/pages/DietaIA.tsx` — único arquivo realmente alterado: `STEP_TITLES`, blocos `{currentStep === N && (...)}`, validações `stepValid`, função `StepHeader` e o pequeno bloco "Emagrecimento Rápido" desmembrado.
-- `PROTOCOL_ADJUSTMENTS` é partido em três arrays derivados (`STRATEGY_OPTIONS`, `STRUCTURE_OPTIONS`, `FINE_TUNE_OPTIONS`) sem alterar IDs.
-- Nenhuma alteração em `dietSchema.ts`, `dietProtocols.ts`, `dietActionApplier.ts`, `dietDecisionEngine.ts`, `diet-agent` edge function ou `ProtocolsDialog.tsx`.
-
-Resumo do diff esperado: ~150 linhas movidas/renomeadas em `DietaIA.tsx`, zero remoções de feature, zero mudanças no backend.
-
----
-
-## O que eu preciso confirmar antes de implementar
-
-1. **Preferências alimentares** (gosta / não gosta / alergias): ficam no Step 4 (Estrutura) ou no Step 6 (Extras)?
-2. **Distribuição treino/descanso de macros**: hoje vive dentro do prompt como derivada. Crio um toggle visível no Step 4 ou mantenho automático?
-3. Mantenho o **toggle "Emagrecimento Rápido"** como atalho composto no Step 6 (que ativa jejum+HIIT+termogênicos de uma vez), ou removo o atalho agora que jejum tem seu próprio espaço no Step 4?
-
-Se preferir, posso assumir defaults sensatos (1 → Step 4 · 2 → automático · 3 → remover o atalho composto) e seguir. Me responde com "ok seguir com defaults" ou ajusta o que quiser.
+Aguardando aprovação para implementar.
