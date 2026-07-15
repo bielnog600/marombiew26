@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dumbbell, Save, Loader2, Check, Timer, Plus, Minus, Trash2, X, Settings2 } from 'lucide-react';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { ExercisePicker } from '@/components/tabata/ExercisePicker';
@@ -43,11 +44,30 @@ interface Props {
   onAddSet?: (exIdx: number) => void;
   onRemoveSet?: (exIdx: number, setIdx: number) => void;
   onRemoveExercise?: (exIdx: number) => void;
-  onUpdateMeta?: (patch: { pause?: string; variation?: string; reps?: string; rir?: string }) => void;
+  onUpdateMeta?: (patch: {
+    pause?: string;
+    variation?: string;
+    reps?: string;
+    rir?: string;
+    series?: string;
+    series2?: string;
+    setScheme?: any;
+  }) => void;
   ExerciseNamePicker: React.FC<any>;
   HistoryPopover: React.FC<any>;
   parsePauseSeconds: (raw?: string | null) => number;
 }
+
+type StructureMode = 'standard' | 'recognition' | 'per_set';
+
+const detectMode = (ex: any): StructureMode => {
+  if (ex?.setScheme?.mode === 'per_set') return 'per_set';
+  const s1 = parseInt(String(ex?.series ?? '0'), 10) || 0;
+  const s2 = parseInt(String(ex?.series2 ?? '0'), 10) || 0;
+  if (s1 > 0 && s2 > 0) return 'recognition';
+  if (String(ex?.reps || '').includes('+')) return 'recognition';
+  return 'standard';
+};
 
 const ExerciseLogCard: React.FC<Props> = ({
   exIdx,
@@ -69,6 +89,74 @@ const ExerciseLogCard: React.FC<Props> = ({
   parsePauseSeconds,
 }) => {
   const [editOpen, setEditOpen] = useState(false);
+  const mode: StructureMode = detectMode(ex);
+
+  const perSetSets: Array<{ set_number: number; set_type: 'work' | 'recognition'; target_reps: string }> =
+    mode === 'per_set' && ex?.setScheme?.sets
+      ? ex.setScheme.sets
+      : (st.plan || []).map((p, i) => ({
+          set_number: i + 1,
+          set_type: p.kind === 'recon' ? 'recognition' : 'work',
+          target_reps: p.targetReps || '',
+        }));
+
+  const commitPerSet = (next: typeof perSetSets) => {
+    if (!onUpdateMeta) return;
+    const renumbered = next.map((s, i) => ({ ...s, set_number: i + 1 }));
+    onUpdateMeta({ setScheme: { mode: 'per_set', sets: renumbered } });
+  };
+
+  const changeMode = (next: StructureMode) => {
+    if (!onUpdateMeta || next === mode) return;
+    if (next === 'standard') {
+      const [a] = String(ex.reps || '').split('+').map((p) => p.trim());
+      onUpdateMeta({
+        setScheme: undefined,
+        series: String(st.plan?.length || parseInt(ex.series || '3', 10) || 3),
+        series2: '',
+        reps: a || ex.reps || '',
+      });
+    } else if (next === 'recognition') {
+      const workCount = String(st.plan?.filter((p) => p.kind === 'work').length || 3);
+      const [a, b] = String(ex.reps || '').split('+').map((p) => p.trim());
+      const recReps = a || '12';
+      const workReps = b || a || '8-10';
+      onUpdateMeta({
+        setScheme: undefined,
+        series: '1',
+        series2: workCount,
+        reps: `${recReps} + ${workReps}`,
+      });
+    } else {
+      // per_set — semear a partir do plano atual
+      commitPerSet(perSetSets);
+    }
+  };
+
+  const updatePerSetReps = (idx: number, value: string) => {
+    const next = perSetSets.map((s, i) => (i === idx ? { ...s, target_reps: value } : s));
+    commitPerSet(next);
+  };
+  const togglePerSetType = (idx: number) => {
+    const next = perSetSets.map((s, i) =>
+      i === idx
+        ? { ...s, set_type: (s.set_type === 'work' ? 'recognition' : 'work') as 'work' | 'recognition' }
+        : s,
+    );
+    commitPerSet(next);
+  };
+  const addPerSetSlot = () => {
+    const last = perSetSets[perSetSets.length - 1];
+    commitPerSet([
+      ...perSetSets,
+      { set_number: perSetSets.length + 1, set_type: 'work', target_reps: last?.target_reps || '' },
+    ]);
+  };
+  const removePerSetSlot = (idx: number) => {
+    if (perSetSets.length <= 1) return;
+    commitPerSet(perSetSets.filter((_, i) => i !== idx));
+  };
+
   return (
     <Card className="border-border/60">
       <CardContent className="p-3 space-y-3">
@@ -151,16 +239,85 @@ const ExerciseLogCard: React.FC<Props> = ({
             )}
           </div>
           {onUpdateMeta && editOpen && (
-            <div className="mt-2 grid grid-cols-2 gap-2 rounded-md border border-border/50 bg-secondary/30 p-2">
+            <div className="mt-2 space-y-2 rounded-md border border-border/50 bg-secondary/30 p-2">
               <div className="space-y-1">
-                <label className="text-[9px] uppercase text-muted-foreground font-semibold">Reps alvo</label>
-                <Input
-                  defaultValue={ex.reps || ''}
-                  onBlur={(e) => onUpdateMeta({ reps: e.target.value })}
-                  className="h-7 text-xs"
-                  placeholder="8-12"
-                />
+                <label className="text-[9px] uppercase text-muted-foreground font-semibold">Modo de séries</label>
+                <Select value={mode} onValueChange={(v) => changeMode(v as StructureMode)}>
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="standard" className="text-xs">Padrão</SelectItem>
+                    <SelectItem value="recognition" className="text-xs">Reconhecimento + trabalho</SelectItem>
+                    <SelectItem value="per_set" className="text-xs">Repetições por série</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+
+              {mode === 'per_set' ? (
+                <div className="space-y-1.5">
+                  <label className="text-[9px] uppercase text-muted-foreground font-semibold">
+                    Reps por série
+                  </label>
+                  {perSetSets.map((s, i) => (
+                    <div key={i} className="grid grid-cols-[56px_1fr_28px_28px] items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => togglePerSetType(i)}
+                        className={`text-[9px] font-bold text-center px-1 py-1 rounded ${
+                          s.set_type === 'recognition'
+                            ? 'bg-primary/15 text-primary border border-primary/30'
+                            : 'bg-secondary text-foreground border border-border/50'
+                        }`}
+                        title={s.set_type === 'recognition' ? 'Reconhecimento' : 'Trabalho'}
+                      >
+                        {s.set_type === 'recognition' ? `REC #${i + 1}` : `#${i + 1}`}
+                      </button>
+                      <Input
+                        defaultValue={s.target_reps}
+                        onBlur={(e) => updatePerSetReps(i, e.target.value)}
+                        placeholder="ex.: 12"
+                        className="h-7 text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removePerSetSlot(i)}
+                        disabled={perSetSets.length <= 1}
+                        className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                        aria-label="Remover série"
+                        title="Remover série"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                      <span />
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-full gap-1 text-[10px] text-muted-foreground hover:text-primary border border-dashed border-border/50"
+                    onClick={addPerSetSlot}
+                  >
+                    <Plus className="h-3 w-3" /> Adicionar série
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase text-muted-foreground font-semibold">
+                    {mode === 'recognition' ? 'Reps (reconhecimento + trabalho)' : 'Reps alvo'}
+                  </label>
+                  <Input
+                    key={ex.reps || ''}
+                    defaultValue={ex.reps || ''}
+                    onBlur={(e) => onUpdateMeta({ reps: e.target.value })}
+                    className="h-7 text-xs"
+                    placeholder={mode === 'recognition' ? '12 + 8-10' : '8-12'}
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <label className="text-[9px] uppercase text-muted-foreground font-semibold">Descanso</label>
                 <Input
@@ -188,8 +345,11 @@ const ExerciseLogCard: React.FC<Props> = ({
                   className="h-7 text-xs"
                 />
               </div>
-              <p className="col-span-2 text-[9px] text-muted-foreground">
-                Para mudar a quantidade de séries, use os botões + / × na lista abaixo.
+              </div>
+              <p className="text-[9px] text-muted-foreground">
+                {mode === 'per_set'
+                  ? 'Neste modo, use "Adicionar série" acima para controlar a quantidade.'
+                  : 'Para mudar a quantidade de séries, use os botões + / × na lista abaixo.'}
               </p>
             </div>
           )}
