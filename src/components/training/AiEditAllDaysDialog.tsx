@@ -1024,7 +1024,7 @@ export function applyActionsToDay(day: ParsedTrainingDay, actions: any[]): Parse
     pause: ex?.pause || '60s',
     description: ex?.description || '',
     variation: ex?.variation || '',
-    setScheme: normalizeSetScheme(ex?.set_scheme ?? ex?.setScheme) ?? undefined,
+    setScheme: (normalizeSetScheme(ex?.set_scheme ?? ex?.setScheme) as ParsedExercise['setScheme']) ?? undefined,
   });
 
   for (const action of actions) {
