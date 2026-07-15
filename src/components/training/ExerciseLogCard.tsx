@@ -239,16 +239,85 @@ const ExerciseLogCard: React.FC<Props> = ({
             )}
           </div>
           {onUpdateMeta && editOpen && (
-            <div className="mt-2 grid grid-cols-2 gap-2 rounded-md border border-border/50 bg-secondary/30 p-2">
+            <div className="mt-2 space-y-2 rounded-md border border-border/50 bg-secondary/30 p-2">
               <div className="space-y-1">
-                <label className="text-[9px] uppercase text-muted-foreground font-semibold">Reps alvo</label>
-                <Input
-                  defaultValue={ex.reps || ''}
-                  onBlur={(e) => onUpdateMeta({ reps: e.target.value })}
-                  className="h-7 text-xs"
-                  placeholder="8-12"
-                />
+                <label className="text-[9px] uppercase text-muted-foreground font-semibold">Modo de séries</label>
+                <Select value={mode} onValueChange={(v) => changeMode(v as StructureMode)}>
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="standard" className="text-xs">Padrão</SelectItem>
+                    <SelectItem value="recognition" className="text-xs">Reconhecimento + trabalho</SelectItem>
+                    <SelectItem value="per_set" className="text-xs">Repetições por série</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+
+              {mode === 'per_set' ? (
+                <div className="space-y-1.5">
+                  <label className="text-[9px] uppercase text-muted-foreground font-semibold">
+                    Reps por série
+                  </label>
+                  {perSetSets.map((s, i) => (
+                    <div key={i} className="grid grid-cols-[56px_1fr_28px_28px] items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => togglePerSetType(i)}
+                        className={`text-[9px] font-bold text-center px-1 py-1 rounded ${
+                          s.set_type === 'recognition'
+                            ? 'bg-primary/15 text-primary border border-primary/30'
+                            : 'bg-secondary text-foreground border border-border/50'
+                        }`}
+                        title={s.set_type === 'recognition' ? 'Reconhecimento' : 'Trabalho'}
+                      >
+                        {s.set_type === 'recognition' ? `REC #${i + 1}` : `#${i + 1}`}
+                      </button>
+                      <Input
+                        defaultValue={s.target_reps}
+                        onBlur={(e) => updatePerSetReps(i, e.target.value)}
+                        placeholder="ex.: 12"
+                        className="h-7 text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removePerSetSlot(i)}
+                        disabled={perSetSets.length <= 1}
+                        className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                        aria-label="Remover série"
+                        title="Remover série"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                      <span />
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-full gap-1 text-[10px] text-muted-foreground hover:text-primary border border-dashed border-border/50"
+                    onClick={addPerSetSlot}
+                  >
+                    <Plus className="h-3 w-3" /> Adicionar série
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase text-muted-foreground font-semibold">
+                    {mode === 'recognition' ? 'Reps (reconhecimento + trabalho)' : 'Reps alvo'}
+                  </label>
+                  <Input
+                    key={ex.reps || ''}
+                    defaultValue={ex.reps || ''}
+                    onBlur={(e) => onUpdateMeta({ reps: e.target.value })}
+                    className="h-7 text-xs"
+                    placeholder={mode === 'recognition' ? '12 + 8-10' : '8-12'}
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <label className="text-[9px] uppercase text-muted-foreground font-semibold">Descanso</label>
                 <Input
@@ -276,8 +345,11 @@ const ExerciseLogCard: React.FC<Props> = ({
                   className="h-7 text-xs"
                 />
               </div>
-              <p className="col-span-2 text-[9px] text-muted-foreground">
-                Para mudar a quantidade de séries, use os botões + / × na lista abaixo.
+              </div>
+              <p className="text-[9px] text-muted-foreground">
+                {mode === 'per_set'
+                  ? 'Neste modo, use "Adicionar série" acima para controlar a quantidade.'
+                  : 'Para mudar a quantidade de séries, use os botões + / × na lista abaixo.'}
               </p>
             </div>
           )}
