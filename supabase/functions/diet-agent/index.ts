@@ -198,6 +198,7 @@ REGRAS:
 - Se estratégia = "carb_cycle", gere múltiplos days com carbBias variando (low/normal/high).
 - Caso contrário, gere 1 day único com label "Padrão" (vale para todos os dias da semana).
 - NÃO inclua nada além do JSON.
+- Se as instruções acima (bloco "CALORIAS POR DIA") solicitarem o campo raiz "dailyAdjustments", inclua-o OBRIGATORIAMENTE no MESMO objeto JSON de saída, com as 7 chaves (seg..dom) e o shape estrito descrito naquele bloco. Sem esse campo a resposta é rejeitada pelo servidor.
 `;
 
 const SYSTEM_PROMPT_TEMPLATE = `Você é um nutricionista esportivo com mais de 15 anos de experiência, especializado em fisiculturismo, composição corporal, emagrecimento e hipertrofia. Você cria dietas personalizadas baseadas em evidências científicas para atletas e praticantes de musculação.
