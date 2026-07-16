@@ -450,7 +450,7 @@ const TreinoExecucao = () => {
 
   const exercise = exercises[currentIndex];
   const setPlan: PlannedSet[] = useMemo(
-    () => (exercise ? buildSetPlan(exercise.series, exercise.series2, exercise.reps) : []),
+    () => (exercise ? buildSetPlan(exercise.series, exercise.series2, exercise.reps, exercise.setScheme) : []),
     [exercise],
   );
   const totalSeries = setPlan.length || 3;
