@@ -693,7 +693,10 @@ serve(async (req) => {
           (cyclePlan ? carbCyclePromptBlock(cyclePlan) + "\n\n" : "") +
           extraSystem +
           "\n\n" +
-          STRUCTURED_OUTPUT_INSTRUCTIONS;
+          STRUCTURED_OUTPUT_INSTRUCTIONS +
+          (schedule
+            ? "\n\nLEMBRETE FINAL (obrigatório): o JSON de saída DEVE conter o campo raiz \"dailyAdjustments\" com as 7 chaves seg, ter, qua, qui, sex, sab, dom, cada uma seguindo o shape estrito {target_kcal, requested_adjustment_kcal, estimated_adjustment_kcal, status, instructions, summary} descrito acima. Dias com requested_adjustment_kcal=0 usam status=\"base\", instructions=[], summary=\"Manter plano base\". Sem esse campo o servidor devolve 422 e a dieta é descartada.\n"
+            : "");
         const r = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
