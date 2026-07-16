@@ -943,11 +943,14 @@ const TreinoExecucao = () => {
               return r.a === r.b ? `${r.a}${unit}` : `${r.a}–${r.b}${unit}`;
             };
 
-            const repsLabel = isReal(exercise.reps) ? parseReps(exercise.reps) : null;
+            const isPerSet = exercise.setScheme?.mode === 'per_set' && setPlan.length > 0;
+            const repsLabel = !isPerSet && isReal(exercise.reps) ? parseReps(exercise.reps) : null;
             // RIR só aparece se for realmente RIR (números baixos). Caso contrário ocultamos.
             const rirLabel = isReal(exercise.rir) ? parseRir(exercise.rir) : null;
             const isComposed = setPlan.some((p) => p.type === 'recognition') && setPlan.some((p) => p.type === 'work');
-            const summary = isComposed ? buildPlanSummary(setPlan) : null;
+            const summary = isPerSet
+              ? setPlan.map((set) => set.reps).filter(Boolean).join(' / ')
+              : isComposed ? buildPlanSummary(setPlan) : null;
 
             return (
               <div className="flex items-center gap-2 mt-2 flex-wrap">
