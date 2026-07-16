@@ -51,7 +51,7 @@ const TreinoPreview = () => {
   const { exercises, dayName, exerciseMedia, phase } = state;
 
   const totalSets = exercises.reduce((acc, ex) => {
-    return acc + buildSetPlan(ex.series, ex.series2, ex.reps).length;
+    return acc + buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme).length;
   }, 0);
 
   const muscleGroups = (() => {
@@ -121,8 +121,10 @@ const TreinoPreview = () => {
           {exercises.map((ex, i) => {
             const key = ex.exercise.toUpperCase().trim();
             const media = exerciseMedia[key];
-            const plan = buildSetPlan(ex.series, ex.series2, ex.reps);
-            const summary = buildPlanSummary(plan);
+            const plan = buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme);
+            const summary = ex.setScheme?.mode === 'per_set'
+              ? plan.map((set) => set.reps).filter(Boolean).join(' / ')
+              : buildPlanSummary(plan);
 
             return (
               <Card key={ex.exercise + i} className="glass-card overflow-hidden">
