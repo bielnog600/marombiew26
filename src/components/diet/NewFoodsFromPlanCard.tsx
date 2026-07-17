@@ -20,9 +20,10 @@ interface Row extends NewFoodCandidate {
 interface Props {
   candidates: NewFoodCandidate[];
   onDismissAll: () => void;
+  onRemoveFromPlan?: (candidate: NewFoodCandidate) => void;
 }
 
-const NewFoodsFromPlanCard: React.FC<Props> = ({ candidates, onDismissAll }) => {
+const NewFoodsFromPlanCard: React.FC<Props> = ({ candidates, onDismissAll, onRemoveFromPlan }) => {
   const queryClient = useQueryClient();
   const [rows, setRows] = useState<Row[]>(() =>
     candidates.map((c, i) => ({
@@ -94,7 +95,13 @@ const NewFoodsFromPlanCard: React.FC<Props> = ({ candidates, onDismissAll }) => 
     }
   };
 
-  const remove = (key: string) => setRows((prev) => prev.filter((r) => r.key !== key));
+  const remove = (key: string) => {
+    const target = rows.find((r) => r.key === key);
+    setRows((prev) => prev.filter((r) => r.key !== key));
+    if (target && !target.approved && onRemoveFromPlan) {
+      onRemoveFromPlan(target);
+    }
+  };
 
   return (
     <Card className="glass-card border-primary/30">
