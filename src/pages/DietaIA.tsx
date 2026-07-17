@@ -1786,6 +1786,17 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
         const md = dietPlanToMarkdown(structured);
         setStructuredPlan(structured);
         setResult(md);
+        // Detectar alimentos novos (não existentes na base) para aprovação manual.
+        try {
+          const existingNames = foodRecords.map((f) => f.name);
+          const newFoods = detectNewFoodsFromPlan(structured, existingNames);
+          setPendingNewFoods(newFoods);
+          if (newFoods.length > 0) {
+            toast.info(`${newFoods.length} alimento(s) novo(s) detectado(s). Revise e aprove abaixo.`);
+          }
+        } catch (e) {
+          console.warn('detectNewFoodsFromPlan failed', e);
+        }
         if (currentTargets) {
           const report = validateDietMacros(md, currentTargets, foodRecords);
           setMacroReport(report);
