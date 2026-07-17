@@ -2911,6 +2911,15 @@ ${generated}`;
             })()}
 
             {dietSimilarity && dietSimilarity.historyCount > 0 && (() => {
+              return null; // placeholder — no-op to satisfy patch anchor
+            })()}
+            {pendingNewFoods.length > 0 && (
+              <NewFoodsFromPlanCard
+                candidates={pendingNewFoods}
+                onDismissAll={() => setPendingNewFoods([])}
+              />
+            )}
+            {dietSimilarity && dietSimilarity.historyCount > 0 && (() => {
               const fb = describeSimilarity(dietSimilarity);
               const cls =
                 fb.level === 'warn'
