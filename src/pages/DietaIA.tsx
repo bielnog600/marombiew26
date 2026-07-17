@@ -58,7 +58,7 @@ import {
 import { computeViabilityScore, describeViability, type ViabilityBreakdown } from '@/lib/dietViability';
 import { buildClosePatch, buildFailPatch, orphanCutoffISO } from '@/lib/dietActionApplier';
 import { buildCarbCyclePlan } from '@/lib/carbCycling';
-import { detectNewFoodsFromPlan, type NewFoodCandidate } from '@/lib/newFoodsDetector';
+import { detectNewFoodsFromPlan, normalizeFoodName, type NewFoodCandidate } from '@/lib/newFoodsDetector';
 import NewFoodsFromPlanCard from '@/components/diet/NewFoodsFromPlanCard';
 import DietValidationBadge from '@/components/diet/DietValidationBadge';
 import ReactMarkdown from 'react-markdown';
