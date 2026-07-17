@@ -58,7 +58,7 @@ import {
 import { computeViabilityScore, describeViability, type ViabilityBreakdown } from '@/lib/dietViability';
 import { buildClosePatch, buildFailPatch, orphanCutoffISO } from '@/lib/dietActionApplier';
 import { buildCarbCyclePlan } from '@/lib/carbCycling';
-import { detectNewFoodsFromPlan, type NewFoodCandidate } from '@/lib/newFoodsDetector';
+import { detectNewFoodsFromPlan, normalizeFoodName, type NewFoodCandidate } from '@/lib/newFoodsDetector';
 import NewFoodsFromPlanCard from '@/components/diet/NewFoodsFromPlanCard';
 import DietValidationBadge from '@/components/diet/DietValidationBadge';
 import ReactMarkdown from 'react-markdown';
@@ -2918,6 +2918,33 @@ ${generated}`;
               <NewFoodsFromPlanCard
                 candidates={pendingNewFoods}
                 onDismissAll={() => setPendingNewFoods([])}
+                onRemoveFromPlan={(cand) => {
+                  const target = normalizeFoodName(cand.name);
+                  if (!target) return;
+                  setPendingNewFoods((prev) => prev.filter((c) => normalizeFoodName(c.name) !== target));
+                  setStructuredPlan((prev) => {
+                    if (!prev) return prev;
+                    const next: DietPlan = {
+                      ...prev,
+                      days: prev.days.map((d) => ({
+                        ...d,
+                        meals: (d.meals ?? []).map((m) => ({
+                          ...m,
+                          items: (m.items ?? []).filter(
+                            (it) => normalizeFoodName(it.name || '') !== target,
+                          ),
+                        })),
+                      })),
+                    };
+                    try {
+                      setResult(dietPlanToMarkdown(next));
+                    } catch (e) {
+                      console.warn('failed to re-serialize plan after removal', e);
+                    }
+                    return next;
+                  });
+                  toast.info(`"${cand.name}" removido do plano`);
+                }}
               />
             )}
             {dietSimilarity && dietSimilarity.historyCount > 0 && (() => {
