@@ -1492,6 +1492,7 @@ const DietaIA = () => {
     setDietSimilarity(null);
     setViability(null);
     setDailyAdjustments(null);
+    setPendingNewFoods([]);
     setScheduleWarnings([]);
 
     const selectedStrategy = STRATEGIES.find(s => s.value === strategy);
