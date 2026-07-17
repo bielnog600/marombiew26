@@ -1635,8 +1635,12 @@ As 3 opções devem ser alimentos DIFERENTES entre si e diferentes do alimento p
 ${substitutions.length > 0 ? `Use PREFERENCIALMENTE os alimentos abaixo como opções de substituição:\n${substitutions.map(s => `- ${s.food}: ${s.portion}`).join('\n')}` : ''}
 ${modelDiet.trim() ? `
 === DIETA MODELO (REFERÊNCIA) ===
-O nutricionista colou uma dieta modelo abaixo. Use esta dieta como BASE/REFERÊNCIA: mantenha a estrutura e horários semelhantes, mas AJUSTE as quantidades (gramas) para que os macronutrientes e calorias totais batam com os valores calculados para este aluno.
-IMPORTANTE: Se a dieta modelo contiver algum alimento que o aluno NÃO PODE comer (por restrição alimentar, alergia ou intolerância) ou que NÃO ESTÁ na lista de preferências alimentares do aluno, você DEVE substituir esse alimento por outro da lista de preferências/alimentos permitidos do aluno que tenha perfil nutricional semelhante, mantendo os macros equivalentes.
+REGRAS OBRIGATÓRIAS PARA A DIETA MODELO:
+1) Use EXATAMENTE os mesmos alimentos da dieta modelo, na MESMA ordem, refeição por refeição. NÃO troque um alimento por "equivalente" só porque ele não está na base de alimentos do sistema — a base é apenas uma referência; se o alimento existir na dieta modelo, use-o mesmo assim e devolva kcal/P/C/G estimados por você.
+2) Para bater os macros e calorias do aluno, AJUSTE APENAS AS QUANTIDADES (gramas/ml) de cada item — nunca substitua o alimento em si.
+3) Substituição do alimento SÓ é permitida em UM caso: quando o alimento da dieta modelo estiver listado como restrição/alergia/intolerância do aluno (ver seções abaixo). Nesse caso, substitua por um item de perfil nutricional semelhante e explique o motivo na coluna "Substituição".
+4) NÃO adicione alimentos que não estejam na dieta modelo, exceto quando for absolutamente necessário para preencher um macro em falta — nesse caso, prefira alimentos que já apareçam em outras refeições da própria dieta modelo.
+5) Para cada alimento, preencha SEMPRE Kcal, P, C, G reais daquela quantidade — inclusive para alimentos que não constam na base do sistema.
 Dieta modelo:
 ${modelDiet.trim()}
 ` : ''}
