@@ -410,6 +410,8 @@ const DietaIA = () => {
   const [showCompare, setShowCompare] = useState(false);
   // Canonical structured plan (source of truth when structured generation succeeds).
   const [structuredPlan, setStructuredPlan] = useState<DietPlan | null>(null);
+  // Novos alimentos encontrados no plano que não estão na base — aguardam aprovação.
+  const [pendingNewFoods, setPendingNewFoods] = useState<NewFoodCandidate[]>([]);
   // Variability controls + feedback (mirrors TreinoIA).
   const [variationIntensity, setVariationIntensity] = useState<DietVariationIntensity>(DEFAULT_DIET_INTENSITY);
   const [dietSimilarity, setDietSimilarity] = useState<SimilarityFeedback | null>(null);
