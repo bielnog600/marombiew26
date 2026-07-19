@@ -23,6 +23,7 @@ import { ListChecks } from 'lucide-react';
 import { buildCarbCycleDays } from '@/lib/dietAiActions';
 
 const WEEKDAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+const WEEKDAY_KEYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
 const OPTION_TITLE_REGEX = /(op[cç][aã]o|card[aá]pio)/i;
 const DIET_DISPLAY_SCHEMA_VERSION = 'dedupe-v2';
 
@@ -106,6 +107,7 @@ const MinhasDietas = () => {
   const [planVersion, setPlanVersion] = useState<string | null>(null);
   const [dietMarkdown, setDietMarkdown] = useState<string>('');
   const [protocolKeys, setProtocolKeys] = useState<ProtocolKey[]>([]);
+  const [weeklySchedule, setWeeklySchedule] = useState<any | null>(null);
   const [showProtocols, setShowProtocols] = useState(false);
   const { tracking, addWater, removeWater, toggleMeal, waterCurrentMl, waterTargetMl, waterGoalGlasses } = useDailyTracking({ isTrainingDay });
 
@@ -187,6 +189,7 @@ const MinhasDietas = () => {
       setDietMarkdown(dieta.conteudo);
       const saved = (dieta as any).protocols as SavedProtocols | null | undefined;
       setProtocolKeys(protocolsToKeys(saved));
+      setWeeklySchedule((saved as any)?.weekly_energy_schedule ?? null);
       // Version key combines plan id + created_at so any admin edit (which
       // bumps created_at via re-insert OR keeps it via update) is detected.
       // We hash the content length as a tiebreaker for in-place updates.
