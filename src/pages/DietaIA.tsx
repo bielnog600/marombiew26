@@ -1420,7 +1420,7 @@ const DietaIA = () => {
         if (!day) continue;
         const adj = day.adjustment_kcal ?? 0;
         const adjStr = adj === 0 ? 'Manter plano base' : `${adj > 0 ? '+' : ''}${adj} kcal`;
-        lines.push(`   ${WEEKDAY_LABELS[wd]}: ${day.target_kcal} kcal (${adjStr})`);
+        lines.push(`   ${WEEKDAY_LABELS[wd]}: ${computeDayTarget(day)} kcal (${adjStr})`);
       }
     }
 
