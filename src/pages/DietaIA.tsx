@@ -703,6 +703,38 @@ const DietaIA = () => {
           setEnableEmagrecimentoRapido(!!p.extras.emagrecimento_rapido);
           setEnableJejumIntermitente(!!p.extras.jejum_intermitente);
         }
+        // Restore Weekly Energy Schedule (per-day adjustments) and base kcal.
+        const wes = p.weekly_energy_schedule;
+        if (wes && typeof wes === 'object') {
+          if (wes.base_source === 'manual' && typeof wes.base_daily_kcal === 'number') {
+            setBaseKcalMode('manual');
+            setManualBaseKcalInput(String(wes.base_daily_kcal));
+          }
+          if (wes.days && typeof wes.days === 'object') {
+            const nextAdj = {
+              seg: { adjustment_kcal: 0, fixed_kcal: null as number | null },
+              ter: { adjustment_kcal: 0, fixed_kcal: null as number | null },
+              qua: { adjustment_kcal: 0, fixed_kcal: null as number | null },
+              qui: { adjustment_kcal: 0, fixed_kcal: null as number | null },
+              sex: { adjustment_kcal: 0, fixed_kcal: null as number | null },
+              sab: { adjustment_kcal: 0, fixed_kcal: null as number | null },
+              dom: { adjustment_kcal: 0, fixed_kcal: null as number | null },
+            };
+            for (const wd of Object.keys(nextAdj) as (keyof typeof nextAdj)[]) {
+              const d = (wes.days as any)[wd];
+              if (d && typeof d === 'object') {
+                nextAdj[wd] = {
+                  adjustment_kcal: Number(d.adjustment_kcal) || 0,
+                  fixed_kcal: d.fixed_kcal == null ? null : Number(d.fixed_kcal),
+                };
+              }
+            }
+            setScheduleAdjustments(nextAdj);
+          }
+          if (wes.generated_adjustments && typeof wes.generated_adjustments === 'object') {
+            setDailyAdjustments(wes.generated_adjustments as DailyAdjustments);
+          }
+        }
       }
     }
   };
