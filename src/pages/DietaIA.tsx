@@ -3111,6 +3111,34 @@ ${generated}`;
               <NewFoodsFromPlanCard
                 candidates={pendingNewFoods}
                 onDismissAll={() => setPendingNewFoods([])}
+                onReplaceInPlan={(cand, existingName) => {
+                  const target = normalizeFoodName(cand.name);
+                  if (!target) return;
+                  setPendingNewFoods((prev) => prev.filter((c) => normalizeFoodName(c.name) !== target));
+                  setStructuredPlan((prev) => {
+                    if (!prev) return prev;
+                    const next: DietPlan = {
+                      ...prev,
+                      days: prev.days.map((d) => ({
+                        ...d,
+                        meals: (d.meals ?? []).map((m) => ({
+                          ...m,
+                          items: (m.items ?? []).map((it) =>
+                            normalizeFoodName(it.name || '') === target
+                              ? { ...it, name: existingName }
+                              : it,
+                          ),
+                        })),
+                      })),
+                    };
+                    try {
+                      setResult(dietPlanToMarkdown(next));
+                    } catch (e) {
+                      console.warn('failed to re-serialize plan after swap', e);
+                    }
+                    return next;
+                  });
+                }}
                 onRemoveFromPlan={(cand) => {
                   const target = normalizeFoodName(cand.name);
                   if (!target) return;
