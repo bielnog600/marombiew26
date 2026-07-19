@@ -17,6 +17,20 @@ const STOPWORDS = new Set([
   'subtotal', 'observações', 'observacoes',
 ]);
 
+// Tokens that describe cooking method / preparation and should be ignored
+// when comparing a candidate name to the DB. E.g. "arroz basmati cozido"
+// should still match "arroz basmati" already registered in the base.
+const PREP_TOKENS = new Set([
+  'cozido', 'cozida', 'cozidos', 'cozidas',
+  'cru', 'crua', 'crus', 'cruas',
+  'assado', 'assada', 'assados', 'assadas',
+  'grelhado', 'grelhada', 'grelhados', 'grelhadas',
+  'frito', 'frita', 'fritos', 'fritas',
+  'refogado', 'refogada', 'refogados', 'refogadas',
+  'vapor', 'ao', 'no', 'na',
+  'natural', 'fresco', 'fresca',
+]);
+
 export function normalizeFoodName(raw: string): string {
   if (!raw) return '';
   let s = raw.toLowerCase().trim();
@@ -32,12 +46,23 @@ export function normalizeFoodName(raw: string): string {
   return s;
 }
 
+function nameTokens(raw: string): string[] {
+  return normalizeFoodName(raw)
+    .split(' ')
+    .filter((t) => t && !PREP_TOKENS.has(t));
+}
+
 export function detectNewFoodsFromPlan(
   plan: DietPlan | null | undefined,
   existingFoodNames: string[]
 ): NewFoodCandidate[] {
   if (!plan?.days) return [];
   const existingSet = new Set(existingFoodNames.map(normalizeFoodName).filter(Boolean));
+  // Token-set representation of existing DB names (ignoring prep tokens).
+  // Allows "arroz basmati" (DB) to match "arroz basmati cozido" (candidate).
+  const existingTokenSets = existingFoodNames
+    .map((n) => nameTokens(n))
+    .filter((toks) => toks.length > 0);
   const seen = new Map<string, NewFoodCandidate>();
 
   for (const day of plan.days) {
@@ -48,6 +73,15 @@ export function detectNewFoodsFromPlan(
         if (!norm || norm.length < 2) continue;
         if (STOPWORDS.has(norm)) continue;
         if (existingSet.has(norm)) continue;
+        // Token-subset match: if every meaningful token of any DB food name
+        // is present in this candidate's tokens, we consider it the same food.
+        const candTokens = new Set(nameTokens(raw));
+        if (candTokens.size > 0) {
+          const matched = existingTokenSets.some(
+            (dbToks) => dbToks.every((t) => candTokens.has(t)),
+          );
+          if (matched) continue;
+        }
         if (seen.has(norm)) continue;
         seen.set(norm, {
           name: raw,
