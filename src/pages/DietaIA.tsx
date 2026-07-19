@@ -4,7 +4,7 @@ import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Loader2, Save, UtensilsCrossed, RotateCcw, Leaf, Pill, Zap, Clock, Target, SlidersHorizontal, FileDown, FileText, Plus, X } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, UtensilsCrossed, RotateCcw, Leaf, Pill, Zap, Clock, Target, SlidersHorizontal, FileDown, FileText, Plus, X, Copy } from 'lucide-react';
 import { AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -1306,6 +1306,154 @@ const DietaIA = () => {
     const parts = [...selectedPreferences];
     if (customPreference.trim()) parts.push(customPreference.trim());
     return parts.join(', ');
+  };
+
+  const buildContextSummary = () => {
+    const lines: string[] = [];
+    const sel = <T extends { value: string; label: string }>(arr: T[], v: string) => arr.find(x => x.value === v);
+    const selPhase = sel(PHASES, phase);
+    const selStrategy = sel(STRATEGIES, strategy);
+    const selStyle = sel(DIET_STYLES, dietStyle);
+    const selActivity = sel(ACTIVITY_LEVELS, activityLevel);
+    const selTime = sel(TRAINING_TIMES, trainingTime);
+
+    lines.push('=== CONTEXTO DO ALUNO ===');
+    lines.push(`Nome: ${studentCtx?.nome || studentName || 'N/D'}`);
+    if (studentCtx?.sexo) lines.push(`Sexo: ${studentCtx.sexo}`);
+    if (studentCtx?.data_nascimento) lines.push(`Nascimento: ${studentCtx.data_nascimento}`);
+    if (studentCtx?.objetivo) lines.push(`Objetivo: ${studentCtx.objetivo}`);
+    if (studentCtx?.peso) lines.push(`Peso: ${studentCtx.peso} kg`);
+    if (studentCtx?.altura) lines.push(`Altura: ${studentCtx.altura} cm`);
+    if (studentCtx?.imc) lines.push(`IMC: ${studentCtx.imc}`);
+    if (studentCtx?.percentual_gordura) lines.push(`% Gordura: ${studentCtx.percentual_gordura}%`);
+    if (studentCtx?.massa_magra) lines.push(`Massa magra: ${studentCtx.massa_magra} kg`);
+    if (studentCtx?.massa_gorda) lines.push(`Massa gorda: ${studentCtx.massa_gorda} kg`);
+    if (studentCtx?.cintura) lines.push(`Cintura: ${studentCtx.cintura} cm`);
+    if (studentCtx?.quadril) lines.push(`Quadril: ${studentCtx.quadril} cm`);
+    if (studentCtx?.rcq) lines.push(`RCQ: ${studentCtx.rcq}`);
+    if (studentCtx?.restricoes) lines.push(`Restrições (perfil): ${studentCtx.restricoes}`);
+    if (studentCtx?.lesoes) lines.push(`Lesões: ${studentCtx.lesoes}`);
+    if (studentCtx?.observacoes) lines.push(`Observações do perfil: ${studentCtx.observacoes}`);
+
+    if (studentCtx?.anamnese) {
+      lines.push('');
+      lines.push('--- Anamnese ---');
+      for (const [k, v] of Object.entries(studentCtx.anamnese)) {
+        if (v) lines.push(`${k}: ${v}`);
+      }
+    }
+
+    if (studentCtx?.questionario_dieta) {
+      const q = studentCtx.questionario_dieta;
+      lines.push('');
+      lines.push('--- Questionário de dieta (respostas do aluno) ---');
+      if (q.respondido_em) lines.push(`Respondido em: ${new Date(q.respondido_em).toLocaleDateString('pt-BR')}`);
+      if (q.estilo_dieta) lines.push(`Estilo preferido: ${q.estilo_dieta}`);
+      if (q.fase_atual) lines.push(`Fase atual: ${q.fase_atual}`);
+      if (q.num_refeicoes) lines.push(`Nº refeições: ${q.num_refeicoes}`);
+      if (q.dias_treino) lines.push(`Dias de treino: ${q.dias_treino}`);
+      if (q.horario_treino) lines.push(`Horário treino: ${q.horario_treino}`);
+      if (q.usa_hormonios) lines.push(`Uso de hormônios: ${q.usa_hormonios}`);
+      if (q.restricoes_alimentares) lines.push(`Restrições/alergias: ${q.restricoes_alimentares}`);
+      if (q.preferencias_alimentares) lines.push(`Preferências alimentares: ${q.preferencias_alimentares}`);
+      if (q.alimentos_por_refeicao) {
+        lines.push('Alimentos selecionados por refeição:');
+        const apr = q.alimentos_por_refeicao;
+        if (typeof apr === 'string') {
+          lines.push(`  ${apr}`);
+        } else if (apr && typeof apr === 'object') {
+          for (const [meal, foods] of Object.entries(apr)) {
+            const list = Array.isArray(foods) ? foods.join(', ') : String(foods);
+            lines.push(`  ${meal}: ${list}`);
+          }
+        }
+      }
+      if (q.como_se_sente) lines.push(`Como se sente: ${q.como_se_sente}`);
+      const sintomas = [
+        q.fraqueza && 'Fraqueza',
+        q.dor_cabeca && 'Dor de cabeça',
+        q.reduziu_peso && 'Reduziu peso',
+        q.pele_fina && 'Pele fina',
+        q.fome_excessiva && 'Fome excessiva',
+        q.insonia && 'Insônia',
+        q.baixa_energia && 'Baixa energia',
+        q.irritabilidade && 'Irritabilidade',
+      ].filter(Boolean);
+      if (sintomas.length) lines.push(`Sintomas: ${sintomas.join(', ')}`);
+      if (q.observacoes) lines.push(`Observações do aluno: ${q.observacoes}`);
+    }
+
+    lines.push('');
+    lines.push('=== ETAPAS SELECIONADAS NO GERADOR ===');
+    lines.push('');
+    lines.push('1) Rotina e treino:');
+    if (selTime) lines.push(`   Horário do treino: ${selTime.label}`);
+    if (trainingDays) lines.push(`   Frequência: ${trainingDays}x/semana`);
+
+    lines.push('');
+    lines.push('2) Estilo, fase e hormônios:');
+    if (selStyle) lines.push(`   Estilo de dieta: ${selStyle.label}${selStyle.desc ? ` — ${selStyle.desc}` : ''}`);
+    if (selPhase) lines.push(`   Fase: ${selPhase.label}${selPhase.desc ? ` — ${selPhase.desc}` : ''}`);
+    lines.push(`   Uso de hormônios: ${usesHormones === null ? 'Não informado' : usesHormones ? `Sim — ${hormoneDetails || 'sem detalhes'}` : 'Não (natural)'}`);
+
+    lines.push('');
+    lines.push('3) Atividade e estratégia:');
+    if (selActivity) lines.push(`   Nível de atividade: ${selActivity.label} (FA = ${activityLevel})`);
+    if (selStrategy) lines.push(`   Estratégia calórica: ${selStrategy.label} (${(selStrategy.pct ?? 0) > 0 ? '+' : ''}${selStrategy.pct}%)`);
+
+    lines.push('');
+    lines.push('4) Refeições e preferências:');
+    if (mealCount) lines.push(`   Nº de refeições: ${mealCount}`);
+    const restr = getRestrictionsText();
+    if (restr) lines.push(`   Restrições/alergias: ${restr}`);
+    const prefs = getPreferencesText();
+    if (prefs) lines.push(`   Preferências: ${prefs}`);
+
+    lines.push('');
+    lines.push('5) Calorias por dia (cronograma semanal):');
+    if (baseKcal?.base_daily_kcal) {
+      lines.push(`   Meta base diária: ${baseKcal.base_daily_kcal} kcal (origem: ${baseKcal.source})`);
+    }
+    if (weeklySchedule) {
+      for (const wd of ENERGY_WEEKDAYS) {
+        const day = weeklySchedule.days[wd];
+        if (!day) continue;
+        const adj = day.adjustment_kcal ?? 0;
+        const adjStr = adj === 0 ? 'Manter plano base' : `${adj > 0 ? '+' : ''}${adj} kcal`;
+        lines.push(`   ${WEEKDAY_LABELS[wd]}: ${computeDayTarget(day)} kcal (${adjStr})`);
+      }
+    }
+
+    lines.push('');
+    lines.push('6) Ajustes do protocolo (extras habilitados):');
+    const extras = [
+      enableFitoterapia && 'Fitoterapia',
+      enableSuplementos && 'Suplementação',
+      enableEmagrecimentoRapido && 'HIIT + Termogênicos',
+    ].filter(Boolean);
+    lines.push(`   ${extras.length ? extras.join(', ') : 'Nenhum'}`);
+
+    lines.push('');
+    lines.push('7) Extras e observações:');
+    if (substitutions.length) {
+      lines.push('   Alimentos para substituição:');
+      for (const s of substitutions) lines.push(`     - ${s.food} — ${s.portion}`);
+    }
+    if (modelDiet.trim()) {
+      lines.push('   Dieta modelo (referência):');
+      lines.push(modelDiet.trim().split('\n').map(l => `     ${l}`).join('\n'));
+    }
+
+    return lines.join('\n');
+  };
+
+  const copyAllInfo = async () => {
+    try {
+      await navigator.clipboard.writeText(buildContextSummary());
+      toast.success('Informações copiadas!');
+    } catch {
+      toast.error('Não foi possível copiar');
+    }
   };
 
   const canGenerate = Boolean(activityLevel && strategy && mealCount && phase && weeklySchedule && baseKcalIssues.length === 0);
@@ -2773,7 +2921,20 @@ ${generated}`;
               {currentStep === 6 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-3">
-            <StepHeader step={7} title="Extras e Observações (opcional)" />
+            <div className="flex items-start justify-between gap-2">
+              <StepHeader step={7} title="Extras e Observações (opcional)" />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 text-[11px]"
+                onClick={copyAllInfo}
+                title="Copiar todas as informações do aluno e das etapas selecionadas"
+              >
+                <Copy className="h-3 w-3" />
+                Copiar tudo
+              </Button>
+            </div>
             <p className="text-xs text-muted-foreground">Complementos que não afetam a lógica central da dieta.</p>
             <div className="space-y-3">
               <div className={`flex items-center justify-between rounded-xl border-2 p-3 transition-all hover:border-primary/50 ${enableFitoterapia ? 'border-primary bg-primary/10' : 'border-border'}`}>
