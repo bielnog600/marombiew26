@@ -300,7 +300,7 @@ const MinhasDietas = () => {
 
   const hasMultipleGroups = displayGroups.length > 1;
   const activeGroupIndex = displayGroups[selectedGroupIndex] ? selectedGroupIndex : defaultGroupIndex;
-  const currentMeals = displayGroups.length > 0 ? (displayGroups[activeGroupIndex]?.meals ?? []) : allMeals;
+  const baseMealsForDay = displayGroups.length > 0 ? (displayGroups[activeGroupIndex]?.meals ?? []) : allMeals;
 
   // Per-day target / adjustment from protocols.weekly_energy_schedule.
   // When present, the student sees the actual daily meta (not the flat sum
@@ -328,6 +328,48 @@ const MinhasDietas = () => {
     }
     return { target, adjustment, instructions: dayInstructions };
   }, [weeklySchedule, activeGroupIndex, usesMealOptions]);
+
+  // Scale foods (qty + kcal + macros) proportionally to the per-day target
+  // so the student sees a different meal size on adjusted days instead of
+  // the same base menu everywhere.
+  const currentMeals = useMemo(() => {
+    const target = daySchedule?.target;
+    if (!target || target <= 0 || baseMealsForDay.length === 0) return baseMealsForDay;
+    const baseTotal = baseMealsForDay.reduce(
+      (s, m) => s + (m.foods?.reduce((fs: number, f: any) => fs + parseNum(f.kcal), 0) ?? 0),
+      0,
+    );
+    if (baseTotal <= 0) return baseMealsForDay;
+    const ratio = target / baseTotal;
+    if (Math.abs(ratio - 1) < 0.01) return baseMealsForDay;
+    const scaleQty = (qty: string): string => {
+      if (!qty) return qty;
+      const m = qty.match(/^\s*([\d.,]+)\s*(.*)$/);
+      if (!m) return qty;
+      const n = Number(m[1].replace(',', '.'));
+      if (!Number.isFinite(n) || n <= 0) return qty;
+      const scaled = n * ratio;
+      const rounded = scaled >= 10 ? Math.round(scaled) : Math.round(scaled * 10) / 10;
+      const numStr = String(rounded).replace('.', ',');
+      return m[2] ? `${numStr} ${m[2]}`.trim() : numStr;
+    };
+    const scaleNum = (v: string) => {
+      const n = parseNum(v);
+      if (!n) return v;
+      return String(Math.round(n * ratio));
+    };
+    return baseMealsForDay.map((meal) => ({
+      ...meal,
+      foods: meal.foods.map((f: any) => ({
+        ...f,
+        qty: scaleQty(f.qty),
+        kcal: scaleNum(f.kcal),
+        p: scaleNum(f.p),
+        c: scaleNum(f.c),
+        g: scaleNum(f.g),
+      })),
+    }));
+  }, [baseMealsForDay, daySchedule]);
 
   // Sum directly from foods so totals reflect any carb-cycle scaling or
   // student substitutions instead of the cached meal totals from the parser.
@@ -451,12 +493,6 @@ const MinhasDietas = () => {
               <Target className="h-4 w-4 text-primary" />
               <p className="text-xs font-semibold text-foreground">{summaryTitle}</p>
             </div>
-            {daySchedule?.target ? (
-              <div className="rounded-lg bg-background/60 border border-primary/30 p-2 flex items-center justify-between">
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Meta do dia</span>
-                <span className="text-sm font-bold text-primary">{daySchedule.target} kcal</span>
-              </div>
-            ) : null}
             <div className="grid grid-cols-4 gap-2">
               <div className="rounded-lg bg-background/70 p-2 text-center">
                 <p className="text-sm font-bold text-primary">{formatValue(displaySummary.calories, ' kcal')}</p>
