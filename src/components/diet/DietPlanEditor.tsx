@@ -35,6 +35,15 @@ interface DietPlanEditorProps {
    * `replaceMealTablesPerDayInMarkdown`.
    */
   onDaysChange?: (days: { label: string; meals: ParsedMeal[] }[]) => void;
+  /**
+   * Weekly Energy Schedule (from protocols.weekly_energy_schedule). When
+   * present, the "Meta diária" banner reflects the per-day target instead
+   * of a single plan-wide target.
+   */
+  weeklySchedule?: {
+    base_daily_kcal?: number;
+    days?: Record<string, { target_kcal?: number; adjustment_kcal?: number; fixed_kcal?: number | null }>;
+  } | null;
 }
 
 const num = (v?: string) => {
