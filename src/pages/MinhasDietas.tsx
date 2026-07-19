@@ -23,7 +23,8 @@ import { ListChecks } from 'lucide-react';
 import { buildCarbCycleDays } from '@/lib/dietAiActions';
 
 const WEEKDAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-const WEEKDAY_KEYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
+const WEEKDAY_KEYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'] as const;
+const WEEKDAY_KEYS_EN = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
 const OPTION_TITLE_REGEX = /(op[cç][aã]o|card[aá]pio)/i;
 const DIET_DISPLAY_SCHEMA_VERSION = 'dedupe-v2';
 
@@ -307,18 +308,24 @@ const MinhasDietas = () => {
   const daySchedule = useMemo(() => {
     if (!weeklySchedule || usesMealOptions) return null;
     const key = WEEKDAY_KEYS[activeGroupIndex];
+    const keyEn = WEEKDAY_KEYS_EN[activeGroupIndex];
     if (!key) return null;
-    const d = weeklySchedule?.days?.[key] ?? null;
+    const d = weeklySchedule?.days?.[key] ?? weeklySchedule?.days?.[keyEn] ?? null;
     const base = Number(weeklySchedule?.base_daily_kcal) || 0;
     let target: number | null = null;
     if (d && typeof d.target_kcal === 'number' && d.target_kcal > 0) target = Math.round(d.target_kcal);
     else if (d && typeof d.fixed_kcal === 'number' && d.fixed_kcal > 0) target = Math.round(d.fixed_kcal);
     else if (base > 0) target = Math.round(base + (Number(d?.adjustment_kcal) || 0));
     const adjustment = Number(d?.adjustment_kcal) || 0;
-    const generated = weeklySchedule?.generated_adjustments?.instructions;
-    const dayInstructions = Array.isArray(generated)
-      ? generated.find((it: any) => it?.day_key === key || it?.day === key)
-      : null;
+    const generated = weeklySchedule?.generated_adjustments;
+    let dayInstructions: any = null;
+    if (Array.isArray(generated?.instructions)) {
+      dayInstructions = generated.instructions.find(
+        (it: any) => it?.day_key === key || it?.day === key || it?.day_key === keyEn || it?.day === keyEn,
+      ) ?? null;
+    } else if (generated && typeof generated === 'object') {
+      dayInstructions = generated[key] ?? generated[keyEn] ?? null;
+    }
     return { target, adjustment, instructions: dayInstructions };
   }, [weeklySchedule, activeGroupIndex, usesMealOptions]);
 
