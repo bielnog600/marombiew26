@@ -445,24 +445,9 @@ const MinhasDietas = () => {
               <p className="text-xs font-semibold text-foreground">{summaryTitle}</p>
             </div>
             {daySchedule?.target ? (
-              <div className="rounded-lg bg-background/60 border border-primary/30 p-2 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Meta do dia</span>
-                  <span className="text-sm font-bold text-primary">{daySchedule.target} kcal</span>
-                </div>
-                {daySchedule.adjustment !== 0 && (
-                  <div className="text-[11px] text-muted-foreground">
-                    Ajuste: <span className={daySchedule.adjustment > 0 ? 'text-emerald-500 font-semibold' : 'text-amber-500 font-semibold'}>
-                      {daySchedule.adjustment > 0 ? '+' : ''}{daySchedule.adjustment} kcal
-                    </span>
-                  </div>
-                )}
-                {daySchedule.adjustment === 0 && (
-                  <div className="text-[11px] text-muted-foreground">Manter plano base</div>
-                )}
-                {daySchedule.instructions?.summary && (
-                  <p className="text-[11px] text-foreground/80 leading-snug pt-0.5">{daySchedule.instructions.summary}</p>
-                )}
+              <div className="rounded-lg bg-background/60 border border-primary/30 p-2 flex items-center justify-between">
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Meta do dia</span>
+                <span className="text-sm font-bold text-primary">{daySchedule.target} kcal</span>
               </div>
             ) : null}
             <div className="grid grid-cols-4 gap-2">
