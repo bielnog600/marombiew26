@@ -301,6 +301,27 @@ const MinhasDietas = () => {
   const activeGroupIndex = displayGroups[selectedGroupIndex] ? selectedGroupIndex : defaultGroupIndex;
   const currentMeals = displayGroups.length > 0 ? (displayGroups[activeGroupIndex]?.meals ?? []) : allMeals;
 
+  // Per-day target / adjustment from protocols.weekly_energy_schedule.
+  // When present, the student sees the actual daily meta (not the flat sum
+  // of the base meal block).
+  const daySchedule = useMemo(() => {
+    if (!weeklySchedule || usesMealOptions) return null;
+    const key = WEEKDAY_KEYS[activeGroupIndex];
+    if (!key) return null;
+    const d = weeklySchedule?.days?.[key] ?? null;
+    const base = Number(weeklySchedule?.base_daily_kcal) || 0;
+    let target: number | null = null;
+    if (d && typeof d.target_kcal === 'number' && d.target_kcal > 0) target = Math.round(d.target_kcal);
+    else if (d && typeof d.fixed_kcal === 'number' && d.fixed_kcal > 0) target = Math.round(d.fixed_kcal);
+    else if (base > 0) target = Math.round(base + (Number(d?.adjustment_kcal) || 0));
+    const adjustment = Number(d?.adjustment_kcal) || 0;
+    const generated = weeklySchedule?.generated_adjustments?.instructions;
+    const dayInstructions = Array.isArray(generated)
+      ? generated.find((it: any) => it?.day_key === key || it?.day === key)
+      : null;
+    return { target, adjustment, instructions: dayInstructions };
+  }, [weeklySchedule, activeGroupIndex, usesMealOptions]);
+
   // Sum directly from foods so totals reflect any carb-cycle scaling or
   // student substitutions instead of the cached meal totals from the parser.
   const sumFoods = (key: 'kcal' | 'p' | 'c' | 'g') =>
