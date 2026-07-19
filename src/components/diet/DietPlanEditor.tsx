@@ -274,9 +274,27 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
   // markdown-only). Isso garante que ao editar alimentos e reduzir kcal, o
   // banner "Faltam X kcal" apareça em vez de reancorar silenciosamente.
   const planTargetKcal = Math.round(Number(currentPlan?.targets?.kcal) || 0);
+  // Per-day target from Weekly Energy Schedule (when present). Falls back
+  // to the plan-wide target (currentPlan.targets.kcal) or the day's totals.
+  const dayTargetFromSchedule = useMemo(() => {
+    if (!weeklySchedule?.days) return null;
+    const key = WEEKDAY_KEYS[activeDayIdx];
+    if (!key) return null;
+    const d = weeklySchedule.days[key];
+    if (!d) return null;
+    if (typeof d.target_kcal === 'number' && d.target_kcal > 0) return Math.round(d.target_kcal);
+    if (typeof d.fixed_kcal === 'number' && d.fixed_kcal > 0) return Math.round(d.fixed_kcal);
+    const base = Number(weeklySchedule.base_daily_kcal) || planTargetKcal;
+    if (base > 0) return Math.round(base + (Number(d.adjustment_kcal) || 0));
+    return null;
+  }, [weeklySchedule, activeDayIdx, planTargetKcal]);
   const [target, setTarget] = useState<number>(() =>
-    planTargetKcal > 0 ? planTargetKcal : Math.round(computeDayTotals(initialDays[0]?.meals ?? []).kcal),
+    dayTargetFromSchedule ?? (planTargetKcal > 0 ? planTargetKcal : Math.round(computeDayTotals(initialDays[0]?.meals ?? []).kcal)),
   );
+  // Sync target with schedule per active day.
+  useEffect(() => {
+    if (dayTargetFromSchedule != null) setTarget(dayTargetFromSchedule);
+  }, [dayTargetFromSchedule]);
   const [subTarget, setSubTarget] = useState<{ mealIdx: number; foodIdx: number } | null>(null);
   const [addingForMeal, setAddingForMeal] = useState<number | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
