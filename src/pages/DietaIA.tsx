@@ -4,7 +4,7 @@ import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Loader2, Save, UtensilsCrossed, RotateCcw, Leaf, Pill, Zap, Clock, Target, SlidersHorizontal, FileDown, FileText, Plus, X } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, UtensilsCrossed, RotateCcw, Leaf, Pill, Zap, Clock, Target, SlidersHorizontal, FileDown, FileText, Plus, X, Copy } from 'lucide-react';
 import { AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import {
