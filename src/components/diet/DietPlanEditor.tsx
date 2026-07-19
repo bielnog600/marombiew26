@@ -243,7 +243,9 @@ const extractMeals = (markdown: string): ParsedMeal[] => {
   return [...(mealSections[0].meals || [])];
 };
 
-const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange, studentId, onAiNotes, currentPlan, onPlanChange, onDaysChange }) => {
+const WEEKDAY_KEYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'] as const;
+
+const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange, studentId, onAiNotes, currentPlan, onPlanChange, onDaysChange, weeklySchedule }) => {
   const initialDays = useMemo(() => extractDays(markdown), [markdown]);
   const [days, setDays] = useState<{ label: string; meals: ParsedMeal[] }[]>(initialDays);
   const [activeDayIdx, setActiveDayIdx] = useState(0);
