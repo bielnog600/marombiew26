@@ -524,6 +524,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         onAiNotes={(notes) => setAiNotes(prev => ({ ...prev, [plan.id]: [...(prev[plan.id] || []), ...notes] }))}
                         currentPlan={editedPlans[plan.id] ?? parseDietPlanLoose(plan.conteudo_json)}
                         onPlanChange={(p) => handlePlanChange(plan.id, p)}
+                        weeklySchedule={(plan as any).protocols?.weekly_energy_schedule ?? null}
                       />
                     ) : (
                       <DietResultCards markdown={cleanedMarkdown} />
