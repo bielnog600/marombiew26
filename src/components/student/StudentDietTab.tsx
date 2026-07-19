@@ -459,6 +459,25 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         Salvar
                       </Button>
                     )}
+                    {isExpanded && plan.is_draft && (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="h-7 gap-1 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const { error } = await supabase.from('ai_plans').update({ is_draft: false }).eq('id', plan.id);
+                          if (error) { toast.error('Erro ao publicar: ' + error.message); return; }
+                          toast.success('Dieta publicada para o aluno.');
+                          setPlans(prev => prev.map(p => p.id === plan.id ? { ...p, is_draft: false } : p));
+                        }}
+                      >
+                        Publicar
+                      </Button>
+                    )}
+                    {isExpanded && !plan.is_draft && (
+                      <Badge variant="outline" className="h-5 px-1.5 text-[9px] uppercase text-emerald-500 border-emerald-500/30">Publicada</Badge>
+                    )}
                     {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                   </div>
                 </div>
@@ -524,6 +543,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         onAiNotes={(notes) => setAiNotes(prev => ({ ...prev, [plan.id]: [...(prev[plan.id] || []), ...notes] }))}
                         currentPlan={editedPlans[plan.id] ?? parseDietPlanLoose(plan.conteudo_json)}
                         onPlanChange={(p) => handlePlanChange(plan.id, p)}
+                        weeklySchedule={(plan as any).protocols?.weekly_energy_schedule ?? null}
                       />
                     ) : (
                       <DietResultCards markdown={cleanedMarkdown} />
