@@ -2921,7 +2921,20 @@ ${generated}`;
               {currentStep === 6 && (
         <Card className="glass-card">
           <CardContent className="p-4 space-y-3">
-            <StepHeader step={7} title="Extras e Observações (opcional)" />
+            <div className="flex items-start justify-between gap-2">
+              <StepHeader step={7} title="Extras e Observações (opcional)" />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 text-[11px]"
+                onClick={copyAllInfo}
+                title="Copiar todas as informações do aluno e das etapas selecionadas"
+              >
+                <Copy className="h-3 w-3" />
+                Copiar tudo
+              </Button>
+            </div>
             <p className="text-xs text-muted-foreground">Complementos que não afetam a lógica central da dieta.</p>
             <div className="space-y-3">
               <div className={`flex items-center justify-between rounded-xl border-2 p-3 transition-all hover:border-primary/50 ${enableFitoterapia ? 'border-primary bg-primary/10' : 'border-border'}`}>
