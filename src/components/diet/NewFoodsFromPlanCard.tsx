@@ -4,10 +4,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Plus, Sparkles, Trash2, Loader2, CheckCircle2 } from 'lucide-react';
-import type { NewFoodCandidate } from '@/lib/newFoodsDetector';
+import { Plus, Sparkles, Trash2, Loader2, CheckCircle2, ArrowLeftRight } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { tokenMatchScore } from '@/lib/fuzzyMatch';
+import { normalizeFoodName, type NewFoodCandidate } from '@/lib/newFoodsDetector';
 
 interface Row extends NewFoodCandidate {
   key: string;              // stable identifier
@@ -21,9 +31,15 @@ interface Props {
   candidates: NewFoodCandidate[];
   onDismissAll: () => void;
   onRemoveFromPlan?: (candidate: NewFoodCandidate) => void;
+  onReplaceInPlan?: (candidate: NewFoodCandidate, existingName: string) => void;
 }
 
-const NewFoodsFromPlanCard: React.FC<Props> = ({ candidates, onDismissAll, onRemoveFromPlan }) => {
+const NewFoodsFromPlanCard: React.FC<Props> = ({
+  candidates,
+  onDismissAll,
+  onRemoveFromPlan,
+  onReplaceInPlan,
+}) => {
   const queryClient = useQueryClient();
   const [rows, setRows] = useState<Row[]>(() =>
     candidates.map((c, i) => ({
@@ -33,6 +49,20 @@ const NewFoodsFromPlanCard: React.FC<Props> = ({ candidates, onDismissAll, onRem
       portion_size: c.qtyGrams && c.qtyGrams > 0 ? c.qtyGrams : 100,
     }))
   );
+  const [swapOpenKey, setSwapOpenKey] = useState<string | null>(null);
+
+  const { data: existingFoods = [] } = useQuery({
+    queryKey: ['foods', 'names-for-swap'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('foods')
+        .select('id, name')
+        .order('name');
+      if (error) throw error;
+      return (data || []) as { id: string; name: string }[];
+    },
+    staleTime: 60_000,
+  });
 
   if (rows.length === 0) return null;
 
@@ -101,6 +131,20 @@ const NewFoodsFromPlanCard: React.FC<Props> = ({ candidates, onDismissAll, onRem
     if (target && !target.approved && onRemoveFromPlan) {
       onRemoveFromPlan(target);
     }
+  };
+
+  const swapWithExisting = (row: Row, existingName: string) => {
+    setRows((prev) => prev.filter((r) => r.key !== row.key));
+    setSwapOpenKey(null);
+    if (onReplaceInPlan) {
+      onReplaceInPlan(row, existingName);
+    }
+    toast.success(`"${row.name}" substituído por "${existingName}"`);
+  };
+
+  const firstToken = (name: string): string => {
+    const norm = normalizeFoodName(name);
+    return norm.split(' ')[0] || '';
   };
 
   return (
@@ -186,6 +230,43 @@ const NewFoodsFromPlanCard: React.FC<Props> = ({ candidates, onDismissAll, onRem
                       {r.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                       <span className="ml-1">Buscar dados por IA</span>
                     </Button>
+                    <Popover
+                      open={swapOpenKey === r.key}
+                      onOpenChange={(open) => setSwapOpenKey(open ? r.key : null)}
+                    >
+                      <PopoverTrigger asChild>
+                        <Button size="sm" variant="outline" disabled={r.loading}>
+                          <ArrowLeftRight className="h-3.5 w-3.5 mr-1" />
+                          Substituir por existente
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80 p-0" align="start">
+                        <Command
+                          filter={(value, search, keywords) =>
+                            tokenMatchScore(value, search, keywords)
+                          }
+                        >
+                          <CommandInput
+                            placeholder="Buscar alimento..."
+                            defaultValue={firstToken(r.name)}
+                          />
+                          <CommandList>
+                            <CommandEmpty>Nenhum alimento encontrado.</CommandEmpty>
+                            <CommandGroup>
+                              {existingFoods.map((f) => (
+                                <CommandItem
+                                  key={f.id}
+                                  value={f.name}
+                                  onSelect={() => swapWithExisting(r, f.name)}
+                                >
+                                  {f.name}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                     <Button size="sm" onClick={() => approve(r)} disabled={r.loading || !r.name.trim()}>
                       <Plus className="h-3.5 w-3.5 mr-1" />
                       Aprovar e adicionar
