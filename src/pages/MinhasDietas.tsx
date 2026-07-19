@@ -350,8 +350,8 @@ const MinhasDietas = () => {
       if (!Number.isFinite(n) || n <= 0) return qty;
       const scaled = n * ratio;
       const rounded = scaled >= 10 ? Math.round(scaled) : Math.round(scaled * 10) / 10;
-      const suffix = m[2] ? ` ${m[2]}`.replace(/\s+/g, ' ') : '';
-      return `${String(rounded).replace('.', ',')}${suffix ? ' ' + m[2] : ''}`.trim();
+      const numStr = String(rounded).replace('.', ',');
+      return m[2] ? `${numStr} ${m[2]}`.trim() : numStr;
     };
     const scaleNum = (v: string) => {
       const n = parseNum(v);
