@@ -1814,19 +1814,15 @@ Exemplo: "1) Batata-doce (150g); 2) Inhame (140g); 3) Mandioca (120g)"
 As 3 opções devem ser alimentos DIFERENTES entre si e diferentes do alimento principal, respeitando os macros e calorias equivalentes.
 ${substitutions.length > 0 ? `Use PREFERENCIALMENTE os alimentos abaixo como opções de substituição:\n${substitutions.map(s => `- ${s.food}: ${s.portion}`).join('\n')}` : ''}
 ${modelDiet.trim() ? `
-=== DIETA MODELO (REFERÊNCIA) ===
-REGRAS OBRIGATÓRIAS PARA A DIETA MODELO:
-1) Use EXATAMENTE os mesmos alimentos da dieta modelo, na MESMA ordem, refeição por refeição. NÃO troque um alimento por "equivalente" só porque ele não está na base de alimentos do sistema — a base é apenas uma referência; se o alimento existir na dieta modelo, use-o mesmo assim e devolva kcal/P/C/G estimados por você.
-2) Para bater os macros e calorias do aluno, AJUSTE APENAS AS QUANTIDADES (gramas/ml) de cada item — nunca substitua o alimento em si.
-3) Substituição do alimento SÓ é permitida em UM caso: quando o alimento da dieta modelo estiver listado como restrição/alergia/intolerância do aluno (ver seções abaixo). Nesse caso, substitua por um item de perfil nutricional semelhante e explique o motivo na coluna "Substituição".
-4) NÃO adicione alimentos que não estejam na dieta modelo, exceto quando for absolutamente necessário para preencher um macro em falta — nesse caso, prefira alimentos que já apareçam em outras refeições da própria dieta modelo.
-5) Para cada alimento, preencha SEMPRE Kcal, P, C, G reais daquela quantidade — inclusive para alimentos que não constam na base do sistema.
-6) INTERPRETAÇÃO DO FORMATO DA DIETA MODELO: a dieta modelo pode vir em MARKDOWN com títulos de refeição no formato "### N. Nome da refeição — HHhMM" (ex.: "### 3. Almoço — 13h30"), seguidos por uma lista de alimentos em bullets no formato "* Nome do alimento: quantidade" (ex.: "* Arroz basmati cozido: 100 g", "* Ovos mexidos: 2 unidades"). Também pode conter linhas de "Estimativa: X kcal" e "Proteínas/Carboidratos/Gorduras" por refeição e um bloco "TOTAL DIÁRIO ESTIMADO". Regras:
-   - Extraia CADA bullet como UM alimento na coluna "Alimento", preservando o nome EXATO (ex.: "Arroz basmati cozido") — não renomeie nem simplifique.
-   - Use o horário do título da refeição na coluna "Horário" (ex.: "13:30").
-   - Use o nome exato da refeição do título (mapeando para os nomes oficiais definidos em ${mealNames.join(', ')} quando equivalentes: Café da manhã, Lanche da manhã, Almoço, Pré-treino, Jantar/pós-treino, etc.).
-   - Converta unidades quando necessário para gramas/ml, mas mantenha a proporção; se a dieta modelo usar "2 unidades", "1 taça", "à vontade", preserve na coluna Quantidade e ainda assim calcule Kcal/P/C/G plausíveis.
-   - Use as Estimativas por refeição e o TOTAL DIÁRIO da dieta modelo como referência para calibrar seus próprios valores de Kcal/P/C/G — depois ajuste APENAS as quantidades para bater a meta calórica/macros do aluno.
+ === DIETA MODELO (APENAS LISTA DE ALIMENTOS) ===
+ IMPORTANTE: A dieta modelo serve APENAS como fonte da LISTA DE ALIMENTOS por refeição. IGNORE completamente as calorias, macros, "Estimativa" e "TOTAL DIÁRIO" da dieta modelo — esses valores NÃO devem ser copiados nem usados como referência. A meta calórica e de macros do aluno é a definida acima (${currentCalories} kcal, P=${macros.proteinGrams}g, C=${macros.carbGrams}g, G=${macros.fatGrams}g) e SEMPRE prevalece.
+ REGRAS OBRIGATÓRIAS:
+ 1) Use EXATAMENTE os mesmos alimentos da dieta modelo, na MESMA ordem, refeição por refeição, preservando o NOME EXATO (ex.: "Arroz basmati cozido") — não renomeie nem simplifique. Se o alimento não estiver na base do sistema, use-o mesmo assim e devolva kcal/P/C/G estimados por você.
+ 2) AJUSTE LIVREMENTE AS QUANTIDADES (gramas/ml/unidades) de cada item para bater EXATAMENTE a meta calórica e de macros do aluno — as quantidades da dieta modelo são apenas ponto de partida e devem ser recalculadas do zero conforme a meta do aluno.
+ 3) Substituição do alimento SÓ é permitida quando o alimento da dieta modelo estiver listado como restrição/alergia/intolerância do aluno. Nesse caso, substitua por um item de perfil nutricional semelhante e explique o motivo na coluna "Substituição".
+ 4) NÃO adicione alimentos que não estejam na dieta modelo, exceto quando absolutamente necessário para fechar um macro — nesse caso, prefira alimentos que já apareçam em outras refeições da própria dieta modelo.
+ 5) Para cada alimento, preencha SEMPRE Kcal, P, C, G reais daquela quantidade.
+ 6) FORMATO DA DIETA MODELO: markdown com títulos "### N. Nome da refeição — HHhMM" seguidos por bullets "* Nome do alimento: quantidade". Extraia cada bullet como um alimento; use o horário do título na coluna "Horário" (ex.: "13:30"); mapeie o nome da refeição para os nomes oficiais (${mealNames.join(', ')}). Linhas de "Estimativa" e "TOTAL DIÁRIO" devem ser IGNORADAS.
 Dieta modelo:
 ${modelDiet.trim()}
 ` : ''}
