@@ -23,6 +23,7 @@ import { ListChecks } from 'lucide-react';
 import { buildCarbCycleDays } from '@/lib/dietAiActions';
 
 const WEEKDAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+const WEEKDAY_KEYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
 const OPTION_TITLE_REGEX = /(op[cç][aã]o|card[aá]pio)/i;
 const DIET_DISPLAY_SCHEMA_VERSION = 'dedupe-v2';
 
@@ -106,6 +107,7 @@ const MinhasDietas = () => {
   const [planVersion, setPlanVersion] = useState<string | null>(null);
   const [dietMarkdown, setDietMarkdown] = useState<string>('');
   const [protocolKeys, setProtocolKeys] = useState<ProtocolKey[]>([]);
+  const [weeklySchedule, setWeeklySchedule] = useState<any | null>(null);
   const [showProtocols, setShowProtocols] = useState(false);
   const { tracking, addWater, removeWater, toggleMeal, waterCurrentMl, waterTargetMl, waterGoalGlasses } = useDailyTracking({ isTrainingDay });
 
@@ -187,6 +189,7 @@ const MinhasDietas = () => {
       setDietMarkdown(dieta.conteudo);
       const saved = (dieta as any).protocols as SavedProtocols | null | undefined;
       setProtocolKeys(protocolsToKeys(saved));
+      setWeeklySchedule((saved as any)?.weekly_energy_schedule ?? null);
       // Version key combines plan id + created_at so any admin edit (which
       // bumps created_at via re-insert OR keeps it via update) is detected.
       // We hash the content length as a tiebreaker for in-place updates.
@@ -297,6 +300,27 @@ const MinhasDietas = () => {
   const hasMultipleGroups = displayGroups.length > 1;
   const activeGroupIndex = displayGroups[selectedGroupIndex] ? selectedGroupIndex : defaultGroupIndex;
   const currentMeals = displayGroups.length > 0 ? (displayGroups[activeGroupIndex]?.meals ?? []) : allMeals;
+
+  // Per-day target / adjustment from protocols.weekly_energy_schedule.
+  // When present, the student sees the actual daily meta (not the flat sum
+  // of the base meal block).
+  const daySchedule = useMemo(() => {
+    if (!weeklySchedule || usesMealOptions) return null;
+    const key = WEEKDAY_KEYS[activeGroupIndex];
+    if (!key) return null;
+    const d = weeklySchedule?.days?.[key] ?? null;
+    const base = Number(weeklySchedule?.base_daily_kcal) || 0;
+    let target: number | null = null;
+    if (d && typeof d.target_kcal === 'number' && d.target_kcal > 0) target = Math.round(d.target_kcal);
+    else if (d && typeof d.fixed_kcal === 'number' && d.fixed_kcal > 0) target = Math.round(d.fixed_kcal);
+    else if (base > 0) target = Math.round(base + (Number(d?.adjustment_kcal) || 0));
+    const adjustment = Number(d?.adjustment_kcal) || 0;
+    const generated = weeklySchedule?.generated_adjustments?.instructions;
+    const dayInstructions = Array.isArray(generated)
+      ? generated.find((it: any) => it?.day_key === key || it?.day === key)
+      : null;
+    return { target, adjustment, instructions: dayInstructions };
+  }, [weeklySchedule, activeGroupIndex, usesMealOptions]);
 
   // Sum directly from foods so totals reflect any carb-cycle scaling or
   // student substitutions instead of the cached meal totals from the parser.
@@ -420,6 +444,27 @@ const MinhasDietas = () => {
               <Target className="h-4 w-4 text-primary" />
               <p className="text-xs font-semibold text-foreground">{summaryTitle}</p>
             </div>
+            {daySchedule?.target ? (
+              <div className="rounded-lg bg-background/60 border border-primary/30 p-2 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Meta do dia</span>
+                  <span className="text-sm font-bold text-primary">{daySchedule.target} kcal</span>
+                </div>
+                {daySchedule.adjustment !== 0 && (
+                  <div className="text-[11px] text-muted-foreground">
+                    Ajuste: <span className={daySchedule.adjustment > 0 ? 'text-emerald-500 font-semibold' : 'text-amber-500 font-semibold'}>
+                      {daySchedule.adjustment > 0 ? '+' : ''}{daySchedule.adjustment} kcal
+                    </span>
+                  </div>
+                )}
+                {daySchedule.adjustment === 0 && (
+                  <div className="text-[11px] text-muted-foreground">Manter plano base</div>
+                )}
+                {daySchedule.instructions?.summary && (
+                  <p className="text-[11px] text-foreground/80 leading-snug pt-0.5">{daySchedule.instructions.summary}</p>
+                )}
+              </div>
+            ) : null}
             <div className="grid grid-cols-4 gap-2">
               <div className="rounded-lg bg-background/70 p-2 text-center">
                 <p className="text-sm font-bold text-primary">{formatValue(displaySummary.calories, ' kcal')}</p>
