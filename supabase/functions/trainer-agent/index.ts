@@ -67,6 +67,7 @@ const WORKOUT_PLAN_JSON_SCHEMA = {
                 "restSeconds",
                 "description",
                 "variation",
+                "set_scheme",
               ],
               properties: {
                 id: { type: "string", description: "Stable per-exercise id" },
