@@ -39,6 +39,7 @@ import { AgendaHeader } from '@/components/agenda/AgendaHeader';
 import { AgendaStats } from '@/components/agenda/AgendaStats';
 import { AgendaNavigation } from '@/components/agenda/AgendaNavigation';
 import AgendaReconciliationDialog from '@/components/agenda/AgendaReconciliationDialog';
+import StudentClassesLookupDialog from '@/components/agenda/StudentClassesLookupDialog';
 
 type ViewMode = 'week' | 'day' | 'month';
 
@@ -132,6 +133,7 @@ type ViewMode = 'week' | 'day' | 'month';
     };
   const [showSettings, setShowSettings] = useState(false);
   const [showReconcile, setShowReconcile] = useState(false);
+  const [showLookup, setShowLookup] = useState(false);
 
   const rangeStart = useMemo(() => {
     if (viewMode === 'day') return startOfDay(currentDate);
@@ -176,6 +178,7 @@ type ViewMode = 'week' | 'day' | 'month';
           onSettingsClick={() => setShowSettings(true)}
           onAgendarClick={() => setShowCreateDialog(true)}
           onReconcileClick={() => setShowReconcile(true)}
+          onLookupClick={() => setShowLookup(true)}
         />
 
         <AgendaStats 
@@ -276,6 +279,8 @@ type ViewMode = 'week' | 'day' | 'month';
         onOpenChange={setShowReconcile}
         onApplied={refetch}
       />
+
+      <StudentClassesLookupDialog open={showLookup} onOpenChange={setShowLookup} />
     </AppLayout>
   );
 };
