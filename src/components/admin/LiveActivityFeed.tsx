@@ -302,7 +302,10 @@ const LiveActivityFeed: React.FC = () => {
             ref={scrollRef}
             onMouseEnter={() => (pausedRef.current = true)}
             onMouseLeave={() => (pausedRef.current = false)}
-            className="max-h-64 overflow-hidden space-y-2 pr-1"
+            onTouchStart={() => (pausedRef.current = true)}
+            onTouchEnd={() => (pausedRef.current = false)}
+            onWheel={() => (pausedRef.current = true)}
+            className="max-h-64 overflow-y-auto space-y-2 pr-1"
           >
             {visible.map((it) => {
               const meta = KIND_META[it.kind];
