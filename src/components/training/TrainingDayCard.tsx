@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Dumbbell, Pencil, Check, ChevronsUpDown, Plus, Trash2, GripVertical, CalendarDays, Sparkles } from 'lucide-react';
+import { Dumbbell, Pencil, Check, ChevronsUpDown, Plus, Trash2, GripVertical, CalendarDays, Sparkles, Copy } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -80,6 +81,35 @@ const buildDayCopyText = (day: ParsedTrainingDay) => {
       [day.day, ex.exercise, ex.series || '—', ex.series2 || '—', ex.reps || '—', ex.rir || '—', sanitizeForTsv(ex.pause || '—'), ex.description || '—', ex.variation || '—'].join('\t'),
   );
   return rows.join('\n');
+};
+
+const buildDayFullCopyText = (day: ParsedTrainingDay, exercises: ParsedExercise[]): string => {
+  const lines: string[] = [];
+  lines.push(`TREINO — ${day.day}`);
+  lines.push(`Total de exercícios: ${exercises.length}`);
+  lines.push('');
+  lines.push('Colunas: # | Exercício | Séries | Séries² | Reps | RIR | Pausa | Descrição | Variação');
+  lines.push('');
+  exercises.forEach((ex, i) => {
+    const perSet =
+      ex.setScheme?.mode === 'per_set'
+        ? ` [por série: ${ex.setScheme.sets.map((s) => `${s.set_number}=${s.target_reps}`).join(', ')}]`
+        : '';
+    lines.push(
+      [
+        `${i + 1}.`,
+        ex.exercise || '—',
+        ex.series || '—',
+        ex.series2 || '—',
+        (ex.reps || '—') + perSet,
+        ex.rir || '—',
+        ex.pause || '—',
+        ex.description || '—',
+        ex.variation || '—',
+      ].join(' | '),
+    );
+  });
+  return lines.join('\n');
 };
 
 interface TrainingDayCardProps {
@@ -597,6 +627,23 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
             )}
             {editing && (
               <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1 px-2 text-xs"
+                  title="Copiar treino deste dia"
+                  onClick={async () => {
+                    const text = buildDayFullCopyText({ ...day, exercises: localExercises }, localExercises);
+                    try {
+                      await navigator.clipboard.writeText(text);
+                      toast.success(`Treino de ${day.day} copiado.`);
+                    } catch {
+                      toast.error('Não foi possível copiar.');
+                    }
+                  }}
+                >
+                  <Copy className="h-3 w-3" /> Copiar
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
