@@ -92,7 +92,7 @@ const LiveActivityFeed: React.FC = () => {
       }
 
       const initial: FeedItem[] = [];
-      const nm = (id: string) => (ids.size ? '' : '') || '';
+      const nm = (_id: string) => '';
       (sessions ?? []).forEach((s) => {
         if (s.started_at) {
           initial.push({
