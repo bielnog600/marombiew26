@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import AdminTodayOverview from '@/components/admin/AdminTodayOverview';
 import StudentActivityCard from '@/components/admin/StudentActivityCard';
+import LiveActivityFeed from '@/components/admin/LiveActivityFeed';
 import BirthdaysCard from '@/components/admin/BirthdaysCard';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -191,6 +192,8 @@ const Dashboard = () => {
         </div>
 
         {/* Activity ranking + Birthdays */}
+        <LiveActivityFeed />
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <StudentActivityCard />
           <BirthdaysCard />
