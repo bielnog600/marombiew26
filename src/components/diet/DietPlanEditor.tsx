@@ -451,7 +451,7 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
 
   // Reset when source markdown changes — mantém a meta ancorada no plano.
   useEffect(() => {
-    const fresh = extractDays(markdown);
+    const fresh = applyPerDayScaling(extractDays(markdown));
     setDays(fresh);
     setActiveDayIdx(0);
     if (planTargetKcal > 0) {
@@ -460,7 +460,7 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
       setTarget(Math.round(computeDayTotals(fresh[0]?.meals ?? []).kcal));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markdown]);
+  }, [markdown, applyPerDayScaling]);
 
   // Notify parent — keep legacy single-day callback for fallback paths and
   // emit full per-day structure when supported.
