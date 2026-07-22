@@ -246,7 +246,47 @@ const extractMeals = (markdown: string): ParsedMeal[] => {
 const WEEKDAY_KEYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'] as const;
 
 const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange, studentId, onAiNotes, currentPlan, onPlanChange, onDaysChange, weeklySchedule }) => {
-  const initialDays = useMemo(() => extractDays(markdown), [markdown]);
+  const planTargetKcalMemo = Math.round(Number(currentPlan?.targets?.kcal) || 0);
+  /**
+   * Compute the per-day target (kcal) from the Weekly Energy Schedule for a
+   * given weekday index. Falls back to base_daily_kcal + adjustment when the
+   * absolute target is missing.
+   */
+  const computeDayTargetFor = useCallback((idx: number): number | null => {
+    if (!weeklySchedule?.days) return null;
+    const key = WEEKDAY_KEYS[idx];
+    if (!key) return null;
+    const d = weeklySchedule.days[key];
+    if (!d) return null;
+    if (typeof d.target_kcal === 'number' && d.target_kcal > 0) return Math.round(d.target_kcal);
+    if (typeof d.fixed_kcal === 'number' && d.fixed_kcal > 0) return Math.round(d.fixed_kcal);
+    const base = Number(weeklySchedule.base_daily_kcal) || planTargetKcalMemo;
+    if (base > 0) return Math.round(base + (Number(d.adjustment_kcal) || 0));
+    return null;
+  }, [weeklySchedule, planTargetKcalMemo]);
+
+  /**
+   * Scale each day's meals (foods qty, kcal, P/C/G) to its per-day target
+   * from the Weekly Energy Schedule. This keeps the admin editor consistent
+   * with the student view, which already scales foods proportionally when
+   * the daily target differs from the base.
+   */
+  const applyPerDayScaling = useCallback((base: { label: string; meals: ParsedMeal[] }[]) => {
+    if (!weeklySchedule?.days || base.length === 0) return base;
+    return base.map((d, i) => {
+      const dayTarget = computeDayTargetFor(i);
+      if (!dayTarget || dayTarget <= 0) return d;
+      const currentTotal = computeDayTotals(d.meals).kcal;
+      if (currentTotal <= 0) return d;
+      if (Math.abs(currentTotal - dayTarget) / dayTarget < 0.01) return d;
+      return { ...d, meals: scaleMealsToTarget(d.meals, dayTarget) };
+    });
+  }, [weeklySchedule, computeDayTargetFor]);
+
+  const initialDays = useMemo(
+    () => applyPerDayScaling(extractDays(markdown)),
+    [markdown, applyPerDayScaling],
+  );
   const [days, setDays] = useState<{ label: string; meals: ParsedMeal[] }[]>(initialDays);
   const [activeDayIdx, setActiveDayIdx] = useState(0);
   const activeDayIdxRef = useRef(0);
