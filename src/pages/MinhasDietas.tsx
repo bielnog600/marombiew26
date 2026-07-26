@@ -556,7 +556,8 @@ const MinhasDietas = () => {
         {currentMeals.length > 0 && (
           <div className="space-y-3">
             {currentMeals.map((meal, i) => {
-              const done = tracking.meals_completed.includes(i);
+              const mealKey = activeGroupIndex * 1000 + i;
+              const done = tracking.meals_completed.includes(mealKey);
               return (
                 <div key={`day-${activeGroupIndex}-${meal.name}-${meal.time || 'sem-hora'}-${i}`}>
                   <MealCard
@@ -564,7 +565,7 @@ const MinhasDietas = () => {
                     index={i}
                     onCopy={() => null}
                     isCompleted={done}
-                    onToggleComplete={() => toggleMeal(i)}
+                    onToggleComplete={() => toggleMeal(mealKey)}
                     hideSubstitutions
                     onFoodsChange={(foods) => persistFoodsChange(activeGroupIndex, i, foods)}
                   />
