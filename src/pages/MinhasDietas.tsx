@@ -314,6 +314,20 @@ const MinhasDietas = () => {
   const activeGroupIndex = displayGroups[selectedGroupIndex] ? selectedGroupIndex : defaultGroupIndex;
   const baseMealsForDay = displayGroups.length > 0 ? (displayGroups[activeGroupIndex]?.meals ?? []) : allMeals;
 
+  // A meta de água segue o dia selecionado: se o aluno tem treino nesse
+  // dia, o alvo sobe (fórmula em useDailyTracking). Sem treino, usa a
+  // meta base. Se ainda não temos treino carregado, cai no dia real.
+  const isSelectedDayTraining = useMemo(() => {
+    if (usesMealOptions) {
+      const jsDay = new Date().getDay();
+      const todayIdx = (jsDay + 6) % 7;
+      return trainingDayIndices.includes(todayIdx);
+    }
+    return trainingDayIndices.includes(activeGroupIndex);
+  }, [trainingDayIndices, activeGroupIndex, usesMealOptions]);
+
+  const { tracking, addWater, removeWater, toggleMeal, waterCurrentMl, waterTargetMl, waterGoalGlasses } = useDailyTracking({ isTrainingDay: isSelectedDayTraining });
+
   // Per-day target / adjustment from protocols.weekly_energy_schedule.
   // When present, the student sees the actual daily meta (not the flat sum
   // of the base meal block).
