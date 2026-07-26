@@ -143,7 +143,12 @@ const MinhaArea = () => {
 
       if (checkinRes?.data) {
         setPendingWorkoutCheckin(checkinRes.data);
-        setShowCheckinModal(true);
+        const dismissedId = (() => {
+          try { return localStorage.getItem(`workout_checkin_dismissed:${user!.id}`); } catch { return null; }
+        })();
+        if (dismissedId !== checkinRes.data.id) {
+          setShowCheckinModal(true);
+        }
       }
       
       if (treino) {
@@ -342,7 +347,14 @@ const MinhaArea = () => {
         {pendingWorkoutCheckin && (
           <WorkoutCheckinDialog
             open={showCheckinModal}
-            onOpenChange={setShowCheckinModal}
+            onOpenChange={(next) => {
+              setShowCheckinModal(next);
+              if (!next && pendingWorkoutCheckin?.id) {
+                try {
+                  localStorage.setItem(`workout_checkin_dismissed:${user!.id}`, pendingWorkoutCheckin.id);
+                } catch {}
+              }
+            }}
             studentId={user!.id}
             studentName={profile?.nome || ''}
             workoutPlanId={pendingWorkoutCheckin.id}
