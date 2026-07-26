@@ -481,6 +481,7 @@ const MinhaArea = () => {
             targetMl={waterTargetMl}
             glasses={tracking.water_glasses}
             goal={waterGoalGlasses}
+            isTrainingDay={isTrainingDay}
             onAdd={addWater}
             onRemove={removeWater}
           />
