@@ -234,22 +234,28 @@ const MinhaArea = () => {
     return 'Boa noite';
   })();
 
-  // Compute today's meal count (same logic as MinhasDietas)
-  const todayMealCount = useMemo(() => {
+  // Compute today's meal count + day index (same logic as MinhasDietas)
+  const { todayMealCount, todayDayIndex } = useMemo(() => {
     const mealSections = dietSections.filter(s => s.type === 'meal' && s.meals && s.meals.length > 0);
     if (mealSections.length <= 1) {
-      return dietSections.filter(s => s.type === 'meal' && s.meals).flatMap(s => s.meals!).length;
+      const count = dietSections.filter(s => s.type === 'meal' && s.meals).flatMap(s => s.meals!).length;
+      return { todayMealCount: count, todayDayIndex: 0 };
     }
     const dayIndex = (new Date().getDay() + 6) % 7 % mealSections.length;
-    return mealSections[dayIndex]?.meals?.length ?? 0;
+    return { todayMealCount: mealSections[dayIndex]?.meals?.length ?? 0, todayDayIndex: dayIndex };
   }, [dietSections]);
 
   const completedTodayMealsCount = useMemo(() => {
     if (todayMealCount <= 0) return 0;
     return [...new Set(tracking.meals_completed)]
-      .map((mealIndex) => Number(mealIndex))
-      .filter((mealIndex) => Number.isInteger(mealIndex) && mealIndex >= 0 && mealIndex < todayMealCount).length;
-  }, [tracking.meals_completed, todayMealCount]);
+      .map((k) => Number(k))
+      .filter((k) => {
+        if (!Number.isInteger(k) || k < 0) return false;
+        // Back-compat: legacy plain indices (< 1000 and no day encoding) count as today.
+        if (k < 1000) return k < todayMealCount;
+        return Math.floor(k / 1000) === todayDayIndex && (k % 1000) < todayMealCount;
+      }).length;
+  }, [tracking.meals_completed, todayMealCount, todayDayIndex]);
 
   // Today's training - ONLY match by weekday name. If today isn't a training day, return undefined (rest day).
   const todayTraining = useMemo(() => {
