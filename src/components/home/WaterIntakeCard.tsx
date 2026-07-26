@@ -7,13 +7,14 @@ interface WaterIntakeCardProps {
   goal: number;
   currentMl?: number;
   targetMl?: number;
+  isTrainingDay?: boolean;
   onAdd: () => void;
   onRemove: () => void;
 }
 
 const formatLiters = (ml: number) => (ml / 1000).toFixed(2).replace(/\.?0+$/, '');
 
-const WaterIntakeCard: React.FC<WaterIntakeCardProps> = ({ glasses, goal, currentMl, targetMl, onAdd, onRemove }) => {
+const WaterIntakeCard: React.FC<WaterIntakeCardProps> = ({ glasses, goal, currentMl, targetMl, isTrainingDay, onAdd, onRemove }) => {
   const percentage = Math.min((glasses / goal) * 100, 100);
   const [animatedPct, setAnimatedPct] = useState(0);
 
@@ -77,7 +78,9 @@ const WaterIntakeCard: React.FC<WaterIntakeCardProps> = ({ glasses, goal, curren
             <Plus className="h-3 w-3 text-primary" />
           </button>
         </div>
-        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Água</p>
+        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+          Água {isTrainingDay ? <span className="text-primary normal-case">· treino</span> : <span className="normal-case">· descanso</span>}
+        </p>
       </CardContent>
     </Card>
   );
