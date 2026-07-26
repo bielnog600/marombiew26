@@ -548,14 +548,16 @@ const Relatorio = () => {
                 {(() => {
                   const waterMl = Math.round(anthro.peso * 50);
                   const waterL = (waterMl / 1000).toFixed(1);
+                  const trainingMl = Math.round(waterMl * 1.4);
+                  const trainingL = (trainingMl / 1000).toFixed(1);
                   return (
                     <>
                       <DataRow label="Peso corporal" value={anthro.peso} unit="kg" />
-                      <DataRow label="Fórmula" value="50 ml por kg" />
-                      <DataRow label="Consumo diário recomendado" value={`${waterL} litros (${waterMl} ml)`} />
-                      <DataRow label="Em dias de treino" value={`${(waterMl * 1.3 / 1000).toFixed(1)} – ${(waterMl * 1.5 / 1000).toFixed(1)} litros`} />
+                      <DataRow label="Fórmula base" value="50 ml por kg" />
+                      <DataRow label="Dia sem treino" value={`${waterL} L (${waterMl} ml)`} />
+                      <DataRow label="Dia de treino (+40%)" value={`${trainingL} L (${trainingMl} ml)`} />
                       <p className="text-xs text-muted-foreground mt-3">
-                        * Em dias de treino intenso, aumente o consumo em 30–50%. Distribua ao longo do dia.
+                        * Em dias de treino, aumente ~40% (média 30–50%). Distribua ao longo do dia.
                       </p>
                     </>
                   );
