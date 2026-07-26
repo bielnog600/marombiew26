@@ -103,14 +103,14 @@ const MinhasDietas = () => {
   const [sections, setSections] = useState<ParsedSection[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGroupIndex, setSelectedGroupIndex] = useState(0);
-  const [isTrainingDay, setIsTrainingDay] = useState(false);
+  // Índices dos dias (0=seg..6=dom) em que o aluno tem treino agendado.
+  const [trainingDayIndices, setTrainingDayIndices] = useState<number[]>([]);
   const [substitutions, setSubstitutions] = useState<Record<string, any[]>>({});
   const [planVersion, setPlanVersion] = useState<string | null>(null);
   const [dietMarkdown, setDietMarkdown] = useState<string>('');
   const [protocolKeys, setProtocolKeys] = useState<ProtocolKey[]>([]);
   const [weeklySchedule, setWeeklySchedule] = useState<any | null>(null);
   const [showProtocols, setShowProtocols] = useState(false);
-  const { tracking, addWater, removeWater, toggleMeal, waterCurrentMl, waterTargetMl, waterGoalGlasses } = useDailyTracking({ isTrainingDay });
 
   // Key local substitutions per plan version so admin edits invalidate stale subs
   const subsStorageKey = user && planVersion ? `diet-subs-${user.id}-${planVersion}` : '';
@@ -136,7 +136,7 @@ const MinhasDietas = () => {
     } catch { /* ignore */ }
   }, [subsStorageKey]);
 
-  // Detecta se hoje é dia de treino agendado
+  // Detecta os dias da semana em que o aluno tem treino agendado
   useEffect(() => {
     if (!user) return;
     (async () => {
@@ -147,9 +147,21 @@ const MinhasDietas = () => {
       if (!data) return;
       const days = parseTrainingSections(data.conteudo).flatMap(s => s.days ?? []);
       if (days.length === 0) return;
-      const jsDay = new Date().getDay();
-      const todayNames = jsDay === 0 ? ['domingo'] : jsDay === 1 ? ['segunda'] : jsDay === 2 ? ['terca', 'terça'] : jsDay === 3 ? ['quarta'] : jsDay === 4 ? ['quinta'] : jsDay === 5 ? ['sexta'] : ['sabado', 'sábado'];
-      setIsTrainingDay(days.some(d => todayNames.some(n => d.day.toLowerCase().includes(n))));
+      // Mon=0 .. Sun=6 (alinhado com WEEKDAY_KEYS)
+      const namesByIndex: string[][] = [
+        ['segunda'],
+        ['terca', 'terça'],
+        ['quarta'],
+        ['quinta'],
+        ['sexta'],
+        ['sabado', 'sábado'],
+        ['domingo'],
+      ];
+      const indices: number[] = [];
+      namesByIndex.forEach((names, idx) => {
+        if (days.some(d => names.some(n => d.day.toLowerCase().includes(n)))) indices.push(idx);
+      });
+      setTrainingDayIndices(indices);
     })();
   }, [user]);
 
@@ -301,6 +313,20 @@ const MinhasDietas = () => {
   const hasMultipleGroups = displayGroups.length > 1;
   const activeGroupIndex = displayGroups[selectedGroupIndex] ? selectedGroupIndex : defaultGroupIndex;
   const baseMealsForDay = displayGroups.length > 0 ? (displayGroups[activeGroupIndex]?.meals ?? []) : allMeals;
+
+  // A meta de água segue o dia selecionado: se o aluno tem treino nesse
+  // dia, o alvo sobe (fórmula em useDailyTracking). Sem treino, usa a
+  // meta base. Se ainda não temos treino carregado, cai no dia real.
+  const isSelectedDayTraining = useMemo(() => {
+    if (usesMealOptions) {
+      const jsDay = new Date().getDay();
+      const todayIdx = (jsDay + 6) % 7;
+      return trainingDayIndices.includes(todayIdx);
+    }
+    return trainingDayIndices.includes(activeGroupIndex);
+  }, [trainingDayIndices, activeGroupIndex, usesMealOptions]);
+
+  const { tracking, addWater, removeWater, toggleMeal, waterCurrentMl, waterTargetMl, waterGoalGlasses } = useDailyTracking({ isTrainingDay: isSelectedDayTraining });
 
   // Per-day target / adjustment from protocols.weekly_energy_schedule.
   // When present, the student sees the actual daily meta (not the flat sum
