@@ -12,6 +12,12 @@ import {
   type HistoryPlan,
 } from "../_shared/planHistory.ts";
 import { buildSplitContextBlock } from "../_shared/splitSlugs.ts";
+import {
+  buildCatalogBlock,
+  loadExerciseCatalog,
+  snapPlanToCatalog,
+  type CatalogEntry,
+} from "../_shared/exerciseCatalog.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
