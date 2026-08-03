@@ -12,6 +12,12 @@ import {
   type HistoryPlan,
 } from "../_shared/planHistory.ts";
 import { buildSplitContextBlock } from "../_shared/splitSlugs.ts";
+import {
+  buildCatalogBlock,
+  loadExerciseCatalog,
+  snapPlanToCatalog,
+  type CatalogEntry,
+} from "../_shared/exerciseCatalog.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -442,6 +448,7 @@ async function generateStructuredWorkoutWithVariation(args: {
   messages: Array<{ role: string; content: string }>;
   studentId?: string;
   intensity: VariationIntensity;
+  catalog?: CatalogEntry[];
 }): Promise<Response> {
   let history: HistoryPlan[] = [];
   let historySummary = "";
@@ -507,11 +514,17 @@ async function generateStructuredWorkoutWithVariation(args: {
     }
   }
 
-  const markdown = workoutPlanToMarkdown(finalPlan);
+  // Snap every exercise/variation name to a real row of public.exercises.
+  const unmatchedExercises = snapPlanToCatalog(finalPlan, args.catalog ?? []);
+  if (unmatchedExercises.length > 0) {
+    console.warn("trainer-agent: exercícios sem equivalente no banco:", unmatchedExercises.join(" | "));
+  }
+  const markdownFinal = workoutPlanToMarkdown(finalPlan);
   return new Response(
     JSON.stringify({
       json: finalPlan,
-      markdown,
+      markdown: markdownFinal,
+      unmatchedExercises,
       similarity: {
         score: Number(similarity.score.toFixed(3)),
         threshold,
@@ -1069,12 +1082,18 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
         variationIntensity === "baixa" || variationIntensity === "alta"
           ? variationIntensity
           : DEFAULT_INTENSITY;
+      const catalog = await loadExerciseCatalog();
+      const systemWithCatalog =
+        catalog.length > 0
+          ? SYSTEM_PROMPT.replace(EXERCISE_DATABASE, buildCatalogBlock(catalog))
+          : SYSTEM_PROMPT;
       return await generateStructuredWorkoutWithVariation({
         apiKey: OPENAI_API_KEY,
-        systemPrompt: SYSTEM_PROMPT + contextMessage,
+        systemPrompt: systemWithCatalog + contextMessage,
         messages,
         studentId: typeof studentId === "string" && studentId.length > 0 ? studentId : undefined,
         intensity,
+        catalog,
       });
     }
 
