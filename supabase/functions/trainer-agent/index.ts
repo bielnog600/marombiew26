@@ -1082,12 +1082,18 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
         variationIntensity === "baixa" || variationIntensity === "alta"
           ? variationIntensity
           : DEFAULT_INTENSITY;
+      const catalog = await loadExerciseCatalog();
+      const systemWithCatalog =
+        catalog.length > 0
+          ? SYSTEM_PROMPT.replace(EXERCISE_DATABASE, buildCatalogBlock(catalog))
+          : SYSTEM_PROMPT;
       return await generateStructuredWorkoutWithVariation({
         apiKey: OPENAI_API_KEY,
-        systemPrompt: SYSTEM_PROMPT + contextMessage,
+        systemPrompt: systemWithCatalog + contextMessage,
         messages,
         studentId: typeof studentId === "string" && studentId.length > 0 ? studentId : undefined,
         intensity,
+        catalog,
       });
     }
 
