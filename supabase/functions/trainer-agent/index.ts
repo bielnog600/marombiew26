@@ -448,6 +448,7 @@ async function generateStructuredWorkoutWithVariation(args: {
   messages: Array<{ role: string; content: string }>;
   studentId?: string;
   intensity: VariationIntensity;
+  catalog?: CatalogEntry[];
 }): Promise<Response> {
   let history: HistoryPlan[] = [];
   let historySummary = "";
@@ -514,10 +515,19 @@ async function generateStructuredWorkoutWithVariation(args: {
   }
 
   const markdown = workoutPlanToMarkdown(finalPlan);
+
+  // Snap every exercise/variation name to a real row of public.exercises.
+  const unmatchedExercises = snapPlanToCatalog(finalPlan, args.catalog ?? []);
+  if (unmatchedExercises.length > 0) {
+    console.warn("trainer-agent: exercícios sem equivalente no banco:", unmatchedExercises.join(" | "));
+  }
+  const markdownFinal = workoutPlanToMarkdown(finalPlan);
+  void markdown;
   return new Response(
     JSON.stringify({
       json: finalPlan,
-      markdown,
+      markdown: markdownFinal,
+      unmatchedExercises,
       similarity: {
         score: Number(similarity.score.toFixed(3)),
         threshold,
