@@ -505,6 +505,26 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         {duplicatingId === plan.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
                         Duplicar
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1.5 text-xs rounded-xl border-border"
+                        onClick={async () => {
+                          const text = `${plan.titulo}\n\n${cleanedMarkdown}`
+                            .replace(/\*\*/g, '')
+                            .replace(/^#+\s*/gm, '')
+                            .trim();
+                          try {
+                            await navigator.clipboard.writeText(text);
+                            toast.success('Dieta copiada!');
+                          } catch {
+                            toast.error('Erro ao copiar');
+                          }
+                        }}
+                      >
+                        <ClipboardCopy className="h-3.5 w-3.5" />
+                        Copiar dieta
+                      </Button>
                       <Button 
                         size="sm" 
                         variant="outline" 
