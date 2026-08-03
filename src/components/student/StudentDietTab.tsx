@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { UtensilsCrossed, ChevronDown, ChevronUp, Pencil, Save, Loader2, Eye, Trash2, Percent, Wand2, Zap, RefreshCw, ClipboardCheck } from 'lucide-react';
-import { Copy } from 'lucide-react';
+import { Copy, ClipboardCopy } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -504,6 +504,26 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                       >
                         {duplicatingId === plan.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
                         Duplicar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1.5 text-xs rounded-xl border-border"
+                        onClick={async () => {
+                          const text = `${plan.titulo}\n\n${cleanedMarkdown}`
+                            .replace(/\*\*/g, '')
+                            .replace(/^#+\s*/gm, '')
+                            .trim();
+                          try {
+                            await navigator.clipboard.writeText(text);
+                            toast.success('Dieta copiada!');
+                          } catch {
+                            toast.error('Erro ao copiar');
+                          }
+                        }}
+                      >
+                        <ClipboardCopy className="h-3.5 w-3.5" />
+                        Copiar dieta
                       </Button>
                       <Button 
                         size="sm" 
