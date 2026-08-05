@@ -25,6 +25,7 @@ import StudentFinancialTab from '@/components/financial/StudentFinancialTab';
 import StudentExerciseVideos from '@/components/admin/StudentExerciseVideos';
 import { Wallet } from 'lucide-react';
 import AdminWeightTrackingDialog from '@/components/admin/AdminWeightTrackingDialog';
+import AiBodyCompositionDialog from '@/components/admin/AiBodyCompositionDialog';
 import { Scale } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -49,6 +50,7 @@ const AlunoDetail = () => {
   const [importUrl, setImportUrl] = useState('');
   const [importLoading, setImportLoading] = useState(false);
   const [weightDialogOpen, setWeightDialogOpen] = useState(false);
+  const [aiAssessmentOpen, setAiAssessmentOpen] = useState(false);
 
   useEffect(() => {
     if (id) loadData();
@@ -232,6 +234,9 @@ const AlunoDetail = () => {
               <div className="flex flex-wrap gap-2">
                 <Button onClick={() => navigate(`/nova-avaliacao/${id}`)} className="font-semibold">
                   <Plus className="mr-2 h-4 w-4" /> Nova Avaliação
+                </Button>
+                <Button variant="outline" className="font-semibold" onClick={() => setAiAssessmentOpen(true)}>
+                  <Bot className="mr-2 h-4 w-4 text-primary" /> Avaliação IA
                 </Button>
                 <Button variant="outline" className="font-semibold" onClick={() => setWeightDialogOpen(true)}>
                   <Scale className="mr-2 h-4 w-4" /> Registrar peso
