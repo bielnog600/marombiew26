@@ -480,6 +480,14 @@ const AlunoDetail = () => {
         studentId={id!}
         studentName={profile?.nome}
       />
+      <AiBodyCompositionDialog
+        open={aiAssessmentOpen}
+        onOpenChange={setAiAssessmentOpen}
+        studentId={id!}
+        studentName={profile?.nome}
+        postureScans={postureScans}
+        onSaved={loadData}
+      />
     </AppLayout>
   );
 };
