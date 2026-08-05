@@ -39,6 +39,7 @@ interface PlanRow {
 
 const MeusTreinos = () => {
   const { user } = useAuth();
+  const { language } = useLanguage();
   const navigate = useNavigate();
   const { session: activeSession, clear: clearActiveSession } = useActiveWorkoutSession();
   const [activeElapsed, setActiveElapsed] = useState(0);
