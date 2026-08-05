@@ -119,7 +119,16 @@ const MeusTreinos = () => {
       return data;
     });
 
-    const allPlans = (data ?? []) as PlanRow[];
+    const rawPlans = (data ?? []) as PlanRow[];
+    const allPlans =
+      language === 'en'
+        ? await Promise.all(
+            rawPlans.map(async (p) => ({
+              ...p,
+              conteudo: await translatePlanMarkdown(p.conteudo, language),
+            })),
+          )
+        : rawPlans;
     setPlans(allPlans);
 
     // Cálculo automático da fase (somente na primeira carga)
