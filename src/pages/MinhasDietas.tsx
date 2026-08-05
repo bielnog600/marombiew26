@@ -198,8 +198,9 @@ const MinhasDietas = () => {
       return data;
     });
     if (dieta) {
-      setSections(parseSections(dieta.conteudo));
-      setDietMarkdown(dieta.conteudo);
+      const conteudo = await translatePlanMarkdown(dieta.conteudo, language);
+      setSections(parseSections(conteudo));
+      setDietMarkdown(conteudo);
       const saved = (dieta as any).protocols as SavedProtocols | null | undefined;
       setProtocolKeys(protocolsToKeys(saved));
       setWeeklySchedule((saved as any)?.weekly_energy_schedule ?? null);
