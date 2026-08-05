@@ -406,10 +406,25 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
       }
       const scaled = scaleMealsToMacroTargets(meals, newTarget);
       const newContent = replaceMealTableInMarkdown(plan.conteudo, scaled);
-      setPlans(prev => prev.map(p => p.id === planId ? { ...p, conteudo: newContent } : p));
-      setEditedMeals(prev => { const c = { ...prev }; delete c[planId]; return c; });
+
+      // Keep the canonical JSON in sync: same per-macro factors + new targets.
+      const factors = {
+        p: totals.p > 0 ? newTarget.p / totals.p : 1,
+        c: totals.c > 0 ? newTarget.c / totals.c : 1,
+        g: totals.g > 0 ? newTarget.g / totals.g : 1,
+      };
+      const basePlan = editedPlans[planId] ?? parseDietPlanLoose(plan.conteudo_json);
+      const scaledPlan = basePlan ? scaleDietPlanMacros(basePlan, factors, newTarget) : null;
+
+      setPlans(prev => prev.map(p => p.id === planId
+        ? { ...p, conteudo: newContent, conteudo_json: scaledPlan ?? p.conteudo_json }
+        : p));
+      setEditedMeals(prev => ({ ...prev, [planId]: scaled }));
+      if (scaledPlan) setEditedPlans(prev => ({ ...prev, [planId]: scaledPlan }));
       setMacroModalPlanId(null);
-      toast.success(macroMode === 'perkg' ? 'Macros ajustados por g/kg!' : 'Macros ajustados por %!');
+      toast.success(
+        `${macroMode === 'perkg' ? 'Macros ajustados por g/kg' : 'Macros ajustados por %'} — nova meta: ${Math.round(newTarget.kcal)} kcal. Clique em Salvar.`,
+      );
     } catch (e: any) {
       toast.error(e.message || 'Erro ao ajustar macros');
     }
