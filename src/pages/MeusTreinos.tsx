@@ -12,6 +12,8 @@ import { X, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
+import { useLanguage } from '@/i18n';
+import { translatePlanMarkdown } from '@/lib/planTranslation';
 import { getSafeWorkoutDays, trackPlanAccess } from '@/lib/planMigrationUtils';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { fetchWithCache } from '@/lib/offlineCache';
