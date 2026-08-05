@@ -379,6 +379,11 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         {plan.migration_status === 'completed' && (
                           <Badge variant="outline" className="h-4 px-1 text-[8px] uppercase text-emerald-500 border-emerald-500/30">JSON</Badge>
                         )}
+                        {!plan.is_draft ? (
+                          <Badge variant="outline" className="h-4 px-1 text-[8px] uppercase text-emerald-500 border-emerald-500/30">Publicada</Badge>
+                        ) : (
+                          <Badge variant="outline" className="h-4 px-1 text-[8px] uppercase text-amber-500 border-amber-500/30">Rascunho</Badge>
+                        )}
                       </div>
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <p className="text-xs text-muted-foreground">
@@ -431,7 +436,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         <span className="hidden sm:inline">{isEditing ? 'Visualizar' : 'Editar'}</span>
                       </Button>
                     )}
-                    {isExpanded && (
+                    {isExpanded && isEditing && (
                       <Button
                         variant="ghost"
                         size="icon"
@@ -503,9 +508,6 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                       >
                         Publicar
                       </Button>
-                    )}
-                    {isExpanded && !plan.is_draft && (
-                      <Badge variant="outline" className="h-5 px-1.5 text-[9px] uppercase text-emerald-500 border-emerald-500/30">Publicada</Badge>
                     )}
                     {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                   </div>
