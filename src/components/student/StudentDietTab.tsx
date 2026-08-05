@@ -133,6 +133,12 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
 
   const openMacroModal = useCallback((planId: string) => {
     setMacroModalPlanId(planId);
+    getLatestStudentWeightKg(studentId).then((kg) => {
+      if (kg != null) {
+        setStudentWeight(kg);
+        setWeightInput(String(kg).replace('.', ','));
+      }
+    });
     const plan = plans.find(p => p.id === planId);
     if (!plan) return;
     const meals = extractSingleDayMeals(plan.conteudo);
@@ -143,7 +149,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     const gPct = Math.round((t.g * 9 / t.kcal) * 100);
     const cPct = 100 - pPct - gPct;
     setMacroPct({ protein: pPct, carbs: cPct, fat: gPct });
-  }, [plans, extractSingleDayMeals]);
+  }, [plans, extractSingleDayMeals, studentId]);
 
   const handleDelete = async (planId: string) => {
     const { error } = await supabase.from('ai_plans').delete().eq('id', planId);
