@@ -407,6 +407,8 @@ const DietQuestionnaire = () => {
         <Card>
           <CardContent className="p-6 space-y-4">
             <h3 className="font-semibold text-lg">Observações</h3>
+          </CardContent>
+        </Card>
             <Textarea placeholder="Algo mais que gostaria de informar ao seu treinador..." value={observacoes} onChange={e => setObservacoes(e.target.value)} />
           </CardContent>
         </Card>
