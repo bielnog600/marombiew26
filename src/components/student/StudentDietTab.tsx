@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { getLatestStudentWeightKg } from '@/lib/studentWeight';
+import { cn } from '@/lib/utils';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
@@ -371,50 +372,52 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                   className="flex items-center justify-between cursor-pointer"
                   onClick={() => setExpandedId(isExpanded ? null : plan.id)}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <UtensilsCrossed className="h-5 w-5 text-green-500 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="font-medium text-sm truncate">{plan.titulo}</p>
+                        <p className={cn('font-medium truncate', isEditing ? 'text-xs' : 'text-sm')}>{plan.titulo}</p>
                         {plan.migration_status === 'completed' && (
-                          <Badge variant="outline" className="h-4 px-1 text-[8px] uppercase text-emerald-500 border-emerald-500/30">JSON</Badge>
+                          <Badge variant="outline" className={cn('h-4 px-1 text-[8px] uppercase text-emerald-500 border-emerald-500/30', isEditing && 'hidden sm:inline-flex')}>JSON</Badge>
                         )}
                         {!plan.is_draft ? (
-                          <Badge variant="outline" className="h-4 px-1 text-[8px] uppercase text-emerald-500 border-emerald-500/30">Publicada</Badge>
+                          <Badge variant="outline" className={cn('h-4 px-1 text-[8px] uppercase text-emerald-500 border-emerald-500/30', isEditing && 'hidden sm:inline-flex')}>Publicada</Badge>
                         ) : (
-                          <Badge variant="outline" className="h-4 px-1 text-[8px] uppercase text-amber-500 border-amber-500/30">Rascunho</Badge>
+                          <Badge variant="outline" className={cn('h-4 px-1 text-[8px] uppercase text-amber-500 border-amber-500/30', isEditing && 'hidden sm:inline-flex')}>Rascunho</Badge>
                         )}
                       </div>
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(plan.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                        </p>
-                        {(() => {
-                          const parsed = parseDietPlanLoose(plan.conteudo_json);
-                          return parsed?.validation ? (
-                            <DietValidationBadge report={parsed.validation} className="ml-1" />
-                          ) : null;
-                        })()}
-                        {!isExpanded && (
-                          <>
-                            <span className="text-[10px] text-muted-foreground hidden xs:inline">•</span>
-                            {(() => {
-                              const t = getPlanTotals(plan.conteudo);
-                              if (!t || t.kcal <= 0) return null;
-                              return (
-                                <div className="flex items-center gap-2 text-[10px] font-medium text-primary">
-                                  <span>{Math.round(t.kcal)} kcal</span>
-                                  <div className="flex gap-1.5 text-muted-foreground">
-                                    <span>P: {Math.round(t.p)}g</span>
-                                    <span>C: {Math.round(t.c)}g</span>
-                                    <span>G: {Math.round(t.g)}g</span>
+                      {!isEditing && (
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(plan.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                          </p>
+                          {(() => {
+                            const parsed = parseDietPlanLoose(plan.conteudo_json);
+                            return parsed?.validation ? (
+                              <DietValidationBadge report={parsed.validation} className="ml-1" />
+                            ) : null;
+                          })()}
+                          {!isExpanded && (
+                            <>
+                              <span className="text-[10px] text-muted-foreground hidden xs:inline">•</span>
+                              {(() => {
+                                const t = getPlanTotals(plan.conteudo);
+                                if (!t || t.kcal <= 0) return null;
+                                return (
+                                  <div className="flex items-center gap-2 text-[10px] font-medium text-primary">
+                                    <span>{Math.round(t.kcal)} kcal</span>
+                                    <div className="flex gap-1.5 text-muted-foreground">
+                                      <span>P: {Math.round(t.p)}g</span>
+                                      <span>C: {Math.round(t.c)}g</span>
+                                      <span>G: {Math.round(t.g)}g</span>
+                                    </div>
                                   </div>
-                                </div>
-                              );
-                            })()}
-                          </>
-                        )}
-                      </div>
+                                );
+                              })()}
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
