@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useMemo } from 'react';
 import { ptToEn, patternRules } from './dictionary';
 
 export type AppLanguage = 'pt' | 'en';
@@ -55,6 +55,9 @@ const LanguageContext = createContext<LanguageContextValue>({ language: 'pt', t:
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const language = useMemo(detectDeviceLanguage, []);
+  useEffect(() => {
+    document.documentElement.lang = language === 'en' ? 'en' : 'pt-BR';
+  }, [language]);
   const value = useMemo<LanguageContextValue>(
     () => ({ language, t: (v: string) => translateText(v, language) }),
     [language],
