@@ -222,15 +222,20 @@ const DietQuestionnaire = () => {
     setSubmitting(false);
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  const goHome = () => navigate('/minha-area');
 
-  if (false) {
+  const topBar = (
+    <div className="sticky top-0 z-30 -mx-4 mb-4 border-b border-border bg-background/95 backdrop-blur px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
+      <div className="max-w-2xl mx-auto flex items-center gap-2">
+        <Button variant="ghost" size="sm" onClick={goHome} aria-label="Voltar para o início">
+          <ArrowLeft className="h-4 w-4 mr-1" /> Voltar
+        </Button>
+        <span className="text-sm font-medium text-muted-foreground">Ficha de Anamnese</span>
+      </div>
+    </div>
+  );
+
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
