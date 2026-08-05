@@ -34,6 +34,11 @@ interface StudentDietTabProps {
   studentId: string;
 }
 
+const parseDec = (v: string): number => {
+  const n = Number(String(v ?? '').replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+};
+
 const stripDietPreamble = (markdown: string): string => {
   if (!markdown) return markdown;
   const lines = markdown.split('\n');
