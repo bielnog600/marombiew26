@@ -337,8 +337,6 @@ export const ptToEn: Record<string, string> = {
   'Dias de treino por semana': 'Training days per week',
   'por semana': 'per week',
   'Usa hormônios?': 'Do you use hormones?',
-  'Não': 'No',
-  'Sim': 'Yes',
   'TRT': 'TRT',
   'Restrições Alimentares': 'Food Restrictions',
   'Sem lactose': 'Lactose free',
