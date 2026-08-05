@@ -384,7 +384,6 @@ export const ptToEn: Record<string, string> = {
   'Não sinto dores': 'I feel no pain',
   'Observações sobre as dores (opcional)': 'Notes about pain (optional)',
   'Ex: Dor no ombro direito ao fazer supino, piora com carga alta...': 'Ex: Pain in the right shoulder when bench pressing, worsens with heavy load...',
-  'Observações': 'Notes',
   'Algo mais que gostaria de informar ao seu treinador...': 'Anything else you would like to tell your coach...',
   'Enviar Questionário': 'Submit Questionnaire',
   'Enviando...': 'Sending...',
