@@ -320,18 +320,29 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
       const totals = computeDayTotals(meals);
       if (totals.kcal <= 0) { toast.error('Não foi possível calcular calorias da dieta.'); return; }
       const kcal = totals.kcal;
-      const newTarget = {
-        kcal,
-        p: Math.round((kcal * macroPct.protein / 100) / 4),
-        c: Math.round((kcal * macroPct.carbs / 100) / 4),
-        g: Math.round((kcal * macroPct.fat / 100) / 9),
-      };
+      let newTarget: { kcal: number; p: number; c: number; g: number };
+      if (macroMode === 'perkg') {
+        const kg = parseDec(weightInput);
+        if (!kg || kg <= 0) { toast.error('Informe o peso do aluno em kg.'); return; }
+        const p = Math.round(parseDec(macroPerKg.protein) * kg);
+        const c = Math.round(parseDec(macroPerKg.carbs) * kg);
+        const g = Math.round(parseDec(macroPerKg.fat) * kg);
+        if (p <= 0 && c <= 0 && g <= 0) { toast.error('Informe valores por kg válidos.'); return; }
+        newTarget = { kcal: p * 4 + c * 4 + g * 9, p, c, g };
+      } else {
+        newTarget = {
+          kcal,
+          p: Math.round((kcal * macroPct.protein / 100) / 4),
+          c: Math.round((kcal * macroPct.carbs / 100) / 4),
+          g: Math.round((kcal * macroPct.fat / 100) / 9),
+        };
+      }
       const scaled = scaleMealsToMacroTargets(meals, newTarget);
       const newContent = replaceMealTableInMarkdown(plan.conteudo, scaled);
       setPlans(prev => prev.map(p => p.id === planId ? { ...p, conteudo: newContent } : p));
       setEditedMeals(prev => { const c = { ...prev }; delete c[planId]; return c; });
       setMacroModalPlanId(null);
-      toast.success('Macros ajustados por %!');
+      toast.success(macroMode === 'perkg' ? 'Macros ajustados por g/kg!' : 'Macros ajustados por %!');
     } catch (e: any) {
       toast.error(e.message || 'Erro ao ajustar macros');
     }
