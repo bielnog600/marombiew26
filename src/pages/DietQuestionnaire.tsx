@@ -49,6 +49,19 @@ const RESTRICTION_OPTIONS = [
   'Sem ovo', 'Sem soja', 'Sem oleaginosas',
 ];
 
+const DOR_OPTIONS = [
+  'Ombro direito', 'Ombro esquerdo',
+  'Cotovelo direito', 'Cotovelo esquerdo',
+  'Punho / mão',
+  'Coluna cervical (pescoço)', 'Coluna torácica (meio das costas)', 'Coluna lombar',
+  'Quadril', 'Joelho direito', 'Joelho esquerdo',
+  'Tornozelo / pé',
+  'Hérnia de disco', 'Tendinite', 'Bursite', 'Artrose / artrite',
+  'Lesão de menisco', 'Lesão de ligamento (LCA/LCM)',
+  'Cirurgia recente',
+  'Não sinto dores',
+];
+
 const DietQuestionnaire = () => {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
@@ -71,6 +84,8 @@ const DietQuestionnaire = () => {
   const [sintomas, setSintomas] = useState<Record<string, boolean>>({});
   const [comoSeSente, setComoSeSente] = useState('');
   const [observacoes, setObservacoes] = useState('');
+  const [selectedDores, setSelectedDores] = useState<string[]>([]);
+  const [doresObservacoes, setDoresObservacoes] = useState('');
 
   useEffect(() => {
     if (!token) {
@@ -110,6 +125,8 @@ const DietQuestionnaire = () => {
           if (prev.usa_hormonios) setUsaHormonios(prev.usa_hormonios);
           if (prev.como_se_sente) setComoSeSente(prev.como_se_sente);
           if (prev.observacoes) setObservacoes(prev.observacoes);
+          if (Array.isArray(prev.dores_articulares)) setSelectedDores(prev.dores_articulares);
+          if (prev.dores_observacoes) setDoresObservacoes(prev.dores_observacoes);
           // Pre-fill foods
           if (prev.alimentos_por_refeicao) {
             try {
@@ -149,6 +166,14 @@ const DietQuestionnaire = () => {
     setSelectedRestrictions(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r]);
   };
 
+  const toggleDor = (d: string) => {
+    setSelectedDores(prev => {
+      if (d === 'Não sinto dores') return prev.includes(d) ? [] : [d];
+      const next = prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d];
+      return next.filter(x => x !== 'Não sinto dores');
+    });
+  };
+
   const handleSubmit = async () => {
     if (!estiloDieta) { toast.error('Selecione o estilo de dieta'); return; }
     if (!faseAtual) { toast.error('Selecione a fase atual'); return; }
@@ -176,6 +201,8 @@ const DietQuestionnaire = () => {
           preferencias_alimentares: selectedFoods.join(', '),
           alimentos_por_refeicao: { alimentos: selectedFoods },
           como_se_sente: comoSeSente,
+          dores_articulares: selectedDores,
+          dores_observacoes: doresObservacoes,
           ...Object.fromEntries(SINTOMAS.map(s => [s.key, sintomas[s.key] || false])),
           observacoes,
         }),
