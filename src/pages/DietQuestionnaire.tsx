@@ -64,6 +64,7 @@ const DOR_OPTIONS = [
 
 const DietQuestionnaire = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const token = searchParams.get('token');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
