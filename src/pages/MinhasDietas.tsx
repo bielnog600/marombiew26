@@ -101,6 +101,7 @@ const extractLooseMarkdownTable = (raw: string): { headers: string[]; rows: stri
 
 const MinhasDietas = () => {
   const { user } = useAuth();
+  const { language } = useLanguage();
   const navigate = useNavigate();
   const [sections, setSections] = useState<ParsedSection[]>([]);
   const [loading, setLoading] = useState(true);
