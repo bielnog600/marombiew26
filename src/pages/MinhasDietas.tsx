@@ -4,6 +4,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/i18n';
+import { translatePlanMarkdown } from '@/lib/planTranslation';
 import { UtensilsCrossed, Droplets, Plus, Minus, Target, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { parseSections, type ParsedSection } from '@/lib/dietResultParser';
@@ -99,6 +101,7 @@ const extractLooseMarkdownTable = (raw: string): { headers: string[]; rows: stri
 
 const MinhasDietas = () => {
   const { user } = useAuth();
+  const { language } = useLanguage();
   const navigate = useNavigate();
   const [sections, setSections] = useState<ParsedSection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -198,8 +201,9 @@ const MinhasDietas = () => {
       return data;
     });
     if (dieta) {
-      setSections(parseSections(dieta.conteudo));
-      setDietMarkdown(dieta.conteudo);
+      const conteudo = await translatePlanMarkdown(dieta.conteudo, language);
+      setSections(parseSections(conteudo));
+      setDietMarkdown(conteudo);
       const saved = (dieta as any).protocols as SavedProtocols | null | undefined;
       setProtocolKeys(protocolsToKeys(saved));
       setWeeklySchedule((saved as any)?.weekly_energy_schedule ?? null);

@@ -14,6 +14,8 @@ import InstallBanner from "@/components/InstallBanner";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import ScrollToTop from "@/components/ScrollToTop";
 import PushNotificationsInit from "@/components/PushNotificationsInit";
+import { LanguageProvider } from "@/i18n";
+import AutoTranslate from "@/i18n/AutoTranslate";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Alunos from "./pages/Alunos";
@@ -83,6 +85,8 @@ const App = () => {
           <ScrollToTop />
           <div>
           <AuthProvider>
+            <LanguageProvider>
+            <AutoTranslate />
             <TabSwipeProvider>
             <AdminTrainerSessionProvider>
             <PushNotificationsInit />
@@ -128,6 +132,7 @@ const App = () => {
             </Routes>
             </AdminTrainerSessionProvider>
             </TabSwipeProvider>
+            </LanguageProvider>
           </AuthProvider>
           </div>
         </BrowserRouter>

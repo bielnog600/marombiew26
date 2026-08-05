@@ -12,6 +12,8 @@ import { X, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
+import { useLanguage } from '@/i18n';
+import { translatePlanMarkdown } from '@/lib/planTranslation';
 import { getSafeWorkoutDays, trackPlanAccess } from '@/lib/planMigrationUtils';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { fetchWithCache } from '@/lib/offlineCache';
@@ -39,6 +41,7 @@ interface PlanRow {
 
 const MeusTreinos = () => {
   const { user } = useAuth();
+  const { language } = useLanguage();
   const navigate = useNavigate();
   const { session: activeSession, clear: clearActiveSession } = useActiveWorkoutSession();
   const [activeElapsed, setActiveElapsed] = useState(0);
@@ -119,7 +122,16 @@ const MeusTreinos = () => {
       return data;
     });
 
-    const allPlans = (data ?? []) as PlanRow[];
+    const rawPlans = (data ?? []) as PlanRow[];
+    const allPlans =
+      language === 'en'
+        ? await Promise.all(
+            rawPlans.map(async (p) => ({
+              ...p,
+              conteudo: await translatePlanMarkdown(p.conteudo, language),
+            })),
+          )
+        : rawPlans;
     setPlans(allPlans);
 
     // Cálculo automático da fase (somente na primeira carga)
