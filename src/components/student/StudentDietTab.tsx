@@ -22,6 +22,9 @@ import { extractTargetsFromSections } from '@/lib/dietTargets';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { getLatestStudentWeightKg } from '@/lib/studentWeight';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
@@ -30,6 +33,11 @@ import {
 interface StudentDietTabProps {
   studentId: string;
 }
+
+const parseDec = (v: string): number => {
+  const n = Number(String(v ?? '').replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+};
 
 const stripDietPreamble = (markdown: string): string => {
   if (!markdown) return markdown;
@@ -82,6 +90,10 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   const [saving, setSaving] = useState<string | null>(null);
   const [macroModalPlanId, setMacroModalPlanId] = useState<string | null>(null);
   const [macroPct, setMacroPct] = useState({ protein: 30, carbs: 50, fat: 20 });
+  const [macroMode, setMacroMode] = useState<'pct' | 'perkg'>('pct');
+  const [macroPerKg, setMacroPerKg] = useState({ protein: '2', carbs: '2', fat: '0,7' });
+  const [studentWeight, setStudentWeight] = useState<number | null>(null);
+  const [weightInput, setWeightInput] = useState('');
   const [aiDialogPlanId, setAiDialogPlanId] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
@@ -126,6 +138,12 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
 
   const openMacroModal = useCallback((planId: string) => {
     setMacroModalPlanId(planId);
+    getLatestStudentWeightKg(studentId).then((kg) => {
+      if (kg != null) {
+        setStudentWeight(kg);
+        setWeightInput(String(kg).replace('.', ','));
+      }
+    });
     const plan = plans.find(p => p.id === planId);
     if (!plan) return;
     const meals = extractSingleDayMeals(plan.conteudo);
@@ -136,7 +154,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     const gPct = Math.round((t.g * 9 / t.kcal) * 100);
     const cPct = 100 - pPct - gPct;
     setMacroPct({ protein: pPct, carbs: cPct, fat: gPct });
-  }, [plans, extractSingleDayMeals]);
+  }, [plans, extractSingleDayMeals, studentId]);
 
   const handleDelete = async (planId: string) => {
     const { error } = await supabase.from('ai_plans').delete().eq('id', planId);
@@ -307,18 +325,29 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
       const totals = computeDayTotals(meals);
       if (totals.kcal <= 0) { toast.error('Não foi possível calcular calorias da dieta.'); return; }
       const kcal = totals.kcal;
-      const newTarget = {
-        kcal,
-        p: Math.round((kcal * macroPct.protein / 100) / 4),
-        c: Math.round((kcal * macroPct.carbs / 100) / 4),
-        g: Math.round((kcal * macroPct.fat / 100) / 9),
-      };
+      let newTarget: { kcal: number; p: number; c: number; g: number };
+      if (macroMode === 'perkg') {
+        const kg = parseDec(weightInput);
+        if (!kg || kg <= 0) { toast.error('Informe o peso do aluno em kg.'); return; }
+        const p = Math.round(parseDec(macroPerKg.protein) * kg);
+        const c = Math.round(parseDec(macroPerKg.carbs) * kg);
+        const g = Math.round(parseDec(macroPerKg.fat) * kg);
+        if (p <= 0 && c <= 0 && g <= 0) { toast.error('Informe valores por kg válidos.'); return; }
+        newTarget = { kcal: p * 4 + c * 4 + g * 9, p, c, g };
+      } else {
+        newTarget = {
+          kcal,
+          p: Math.round((kcal * macroPct.protein / 100) / 4),
+          c: Math.round((kcal * macroPct.carbs / 100) / 4),
+          g: Math.round((kcal * macroPct.fat / 100) / 9),
+        };
+      }
       const scaled = scaleMealsToMacroTargets(meals, newTarget);
       const newContent = replaceMealTableInMarkdown(plan.conteudo, scaled);
       setPlans(prev => prev.map(p => p.id === planId ? { ...p, conteudo: newContent } : p));
       setEditedMeals(prev => { const c = { ...prev }; delete c[planId]; return c; });
       setMacroModalPlanId(null);
-      toast.success('Macros ajustados por %!');
+      toast.success(macroMode === 'perkg' ? 'Macros ajustados por g/kg!' : 'Macros ajustados por %!');
     } catch (e: any) {
       toast.error(e.message || 'Erro ao ajustar macros');
     }
@@ -579,8 +608,14 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
       <Dialog open={!!macroModalPlanId} onOpenChange={(o) => !o && setMacroModalPlanId(null)}>
         <DialogContent className="sm:max-w-md" onClick={(e) => e.stopPropagation()}>
           <DialogHeader>
-            <DialogTitle>Ajustar macros por %</DialogTitle>
+            <DialogTitle>Ajustar macros</DialogTitle>
           </DialogHeader>
+          <Tabs value={macroMode} onValueChange={(v) => setMacroMode(v as 'pct' | 'perkg')}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="pct">Por %</TabsTrigger>
+              <TabsTrigger value="perkg">Por g/kg</TabsTrigger>
+            </TabsList>
+            <TabsContent value="pct">
           <div className="space-y-5 py-2">
             {(['protein', 'carbs', 'fat'] as const).map((key) => {
               const labels = { protein: 'Proteína', carbs: 'Carboidrato', fat: 'Gordura' };
@@ -615,6 +650,64 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
               Aplicar
             </Button>
           </div>
+            </TabsContent>
+            <TabsContent value="perkg">
+              {(() => {
+                const kg = parseDec(weightInput);
+                const p = Math.round(parseDec(macroPerKg.protein) * kg);
+                const c = Math.round(parseDec(macroPerKg.carbs) * kg);
+                const g = Math.round(parseDec(macroPerKg.fat) * kg);
+                const kcal = p * 4 + c * 4 + g * 9;
+                return (
+                  <div className="space-y-4 py-2">
+                    <div className="space-y-2">
+                      <Label>Peso do aluno (kg)</Label>
+                      <Input
+                        inputMode="decimal"
+                        value={weightInput}
+                        onChange={(e) => setWeightInput(e.target.value)}
+                        placeholder="Ex.: 80"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {studentWeight != null
+                          ? `Peso mais recente registado: ${studentWeight} kg`
+                          : 'Nenhum peso registado — informe manualmente.'}
+                      </p>
+                    </div>
+                    {(['protein', 'carbs', 'fat'] as const).map((key) => {
+                      const labels = { protein: 'Proteína (g/kg)', carbs: 'Carboidrato (g/kg)', fat: 'Gordura (g/kg)' };
+                      const grams = key === 'protein' ? p : key === 'carbs' ? c : g;
+                      return (
+                        <div key={key} className="space-y-1.5">
+                          <div className="flex justify-between text-sm">
+                            <Label>{labels[key]}</Label>
+                            <span className="font-bold text-primary">{grams}g</span>
+                          </div>
+                          <Input
+                            inputMode="decimal"
+                            value={macroPerKg[key]}
+                            onChange={(e) => setMacroPerKg(prev => ({ ...prev, [key]: e.target.value }))}
+                            placeholder={key === 'fat' ? '0,7' : '2'}
+                          />
+                        </div>
+                      );
+                    })}
+                    <p className="text-xs text-center text-muted-foreground">
+                      Total estimado: <span className="font-bold text-foreground">{kcal} kcal</span>
+                      {modalPlanTotals ? ` (atual: ${Math.round(modalPlanTotals.kcal)} kcal)` : ''}
+                    </p>
+                    <Button
+                      className="w-full"
+                      disabled={!kg || kg <= 0 || kcal <= 0}
+                      onClick={() => macroModalPlanId && handleApplyMacroPct(macroModalPlanId)}
+                    >
+                      Aplicar
+                    </Button>
+                  </div>
+                );
+              })()}
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
 
