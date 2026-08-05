@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { getLatestStudentWeightKg } from '@/lib/studentWeight';
 import { toast } from 'sonner';
@@ -258,7 +259,15 @@ const AiBodyCompositionDialog: React.FC<Props> = ({ open, onOpenChange, studentI
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Sexo</Label>
-              <Input value={sexo} onChange={(e) => setSexo(e.target.value)} placeholder="masculino" />
+              <Select value={sexo} onValueChange={setSexo}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="masculino">Masculino</SelectItem>
+                  <SelectItem value="feminino">Feminino</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Idade</Label>
