@@ -40,6 +40,67 @@ const parseDec = (v: string): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
+/**
+ * Scale the canonical DietPlan (conteudo_json) with the SAME per-macro factors
+ * used on the markdown table, and rewrite `targets` with the new goal.
+ * Without this, the JSON kept the old kcal/macros target and every consumer
+ * (student portal, editor per-day scaling) kept showing the previous meta.
+ */
+const scaleDietPlanMacros = (
+  plan: DietPlan,
+  factors: { p: number; c: number; g: number },
+  target: { kcal: number; p: number; c: number; g: number },
+): DietPlan => {
+  const scaleMacros = (m: any) => {
+    const p = (m?.p ?? 0) * factors.p;
+    const c = (m?.c ?? 0) * factors.c;
+    const g = (m?.g ?? 0) * factors.g;
+    return { kcal: Math.round(p * 4 + c * 4 + g * 9), p: Math.round(p), c: Math.round(c), g: Math.round(g) };
+  };
+  const sum = (list: any[]) => list.reduce(
+    (acc, x) => ({
+      kcal: acc.kcal + (x.kcal ?? 0), p: acc.p + (x.p ?? 0),
+      c: acc.c + (x.c ?? 0), g: acc.g + (x.g ?? 0),
+    }),
+    { kcal: 0, p: 0, c: 0, g: 0 },
+  );
+
+  const days = (plan.days || []).map((day) => {
+    const meals = (day.meals || []).map((meal) => {
+      const items = (meal.items || []).map((it) => {
+        const before = it.macros || { kcal: 0, p: 0, c: 0, g: 0 };
+        const after = scaleMacros(before);
+        const kcalFactor = before.kcal > 0 ? after.kcal / before.kcal : 1;
+        return {
+          ...it,
+          qtyGrams: typeof it.qtyGrams === 'number' ? Math.round(it.qtyGrams * kcalFactor) : it.qtyGrams,
+          portionLabel: typeof it.qtyGrams === 'number'
+            ? `${Math.round(it.qtyGrams * kcalFactor)} g`
+            : it.portionLabel,
+          macros: after,
+        };
+      });
+      return { ...meal, items, totals: sum(items.map((i) => i.macros)) };
+    });
+    return { ...day, meals, totals: sum(meals.map((m) => m.totals)) };
+  });
+
+  return {
+    ...plan,
+    days,
+    targets: {
+      ...plan.targets,
+      kcal: Math.round(target.kcal),
+      p: Math.round(target.p),
+      c: Math.round(target.c),
+      g: Math.round(target.g),
+      pPct: target.kcal > 0 ? Math.round((target.p * 4 * 100) / target.kcal) : plan.targets?.pPct,
+      cPct: target.kcal > 0 ? Math.round((target.c * 4 * 100) / target.kcal) : plan.targets?.cPct,
+      gPct: target.kcal > 0 ? Math.round((target.g * 9 * 100) / target.kcal) : plan.targets?.gPct,
+    },
+  } as DietPlan;
+};
+
 const stripDietPreamble = (markdown: string): string => {
   if (!markdown) return markdown;
   const lines = markdown.split('\n');
