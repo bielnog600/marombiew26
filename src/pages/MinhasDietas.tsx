@@ -4,6 +4,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/i18n';
+import { translatePlanMarkdown } from '@/lib/planTranslation';
 import { UtensilsCrossed, Droplets, Plus, Minus, Target, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { parseSections, type ParsedSection } from '@/lib/dietResultParser';
