@@ -985,6 +985,8 @@ export type Database = {
           created_at: string
           dias_treino: string | null
           dor_cabeca: boolean | null
+          dores_articulares: string[] | null
+          dores_observacoes: string | null
           estilo_dieta: string | null
           fase_atual: string | null
           fome_excessiva: boolean | null
@@ -1012,6 +1014,8 @@ export type Database = {
           created_at?: string
           dias_treino?: string | null
           dor_cabeca?: boolean | null
+          dores_articulares?: string[] | null
+          dores_observacoes?: string | null
           estilo_dieta?: string | null
           fase_atual?: string | null
           fome_excessiva?: boolean | null
@@ -1039,6 +1043,8 @@ export type Database = {
           created_at?: string
           dias_treino?: string | null
           dor_cabeca?: boolean | null
+          dores_articulares?: string[] | null
+          dores_observacoes?: string | null
           estilo_dieta?: string | null
           fase_atual?: string | null
           fome_excessiva?: boolean | null

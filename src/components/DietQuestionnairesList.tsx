@@ -187,6 +187,20 @@ const DietQuestionnairesList: React.FC<Props> = ({ studentId, studentPhone, stud
               </div>
 
               <InfoRow label="Observações" value={viewItem.observacoes} />
+
+              <div>
+                <span className="text-muted-foreground font-medium">Dores / Patologias:</span>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {(viewItem.dores_articulares ?? []).length > 0 ? (
+                    (viewItem.dores_articulares as string[]).map((d) => (
+                      <Badge key={d} variant="destructive" className="text-xs">{d}</Badge>
+                    ))
+                  ) : (
+                    <span className="text-muted-foreground">Nenhuma dor relatada</span>
+                  )}
+                </div>
+              </div>
+              <InfoRow label="Observações das dores" value={viewItem.dores_observacoes} />
             </div>
           )}
         </DialogContent>
