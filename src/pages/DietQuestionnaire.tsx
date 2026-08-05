@@ -232,32 +232,42 @@ const DietQuestionnaire = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="min-h-screen bg-background p-4 flex flex-col">
+        {topBar}
+        <div className="flex-1 flex items-center justify-center">
         <Card className="max-w-md w-full">
           <CardContent className="p-6 text-center">
             <p className="text-destructive text-lg">{error}</p>
           </CardContent>
         </Card>
+        </div>
       </div>
     );
   }
 
   if (submitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="min-h-screen bg-background p-4 flex flex-col">
+        {topBar}
+        <div className="flex-1 flex items-center justify-center">
         <Card className="max-w-md w-full">
           <CardContent className="p-8 text-center space-y-4">
             <CheckCircle className="h-16 w-16 mx-auto text-primary" />
             <h2 className="text-2xl font-bold">Obrigado!</h2>
             <p className="text-muted-foreground">Seu questionário de dieta foi enviado com sucesso. Seu treinador irá analisar suas respostas.</p>
+            <Button className="w-full" onClick={goHome}>
+              <Home className="h-4 w-4 mr-2" /> Voltar para o início
+            </Button>
           </CardContent>
         </Card>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-background p-4">
+      {topBar}
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="text-center space-y-2 py-4">
           <UtensilsCrossed className="h-12 w-12 mx-auto text-primary" />
