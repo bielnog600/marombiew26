@@ -22,6 +22,9 @@ import { extractTargetsFromSections } from '@/lib/dietTargets';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { getLatestStudentWeightKg } from '@/lib/studentWeight';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
@@ -82,6 +85,10 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   const [saving, setSaving] = useState<string | null>(null);
   const [macroModalPlanId, setMacroModalPlanId] = useState<string | null>(null);
   const [macroPct, setMacroPct] = useState({ protein: 30, carbs: 50, fat: 20 });
+  const [macroMode, setMacroMode] = useState<'pct' | 'perkg'>('pct');
+  const [macroPerKg, setMacroPerKg] = useState({ protein: '2', carbs: '2', fat: '0,7' });
+  const [studentWeight, setStudentWeight] = useState<number | null>(null);
+  const [weightInput, setWeightInput] = useState('');
   const [aiDialogPlanId, setAiDialogPlanId] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
