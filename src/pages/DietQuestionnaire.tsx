@@ -403,12 +403,29 @@ const DietQuestionnaire = () => {
           </CardContent>
         </Card>
 
+        {/* Dores / Patologias */}
+        <Card>
+          <CardContent className="p-6 space-y-4">
+            <h3 className="font-semibold text-lg">Dores e Patologias</h3>
+            <p className="text-sm text-muted-foreground">Marque os locais onde você sente dor ou tem alguma lesão/patologia.</p>
+            <div className="flex flex-wrap gap-2">
+              {DOR_OPTIONS.map(d => (
+                <Button key={d} type="button" variant={selectedDores.includes(d) ? 'default' : 'outline'} size="sm" onClick={() => toggleDor(d)}>
+                  {d}
+                </Button>
+              ))}
+            </div>
+            <div className="space-y-2 pt-2">
+              <Label>Observações sobre as dores (opcional)</Label>
+              <Textarea placeholder="Ex: Dor no ombro direito ao fazer supino, piora com carga alta..." value={doresObservacoes} onChange={e => setDoresObservacoes(e.target.value)} />
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Observações */}
         <Card>
           <CardContent className="p-6 space-y-4">
             <h3 className="font-semibold text-lg">Observações</h3>
-          </CardContent>
-        </Card>
             <Textarea placeholder="Algo mais que gostaria de informar ao seu treinador..." value={observacoes} onChange={e => setObservacoes(e.target.value)} />
           </CardContent>
         </Card>
