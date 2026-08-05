@@ -608,8 +608,14 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
       <Dialog open={!!macroModalPlanId} onOpenChange={(o) => !o && setMacroModalPlanId(null)}>
         <DialogContent className="sm:max-w-md" onClick={(e) => e.stopPropagation()}>
           <DialogHeader>
-            <DialogTitle>Ajustar macros por %</DialogTitle>
+            <DialogTitle>Ajustar macros</DialogTitle>
           </DialogHeader>
+          <Tabs value={macroMode} onValueChange={(v) => setMacroMode(v as 'pct' | 'perkg')}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="pct">Por %</TabsTrigger>
+              <TabsTrigger value="perkg">Por g/kg</TabsTrigger>
+            </TabsList>
+            <TabsContent value="pct">
           <div className="space-y-5 py-2">
             {(['protein', 'carbs', 'fat'] as const).map((key) => {
               const labels = { protein: 'Proteína', carbs: 'Carboidrato', fat: 'Gordura' };
@@ -644,6 +650,64 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
               Aplicar
             </Button>
           </div>
+            </TabsContent>
+            <TabsContent value="perkg">
+              {(() => {
+                const kg = parseDec(weightInput);
+                const p = Math.round(parseDec(macroPerKg.protein) * kg);
+                const c = Math.round(parseDec(macroPerKg.carbs) * kg);
+                const g = Math.round(parseDec(macroPerKg.fat) * kg);
+                const kcal = p * 4 + c * 4 + g * 9;
+                return (
+                  <div className="space-y-4 py-2">
+                    <div className="space-y-2">
+                      <Label>Peso do aluno (kg)</Label>
+                      <Input
+                        inputMode="decimal"
+                        value={weightInput}
+                        onChange={(e) => setWeightInput(e.target.value)}
+                        placeholder="Ex.: 80"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {studentWeight != null
+                          ? `Peso mais recente registado: ${studentWeight} kg`
+                          : 'Nenhum peso registado — informe manualmente.'}
+                      </p>
+                    </div>
+                    {(['protein', 'carbs', 'fat'] as const).map((key) => {
+                      const labels = { protein: 'Proteína (g/kg)', carbs: 'Carboidrato (g/kg)', fat: 'Gordura (g/kg)' };
+                      const grams = key === 'protein' ? p : key === 'carbs' ? c : g;
+                      return (
+                        <div key={key} className="space-y-1.5">
+                          <div className="flex justify-between text-sm">
+                            <Label>{labels[key]}</Label>
+                            <span className="font-bold text-primary">{grams}g</span>
+                          </div>
+                          <Input
+                            inputMode="decimal"
+                            value={macroPerKg[key]}
+                            onChange={(e) => setMacroPerKg(prev => ({ ...prev, [key]: e.target.value }))}
+                            placeholder={key === 'fat' ? '0,7' : '2'}
+                          />
+                        </div>
+                      );
+                    })}
+                    <p className="text-xs text-center text-muted-foreground">
+                      Total estimado: <span className="font-bold text-foreground">{kcal} kcal</span>
+                      {modalPlanTotals ? ` (atual: ${Math.round(modalPlanTotals.kcal)} kcal)` : ''}
+                    </p>
+                    <Button
+                      className="w-full"
+                      disabled={!kg || kg <= 0 || kcal <= 0}
+                      onClick={() => macroModalPlanId && handleApplyMacroPct(macroModalPlanId)}
+                    >
+                      Aplicar
+                    </Button>
+                  </div>
+                );
+              })()}
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
 
