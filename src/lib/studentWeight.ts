@@ -10,8 +10,9 @@ import { supabase } from "@/integrations/supabase/client";
  *  - NÃO existe coluna de peso em `profiles` nem em `students_profile`.
  *
  * Regra:
- *  1. weight_logs: registro mais recente por (data desc, created_at desc).
- *  2. Se não houver, anthropometrics.peso da avaliação mais recente do aluno.
+ *  1. Compara a data do último weight_logs com a data da última avaliação
+ *     (assessments.created_at) e usa o registro MAIS RECENTE dos dois.
+ *  2. Empate → prevalece o weight_logs (pesagem manual do dia).
  *  3. Validação: 20 < peso < 400 kg. Fora disso → null.
  */
 
@@ -27,35 +28,44 @@ function sanitize(value: unknown): number | null {
 export async function getLatestStudentWeightKg(studentId: string): Promise<number | null> {
   if (!studentId) return null;
 
-  // 1) Fonte canônica
-  const { data: log } = await supabase
-    .from("weight_logs")
-    .select("peso, data, created_at")
-    .eq("student_id", studentId)
-    .order("data", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const [logRes, assessRes] = await Promise.all([
+    supabase
+      .from("weight_logs")
+      .select("peso, data, created_at")
+      .eq("student_id", studentId)
+      .order("data", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("assessments")
+      .select("id, created_at")
+      .eq("student_id", studentId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
-  const fromLog = sanitize(log?.peso);
-  if (fromLog != null) return fromLog;
+  const logWeight = sanitize(logRes.data?.peso);
+  const logDate = logRes.data?.data ? String(logRes.data.data).slice(0, 10) : null;
 
-  // 2) Fallback: última avaliação antropométrica
-  const { data: assess } = await supabase
-    .from("assessments")
-    .select("id, created_at")
-    .eq("student_id", studentId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  let assessWeight: number | null = null;
+  let assessDate: string | null = null;
+  if (assessRes.data?.id) {
+    const { data: anthro } = await supabase
+      .from("anthropometrics")
+      .select("peso")
+      .eq("assessment_id", assessRes.data.id)
+      .maybeSingle();
+    assessWeight = sanitize(anthro?.peso);
+    assessDate = assessRes.data.created_at ? String(assessRes.data.created_at).slice(0, 10) : null;
+  }
 
-  if (!assess?.id) return null;
+  if (logWeight == null) return assessWeight;
+  if (assessWeight == null) return logWeight;
 
-  const { data: anthro } = await supabase
-    .from("anthropometrics")
-    .select("peso")
-    .eq("assessment_id", assess.id)
-    .maybeSingle();
-
-  return sanitize(anthro?.peso);
+  // Ambos existem → o mais recente vence (empate: weight_logs)
+  if (logDate && assessDate && assessDate > logDate) return assessWeight;
+  if (!logDate && assessDate) return assessWeight;
+  return logWeight;
 }
