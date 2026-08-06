@@ -14,6 +14,7 @@ import InstallBanner from "@/components/InstallBanner";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import ScrollToTop from "@/components/ScrollToTop";
 import PushNotificationsInit from "@/components/PushNotificationsInit";
+import StudentAppOpenTracker from "@/components/StudentAppOpenTracker";
 import { LanguageProvider } from "@/i18n";
 import AutoTranslate from "@/i18n/AutoTranslate";
 import Login from "./pages/Login";
@@ -90,6 +91,7 @@ const App = () => {
             <TabSwipeProvider>
             <AdminTrainerSessionProvider>
             <PushNotificationsInit />
+            <StudentAppOpenTracker />
             <AdminTrainerSessionMount />
             <Routes>
               <Route path="/" element={<RootRedirect />} />
