@@ -98,14 +98,37 @@ const StudentBehavior360: React.FC<Props> = ({ studentId, studentName }) => {
     const last14 = subDays(new Date(), 14);
     const last30 = subDays(new Date(), 30);
 
-    // App usage
-    const appOpens = data.events.filter(e => e.event_type === 'app_opened');
-    const openedToday = appOpens.some(e => e.created_at.slice(0, 10) === today);
-    const lastOpen = appOpens[0]?.created_at ?? null;
+    // App usage — considera qualquer sinal real de uso do app, não só o evento
+    // "app_opened" (que só é gravado ao abrir a Home).
+    const accessSignals: { at: string; label: string }[] = [
+      ...data.events.map(e => ({
+        at: e.created_at,
+        label: e.event_type === 'app_opened' ? 'Abriu o app' : e.event_type.replace(/_/g, ' '),
+      })),
+      ...data.sessions
+        .filter(s => s.started_at || s.completed_at)
+        .map(s => ({ at: (s.started_at || s.completed_at) as string, label: 'Treino no app' })),
+      ...data.setLogs.map(l => ({ at: l.performed_at, label: 'Registro de série' })),
+      ...data.tracking
+        .filter(t => (t.water_glasses || 0) > 0 || (Array.isArray(t.meals_completed) && t.meals_completed.length > 0) || t.workout_completed)
+        .map(t => ({ at: `${t.date}T12:00:00`, label: 'Registro diário' })),
+    ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+
+    // Um acesso por dia (o mais recente do dia)
+    const seenDays = new Set<string>();
+    const appOpens = accessSignals.filter(s => {
+      const d = s.at.slice(0, 10);
+      if (seenDays.has(d)) return false;
+      seenDays.add(d);
+      return true;
+    });
+    const openedToday = appOpens.some(e => e.at.slice(0, 10) === today);
+    const lastOpen = appOpens[0]?.at ?? null;
     const daysSinceOpen = lastOpen ? differenceInDays(new Date(), new Date(lastOpen)) : null;
-    const opensLast7 = appOpens.filter(e => new Date(e.created_at) >= last7).length;
-    const opensLast30 = appOpens.filter(e => new Date(e.created_at) >= last30).length;
-    const uniqueOpenDaysLast30 = new Set(appOpens.filter(e => new Date(e.created_at) >= last30).map(e => e.created_at.slice(0, 10))).size;
+    const opensLast7 = appOpens.filter(e => new Date(e.at) >= last7).length;
+    const opensLast30 = appOpens.filter(e => new Date(e.at) >= last30).length;
+    const uniqueOpenDaysLast30 = opensLast30;
+    const accessHistory = appOpens;
 
     // Workouts
     const completed = data.sessions.filter(s => s.status === 'completed');
