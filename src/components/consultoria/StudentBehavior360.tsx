@@ -191,7 +191,7 @@ const StudentBehavior360: React.FC<Props> = ({ studentId, studentName }) => {
       const ds = format(d, 'yyyy-MM-dd');
       const trk = data.tracking.find(t => t.date === ds);
       const trained = completed.some(s => s.completed_at.slice(0, 10) === ds);
-      const opened = appOpens.some(e => e.created_at.slice(0, 10) === ds);
+      const opened = appOpens.some(e => e.at.slice(0, 10) === ds);
       return {
         date: d, label: format(d, 'EEE', { locale: ptBR }).slice(0, 1).toUpperCase(),
         opened, trained,
@@ -203,7 +203,7 @@ const StudentBehavior360: React.FC<Props> = ({ studentId, studentName }) => {
     // Timeline merging
     type TLEvent = { ts: string; type: string; label: string; icon: any; color: string };
     const tl: TLEvent[] = [];
-    for (const e of appOpens.slice(0, 30)) tl.push({ ts: e.created_at, type: 'open', label: 'Abriu o app', icon: Activity, color: 'text-emerald-500' });
+    for (const e of appOpens.slice(0, 30)) tl.push({ ts: e.at, type: 'open', label: e.label, icon: Activity, color: 'text-emerald-500' });
     for (const s of completed.slice(0, 30)) tl.push({ ts: s.completed_at, type: 'workout', label: `Concluiu ${s.day_name || 'treino'} · ${s.duration_minutes}min`, icon: Dumbbell, color: 'text-primary' });
     for (const s of abandoned.slice(0, 10)) tl.push({ ts: s.completed_at, type: 'abandon', label: `Abandonou ${s.day_name || 'treino'}`, icon: XCircle, color: 'text-destructive' });
     for (const a of data.alerts.slice(0, 10)) tl.push({ ts: a.created_at, type: 'alert', label: `⚠ ${a.title}`, icon: AlertTriangle, color: 'text-orange-500' });
@@ -211,7 +211,7 @@ const StudentBehavior360: React.FC<Props> = ({ studentId, studentName }) => {
     tl.sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
 
     return {
-      openedToday, lastOpen, daysSinceOpen, opensLast7, opensLast30, uniqueOpenDaysLast30,
+      openedToday, lastOpen, daysSinceOpen, opensLast7, opensLast30, uniqueOpenDaysLast30, accessHistory,
       workoutToday, completedCount: completed.length, abandonedCount: abandoned.length,
       compLast7: compLast7.length, compLast30, totalVolumeLast7, volumeTrend,
       avgDuration, avgRpe, todayTrk, mealsDays7, waterDays7, avgGlasses,
