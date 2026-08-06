@@ -334,14 +334,17 @@ const StudentBehavior360: React.FC<Props> = ({ studentId, studentName }) => {
           <Card className="glass-card">
             <CardHeader className="pb-2"><CardTitle className="text-sm">Histórico recente</CardTitle></CardHeader>
             <CardContent>
-              {data.events.filter(e => e.event_type === 'app_opened').length === 0 ? (
+              {c.accessHistory.length === 0 ? (
                 <Empty icon={Activity} text="Aluno ainda não abriu o app" />
               ) : (
                 <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                  {data.events.filter(e => e.event_type === 'app_opened').slice(0, 30).map((e, i) => (
+                  {c.accessHistory.slice(0, 30).map((e, i) => (
                     <div key={i} className="flex items-center justify-between text-xs p-1.5 rounded bg-secondary/30">
-                      <span>{format(new Date(e.created_at), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}</span>
-                      <span className="text-muted-foreground">{formatDistanceToNow(new Date(e.created_at), { locale: ptBR, addSuffix: true })}</span>
+                      <span>
+                        {format(new Date(e.at), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}
+                        <span className="ml-2 text-muted-foreground">· {e.label}</span>
+                      </span>
+                      <span className="text-muted-foreground">{formatDistanceToNow(new Date(e.at), { locale: ptBR, addSuffix: true })}</span>
                     </div>
                   ))}
                 </div>
