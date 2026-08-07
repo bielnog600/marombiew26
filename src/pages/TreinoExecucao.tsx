@@ -937,15 +937,28 @@ const TreinoExecucao = () => {
               <h1 className="text-xl font-bold text-foreground leading-tight" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}>{selectedExerciseName}</h1>
               {exercise.description && <p className="text-xs text-foreground/90 mt-1" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>{exercise.description}</p>}
             </div>
-            {exercise.variation && (
-              <button
-                type="button"
-                onClick={toggleVariation}
-                className={`relative z-10 shrink-0 mt-1 touch-manipulation rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider backdrop-blur transition-colors ${showingVariation ? 'bg-primary text-primary-foreground' : 'bg-background/80 text-foreground border border-border/50'}`}
-              >
-                {showingVariation ? 'Original' : 'Variação'}
-              </button>
-            )}
+            <div className="relative z-10 shrink-0 mt-1 flex flex-col items-end gap-1.5">
+              {exercise.variation && (
+                <button
+                  type="button"
+                  onClick={toggleVariation}
+                  className={`touch-manipulation rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider backdrop-blur transition-colors ${showingVariation ? 'bg-primary text-primary-foreground' : 'bg-background/80 text-foreground border border-border/50'}`}
+                >
+                  {showingVariation ? 'Original' : 'Variação'}
+                </button>
+              )}
+              {(hlsUrl || imageUrl) && (
+                <button
+                  type="button"
+                  onClick={() => setZoomOpen(true)}
+                  aria-label="Ampliar vídeo"
+                  className="touch-manipulation rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider backdrop-blur bg-background/80 text-foreground border border-border/50 flex items-center gap-1"
+                >
+                  <Maximize2 className="h-3 w-3" />
+                  Zoom
+                </button>
+              )}
+            </div>
           </div>
           {(() => {
             const isReal = (v?: string | null) => {
