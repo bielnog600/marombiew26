@@ -20,7 +20,7 @@ import { MachineAdjustSheet } from '@/components/training/MachineAdjustSheet';
 import { ExerciseLoadHistorySheet } from '@/components/training/ExerciseLoadHistorySheet';
 import { SessionRpeDialog } from '@/components/training/SessionRpeDialog';
 import ExerciseVideoCapture from '@/components/training/ExerciseVideoCapture';
-import { Settings2, Info, BarChart3, Timer, Camera } from 'lucide-react';
+import { Settings2, Info, BarChart3, Timer, Camera, Maximize2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { fetchWithCache } from '@/lib/offlineCache';
 import { useRestTimer } from '@/hooks/useRestTimer';
@@ -182,6 +182,7 @@ const TreinoExecucao = () => {
   const [exerciseDB, setExerciseDB] = useState<ExerciseDBData[]>([]);
   const { restTimer, startTimer: startRestTimer, stopTimer: stopRestTimer } = useRestTimer();
   const [showPlayFallback, setShowPlayFallback] = useState(false);
+  const [zoomOpen, setZoomOpen] = useState(false);
   const [showingVariation, setShowingVariation] = useState(false);
   const [variationPrefs, setVariationPrefs] = useState<Record<string, boolean>>({});
   // Sessão persistida: started_at vem do banco (ou agora se ainda não existe)
@@ -198,6 +199,8 @@ const TreinoExecucao = () => {
   const currentPhase = phase ?? getPhaseByMonthDay();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const zoomVideoRef = useRef<HTMLVideoElement | null>(null);
+  const zoomHlsRef = useRef<Hls | null>(null);
 
   // Combined Session timer tick & visibility sync
   useEffect(() => {
@@ -794,6 +797,42 @@ const TreinoExecucao = () => {
     video.play().then(() => setShowPlayFallback(false)).catch(() => setShowPlayFallback(true));
   };
 
+  // Player do modo ampliado (tela cheia)
+  useEffect(() => {
+    if (!zoomOpen || !hlsUrl) return;
+    const video = zoomVideoRef.current;
+    if (!video) return;
+
+    video.muted = true;
+    video.playsInline = true;
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = hlsUrl;
+      video.play().catch(() => {});
+      return;
+    }
+    if (Hls.isSupported()) {
+      const hls = new Hls({ autoStartLoad: true, startLevel: -1, enableWorker: true });
+      zoomHlsRef.current = hls;
+      hls.loadSource(hlsUrl);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+      return () => {
+        hls.destroy();
+        zoomHlsRef.current = null;
+      };
+    }
+  }, [zoomOpen, hlsUrl]);
+
+  useEffect(() => {
+    if (!zoomOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setZoomOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [zoomOpen]);
+
   if (!exercise) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -807,6 +846,33 @@ const TreinoExecucao = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      {zoomOpen && (
+        <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center">
+          {hlsUrl ? (
+            <video
+              ref={zoomVideoRef}
+              className="max-h-full max-w-full w-full h-full object-contain"
+              muted
+              autoPlay
+              loop
+              playsInline
+              controls
+              poster={posterUrl}
+            />
+          ) : imageUrl ? (
+            <img src={imageUrl} alt={selectedExerciseName} className="max-h-full max-w-full object-contain" />
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setZoomOpen(false)}
+            aria-label="Fechar"
+            className="fixed right-4 z-[110] h-12 w-12 rounded-full bg-background/90 backdrop-blur border border-border/60 flex items-center justify-center shadow-lg touch-manipulation"
+            style={{ top: 'calc(env(safe-area-inset-top, 0px) + 16px)' }}
+          >
+            <X className="h-6 w-6 text-foreground" />
+          </button>
+        </div>
+      )}
       {restTimer && (
         <RestTimerOverlay 
           timeLeft={restTimer.remaining} 
@@ -898,15 +964,28 @@ const TreinoExecucao = () => {
               <h1 className="text-xl font-bold text-foreground leading-tight" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}>{selectedExerciseName}</h1>
               {exercise.description && <p className="text-xs text-foreground/90 mt-1" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>{exercise.description}</p>}
             </div>
-            {exercise.variation && (
-              <button
-                type="button"
-                onClick={toggleVariation}
-                className={`relative z-10 shrink-0 mt-1 touch-manipulation rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider backdrop-blur transition-colors ${showingVariation ? 'bg-primary text-primary-foreground' : 'bg-background/80 text-foreground border border-border/50'}`}
-              >
-                {showingVariation ? 'Original' : 'Variação'}
-              </button>
-            )}
+            <div className="relative z-10 shrink-0 mt-1 flex flex-col items-end gap-1.5">
+              {exercise.variation && (
+                <button
+                  type="button"
+                  onClick={toggleVariation}
+                  className={`touch-manipulation rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider backdrop-blur transition-colors ${showingVariation ? 'bg-primary text-primary-foreground' : 'bg-background/80 text-foreground border border-border/50'}`}
+                >
+                  {showingVariation ? 'Original' : 'Variação'}
+                </button>
+              )}
+              {(hlsUrl || imageUrl) && (
+                <button
+                  type="button"
+                  onClick={() => setZoomOpen(true)}
+                  aria-label="Ampliar vídeo"
+                  className="touch-manipulation rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider backdrop-blur bg-background/80 text-foreground border border-border/50 flex items-center gap-1"
+                >
+                  <Maximize2 className="h-3 w-3" />
+                  Zoom
+                </button>
+              )}
+            </div>
           </div>
           {(() => {
             const isReal = (v?: string | null) => {
