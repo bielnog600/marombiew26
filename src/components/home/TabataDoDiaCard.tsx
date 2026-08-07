@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Flame, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { parseTabata } from '@/lib/tabataParser';
+import { fetchExerciseImageByNames, TABATA_FALLBACK_IMAGES } from '@/lib/homeHeroImages';
+import workoutHero from '@/assets/workout-hero.jpg';
 
 interface TabataDoDiaCardProps {
   conteudo: string;
@@ -11,6 +13,22 @@ interface TabataDoDiaCardProps {
 const TabataDoDiaCard: React.FC<TabataDoDiaCardProps> = ({ conteudo }) => {
   const navigate = useNavigate();
   const parsed = parseTabata(conteudo);
+  const [heroImage, setHeroImage] = useState<string | null>(null);
+
+  const firstExercises = parsed.blocks
+    .flatMap((b) => b.exercises.map((e: any) => (typeof e === 'string' ? e : e?.name || e?.nome || '')))
+    .filter(Boolean)
+    .slice(0, 3);
+  const candidatesKey = firstExercises.join('|');
+
+  useEffect(() => {
+    let cancelled = false;
+    const candidates = [...candidatesKey.split('|').filter(Boolean), ...TABATA_FALLBACK_IMAGES];
+    fetchExerciseImageByNames(candidates).then((url) => {
+      if (!cancelled) setHeroImage(url);
+    });
+    return () => { cancelled = true; };
+  }, [candidatesKey]);
 
   if (!parsed.blocks.length) return null;
 
@@ -29,13 +47,17 @@ const TabataDoDiaCard: React.FC<TabataDoDiaCardProps> = ({ conteudo }) => {
       className="glass-card overflow-hidden cursor-pointer group border-primary/20"
       onClick={() => navigate('/tabata-execucao', { state: { tabata: parsed } })}
     >
-      <div className="relative p-4 bg-gradient-to-br from-red-500/10 via-orange-500/5 to-transparent">
-        <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-red-500/30 to-orange-500/20 flex items-center justify-center shrink-0">
-            <Flame className="h-6 w-6 text-red-400" />
-          </div>
+      <div className="relative h-40 overflow-hidden">
+        <img
+          src={heroImage || workoutHero}
+          alt="TABATA do dia"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-card via-card/70 to-transparent" />
+        <div className="absolute bottom-0 left-0 right-0 p-4 flex items-end gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
+              <Flame className="h-3.5 w-3.5 text-red-400 shrink-0" />
               <p className="text-[10px] uppercase tracking-widest text-primary font-bold">TABATA do Dia</p>
               <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${intensityChip.cls}`}>
                 {intensityChip.label}
