@@ -20,7 +20,7 @@ import { MachineAdjustSheet } from '@/components/training/MachineAdjustSheet';
 import { ExerciseLoadHistorySheet } from '@/components/training/ExerciseLoadHistorySheet';
 import { SessionRpeDialog } from '@/components/training/SessionRpeDialog';
 import ExerciseVideoCapture from '@/components/training/ExerciseVideoCapture';
-import { Settings2, Info, BarChart3, Timer, Camera } from 'lucide-react';
+import { Settings2, Info, BarChart3, Timer, Camera, Maximize2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { fetchWithCache } from '@/lib/offlineCache';
 import { useRestTimer } from '@/hooks/useRestTimer';
@@ -182,6 +182,7 @@ const TreinoExecucao = () => {
   const [exerciseDB, setExerciseDB] = useState<ExerciseDBData[]>([]);
   const { restTimer, startTimer: startRestTimer, stopTimer: stopRestTimer } = useRestTimer();
   const [showPlayFallback, setShowPlayFallback] = useState(false);
+  const [zoomOpen, setZoomOpen] = useState(false);
   const [showingVariation, setShowingVariation] = useState(false);
   const [variationPrefs, setVariationPrefs] = useState<Record<string, boolean>>({});
   // Sessão persistida: started_at vem do banco (ou agora se ainda não existe)
@@ -198,6 +199,8 @@ const TreinoExecucao = () => {
   const currentPhase = phase ?? getPhaseByMonthDay();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const zoomVideoRef = useRef<HTMLVideoElement | null>(null);
+  const zoomHlsRef = useRef<Hls | null>(null);
 
   // Combined Session timer tick & visibility sync
   useEffect(() => {
