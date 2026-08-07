@@ -14,7 +14,7 @@ import {
   type CardioModality,
 } from '@/lib/cardioParser';
 import { useActiveCardioSession, computeRemainingSec } from '@/hooks/useActiveCardioSession';
-import { fetchExerciseImageByNames, CARDIO_IMAGE_BY_MODALITY } from '@/lib/homeHeroImages';
+import { fetchExerciseImageByNames, getCachedExerciseImage, CARDIO_IMAGE_BY_MODALITY } from '@/lib/homeHeroImages';
 import workoutHero from '@/assets/workout-hero.jpg';
 
 interface CardioDoDiaCardProps {
@@ -50,7 +50,10 @@ const CardioDoDiaCard: React.FC<CardioDoDiaCardProps> = ({ conteudo }) => {
   useEffect(() => {
     if (!modality) return;
     let cancelled = false;
-    fetchExerciseImageByNames(CARDIO_IMAGE_BY_MODALITY[modality] ?? ['PASSADEIRA (CORRIDA)']).then((url) => {
+    const candidates = CARDIO_IMAGE_BY_MODALITY[modality] ?? ['PASSADEIRA (CORRIDA)'];
+    const cached = getCachedExerciseImage(candidates);
+    if (cached) setHeroImage(cached);
+    fetchExerciseImageByNames(candidates).then((url) => {
       if (!cancelled) setHeroImage(url);
     });
     return () => { cancelled = true; };
@@ -98,6 +101,8 @@ const CardioDoDiaCard: React.FC<CardioDoDiaCardProps> = ({ conteudo }) => {
         <img
           src={heroImage || workoutHero}
           alt="Cardio do dia"
+          loading="eager"
+          decoding="async"
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-card via-card/70 to-transparent" />
