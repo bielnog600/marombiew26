@@ -24,12 +24,18 @@ function persist(key: string, value: string | null) {
 let rowsPromise: Promise<Row[]> | null = null;
 function getRows(): Promise<Row[]> {
   if (!rowsPromise) {
-    rowsPromise = supabase
-      .from('exercises')
-      .select('nome, imagem_url, grupo_muscular')
-      .not('imagem_url', 'is', null)
-      .then(({ data, error }) => (error || !data ? [] : (data as Row[])))
-      .catch(() => []);
+    rowsPromise = (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('exercises')
+          .select('nome, imagem_url, grupo_muscular')
+          .not('imagem_url', 'is', null);
+        if (error || !data) return [];
+        return data as Row[];
+      } catch {
+        return [];
+      }
+    })();
   }
   return rowsPromise;
 }
