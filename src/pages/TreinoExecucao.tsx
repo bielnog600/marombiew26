@@ -846,6 +846,33 @@ const TreinoExecucao = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      {zoomOpen && (
+        <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center">
+          {hlsUrl ? (
+            <video
+              ref={zoomVideoRef}
+              className="max-h-full max-w-full w-full h-full object-contain"
+              muted
+              autoPlay
+              loop
+              playsInline
+              controls
+              poster={posterUrl}
+            />
+          ) : imageUrl ? (
+            <img src={imageUrl} alt={selectedExerciseName} className="max-h-full max-w-full object-contain" />
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setZoomOpen(false)}
+            aria-label="Fechar"
+            className="fixed right-4 z-[110] h-12 w-12 rounded-full bg-background/90 backdrop-blur border border-border/60 flex items-center justify-center shadow-lg touch-manipulation"
+            style={{ top: 'calc(env(safe-area-inset-top, 0px) + 16px)' }}
+          >
+            <X className="h-6 w-6 text-foreground" />
+          </button>
+        </div>
+      )}
       {restTimer && (
         <RestTimerOverlay 
           timeLeft={restTimer.remaining} 
