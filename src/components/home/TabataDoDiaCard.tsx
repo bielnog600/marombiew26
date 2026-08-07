@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Flame, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { parseTabata } from '@/lib/tabataParser';
-import { fetchExerciseImageByNames, TABATA_FALLBACK_IMAGES } from '@/lib/homeHeroImages';
+import { fetchExerciseImageByNames, getCachedExerciseImage, TABATA_FALLBACK_IMAGES } from '@/lib/homeHeroImages';
 import workoutHero from '@/assets/workout-hero.jpg';
 
 interface TabataDoDiaCardProps {
@@ -24,6 +24,8 @@ const TabataDoDiaCard: React.FC<TabataDoDiaCardProps> = ({ conteudo }) => {
   useEffect(() => {
     let cancelled = false;
     const candidates = [...candidatesKey.split('|').filter(Boolean), ...TABATA_FALLBACK_IMAGES];
+    const cached = getCachedExerciseImage(candidates);
+    if (cached) setHeroImage(cached);
     fetchExerciseImageByNames(candidates).then((url) => {
       if (!cancelled) setHeroImage(url);
     });
@@ -51,6 +53,8 @@ const TabataDoDiaCard: React.FC<TabataDoDiaCardProps> = ({ conteudo }) => {
         <img
           src={heroImage || workoutHero}
           alt="TABATA do dia"
+          loading="eager"
+          decoding="async"
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-card via-card/70 to-transparent" />
