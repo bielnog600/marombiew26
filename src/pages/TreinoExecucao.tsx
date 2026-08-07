@@ -797,6 +797,42 @@ const TreinoExecucao = () => {
     video.play().then(() => setShowPlayFallback(false)).catch(() => setShowPlayFallback(true));
   };
 
+  // Player do modo ampliado (tela cheia)
+  useEffect(() => {
+    if (!zoomOpen || !hlsUrl) return;
+    const video = zoomVideoRef.current;
+    if (!video) return;
+
+    video.muted = true;
+    video.playsInline = true;
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = hlsUrl;
+      video.play().catch(() => {});
+      return;
+    }
+    if (Hls.isSupported()) {
+      const hls = new Hls({ autoStartLoad: true, startLevel: -1, enableWorker: true });
+      zoomHlsRef.current = hls;
+      hls.loadSource(hlsUrl);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+      return () => {
+        hls.destroy();
+        zoomHlsRef.current = null;
+      };
+    }
+  }, [zoomOpen, hlsUrl]);
+
+  useEffect(() => {
+    if (!zoomOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setZoomOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [zoomOpen]);
+
   if (!exercise) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
