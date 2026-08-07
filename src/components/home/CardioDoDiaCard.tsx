@@ -14,6 +14,8 @@ import {
   type CardioModality,
 } from '@/lib/cardioParser';
 import { useActiveCardioSession, computeRemainingSec } from '@/hooks/useActiveCardioSession';
+import { fetchExerciseImageByNames, CARDIO_IMAGE_BY_MODALITY } from '@/lib/homeHeroImages';
+import workoutHero from '@/assets/workout-hero.jpg';
 
 interface CardioDoDiaCardProps {
   conteudo: string;
@@ -38,10 +40,21 @@ const CardioDoDiaCard: React.FC<CardioDoDiaCardProps> = ({ conteudo }) => {
   const payload = parseCardioPayload(conteudo);
   const dailyProtocol = payload ? pickProtocolForToday(payload) : null;
   const { session: activeSession, clear: clearActiveSession } = useActiveCardioSession();
+  const [heroImage, setHeroImage] = useState<string | null>(null);
 
   // If there is an active session, show that protocol; otherwise the daily one
   const protocol = activeSession?.protocol ?? dailyProtocol;
   const [, setTick] = useState(0);
+
+  const modality = protocol?.modality;
+  useEffect(() => {
+    if (!modality) return;
+    let cancelled = false;
+    fetchExerciseImageByNames(CARDIO_IMAGE_BY_MODALITY[modality] ?? ['PASSADEIRA (CORRIDA)']).then((url) => {
+      if (!cancelled) setHeroImage(url);
+    });
+    return () => { cancelled = true; };
+  }, [modality]);
 
   useEffect(() => {
     if (!activeSession) return;
@@ -81,23 +94,27 @@ const CardioDoDiaCard: React.FC<CardioDoDiaCardProps> = ({ conteudo }) => {
       className={`glass-card overflow-hidden cursor-pointer group border-primary/20 ${isActive ? 'ring-2 ring-primary/60 shadow-lg shadow-primary/10' : ''}`}
       onClick={handleClick}
     >
-      <div className="relative p-4 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent">
+      <div className="relative h-40 overflow-hidden">
+        <img
+          src={heroImage || workoutHero}
+          alt="Cardio do dia"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-card via-card/70 to-transparent" />
         {isActive && (
           <button
             type="button"
             onClick={handleCancel}
             aria-label="Cancelar cardio em andamento"
-            className="absolute top-2 right-2 z-10 h-7 w-7 rounded-full bg-background/80 backdrop-blur flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground transition-colors"
+            className="absolute top-3 right-3 z-10 h-8 w-8 rounded-full bg-background/80 backdrop-blur flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground transition-colors"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="h-4 w-4" />
           </button>
         )}
-        <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center shrink-0">
-            <Icon className="h-6 w-6 text-primary" />
-          </div>
+        <div className="absolute bottom-0 left-0 right-0 p-4 flex items-end gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <Icon className="h-3.5 w-3.5 text-primary shrink-0" />
               {isActive ? (
                 <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary/90 text-primary-foreground">
                   <span className="h-1 w-1 rounded-full bg-primary-foreground animate-pulse" />
