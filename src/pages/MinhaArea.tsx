@@ -21,6 +21,7 @@ import { parseSections, type ParsedMeal, type ParsedSection } from '@/lib/dietRe
 import DietPlanCard from '@/components/DietPlanCard';
 import TabataDoDiaCard from '@/components/home/TabataDoDiaCard';
 import CardioDoDiaCard from '@/components/home/CardioDoDiaCard';
+import HomeCardsCarousel from '@/components/home/HomeCardsCarousel';
 import { useEventTracking } from '@/hooks/useEventTracking';
 import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
@@ -376,10 +377,11 @@ const MinhaArea = () => {
         </div>
 
 
-        {/* Today's Training */}
-        {todayTraining && (
-          <div className="space-y-4">
+        {/* Today's Training + Cardio + TABATA (carrossel horizontal) */}
+        <HomeCardsCarousel>
+          {todayTraining ? (
             <Card
+              key="treino"
               className={`glass-card overflow-hidden cursor-pointer group ${activeSession ? 'ring-2 ring-primary/60 shadow-lg shadow-primary/10' : ''}`}
               onClick={() => {
                 if (activeSession) {
@@ -451,8 +453,12 @@ const MinhaArea = () => {
                   </div>
                </div>
              </Card>
-           </div>
-         )}
+          ) : null}
+
+          {cardioConteudo ? <CardioDoDiaCard key="cardio" conteudo={cardioConteudo} /> : null}
+
+          {tabataConteudo ? <TabataDoDiaCard key="tabata" conteudo={tabataConteudo} /> : null}
+        </HomeCardsCarousel>
 
         {/* Rest day card - when student has a training plan but today is not a scheduled training day */}
         {!todayTraining && trainingDays.length > 0 && (
@@ -471,12 +477,6 @@ const MinhaArea = () => {
         )}
 
 
-
-        {/* Cardio do Dia */}
-        {cardioConteudo && <CardioDoDiaCard conteudo={cardioConteudo} />}
-
-        {/* TABATA do Dia */}
-        {tabataConteudo && <TabataDoDiaCard conteudo={tabataConteudo} />}
 
         {/* Diet Summary */}
         {meals.length > 0 && <DietPlanCard sections={dietSections} />}
