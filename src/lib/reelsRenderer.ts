@@ -84,7 +84,7 @@ export interface DrawReelFrameOptions {
   theme: ReelTheme;
   logo?: HTMLImageElement | null;
   title: string;
-  subtitle?: string;
+  cta?: string;
   footer?: string;
   items: ReelExerciseItem[]; // até 4 (grade 2x2)
   background?: HTMLVideoElement | HTMLImageElement | null;
@@ -93,7 +93,7 @@ export interface DrawReelFrameOptions {
 }
 
 export const drawReelFrame = (ctx: CanvasRenderingContext2D, opts: DrawReelFrameOptions) => {
-  const { theme, logo, title, subtitle, footer, items, background, pageLabel, time } = opts;
+  const { theme, logo, title, cta, footer, items, background, pageLabel, time } = opts;
   const W = REEL_W;
   const H = REEL_H;
 
@@ -146,11 +146,39 @@ export const drawReelFrame = (ctx: CanvasRenderingContext2D, opts: DrawReelFrame
   });
   cursorY += 70 + titleLines.length * 92;
 
-  if (subtitle) {
-    ctx.fillStyle = theme.accent;
-    ctx.font = '800 40px Inter, system-ui, sans-serif';
-    ctx.fillText(subtitle.toUpperCase(), W / 2, cursorY + 20);
-    cursorY += 70;
+  if (cta) {
+    // CTA como badge chamativo (estilo botão)
+    ctx.save();
+    ctx.font = '900 38px Inter, system-ui, sans-serif';
+    const ctaText = cta.toUpperCase();
+    const padX = 48;
+    const padY = 22;
+    const textW = ctx.measureText(ctaText).width;
+    const badgeW = textW + padX * 2;
+    const badgeH = 66;
+    const bx = (W - badgeW) / 2;
+    const by = cursorY + 6;
+
+    // Sombra/glow pulsante
+    const pulse = 0.55 + Math.sin(time * 4) * 0.25;
+    ctx.shadowColor = theme.accent;
+    ctx.shadowBlur = 24 + pulse * 18;
+
+    // Fundo do badge com gradiente
+    const bgGrad = ctx.createLinearGradient(bx, by, bx + badgeW, by + badgeH);
+    bgGrad.addColorStop(0, theme.accent);
+    bgGrad.addColorStop(1, theme.accent2);
+    ctx.fillStyle = bgGrad;
+    roundRectPath(ctx, bx, by, badgeW, badgeH, 24);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#0B0D12';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(ctaText, W / 2, by + badgeH / 2 + 2);
+    ctx.restore();
+    cursorY += 90;
   }
 
   // Grade 2x2

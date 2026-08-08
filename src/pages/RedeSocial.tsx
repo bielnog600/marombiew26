@@ -48,6 +48,21 @@ const detailFor = (ex: ParsedExercise) => {
 
 interface StudentOption { user_id: string; nome: string }
 
+const ENGAGEMENT_CTAS = [
+  'Salva esse treino 🔥',
+  'Qual você faria primeiro? 👇',
+  'Marca o parceiro de treino 💪',
+  'Comenta o exercício favorito ⬇️',
+  'Compartilha nos stories 📲',
+  'Quem precisa desse treino? 👀',
+  'Desafia-se hoje ⚡',
+  'Qual série você aguenta? 💥',
+  'Bora treinar! 🔥',
+  'Salva para não perder 📌',
+];
+
+const pickRandomCta = () => ENGAGEMENT_CTAS[Math.floor(Math.random() * ENGAGEMENT_CTAS.length)];
+
 const RedeSocial: React.FC = () => {
   const [students, setStudents] = useState<StudentOption[]>([]);
   const [studentId, setStudentId] = useState<string>('');
@@ -61,6 +76,7 @@ const RedeSocial: React.FC = () => {
   const [secondsPerPage, setSecondsPerPage] = useState(5);
   const [footer, setFooter] = useState('@marombiew');
   const [customTitle, setCustomTitle] = useState('');
+  const [cta, setCta] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [recording, setRecording] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -207,7 +223,6 @@ const RedeSocial: React.FC = () => {
     return null;
   };
 
-  const studentName = students.find((s) => s.user_id === studentId)?.nome ?? '';
   const dayName = days[dayIndex]?.day ?? '';
   const title = customTitle || dayName || 'Treino';
 
@@ -232,7 +247,7 @@ const RedeSocial: React.FC = () => {
         theme,
         logo: logoRef.current,
         title,
-        subtitle: studentName ? `Treino de ${studentName.split(' ')[0]}` : undefined,
+        cta,
         footer,
         items,
         background: bgRef.current,
@@ -244,7 +259,7 @@ const RedeSocial: React.FC = () => {
     };
     rafRef.current = requestAnimationFrame(loop);
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [pages, secondsPerPage, theme, title, studentName, footer, recording, totalDuration]);
+  }, [pages, secondsPerPage, theme, title, cta, footer, recording, totalDuration]);
 
   const handleBackgroundFile = (file?: File | null) => {
     if (!file) return;
@@ -280,6 +295,10 @@ const RedeSocial: React.FC = () => {
     if (!chosen.length) { toast.error('Selecione ao menos um exercício.'); return; }
     const mime = pickRecorderMime();
     if (typeof MediaRecorder === 'undefined') { toast.error('Gravação não suportada neste navegador.'); return; }
+
+    // Sorteia um CTA diferente a cada geração para gerar diversidade/engajamento
+    const nextCta = cta || pickRandomCta();
+    if (!cta) setCta(nextCta);
 
     if (outputUrl) URL.revokeObjectURL(outputUrl);
     setOutputUrl(null);
@@ -376,6 +395,21 @@ const RedeSocial: React.FC = () => {
                 <div className="space-y-1.5">
                   <Label>Rodapé / @perfil</Label>
                   <Input value={footer} onChange={(e) => setFooter(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>CTA (chamada para engajamento)</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={cta}
+                      onChange={(e) => setCta(e.target.value)}
+                      placeholder="Aleatório a cada vídeo"
+                      className="flex-1"
+                    />
+                    <Button type="button" variant="secondary" size="icon" onClick={() => setCta(pickRandomCta())} title="Sortear CTA">
+                      🎲
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Deixe em branco para sortear um CTA diferente a cada geração.</p>
                 </div>
                 <div className="space-y-1.5">
                   <Label>Segundos por tela (4 exercícios)</Label>
