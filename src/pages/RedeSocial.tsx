@@ -223,7 +223,6 @@ const RedeSocial: React.FC = () => {
     return null;
   };
 
-  const studentName = students.find((s) => s.user_id === studentId)?.nome ?? '';
   const dayName = days[dayIndex]?.day ?? '';
   const title = customTitle || dayName || 'Treino';
 
