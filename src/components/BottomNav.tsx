@@ -18,9 +18,8 @@ const adminItems = [
   { title: 'Financeiro', url: '/financeiro', icon: Wallet },
   { title: 'Alimentos', url: '/alimentos', icon: Apple },
   { title: 'Exercícios', url: '/exercicios', icon: Settings2 },
+  { title: 'Rede Social', url: '/rede-social', icon: Film },
 ];
-
-adminItems.push({ title: 'Rede Social', url: '/rede-social', icon: Film });
 
 const alunoItems = [
   { title: 'Home', url: '/minha-area', icon: Home },
