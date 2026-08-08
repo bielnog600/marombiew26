@@ -8,6 +8,7 @@ import {
   Home, Dumbbell, UtensilsCrossed, Apple, Settings2,
   CalendarDays, Wallet,
 } from 'lucide-react';
+import { Film } from 'lucide-react';
 
 const adminItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
@@ -17,6 +18,7 @@ const adminItems = [
   { title: 'Financeiro', url: '/financeiro', icon: Wallet },
   { title: 'Alimentos', url: '/alimentos', icon: Apple },
   { title: 'Exercícios', url: '/exercicios', icon: Settings2 },
+  { title: 'Rede Social', url: '/rede-social', icon: Film },
 ];
 
 const alunoItems = [

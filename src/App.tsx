@@ -52,6 +52,7 @@ import NotFound from "./pages/NotFound";
 import Agenda from "./pages/Agenda";
 import MinhaAgenda from "./pages/MinhaAgenda";
 import Financeiro from "./pages/Financeiro";
+import RedeSocial from "./pages/RedeSocial";
 
 const queryClient = new QueryClient();
 
@@ -119,6 +120,7 @@ const App = () => {
               <Route path="/consultoria" element={<ProtectedRoute requiredRole="admin"><Consultoria /></ProtectedRoute>} />
               <Route path="/agenda" element={<ProtectedRoute requiredRole="admin"><Agenda /></ProtectedRoute>} />
               <Route path="/financeiro" element={<ProtectedRoute requiredRole="admin"><Financeiro /></ProtectedRoute>} />
+              <Route path="/rede-social" element={<ProtectedRoute requiredRole="admin"><RedeSocial /></ProtectedRoute>} />
               
               <Route path="/minha-area" element={<ProtectedRoute requiredRole="aluno"><MinhaArea /></ProtectedRoute>} />
               <Route path="/meus-treinos" element={<ProtectedRoute requiredRole="aluno"><MeusTreinos /></ProtectedRoute>} />
