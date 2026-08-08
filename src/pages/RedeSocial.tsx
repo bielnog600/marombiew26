@@ -61,6 +61,7 @@ const RedeSocial: React.FC = () => {
   const [secondsPerPage, setSecondsPerPage] = useState(5);
   const [footer, setFooter] = useState('@marombiew');
   const [customTitle, setCustomTitle] = useState('');
+  const [cta, setCta] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [recording, setRecording] = useState(false);
   const [progress, setProgress] = useState(0);
