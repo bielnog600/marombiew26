@@ -47,8 +47,8 @@ const detailFor = (ex: ParsedExercise) => {
   const blocks: { count: number; reps: string }[] = [];
   for (const s of plan) {
     const last = blocks[blocks.length - 1];
-    if (last && last.reps === s.reps) last.count += 1;
-    else blocks.push({ count: 1, reps: s.reps });
+    if (last && last.reps === s.targetReps) last.count += 1;
+    else blocks.push({ count: 1, reps: s.targetReps });
   }
   return blocks.map((b) => `${b.count}x ${b.reps || ex.reps || ''}`.trim()).join(' + ');
 };
