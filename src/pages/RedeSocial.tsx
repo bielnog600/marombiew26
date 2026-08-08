@@ -297,6 +297,10 @@ const RedeSocial: React.FC = () => {
     const mime = pickRecorderMime();
     if (typeof MediaRecorder === 'undefined') { toast.error('Gravação não suportada neste navegador.'); return; }
 
+    // Sorteia um CTA diferente a cada geração para gerar diversidade/engajamento
+    const nextCta = cta || pickRandomCta();
+    if (!cta) setCta(nextCta);
+
     if (outputUrl) URL.revokeObjectURL(outputUrl);
     setOutputUrl(null);
     const stream = canvas.captureStream(30);
