@@ -42,8 +42,15 @@ const detailFor = (ex: ParsedExercise) => {
       .join(' / ');
   }
   const plan = buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme as never);
-  const total = plan.length || 3;
-  return `${total}x ${ex.reps || plan[0]?.targetReps || ''}`.trim();
+  if (!plan.length) return `3x ${ex.reps || ''}`.trim();
+  // Group consecutive sets with same reps: "1x12 + 3x10"
+  const blocks: { count: number; reps: string }[] = [];
+  for (const s of plan) {
+    const last = blocks[blocks.length - 1];
+    if (last && last.reps === s.targetReps) last.count += 1;
+    else blocks.push({ count: 1, reps: s.targetReps });
+  }
+  return blocks.map((b) => `${b.count}x ${b.reps || ex.reps || ''}`.trim()).join(' + ');
 };
 
 interface StudentOption { user_id: string; nome: string }
