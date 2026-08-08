@@ -248,7 +248,7 @@ const RedeSocial: React.FC = () => {
         theme,
         logo: logoRef.current,
         title,
-        subtitle: studentName ? `Treino de ${studentName.split(' ')[0]}` : undefined,
+        cta,
         footer,
         items,
         background: bgRef.current,
