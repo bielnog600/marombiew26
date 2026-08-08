@@ -88,12 +88,14 @@ export interface DrawReelFrameOptions {
   footer?: string;
   items: ReelExerciseItem[]; // até 4 (grade 2x2)
   background?: HTMLVideoElement | HTMLImageElement | null;
+  startIndex?: number; // deslocamento da numeração (parte 2 começa em 5)
   pageLabel?: string;
   time: number; // segundos, para animações sutis
 }
 
 export const drawReelFrame = (ctx: CanvasRenderingContext2D, opts: DrawReelFrameOptions) => {
   const { theme, logo, title, cta, footer, items, background, pageLabel, time } = opts;
+  const startIndex = opts.startIndex ?? 0;
   const W = REEL_W;
   const H = REEL_H;
 
@@ -229,7 +231,7 @@ export const drawReelFrame = (ctx: CanvasRenderingContext2D, opts: DrawReelFrame
     ctx.font = '900 38px Inter, system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(String(index + 1), x + 20 + badge / 2, y + 20 + badge / 2 + 2);
+    ctx.fillText(String(startIndex + index + 1), x + 20 + badge / 2, y + 20 + badge / 2 + 2);
     ctx.restore();
 
     // Texto do exercício

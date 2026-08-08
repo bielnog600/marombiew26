@@ -258,6 +258,7 @@ const RedeSocial: React.FC = () => {
         footer,
         items,
         background: bgRef.current,
+        startIndex: pageIdx * 4,
         pageLabel: pageCount > 1 ? `Parte ${pageIdx + 1}/${pageCount}` : undefined,
         time: elapsed,
       });
