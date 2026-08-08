@@ -260,7 +260,7 @@ const RedeSocial: React.FC = () => {
     };
     rafRef.current = requestAnimationFrame(loop);
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [pages, secondsPerPage, theme, title, studentName, footer, recording, totalDuration]);
+  }, [pages, secondsPerPage, theme, title, cta, footer, recording, totalDuration]);
 
   const handleBackgroundFile = (file?: File | null) => {
     if (!file) return;
