@@ -48,6 +48,21 @@ const detailFor = (ex: ParsedExercise) => {
 
 interface StudentOption { user_id: string; nome: string }
 
+const ENGAGEMENT_CTAS = [
+  'Salva esse treino 🔥',
+  'Qual você faria primeiro? 👇',
+  'Marca o parceiro de treino 💪',
+  'Comenta o exercício favorito ⬇️',
+  'Compartilha nos stories 📲',
+  'Quem precisa desse treino? 👀',
+  'Desafia-se hoje ⚡',
+  'Qual série você aguenta? 💥',
+  'Bora treinar! 🔥',
+  'Salva para não perder 📌',
+];
+
+const pickRandomCta = () => ENGAGEMENT_CTAS[Math.floor(Math.random() * ENGAGEMENT_CTAS.length)];
+
 const RedeSocial: React.FC = () => {
   const [students, setStudents] = useState<StudentOption[]>([]);
   const [studentId, setStudentId] = useState<string>('');
