@@ -398,6 +398,21 @@ const RedeSocial: React.FC = () => {
                   <Input value={footer} onChange={(e) => setFooter(e.target.value)} />
                 </div>
                 <div className="space-y-1.5">
+                  <Label>CTA (chamada para engajamento)</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={cta}
+                      onChange={(e) => setCta(e.target.value)}
+                      placeholder="Aleatório a cada vídeo"
+                      className="flex-1"
+                    />
+                    <Button type="button" variant="secondary" size="icon" onClick={() => setCta(pickRandomCta())} title="Sortear CTA">
+                      🎲
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Deixe em branco para sortear um CTA diferente a cada geração.</p>
+                </div>
+                <div className="space-y-1.5">
                   <Label>Segundos por tela (4 exercícios)</Label>
                   <Input
                     type="number" min={3} max={15} value={secondsPerPage}
