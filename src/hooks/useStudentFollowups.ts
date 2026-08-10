@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
-export type FollowupStatus = 'pendente' | 'falado_hoje' | 'em_espera' | 'resolvido';
+export type FollowupStatus = 'pendente' | 'falado_hoje' | 'em_espera' | 'resolvido' | 'arquivado';
 
 export interface StudentFollowup {
   id: string;
@@ -101,16 +101,40 @@ export const useStudentFollowups = () => {
     }
   }, [user?.id]);
 
-  return { followups, loading, reload: load, markAsDone, reopen };
+  const archive = useCallback(async (studentId: string) => {
+    if (!user?.id) return;
+    const payload = {
+      student_id: studentId,
+      admin_id: user.id,
+      status: 'arquivado' as FollowupStatus,
+      snoozed_until: null,
+      note: 'Não treina mais pelo app',
+    };
+    const { data } = await supabase
+      .from('student_followups')
+      .upsert(payload, { onConflict: 'student_id,admin_id' })
+      .select()
+      .single();
+    if (data) {
+      setFollowups((prev) => {
+        const n = new Map(prev);
+        n.set(studentId, data as StudentFollowup);
+        return n;
+      });
+    }
+  }, [user?.id]);
+
+  return { followups, loading, reload: load, markAsDone, reopen, archive };
 };
 
 export const isSameDay = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
-export type FollowupBucket = 'hoje' | 'falados' | 'espera';
+export type FollowupBucket = 'hoje' | 'falados' | 'espera' | 'arquivado';
 
 export const bucketFor = (f: StudentFollowup | undefined): FollowupBucket => {
   if (!f) return 'hoje';
+  if (f.status === 'arquivado') return 'arquivado';
   const now = new Date();
   if (f.snoozed_until && new Date(f.snoozed_until) > now) return 'espera';
   if (f.last_contacted_at && isSameDay(new Date(f.last_contacted_at), now)) return 'falados';
