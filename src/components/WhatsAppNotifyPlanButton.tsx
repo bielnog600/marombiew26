@@ -5,6 +5,7 @@ import { MessageCircle } from 'lucide-react';
  import { toast } from 'sonner';
  import { parseSections } from '@/lib/dietResultParser';
  import { computeDayTotals } from '@/lib/dietMarkdownSerializer';
+ import { normalizeWhatsAppPhone } from '@/lib/phone';
 
 interface Props {
   plan: {
@@ -131,8 +132,7 @@ const WhatsAppNotifyPlanButton: React.FC<Props> = ({ plan, studentId, onNotified
       ? `Oi ${firstName}! 💪\n\nFiz alguns ajustes na sua *${noun}* ("${freshPlan.titulo}") e ${verb}.${macroInfo}\n\nPode abrir o app pra conferir as novidades. Qualquer dúvida me chama por aqui! 🙌`
       : `Oi ${firstName}! 🚀\n\nSua nova *${noun}* ("${freshPlan.titulo}") ${verb}.${macroInfo}\n\nÉ só abrir o app pra começar! Bons treinos e qualquer dúvida me chama por aqui. 🙌`;
 
-    const cleaned = (phone ?? '').replace(/\D/g, '');
-    const withDdi = cleaned.length === 10 || cleaned.length === 11 ? `55${cleaned}` : cleaned;
+    const withDdi = normalizeWhatsAppPhone(phone);
     const url = withDdi 
       ? `whatsapp://send?phone=${withDdi}&text=${encodeURIComponent(msg)}`
       : `whatsapp://send?text=${encodeURIComponent(msg)}`;
