@@ -838,9 +838,18 @@ const Consultoria = () => {
               const withBucket = relevant
                 .map((s) => ({ s, b: bucketFor(followups.get(s.studentId)) }))
                 .filter((x) => x.b !== 'arquivado');
-              const inactiveVisible = inactiveStudents.filter(
-                (s) => bucketFor(followups.get(s.studentId)) !== 'arquivado',
-              );
+              const inactiveVisible = inactiveStudents.filter((s) => {
+                const f = followups.get(s.studentId);
+                if (bucketFor(f) === 'arquivado') return false;
+                if (!f?.last_contacted_at) return true;
+                // Após o contato, o alerta só volta se passarem +3 dias
+                // sem nenhuma atividade nova do aluno.
+                const ref = Math.max(
+                  new Date(f.last_contacted_at).getTime(),
+                  s.lastActivity ? new Date(s.lastActivity).getTime() : 0,
+                );
+                return (Date.now() - ref) / 86400000 > 3;
+              });
               const counts = {
                 hoje: withBucket.filter((x) => x.b === 'hoje').length,
                 falados: withBucket.filter((x) => x.b === 'falados').length,
@@ -893,7 +902,12 @@ const Consultoria = () => {
                     ) : (
                       <div className="space-y-2">
                         {inactiveVisible.map((s) => (
-                          <InactiveStudentCard key={s.studentId} student={s} onArchive={archive} />
+                        <InactiveStudentCard
+                          key={s.studentId}
+                          student={s}
+                          onArchive={archive}
+                          onContacted={(id) => markAsDone(id, '3d')}
+                        />
                         ))}
                       </div>
                     )

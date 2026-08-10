@@ -12,18 +12,24 @@ import type { InactiveStudent } from '@/hooks/useInactiveStudents';
 interface Props {
   student: InactiveStudent;
   onArchive: (studentId: string) => Promise<unknown> | void;
+  onContacted: (studentId: string) => Promise<unknown> | void;
 }
 
-const InactiveStudentCard: React.FC<Props> = ({ student, onArchive }) => {
+const InactiveStudentCard: React.FC<Props> = ({ student, onArchive, onContacted }) => {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
 
   const daysLabel = student.daysInactive >= 999 ? 'nunca usou o app' : `${student.daysInactive} dias sem atividade`;
 
-  const handleWhatsApp = () => {
+  const handleWhatsApp = async () => {
     if (!student.studentPhone) return;
     const msg = pickInactiveNudge(student.studentName, student.daysInactive >= 999 ? 30 : student.daysInactive);
     window.open(buildWhatsAppUrl(student.studentPhone, msg), '_blank', 'noopener');
+    await onContacted(student.studentId);
+    toast({
+      title: 'Mensagem enviada',
+      description: 'O alerta some por 3 dias e volta se ele continuar sem treinar.',
+    });
   };
 
   const handleArchive = async () => {
