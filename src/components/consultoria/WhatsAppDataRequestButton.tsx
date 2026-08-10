@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
+import { normalizeWhatsAppPhone } from '@/lib/phone';
 import { MessageCircle } from 'lucide-react';
 
 interface Props {
@@ -78,9 +79,7 @@ const WhatsAppDataRequestButton: React.FC<Props> = ({
       `Tô aqui revisando ${planLabel} pra deixar tudo certinho pra próxima fase e queria te ajudar a tirar o melhor proveito possível.${itemsBlock}\n\n` +
       `Sem pressão e sem cobrança, tá? Qualquer dificuldade me chama por aqui que a gente resolve junto. Tô torcendo por você! 🙌`;
 
-    const cleaned = (phone ?? '').replace(/\D/g, '');
-    // Adiciona DDI Brasil se faltar
-    const withDdi = cleaned.length === 10 || cleaned.length === 11 ? `55${cleaned}` : cleaned;
+    const withDdi = normalizeWhatsAppPhone(phone);
     const url = withDdi
       ? `https://wa.me/${withDdi}?text=${encodeURIComponent(msg)}`
       : `https://wa.me/?text=${encodeURIComponent(msg)}`;

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { normalizeWhatsAppPhone } from '@/lib/phone';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
@@ -316,8 +317,7 @@ const WorkoutRenewalPanel: React.FC = () => {
   const buildCheckinWhatsAppUrl = (plan: PlanRow) => {
     const firstName = (plan.student_name || 'aluno').split(' ')[0];
     const msg = `Oi ${firstName}! 💪\n\nTe enviei no app um check-in rápido sobre o último protocolo de treino. Quando puder, abre o app e responde, leva 1 minutinho e me ajuda a ajustar seu plano com mais precisão. 🙌`;
-    const cleaned = (plan.student_phone ?? '').replace(/\D/g, '');
-    const withDdi = cleaned.length === 10 || cleaned.length === 11 ? `55${cleaned}` : cleaned;
+    const withDdi = normalizeWhatsAppPhone(plan.student_phone);
     return withDdi
       ? `https://wa.me/${withDdi}?text=${encodeURIComponent(msg)}`
       : `https://wa.me/?text=${encodeURIComponent(msg)}`;
@@ -367,7 +367,7 @@ const WorkoutRenewalPanel: React.FC = () => {
 
   const handleWhatsAppRequest = (plan: PlanRow) => {
     const msg = `Olá ${plan.student_name.split(' ')[0]}! Qual horário posso te ligar para falarmos do seu último protocolo de treino?`;
-    const url = `https://wa.me/${plan.student_phone?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`;
+    const url = `https://wa.me/${normalizeWhatsAppPhone(plan.student_phone)}?text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
   };
 

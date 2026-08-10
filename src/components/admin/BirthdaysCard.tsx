@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Cake, PartyPopper } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { normalizeWhatsAppPhone } from '@/lib/phone';
 
 interface Birthday {
   id: string;
@@ -34,12 +35,7 @@ const randomMessage = (list: string[], name: string) => {
   return msg.replace('{name}', name.split(' ')[0]);
 };
 
-const cleanPhone = (raw?: string | null) => {
-  if (!raw) return '';
-  const digits = raw.replace(/\D/g, '');
-  if (!digits) return '';
-  return digits.startsWith('55') ? digits : `55${digits}`;
-};
+const cleanPhone = (raw?: string | null) => normalizeWhatsAppPhone(raw);
 
 const BirthdaysCard: React.FC = () => {
   const [items, setItems] = useState<Birthday[]>([]);
