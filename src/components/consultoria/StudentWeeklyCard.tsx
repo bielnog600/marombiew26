@@ -3,12 +3,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { useNavigate } from 'react-router-dom';
 import {
   ExternalLink, MessageSquare, Copy, TrendingUp, TrendingDown, AlertTriangle,
-  Check, RotateCcw, Mic, ChevronDown, Sparkles, UtensilsCrossed, Droplets,
+  Check, RotateCcw, Mic, ChevronDown, Sparkles, UtensilsCrossed, Droplets, UserMinus,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { buildWhatsAppUrl } from '@/hooks/useNotifications';
@@ -84,9 +84,10 @@ interface Props {
   followup?: StudentFollowup;
   onMarkDone: (studentId: string, snooze: SnoozeOption) => Promise<unknown>;
   onReopen: (studentId: string) => Promise<unknown>;
+  onArchive?: (studentId: string) => Promise<unknown> | void;
 }
 
-const StudentWeeklyCard: React.FC<Props> = ({ summary, followup, onMarkDone, onReopen }) => {
+const StudentWeeklyCard: React.FC<Props> = ({ summary, followup, onMarkDone, onReopen, onArchive }) => {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const att = ATTENTION_BADGE[summary.attention];
@@ -146,6 +147,15 @@ const StudentWeeklyCard: React.FC<Props> = ({ summary, followup, onMarkDone, onR
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleArchive = async () => {
+    if (!onArchive) return;
+    setBusy(true);
+    try {
+      await onArchive(summary.studentId);
+      toast({ title: 'Aluno marcado como “não treina mais”', description: 'Os alertas dele deixam de aparecer.' });
+    } finally { setBusy(false); }
   };
 
   const handleReopen = async () => {
@@ -390,6 +400,15 @@ const StudentWeeklyCard: React.FC<Props> = ({ summary, followup, onMarkDone, onR
                 <DropdownMenuItem onClick={() => handleMark('3d')}>Voltar em 3 dias</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleMark('7d')}>Voltar em 7 dias</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleMark('proxima_semana')}>Próxima semana</DropdownMenuItem>
+                {onArchive && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleArchive}>
+                      <UserMinus className="h-3.5 w-3.5 mr-2" />
+                      Não treina mais (parar alertas)
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (

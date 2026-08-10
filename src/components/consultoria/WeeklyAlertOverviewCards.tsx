@@ -1,11 +1,11 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { MessageCircle, CheckCircle2, Clock } from 'lucide-react';
+import { MessageCircle, CheckCircle2, Clock, UserMinus } from 'lucide-react';
 
-export type FollowupFilter = 'hoje' | 'falados' | 'espera';
+export type FollowupFilter = 'hoje' | 'falados' | 'espera' | 'inativos';
 
 interface Props {
-  counts: { hoje: number; falados: number; espera: number };
+  counts: { hoje: number; falados: number; espera: number; inativos: number };
   active: FollowupFilter;
   onChange: (f: FollowupFilter) => void;
 }
@@ -15,10 +15,11 @@ const WeeklyAlertOverviewCards: React.FC<Props> = ({ counts, active, onChange })
     { key: 'hoje', label: 'Para falar hoje', value: counts.hoje, icon: MessageCircle, color: 'text-primary' },
     { key: 'falados', label: 'Já falados', value: counts.falados, icon: CheckCircle2, color: 'text-emerald-500' },
     { key: 'espera', label: 'Voltam depois', value: counts.espera, icon: Clock, color: 'text-amber-500' },
+    { key: 'inativos', label: 'Inativos +3 dias', value: counts.inativos, icon: UserMinus, color: 'text-destructive' },
   ];
 
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       {cards.map((c) => {
         const isActive = active === c.key;
         return (

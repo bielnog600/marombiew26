@@ -24,6 +24,9 @@ import { useBehavioralAlerts } from '@/hooks/useBehavioralAlerts';
 import EngagementOverviewCards from '@/components/consultoria/EngagementOverviewCards';
 import WeeklyAlertOverviewCards from '@/components/consultoria/WeeklyAlertOverviewCards';
 import StudentWeeklyCard from '@/components/consultoria/StudentWeeklyCard';
+import InactiveStudentCard from '@/components/consultoria/InactiveStudentCard';
+import { useInactiveStudents } from '@/hooks/useInactiveStudents';
+import type { FollowupFilter } from '@/components/consultoria/WeeklyAlertOverviewCards';
 import OtherAlertsSection from '@/components/consultoria/OtherAlertsSection';
 import { useStudentsWeeklySummary } from '@/hooks/useStudentsWeeklySummary';
 import { useStudentFollowups, bucketFor, type FollowupBucket } from '@/hooks/useStudentFollowups';
@@ -112,8 +115,9 @@ const Consultoria = () => {
   const { alerts: behavioralAlerts, loading: behavioralLoading, generating: behavioralGenerating, generate: generateBehavioral, updateStatus: updateBehavioralStatus } = useBehavioralAlerts();
   const [notifFilter] = useState('all');
   const { summaries: weeklySummaries, loading: weeklyLoading, reload: reloadWeekly } = useStudentsWeeklySummary();
-  const { followups, loading: followupsLoading, reload: reloadFollowups, markAsDone, reopen } = useStudentFollowups();
-  const [alertFilter, setAlertFilter] = useState<FollowupBucket>('hoje');
+  const { followups, loading: followupsLoading, reload: reloadFollowups, markAsDone, reopen, archive } = useStudentFollowups();
+  const { students: inactiveStudents, loading: inactiveLoading, reload: reloadInactive } = useInactiveStudents(3);
+  const [alertFilter, setAlertFilter] = useState<FollowupFilter>('hoje');
 
   useEffect(() => {
     loadData();
@@ -831,11 +835,17 @@ const Consultoria = () => {
           <div className="space-y-4">
             {(() => {
               const relevant = weeklySummaries.filter((s) => s.attention !== 'ok');
-              const withBucket = relevant.map((s) => ({ s, b: bucketFor(followups.get(s.studentId)) }));
+              const withBucket = relevant
+                .map((s) => ({ s, b: bucketFor(followups.get(s.studentId)) }))
+                .filter((x) => x.b !== 'arquivado');
+              const inactiveVisible = inactiveStudents.filter(
+                (s) => bucketFor(followups.get(s.studentId)) !== 'arquivado',
+              );
               const counts = {
                 hoje: withBucket.filter((x) => x.b === 'hoje').length,
                 falados: withBucket.filter((x) => x.b === 'falados').length,
                 espera: withBucket.filter((x) => x.b === 'espera').length,
+                inativos: inactiveVisible.length,
               };
               const filtered = withBucket.filter((x) => x.b === alertFilter).map((x) => x.s);
               return (
@@ -853,13 +863,14 @@ const Consultoria = () => {
                         {alertFilter === 'hoje' && 'Para falar hoje'}
                         {alertFilter === 'falados' && 'Já falados hoje'}
                         {alertFilter === 'espera' && 'Voltam depois'}
+                        {alertFilter === 'inativos' && 'Inativos há mais de 3 dias'}
                       </h3>
-                      <Badge variant="outline" className="text-[10px]">{filtered.length}</Badge>
+                      <Badge variant="outline" className="text-[10px]">{alertFilter === 'inativos' ? inactiveVisible.length : filtered.length}</Badge>
                     </div>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => { refreshNotifs(); generateBehavioral(); reloadWeekly(); reloadFollowups(); }}
+                      onClick={() => { refreshNotifs(); generateBehavioral(); reloadWeekly(); reloadFollowups(); reloadInactive(); }}
                       disabled={notifLoading || behavioralGenerating || weeklyLoading || followupsLoading}
                     >
                       <RefreshCw className={`h-4 w-4 mr-1 ${(notifLoading || behavioralGenerating || weeklyLoading || followupsLoading) ? 'animate-spin' : ''}`} />
@@ -867,7 +878,26 @@ const Consultoria = () => {
                     </Button>
                   </div>
 
-                  {weeklyLoading || followupsLoading ? (
+                  {alertFilter === 'inativos' ? (
+                    inactiveLoading ? (
+                      <div className="space-y-2">
+                        <Skeleton className="h-24 w-full rounded-lg" />
+                        <Skeleton className="h-24 w-full rounded-lg" />
+                      </div>
+                    ) : inactiveVisible.length === 0 ? (
+                      <Card>
+                        <CardContent className="py-6 text-center text-xs text-muted-foreground">
+                          Nenhum aluno inativo há mais de 3 dias 🎉
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <div className="space-y-2">
+                        {inactiveVisible.map((s) => (
+                          <InactiveStudentCard key={s.studentId} student={s} onArchive={archive} />
+                        ))}
+                      </div>
+                    )
+                  ) : weeklyLoading || followupsLoading ? (
                     <div className="space-y-2">
                       <Skeleton className="h-32 w-full rounded-lg" />
                       <Skeleton className="h-32 w-full rounded-lg" />
@@ -889,6 +919,7 @@ const Consultoria = () => {
                           followup={followups.get(s.studentId)}
                           onMarkDone={markAsDone}
                           onReopen={reopen}
+                          onArchive={archive}
                         />
                       ))}
                     </div>
