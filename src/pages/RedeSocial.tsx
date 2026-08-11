@@ -81,6 +81,7 @@ const RedeSocial: React.FC = () => {
   const [dbExercises, setDbExercises] = useState<MatchableExercise[]>([]);
   const [themeKey, setThemeKey] = useState<keyof typeof REEL_THEMES | string>('ouro');
   const [secondsPerPage, setSecondsPerPage] = useState(5);
+  const [secondsPerPageInput, setSecondsPerPageInput] = useState('5');
   const [footer, setFooter] = useState('@marombiew');
   const [customTitle, setCustomTitle] = useState('');
   const [cta, setCta] = useState<string>('');
