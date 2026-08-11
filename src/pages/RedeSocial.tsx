@@ -81,6 +81,7 @@ const RedeSocial: React.FC = () => {
   const [dbExercises, setDbExercises] = useState<MatchableExercise[]>([]);
   const [themeKey, setThemeKey] = useState<keyof typeof REEL_THEMES | string>('ouro');
   const [secondsPerPage, setSecondsPerPage] = useState(5);
+  const [secondsPerPageInput, setSecondsPerPageInput] = useState('5');
   const [footer, setFooter] = useState('@marombiew');
   const [customTitle, setCustomTitle] = useState('');
   const [cta, setCta] = useState<string>('');
@@ -422,8 +423,19 @@ const RedeSocial: React.FC = () => {
                 <div className="space-y-1.5">
                   <Label>Segundos por tela (4 exercícios)</Label>
                   <Input
-                    type="number" min={3} max={15} value={secondsPerPage}
-                    onChange={(e) => setSecondsPerPage(Math.min(15, Math.max(3, Number(e.target.value) || 5)))}
+                    type="number" min={3} max={20}
+                    value={secondsPerPageInput}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      setSecondsPerPageInput(raw);
+                      const n = Number(raw);
+                      if (!Number.isNaN(n) && n >= 3 && n <= 20) setSecondsPerPage(n);
+                    }}
+                    onBlur={(e) => {
+                      const n = Math.min(20, Math.max(3, Number(e.target.value) || 5));
+                      setSecondsPerPage(n);
+                      setSecondsPerPageInput(String(n));
+                    }}
                   />
                 </div>
                 <div className="space-y-1.5">

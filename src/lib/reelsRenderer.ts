@@ -239,20 +239,20 @@ export const drawReelFrame = (ctx: CanvasRenderingContext2D, opts: DrawReelFrame
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = theme.text;
-    ctx.font = '900 40px Inter, system-ui, sans-serif';
+    ctx.font = '900 34px Inter, system-ui, sans-serif';
     const nameLines = wrapLines(ctx, item.name.toUpperCase(), cellW - 56, 2);
-    let ty = y + cellH - 40 - (item.sub ? 84 : 46) - (nameLines.length - 1) * 46;
+    let ty = y + cellH - 40 - (item.sub ? 80 : 44) - (nameLines.length - 1) * 40;
     nameLines.forEach((line) => {
       ctx.fillText(line, x + 28, ty);
-      ty += 46;
+      ty += 40;
     });
     ctx.fillStyle = theme.accent;
-    ctx.font = '900 42px Inter, system-ui, sans-serif';
+    ctx.font = '900 36px Inter, system-ui, sans-serif';
     ctx.fillText(item.detail, x + 28, ty + 8);
     if (item.sub) {
       ctx.fillStyle = 'rgba(255,255,255,0.75)';
-      ctx.font = '700 30px Inter, system-ui, sans-serif';
-      ctx.fillText(item.sub, x + 28, ty + 50);
+      ctx.font = '700 26px Inter, system-ui, sans-serif';
+      ctx.fillText(item.sub, x + 28, ty + 46);
     }
     ctx.restore();
   });
