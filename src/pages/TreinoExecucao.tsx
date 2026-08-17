@@ -861,11 +861,24 @@ const TreinoExecucao = () => {
   }, [zoomOpen]);
 
   if (!exercise) {
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <p className="text-muted-foreground">Nenhum exercício encontrado.</p>
-          <Button onClick={() => navigate(-1)}>Voltar</Button>
+        <div className="text-center space-y-4 px-6 max-w-sm">
+          {isOffline ? (
+            <>
+              <p className="font-semibold text-foreground">Você está sem internet</p>
+              <p className="text-sm text-muted-foreground">
+                Não foi possível carregar o treino agora. Assim que a conexão voltar, ele aparece automaticamente — seus registros feitos offline são salvos e sincronizados depois.
+              </p>
+            </>
+          ) : (
+            <p className="text-muted-foreground">Nenhum exercício encontrado.</p>
+          )}
+          <div className="flex items-center justify-center gap-2">
+            <Button variant="secondary" onClick={() => window.location.reload()}>Tentar novamente</Button>
+            <Button onClick={() => navigate(-1)}>Voltar</Button>
+          </div>
         </div>
       </div>
     );
