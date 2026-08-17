@@ -22,7 +22,7 @@ import { SessionRpeDialog } from '@/components/training/SessionRpeDialog';
 import ExerciseVideoCapture from '@/components/training/ExerciseVideoCapture';
 import { Settings2, Info, BarChart3, Timer, Camera, Maximize2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { fetchWithCache } from '@/lib/offlineCache';
+import { fetchWithCache, getCached, setCache } from '@/lib/offlineCache';
 import { useRestTimer } from '@/hooks/useRestTimer';
 
 
@@ -390,14 +390,18 @@ const TreinoExecucao = () => {
   useEffect(() => {
     if (loadedExercises.length > 0 || !user) return;
     const loadPlan = async () => {
-      const { data: treino } = await supabase
-        .from('ai_plans')
-        .select('id, conteudo, conteudo_json, migration_status, fase, fase_inicio_data')
-        .eq('student_id', user.id)
-        .eq('tipo', 'treino')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Usa o mesmo cache offline da lista de treinos: se estiver sem internet,
+      // o plano vem do IndexedDB em vez de falhar.
+      const { data: plans } = await fetchWithCache(`plans:treino:all:${user.id}`, async () => {
+        const { data } = await supabase
+          .from('ai_plans')
+          .select('id, conteudo, conteudo_json, migration_status, fase, fase_inicio_data')
+          .eq('student_id', user.id)
+          .eq('tipo', 'treino')
+          .order('created_at', { ascending: false });
+        return data;
+      });
+      const treino = Array.isArray(plans) ? plans[0] : null;
       if (treino) {
         if (treino.fase) setPhase(treino.fase as TrainingPhase);
         const { days: allDays, isFromJSON } = getSafeWorkoutDays({ ...treino, tipo: 'treino' });
@@ -445,11 +449,34 @@ const TreinoExecucao = () => {
             }
             setLoadedMedia(mediaMap);
           }
+          return;
         }
+      }
+
+      // Último recurso offline: retoma o treino salvo da última execução.
+      const lastWorkout = await getCached<{ exercises: ParsedExercise[]; dayName: string; media: ExerciseMediaMap; phase: TrainingPhase | null }>(
+        `workout:last:${user.id}`,
+      );
+      if (lastWorkout?.exercises?.length) {
+        setLoadedExercises(lastWorkout.exercises);
+        setLoadedDayName(lastWorkout.dayName || 'Treino');
+        setLoadedMedia(lastWorkout.media || {});
+        if (lastWorkout.phase) setPhase(lastWorkout.phase);
       }
     };
     loadPlan();
   }, [user, loadedExercises.length, activeSession?.day_name]);
+
+  // Guarda o treino atual para permitir retomar totalmente offline.
+  useEffect(() => {
+    if (!user || loadedExercises.length === 0) return;
+    setCache(`workout:last:${user.id}`, {
+      exercises: loadedExercises,
+      dayName: loadedDayName,
+      media: loadedMedia,
+      phase: phase ?? null,
+    });
+  }, [user, loadedExercises, loadedDayName, loadedMedia, phase]);
 
   const exercise = exercises[currentIndex];
   const setPlan: PlannedSet[] = useMemo(
@@ -834,11 +861,24 @@ const TreinoExecucao = () => {
   }, [zoomOpen]);
 
   if (!exercise) {
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <p className="text-muted-foreground">Nenhum exercício encontrado.</p>
-          <Button onClick={() => navigate(-1)}>Voltar</Button>
+        <div className="text-center space-y-4 px-6 max-w-sm">
+          {isOffline ? (
+            <>
+              <p className="font-semibold text-foreground">Você está sem internet</p>
+              <p className="text-sm text-muted-foreground">
+                Não foi possível carregar o treino agora. Assim que a conexão voltar, ele aparece automaticamente — seus registros feitos offline são salvos e sincronizados depois.
+              </p>
+            </>
+          ) : (
+            <p className="text-muted-foreground">Nenhum exercício encontrado.</p>
+          )}
+          <div className="flex items-center justify-center gap-2">
+            <Button variant="secondary" onClick={() => window.location.reload()}>Tentar novamente</Button>
+            <Button onClick={() => navigate(-1)}>Voltar</Button>
+          </div>
         </div>
       </div>
     );
