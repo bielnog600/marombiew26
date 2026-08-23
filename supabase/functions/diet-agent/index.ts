@@ -841,15 +841,27 @@ serve(async (req) => {
             (variationRetryAllowed && primarySourceTooRepetitive)));
 
       if (needsRetry) {
-        if (!nutrition.ok) { fallbackReason = "nutrition_invalid"; fallbackReasons.push("nutrition_invalid"); }
+        if (!nutrition.ok) { 
+          fallbackReason = "nutrition_invalid"; 
+          fallbackReasons.push("nutrition_invalid"); 
+        }
         if (!initialAdjValidation.ok) { 
           fallbackReason = fallbackReason || "daily_adjustments_invalid"; 
           fallbackReasons.push("daily_adjustments_invalid"); 
         }
         if (historyJsons.length > 0) {
-          if (similarity.score > threshold) { fallbackReason = fallbackReason || "high_similarity"; fallbackReasons.push("high_similarity"); }
-          if (variationRetryAllowed && isPortionOnly) { fallbackReason = fallbackReason || "portion_only"; fallbackReasons.push("portion_only"); }
-          if (requireMenuVariation && qOnly > 0.3) { fallbackReason = fallbackReason || "high_quantity_overlap"; fallbackReasons.push("high_quantity_overlap"); }
+          if (similarity.score > threshold) { 
+            fallbackReason = fallbackReason || "high_similarity"; 
+            fallbackReasons.push("high_similarity"); 
+          }
+          if (variationRetryAllowed && isPortionOnly) { 
+            fallbackReason = fallbackReason || "portion_only"; 
+            fallbackReasons.push("portion_only"); 
+          }
+          if (requireMenuVariation && qOnly > 0.3) { 
+            fallbackReason = fallbackReason || "high_quantity_overlap"; 
+            fallbackReasons.push("high_quantity_overlap"); 
+          }
           if (variationRetryAllowed && primarySourceTooRepetitive) { fallbackReason = fallbackReason || "source_repetition"; fallbackReasons.push("source_repetition"); }
         }
 
