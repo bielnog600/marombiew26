@@ -908,6 +908,9 @@ serve(async (req) => {
 
         const retryParts = [];
         if (intent !== "update") {
+          const overlapList = similarity.worstOverlap.length
+            ? `Alimentos repetidos do cardápio anterior (TROQUE A MAIORIA): ${similarity.worstOverlap.join(", ")}.`
+            : "Muitos alimentos coincidem com o cardápio anterior.";
           retryParts.push(
             overlapList,
             "Substitua por equivalentes em macros usando o BANCO DE ALIMENTOS.",
