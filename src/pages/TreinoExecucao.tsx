@@ -358,7 +358,12 @@ const TreinoExecucao = () => {
     plannedSets: exercises.map((ex: any) =>
       buildSetPlan(ex?.series, ex?.series2, ex?.reps, ex?.setScheme).length || 3,
     ),
+    /** Tipo estrutural planejado de cada série (recognition | work). */
+    plannedSetTypes: exercises.map((ex: any) =>
+      buildSetPlan(ex?.series, ex?.series2, ex?.reps, ex?.setScheme).map((p) => p.type),
+    ),
   }), [exercises]);
+
 
   const formatElapsed = (totalSec: number) => {
     const h = Math.floor(totalSec / 3600);
