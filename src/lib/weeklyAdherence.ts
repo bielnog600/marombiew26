@@ -220,6 +220,7 @@ export const buildAdherenceReport = (
     sessionsPct,
     sessionsCompletedPct,
 
+
     exercisesPct,
     setsPct,
     reasonLabel,
