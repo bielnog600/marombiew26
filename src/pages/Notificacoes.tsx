@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 const typeConfig: Record<NotificationType, { icon: React.ElementType; label: string; color: string }> = {
   reavaliacao: { icon: CalendarClock, label: 'Reavaliação', color: 'text-orange-500' },
   aniversario: { icon: Cake, label: 'Aniversário', color: 'text-pink-500' },
+  sem_treino: { icon: Dumbbell, label: 'Sem Treino', color: 'text-amber-500' },
   sem_dieta: { icon: UtensilsCrossed, label: 'Sem Dieta', color: 'text-emerald-500' },
   ficha_mensal: { icon: FileText, label: 'Ficha Mensal', color: 'text-violet-500' },
 };
@@ -73,6 +74,8 @@ const Notificacoes: React.FC = () => {
       case 'ficha_mensal':
         return `Olá ${n.studentName}! 📋 Enviei uma ficha alimentar para você preencher. Pode responder quando puder? É rapidinho e vai me ajudar a montar seu plano! 💪`;
       default:
+        return '';
+    }
   };
 
   const tabCounts = {
@@ -86,6 +89,7 @@ const Notificacoes: React.FC = () => {
   };
 
   const renderNotifAction = (n: Notification) => {
+    if (n.type === 'sem_telefone') {
       return (
         <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => navigate(`/alunos?edit=${n.studentId}`)}>
           <ExternalLink className="h-3 w-3 mr-1" />
@@ -167,6 +171,7 @@ const Notificacoes: React.FC = () => {
                 const Icon = t.icon;
                 return (
                   <button
+                    key={t.value}
                     onClick={() => setTab(t.value)}
                     className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium whitespace-nowrap transition-all border ${
                       isActive
