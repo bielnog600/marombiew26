@@ -853,14 +853,14 @@ serve(async (req) => {
           if (variationRetryAllowed && primarySourceTooRepetitive) { fallbackReason = fallbackReason || "source_repetition"; fallbackReasons.push("source_repetition"); }
         }
 
-        const overlapList = similarity.worstOverlap.length
-          ? `Alimentos repetidos do cardápio anterior (TROQUE A MAIORIA): ${similarity.worstOverlap.join(", ")}.`
-          : "Muitos alimentos coincidem com o cardápio anterior.";
-        const retryParts = [
-          overlapList,
-          "Substitua por equivalentes em macros usando o BANCO DE ALIMENTOS.",
-          "Preserve metas calóricas, macros, restrições e preferências.",
-        ];
+        const retryParts = [];
+        if (intent !== "update") {
+          retryParts.push(
+            overlapList,
+            "Substitua por equivalentes em macros usando o BANCO DE ALIMENTOS.",
+            "Preserve metas calóricas, macros, restrições e preferências."
+          );
+        }
         if (!nutrition.ok) {
           const missing = nutrition.issues
             .filter((i) => i.reason === "missing_primary_protein")
