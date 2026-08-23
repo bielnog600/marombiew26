@@ -4,6 +4,8 @@
  */
 
 import { HISTORY_DECAY, type VariationIntensity } from "./variationProfiles.ts";
+export type { VariationIntensity };
+
 
 export const SIMILARITY_THRESHOLDS: Record<VariationIntensity, number> = {
   baixa: 0.75,
