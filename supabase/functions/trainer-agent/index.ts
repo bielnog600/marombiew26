@@ -975,7 +975,7 @@ Explicar: técnica, postura, respiração, posicionamento, dicas práticas. Se t
 `;
 
 
-${EXERCISE_DATABASE}
+// EXERCISE_DATABASE is used later in the structured prompt construction
 
 const TRAINER_VARIATION_PROMPT = `
 COLUNA VARIAÇÃO (OBRIGATÓRIO E 100% DO BANCO)
