@@ -508,9 +508,12 @@ async function generateStructuredWorkoutWithVariation(args: {
     // If snapPlanToCatalog left an exercise unmatched, it's a catalog_mismatch.
     const hasCatalogMismatch = unmatchedExercises.length > 0;
 
-    const needsRetry = (similarity.score > params.threshold && params.historyJsons.length > 0) || 
-                       !redundancy.ok || 
-                       hasCatalogMismatch;
+    const needsRetry = variationRetryAllowed && (
+      (similarity.score > params.threshold && params.historyJsons.length > 0) || 
+      !redundancy.ok || 
+      hasCatalogMismatch
+    );
+
 
     return {
       data: snapData,
