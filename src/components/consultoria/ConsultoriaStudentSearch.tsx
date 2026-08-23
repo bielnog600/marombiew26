@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, ChevronRight, AlertTriangle, Activity, Send, UserX, UserCheck } from 'lucide-react';
+import { Search, ChevronRight, AlertTriangle, Activity, Send, UserX, UserCheck, ArrowUpDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { differenceInDays, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
