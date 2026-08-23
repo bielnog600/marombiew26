@@ -409,6 +409,7 @@ const TreinoExecucao = () => {
     setLocalActiveSession({
       id: targetSessionId,
       student_id: user.id,
+      plan_id: sessionPlanId,
       day_name: dayName,
       phase: phase ?? null,
       started_at: new Date(targetStartedAt).toISOString(),
