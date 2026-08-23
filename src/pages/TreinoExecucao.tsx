@@ -465,7 +465,13 @@ const TreinoExecucao = () => {
       });
       const treino = Array.isArray(plans) ? plans[0] : null;
       if (treino) {
-        if (treino.fase) setPhase(treino.fase as TrainingPhase);
+        // Fase da sessão vem da FONTE CENTRAL (timeline do plano), nunca de
+        // um cálculo local — garante paridade com weeklyTraining e com o admin.
+        setPhase(resolveCurrentTrainingPhase({
+          id: treino.id,
+          fase: (treino as any).fase ?? null,
+          fase_inicio_data: (treino as any).fase_inicio_data ?? null,
+        }).phase);
         const { days: allDays, isFromJSON } = getSafeWorkoutDays({ ...treino, tipo: 'treino' });
         trackPlanAccess({ ...treino, tipo: 'treino' }, isFromJSON);
         if (allDays.length > 0) {
