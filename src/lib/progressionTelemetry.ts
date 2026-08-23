@@ -1,5 +1,7 @@
 import { PROGRESSION_SNAPSHOT_VERSION, type ProgressionSnapshot, type SessionRecommendation } from './sessionProgression';
 import { normalizeExerciseKey } from './loadIncrement';
+import { supabase } from '@/integrations/supabase/client';
+
 
 export type TelemetryAlignmentStatus =
   | 'matched'
@@ -13,6 +15,48 @@ export type TelemetryTargetStatus =
   | 'partially_achieved'
   | 'not_achieved'
   | 'not_evaluable';
+
+export type TelemetrySessionStatus =
+  | 'available'
+  | 'without_snapshot'
+  | 'empty_snapshot'
+  | 'invalid_snapshot_version'
+  | 'snapshot_session_mismatch';
+
+export interface SessionTelemetryResult {
+  status: TelemetrySessionStatus;
+  outcomes: ProgressionExecutionOutcome[];
+}
+
+export interface TelemetrySummary {
+  sessionsWithSnapshot: number;
+  sessionsWithoutSnapshot: number;
+  sessionsWithoutRecommendation: number;
+  invalidSnapshotSessions: number;
+
+  recommendationsShown: number;
+  evaluableRecommendations: number;
+  recommendationsWithExecution: number;
+
+  matchedCount: number;
+  partialCount: number;
+  differentCount: number;
+  noExecutionCount: number;
+
+  alignmentRate: number;
+  fullOrPartialAlignmentRate: number;
+  executionCoverage: number;
+
+  targetsEvaluable: number;
+  targetAchievedCount: number;
+  targetPartialCount: number;
+  targetNotAchievedCount: number;
+
+  targetAchievementRate: number;
+  targetAtLeastPartialRate: number;
+
+  deloadExcludedCount: number;
+}
 
 export const LOAD_FLOAT_TOLERANCE_KG = 0.05;
 
@@ -58,6 +102,7 @@ export interface ProgressionExecutionOutcome {
   source?: string;
   executedBy?: string;
   phase?: string | null;
+  performed_at?: string;
 }
 
 export interface TelemetryLog {
@@ -69,6 +114,7 @@ export interface TelemetryLog {
   reps: number | null;
   rir?: number | null;
   set_type?: string | null;
+  performed_at?: string;
 }
 
 export interface TelemetrySessionInput {
@@ -81,22 +127,44 @@ export interface TelemetrySessionInput {
 }
 
 /**
+ * Avalia a sessão inteira e retorna o status estruturado (Regra 10).
+ */
+export function buildProgressionSessionTelemetry(input: TelemetrySessionInput): SessionTelemetryResult {
+  const { snapshot, sessionId } = input;
+  
+  if (!snapshot) {
+    return { status: 'without_snapshot', outcomes: [] };
+  }
+  
+  if (snapshot.version !== PROGRESSION_SNAPSHOT_VERSION) {
+    return { status: 'invalid_snapshot_version', outcomes: [] };
+  }
+  
+  if (snapshot.sessionId != null && snapshot.sessionId !== sessionId) {
+    return { status: 'snapshot_session_mismatch', outcomes: [] };
+  }
+  
+  const outcomes = buildProgressionExecutionOutcomes(input);
+  
+  if (outcomes.length === 0) {
+    return { status: 'empty_snapshot', outcomes: [] };
+  }
+  
+  return { status: 'available', outcomes };
+}
+
+/**
  * Motor de Telemetria (V1 Hardened & Fixed)
  */
 export function buildProgressionExecutionOutcomes(input: TelemetrySessionInput): ProgressionExecutionOutcome[] {
   const { snapshot, logs, studentId, sessionId, source, executedBy } = input;
   const outcomes: ProgressionExecutionOutcome[] = [];
   
-  // Regra 6 & 7: Validação de Snapshot Version e Session ID
-  if (snapshot) {
-    if (snapshot.version !== PROGRESSION_SNAPSHOT_VERSION) {
-      // invalid_snapshot_version - não retorna resultados comparáveis
-      return [];
-    }
-    if (snapshot.sessionId != null && snapshot.sessionId !== sessionId) {
-      // snapshot_session_mismatch - não retorna resultados comparáveis
-      return [];
-    }
+  if (!snapshot) return [];
+  
+  // Regra 6 & 7: Validação de Snapshot Version e Session ID (mantida por compatibilidade no motor interno)
+  if (snapshot.version !== PROGRESSION_SNAPSHOT_VERSION || (snapshot.sessionId != null && snapshot.sessionId !== sessionId)) {
+    return [];
   }
   
   // Agrupar logs por exercício
@@ -163,7 +231,8 @@ export function buildProgressionExecutionOutcomes(input: TelemetrySessionInput):
       reasons: [],
       source,
       executedBy,
-      phase: snapshot?.phase ?? null
+      phase: snapshot?.phase ?? null,
+      performed_at: primaryLogs[0]?.performed_at || undefined
     };
 
     // Auditoria detalhada das séries
@@ -186,7 +255,8 @@ export function buildProgressionExecutionOutcomes(input: TelemetrySessionInput):
 
     if (!rec) {
       outcome.alignmentStatus = 'not_evaluable';
-      outcome.reasons.push('sem_recomendacao_no_inicio');
+      outcome.targetStatus = 'not_evaluable';
+      outcome.reasons.push('no_recommendation_for_exercise');
     } else if (primaryLogs.length === 0) {
       outcome.alignmentStatus = 'no_execution';
       outcome.targetStatus = 'not_evaluable';
@@ -205,7 +275,7 @@ export function buildProgressionExecutionOutcomes(input: TelemetrySessionInput):
 }
 
 function evaluateAlignmentMultiSet(outcome: ProgressionExecutionOutcome, rec: SessionRecommendation) {
-  const currentLoad = rec.currentLoadKg ?? 0;
+  const currentLoad = rec.currentLoadKg; // Pode ser null
   const recommendedLoad = rec.recommendedLoadKg;
   const sets = outcome.executedWorkingSets;
 
@@ -214,75 +284,88 @@ function evaluateAlignmentMultiSet(outcome: ProgressionExecutionOutcome, rec: Se
     return;
   }
 
+  // Regra 19: currentLoad DESCONHECIDO para ações que dependem de baseline
+  const actionsRequiringBaseline = [
+    'maintain', 'increase_reps', 'increase_load', 'reduce_load', 'manual_increment_required'
+  ];
+  
   // Classificar cada série individualmente
   const setStatuses: TelemetryAlignmentStatus[] = sets.map(s => {
-    const execLoad = s.weightKg ?? 0;
+    const execLoad = s.weightKg;
+    
+    // Regra 16: Carga ausente na execução não é "different"
+    if (execLoad == null) {
+      outcome.reasons.push('missing_load_for_alignment');
+      return 'not_evaluable';
+    }
+
+    // Regra 17: currentLoad desconhecido
+    if (currentLoad == null && recommendedLoad == null && actionsRequiringBaseline.includes(rec.action || '')) {
+      outcome.reasons.push('missing_current_load');
+      return 'not_evaluable';
+    }
+
+    const safeCurrent = currentLoad ?? 0;
     
     // Regra 8: Manual Increment Required
     if (rec.action === 'manual_increment_required') {
-      if (execLoad <= 0) return 'not_evaluable';
-      return sameLoad(execLoad, currentLoad) ? 'matched' : 'different';
+      return sameLoad(execLoad, safeCurrent) ? 'matched' : 'different';
     }
 
     // Regra 6 & 18: Qualitativos
     if (rec.action === 'increase_load' && recommendedLoad === null) {
-      if (execLoad <= 0) return 'not_evaluable';
-      if (execLoad > currentLoad + LOAD_FLOAT_TOLERANCE_KG) return 'matched';
-      return sameLoad(execLoad, currentLoad) ? 'different' : 'different';
+      if (execLoad > safeCurrent + LOAD_FLOAT_TOLERANCE_KG) return 'matched';
+      // Regra 4 & 5: Mesmo valor ou dentro da tolerância não é aumento
+      return 'different';
     }
     if (rec.action === 'reduce_load' && recommendedLoad === null) {
-      if (execLoad <= 0) return 'not_evaluable';
-      if (execLoad < currentLoad - LOAD_FLOAT_TOLERANCE_KG) return 'matched';
-      return sameLoad(execLoad, currentLoad) ? 'different' : 'different';
+      if (execLoad < safeCurrent - LOAD_FLOAT_TOLERANCE_KG) return 'matched';
+      return 'different';
     }
 
     // Quantitativo
     if (recommendedLoad !== null) {
       if (sameLoad(execLoad, recommendedLoad)) return 'matched';
-      if (execLoad > recommendedLoad) return 'different'; // Acima é different (não matched)
-      if (rec.action === 'increase_load' && execLoad >= currentLoad && execLoad < recommendedLoad) return 'partial';
+      if (execLoad > recommendedLoad + LOAD_FLOAT_TOLERANCE_KG) return 'different';
+      
+      // Regra 4: Partial exige aumento real acima de currentLoad
+      if (rec.action === 'increase_load') {
+         if (execLoad > safeCurrent + LOAD_FLOAT_TOLERANCE_KG && execLoad < recommendedLoad) return 'partial';
+      }
       return 'different';
     }
 
     // Maintain / Increase Reps
-    if (sameLoad(execLoad, currentLoad)) return 'matched';
+    if (sameLoad(execLoad, safeCurrent)) return 'matched';
     return 'different';
   });
 
   // Salvar status por série para auditoria
   sets.forEach((s, i) => s.alignmentStatus = setStatuses[i]);
 
-  // Regra 14: Agregação da política
+  // Regra 18: Agregação da política
   const hasDifferent = setStatuses.includes('different');
   const hasPartial = setStatuses.includes('partial');
   const hasMatched = setStatuses.includes('matched');
+  const hasNotEvaluable = setStatuses.includes('not_evaluable');
+  const allNotEvaluable = setStatuses.every(s => s === 'not_evaluable');
   
   if (hasDifferent) {
     outcome.alignmentStatus = 'different';
-    // Adicionar motivos específicos se for qualitativo
     if (rec.action === 'increase_load' && recommendedLoad === null) {
       if (sets.some(s => sameLoad(s.weightKg, currentLoad))) outcome.reasons.push('qualitative_load_not_increased');
-      if (sets.some(s => (s.weightKg ?? 0) < currentLoad - LOAD_FLOAT_TOLERANCE_KG)) outcome.reasons.push('load_reduced_instead_of_increased');
     }
-    if (rec.action === 'reduce_load' && recommendedLoad === null) {
-      if (sets.some(s => sameLoad(s.weightKg, currentLoad))) outcome.reasons.push('qualitative_load_not_reduced');
-    }
-    if (rec.action === 'manual_increment_required' && sets.some(s => (s.weightKg ?? 0) > currentLoad)) {
-      outcome.reasons.push('used_rejected_large_increment');
-    }
-  } else if (hasMatched && !hasPartial) {
-    outcome.alignmentStatus = 'matched';
-    if (rec.action === 'increase_load' && recommendedLoad === null) {
-      outcome.comparisonConfidence = 'low';
-      outcome.reasons.push('qualitative_load_increase_followed');
-    }
-    if (rec.action === 'reduce_load' && recommendedLoad === null) {
-      outcome.comparisonConfidence = 'low';
-      outcome.reasons.push('qualitative_load_reduction_followed');
-    }
-  } else if (hasPartial || (hasMatched && hasPartial)) {
+  } else if (hasPartial) {
     outcome.alignmentStatus = 'partial';
     outcome.reasons.push('load_increased_less_than_recommended');
+  } else if (hasMatched) {
+    outcome.alignmentStatus = 'matched';
+    if (hasNotEvaluable) {
+      outcome.comparisonConfidence = 'low';
+      outcome.reasons.push('incomplete_load_evidence');
+    }
+  } else if (allNotEvaluable) {
+    outcome.alignmentStatus = 'not_evaluable';
   } else {
     outcome.alignmentStatus = 'different';
   }
@@ -333,4 +416,155 @@ function evaluateTargetMultiSet(outcome: ProgressionExecutionOutcome, rec: Sessi
       outcome.targetStatus = 'not_achieved';
     }
   }
+}
+
+/**
+ * Agrega múltiplos resultados de sessões para gerar o sumário (Regra 13 & 14).
+ */
+export function buildProgressionTelemetrySummary(results: SessionTelemetryResult[]): TelemetrySummary {
+  const summary: TelemetrySummary = {
+    sessionsWithSnapshot: 0,
+    sessionsWithoutSnapshot: 0,
+    sessionsWithoutRecommendation: 0,
+    invalidSnapshotSessions: 0,
+    recommendationsShown: 0,
+    evaluableRecommendations: 0,
+    recommendationsWithExecution: 0,
+    matchedCount: 0,
+    partialCount: 0,
+    differentCount: 0,
+    noExecutionCount: 0,
+    alignmentRate: 0,
+    fullOrPartialAlignmentRate: 0,
+    executionCoverage: 0,
+    targetsEvaluable: 0,
+    targetAchievedCount: 0,
+    targetPartialCount: 0,
+    targetNotAchievedCount: 0,
+    targetAchievementRate: 0,
+    targetAtLeastPartialRate: 0,
+    deloadExcludedCount: 0,
+  };
+
+  results.forEach(res => {
+    if (res.status === 'without_snapshot') {
+      summary.sessionsWithoutSnapshot++;
+      return;
+    }
+    if (res.status === 'empty_snapshot') {
+      summary.sessionsWithSnapshot++;
+      summary.sessionsWithoutRecommendation++;
+      return;
+    }
+    if (res.status === 'invalid_snapshot_version' || res.status === 'snapshot_session_mismatch') {
+      summary.invalidSnapshotSessions++;
+      return;
+    }
+
+    summary.sessionsWithSnapshot++;
+    
+    res.outcomes.forEach(out => {
+      // Regra 14: Excluir Deload do alinhamento
+      if (out.reasons.includes('deload_excluded_from_progression_kpi') || out.reasons.includes('no_recommendation_for_exercise')) {
+        summary.deloadExcludedCount++;
+        return;
+      }
+
+      summary.recommendationsShown++;
+      
+      if (out.alignmentStatus === 'no_execution') {
+        summary.noExecutionCount++;
+        return;
+      }
+
+      summary.recommendationsWithExecution++;
+
+      if (out.alignmentStatus === 'not_evaluable') {
+        return;
+      }
+
+      summary.evaluableRecommendations++;
+      if (out.alignmentStatus === 'matched') summary.matchedCount++;
+      else if (out.alignmentStatus === 'partial') summary.partialCount++;
+      else if (out.alignmentStatus === 'different') summary.differentCount++;
+
+      // Target evaluation
+      if (out.targetStatus !== 'not_evaluable') {
+        summary.targetsEvaluable++;
+        if (out.targetStatus === 'achieved') summary.targetAchievedCount++;
+        else if (out.targetStatus === 'partially_achieved') summary.targetPartialCount++;
+        else if (out.targetStatus === 'not_achieved') summary.targetNotAchievedCount++;
+      }
+    });
+  });
+
+  // Cálculo das taxas
+  const totalEval = summary.matchedCount + summary.partialCount + summary.differentCount;
+  if (totalEval > 0) {
+    summary.alignmentRate = summary.matchedCount / totalEval;
+    summary.fullOrPartialAlignmentRate = (summary.matchedCount + summary.partialCount) / totalEval;
+  }
+
+  if (summary.recommendationsShown > 0) {
+    summary.executionCoverage = summary.recommendationsWithExecution / summary.recommendationsShown;
+  }
+
+  const totalTargetEval = summary.targetAchievedCount + summary.targetPartialCount + summary.targetNotAchievedCount;
+  if (totalTargetEval > 0) {
+    summary.targetAchievementRate = summary.targetAchievedCount / totalTargetEval;
+  }
+  
+  if (summary.targetsEvaluable > 0) {
+    summary.targetAtLeastPartialRate = (summary.targetAchievedCount + summary.targetPartialCount) / summary.targetsEvaluable;
+  }
+
+  return summary;
+}
+
+/**
+ * Busca logs e snapshots em lote para gerar a telemetria do período.
+ */
+export async function fetchTelemetryData(studentId: string, days: number = 30): Promise<SessionTelemetryResult[]> {
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+
+  // 1. Buscar sessões com snapshot no session_state
+  const { data: sessions, error: sessError } = await supabase
+    .from('workout_sessions')
+    .select('id, session_state, completed_at, executed_by')
+    .eq('student_id', studentId)
+    .not('session_state', 'is', null)
+    .gte('completed_at', startDate.toISOString())
+    .order('completed_at', { ascending: false })
+    .limit(50);
+
+  if (sessError || !sessions) return [];
+
+  // 2. Buscar logs dessas sessões
+  const sessionIds = sessions.map(s => s.id);
+  if (sessionIds.length === 0) return [];
+
+  const { data: logs, error: logsError } = await supabase
+    .from('exercise_set_logs')
+    .select('student_id, session_id, exercise_name, weight_kg, reps, rir, set_type, set_number, performed_at')
+    .in('session_id', sessionIds)
+    .order('set_number', { ascending: true });
+
+  if (logsError || !logs) return [];
+
+  // 3. Processar cada sessão
+  return sessions.map(session => {
+    const sessionLogs = logs.filter(l => l.session_id === session.id);
+    const state = session.session_state as any;
+    const snapshot = state?.progressionSnapshot as ProgressionSnapshot;
+
+    return buildProgressionSessionTelemetry({
+      snapshot: snapshot || null,
+      logs: sessionLogs as TelemetryLog[],
+      studentId,
+      sessionId: session.id,
+      source: 'telemetry_batch',
+      executedBy: session.executed_by
+    });
+  });
 }

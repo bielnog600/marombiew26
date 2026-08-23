@@ -290,18 +290,20 @@ export const AdminTrainerSessionProvider: React.FC<{ children: React.ReactNode }
         const t = totalsByStudent[second.id] || { exercisesCompleted: 0, totalExercises: 0 };
         const studentSnapshots = active.sessionState?.progressionRecommendationsByStudent || {};
         
-        // Regra 2 & 5: Garantir que não criamos duplicata se finish() rodar de novo
+        // Regra 2: Find or Create Sessão B para Idempotência
         const { data: existingSecond } = await supabase
           .from('workout_sessions')
-          .select('id')
+          .select('id, status')
           .eq('student_id', second.id)
           .eq('started_at_real', active.startedAtReal)
           .eq('session_mode', 'duo')
           .eq('paired_student_id', first.id)
           .maybeSingle();
 
-        if (!existingSecond) {
-          const { data: secondSession, error: secondError } = await supabase.from('workout_sessions').insert({
+        let secondSessionId = existingSecond?.id;
+
+        if (!secondSessionId) {
+          const { data: newSecond, error: createError } = await supabase.from('workout_sessions').insert({
             student_id: second.id,
             day_name: second.dayName || null,
             phase: second.phase || null,
@@ -320,31 +322,46 @@ export const AdminTrainerSessionProvider: React.FC<{ children: React.ReactNode }
             paired_student_id: first.id,
             plan_id: second.planId || null,
             session_state: {
-              // Regra 4: Snapshot canônico com sessionId definitivo do aluno B
-              progressionRecommendations: null // será atualizado após insert
+              progressionRecommendations: null
             }
           } as any).select('id').single();
 
-          if (!secondError && secondSession) {
-            // Regra 3: Reassociar logs do aluno B ao ID da sessão definitiva dele
-            await supabase
-              .from('exercise_set_logs')
-              .update({ session_id: secondSession.id })
-              .eq('student_id', second.id)
-              .eq('session_id', active.id);
+          if (createError || !newSecond) {
+             toast.error(`Erro ao criar sessão para ${second.nome}. Tente novamente.`);
+             return; // Interrompe para permitir retry
+          }
+          secondSessionId = newSecond.id;
+        }
 
-            // Regra 4: Salvar snapshot canônico
-            const snapB = studentSnapshots[second.id];
-            if (snapB) {
-              await supabase
-                .from('workout_sessions')
-                .update({
-                  session_state: {
-                    progressionRecommendations: { ...snapB, sessionId: secondSession.id }
-                  }
-                })
-                .eq('id', secondSession.id);
-            }
+        // DEPOIS, independentemente de ser nova ou existente: REPARAR/CANONICALIZAR ALWAYS
+        
+        // Regra 3: Reassociar logs do aluno B ao ID da sessão definitiva dele
+        const { error: moveLogsError } = await supabase
+          .from('exercise_set_logs')
+          .update({ session_id: secondSessionId })
+          .eq('student_id', second.id)
+          .eq('session_id', active.id);
+
+        if (moveLogsError) {
+          toast.error(`Erro ao vincular logs de ${second.nome}. Tente novamente.`);
+          return;
+        }
+
+        // Regra 4: Salvar snapshot canônico de B
+        const snapB = studentSnapshots[second.id];
+        if (snapB) {
+          const { error: snapError } = await supabase
+            .from('workout_sessions')
+            .update({
+              session_state: {
+                progressionRecommendations: { ...snapB, sessionId: secondSessionId }
+              }
+            })
+            .eq('id', secondSessionId);
+          
+          if (snapError) {
+            toast.error(`Erro ao salvar telemetria de ${second.nome}. Tente novamente.`);
+            return;
           }
         }
       }
