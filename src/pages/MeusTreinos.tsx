@@ -220,8 +220,9 @@ const MeusTreinos = () => {
 
   // Resolve a semana ativa a partir da semana planejada + aderência real.
   const progression = useMemo(
-    () => resolveActiveWeek(plannedPhase, adherenceReport?.status),
-    [plannedPhase, adherenceReport?.status],
+    // Passa o relatório completo (aderência ponderada) e não só o status.
+    () => resolveActiveWeek(plannedPhase, adherenceReport ?? undefined),
+    [plannedPhase, adherenceReport],
   );
 
   // Aplica a semana ativa resolvida (somente se o usuário não trocou manualmente

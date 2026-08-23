@@ -1013,6 +1013,12 @@ export const resolveActiveWeek = (
 //    contrato para quando forem prescritos/registrados. Enquanto isso, séries
 //    sem tipo (legado) são tratadas como `work` (fallback documentado) e a
 //    comparação é marcada como `fallback_untyped`.
+//  - Na UI de execução o chip "4+" é persistido como rir = 4 (não existe
+//    coluna extra): 4 significa "4 ou mais repetições na reserva". Isso é
+//    suficiente porque as decisões usam apenas RIR <= 1 e RIR >= 2.
+//  - resolveActiveWeek combina aderência + performance + fase. Fadiga
+//    (workout_sessions.avg_rpe) ainda NÃO entra: não há base para um índice
+//    confiável, então nenhum FatigueScore é calculado nesta etapa.
 //  - Não há duração/tempo por série: exercícios isométricos ou por tempo
 //    (prancha, 30s → 40s) não têm dado estruturado e caem em
 //    insufficient_data ou são avaliados só por repetições quando existirem.
