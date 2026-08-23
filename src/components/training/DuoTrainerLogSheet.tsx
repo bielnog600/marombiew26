@@ -25,7 +25,8 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdminTrainerSession } from '@/contexts/AdminTrainerSessionContext';
 import { useSessionProgression } from '@/hooks/useSessionProgression';
-import { readProgressionSnapshot, type ProgressionSnapshot } from '@/lib/sessionProgression';
+import { readProgressionSnapshot, type ProgressionSnapshot, getRecommendationFor } from '@/lib/sessionProgression';
+import { resolveCurrentTrainingPhase } from '@/lib/currentPhase';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -58,7 +59,7 @@ interface StudentSessionState {
 
 export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentAId, planA }) => {
   const { user } = useAuth();
-  const { active, finish, cancel, setPairedStudent } = useAdminTrainerSession();
+  const { active, finish, cancel, setPairedStudent, patchSessionState } = useAdminTrainerSession();
   const [studentA, setStudentA] = useState<StudentSessionState | null>(null);
   const [studentB, setStudentB] = useState<StudentSessionState | null>(null);
   const [allStudents, setAllStudents] = useState<{ user_id: string; nome: string }[]>([]);
@@ -140,23 +141,27 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
   // Persistir snapshots no session_state (Duo)
   useEffect(() => {
     if (!active?.id) return;
-    const existingA = readProgressionSnapshot(active.sessionState?.progressionRecommendationsA);
-    const existingB = readProgressionSnapshot(active.sessionState?.progressionRecommendationsB);
     
-    if (snapshotA && !existingA) {
-      finish && mutateSlot('A', prev => ({ ...prev })); // Apenas para forçar refresh se necessário, mas melhor patchState direto
+    const byStudent = active.sessionState?.progressionRecommendationsByStudent || {};
+    let changed = false;
+    const nextByStudent = { ...byStudent };
+
+    if (studentA?.studentId && snapshotA && !byStudent[studentA.studentId]) {
+      nextByStudent[studentA.studentId] = snapshotA;
+      changed = true;
     }
-    
-    if ((snapshotA && !existingA) || (snapshotB && !existingB)) {
-      supabase.from('workout_sessions').update({
-        session_state: {
-          ...active.sessionState,
-          progressionRecommendationsA: snapshotA || existingA,
-          progressionRecommendationsB: snapshotB || existingB
-        }
-      }).eq('id', active.id).then();
+    if (studentB?.studentId && snapshotB && !byStudent[studentB.studentId]) {
+      nextByStudent[studentB.studentId] = snapshotB;
+      changed = true;
     }
-  }, [active?.id, snapshotA, snapshotB]);
+
+    if (changed) {
+      patchSessionState(prev => ({
+        ...prev,
+        progressionRecommendationsByStudent: nextByStudent
+      }));
+    }
+  }, [active?.id, snapshotA, snapshotB, studentA?.studentId, studentB?.studentId, patchSessionState, active?.sessionState]);
 
   // Load student A data
   useEffect(() => {
@@ -171,6 +176,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
         const idx = days.findIndex((d) => d.day.toLowerCase().includes(today));
         const activeIdx = idx >= 0 ? idx : 0;
         
+        const resolvedPhase = resolveCurrentTrainingPhase(planA).phase;
         setStudentA({
           studentId: studentAId,
           nome: profile?.nome || 'Aluno A',
@@ -178,6 +184,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
           activeDayIdx: activeIdx,
           state: {},
           plan: planA,
+          phase: resolvedPhase,
           loading: true
         });
       })();
@@ -206,6 +213,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     const idx = days.findIndex((d) => d.day.toLowerCase().includes(today));
     const activeIdx = idx >= 0 ? idx : 0;
 
+    const resolvedPhase = resolveCurrentTrainingPhase(plan).phase;
     const data: StudentSessionState = {
       studentId,
       nome,
@@ -213,6 +221,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
       activeDayIdx: activeIdx,
       state: {},
       plan,
+      phase: resolvedPhase,
       loading: true
     };
 
@@ -226,7 +235,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
           nome,
           planId: plan.id,
           dayName: days[activeIdx]?.day || null,
-          phase: plan.fase || null,
+          phase: resolvedPhase,
         });
       } catch (e) {
         console.error('setPairedStudent failed', e);
@@ -469,7 +478,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
       weight_kg: Number.isNaN(s.weight) ? null : s.weight,
       reps: Number.isNaN(s.reps) ? null : s.reps,
       day_name: day.day,
-      phase: st.plan.fase || null,
+      phase: st.phase || null,
       performed_at: new Date().toISOString(),
       source: 'admin',
     }));
