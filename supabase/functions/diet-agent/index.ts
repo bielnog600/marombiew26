@@ -814,29 +814,61 @@ serve(async (req) => {
         if (body.retryable) {
           fallbackReason = body.error_code || "critical_failure";
           fallbackReasons.push(fallbackReason as string);
+          
           const second = await callModel(
             dietVariationPrompt(intensity, historySummary, `🚨 OCORREU UM ERRO TÉCNICO (${fallbackReason}). Gere o JSON novamente respeitando o contrato.`, false),
             AI_MODELS.fallback,
             "critical_fallback"
           );
+          
           if (second.ok) {
             const historyJsons = history
               .map((h) => h.conteudo_json)
               .filter((j) => j && typeof j === "object") as any[];
+              
             const similarity = computeDietSimilarity(second.plan, historyJsons);
-            const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
-            return new Response(
-              JSON.stringify({
-                plan: second.plan,
-                similarity: { score: similarity.score, threshold: SIMILARITY_THRESHOLDS[intensity], intensity, historyCount: historyJsons.length },
-                aiRouting: routingMeta.routing,
-                aiUsage: routingMeta.usage,
-              }),
-              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-            );
+            const nutrition2 = validateDietNutrition(second.plan);
+            
+            let initialAdjValidation2 = { ok: true, errors: [] as string[] };
+            if (schedule && typeof schedule === "object" && schedule.days) {
+              const modelAdj2 = (second.plan as any).dailyAdjustments;
+              const { adjustments, missing } = normalizeDailyAdjustments(modelAdj2, schedule);
+              initialAdjValidation2 = hasDailyCalorieVariation(schedule)
+                ? validateDailyAdjustments(adjustments, missing)
+                : { ok: true, errors: [] as string[] };
+            }
+
+            const criticalValid = nutrition2.ok && initialAdjValidation2.ok;
+
+            if (criticalValid) {
+              const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, AI_MODELS.fallback);
+              return new Response(
+                JSON.stringify({
+                  plan: second.plan,
+                  similarity: { score: similarity.score, threshold: SIMILARITY_THRESHOLDS[intensity], intensity, historyCount: historyJsons.length },
+                  aiRouting: routingMeta.routing,
+                  aiUsage: routingMeta.usage,
+                }),
+                { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+              );
+            } else {
+              fallbackReason = !nutrition2.ok ? "nutrition_invalid" : "daily_adjustments_invalid";
+              fallbackReasons.push(fallbackReason);
+            }
           }
         }
-        return first.resp;
+        
+        const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, null);
+        const errorBody = await first.resp.clone().json().catch(() => ({}));
+        return new Response(
+          JSON.stringify({
+            error: errorBody.error || "Erro na geração da dieta",
+            error_code: fallbackReason || errorBody.error_code || "generation_failed",
+            aiRouting: routingMeta.routing,
+            aiUsage: routingMeta.usage
+          }),
+          { status: first.resp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
       const historyJsons = history
