@@ -228,7 +228,8 @@ export function buildProgressionExecutionOutcomes(input: TelemetrySessionInput):
       reasons: [],
       source,
       executedBy,
-      phase: snapshot?.phase ?? null
+      phase: snapshot?.phase ?? null,
+      performed_at: primaryLogs[0]?.performed_at || undefined
     };
 
     // Auditoria detalhada das séries
