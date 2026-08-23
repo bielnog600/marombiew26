@@ -1214,7 +1214,7 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
       });
     }
 
-    const routingMeta = createRoutingMetadata([], null);
+    // Legacy path does not need metadata if zero attempts occurred
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -1222,7 +1222,7 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: AI_MODELS.primary.includes("gpt-5.6") ? "gpt-4o" : AI_MODELS.primary,
+        model: "gpt-4o",
         messages: [
           { role: "system", content: SYSTEM_PROMPT + contextMessage },
           ...messages,

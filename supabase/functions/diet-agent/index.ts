@@ -793,7 +793,7 @@ serve(async (req) => {
           return {
             ok: false,
             resp: new Response(
-              JSON.stringify({ error: "Modelo retornou JSON inválido.", raw, retryable: true, error_code: "invalid_json" }),
+              JSON.stringify({ error: "Modelo retornou JSON inválido.", retryable: true, error_code: "invalid_json" }),
               { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
             ),
           };
@@ -1205,7 +1205,7 @@ serve(async (req) => {
       );
     }
 
-    const routingMeta = createRoutingMetadata([], null);
+    // Legacy path does not need metadata if zero attempts occurred
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -1213,7 +1213,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: AI_MODELS.primary.includes("gpt-5.6") ? "gpt-4o" : AI_MODELS.primary,
+        model: "gpt-4o",
         messages: [
           { role: "system", content: SYSTEM_PROMPT + contextMessage },
           ...messages,
