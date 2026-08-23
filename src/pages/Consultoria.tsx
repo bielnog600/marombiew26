@@ -117,9 +117,10 @@ const Consultoria: React.FC = () => {
   }, [plans]);
 
   const stats = useMemo(() => {
-    const totalStudents = weeklySummaries.length;
-    const semDieta = weeklySummaries.filter(s => !studentPlansMap.get(s.studentId)?.latestDieta).length;
-    const semTreino = weeklySummaries.filter(s => !studentPlansMap.get(s.studentId)?.latestTreino).length;
+    const activeSummaries = weeklySummaries.filter(s => s.active);
+    const totalStudents = activeSummaries.length;
+    const semDieta = activeSummaries.filter(s => !studentPlansMap.get(s.studentId)?.latestDieta).length;
+    const semTreino = activeSummaries.filter(s => !studentPlansMap.get(s.studentId)?.latestTreino).length;
     
     let dietasVencidas = 0;
     let treinosVencidas = 0;
