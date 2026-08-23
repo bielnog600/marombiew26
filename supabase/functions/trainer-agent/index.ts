@@ -690,29 +690,59 @@ async function generateStructuredWorkoutWithVariation(args: {
       attempts: modelAttempts
     });
     if (second.ok) {
-      const sim2 = computeWorkoutSimilarity(second.data, historyJsons);
-      const red2 = validateWorkoutRedundancy(second.data);
-      // Hierarquia: SEGURANÇA (assumida) > SCHEMA VÁLIDO > REDUNDÂNCIA > SIMILARIDADE.
-      // Escolher o segundo se ele corrige a redundância ou melhora significativamente a similaridade.
+      const result2 = evaluateWorkoutCandidate({
+        data: second.data,
+        historyJsons,
+        catalog: args.catalog ?? [],
+        intensity,
+        threshold
+      });
+
+      const sim2 = result2.similarity;
+      const red2 = result2.redundancy;
+      
       const fixedRedundancy = !redundancy.ok && red2.ok;
-      if (fixedRedundancy || (red2.ok && sim2.score <= similarity.score)) {
-        finalPlan = second.data;
+      const fixedCatalog = hasCatalogMismatch && !result2.hasCatalogMismatch;
+      
+      const terraIsBetter = 
+        (fixedRedundancy && !result2.hasCatalogMismatch) ||
+        (fixedCatalog && red2.ok) ||
+        (redundancy.ok && !hasCatalogMismatch && red2.ok && !result2.hasCatalogMismatch && sim2.score <= similarity.score);
+
+      if (terraIsBetter) {
+        finalPlan = result2.data;
         similarity = sim2;
+        redundancy = red2;
+        unmatchedExercises = result2.unmatchedExercises;
+        hasCatalogMismatch = result2.hasCatalogMismatch;
       }
       regenerated = true;
-      if (similarity.score > threshold) {
-        warning = "high_similarity";
-      }
+      if (!redundancy.ok) warning = "internal_redundancy";
+      else if (hasCatalogMismatch) warning = "catalog_mismatch";
+      else if (similarity.score > threshold) warning = "high_similarity";
     } else {
-      warning = "high_similarity";
+      warning = !redundancy.ok ? "internal_redundancy" : (hasCatalogMismatch ? "catalog_mismatch" : "high_similarity");
     }
   }
 
-  // Snap every exercise/variation name to a real row of public.exercises.
-  const unmatchedExercises = snapPlanToCatalog(finalPlan, args.catalog ?? []);
-  if (unmatchedExercises.length > 0) {
-    console.warn("trainer-agent: exercícios sem equivalente no banco:", unmatchedExercises.join(" | "));
+  // Final validation before response
+  if (!redundancy.ok || hasCatalogMismatch) {
+    const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
+    return new Response(
+      JSON.stringify({
+        error: !redundancy.ok ? "O treino gerado contém redundância excessiva." : "Exercícios principais não encontrados no catálogo.",
+        error_code: "review_required",
+        validationReasons: [
+          ...(!redundancy.ok ? ["internal_redundancy"] : []),
+          ...(hasCatalogMismatch ? ["catalog_mismatch"] : [])
+        ],
+        aiRouting: routingMeta.routing,
+        aiUsage: routingMeta.usage,
+      }),
+      { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   }
+
   const markdownFinal = workoutPlanToMarkdown(finalPlan);
   const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
   console.log("[ai-routing]", {
