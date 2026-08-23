@@ -113,7 +113,7 @@ const Consultoria = () => {
 
   const { notifications, loading: notifLoading, count: notifCount, refresh: refreshNotifs, dismissNotification } = useNotifications();
   const { alerts: behavioralAlerts, loading: behavioralLoading, generating: behavioralGenerating, generate: generateBehavioral, updateStatus: updateBehavioralStatus } = useBehavioralAlerts();
-  const [notifFilter] = useState('all');
+  const [notifFilter, setNotifFilter] = useState('all');
   const { summaries: weeklySummaries, loading: weeklyLoading, reload: reloadWeekly } = useStudentsWeeklySummary();
   const { followups, loading: followupsLoading, reload: reloadFollowups, markAsDone, reopen, archive } = useStudentFollowups();
   const { students: inactiveStudents, loading: inactiveLoading, reload: reloadInactive } = useInactiveStudents(3);
