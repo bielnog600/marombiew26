@@ -127,80 +127,31 @@ export const workingSetsOf = (logs: ExerciseLog[] = []): ExerciseLog[] =>
     (l) => setRoleOf(l) !== 'preparation' && ((l.reps ?? 0) > 0 || (l.weight_kg ?? 0) > 0),
   );
 
-/** Apenas séries principais com carga — base para inferência de incremento. */
-const primaryLoads = (logs: ExerciseLog[] = []): number[] =>
-  logs
-    .filter((l) => setRoleOf(l) === 'primary' && (Number(l.weight_kg) || 0) > 0)
-    .map((l) => Number(l.weight_kg));
+const toEquipmentIncrement = (r: ResolvedIncrement): EquipmentIncrement => ({
+  incrementKg: r.incrementKg,
+  source: r.source,
+  confidence: r.confidence,
+  reason: r.evidence.reason,
+  evidence: r.evidence,
+});
 
 /**
- * Inferência de incremento a partir do histórico.
- * Só aceita quando o padrão é consistente: todas as diferenças entre cargas
- * distintas são múltiplas de um mesmo passo plausível. Warmups, drops e
- * séries auxiliares são ignorados (nunca definem incremento).
+ * Inferência de incremento a partir do histórico — delegada a
+ * `loadIncrement.inferIncrementFromTransitions`, que olha para TRANSIÇÕES
+ * reais de carga (não para a divisibilidade das cargas absolutas).
  */
-export const inferIncrementFromHistory = (logs: ExerciseLog[] = []): EquipmentIncrement => {
-  const loads = Array.from(new Set(primaryLoads(logs).map((w) => round2(w)))).sort((a, b) => a - b);
-  if (loads.length < MIN_HISTORY_LOADS_FOR_INFERENCE) {
-    return {
-      incrementKg: null,
-      source: 'unknown',
-      confidence: 'low',
-      reason: 'Histórico insuficiente para inferir o incremento do equipamento.',
-    };
-  }
+export const inferIncrementFromHistory = (logs: ExerciseLog[] = []): EquipmentIncrement =>
+  toEquipmentIncrement(inferIncrementFromTransitions(logs));
 
-  const diffs = loads.slice(1).map((w, i) => round2(w - loads[i])).filter((d) => d > 0);
-  if (diffs.length < 2) {
-    return {
-      incrementKg: null,
-      source: 'unknown',
-      confidence: 'low',
-      reason: 'Histórico insuficiente para inferir o incremento do equipamento.',
-    };
-  }
+/** Hierarquia: configurado (high) > histórico (medium) > desconhecido (low). */
+export const resolveIncrement = (input: QuantitativeInput): EquipmentIncrement =>
+  toEquipmentIncrement(
+    resolveLoadIncrement({
+      configuredIncrementKg: input.configuredIncrementKg ?? null,
+      historicalWorkingSets: [...(input.historyLogs ?? []), ...(input.recentLogs ?? [])],
+    }),
+  );
 
-  const step = Math.min(...diffs);
-  if (step < MIN_INFERRED_INCREMENT_KG || step > MAX_INFERRED_INCREMENT_KG) {
-    return {
-      incrementKg: null,
-      source: 'unknown',
-      confidence: 'low',
-      reason: 'Diferenças de carga fora do padrão plausível de incremento.',
-    };
-  }
-
-  const consistent = diffs.every((d) => Math.abs(d / step - Math.round(d / step)) < 0.02);
-  if (!consistent) {
-    return {
-      incrementKg: null,
-      source: 'unknown',
-      confidence: 'low',
-      reason: 'Histórico inconsistente (cargas não múltiplas de um mesmo passo).',
-    };
-  }
-
-  return {
-    incrementKg: step,
-    source: 'inferred_history',
-    confidence: 'medium',
-    reason: `Incremento de ${step} kg inferido de histórico consistente.`,
-  };
-};
-
-export const resolveIncrement = (input: QuantitativeInput): EquipmentIncrement => {
-  const configured = input.configuredIncrementKg;
-  if (typeof configured === 'number' && configured > 0) {
-    return {
-      incrementKg: round2(configured),
-      source: 'configured',
-      confidence: 'high',
-      reason: `Incremento configurado de ${round2(configured)} kg.`,
-    };
-  }
-  const pool = [...(input.historyLogs ?? []), ...(input.recentLogs ?? [])];
-  return inferIncrementFromHistory(pool);
-};
 
 /**
  * Esquemas suportados com alta confiança: faixa simples ("8-12") ou alvo
