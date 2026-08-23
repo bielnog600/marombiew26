@@ -1437,21 +1437,10 @@ const TreinoExecucao = () => {
                 });
               }
 
-              // Push aos admins (best-effort)
+              // Push aos admins (best-effort) — endpoint dedicado valida a sessão do próprio aluno
               try {
-                const { data: profile } = await supabase
-                  .from('profiles')
-                  .select('nome')
-                  .eq('user_id', user.id)
-                  .maybeSingle();
-                const studentName = profile?.nome || 'Aluno';
-                supabase.functions.invoke('send-push-notification', {
-                  body: {
-                    send_to_admins: true,
-                    title: 'Treino concluído 🏋️',
-                    message: `${studentName} concluiu o treino${dayName ? ` (${dayName})` : ''}.`,
-                    data: { type: 'workout_completed', student_id: user.id },
-                  },
+                supabase.functions.invoke('notify-workout-completed', {
+                  body: { session_id: finalSessionId ?? undefined },
                 }).catch(() => {});
               } catch {}
 
