@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { calculatePostureAngles, calculateRegionScores, analyzePostureConditions, type PoseKeypoint, type PostureAngles, type RegionScore, type PostureCondition } from '@/lib/postureUtils';
 import { renderPostureAnalysisDataUrl } from '@/lib/postureCanvas';
+import { SignedImage } from '@/components/SignedImage';
 
 type CapturePosition = 'front' | 'side' | 'back';
 
@@ -900,7 +901,7 @@ const PostureAnalysis = () => {
                     <div key={scan.id} className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-secondary/20 hover:bg-secondary/40 transition-colors">
                       <div className="flex items-center gap-3 min-w-0">
                         {scan.front_photo_url ? (
-                          <img src={scan.front_photo_url} className="w-10 h-10 rounded object-cover shrink-0" />
+                          <SignedImage src={scan.front_photo_url} className="w-10 h-10 rounded object-cover shrink-0" />
                         ) : (
                           <div className="w-10 h-10 rounded bg-muted flex items-center justify-center shrink-0">
                             <ImageIcon className="w-4 h-4 text-muted-foreground" />

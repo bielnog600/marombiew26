@@ -12,6 +12,7 @@ import {
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { generateComparisonPDF } from '@/lib/generateComparisonPDF';
 import { generateComparisonImage } from '@/lib/generateComparisonImage';
+import { SignedImage } from '@/components/SignedImage';
 
 interface Props {
   studentId: string;
@@ -526,7 +527,7 @@ const AssessmentComparison: React.FC<Props> = ({ studentId, studentName, assessm
                       ) : (
                         <div className="grid grid-cols-2 gap-1">
                           {g.photos.map((p: any) => (
-                            <img key={p.id} src={p.url} alt={p.tipo || 'Foto'} className="rounded-lg w-full h-auto object-cover aspect-[3/4]" />
+                            <SignedImage key={p.id} src={p.url} alt={p.tipo || 'Foto'} className="rounded-lg w-full h-auto object-cover aspect-[3/4]" />
                           ))}
                         </div>
                       )}
@@ -549,9 +550,9 @@ const AssessmentComparison: React.FC<Props> = ({ studentId, studentName, assessm
 
                       {g.scan && (
                         <div className="space-y-2">
-                          {g.scan.front_photo_url && <img src={g.scan.front_photo_url} alt="Frontal" className="rounded-lg w-full h-auto" />}
-                          {g.scan.side_photo_url && <img src={g.scan.side_photo_url} alt="Lateral" className="rounded-lg w-full h-auto" />}
-                          {g.scan.back_photo_url && <img src={g.scan.back_photo_url} alt="Posterior" className="rounded-lg w-full h-auto" />}
+                          {g.scan.front_photo_url && <SignedImage src={g.scan.front_photo_url} alt="Frontal" className="rounded-lg w-full h-auto" />}
+                          {g.scan.side_photo_url && <SignedImage src={g.scan.side_photo_url} alt="Lateral" className="rounded-lg w-full h-auto" />}
+                          {g.scan.back_photo_url && <SignedImage src={g.scan.back_photo_url} alt="Posterior" className="rounded-lg w-full h-auto" />}
                         </div>
                       )}
 

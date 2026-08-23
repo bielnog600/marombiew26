@@ -11,6 +11,7 @@ import KarvonenZones from '@/components/KarvonenZones';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { analyzePostureConditions, type PoseKeypoint, type RegionScore, type PostureCondition, type PostureAngles } from '@/lib/postureUtils';
 import { renderPostureAnalysisDataUrl } from '@/lib/postureCanvas';
+import { SignedImage } from '@/components/SignedImage';
 
 
 const statusColor = (status: string) =>
@@ -145,7 +146,7 @@ const PosturePhotoWithGrid = ({ photoUrl, label, keypoints, scores, hideLabel = 
           }
         }}
       >
-        <img src={renderedUrl || photoUrl} className="w-full h-full object-cover" loading="lazy" />
+        <SignedImage src={renderedUrl || photoUrl} className="w-full h-full object-cover" loading="lazy" />
         {onClick && (
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
             <Maximize2 className="w-6 h-6 text-white opacity-0 group-hover:opacity-80 transition-opacity drop-shadow-lg" />
