@@ -58,7 +58,9 @@ export interface StudentWeeklySummary {
   attention: AttentionKind;
   priority: number; // menor = mais urgente
   actionLabel: string;
+  active: boolean;
 }
+
 
 const classify = (
   adherence: AdherenceReport | null,
