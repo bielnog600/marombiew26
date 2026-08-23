@@ -269,7 +269,7 @@ export function buildProgressionExecutionOutcomes(input: TelemetrySessionInput):
 }
 
 function evaluateAlignmentMultiSet(outcome: ProgressionExecutionOutcome, rec: SessionRecommendation) {
-  const currentLoad = rec.currentLoadKg ?? 0;
+  const currentLoad = rec.currentLoadKg; // Pode ser null
   const recommendedLoad = rec.recommendedLoadKg;
   const sets = outcome.executedWorkingSets;
 
@@ -278,75 +278,88 @@ function evaluateAlignmentMultiSet(outcome: ProgressionExecutionOutcome, rec: Se
     return;
   }
 
+  // Regra 19: currentLoad DESCONHECIDO para ações que dependem de baseline
+  const actionsRequiringBaseline = [
+    'maintain', 'increase_reps', 'increase_load', 'reduce_load', 'manual_increment_required'
+  ];
+  
   // Classificar cada série individualmente
   const setStatuses: TelemetryAlignmentStatus[] = sets.map(s => {
-    const execLoad = s.weightKg ?? 0;
+    const execLoad = s.weightKg;
+    
+    // Regra 16: Carga ausente na execução não é "different"
+    if (execLoad == null) {
+      outcome.reasons.push('missing_load_for_alignment');
+      return 'not_evaluable';
+    }
+
+    // Regra 17: currentLoad desconhecido
+    if (currentLoad == null && recommendedLoad == null && actionsRequiringBaseline.includes(rec.action || '')) {
+      outcome.reasons.push('missing_current_load');
+      return 'not_evaluable';
+    }
+
+    const safeCurrent = currentLoad ?? 0;
     
     // Regra 8: Manual Increment Required
     if (rec.action === 'manual_increment_required') {
-      if (execLoad <= 0) return 'not_evaluable';
-      return sameLoad(execLoad, currentLoad) ? 'matched' : 'different';
+      return sameLoad(execLoad, safeCurrent) ? 'matched' : 'different';
     }
 
     // Regra 6 & 18: Qualitativos
     if (rec.action === 'increase_load' && recommendedLoad === null) {
-      if (execLoad <= 0) return 'not_evaluable';
-      if (execLoad > currentLoad + LOAD_FLOAT_TOLERANCE_KG) return 'matched';
-      return sameLoad(execLoad, currentLoad) ? 'different' : 'different';
+      if (execLoad > safeCurrent + LOAD_FLOAT_TOLERANCE_KG) return 'matched';
+      // Regra 4 & 5: Mesmo valor ou dentro da tolerância não é aumento
+      return 'different';
     }
     if (rec.action === 'reduce_load' && recommendedLoad === null) {
-      if (execLoad <= 0) return 'not_evaluable';
-      if (execLoad < currentLoad - LOAD_FLOAT_TOLERANCE_KG) return 'matched';
-      return sameLoad(execLoad, currentLoad) ? 'different' : 'different';
+      if (execLoad < safeCurrent - LOAD_FLOAT_TOLERANCE_KG) return 'matched';
+      return 'different';
     }
 
     // Quantitativo
     if (recommendedLoad !== null) {
       if (sameLoad(execLoad, recommendedLoad)) return 'matched';
-      if (execLoad > recommendedLoad) return 'different'; // Acima é different (não matched)
-      if (rec.action === 'increase_load' && execLoad >= currentLoad && execLoad < recommendedLoad) return 'partial';
+      if (execLoad > recommendedLoad + LOAD_FLOAT_TOLERANCE_KG) return 'different';
+      
+      // Regra 4: Partial exige aumento real acima de currentLoad
+      if (rec.action === 'increase_load') {
+         if (execLoad > safeCurrent + LOAD_FLOAT_TOLERANCE_KG && execLoad < recommendedLoad) return 'partial';
+      }
       return 'different';
     }
 
     // Maintain / Increase Reps
-    if (sameLoad(execLoad, currentLoad)) return 'matched';
+    if (sameLoad(execLoad, safeCurrent)) return 'matched';
     return 'different';
   });
 
   // Salvar status por série para auditoria
   sets.forEach((s, i) => s.alignmentStatus = setStatuses[i]);
 
-  // Regra 14: Agregação da política
+  // Regra 18: Agregação da política
   const hasDifferent = setStatuses.includes('different');
   const hasPartial = setStatuses.includes('partial');
   const hasMatched = setStatuses.includes('matched');
+  const hasNotEvaluable = setStatuses.includes('not_evaluable');
+  const allNotEvaluable = setStatuses.every(s => s === 'not_evaluable');
   
   if (hasDifferent) {
     outcome.alignmentStatus = 'different';
-    // Adicionar motivos específicos se for qualitativo
     if (rec.action === 'increase_load' && recommendedLoad === null) {
       if (sets.some(s => sameLoad(s.weightKg, currentLoad))) outcome.reasons.push('qualitative_load_not_increased');
-      if (sets.some(s => (s.weightKg ?? 0) < currentLoad - LOAD_FLOAT_TOLERANCE_KG)) outcome.reasons.push('load_reduced_instead_of_increased');
     }
-    if (rec.action === 'reduce_load' && recommendedLoad === null) {
-      if (sets.some(s => sameLoad(s.weightKg, currentLoad))) outcome.reasons.push('qualitative_load_not_reduced');
-    }
-    if (rec.action === 'manual_increment_required' && sets.some(s => (s.weightKg ?? 0) > currentLoad)) {
-      outcome.reasons.push('used_rejected_large_increment');
-    }
-  } else if (hasMatched && !hasPartial) {
-    outcome.alignmentStatus = 'matched';
-    if (rec.action === 'increase_load' && recommendedLoad === null) {
-      outcome.comparisonConfidence = 'low';
-      outcome.reasons.push('qualitative_load_increase_followed');
-    }
-    if (rec.action === 'reduce_load' && recommendedLoad === null) {
-      outcome.comparisonConfidence = 'low';
-      outcome.reasons.push('qualitative_load_reduction_followed');
-    }
-  } else if (hasPartial || (hasMatched && hasPartial)) {
+  } else if (hasPartial) {
     outcome.alignmentStatus = 'partial';
     outcome.reasons.push('load_increased_less_than_recommended');
+  } else if (hasMatched) {
+    outcome.alignmentStatus = 'matched';
+    if (hasNotEvaluable) {
+      outcome.comparisonConfidence = 'low';
+      outcome.reasons.push('incomplete_load_evidence');
+    }
+  } else if (allNotEvaluable) {
+    outcome.alignmentStatus = 'not_evaluable';
   } else {
     outcome.alignmentStatus = 'different';
   }
