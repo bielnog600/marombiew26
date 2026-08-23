@@ -155,37 +155,39 @@ const selectLogsForContext = (
 
   for (const l of logs) {
     const s = l.session_id ? sessionsById.get(l.session_id) : undefined;
+    const itemPhase = s?.phase ?? l.phase;
+    const itemPlanId = s?.plan_id ?? null;
+
+    // Se o log/sessão tem fase explícita, deve bater com a fase do contexto.
+    // Se NÃO tem (legado), aceitamos se estiver na janela temporal.
+    const okPhase = itemPhase ? phaseCompatible(itemPhase, ctx.phase) : true;
+    const okPlan = planCompatible(itemPlanId, ctx.planId);
+
+    if (!okPhase || !okPlan) {
+      if (!okPhase) rejectedByPhase += 1;
+      continue;
+    }
+
     if (s) {
-      const okPhase = phaseCompatible(s.phase ?? l.phase, ctx.phase);
-      const okPlan = planCompatible(s.plan_id, ctx.planId);
-      if (!okPhase || !okPlan) {
-        if (!okPhase) rejectedByPhase += 1;
-        continue;
-      }
       if (!inWindow(sessionAt(s), ctx) && !inWindow(l.performed_at, ctx)) continue;
       structuredLogs += 1;
       out.push(l);
-      continue;
+    } else {
+      if (!inWindow(l.performed_at, ctx)) continue;
+      legacyLogs += 1;
+      out.push(l);
     }
-    if (!phaseCompatible(l.phase, ctx.phase)) {
-      rejectedByPhase += 1;
-      continue;
-    }
-    if (!inWindow(l.performed_at, ctx)) continue;
-    legacyLogs += 1;
-    out.push(l);
   }
 
   return { logs: out, rejectedByPhase, legacyLogs, structuredLogs };
 };
 
 const selectSessionsForContext = (sessions: RawSession[], ctx: WeekContext): RawSession[] =>
-  sessions.filter(
-    (s) =>
-      phaseCompatible(s.phase, ctx.phase) &&
-      planCompatible(s.plan_id, ctx.planId) &&
-      inWindow(sessionAt(s), ctx),
-  );
+  sessions.filter((s) => {
+    const okPhase = s.phase ? phaseCompatible(s.phase, ctx.phase) : true;
+    const okPlan = planCompatible(s.plan_id, ctx.planId);
+    return okPhase && okPlan && inWindow(sessionAt(s), ctx);
+  });
 
 export const buildWeeklyTrainingReport = (
   input: WeeklyTrainingInput,
