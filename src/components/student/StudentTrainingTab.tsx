@@ -626,8 +626,8 @@ export default StudentTrainingTab;
 const PlanAdherence: React.FC<{ planId: string; studentId: string; conteudo: string; fase?: TrainingPhase | null }> = ({ planId, studentId, conteudo, fase }) => {
   const { report, loading } = useWeeklyAdherence({ id: planId, student_id: studentId, conteudo });
   const progression = React.useMemo(
-    () => resolveActiveWeek((fase as TrainingPhase) || 'semana_1', report?.status),
-    [fase, report?.status],
+    () => resolveActiveWeek((fase as TrainingPhase) || 'semana_1', report ?? undefined),
+    [fase, report],
   );
   return <WeeklyAdherenceBanner report={report} loading={loading} progression={progression} />;
 };
