@@ -250,7 +250,7 @@ const TreinoExecucao = () => {
     if (!user || sessionInitRef.current) return;
     sessionInitRef.current = true;
     (async () => {
-      const applyState = (state: any) => {
+      const applyState = (state: any, existingSession?: any) => {
         if (state?.currentIndex != null) {
           const maxIdx = Math.max(0, exercises.length - 1);
           const safeIdx = Math.min(Math.max(0, state.currentIndex), maxIdx);
@@ -265,6 +265,9 @@ const TreinoExecucao = () => {
         if (state?.progressionRecommendations) {
           setRestoredSnapshot(state.progressionRecommendations as ProgressionSnapshot);
         }
+        // Regra 22: Fase e PlanId congelados na retomada
+        if (existingSession?.phase) setPhase(existingSession.phase as TrainingPhase);
+        if (existingSession?.plan_id) setSessionPlanId(existingSession.plan_id);
       };
 
 
@@ -274,7 +277,7 @@ const TreinoExecucao = () => {
       // 1. Verifica se já existe sessão em andamento
       const { data: existing, error: existingError } = await supabase
         .from('workout_sessions')
-        .select('id, started_at, created_at, last_active_at, day_name, phase, session_state')
+        .select('id, started_at, created_at, last_active_at, day_name, phase, session_state, plan_id')
         .eq('student_id', user.id)
         .eq('status', 'in_progress')
         .order('started_at', { ascending: false })
@@ -289,7 +292,7 @@ const TreinoExecucao = () => {
           const state = (activeSession?.id === existing.id ? activeSession.session_state : null) ?? existing.session_state;
           setSessionId(existing.id);
           setSessionStartAt(new Date(existing.started_at).getTime());
-          applyState(state);
+          applyState(state, existing);
           setLocalActiveSession({
             id: existing.id,
             student_id: user.id,
@@ -320,7 +323,7 @@ const TreinoExecucao = () => {
         if (!staleLocal && sameDayLocal) {
           setSessionId(activeSession.id);
           setSessionStartAt(new Date(activeSession.started_at).getTime());
-          applyState(activeSession.session_state);
+          applyState(activeSession.session_state, activeSession);
           return;
         }
       }
@@ -332,6 +335,7 @@ const TreinoExecucao = () => {
         .insert({
           student_id: user.id,
           day_name: dayName,
+          plan_id: sessionPlanId,
           phase: phase ?? null,
           status: 'in_progress',
           started_at: startedAtIso,
@@ -371,7 +375,7 @@ const TreinoExecucao = () => {
     sessionId,
     exercises,
     phase: phase ?? null,
-    planId: stateData?.planId ?? null,
+    planId: sessionPlanId,
     restoredSnapshot,
   });
 
