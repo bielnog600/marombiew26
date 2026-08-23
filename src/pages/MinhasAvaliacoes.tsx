@@ -13,6 +13,7 @@ import { ptBR } from 'date-fns/locale';
 import { type PoseKeypoint, type RegionScore } from '@/lib/postureUtils';
 import { renderPostureAnalysisDataUrl } from '@/lib/postureCanvas';
 import { fetchWithCache } from '@/lib/offlineCache';
+import { SignedImage } from '@/components/SignedImage';
 
 interface AssessmentRow {
   id: string;
@@ -80,7 +81,7 @@ const PosturePhoto = ({ url, keypoints, scores }: { url: string | null; keypoint
   return (
     <>
       <div className="relative aspect-[3/4] bg-secondary/30 rounded-lg overflow-hidden group cursor-pointer" onClick={() => setExpanded(true)}>
-        <img ref={imgRef} src={renderedOverlayUrl || url} className="w-full h-full object-cover" loading="lazy" />
+        <SignedImage src={renderedOverlayUrl || url} className="w-full h-full object-cover" loading="lazy" />
         <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <div className="bg-background/80 rounded-full p-1">
             <Maximize2 className="h-3 w-3 text-foreground" />
@@ -89,7 +90,7 @@ const PosturePhoto = ({ url, keypoints, scores }: { url: string | null; keypoint
       </div>
       <Dialog open={expanded} onOpenChange={setExpanded}>
         <DialogContent className="max-w-3xl p-2">
-          <img src={renderedOverlayUrl || url} className="w-full h-auto rounded" />
+          <SignedImage src={renderedOverlayUrl || url} className="w-full h-auto rounded" />
         </DialogContent>
       </Dialog>
     </>

@@ -1,3 +1,5 @@
+import { resolvePhotoUrl } from './storagePhotos';
+
 export const loadBasicImage = (src: string, crossOrigin = true): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
     const img = new Image();
@@ -9,8 +11,10 @@ export const loadBasicImage = (src: string, crossOrigin = true): Promise<HTMLIma
     img.src = src;
   });
 
-export const loadImageForCanvas = async (src: string): Promise<{ image: HTMLImageElement; cleanup: () => void }> => {
+export const loadImageForCanvas = async (rawSrc: string): Promise<{ image: HTMLImageElement; cleanup: () => void }> => {
+  const src = (await resolvePhotoUrl(rawSrc)) ?? rawSrc;
   if (src.startsWith('data:') || src.startsWith('blob:')) {
+
     return { image: await loadBasicImage(src, false), cleanup: () => {} };
   }
 

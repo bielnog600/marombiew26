@@ -12,6 +12,8 @@ import { getLatestStudentWeightKg } from '@/lib/studentWeight';
 import { toast } from 'sonner';
 import { Bot, Loader2, Upload, ImageIcon, Save } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { resolvePhotoUrlMap } from '@/lib/storagePhotos';
+import { SignedImage } from '@/components/SignedImage';
 
 type ViewKey = 'front' | 'side' | 'back';
 
@@ -126,9 +128,10 @@ const AiBodyCompositionDialog: React.FC<Props> = ({ open, onOpenChange, studentI
     setLoading(true);
     setResult(null);
     try {
+      const signedPhotos = await resolvePhotoUrlMap(photos);
       const { data, error } = await supabase.functions.invoke('body-composition-ai', {
         body: {
-          photos,
+          photos: signedPhotos,
           sex: sexo || null,
           ageYears: idade ? Number(idade) : null,
           heightCm: altura ? Number(altura) : null,
@@ -240,7 +243,7 @@ const AiBodyCompositionDialog: React.FC<Props> = ({ open, onOpenChange, studentI
                   {uploading === v ? (
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                   ) : photos[v] ? (
-                    <img src={photos[v]!} alt={VIEW_LABEL[v]} className="h-full w-full object-cover" />
+                    <SignedImage src={photos[v]!} alt={VIEW_LABEL[v]} className="h-full w-full object-cover" />
                   ) : (
                     <Upload className="h-5 w-5 text-muted-foreground" />
                   )}

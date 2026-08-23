@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { Camera, ZoomIn } from 'lucide-react';
+import { SignedImage } from '@/components/SignedImage';
 
 interface BeforeAfterPhotosProps {
   currentAssessmentId: string;
@@ -99,7 +100,7 @@ const BeforeAfterPhotos = ({ currentAssessmentId, studentId, allAssessments }: B
                   <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-secondary/30 flex items-center justify-center">
                     {before ? (
                       <>
-                        <img src={before.url} className="w-full h-full object-cover object-top" alt={`Antes - ${label}`} />
+                        <SignedImage src={before.url} className="w-full h-full object-cover object-top" alt={`Antes - ${label}`} />
                         <div className="absolute top-1 left-1 bg-background/80 text-[10px] font-bold px-1.5 py-0.5 rounded">
                           ANTES
                         </div>
@@ -115,7 +116,7 @@ const BeforeAfterPhotos = ({ currentAssessmentId, studentId, allAssessments }: B
                   <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-secondary/30 flex items-center justify-center">
                     {after ? (
                       <>
-                        <img src={after.url} className="w-full h-full object-cover object-top" alt={`Depois - ${label}`} />
+                        <SignedImage src={after.url} className="w-full h-full object-cover object-top" alt={`Depois - ${label}`} />
                         <div className="absolute top-1 left-1 bg-primary/80 text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded">
                           DEPOIS
                         </div>
@@ -148,7 +149,7 @@ const BeforeAfterPhotos = ({ currentAssessmentId, studentId, allAssessments }: B
               <p className="text-[10px] font-bold text-center text-muted-foreground">ANTES</p>
               {zoomPhoto?.before ? (
                 <div className="relative w-full aspect-[3/4] rounded-lg overflow-hidden bg-secondary/30">
-                  <img src={zoomPhoto.before} className="w-full h-full object-cover object-top" alt="Antes" />
+                  <SignedImage src={zoomPhoto.before} className="w-full h-full object-cover object-top" alt="Antes" />
                 </div>
               ) : (
                 <div className="flex items-center justify-center aspect-[3/4] bg-secondary/30 rounded-lg">
@@ -161,7 +162,7 @@ const BeforeAfterPhotos = ({ currentAssessmentId, studentId, allAssessments }: B
               <p className="text-[10px] font-bold text-center text-primary">DEPOIS</p>
               {zoomPhoto?.after ? (
                 <div className="relative w-full aspect-[3/4] rounded-lg overflow-hidden bg-secondary/30">
-                  <img src={zoomPhoto.after} className="w-full h-full object-cover object-top" alt="Depois" />
+                  <SignedImage src={zoomPhoto.after} className="w-full h-full object-cover object-top" alt="Depois" />
                 </div>
               ) : (
                 <div className="flex items-center justify-center aspect-[3/4] bg-secondary/30 rounded-lg">

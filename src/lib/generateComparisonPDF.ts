@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import logoUrl from '@/assets/logo_marombiew.png';
+import { resolvePhotoUrl } from './storagePhotos';
 
 const BRAND = {
   gold: [234, 179, 8] as [number, number, number],
@@ -18,14 +19,16 @@ const CHART_COLORS: [number, number, number][] = [
   [240, 120, 50],  // orange
 ];
 
-const loadImage = (src: string): Promise<HTMLImageElement> =>
-  new Promise((resolve, reject) => {
+const loadImage = async (rawSrc: string): Promise<HTMLImageElement> => {
+  const src = (await resolvePhotoUrl(rawSrc)) ?? rawSrc;
+  return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
     img.onerror = reject;
     img.src = src;
   });
+};
 
 /** Blur face region on a canvas using pose keypoints */
 const blurFaceOnCanvas = (canvas: HTMLCanvasElement, keypoints: any, position: 'front' | 'side' | 'back') => {

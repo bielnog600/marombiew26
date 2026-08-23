@@ -27,6 +27,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { calculatePostureAngles, calculateRegionScores, analyzePostureConditions, type PoseKeypoint, type PostureAngles, type RegionScore, type PostureCondition } from '@/lib/postureUtils';
 import { renderPostureAnalysisDataUrl } from '@/lib/postureCanvas';
+import { SignedImage } from '@/components/SignedImage';
+import { resolvePhotoUrlMap } from '@/lib/storagePhotos';
 
 type CapturePosition = 'front' | 'side' | 'back';
 
@@ -118,7 +120,7 @@ const PhotoCard = ({
       <div className="relative aspect-[3/4] bg-secondary/30">
         {photoUrl ? (
           <>
-            <img ref={imgRef} src={renderedOverlayUrl || photoUrl} className="w-full h-full object-cover" loading="lazy" />
+            <SignedImage src={renderedOverlayUrl || photoUrl} className="w-full h-full object-cover" loading="lazy" />
             {/* Overlay buttons */}
             <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <Button size="sm" variant="secondary" className="h-7 w-7 p-0" onClick={onExpand}>
@@ -466,9 +468,10 @@ const PostureAnalysis = () => {
     setAiLoading(true);
     setAiAnalysis(null);
     try {
+      const signedPhotos = await resolvePhotoUrlMap(photos);
       const { data, error } = await supabase.functions.invoke('posture-ai-analysis', {
         body: {
-          photos,
+          photos: signedPhotos,
           heightCm: heightCm ? parseFloat(heightCm) : null,
           sex,
           angles,
@@ -900,7 +903,7 @@ const PostureAnalysis = () => {
                     <div key={scan.id} className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-secondary/20 hover:bg-secondary/40 transition-colors">
                       <div className="flex items-center gap-3 min-w-0">
                         {scan.front_photo_url ? (
-                          <img src={scan.front_photo_url} className="w-10 h-10 rounded object-cover shrink-0" />
+                          <SignedImage src={scan.front_photo_url} className="w-10 h-10 rounded object-cover shrink-0" />
                         ) : (
                           <div className="w-10 h-10 rounded bg-muted flex items-center justify-center shrink-0">
                             <ImageIcon className="w-4 h-4 text-muted-foreground" />
@@ -961,7 +964,7 @@ const PostureAnalysis = () => {
         <Dialog open={!!expandedPhoto} onOpenChange={() => setExpandedPhoto(null)}>
           <DialogContent className="max-w-3xl">
             <DialogHeader><DialogTitle>Foto ampliada</DialogTitle></DialogHeader>
-            {expandedPhoto && <img src={expandedPhoto} className="w-full rounded-lg" />}
+            {expandedPhoto && <SignedImage src={expandedPhoto} className="w-full rounded-lg" />}
           </DialogContent>
         </Dialog>
       </div>
