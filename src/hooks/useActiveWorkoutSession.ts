@@ -12,6 +12,7 @@ export interface ActiveWorkoutSession {
   student_id: string;
   day_name: string | null;
   phase: string | null;
+  plan_id: string | null;
   started_at: string;
   session_state: any | null;
 }
