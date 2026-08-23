@@ -17,7 +17,7 @@ import { HISTORY_DECAY } from "./variationProfiles.ts";
 const stripAccents = (s: string) =>
   s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-const normalizeName = (s: unknown): string => {
+export const normalizeName = (s: unknown): string => {
   if (typeof s !== "string") return "";
   return stripAccents(s)
     .toLowerCase()
