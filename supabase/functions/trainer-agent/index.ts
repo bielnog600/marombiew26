@@ -941,8 +941,6 @@ EXEMPLOS ERRADOS (NUNCA FAÇA):
 | ROSCA | 8 | 8 a 10 | RIR contém faixa de reps |
 `;
 
-`;
-
 
 const TRAINER_SET_RULES_PROMPT = `
 ========================================
