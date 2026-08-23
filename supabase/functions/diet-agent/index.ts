@@ -1129,40 +1129,54 @@ serve(async (req) => {
           );
           const reducedPrimary =
             primarySourceTooRepetitive && sim2Primary < Math.max(protRepeat, carbRepeat);
-          const fixedNutrition = !nutrition.ok && nut2.issues.length < nutrition.issues.length;
+          const result2 = evaluateDietCandidate({
+            plan: second.plan,
+            historyJsons,
+            schedule,
+            intensity,
+            threshold,
+            variationRetryAllowed,
+            requireMenuVariation
+          });
+
+          const nut2 = result2.nutrition;
+          const sim2 = result2.similarity;
+          const initialAdjValidation2 = result2.adjValidation;
+
+          const escapedPortion = isPortionOnly && sim2.changeKind !== "portion_only";
+          const sim2Primary = Math.max(
+            sim2.primaryProteinRepeatRatio ?? 0,
+            sim2.primaryCarbRepeatRatio ?? 0,
+          );
+          const reducedPrimary = primarySourceTooRepetitive && sim2Primary < Math.max(protRepeat, carbRepeat);
+          
+          const fixedNutrition = !nutrition.ok && nut2.ok;
           const fixedAdj = !initialAdjValidation.ok && initialAdjValidation2.ok;
 
-          // Hierarchy: VALIDITY/SAFETY > NUTRITION > CONTRACT (dailyAdj) > SIMILARITY
-          if (
-            fixedNutrition ||
-            fixedAdj ||
-            (nutrition.ok && initialAdjValidation2.ok &&
-              (sim2.score <= similarity.score || escapedPortion || reducedPrimary))
-          ) {
+          // Critical validity check: if Luna was invalid, Terra MUST be valid to be accepted.
+          const terraIsBetter = 
+            (fixedNutrition && initialAdjValidation2.ok) ||
+            (fixedAdj && nut2.ok) ||
+            (nutrition.ok && initialAdjValidation.ok && nut2.ok && initialAdjValidation2.ok &&
+              (sim2.score <= similarity.score || escapedPortion || reducedPrimary));
+
+          if (terraIsBetter) {
             finalPlan = second.plan;
             similarity = sim2;
             nutrition = nut2;
+            initialAdjValidation = initialAdjValidation2;
+            normalizedDailyAdjustments = result2.normalizedAdj;
           }
           regenerated = true;
-          if (!nutrition.ok) warning = "incomplete_nutrition";
-          else if (similarity.changeKind === "portion_only") warning = "quantity_only";
+
+          if (!nutrition.ok || !initialAdjValidation.ok) {
+             warning = !nutrition.ok ? "incomplete_nutrition" : "daily_adjustments_invalid";
+          } else if (similarity.changeKind === "portion_only") warning = "quantity_only";
           else if (similarity.score > threshold) warning = "high_similarity";
-          else if (
-            Math.max(
-              similarity.primaryProteinRepeatRatio ?? 0,
-              similarity.primaryCarbRepeatRatio ?? 0,
-            ) >= 0.6
-          ) {
-            warning = "primary_source_repeated";
-          }
+          else if (sim2Primary >= 0.6) warning = "primary_source_repeated";
         } else {
-          warning = !nutrition.ok
-            ? "incomplete_nutrition"
-            : !initialAdjValidation.ok
-              ? "daily_adjustments_invalid"
-              : isPortionOnly
-                ? "quantity_only"
-                : "high_similarity";
+          // Fallback failed technically
+          warning = !nutrition.ok ? "incomplete_nutrition" : (!initialAdjValidation.ok ? "daily_adjustments_invalid" : "high_similarity");
         }
       }
 
