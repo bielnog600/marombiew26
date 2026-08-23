@@ -13,23 +13,33 @@ export interface StudentLoadIncrement {
   incrementKg: number;
 }
 
-/** Mapa chave-normalizada → incremento (kg) do aluno. */
-export const fetchStudentLoadIncrements = async (
+/**
+ * Mapa chave-normalizada → incremento (kg) do aluno, com sinal de erro
+ * explícito: "sem configuração" (ok + mapa vazio) é diferente de "falha ao
+ * buscar" (ok = false), que nunca pode virar snapshot vazio.
+ */
+export const fetchStudentLoadIncrementsResult = async (
   studentId: string,
-): Promise<Record<string, number>> => {
-  if (!studentId) return {};
+): Promise<{ ok: boolean; increments: Record<string, number> }> => {
+  if (!studentId) return { ok: true, increments: {} };
   const { data, error } = await supabase
     .from('student_load_increments')
     .select('exercise_key, increment_kg')
     .eq('student_id', studentId);
-  if (error || !data) return {};
+  if (error) return { ok: false, increments: {} };
   const map: Record<string, number> = {};
-  data.forEach((row) => {
+  (data ?? []).forEach((row) => {
     const v = Number(row.increment_kg);
     if (Number.isFinite(v) && v > 0) map[row.exercise_key] = v;
   });
-  return map;
+  return { ok: true, increments: map };
 };
+
+/** Mapa chave-normalizada → incremento (kg) do aluno. */
+export const fetchStudentLoadIncrements = async (
+  studentId: string,
+): Promise<Record<string, number>> =>
+  (await fetchStudentLoadIncrementsResult(studentId)).increments;
 
 /** Grava (ou remove, quando o valor é vazio) o incremento de um exercício. */
 export const saveStudentLoadIncrement = async (
