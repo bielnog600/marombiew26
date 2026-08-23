@@ -16,6 +16,8 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ExerciseLogCard from './ExerciseLogCard';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSessionProgression } from '@/hooks/useSessionProgression';
+import { readProgressionSnapshot } from '@/lib/sessionProgression';
 import { useAdminTrainerSession } from '@/contexts/AdminTrainerSessionContext';
 import AiEditExerciseDialog, { type AiEditAction } from './AiEditExerciseDialog';
 import { applyActionsToDay } from './AiEditAllDaysDialog';
@@ -293,6 +295,31 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   const [currentExercises, setCurrentExercises] = useState<ParsedExercise[]>([]);
   const [aiOpen, setAiOpen] = useState(false);
   const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer } = useRestTimer();
+  
+  const student = active?.students.find(s => s.id === studentId);
+  const effectivePhase = (student?.phase as any) || phase || null;
+  const effectivePlanId = student?.planId || planId || null;
+
+  const { snapshot } = useSessionProgression({
+    studentId,
+    sessionId: active?.id ?? null,
+    exercises: currentExercises,
+    phase: effectivePhase,
+    planId: effectivePlanId,
+    restoredSnapshot: readProgressionSnapshot(active?.sessionState)
+  });
+
+  // Salvar snapshot no session_state para retomada/offline (idempotente)
+  useEffect(() => {
+    if (!active?.id || !snapshot) return;
+    const existing = readProgressionSnapshot(active.sessionState);
+    if (!existing) {
+      patchState((prev: any) => ({
+        ...prev,
+        progressionRecommendations: snapshot
+      }));
+    }
+  }, [active?.id, snapshot, patchState, active?.sessionState]);
 
   const session = {
     id: active?.id ?? null,
@@ -807,6 +834,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                 ExerciseNamePicker={ExerciseNamePicker}
                 HistoryPopover={HistoryPopover}
                 parsePauseSeconds={parsePauseSeconds}
+                progressionSnapshot={snapshot}
               />
             ) : null)}
             <Button
