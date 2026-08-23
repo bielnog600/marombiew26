@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
-import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar, Send, ClipboardList, Plus, Sparkles, Activity, Wand2, Zap, GitCompare, RefreshCw, Users, Settings2, Weight } from 'lucide-react';
+import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar, Send, ClipboardList, Plus, Sparkles, Activity, Wand2, Zap, GitCompare, RefreshCw, Users, Settings2, Weight, BarChart3 } from 'lucide-react';
 import { Trash2, Copy, User } from 'lucide-react';
 import { BookMarked } from 'lucide-react';
 import { toast } from 'sonner';
@@ -39,6 +39,7 @@ import {
 } from '@/lib/trainingPhase';
 import { resolveCurrentTrainingPhase } from '@/lib/currentPhase';
 import { useAdminTrainerSession } from '@/contexts/AdminTrainerSessionContext';
+import { ProgressionAnalyticsCard } from '@/components/training/ProgressionAnalyticsCard';
 
 interface StudentTrainingTabProps {
   studentId: string;
@@ -272,6 +273,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   return (
     <>
       <div className="space-y-3">
+        <ProgressionAnalyticsCard studentId={studentId} />
         {plans.map(plan => {
           const isExpanded = expandedId === plan.id;
           const currentPhase = (editedPhases[plan.id] ?? plan.fase ?? 'semana_1') as TrainingPhase;
