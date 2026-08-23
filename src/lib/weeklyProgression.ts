@@ -244,14 +244,29 @@ export const toPerformedSet = (l: ExerciseLog): PerformedSet => {
 
 /**
  * Escolhe UM set real como referência da janela.
+ *
+ * PRIORIDADE DE TIPO (nunca cega):
+ *   working/top set  >  backoff e técnicas (drop/rest-pause/myo-reps)
+ *   > aquecimento/reconhecimento (último recurso).
+ * Uma técnica ou um aquecimento nunca substitui uma série principal como
+ * representação da performance semanal; só entram se não houver nenhuma
+ * série principal registrada.
+ *
+ * Dentro do pool escolhido:
  *  - com carga externa: maior e1RM; empate => maior carga; depois mais reps;
  *    depois melhor RIR (mais reserva com o mesmo trabalho).
  *  - sem carga externa (bodyweight/isométrico): mais repetições.
  * Nunca mistura o peso de um set com as reps de outro.
  */
 export const selectBestSet = (logs: ExerciseLog[]): PerformedSet | undefined => {
-  const sets = logs.map(toPerformedSet).filter((s) => s.reps > 0 || s.weightKg > 0);
-  if (sets.length === 0) return undefined;
+  const usable = logs.filter((l) => (Number(l.reps) || 0) > 0 || (Number(l.weight_kg) || 0) > 0);
+  if (usable.length === 0) return undefined;
+
+  const byRole = (role: SetRole) => usable.filter((l) => setRoleOf(l) === role);
+  const ordered = [byRole('primary'), byRole('auxiliary'), byRole('preparation')];
+  const chosenLogs = ordered.find((group) => group.length > 0)!;
+
+  const sets = chosenLogs.map(toPerformedSet);
   const loaded = sets.filter((s) => s.weightKg > 0);
   const pool = loaded.length > 0 ? loaded : sets;
 
@@ -267,6 +282,7 @@ export const selectBestSet = (logs: ExerciseLog[]): PerformedSet | undefined => 
     return sr > br ? s : best;
   });
 };
+
 
 /** Faixa prescrita de repetições: "8-12", "8 a 12", "10", "12/10/8" (usa min-max). */
 export const parseRepRange = (raw?: string | null): RepRange | null => {
