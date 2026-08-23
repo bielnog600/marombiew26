@@ -607,7 +607,8 @@ async function generateStructuredWorkoutWithVariation(args: {
       messages: args.messages,
       extraSystem: retryBlock,
       modelToUse: AI_MODELS.fallback,
-      reason: fallbackReason || "retry"
+      reason: fallbackReason || "retry",
+      attempts: modelAttempts
     });
     if (second.ok) {
       const sim2 = computeWorkoutSimilarity(second.data, historyJsons);
