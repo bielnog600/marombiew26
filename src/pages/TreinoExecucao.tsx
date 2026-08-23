@@ -1382,7 +1382,9 @@ const TreinoExecucao = () => {
                     avg_rpe: sessionRpe,
                     total_volume_kg: totalVolumeKg || null,
                     total_sets: totalSets,
-                    session_state: null,
+                    session_state: {
+                      progressionRecommendations: progressionSnapshot
+                    } as any,
                   })
                   .eq('id', finalSessionId);
               } else {
@@ -1402,6 +1404,9 @@ const TreinoExecucao = () => {
                     avg_rpe: sessionRpe,
                     total_volume_kg: totalVolumeKg || null,
                     total_sets: totalSets,
+                    session_state: {
+                      progressionRecommendations: progressionSnapshot
+                    } as any,
                   })
                   .select('id')
                   .single();
