@@ -82,6 +82,7 @@ export function useActiveWorkoutSession() {
         const active: ActiveWorkoutSession = {
           id: data.id,
           student_id: data.student_id,
+          plan_id: data.plan_id,
           day_name: data.day_name,
           phase: data.phase,
           started_at: data.started_at,
