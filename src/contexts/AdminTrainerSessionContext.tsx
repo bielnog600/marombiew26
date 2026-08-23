@@ -260,7 +260,15 @@ export const AdminTrainerSessionProvider: React.FC<{ children: React.ReactNode }
       const durationMinutes = Math.max(1, Math.round((completedAt.getTime() - startedAt.getTime()) / 60000));
       const first = active.students[0];
       const firstTotals = totalsByStudent[first.id] || { exercisesCompleted: 0, totalExercises: 0 };
-      const studentSnapshots = active.sessionState?.progressionRecommendationsByStudent || {};
+      
+      // Regra 1: Individual vs Duo snapshot persistence
+      let firstStudentSnapshot = null;
+      if (active.mode === 'individual') {
+        firstStudentSnapshot = active.sessionState?.progressionRecommendations || null;
+      } else {
+        const studentSnapshots = active.sessionState?.progressionRecommendationsByStudent || {};
+        firstStudentSnapshot = studentSnapshots[first.id] || null;
+      }
       
       await supabase
         .from('workout_sessions')
@@ -272,7 +280,7 @@ export const AdminTrainerSessionProvider: React.FC<{ children: React.ReactNode }
           exercises_completed: firstTotals.exercisesCompleted,
           total_exercises: firstTotals.totalExercises,
           session_state: {
-            progressionRecommendations: studentSnapshots[first.id] || null
+            progressionRecommendations: firstStudentSnapshot
           }
         })
         .eq('id', active.id);
@@ -280,6 +288,8 @@ export const AdminTrainerSessionProvider: React.FC<{ children: React.ReactNode }
       if (active.mode === 'duo' && active.students[1]) {
         const second = active.students[1];
         const t = totalsByStudent[second.id] || { exercisesCompleted: 0, totalExercises: 0 };
+        const studentSnapshots = active.sessionState?.progressionRecommendationsByStudent || {};
+        
         await supabase.from('workout_sessions').insert({
           student_id: second.id,
           day_name: second.dayName || null,
