@@ -628,14 +628,23 @@ async function generateStructuredWorkoutWithVariation(args: {
     .map((h) => h.conteudo_json)
     .filter((j) => j && typeof j === "object") as any[];
 
-  let similarity = computeWorkoutSimilarity(first.data, historyJsons);
-  const redundancy = validateWorkoutRedundancy(first.data);
-  const threshold = SIMILARITY_THRESHOLDS[intensity];
-  let finalPlan = first.data;
+  const result1 = evaluateWorkoutCandidate({
+    data: first.data,
+    historyJsons,
+    catalog: args.catalog ?? [],
+    intensity,
+    threshold
+  });
+
+  let similarity = result1.similarity;
+  let redundancy = result1.redundancy;
+  let finalPlan = result1.data;
   let regenerated = false;
   let warning: string | null = null;
+  let unmatchedExercises = result1.unmatchedExercises;
+  let hasCatalogMismatch = result1.hasCatalogMismatch;
 
-  const needsRetry = (similarity.score > threshold && historyJsons.length > 0) || !redundancy.ok;
+  const needsRetry = result1.needsRetry;
 
   if (needsRetry) {
     if (similarity.score > threshold) {
@@ -645,6 +654,10 @@ async function generateStructuredWorkoutWithVariation(args: {
     if (!redundancy.ok) {
       fallbackReason = fallbackReason || "internal_redundancy";
       fallbackReasons.push("internal_redundancy");
+    }
+    if (hasCatalogMismatch) {
+      fallbackReason = fallbackReason || "catalog_mismatch";
+      fallbackReasons.push("catalog_mismatch");
     }
 
     const overlapList = similarity.worstOverlap.length
