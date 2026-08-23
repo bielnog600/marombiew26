@@ -1,4 +1,5 @@
 import logoUrl from '@/assets/logo_marombiew.png';
+import { resolvePhotoUrl } from './storagePhotos';
 
 const BRAND = {
   gold: '#eab308',
@@ -13,14 +14,16 @@ const CHART_COLORS = ['#eab308', '#3ba5dc', '#48b461', '#a864dc', '#f07832'];
 const SIZE = 1080;
 const PAD = 50;
 
-const loadImage = (src: string): Promise<HTMLImageElement> =>
-  new Promise((resolve, reject) => {
+const loadImage = async (rawSrc: string): Promise<HTMLImageElement> => {
+  const src = (await resolvePhotoUrl(rawSrc)) ?? rawSrc;
+  return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
     img.onerror = reject;
     img.src = src;
   });
+};
 
 interface ComparisonImageData {
   dateLabels: string[];
