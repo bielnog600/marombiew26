@@ -862,6 +862,8 @@ serve(async (req) => {
       };
 
       const threshold = SIMILARITY_THRESHOLDS[intensity];
+      let fallbackReason: string | null = null;
+      let fallbackReasons: string[] = [];
 
       const first = await callModel(
         dietVariationPrompt(intensity, historySummary, undefined, requireMenuVariation),
