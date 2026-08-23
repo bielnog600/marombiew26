@@ -5,6 +5,7 @@ import {
   isSessionStale,
   summarizeSessionState,
   STALE_INACTIVITY_MINUTES,
+  buildSessionStateLogRows,
 } from '@/lib/workoutSessionResolution';
 import { countsTowardWorkoutCompletion, isNoLoadExercise } from '@/lib/exerciseLoadType';
 
@@ -123,5 +124,58 @@ describe('peso corporal conta no completionScore', () => {
     const r = computeCompletion(summarizeSessionState(state as any, 4));
     expect(r.plannedExercises).toBe(3);
     expect(r.status).toBe('completed');
+  });
+});
+
+describe('flush parcial de exercise_set_logs', () => {
+  const state = {
+    exerciseNames: ['SUPINO RETO', 'REMADA CURVADA', 'AGACHAMENTO'],
+    plannedSets: [6, 6, 6],
+    muscleGroups: ['peito', 'costas', 'pernas'],
+    sets: {
+      0: Array.from({ length: 6 }, () => ({ reps: '10', weight: '60', completed: true })),
+      1: Array.from({ length: 6 }, () => ({ reps: '10', weight: '40', completed: true })),
+      2: Array.from({ length: 6 }, () => ({ reps: '10', weight: '80', completed: true })),
+    },
+  };
+
+  it('monta TODAS as 18 séries concluídas, mesmo com séries já persistidas', () => {
+    const { rows, totalSets } = buildSessionStateLogRows(
+      { id: 'sess-1', student_id: 'stu-1', phase: 'A', day_name: 'Treino A' },
+      state as any,
+      new Date().toISOString(),
+    );
+    expect(totalSets).toBe(18);
+    expect(rows).toHaveLength(18);
+
+    // Simula 3 séries já existentes no banco (chave por série).
+    const existing = new Set(['SUPINO RETO|1', 'SUPINO RETO|2', 'SUPINO RETO|3']);
+    const keyOf = (r: any) => `${r.exercise_name}|${r.set_number}`;
+    const inserted = rows.filter((r) => !existing.has(keyOf(r)));
+    const ignored = rows.filter((r) => existing.has(keyOf(r)));
+
+    // UNIQUE + upsert(ignoreDuplicates): 15 novas, 3 ignoradas, 0 duplicadas.
+    expect(inserted).toHaveLength(15);
+    expect(ignored).toHaveLength(3);
+    expect(new Set(rows.map(keyOf)).size).toBe(18);
+  });
+
+  it('ignora séries não concluídas e não bloqueia por sessão', () => {
+    const partial = {
+      ...state,
+      sets: {
+        0: [
+          { reps: '10', weight: '60', completed: true },
+          { reps: '', weight: '', completed: false },
+        ],
+      },
+    };
+    const { rows, totalSets } = buildSessionStateLogRows(
+      { id: 'sess-2', student_id: 'stu-1', phase: null, day_name: null },
+      partial as any,
+      new Date().toISOString(),
+    );
+    expect(totalSets).toBe(1);
+    expect(rows[0].set_number).toBe(1);
   });
 });
