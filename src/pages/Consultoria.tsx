@@ -24,6 +24,8 @@ import {
 import { differenceInDays, startOfWeek, format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import { startOfToday } from 'date-fns';
+
 
 
 // Shared Hooks
@@ -366,6 +368,7 @@ const Consultoria: React.FC = () => {
                           <CycleStatusBadge status={cycle.status} remaining={cycle.remaining} />
                         </div>
                         <Progress value={cycle.progress} className={cn("h-1.5", cycle.status === 'vencido' ? "bg-destructive/20" : cycle.status === 'atencao' ? "bg-orange-500/20" : "bg-emerald-500/20")} />
+
                         <p className="text-[10px] text-right text-muted-foreground">{cycle.days}d / 45d</p>
                       </CardContent>
                     </Card>
