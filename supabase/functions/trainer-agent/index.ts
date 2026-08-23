@@ -648,11 +648,11 @@ async function generateStructuredWorkoutWithVariation(args: {
         similarity = sim2;
       }
       regenerated = true;
-      if (similarity.score > threshold) {
-        warning = "high_similarity";
+      if (similarity.score > threshold || !red2.ok) {
+        warning = !red2.ok ? "internal_redundancy" : "high_similarity";
       }
     } else {
-      warning = "high_similarity";
+      warning = "technical_fallback_failed";
     }
   }
 
@@ -662,7 +662,11 @@ async function generateStructuredWorkoutWithVariation(args: {
     console.warn("trainer-agent: exercícios sem equivalente no banco:", unmatchedExercises.join(" | "));
   }
   const markdownFinal = workoutPlanToMarkdown(finalPlan);
-  const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
+  const selectedModelName = (finalPlan === first.data)
+    ? (AI_MODELS.primary === modelAttempts[0]?.model ? AI_MODELS.primary : modelAttempts[0]?.model)
+    : AI_MODELS.fallback;
+
+  const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, selectedModelName);
   console.log("[ai-routing]", {
     agent: "trainer",
     primaryModel: routingMeta.routing.primaryModel,
