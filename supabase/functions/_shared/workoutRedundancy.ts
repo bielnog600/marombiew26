@@ -1,6 +1,7 @@
 /**
  * Trainer Redundancy Validator for MAROMBIEW.
  * Detects excessive concentration of functionally similar exercises.
+ * Uses patterns from exerciseClassifier.ts to ensure consistency.
  */
 
 import { normalizeName } from "../_shared/planSimilarity.ts";
@@ -10,31 +11,31 @@ const EXERCISE_FAMILIES: Record<string, string[]> = {
   knee_dominant_heavy: [
     "agachamento livre", "agachamento barra", "agachamento smith",
     "hack machine", "agachamento hack", "leg press 45", "leg press horizontal",
-    "leg press 90", "leg press 180"
+    "leg press 90", "leg press 180", "agachamento búlgaro", "afundo", "avanço"
   ],
   knee_dominant_iso: [
     "cadeira extensora", "extensora", "extensao de joelhos"
   ],
   hip_dominant_heavy: [
     "levantamento terra", "deadlift", "stiff", "bom dia", "good morning",
-    "meio terra", "rDL"
+    "meio terra", "rdl", "elevação pélvica", "hip thrust"
   ],
   hip_dominant_iso: [
     "mesa flexora", "cadeira flexora", "flexora vertical", "flexora deitado"
   ],
   push_horizontal: [
     "supino reto", "supino inclinado", "supino declinado", "supino articulado",
-    "supino com halteres", "push up", "flexao de bracos"
+    "supino com halteres", "push up", "flexao de bracos", "fly", "crucifixo", "peck deck", "voador"
   ],
   pull_horizontal: [
     "remada curvada", "remada cavalinho", "remada baixa", "remada unilateral",
-    "remada articulada", "row", "t-bar row"
+    "remada articulada", "row", "t-bar row", "face pull"
   ],
   push_vertical: [
-    "desenvolvimento", "shoulder press", "military press", "overhead press"
+    "desenvolvimento", "shoulder press", "military press", "overhead press", "arnold press"
   ],
   pull_vertical: [
-    "puxada alta", "lat pulldown", "barra fixa", "chin up", "pull up"
+    "puxada alta", "lat pulldown", "barra fixa", "chin up", "pull up", "pulldown"
   ],
   shoulder_lateral: [
     "elevacao lateral"
@@ -43,7 +44,13 @@ const EXERCISE_FAMILIES: Record<string, string[]> = {
     "elevacao frontal"
   ],
   shoulder_rear: [
-    "face pull", "crucifixo inverso", "remada alta"
+    "crucifixo inverso", "remada alta"
+  ],
+  biceps: [
+    "rosca direta", "rosca martelo", "rosca concentrada", "rosca scott"
+  ],
+  triceps: [
+    "tríceps testa", "tríceps corda", "tríceps pulley", "tríceps coice", "tríceps francês"
   ],
   mobility_hip: [
     "mobilidade quadril", "abertura quadril", "90/90", "frog stretch"
@@ -61,7 +68,10 @@ function getExerciseFamily(name: string): string | null {
   if (!norm) return null;
   
   for (const [family, terms] of Object.entries(EXERCISE_FAMILIES)) {
-    if (terms.some(t => norm.includes(t))) return family;
+    if (terms.some(t => {
+      const termNorm = normalizeName(t);
+      return termNorm && norm.includes(termNorm);
+    })) return family;
   }
   return null;
 }
@@ -95,6 +105,7 @@ export function validateWorkoutRedundancy(plan: any): { ok: boolean; issues: Red
     }
 
     for (const [family, exercises] of familyCounts.entries()) {
+      // 3 or more exercises of the same family in a single day is usually redundant
       if (exercises.length >= 3) {
         issues.push({
           day: dayLabel,
@@ -106,7 +117,6 @@ export function validateWorkoutRedundancy(plan: any): { ok: boolean; issues: Red
       
       // Special case: mobility exercises shouldn't be duplicated unless very different
       if (family.startsWith("mobility_") && exercises.length >= 2) {
-        // Simple check for nominal duplication
         const uniqueNames = new Set(exercises.map(normalizeName));
         if (uniqueNames.size < exercises.length) {
           issues.push({
