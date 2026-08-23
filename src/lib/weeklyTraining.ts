@@ -248,10 +248,10 @@ export const buildWeeklyTrainingReport = (
   // estruturadas: rebaixa a confiança sem alterar nenhum threshold.
   const comparisonBasis: ComparisonBasis = !previousWeekComparable
     ? 'none'
-    : prev.structuredLogs > 0 && cur.structuredLogs > 0
-      ? contexts.comparisonBasis === 'none'
-        ? 'structured_previous_phase'
-        : contexts.comparisonBasis
+    : current.source === 'structured_session' &&
+        cur.structuredLogs > 0 &&
+        prev.structuredLogs > 0
+      ? 'structured_previous_phase'
       : 'legacy_time_window';
 
   if (comparisonBasis !== 'structured_previous_phase' && performance.confidence === 'high') {
