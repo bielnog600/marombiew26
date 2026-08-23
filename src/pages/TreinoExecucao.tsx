@@ -548,6 +548,7 @@ const TreinoExecucao = () => {
         setLoadedDayName(lastWorkout.dayName || 'Treino');
         setLoadedMedia(lastWorkout.media || {});
         if (lastWorkout.phase) setPhase(lastWorkout.phase);
+        setContextReady(true);
       }
     };
     loadPlan();
