@@ -10,8 +10,9 @@ import {
   PROGRESSION_SNAPSHOT_VERSION, 
   type ProgressionSnapshot 
 } from '@/lib/sessionProgression';
+import type { TrainingPhase } from '@/lib/trainingPhase';
 
-const mockSnapshot = (recommendations: any, sessionId = 's1', phase = 'semana_1'): ProgressionSnapshot => ({
+const mockSnapshot = (recommendations: any, sessionId = 's1', phase: TrainingPhase = 'semana_1'): ProgressionSnapshot => ({
   version: PROGRESSION_SNAPSHOT_VERSION,
   generatedAt: new Date().toISOString(),
   sessionId,
