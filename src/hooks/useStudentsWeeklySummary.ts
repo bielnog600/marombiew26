@@ -5,6 +5,7 @@ import {
   buildAdherenceReport,
   getPreviousWeekWindow,
   type AdherenceReport,
+  type AdherenceSession,
 } from '@/lib/weeklyAdherence';
 import {
   buildProgressionReport,
@@ -179,6 +180,24 @@ export const useStudentsWeeklySummary = () => {
         });
       }
 
+      // 4b. sessões estruturadas da janela de aderência (presença real)
+      const { data: sessionRows } = await supabase
+        .from('workout_sessions')
+        .select('student_id, status, completed_at, started_at')
+        .in('student_id', ids)
+        .in('status', ['completed', 'partial', 'abandoned'])
+        .gte('completed_at', adhStart.toISOString())
+        .lt('completed_at', adhEnd.toISOString());
+      const sessionsByStudent = new Map<string, AdherenceSession[]>();
+      for (const s of sessionRows ?? []) {
+        if (!sessionsByStudent.has(s.student_id)) sessionsByStudent.set(s.student_id, []);
+        sessionsByStudent.get(s.student_id)!.push({
+          status: s.status,
+          completed_at: s.completed_at,
+          started_at: s.started_at,
+        });
+      }
+
       // 5. dieta ativa (existência)
       const { data: dietPlans } = await supabase
         .from('ai_plans')
@@ -235,6 +254,7 @@ export const useStudentsWeeklySummary = () => {
             lastLogs.filter((l) => new Date(l.performed_at) >= adhStart && new Date(l.performed_at) < adhEnd),
             adhStart,
             adhEnd,
+            sessionsByStudent.get(p.user_id) ?? [],
           );
           progression = buildProgressionReport(lastLogs, prevLogs, plannedDays);
         }
