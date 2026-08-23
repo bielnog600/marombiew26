@@ -1324,19 +1324,23 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
           ? variationIntensity
           : DEFAULT_INTENSITY;
       const catalog = await loadExerciseCatalog();
-      const systemWithCatalog =
-        catalog.length > 0
-          ? SYSTEM_PROMPT.replace(EXERCISE_DATABASE, buildCatalogBlock(catalog))
-          : SYSTEM_PROMPT;
+      
+      const structuredSystem = 
+        TRAINER_CORE_PROMPT + "\n" +
+        TRAINER_STRUCTURED_PROMPT + "\n" +
+        contextMessage + "\n" +
+        (catalog.length > 0 ? buildCatalogBlock(catalog) : "");
+
       return await generateStructuredWorkoutWithVariation({
         apiKey: OPENAI_API_KEY,
-        systemPrompt: systemWithCatalog + contextMessage,
+        systemPrompt: structuredSystem,
         messages,
         studentId: typeof studentId === "string" && studentId.length > 0 ? studentId : undefined,
         intensity,
         catalog,
       });
     }
+
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
