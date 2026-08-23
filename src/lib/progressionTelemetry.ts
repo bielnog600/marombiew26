@@ -465,7 +465,7 @@ export function buildProgressionTelemetrySummary(results: SessionTelemetryResult
     
     res.outcomes.forEach(out => {
       // Regra 14: Excluir Deload do alinhamento
-      if (out.reasons.includes('deload_excluded_from_progression_kpi')) {
+      if (out.reasons.includes('deload_excluded_from_progression_kpi') || out.reasons.includes('no_recommendation_for_exercise')) {
         summary.deloadExcludedCount++;
         return;
       }
