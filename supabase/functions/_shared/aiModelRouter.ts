@@ -91,3 +91,66 @@ export function createRoutingMetadata(
     },
   };
 }
+
+/**
+ * Enhanced AI call with routing and fallback logic.
+ * USES OFFICIAL OPENAI API as requested.
+ */
+export async function callAI(params: {
+  model: string;
+  systemPrompt: string;
+  userPrompt: string;
+  temperature?: number;
+  maxTokens?: number;
+  response_format?: any;
+}): Promise<{ content: string | null; usage: AIAttemptMetadata["usage"]; durationMs: number }> {
+  const start = Date.now();
+  const apiKey = Deno.env.get("OPENAI_API_KEY");
+
+  if (!apiKey) {
+    console.error("callAI: OPENAI_API_KEY not found");
+    return { content: null, usage: null, durationMs: 0 };
+  }
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: params.model.includes("gpt-5.6") ? "gpt-4o" : params.model,
+        messages: [
+          { role: "system", content: params.systemPrompt },
+          { role: "user", content: params.userPrompt },
+        ],
+        temperature: params.temperature ?? 0.7,
+        max_tokens: params.maxTokens ?? 4000,
+        response_format: params.response_format,
+      }),
+    });
+
+    const durationMs = Date.now() - start;
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error(`OpenAI API Error (${params.model}):`, data);
+      return { content: null, usage: null, durationMs };
+    }
+
+    return {
+      content: data.choices[0]?.message?.content || null,
+      usage: {
+        promptTokens: data.usage?.prompt_tokens || null,
+        completionTokens: data.usage?.completion_tokens || null,
+        totalTokens: data.usage?.total_tokens || null,
+      },
+      durationMs,
+    };
+  } catch (error) {
+    console.error(`OpenAI API Exception (${params.model}):`, error);
+    return { content: null, usage: null, durationMs: Date.now() - start };
+  }
+}
+
