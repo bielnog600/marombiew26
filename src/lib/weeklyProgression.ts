@@ -603,9 +603,13 @@ export const buildProgressionReport = (
           performances.push({
             exerciseName: e.exercise,
             totalWorkingSets: 0,
+            auxiliarySets: 0,
+            preparationSets: 0,
             totalReps: 0,
             totalVolume: 0,
             loaded: false,
+            comparisonBasis: 'fallback_untyped',
+
             repRange: rangeByEx.get(key) ?? null,
             status: 'missing',
             nextAction: 'review',
