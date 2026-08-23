@@ -823,12 +823,46 @@ serve(async (req) => {
             const historyJsons = history
               .map((h) => h.conteudo_json)
               .filter((j) => j && typeof j === "object") as any[];
-            const similarity = computeDietSimilarity(second.plan, historyJsons);
+            
+            // Re-run full pipeline for technical fallback candidate
+            const result = evaluateDietCandidate({
+              plan: second.plan,
+              historyJsons,
+              schedule,
+              intensity,
+              threshold,
+              variationRetryAllowed,
+              requireMenuVariation
+            });
+
             const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
+            
+            if (!result.nutrition.ok || !result.adjValidation.ok) {
+              return new Response(
+                JSON.stringify({
+                  error: "Falha crítica na geração (Terra). Verifique os validadores.",
+                  error_code: "review_required",
+                  validationReasons: [
+                    ...(!result.nutrition.ok ? ["nutrition_invalid"] : []),
+                    ...(!result.adjValidation.ok ? ["daily_adjustments_invalid"] : [])
+                  ],
+                  aiRouting: routingMeta.routing,
+                  aiUsage: routingMeta.usage
+                }),
+                { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            }
+
             return new Response(
               JSON.stringify({
-                plan: second.plan,
-                similarity: { score: similarity.score, threshold: SIMILARITY_THRESHOLDS[intensity], intensity, historyCount: historyJsons.length },
+                plan: result.plan,
+                dailyAdjustments: result.normalizedAdj,
+                similarity: { 
+                  score: result.similarity.score, 
+                  threshold, 
+                  intensity, 
+                  historyCount: historyJsons.length 
+                },
                 aiRouting: routingMeta.routing,
                 aiUsage: routingMeta.usage,
               }),
@@ -836,7 +870,18 @@ serve(async (req) => {
             );
           }
         }
-        return first.resp;
+        
+        // Final failure after fallback attempt(s)
+        const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
+        return new Response(
+          JSON.stringify({
+            error: body.error || "Erro crítico na geração de IA",
+            error_code: body.error_code || "critical_failure",
+            aiRouting: routingMeta.routing,
+            aiUsage: routingMeta.usage,
+          }),
+          { status: first.resp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
       const historyJsons = history
