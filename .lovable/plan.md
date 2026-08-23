@@ -1,54 +1,45 @@
-# Plan - AI Routing and Integrity Hardening (Final Version)
+# Plan - AI Routing and Integrity Final Hardening
 
-This plan finalizes the AI routing and validation architecture, ensuring strict adherence to technical guardrails, proper taxonomy sharing, and protection of the `update` intent.
+This plan addresses final integrity issues, ensuring strict technical guardrails, proper taxonomy sharing, protected update flows, and improved observability/metadata for both diet and training agents.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> - **Unified Taxonomy**: `exerciseClassifier.ts` is now the single source of truth for movement patterns. `workoutRedundancy.ts` consumes this taxonomy.
-> - **Strict 2-Call Limit**: Maximum of 2 model calls (Luna + optional Terra). No third calls.
-> - **Critical Validity**: Terra attempts are rejected with a `422 review_required` if they fail critical checks (Nutrition/Adjustments for Diet; Catalog/Redundancy for Workout).
-> - **Structured Prompt Isolation**: Core prompts are strictly separated from structured output instructions to prevent leaked formatting (Markdown/WhatsApp) in JSON responses.
+> - **Unified Taxonomy**: `exerciseClassifier.ts` is the single source of truth for movement patterns. `workoutRedundancy.ts` consumes it.
+> - **Invariant Safety**: `createRoutingMetadata` will now enforce that at least one model attempt exists.
+> - **Error Observability**: All non-200 responses (422/502/etc.) will include full routing and usage metadata for debugging.
+> - **Redundancy Calibration**: "Exact Duplicate" (2x same name) is a hard rejection. "Functional Duplicate" (same pattern + equip) is only a rejection if equivalence is strong after normalization.
 
 ## Proposed Changes
 
-### 1. Taxonomy & Redundancy
-- **Centralized Taxonomy**: Refactor `exerciseClassifier.ts` to export its `MOVEMENT_PATTERNS` and token logic. `workoutRedundancy.ts` will import these to classify exercises, ensuring functional consistency.
-- **Conservative Redundancy**:
-    - **Exact Duplicate**: `count >= 2` of the same normalized name in a day triggers a rejection.
-    - **Functional Duplicate**: Redundancy is flagged only when there is strong evidence (matching movement pattern AND equipment/class).
+### 1. Shared Logic & Invariants
+- **AI Router Hardening**: 
+    - Update `createRoutingMetadata` to throw an invariant error if `attempts` is empty.
+    - Ensure `usage` fields return `null` instead of `0` when data is missing.
+- **Taxonomy Integration**: Refactor `exerciseClassifier.ts` to export its core movement pattern logic. Update `workoutRedundancy.ts` to import and use this shared classification.
 
-### 2. Validation Pipelines & Criticality
-- **Unified Evaluation**: Luna, Terra, and Technical fallbacks all pass through `evaluateDietCandidate` or `evaluateWorkoutCandidate` with **no early returns**.
-- **Critical Acceptance (Diet)**: Terra is accepted ONLY if `nutrition.ok === true` and `dailyAdjustments` are valid (if schedule exists). Otherwise, return `422 review_required`.
-- **Critical Acceptance (Workout)**: Terra must pass schema, catalog (main exercises), and redundancy (no exact duplicates). Critical mismatches trigger `422 review_required`.
+### 2. Validation & Acceptance (Terra Gate)
+- **Pipeline Unification**: Ensure all candidates (Luna, Terra, Technical) flow through `evaluateDietCandidate` and `evaluateWorkoutCandidate` without early returns.
+- **Critical Validity (Diet)**: Terra is rejected with a `422 review_required` if it fails `nutrition.ok` or `dailyAdjustments` (when applicable).
+- **Critical Validity (Workout)**: Terra is rejected with a `422 review_required` if it fails schema, has critical catalog mismatches, or contains exact duplicates.
+- **Redundancy Refinement**: Exact duplicates (2x nominal count) are rejected. Functional duplicates are evaluated conservatively.
 
-### 3. Intent Protection (`intent === "update"`)
-- **Variation Protection**: Re-verify that `similarity.score > threshold`, `isPortionOnly`, and other variation-only failures are strictly protected by `variationRetryAllowed && intent !== "update"`.
-- **Prompt Sanitization**: Ensure the retry prompt for updates excludes instructions to swap foods or families.
+### 3. Intent & Prompt Protection
+- **Update Intent Safety**: 
+    - Confirm `intent === "update"` strictly bypasses all variation-based retries (High Similarity, Portion Only).
+    - Sanitize update retry prompts: remove instructions to swap foods/families.
+- **Structured Prompt Isolation**: 
+    - Split prompts into `*_CORE`, `*_STRUCTURED`, and `*_LEGACY`.
+    - JSON responses will strictly exclude Markdown, WhatsApp, or chat-flow instructions.
 
-### 4. Prompt Engineering & Formatting
-- **Prompt Separation**: Split system prompts into `*_CORE_PROMPT` (knowledge), `*_STRUCTURED_PROMPT` (JSON format), and `*_LEGACY_PROMPT` (chat context).
-- **JSON Integrity**: Strictly exclude Markdown tables, WhatsApp formatting, and "one question at a time" instructions from the `STRUCTURED` prompt.
+### 4. Response Metadata
+- **Full Traceability**: All error responses will now include `aiRouting`, `aiUsage`, and `validationReasons`.
+- **JSON Cleanup**: Remove `raw` content from `invalid_json` error responses for cleaner client-side handling.
 
-### 5. Metadata & Usage
-- **Usage Invariants**: Missing usage data stays `null` (no transformation to 0).
-- **Routing Observability**: `createRoutingMetadata` will always reflect the exact model path taken.
-
-## Technical Details
-
-### Movement Pattern Sharing
-```typescript
-// Shared module for movement pattern detection
-export const MOVEMENT_PATTERNS = [...];
-export function getPattern(name: string) { ... }
-```
-
-### Critical Acceptance Logic
-```typescript
-const isCriticallyValid = agent === 'diet' 
-  ? (nut.ok && (hasSchedule ? adj.ok : true))
-  : (red.ok && !hasCriticalCatalogMismatch);
-
-if (!isCriticallyValid) return respond422(reasons);
-```
+## Verification Tasks (PASS/FAIL required)
+1. `deno check supabase/functions/_shared/aiModelRouter.ts`
+2. `deno check supabase/functions/_shared/workoutRedundancy.ts`
+3. `deno check supabase/functions/diet-agent/index.ts`
+4. `deno check supabase/functions/trainer-agent/index.ts`
+5. `deno test` (new test suite covering all routing scenarios)
+6. `npm run build`
