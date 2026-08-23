@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, ChevronRight, AlertTriangle, Activity, Send, UserX, UserCheck } from 'lucide-react';
+import { Search, ChevronRight, AlertTriangle, Activity, Send, UserX, UserCheck, ArrowUpDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { differenceInDays, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -34,6 +34,7 @@ const ConsultoriaStudentSearch: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterKey>('todos');
+  const [sortOrder, setSortOrder] = useState<'name' | 'last_access'>('name');
 
   useEffect(() => {
     (async () => {
@@ -83,20 +84,29 @@ const ConsultoriaStudentSearch: React.FC = () => {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return rows.filter(r => {
-      if (q && !r.name.toLowerCase().includes(q) && !r.email.toLowerCase().includes(q)) return false;
-      // Filtros que NÃO são "desativados" só consideram alunos ativos
-      if (filter !== 'desativados' && !r.ativo) return false;
-      switch (filter) {
-        case 'risco_alto': return r.risk === 'alto';
-        case 'sem_plano': return !r.hasPlan;
-        case 'baixa_aderencia': return r.adherence < 40;
-        case 'ativos': return r.risk === 'baixo';
-        case 'desativados': return !r.ativo;
-        default: return true;
-      }
-    });
-  }, [rows, query, filter]);
+    return rows
+      .filter(r => {
+        if (q && !r.name.toLowerCase().includes(q) && !r.email.toLowerCase().includes(q)) return false;
+        // Filtros que NÃO são "desativados" só consideram alunos ativos
+        if (filter !== 'desativados' && !r.ativo) return false;
+        switch (filter) {
+          case 'risco_alto': return r.risk === 'alto';
+          case 'sem_plano': return !r.hasPlan;
+          case 'baixa_aderencia': return r.adherence < 40;
+          case 'ativos': return r.risk === 'baixo';
+          case 'desativados': return !r.ativo;
+          default: return true;
+        }
+      })
+      .sort((a, b) => {
+        if (sortOrder === 'name') return a.name.localeCompare(b.name);
+        
+        // "last_access" logic: those who never opened or opened longest ago first
+        const daysA = a.daysSinceOpen ?? 9999;
+        const daysB = b.daysSinceOpen ?? 9999;
+        return daysB - daysA;
+      });
+  }, [rows, query, filter, sortOrder]);
 
   const filters: { value: FilterKey; label: string; count: number }[] = [
     { value: 'todos', label: 'Todos', count: rows.filter(r => r.ativo).length },
@@ -133,21 +143,33 @@ const ConsultoriaStudentSearch: React.FC = () => {
         />
       </div>
 
-      <div className="flex gap-2 flex-wrap">
-        {filters.map(f => (
-          <button
-            key={f.value}
-            onClick={() => setFilter(f.value)}
-            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
-              filter === f.value
-                ? 'bg-foreground text-background border-foreground'
-                : 'bg-secondary/50 text-muted-foreground border-border hover:bg-secondary'
-            }`}
-          >
-            {f.label}
-            <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-none ${filter === f.value ? 'bg-background/20' : 'bg-muted'}`}>{f.count}</span>
-          </button>
-        ))}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
+          {filters.map(f => (
+            <button
+              key={f.value}
+              onClick={() => setFilter(f.value)}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+                filter === f.value
+                  ? 'bg-foreground text-background border-foreground'
+                  : 'bg-secondary/50 text-muted-foreground border-border hover:bg-secondary'
+              }`}
+            >
+              {f.label}
+              <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-none ${filter === f.value ? 'bg-background/20' : 'bg-muted'}`}>{f.count}</span>
+            </button>
+          ))}
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 text-[10px] gap-1.5"
+          onClick={() => setSortOrder(prev => prev === 'name' ? 'last_access' : 'name')}
+        >
+          <ArrowUpDown className="h-3 w-3" />
+          {sortOrder === 'name' ? 'Ordenar por Acesso' : 'Ordenar por Nome'}
+        </Button>
       </div>
 
       {loading ? (
