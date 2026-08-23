@@ -384,7 +384,7 @@ const Consultoria: React.FC = () => {
             <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Ciclo de Treinos (45 dias)</h3>
             <div className="space-y-2">
               {loadingPlans ? <Skeleton className="h-20 w-full" /> : 
-                weeklySummaries.map(s => {
+                weeklySummaries.filter(s => s.active).map(s => {
                   const d = studentPlansMap.get(s.studentId);
                   if (!d?.latestTreino) return null;
                   const cycle = getCycleInfo(d.latestTreino);
