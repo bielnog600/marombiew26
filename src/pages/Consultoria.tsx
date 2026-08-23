@@ -543,44 +543,7 @@ const Consultoria = () => {
             <DropdownMenuContent align="end" className="w-64">
               <DropdownMenuLabel className="text-xs">Tipo de mensagem</DropdownMenuLabel>
               <DropdownMenuSeparator />
-                  </div>
-                </a>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <a href={buildWhatsAppUrl(phone, getQuickMessage(n, 'checkin'))} target="_blank" rel="noopener noreferrer" className="cursor-pointer">
-                  <div className="flex flex-col">
-                    <span className="text-xs font-medium">👋 Apenas check-in</span>
-                    <span className="text-[10px] text-muted-foreground">"Como foi a semana?" — sem cobrança</span>
-                  </div>
-                </a>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <a href={buildWhatsAppUrl(phone, getQuickMessage(n, 'registros'))} target="_blank" rel="noopener noreferrer" className="cursor-pointer">
-                  <div className="flex flex-col">
-                    <span className="text-xs font-medium">📋 Registros faltantes</span>
-                    <span className="text-[10px] text-muted-foreground">Lembrar de cargas, peso, refeições</span>
-                  </div>
-                </a>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <a href={buildWhatsAppUrl(phone, getQuickMessage(n, 'motivacional'))} target="_blank" rel="noopener noreferrer" className="cursor-pointer">
-                  <div className="flex flex-col">
-                    <span className="text-xs font-medium">🔥 Motivacional</span>
-                    <span className="text-[10px] text-muted-foreground">Elogio + incentivo curto</span>
-                  </div>
-                </a>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <a href={buildWhatsAppUrl(phone, getQuickMessage(n, 'completa'))} target="_blank" rel="noopener noreferrer" className="cursor-pointer">
-                  <div className="flex flex-col">
-                    <span className="text-xs font-medium">✨ Completa</span>
-                    <span className="text-[10px] text-muted-foreground">Check-in + perguntas + registros</span>
-                  </div>
-                </a>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
+              </DropdownMenuContent>
           </DropdownMenu>
         );
       }
