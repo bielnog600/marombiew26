@@ -111,7 +111,7 @@ export const useStudentsWeeklySummary = () => {
         .select('user_id, ativo')
         .in('user_id', allIds);
       const studentProfileStatus = new Map<string, boolean>((actives ?? []).map(a => [a.user_id, !!a.ativo]));
-      const ids = (actives ?? []).filter(a => a.ativo).map((a) => a.user_id);
+      const ids = allIds; // Use all user IDs, filtering for active status will happen in result mapping or classification if needed, but the request says to hide them in UI tabs.
 
 
       if (ids.length === 0) { setSummaries([]); return; }

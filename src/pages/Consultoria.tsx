@@ -117,15 +117,17 @@ const Consultoria: React.FC = () => {
   }, [plans]);
 
   const stats = useMemo(() => {
-    const totalStudents = weeklySummaries.length;
-    const semDieta = weeklySummaries.filter(s => !studentPlansMap.get(s.studentId)?.latestDieta).length;
-    const semTreino = weeklySummaries.filter(s => !studentPlansMap.get(s.studentId)?.latestTreino).length;
+    const activeSummaries = weeklySummaries.filter(s => s.active);
+    const totalStudents = activeSummaries.length;
+    const semDieta = activeSummaries.filter(s => !studentPlansMap.get(s.studentId)?.latestDieta).length;
+    const semTreino = activeSummaries.filter(s => !studentPlansMap.get(s.studentId)?.latestTreino).length;
     
     let dietasVencidas = 0;
     let treinosVencidas = 0;
-    studentPlansMap.forEach(d => {
-      if (getCycleInfo(d.latestDieta).status === 'vencido') dietasVencidas++;
-      if (getCycleInfo(d.latestTreino).status === 'vencido') treinosVencidas++;
+    activeSummaries.forEach(s => {
+      const d = studentPlansMap.get(s.studentId);
+      if (d && getCycleInfo(d.latestDieta).status === 'vencido') dietasVencidas++;
+      if (d && getCycleInfo(d.latestTreino).status === 'vencido') treinosVencidas++;
     });
 
     return { totalStudents, semDieta, semTreino, dietasVencidas, treinosVencidas };
@@ -192,7 +194,7 @@ const Consultoria: React.FC = () => {
 
           <TabsContent value="alertas" className="mt-6 space-y-6">
             {(() => {
-              const relevant = weeklySummaries.filter((s) => s.attention !== 'ok');
+              const relevant = weeklySummaries.filter((s) => s.active && s.attention !== 'ok');
               const withBucket = relevant
                 .map((s) => ({ s, b: bucketFor(followups.get(s.studentId)) }))
                 .filter((x) => x.b !== 'arquivado');
@@ -384,7 +386,7 @@ const Consultoria: React.FC = () => {
             <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Ciclo de Treinos (45 dias)</h3>
             <div className="space-y-2">
               {loadingPlans ? <Skeleton className="h-20 w-full" /> : 
-                weeklySummaries.map(s => {
+                weeklySummaries.filter(s => s.active).map(s => {
                   const d = studentPlansMap.get(s.studentId);
                   if (!d?.latestTreino) return null;
                   const cycle = getCycleInfo(d.latestTreino);
