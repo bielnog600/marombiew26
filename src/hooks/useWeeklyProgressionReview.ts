@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { buildQuantitativeProgressionRecommendation } from "@/lib/quantitativeProgression";
 import { resolveCurrentTrainingPhase } from "@/lib/currentPhase";
-import { startOfWeek, endOfWeek, format } from "date-fns";
+import { startOfWeek, format } from "date-fns";
 
 export interface StudentProgressionReview {
   studentId: string;
@@ -25,11 +25,11 @@ export function useWeeklyProgressionReview() {
       // 1. Fetch active students
       const { data: students } = await supabase
         .from('students_profile')
-        .select(\`
+        .select(`
           user_id,
           profiles!inner(nome, telefone),
           active_plan:ai_plans(id, tipo, plan_data, cycle_days, created_at)
-        \`)
+        `)
         .eq('ativo', true);
 
       if (!students) return [];
@@ -45,16 +45,15 @@ export function useWeeklyProgressionReview() {
       const reviews: StudentProgressionReview[] = [];
 
       for (const student of students) {
-        const plan = Array.isArray(student.active_plan) 
-          ? student.active_plan.find(p => p.tipo === 'treino') 
-          : (student.active_plan?.tipo === 'treino' ? student.active_plan : null);
+        const plans = Array.isArray(student.active_plan) ? student.active_plan : [student.active_plan];
+        const plan = plans.find((p: any) => p?.tipo === 'treino');
 
         if (!plan) continue;
 
         // Resolve phase
         const phaseInfo = resolveCurrentTrainingPhase(plan, new Date());
         
-        // Fetch last logs for recommendation engine (simplified for batch)
+        // Fetch last logs for recommendation engine
         const { data: logs } = await supabase
           .from('exercise_set_logs')
           .select('*')
