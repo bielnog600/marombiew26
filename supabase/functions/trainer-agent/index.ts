@@ -1033,14 +1033,18 @@ const TRAINER_VOLUME_PROMPT = `
 ========================================
 REGRA DE VOLUME
 ========================================
+Mais volume para INFERIORES e DORSAL. Variar ângulos, pegadas e variações.
 `;
 
 
-Mais volume para INFERIORES e DORSAL. Variar ângulos, pegadas e variações.
 
+
+const TRAINER_EVOLUTION_PROMPT = `
 ========================================
 ANTI REPETIÇÃO E EVOLUÇÃO
 ========================================
+`;
+
 
 1) Variação inteligente de ângulo, pegada, base
 2) Progressão real
