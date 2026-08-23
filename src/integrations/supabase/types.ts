@@ -2728,6 +2728,39 @@ export type Database = {
           },
         ]
       }
+      weekly_progression_contacts: {
+        Row: {
+          admin_id: string
+          created_at: string | null
+          id: string
+          sent_at: string | null
+          student_id: string
+          updated_at: string | null
+          week_start: string
+          whatsapp_opened_at: string | null
+        }
+        Insert: {
+          admin_id: string
+          created_at?: string | null
+          id?: string
+          sent_at?: string | null
+          student_id: string
+          updated_at?: string | null
+          week_start: string
+          whatsapp_opened_at?: string | null
+        }
+        Update: {
+          admin_id?: string
+          created_at?: string | null
+          id?: string
+          sent_at?: string | null
+          student_id?: string
+          updated_at?: string | null
+          week_start?: string
+          whatsapp_opened_at?: string | null
+        }
+        Relationships: []
+      }
       weight_logs: {
         Row: {
           created_at: string
