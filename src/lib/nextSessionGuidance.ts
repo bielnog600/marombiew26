@@ -98,6 +98,8 @@ export interface ExerciseGuidance {
   exerciseName: string;
   nextAction: ExercisePerformance['nextAction'];
   text: string;
+  /** Recomendação quantitativa usada (quando existir e a confiança permitir). */
+  quantitative?: QuantitativeRecommendation;
 }
 
 const rangeText = (p: ExercisePerformance) =>
@@ -109,12 +111,25 @@ const loadText = (p: ExercisePerformance) =>
 /**
  * Traduz a recomendação por exercício em texto acionável.
  * No deload, nada de sobrecarga: increase_load/increase_reps viram manutenção.
+ *
+ * Quando `quantitative` traz a recomendação do motor quantitativo
+ * (quantitativeProgression.ts) com confiança >= medium e números reais, o
+ * texto passa a exibir kg/reps concretos. Os números vêm SEMPRE do motor
+ * determinístico — nunca de IA — e nada é escrito de volta no plano.
  */
 export const buildExerciseGuidance = (
   performances: ExercisePerformance[] = [],
-  opts: { activePhase?: TrainingPhase | null; lowConfidence?: boolean; max?: number } = {},
+  opts: {
+    activePhase?: TrainingPhase | null;
+    lowConfidence?: boolean;
+    max?: number;
+    quantitative?: QuantitativeRecommendation[];
+  } = {},
 ): ExerciseGuidance[] => {
   const deload = opts.activePhase === 'deload';
+  const quantByName = new Map(
+    (opts.quantitative ?? []).map((q) => [q.exerciseName, q] as const),
+  );
   const out: ExerciseGuidance[] = [];
 
   for (const p of performances) {
@@ -130,6 +145,17 @@ export const buildExerciseGuidance = (
 
     let action = p.nextAction;
     if (deload && (action === 'increase_load' || action === 'increase_reps')) action = 'maintain';
+
+    const q = quantByName.get(p.exerciseName);
+    if (q && !deload) {
+      out.push({
+        exerciseName: p.exerciseName,
+        nextAction: action,
+        text: formatQuantitativeRecommendation(q),
+        quantitative: q,
+      });
+      continue;
+    }
 
     let text: string;
     switch (action) {
@@ -155,6 +181,7 @@ export const buildExerciseGuidance = (
 
     out.push({ exerciseName: p.exerciseName, nextAction: action, text });
   }
+
 
   const ordered = out.sort((a, b) => ACTION_PRIORITY[a.nextAction] - ACTION_PRIORITY[b.nextAction]);
   return typeof opts.max === 'number' ? ordered.slice(0, opts.max) : ordered;
