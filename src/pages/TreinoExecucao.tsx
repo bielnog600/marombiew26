@@ -13,6 +13,7 @@ import { type ParsedExercise, parseTrainingSections } from '@/lib/trainingResult
 import { buildSetPlan, buildPlanSummary, type PlannedSet } from '@/lib/setPlanBuilder';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { PHASE_SHORT_LABELS, getPhaseByMonthDay, type TrainingPhase } from '@/lib/trainingPhase';
+import { resolveCurrentTrainingPhase } from '@/lib/currentPhase';
 import { getSafeWorkoutDays, trackPlanAccess } from '@/lib/planMigrationUtils';
 import { WorkoutSummaryShare } from '@/components/training/WorkoutSummaryShare';
 import { PhaseInfoSheet } from '@/components/training/PhaseInfoSheet';
@@ -465,7 +466,13 @@ const TreinoExecucao = () => {
       });
       const treino = Array.isArray(plans) ? plans[0] : null;
       if (treino) {
-        if (treino.fase) setPhase(treino.fase as TrainingPhase);
+        // Fase da sessão vem da FONTE CENTRAL (timeline do plano), nunca de
+        // um cálculo local — garante paridade com weeklyTraining e com o admin.
+        setPhase(resolveCurrentTrainingPhase({
+          id: treino.id,
+          fase: (treino as any).fase ?? null,
+          fase_inicio_data: (treino as any).fase_inicio_data ?? null,
+        }).phase);
         const { days: allDays, isFromJSON } = getSafeWorkoutDays({ ...treino, tipo: 'treino' });
         trackPlanAccess({ ...treino, tipo: 'treino' }, isFromJSON);
         if (allDays.length > 0) {

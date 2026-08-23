@@ -25,9 +25,10 @@ import {
   PHASE_SHORT_LABELS,
   PHASE_BADGE_CLASS,
   PHASE_DESCRIPTIONS,
-  calculateCurrentPhase,
   type TrainingPhase,
 } from '@/lib/trainingPhase';
+import { resolveCurrentTrainingPhaseFromPlans } from '@/lib/currentPhase';
+
 
 interface PlanRow {
   id: string;
@@ -133,19 +134,17 @@ const MeusTreinos = () => {
         : rawPlans;
     setPlans(allPlans);
 
-    // Cálculo automático da fase (somente na primeira carga)
+    // Fase atual: fonte ÚNICA (timeline de fase_inicio_data; fallback plan.fase).
     if (!autoPhaseSet && allPlans.length > 0) {
-      const planWithDate = allPlans.find(p => p.fase_inicio_data);
-      const auto = planWithDate
-        ? calculateCurrentPhase(planWithDate.fase_inicio_data)
-        : (allPlans[0].fase || 'semana_1');
-      // Garante que existe plano dessa fase, senão pega a primeira disponível
-      const available = allPlans.find(p => p.fase === auto);
-      const planned = (available ? auto : (allPlans[0].fase || 'semana_1')) as TrainingPhase;
+      const planned = resolveCurrentTrainingPhaseFromPlans(allPlans).phase;
+      // A avaliação semanal usa SEMPRE a fase resolvida (identidade com admin).
       setPlannedPhase(planned);
-      setActivePhase(planned);
+      // A exibição cai para um documento existente quando não há plano da fase.
+      const available = allPlans.some(p => p.fase === planned);
+      setActivePhase((available ? planned : (allPlans[0].fase || planned)) as TrainingPhase);
       setAutoPhaseSet(true);
     }
+
 
     // Carrega media de TODOS os planos (para todas as fases)
     const allMd = allPlans.map(p => p.conteudo).join('\n');

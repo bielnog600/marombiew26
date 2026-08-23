@@ -37,6 +37,7 @@ import {
   getPhasePreview,
   type TrainingPhase,
 } from '@/lib/trainingPhase';
+import { resolveCurrentTrainingPhase } from '@/lib/currentPhase';
 import { useAdminTrainerSession } from '@/contexts/AdminTrainerSessionContext';
 
 interface StudentTrainingTabProps {
@@ -392,7 +393,10 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                       studentId={studentId}
                       conteudo={currentMarkdown}
                       fase={(editedPhases[plan.id] ?? plan.fase) as TrainingPhase}
+                      faseInicioData={currentStartDate || null}
+                      cycleDays={plan.cycle_days ?? null}
                     />
+
                     {/* Ações Híbridas - Central de Ação Individual */}
                     <div className="flex flex-wrap gap-2 pb-2">
                       <Button 
@@ -645,12 +649,32 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
 
 export default StudentTrainingTab;
 
-const PlanAdherence: React.FC<{ planId: string; studentId: string; conteudo: string; fase?: TrainingPhase | null }> = ({ planId, studentId, conteudo, fase }) => {
-  // Admin consome exatamente a mesma fonte/decisão que o aluno.
-  const phase = (fase as TrainingPhase) || 'semana_1';
+const PlanAdherence: React.FC<{
+  planId: string;
+  studentId: string;
+  conteudo: string;
+  fase?: TrainingPhase | null;
+  faseInicioData?: string | null;
+  cycleDays?: number | null;
+}> = ({ planId, studentId, conteudo, fase, faseInicioData, cycleDays }) => {
+  // Admin consome exatamente a mesma fonte/decisão que o aluno:
+  // fase resolvida pela timeline (fase_inicio_data), fallback plan.fase.
+  const phase = resolveCurrentTrainingPhase({
+    id: planId,
+    fase: fase ?? null,
+    fase_inicio_data: faseInicioData ?? null,
+    cycle_days: cycleDays ?? null,
+  }).phase;
   const { report, resolution, loading } = useWeeklyTraining(
-    { id: planId, student_id: studentId, conteudo },
+    {
+      id: planId,
+      student_id: studentId,
+      conteudo,
+      fase_inicio_data: faseInicioData ?? null,
+      cycle_days: cycleDays ?? null,
+    },
     phase,
   );
   return <WeeklyAdherenceBanner report={report} loading={loading} progression={resolution} />;
 };
+

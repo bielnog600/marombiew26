@@ -52,9 +52,16 @@ export interface AdherenceReport {
   exercisesLogged: number;
   setsTotal: number;
   setsWithLoad: number;
+  /**
+   * (sessões COMPLETAS + dias legados) / planejadas — ignora parciais.
+   * Mantido para UI/telemetria; NÃO é a métrica de classificação.
+   */
   sessionsPct: number;
+  /** Alias explícito de `sessionsPct` (somente sessões completas). */
+  sessionsCompletedPct: number;
   exercisesPct: number;
   setsPct: number;
+
   reasonLabel: string;
   detailLabel: string;
   canAutoAdvance: boolean;
@@ -161,27 +168,38 @@ export const buildAdherenceReport = (
   }
 
   const sessionsPct = sessionsPlanned > 0 ? sessionsExecuted / sessionsPlanned : 0;
+  const sessionsCompletedPct = sessionsPct;
   const exercisesPct = exercisesPlanned > 0 ? exercisesLogged / exercisesPlanned : 0;
   const setsPct = setsTotal > 0 ? setsWithLoad / setsTotal : 0;
 
+  // MÉTRICA DE EXECUÇÃO SEMANAL: ponderada (completa = 1, parcial = 0.5,
+  // abandonada = 0). Quatro sessões parciais valem 50% e NUNCA podem ser
+  // lidas como "sem dados". Os thresholds continuam os mesmos.
+  const execPct = weightedSessionAdherence;
+
   let status: AdherenceStatus;
 
-  if (setsTotal === 0 || sessionsPct < TH.REPETIR_SESSIONS) {
+  if (setsTotal === 0) {
+    // Sem nenhuma série registrada não há base de avaliação (nem parciais).
     status = 'dados_insuficientes';
-  } else if (sessionsPct >= TH.MANTER_SESSIONS && setsPct < TH.REANALISE_SETS) {
+  } else if (execPct < TH.REPETIR_SESSIONS) {
+    // Existe execução (parcial/completa) porém residual → baixa execução.
+    status = execPct > 0 ? 'repetir_semana' : 'dados_insuficientes';
+  } else if (execPct >= TH.MANTER_SESSIONS && setsPct < TH.REANALISE_SETS) {
     // Treinou mas registrou pouquíssimo
     status = 'sugerir_reanalise';
   } else if (
-    sessionsPct >= TH.AVANCAR_SESSIONS &&
+    execPct >= TH.AVANCAR_SESSIONS &&
     (exercisesPlanned === 0 || exercisesPct >= TH.AVANCAR_EXERCISES) &&
     setsPct >= TH.AVANCAR_SETS
   ) {
     status = 'apto_avancar';
-  } else if (sessionsPct >= TH.MANTER_SESSIONS) {
+  } else if (execPct >= TH.MANTER_SESSIONS) {
     status = 'manter_semana';
   } else {
     status = 'repetir_semana';
   }
+
 
   const reasonLabel = REASON_LABELS[status];
   const detailLabel = buildDetail(status, sessionsExecuted, sessionsPlanned, setsWithLoad, setsTotal)
@@ -200,6 +218,9 @@ export const buildAdherenceReport = (
     setsTotal,
     setsWithLoad,
     sessionsPct,
+    sessionsCompletedPct,
+
+
     exercisesPct,
     setsPct,
     reasonLabel,

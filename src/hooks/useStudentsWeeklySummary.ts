@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { type AdherenceReport } from '@/lib/weeklyAdherence';
 import { type ProgressionReport, type WeekResolution } from '@/lib/weeklyProgression';
+import { resolveCurrentTrainingPhase } from '@/lib/currentPhase';
 import { resolveWeekContexts, fetchRangeFor } from '@/lib/weekContext';
 import {
   buildWeeklyTrainingReport,
@@ -177,7 +178,12 @@ export const useStudentsWeeklySummary = () => {
       for (const [studentId, plan] of latestPlan.entries()) {
         contextsByStudent.set(studentId, resolveWeekContexts({
           planId: plan.id,
-          phase: (plan.fase as TrainingPhase) || 'semana_1',
+          phase: resolveCurrentTrainingPhase({
+            id: plan.id,
+            fase: plan.fase,
+            fase_inicio_data: plan.fase_inicio_data,
+            cycle_days: plan.cycle_days,
+          }).phase,
           phaseStartDate: plan.fase_inicio_data,
           cycleDays: plan.cycle_days,
         }));
@@ -292,7 +298,12 @@ export const useStudentsWeeklySummary = () => {
         if (plan) {
           // MESMAS funções puras do aluno/admin — só a busca de dados é em lote.
           const report = buildWeeklyTrainingReport({
-            plannedPhase: (plan.fase as TrainingPhase) || 'semana_1',
+            plannedPhase: resolveCurrentTrainingPhase({
+              id: plan.id,
+              fase: plan.fase,
+              fase_inicio_data: plan.fase_inicio_data,
+              cycle_days: plan.cycle_days,
+            }).phase,
             plannedDays,
             contexts: contextsByStudent.get(p.user_id)!,
             logs: allLogs,
