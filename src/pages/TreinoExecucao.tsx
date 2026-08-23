@@ -507,6 +507,7 @@ const TreinoExecucao = () => {
           }
           setLoadedExercises(today.exercises);
           setLoadedDayName(today.day);
+          setContextReady(true);
 
           // Load exercise media
           const names = today.exercises
