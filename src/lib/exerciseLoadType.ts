@@ -64,3 +64,37 @@ export const requiresLoadLogging = (
   exerciseName: string,
   hint?: LoadTypeHint,
 ): boolean => !isNoLoadExercise(exerciseName, hint);
+
+/* -------------------------------------------------------------------------
+ * "Não exige carga" ≠ "não conta no treino".
+ * Barra fixa, flexão, prancha, abdominal e demais exercícios de peso corporal
+ * são trabalho real da sessão mesmo sem weight_kg. Só preparo/recuperação
+ * (mobilidade, alongamento, aquecimento, ativação, liberação, respiração)
+ * fica de fora do completionScore da sessão.
+ * ---------------------------------------------------------------------- */
+
+const NOT_COUNTED_KEYWORDS = [
+  'MOBILIDAD', 'MOBILITY',
+  'ALONGAMENT', 'STRETCH',
+  'ATIVAC', 'ATIVAÇ', 'ACTIVATION',
+  'AQUECIMENT', 'WARM UP', 'WARMUP', 'WARM-UP',
+  'FOAM ROLL', 'LIBERAC', 'LIBERAÇ',
+  'RESPIRAC', 'RESPIRAÇ', 'BREATHING',
+  'CAT COW', 'GATO CAMELO',
+];
+
+const NOT_COUNTED_GROUPS = new Set(['MOBILIDADE', 'ALONGAMENTO', 'AQUECIMENTO']);
+
+/**
+ * Exercício conta para a conclusão da sessão (completionScore)?
+ * Peso corporal e isometria de core contam; preparo/recuperação não.
+ */
+export const countsTowardWorkoutCompletion = (
+  exerciseName: string,
+  hint?: LoadTypeHint,
+): boolean => {
+  if (NOT_COUNTED_GROUPS.has(norm(hint?.grupo || ''))) return false;
+  const n = norm(exerciseName);
+  if (!n) return true;
+  return !NOT_COUNTED_KEYWORDS.some((k) => n.includes(norm(k)));
+};

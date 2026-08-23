@@ -1330,7 +1330,8 @@ const TreinoExecucao = () => {
                 const { writeWithFallback } = await import('@/lib/offlineQueue');
                 await writeWithFallback({
                   table: 'exercise_set_logs',
-                  op: 'insert',
+                  op: 'upsert',
+                  onConflict: 'session_id,student_id,exercise_name,set_number',
                   payload: setLogRows.map((r) => ({ ...r, session_id: finalSessionId })),
                 });
                 await writeWithFallback({

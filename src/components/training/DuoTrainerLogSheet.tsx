@@ -430,7 +430,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
       source: 'admin',
     }));
 
-    const { error } = await supabase.from('exercise_set_logs').insert(rows);
+    const { error } = await supabase.from('exercise_set_logs').upsert(rows, { onConflict: 'session_id,student_id,exercise_name,set_number' });
 
     setFn(prev => {
       if (!prev) return null;

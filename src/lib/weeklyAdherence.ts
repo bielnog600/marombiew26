@@ -26,7 +26,17 @@ export interface AdherenceSession {
   status: string;
   completed_at?: string | null;
   started_at?: string | null;
+  created_at?: string | null;
 }
+
+/**
+ * Data em que as sessões estruturadas (workout_sessions com status
+ * completed/partial/abandoned e resolução automática) passaram a valer.
+ * A partir daqui, workout_sessions é a ÚNICA fonte de presença — um único
+ * exercise_set_log não transforma mais o dia em "sessão executada".
+ * Antes disso, o fallback por "dias com logs" continua valendo (dados legados).
+ */
+export const STRUCTURED_SESSIONS_SINCE = '2026-08-23';
 
 export interface AdherenceReport {
   status: AdherenceStatus;
@@ -114,20 +124,25 @@ export const buildAdherenceReport = (
     if ((l.weight_kg ?? 0) > 0 && (l.reps ?? 0) > 0) setsWithLoad += 1;
   }
 
-  // Presença: quando existem sessões estruturadas na janela, elas são a fonte
-  // principal — apenas `completed` conta como sessão executada.
+  // Presença: workout_sessions é a fonte de verdade a partir do cutoff.
   const structured = sessions ?? [];
+  const sessionDay = (s: AdherenceSession) =>
+    dayKey(s.completed_at || s.started_at || s.created_at || '');
   const sessionsCompleted = structured.filter((s) => s.status === 'completed').length;
   const sessionsPartial = structured.filter((s) => s.status === 'partial').length;
   const sessionsAbandoned = structured.filter((s) => s.status === 'abandoned').length;
-  const sessionsFromStructured = structured.length > 0;
+  const daysWithSession = new Set(structured.map(sessionDay).filter(Boolean));
+
+  // Fallback legado: só para dias ANTERIORES ao cutoff e sem sessão estruturada.
+  const legacyDays = new Set(
+    [...daysWithLogs].filter((d) => d < STRUCTURED_SESSIONS_SINCE && !daysWithSession.has(d)),
+  );
+  const sessionsFromStructured = legacyDays.size === 0;
 
   const cap = (n: number) => Math.min(n, sessionsPlanned || n);
-  const sessionsExecuted = sessionsFromStructured
-    ? cap(sessionsCompleted)
-    : Math.min(daysWithLogs.size, sessionsPlanned || daysWithLogs.size);
+  const sessionsExecuted = cap(sessionsCompleted + legacyDays.size);
 
-  const weightedRaw = sessionsCompleted + 0.5 * sessionsPartial;
+  const weightedRaw = sessionsCompleted + 0.5 * sessionsPartial + legacyDays.size;
   const weightedSessionAdherence = sessionsPlanned > 0
     ? Math.min(1, weightedRaw / sessionsPlanned)
     : 0;

@@ -612,7 +612,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       source: 'admin',
     }));
 
-    const { error } = await supabase.from('exercise_set_logs').insert(rows);
+    const { error } = await supabase.from('exercise_set_logs').upsert(rows, { onConflict: 'session_id,student_id,exercise_name,set_number' });
 
     setState((prev) => {
       const cur = prev[exIdx];
