@@ -492,6 +492,7 @@ async function generateStructuredWorkoutWithVariation(args: {
 
   let fallbackReason: string | null = null;
   let fallbackReasons: string[] = [];
+  const modelAttempts: AIAttemptMetadata[] = [];
 
   // 1st attempt
   const first = await callStructuredModel({
@@ -500,8 +501,61 @@ async function generateStructuredWorkoutWithVariation(args: {
     messages: args.messages,
     extraSystem: variationBlock,
     modelToUse: AI_MODELS.primary,
-    reason: "first_attempt"
+    reason: "first_attempt",
+    attempts: modelAttempts
   });
+  
+  const isCriticalFailure = !first.ok && (first.error_code === "upstream_error" || first.error_code === "empty_response" || first.error_code === "invalid_json" || first.error_code === "plan_validation_failed");
+  
+  if (isCriticalFailure) {
+    // If not retryable, return immediately
+    const body = await first.response.clone().json().catch(() => ({}));
+    if (body.retryable === false) return first.response;
+    
+    // Fallback for critical error
+    fallbackReason = first.error_code || "critical_failure";
+    fallbackReasons.push(fallbackReason);
+    
+    const retryBlock = variationBlock + "\n\n🚨 OCORREU UM ERRO TÉCNICO NA GERAÇÃO ANTERIOR (" + fallbackReason + "). Certifique-se de seguir o SCHEMA JSON estritamente e não deixar campos vazios.";
+    
+    const second = await callStructuredModel({
+      apiKey: args.apiKey,
+      systemPrompt: args.systemPrompt,
+      messages: args.messages,
+      extraSystem: retryBlock,
+      modelToUse: AI_MODELS.fallback,
+      reason: "critical_fallback",
+      attempts: modelAttempts
+    });
+    
+    if (!second.ok) return second.response;
+    
+    // If we reached here, first was failing but second worked.
+    // Proceed with the second attempt data.
+    const historyJsons = history
+      .map((h) => h.conteudo_json)
+      .filter((j) => j && typeof j === "object") as any[];
+      
+    let finalPlan = second.data;
+    
+    // snapPlanToCatalog and evaluate before returning
+    const unmatchedExercises = snapPlanToCatalog(finalPlan, args.catalog ?? []);
+    const markdownFinal = workoutPlanToMarkdown(finalPlan);
+    const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
+    
+    return new Response(
+      JSON.stringify({
+        json: finalPlan,
+        markdown: markdownFinal,
+        unmatchedExercises,
+        similarity: { score: 0, threshold: SIMILARITY_THRESHOLDS[intensity], intensity, historyCount: historyJsons.length },
+        aiRouting: routingMeta.routing,
+        aiUsage: routingMeta.usage,
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
   if (!first.ok) return first.response;
 
   const historyJsons = history
