@@ -177,6 +177,7 @@ const TreinoExecucao = () => {
     dayName?: string;
     exerciseMedia?: ExerciseMediaMap;
     phase?: TrainingPhase;
+    planId?: string | null;
   } | null;
 
   const [loadedExercises, setLoadedExercises] = useState<ParsedExercise[]>(stateData?.exercises || []);
