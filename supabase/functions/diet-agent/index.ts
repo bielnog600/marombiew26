@@ -800,6 +800,68 @@ serve(async (req) => {
         }
       };
 
+      /** Unified evaluation pipeline for diet candidates. */
+      const evaluateDietCandidate = (params: {
+        plan: any;
+        historyJsons: any[];
+        schedule: any;
+        intensity: VariationIntensity;
+        threshold: number;
+        variationRetryAllowed: boolean;
+        requireMenuVariation: boolean;
+      }) => {
+        const similarity = computeDietSimilarity(params.plan, params.historyJsons);
+        const nutrition = validateDietNutrition(params.plan);
+        
+        let normalizedAdj: any = null;
+        let adjValidation = { ok: true, errors: [] as string[] };
+        
+        if (params.schedule && typeof params.schedule === "object" && params.schedule.days) {
+          const { adjustments, missing } = normalizeDailyAdjustments(
+            (params.plan as any).dailyAdjustments,
+            params.schedule
+          );
+          normalizedAdj = adjustments;
+          adjValidation = hasDailyCalorieVariation(params.schedule)
+            ? validateDailyAdjustments(adjustments, missing)
+            : { ok: true, errors: [] as string[] };
+        }
+
+        const qOnly = similarity.quantityOnlyRatio ?? 0;
+        const isPortionOnly = similarity.changeKind === "portion_only";
+        const protRepeat = similarity.primaryProteinRepeatRatio ?? 0;
+        const carbRepeat = similarity.primaryCarbRepeatRatio ?? 0;
+        const primarySourceTooRepetitive = Math.max(protRepeat, carbRepeat) >= 0.6;
+
+        const variationFailure =
+          params.variationRetryAllowed &&
+          params.historyJsons.length > 0 &&
+          (
+            similarity.score > params.threshold ||
+            isPortionOnly ||
+            (params.requireMenuVariation && qOnly > 0.3) ||
+            primarySourceTooRepetitive
+          );
+
+        const needsRetry = !nutrition.ok || !adjValidation.ok || variationFailure;
+
+        return {
+          plan: params.plan,
+          similarity,
+          nutrition,
+          normalizedAdj,
+          adjValidation,
+          variationFailure,
+          needsRetry,
+          qOnly,
+          isPortionOnly,
+          protRepeat,
+          carbRepeat,
+          primarySourceTooRepetitive
+        };
+      };
+
+      const threshold = SIMILARITY_THRESHOLDS[intensity];
       let fallbackReason: string | null = null;
       let fallbackReasons: string[] = [];
 
@@ -823,12 +885,46 @@ serve(async (req) => {
             const historyJsons = history
               .map((h) => h.conteudo_json)
               .filter((j) => j && typeof j === "object") as any[];
-            const similarity = computeDietSimilarity(second.plan, historyJsons);
+            
+            // Re-run full pipeline for technical fallback candidate
+            const result = evaluateDietCandidate({
+              plan: second.plan,
+              historyJsons,
+              schedule,
+              intensity,
+              threshold,
+              variationRetryAllowed,
+              requireMenuVariation
+            });
+
             const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
+            
+            if (!result.nutrition.ok || !result.adjValidation.ok) {
+              return new Response(
+                JSON.stringify({
+                  error: "Falha crítica na geração (Terra). Verifique os validadores.",
+                  error_code: "review_required",
+                  validationReasons: [
+                    ...(!result.nutrition.ok ? ["nutrition_invalid"] : []),
+                    ...(!result.adjValidation.ok ? ["daily_adjustments_invalid"] : [])
+                  ],
+                  aiRouting: routingMeta.routing,
+                  aiUsage: routingMeta.usage
+                }),
+                { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            }
+
             return new Response(
               JSON.stringify({
-                plan: second.plan,
-                similarity: { score: similarity.score, threshold: SIMILARITY_THRESHOLDS[intensity], intensity, historyCount: historyJsons.length },
+                plan: result.plan,
+                dailyAdjustments: result.normalizedAdj,
+                similarity: { 
+                  score: result.similarity.score, 
+                  threshold, 
+                  intensity, 
+                  historyCount: historyJsons.length 
+                },
                 aiRouting: routingMeta.routing,
                 aiUsage: routingMeta.usage,
               }),
@@ -836,7 +932,18 @@ serve(async (req) => {
             );
           }
         }
-        return first.resp;
+        
+        // Final failure after fallback attempt(s)
+        const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
+        return new Response(
+          JSON.stringify({
+            error: body.error || "Erro crítico na geração de IA",
+            error_code: body.error_code || "critical_failure",
+            aiRouting: routingMeta.routing,
+            aiUsage: routingMeta.usage,
+          }),
+          { status: first.resp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
       const historyJsons = history
@@ -868,15 +975,21 @@ serve(async (req) => {
       }
 
       const variationRetryAllowed = intent !== "update";
+      
+      const variationFailure =
+        variationRetryAllowed &&
+        historyJsons.length > 0 &&
+        (
+          similarity.score > threshold ||
+          isPortionOnly ||
+          (requireMenuVariation && qOnly > 0.3) ||
+          primarySourceTooRepetitive
+        );
 
       const needsRetry =
         !nutrition.ok ||
         !initialAdjValidation.ok ||
-        (historyJsons.length > 0 &&
-          (similarity.score > threshold ||
-            (variationRetryAllowed && isPortionOnly) ||
-            (requireMenuVariation && qOnly > 0.3) ||
-            (variationRetryAllowed && primarySourceTooRepetitive)));
+        variationFailure;
 
       if (needsRetry) {
         if (!nutrition.ok) { 
@@ -907,13 +1020,13 @@ serve(async (req) => {
         }
 
         const retryParts = [];
-        if (intent !== "update") {
+        if (variationRetryAllowed) {
           const overlapList = similarity.worstOverlap.length
             ? `Alimentos repetidos do cardápio anterior (TROQUE A MAIORIA): ${similarity.worstOverlap.join(", ")}.`
             : "Muitos alimentos coincidem com o cardápio anterior.";
           retryParts.push(
             overlapList,
-            "Substitua por equivalentes em macros usando o BANCO DE ALIMENTOS.",
+            "Substitua de fato os alimentos por outros equivalentes em macros usando o BANCO DE ALIMENTOS.",
             "Preserve metas calóricas, macros, restrições e preferências."
           );
         }
@@ -954,17 +1067,17 @@ serve(async (req) => {
             "Todas as correções devem usar alimentos da lista de preferidos/acessíveis/práticos do questionário do aluno.",
           );
         }
-        if (isPortionOnly || qOnly > 0.3) {
+        if (variationRetryAllowed && (isPortionOnly || qOnly > 0.3)) {
           retryParts.push(
-            "❗ A geração anterior apenas mudou GRAMAGEM dos mesmos alimentos. Isto NÃO é variação. Substitua de fato os alimentos por outros equivalentes (proteínas, carbs e gorduras diferentes).",
+            "❗ A geração anterior apenas mudou GRAMAGEM ou teve sobreposição excessiva de quantidades. Isto NÃO é variação. Substitua de fato os alimentos por outros equivalentes (proteínas, carbs e gorduras diferentes).",
           );
         }
-        if (protRepeat >= 0.6 && similarity.proteinRepeatMeals?.length) {
+        if (variationRetryAllowed && protRepeat >= 0.6 && similarity.proteinRepeatMeals?.length) {
           retryParts.push(
             `❗ Em ${Math.round(protRepeat * 100)}% das refeições a PROTEÍNA PRINCIPAL repete a MESMA FAMÍLIA do cardápio anterior (refeições: ${similarity.proteinRepeatMeals.join(", ")}). Troque por outra família: se antes era carne vermelha, use frango, peixe, ovos, vísceras (fígado/moela) ou laticínios — não outra carne vermelha.`,
           );
         }
-        if (carbRepeat >= 0.6 && similarity.carbRepeatMeals?.length) {
+        if (variationRetryAllowed && carbRepeat >= 0.6 && similarity.carbRepeatMeals?.length) {
           retryParts.push(
             `❗ Em ${Math.round(carbRepeat * 100)}% das refeições o CARBOIDRATO PRINCIPAL repete a MESMA FAMÍLIA (refeições: ${similarity.carbRepeatMeals.join(", ")}). Alterne entre cereais, tubérculos, frutas e leguminosas.`,
           );
@@ -1003,124 +1116,76 @@ serve(async (req) => {
               : { ok: true, errors: [] as string[] };
           }
 
-          // Prefer the second plan when it (a) lowers similarity OR
-          // (b) escapes portion_only mode OR
-          // (c) reduces primary-source repetition OR
-          // (d) fixes a nutrition guardrail failure.
-          // (e) fixes dailyAdjustments.
-          const escapedPortion =
-            isPortionOnly && sim2.changeKind !== "portion_only";
           const sim2Primary = Math.max(
             sim2.primaryProteinRepeatRatio ?? 0,
             sim2.primaryCarbRepeatRatio ?? 0,
           );
-          const reducedPrimary =
-            primarySourceTooRepetitive && sim2Primary < Math.max(protRepeat, carbRepeat);
-          const fixedNutrition = !nutrition.ok && nut2.issues.length < nutrition.issues.length;
+          const result2 = evaluateDietCandidate({
+            plan: second.plan,
+            historyJsons,
+            schedule,
+            intensity,
+            threshold,
+            variationRetryAllowed,
+            requireMenuVariation
+          });
+
+          const nut2 = result2.nutrition;
+          const sim2 = result2.similarity;
+          const initialAdjValidation2 = result2.adjValidation;
+
+          const escapedPortion = isPortionOnly && sim2.changeKind !== "portion_only";
+          const sim2Primary = Math.max(
+            sim2.primaryProteinRepeatRatio ?? 0,
+            sim2.primaryCarbRepeatRatio ?? 0,
+          );
+          const reducedPrimary = primarySourceTooRepetitive && sim2Primary < Math.max(protRepeat, carbRepeat);
+          
+          const fixedNutrition = !nutrition.ok && nut2.ok;
           const fixedAdj = !initialAdjValidation.ok && initialAdjValidation2.ok;
 
-          // Hierarchy: VALIDITY/SAFETY > NUTRITION > CONTRACT (dailyAdj) > SIMILARITY
-          if (
-            fixedNutrition ||
-            fixedAdj ||
-            (nutrition.ok && initialAdjValidation2.ok &&
-              (sim2.score <= similarity.score || escapedPortion || reducedPrimary))
-          ) {
+          // Critical validity check: if Luna was invalid, Terra MUST be valid to be accepted.
+          const terraIsBetter = 
+            (fixedNutrition && initialAdjValidation2.ok) ||
+            (fixedAdj && nut2.ok) ||
+            (nutrition.ok && initialAdjValidation.ok && nut2.ok && initialAdjValidation2.ok &&
+              (sim2.score <= similarity.score || escapedPortion || reducedPrimary));
+
+          if (terraIsBetter) {
             finalPlan = second.plan;
             similarity = sim2;
             nutrition = nut2;
+            initialAdjValidation = initialAdjValidation2;
+            normalizedDailyAdjustments = result2.normalizedAdj;
           }
           regenerated = true;
-          if (!nutrition.ok) warning = "incomplete_nutrition";
-          else if (similarity.changeKind === "portion_only") warning = "quantity_only";
+
+          if (!nutrition.ok || !initialAdjValidation.ok) {
+             warning = !nutrition.ok ? "incomplete_nutrition" : "daily_adjustments_invalid";
+          } else if (similarity.changeKind === "portion_only") warning = "quantity_only";
           else if (similarity.score > threshold) warning = "high_similarity";
-          else if (
-            Math.max(
-              similarity.primaryProteinRepeatRatio ?? 0,
-              similarity.primaryCarbRepeatRatio ?? 0,
-            ) >= 0.6
-          ) {
-            warning = "primary_source_repeated";
-          }
+          else if (sim2Primary >= 0.6) warning = "primary_source_repeated";
         } else {
-          warning = !nutrition.ok
-            ? "incomplete_nutrition"
-            : !initialAdjValidation.ok
-              ? "daily_adjustments_invalid"
-              : isPortionOnly
-                ? "quantity_only"
-                : "high_similarity";
+          // Fallback failed technically
+          warning = !nutrition.ok ? "incomplete_nutrition" : (!initialAdjValidation.ok ? "daily_adjustments_invalid" : "high_similarity");
         }
       }
 
-      // === dailyAdjustments contract ===
-      // Quando o cliente enviou um weeklyEnergySchedule, os targets são
-      // determinísticos e vêm do schedule (fonte de verdade). A IA fornece
-      // apenas instructions / summary / estimated_adjustment_kcal.
-      let normalizedDailyAdjustments: any = null;
-      let dailyAdjustmentsError: string | null = null;
-      if (schedule && typeof schedule === "object" && schedule.days) {
-        const hasVariation = hasDailyCalorieVariation(schedule);
-        console.log("[diet-agent] weekly_schedule_received=true", {
-          requested_day_count: ENERGY_WEEKDAYS.filter((wd) => schedule.days?.[wd]).length,
-          has_daily_variation: hasVariation,
-          model_daily_adjustments_present:
-            !!(finalPlan && typeof finalPlan === "object" && (finalPlan as any).dailyAdjustments),
-        });
-        const modelAdj = (finalPlan && typeof finalPlan === "object")
-          ? (finalPlan as any).dailyAdjustments
-          : null;
-        const { adjustments, missing } = normalizeDailyAdjustments(modelAdj, schedule);
-        const requested = buildRequestedFromSchedule(schedule);
-        // Log divergências de target (nunca aceitas silenciosamente).
-        for (const wd of ENERGY_WEEKDAYS) {
-          const modelDay = modelAdj?.[wd];
-          if (modelDay && Number(modelDay.target_kcal) !== requested[wd].target_kcal) {
-            console.warn(`[diet-agent] target divergence on ${wd}: model=${modelDay.target_kcal} authoritative=${requested[wd].target_kcal}`);
-          }
-        }
-        // Sem variação real → não exigir dailyAdjustments da IA. Os 7 dias já
-        // vieram do normalizador como base_day + summary "Manter plano base".
-        const validation = hasVariation
-          ? validateDailyAdjustments(adjustments, missing)
-          : { ok: true, errors: [] as string[] };
-        console.log("[diet-agent] normalized_day_count", {
-          count: Object.keys(adjustments).length,
-          missing_count: missing.length,
-          validation_ok: validation.ok,
-          has_variation: hasVariation,
-        });
-        if (!validation.ok) {
-          dailyAdjustmentsError = validation.errors.join(" | ");
-        } else {
-          normalizedDailyAdjustments = adjustments;
-        }
-
-        if (!normalizedDailyAdjustments && missing.length > 0) {
-          const WD_LABEL: Record<string, string> = {
-            seg: "Segunda", ter: "Terça", qua: "Quarta", qui: "Quinta",
-            sex: "Sexta", sab: "Sábado", dom: "Domingo",
-          };
-          const names = missing.map((wd) => WD_LABEL[wd] ?? wd).join(", ");
-          return new Response(
-            JSON.stringify({
-              error: `A IA não devolveu os ajustes dos seguintes dias: ${names}.`,
-              error_code: "daily_adjustments_invalid",
-              missing_days: missing,
-              details: dailyAdjustmentsError,
-            }),
-            { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-          );
-        }
-      }
-
-      if (schedule && !normalizedDailyAdjustments) {
+      // Final validation before response
+      if (!nutrition.ok || (schedule && !normalizedDailyAdjustments)) {
+        const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
         return new Response(
           JSON.stringify({
-            error:
-              "A dieta foi gerada, mas os ajustes calóricos por dia não foram devolvidos corretamente. Regere o plano.",
-            error_code: "daily_adjustments_invalid",
-            details: dailyAdjustmentsError,
+            error: !nutrition.ok 
+              ? "A dieta gerada é nutricionalmente incompleta." 
+              : "Os ajustes calóricos por dia não foram devolvidos corretamente.",
+            error_code: "review_required",
+            validationReasons: [
+              ...(!nutrition.ok ? ["nutrition_invalid"] : []),
+              ...(schedule && !normalizedDailyAdjustments ? ["daily_adjustments_invalid"] : [])
+            ],
+            aiRouting: routingMeta.routing,
+            aiUsage: routingMeta.usage,
           }),
           { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
@@ -1169,7 +1234,7 @@ serve(async (req) => {
           aiRouting: routingMeta.routing,
           aiUsage: routingMeta.usage,
         }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 

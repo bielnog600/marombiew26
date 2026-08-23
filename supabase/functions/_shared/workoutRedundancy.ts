@@ -7,72 +7,30 @@
 import { normalizeName } from "../_shared/planSimilarity.ts";
 
 // Movement Pattern / Family Taxonomy (Reusing/extending existing categories)
-const EXERCISE_FAMILIES: Record<string, string[]> = {
-  knee_dominant_heavy: [
-    "agachamento livre", "agachamento barra", "agachamento smith",
-    "hack machine", "agachamento hack", "leg press 45", "leg press horizontal",
-    "leg press 90", "leg press 180", "agachamento búlgaro", "afundo", "avanço"
-  ],
-  knee_dominant_iso: [
-    "cadeira extensora", "extensora", "extensao de joelhos"
-  ],
-  hip_dominant_heavy: [
-    "levantamento terra", "deadlift", "stiff", "bom dia", "good morning",
-    "meio terra", "rdl", "elevação pélvica", "hip thrust"
-  ],
-  hip_dominant_iso: [
-    "mesa flexora", "cadeira flexora", "flexora vertical", "flexora deitado"
-  ],
-  push_horizontal: [
-    "supino reto", "supino inclinado", "supino declinado", "supino articulado",
-    "supino com halteres", "push up", "flexao de bracos", "fly", "crucifixo", "peck deck", "voador"
-  ],
-  pull_horizontal: [
-    "remada curvada", "remada cavalinho", "remada baixa", "remada unilateral",
-    "remada articulada", "row", "t-bar row", "face pull"
-  ],
-  push_vertical: [
-    "desenvolvimento", "shoulder press", "military press", "overhead press", "arnold press"
-  ],
-  pull_vertical: [
-    "puxada alta", "lat pulldown", "barra fixa", "chin up", "pull up", "pulldown"
-  ],
-  shoulder_lateral: [
-    "elevacao lateral"
-  ],
-  shoulder_front: [
-    "elevacao frontal"
-  ],
-  shoulder_rear: [
-    "crucifixo inverso", "remada alta"
-  ],
-  biceps: [
-    "rosca direta", "rosca martelo", "rosca concentrada", "rosca scott"
-  ],
-  triceps: [
-    "tríceps testa", "tríceps corda", "tríceps pulley", "tríceps coice", "tríceps francês"
-  ],
-  mobility_hip: [
-    "mobilidade quadril", "abertura quadril", "90/90", "frog stretch"
-  ],
-  mobility_thoracic: [
-    "mobilidade toracica", "cat cow", "thoracic bridge"
-  ],
-  mobility_ankle: [
-    "mobilidade tornozelo"
-  ]
-};
+import { CLASSIFIER_VERSION } from "../_shared/exerciseClassifier.ts";
 
 function getExerciseFamily(name: string): string | null {
   const norm = normalizeName(name);
   if (!norm) return null;
-  
-  for (const [family, terms] of Object.entries(EXERCISE_FAMILIES)) {
-    if (terms.some(t => {
-      const termNorm = normalizeName(t);
-      return termNorm && norm.includes(termNorm);
-    })) return family;
-  }
+
+  // Reusing patterns logic from exerciseClassifier to ensure consistency.
+  // We check for tokens that match specific functional families.
+  const name_norm = norm;
+
+  if (name_norm.includes("agachamento") || name_norm.includes("leg press") || name_norm.includes("hack machine") || name_norm.includes("agachamento hack") || name_norm.includes("afundo") || name_norm.includes("avanco")) return "squat_family";
+  if (name_norm.includes("stiff") || name_norm.includes("levantamento terra") || name_norm.includes("good morning") || name_norm.includes("romanian") || name_norm.includes("elevacao pelvica") || name_norm.includes("hip thrust")) return "hinge_family";
+  if (name_norm.includes("cadeira extensora") || name_norm.includes("extensao de joelho")) return "knee_extension";
+  if (name_norm.includes("mesa flexora") || name_norm.includes("flexora deitado") || name_norm.includes("flexora sentado")) return "knee_flexion";
+  if (name_norm.includes("supino") || name_norm.includes("chest press") || name_norm.includes("flexao de braco")) return "horizontal_push";
+  if (name_norm.includes("desenvolvimento") || name_norm.includes("military press") || name_norm.includes("overhead press") || name_norm.includes("arnold")) return "vertical_push";
+  if (name_norm.includes("remada")) return "horizontal_pull";
+  if (name_norm.includes("puxada") || name_norm.includes("pull up") || name_norm.includes("chin up") || name_norm.includes("barra fixa")) return "vertical_pull";
+  if (name_norm.includes("rosca")) return "elbow_flexion";
+  if (name_norm.includes("triceps") || name_norm.includes("kickback") || name_norm.includes("frances")) return "elbow_extension";
+  if (name_norm.includes("elevacao lateral")) return "shoulder_abduction";
+  if (name_norm.includes("panturrilha") || name_norm.includes("calf raise")) return "calf_raise";
+  if (name_norm.includes("mobilidade") || name_norm.includes("alongamento") || name_norm.includes("stretch") || name_norm.includes("90/90") || name_norm.includes("cat cow")) return "mobility_family";
+
   return null;
 }
 
@@ -116,7 +74,7 @@ export function validateWorkoutRedundancy(plan: any): { ok: boolean; issues: Red
       }
       
       // Special case: mobility exercises shouldn't be duplicated unless very different
-      if (family.startsWith("mobility_") && exercises.length >= 2) {
+      if (family === "mobility_family" && exercises.length >= 2) {
         const uniqueNames = new Set(exercises.map(normalizeName));
         if (uniqueNames.size < exercises.length) {
           issues.push({

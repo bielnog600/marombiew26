@@ -487,9 +487,43 @@ async function generateStructuredWorkoutWithVariation(args: {
       .join("\n");
   }
 
-  const intensity = args.intensity;
-  const variationBlock = workoutVariationPrompt(intensity, historySummary);
+  /** Unified evaluation pipeline for workout candidates. */
+  const evaluateWorkoutCandidate = (params: {
+    data: any;
+    historyJsons: any[];
+    catalog: CatalogEntry[];
+    intensity: VariationIntensity;
+    threshold: number;
+  }) => {
+    // Snap every exercise/variation name to a real row of public.exercises.
+    // Use clone to avoid mutating the original data in history comparisons.
+    const snapData = structuredClone(params.data);
+    const unmatchedExercises = snapPlanToCatalog(snapData, params.catalog);
+    
+    // Similarity and Redundancy
+    const similarity = computeWorkoutSimilarity(snapData, params.historyJsons);
+    const redundancy = validateWorkoutRedundancy(snapData);
+    
+    // Catalog mismatch check: primary exercises must match.
+    // If snapPlanToCatalog left an exercise unmatched, it's a catalog_mismatch.
+    const hasCatalogMismatch = unmatchedExercises.length > 0;
 
+    const needsRetry = (similarity.score > params.threshold && params.historyJsons.length > 0) || 
+                       !redundancy.ok || 
+                       hasCatalogMismatch;
+
+    return {
+      data: snapData,
+      similarity,
+      redundancy,
+      unmatchedExercises,
+      hasCatalogMismatch,
+      needsRetry,
+      markdown: workoutPlanToMarkdown(snapData)
+    };
+  };
+
+  const threshold = SIMILARITY_THRESHOLDS[args.intensity];
   let fallbackReason: string | null = null;
   let fallbackReasons: string[] = [];
   const modelAttempts: AIAttemptMetadata[] = [];
@@ -505,14 +539,12 @@ async function generateStructuredWorkoutWithVariation(args: {
     attempts: modelAttempts
   });
   
-  const isCriticalFailure = !first.ok && (first.error_code === "upstream_error" || first.error_code === "empty_response" || first.error_code === "invalid_json" || first.error_code === "plan_validation_failed");
+  const isTechnicalFailure = !first.ok && (first.error_code === "upstream_error" || first.error_code === "empty_response" || first.error_code === "invalid_json" || first.error_code === "plan_validation_failed");
   
-  if (isCriticalFailure) {
-    // If not retryable, return immediately
+  if (isTechnicalFailure) {
     const body = await first.response.clone().json().catch(() => ({}));
     if (body.retryable === false) return first.response;
     
-    // Fallback for critical error
     fallbackReason = first.error_code || "critical_failure";
     fallbackReasons.push(fallbackReason);
     
@@ -528,31 +560,65 @@ async function generateStructuredWorkoutWithVariation(args: {
       attempts: modelAttempts
     });
     
-    if (!second.ok) return second.response;
+    if (second.ok) {
+      const historyJsons = history
+        .map((h) => h.conteudo_json)
+        .filter((j) => j && typeof j === "object") as any[];
+
+      // Run full pipeline for Terra candidate
+      const result = evaluateWorkoutCandidate({
+        data: second.data,
+        historyJsons,
+        catalog: args.catalog ?? [],
+        intensity,
+        threshold
+      });
+
+      const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
+
+      if (!result.redundancy.ok || result.hasCatalogMismatch) {
+        return new Response(
+          JSON.stringify({
+            error: "Falha crítica na geração (Terra). Verifique redundância e catálogo.",
+            error_code: "review_required",
+            validationReasons: [
+              ...(!result.redundancy.ok ? ["internal_redundancy"] : []),
+              ...(result.hasCatalogMismatch ? ["catalog_mismatch"] : [])
+            ],
+            aiRouting: routingMeta.routing,
+            aiUsage: routingMeta.usage,
+          }),
+          { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          json: result.data,
+          markdown: result.markdown,
+          unmatchedExercises: result.unmatchedExercises,
+          similarity: { 
+            score: Number(result.similarity.score.toFixed(3)), 
+            threshold, 
+            intensity, 
+            historyCount: historyJsons.length 
+          },
+          aiRouting: routingMeta.routing,
+          aiUsage: routingMeta.usage,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
     
-    // If we reached here, first was failing but second worked.
-    // Proceed with the second attempt data.
-    const historyJsons = history
-      .map((h) => h.conteudo_json)
-      .filter((j) => j && typeof j === "object") as any[];
-      
-    let finalPlan = second.data;
-    
-    // snapPlanToCatalog and evaluate before returning
-    const unmatchedExercises = snapPlanToCatalog(finalPlan, args.catalog ?? []);
-    const markdownFinal = workoutPlanToMarkdown(finalPlan);
     const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
-    
     return new Response(
       JSON.stringify({
-        json: finalPlan,
-        markdown: markdownFinal,
-        unmatchedExercises,
-        similarity: { score: 0, threshold: SIMILARITY_THRESHOLDS[intensity], intensity, historyCount: historyJsons.length },
+        error: "Erro crítico na geração de treino (Terra)",
+        error_code: "critical_failure",
         aiRouting: routingMeta.routing,
         aiUsage: routingMeta.usage,
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 
@@ -562,14 +628,23 @@ async function generateStructuredWorkoutWithVariation(args: {
     .map((h) => h.conteudo_json)
     .filter((j) => j && typeof j === "object") as any[];
 
-  let similarity = computeWorkoutSimilarity(first.data, historyJsons);
-  const redundancy = validateWorkoutRedundancy(first.data);
-  const threshold = SIMILARITY_THRESHOLDS[intensity];
-  let finalPlan = first.data;
+  const result1 = evaluateWorkoutCandidate({
+    data: first.data,
+    historyJsons,
+    catalog: args.catalog ?? [],
+    intensity,
+    threshold
+  });
+
+  let similarity = result1.similarity;
+  let redundancy = result1.redundancy;
+  let finalPlan = result1.data;
   let regenerated = false;
   let warning: string | null = null;
+  let unmatchedExercises = result1.unmatchedExercises;
+  let hasCatalogMismatch = result1.hasCatalogMismatch;
 
-  const needsRetry = (similarity.score > threshold && historyJsons.length > 0) || !redundancy.ok;
+  const needsRetry = result1.needsRetry;
 
   if (needsRetry) {
     if (similarity.score > threshold) {
@@ -579,6 +654,10 @@ async function generateStructuredWorkoutWithVariation(args: {
     if (!redundancy.ok) {
       fallbackReason = fallbackReason || "internal_redundancy";
       fallbackReasons.push("internal_redundancy");
+    }
+    if (hasCatalogMismatch) {
+      fallbackReason = fallbackReason || "catalog_mismatch";
+      fallbackReasons.push("catalog_mismatch");
     }
 
     const overlapList = similarity.worstOverlap.length
@@ -611,29 +690,59 @@ async function generateStructuredWorkoutWithVariation(args: {
       attempts: modelAttempts
     });
     if (second.ok) {
-      const sim2 = computeWorkoutSimilarity(second.data, historyJsons);
-      const red2 = validateWorkoutRedundancy(second.data);
-      // Hierarquia: SEGURANÇA (assumida) > SCHEMA VÁLIDO > REDUNDÂNCIA > SIMILARIDADE.
-      // Escolher o segundo se ele corrige a redundância ou melhora significativamente a similaridade.
+      const result2 = evaluateWorkoutCandidate({
+        data: second.data,
+        historyJsons,
+        catalog: args.catalog ?? [],
+        intensity,
+        threshold
+      });
+
+      const sim2 = result2.similarity;
+      const red2 = result2.redundancy;
+      
       const fixedRedundancy = !redundancy.ok && red2.ok;
-      if (fixedRedundancy || (red2.ok && sim2.score <= similarity.score)) {
-        finalPlan = second.data;
+      const fixedCatalog = hasCatalogMismatch && !result2.hasCatalogMismatch;
+      
+      const terraIsBetter = 
+        (fixedRedundancy && !result2.hasCatalogMismatch) ||
+        (fixedCatalog && red2.ok) ||
+        (redundancy.ok && !hasCatalogMismatch && red2.ok && !result2.hasCatalogMismatch && sim2.score <= similarity.score);
+
+      if (terraIsBetter) {
+        finalPlan = result2.data;
         similarity = sim2;
+        redundancy = red2;
+        unmatchedExercises = result2.unmatchedExercises;
+        hasCatalogMismatch = result2.hasCatalogMismatch;
       }
       regenerated = true;
-      if (similarity.score > threshold) {
-        warning = "high_similarity";
-      }
+      if (!redundancy.ok) warning = "internal_redundancy";
+      else if (hasCatalogMismatch) warning = "catalog_mismatch";
+      else if (similarity.score > threshold) warning = "high_similarity";
     } else {
-      warning = "high_similarity";
+      warning = !redundancy.ok ? "internal_redundancy" : (hasCatalogMismatch ? "catalog_mismatch" : "high_similarity");
     }
   }
 
-  // Snap every exercise/variation name to a real row of public.exercises.
-  const unmatchedExercises = snapPlanToCatalog(finalPlan, args.catalog ?? []);
-  if (unmatchedExercises.length > 0) {
-    console.warn("trainer-agent: exercícios sem equivalente no banco:", unmatchedExercises.join(" | "));
+  // Final validation before response
+  if (!redundancy.ok || hasCatalogMismatch) {
+    const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
+    return new Response(
+      JSON.stringify({
+        error: !redundancy.ok ? "O treino gerado contém redundância excessiva." : "Exercícios principais não encontrados no catálogo.",
+        error_code: "review_required",
+        validationReasons: [
+          ...(!redundancy.ok ? ["internal_redundancy"] : []),
+          ...(hasCatalogMismatch ? ["catalog_mismatch"] : [])
+        ],
+        aiRouting: routingMeta.routing,
+        aiUsage: routingMeta.usage,
+      }),
+      { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   }
+
   const markdownFinal = workoutPlanToMarkdown(finalPlan);
   const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
   console.log("[ai-routing]", {
