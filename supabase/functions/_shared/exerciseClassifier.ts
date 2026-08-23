@@ -41,6 +41,22 @@ export const EQUIP_RULES: Array<{ eq: string; tokens: string[]; conf: number }> 
   { eq: "band",      tokens: ["elastico", "band "], conf: 0.85 },
 ];
 
+// Class hints by name
+export const ISOLATION_TOKENS = [
+  "extensora", "flexora", "rosca", "triceps", "elevacao lateral", "elevacao frontal",
+  "crucifixo", "voador", "pec deck", "panturrilha", "abducao", "aducao",
+  "extensao de", "flexao de perna", "kickback",
+];
+export const COMPOUND_TOKENS = [
+  "agachamento", "levantamento terra", "supino", "desenvolvimento",
+  "remada", "puxada", "afundo", "avanco", "stiff", "leg press", "clean", "snatch",
+];
+export const POWER_TOKENS = ["clean", "snatch", "arremesso", "push jerk", "jerk"];
+export const PLYO_TOKENS = ["salto", "jump", "pliometrico"];
+export const MOBILITY_TOKENS = ["mobilidade", "alongamento", "stretch", "90/90", "cat cow"];
+export const CARDIO_TOKENS = ["corrida", "esteira", "bike", "ciclismo", "remo ergometro", "cardio"];
+export const CORE_TOKENS = ["prancha", "abdominal", "russo", "wood chop", "core", "ab wheel"];
+
 // Movement pattern hints
 export const MOVEMENT_PATTERNS: Array<{ pattern: string; tokens: string[]; conf: number }> = [
   { pattern: "knee_extension", tokens: ["cadeira extensora", "extensao de joelho"], conf: 0.97 },
@@ -74,6 +90,7 @@ export function getExerciseFunctionalProfile(name: string | null | undefined) {
 
   return { pattern: mp, equipment: eq };
 }
+
 
 // Class hints by name
 
