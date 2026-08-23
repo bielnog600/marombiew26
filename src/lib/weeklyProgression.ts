@@ -655,7 +655,103 @@ export const formatDelta = (d: ExerciseDelta): string => {
 };
 
 // ============================================================
-// Resolução de semana ativa a partir da aderência
+// Resumo global de performance (determinístico)
+// ============================================================
+
+/** Mínimo de exercícios comparáveis para a performance ter voz na decisão. */
+export const PERFORMANCE_MIN_COMPARABLE_EXERCISES = 2;
+
+/** Cobertura mínima (comparáveis / esperados) para confiança alta. */
+export const PERFORMANCE_MIN_COVERAGE = 0.4;
+
+/** Proporção de regressões que caracteriza regressão semanal relevante. */
+export const PERFORMANCE_RELEVANT_REGRESSION_RATE = 0.5;
+
+/** Proporção de performances inúteis que sugere reanálise (registro ruim). */
+export const PERFORMANCE_REVISION_INSUFFICIENT_RATE = 0.6;
+
+/** Aderência ponderada mínima para tratar a semana como "alta". */
+export const ADHERENCE_HIGH_WEIGHTED = 0.75;
+
+export type PerformanceConfidence = 'high' | 'low';
+
+export interface PerformanceSummary {
+  improvedCount: number;
+  stableCount: number;
+  regressedCount: number;
+  missingCount: number;
+  insufficientCount: number;
+  /** improved + stable + regressed — único denominador de performance. */
+  comparableExercises: number;
+  /** Todos os exercícios avaliados (comparáveis + missing + insufficient). */
+  exercisesExpectedForPerformance: number;
+  regressionRate: number;
+  improvementRate: number;
+  /** comparableExercises / exercisesExpectedForPerformance */
+  performanceCoverage: number;
+  confidence: PerformanceConfidence;
+  /** Só true com confiança alta E regressionRate >= threshold. */
+  hasRelevantRegression: boolean;
+  /** Registro tão ruim que a performance quase não existe. */
+  poorLogQuality: boolean;
+}
+
+/**
+ * Consolida as performances por exercício num resumo semanal.
+ * `missing` e `insufficient_data` NUNCA entram no denominador de performance —
+ * eles são problema de aderência/registro, não de progressão.
+ */
+export const buildPerformanceSummary = (
+  performances: ExercisePerformance[] = [],
+): PerformanceSummary => {
+  const count = (s: PerformanceStatus) => performances.filter((p) => p.status === s).length;
+  const improvedCount = count('improved');
+  const stableCount = count('stable');
+  const regressedCount = count('regressed');
+  const missingCount = count('missing');
+  const insufficientCount = count('insufficient_data');
+
+  const comparableExercises = improvedCount + stableCount + regressedCount;
+  const exercisesExpectedForPerformance =
+    comparableExercises + missingCount + insufficientCount;
+
+  const regressionRate = comparableExercises > 0 ? regressedCount / comparableExercises : 0;
+  const improvementRate = comparableExercises > 0 ? improvedCount / comparableExercises : 0;
+  const performanceCoverage =
+    exercisesExpectedForPerformance > 0
+      ? comparableExercises / exercisesExpectedForPerformance
+      : 0;
+
+  const confidence: PerformanceConfidence =
+    comparableExercises >= PERFORMANCE_MIN_COMPARABLE_EXERCISES &&
+    performanceCoverage >= PERFORMANCE_MIN_COVERAGE
+      ? 'high'
+      : 'low';
+
+  return {
+    improvedCount,
+    stableCount,
+    regressedCount,
+    missingCount,
+    insufficientCount,
+    comparableExercises,
+    exercisesExpectedForPerformance,
+    regressionRate: +regressionRate.toFixed(4),
+    improvementRate: +improvementRate.toFixed(4),
+    performanceCoverage: +performanceCoverage.toFixed(4),
+    confidence,
+    hasRelevantRegression:
+      confidence === 'high' && regressionRate >= PERFORMANCE_RELEVANT_REGRESSION_RATE,
+    poorLogQuality:
+      exercisesExpectedForPerformance >= PERFORMANCE_MIN_COMPARABLE_EXERCISES &&
+      insufficientCount + missingCount > 0 &&
+      (insufficientCount + missingCount) / exercisesExpectedForPerformance >=
+        PERFORMANCE_REVISION_INSUFFICIENT_RATE,
+  };
+};
+
+// ============================================================
+// Resolução de semana ativa: aderência + performance + fase
 // ============================================================
 
 export type WeekAction =
@@ -665,13 +761,44 @@ export type WeekAction =
   | 'revise'
   | 'awaiting_data';
 
+/** Decisão detalhada (extensão de WeekAction, sem quebrar consumidores). */
+export type WeekDecision = WeekAction | 'advance_to_deload';
+
 export const WEEK_ACTION_LABEL: Record<WeekAction, string> = {
   advance: 'Avançar para próxima semana',
   hold: 'Manter semana atual',
-  repeat: 'Repetir semana anterior',
+  repeat: 'Repetir semana atual',
   revise: 'Sugerir reanálise do plano',
   awaiting_data: 'Aguardando registros suficientes',
 };
+
+export const WEEK_DECISION_LABEL: Record<WeekDecision, string> = {
+  ...WEEK_ACTION_LABEL,
+  advance_to_deload: 'Avançar para o deload',
+};
+
+export type WeekDecisionReason =
+  | 'no_adherence_data'
+  | 'weighted_adherence_high'
+  | 'weighted_adherence_medium'
+  | 'weighted_adherence_low'
+  | 'adherence_insufficient_data'
+  | 'partial_sessions_downgrade'
+  | 'poor_log_quality'
+  | 'performance_improved'
+  | 'performance_stable'
+  | 'performance_low_confidence'
+  | 'no_significant_regression'
+  | 'significant_regression'
+  | 'overload_week_completed'
+  | 'regression_consistent_with_accumulated_fatigue'
+  | 'overload_stimulus_not_delivered'
+  | 'deload_week_completed'
+  | 'deload_not_executed'
+  | 'deload_performance_ignored'
+  | 'cycle_restart';
+
+export type WeekConfidence = 'high' | 'low';
 
 export interface WeekResolution {
   plannedPhase: TrainingPhase;
@@ -680,59 +807,194 @@ export interface WeekResolution {
   blockOverload: boolean;
   suggestRevision: boolean;
   reasonLabel: string;
+  /** Extensões backward-compatible. */
+  decision: WeekDecision;
+  nextPhase: TrainingPhase;
+  confidence: WeekConfidence;
+  reasons: WeekDecisionReason[];
+  performance?: PerformanceSummary | null;
 }
 
 const nextPhase = (p: TrainingPhase): TrainingPhase => {
   const i = TRAINING_PHASES.indexOf(p);
-  if (i < 0 || i === TRAINING_PHASES.length - 1) return p;
-  return TRAINING_PHASES[i + 1];
+  if (i < 0) return p;
+  // Deload fecha o ciclo e reinicia na Semana 1.
+  return TRAINING_PHASES[(i + 1) % TRAINING_PHASES.length];
 };
 
-const prevPhase = (p: TrainingPhase): TrainingPhase => {
-  const i = TRAINING_PHASES.indexOf(p);
-  if (i <= 0) return p;
-  return TRAINING_PHASES[i - 1];
+/** Entrada de aderência: status legado ou o relatório completo. */
+export interface AdherenceLike {
+  status: AdherenceStatus;
+  weightedSessionAdherence?: number;
+  setsPct?: number;
+  exercisesPct?: number;
+}
+
+type AdherenceLevel = 'high' | 'medium' | 'low' | 'insufficient' | 'revise';
+
+/**
+ * Nível de aderência. `weightedSessionAdherence` (completo=1, parcial=0.5,
+ * abandonado=0) é a evidência principal: mesmo com status `apto_avancar`,
+ * uma semana sustentada por sessões parciais não vira aderência alta.
+ */
+const adherenceLevelOf = (a: AdherenceLike): { level: AdherenceLevel; downgraded: boolean } => {
+  const w = a.weightedSessionAdherence;
+  switch (a.status) {
+    case 'apto_avancar':
+      if (w != null && w < ADHERENCE_HIGH_WEIGHTED) return { level: 'medium', downgraded: true };
+      return { level: 'high', downgraded: false };
+    case 'manter_semana':
+      return { level: 'medium', downgraded: false };
+    case 'repetir_semana':
+      return { level: 'low', downgraded: false };
+    case 'sugerir_reanalise':
+      return { level: 'revise', downgraded: false };
+    case 'dados_insuficientes':
+    default:
+      return { level: 'insufficient', downgraded: false };
+  }
+};
+
+const ADHERENCE_REASON: Record<AdherenceLevel, WeekDecisionReason> = {
+  high: 'weighted_adherence_high',
+  medium: 'weighted_adherence_medium',
+  low: 'weighted_adherence_low',
+  insufficient: 'adherence_insufficient_data',
+  revise: 'poor_log_quality',
 };
 
 /**
- * Decide qual semana o aluno deve treinar agora, com base na aderência
- * da semana anterior e na fase planejada.
+ * Decide qual semana o aluno deve treinar agora.
+ *
+ * Entradas: fase planejada + aderência (weeklyAdherence) + resumo de
+ * performance (weeklyProgression). A decisão é 100% determinística — a IA
+ * apenas transforma o resultado em texto.
+ *
+ * Compatível com a assinatura antiga: o 2º argumento aceita tanto o
+ * `AdherenceStatus` quanto o `AdherenceReport` completo.
  */
 export const resolveActiveWeek = (
   plannedPhase: TrainingPhase,
-  adherence?: AdherenceStatus,
+  adherence?: AdherenceStatus | AdherenceLike | null,
+  performance?: PerformanceSummary | null,
 ): WeekResolution => {
   const base: WeekResolution = {
     plannedPhase,
     activePhase: plannedPhase,
     action: 'hold',
+    decision: 'hold',
+    nextPhase: plannedPhase,
     blockOverload: false,
     suggestRevision: false,
+    confidence: 'low',
+    reasons: [],
+    performance: performance ?? null,
     reasonLabel: WEEK_ACTION_LABEL['hold'],
   };
 
-  if (!adherence) return { ...base, action: 'awaiting_data', reasonLabel: WEEK_ACTION_LABEL['awaiting_data'] };
+  const out = (
+    decision: WeekDecision,
+    activePhase: TrainingPhase,
+    reasons: WeekDecisionReason[],
+    extra: Partial<WeekResolution> = {},
+  ): WeekResolution => {
+    const action: WeekAction = decision === 'advance_to_deload' ? 'advance' : decision;
+    return {
+      ...base,
+      decision,
+      action,
+      activePhase,
+      nextPhase: activePhase,
+      reasons,
+      reasonLabel: WEEK_DECISION_LABEL[decision],
+      ...extra,
+    };
+  };
 
-  switch (adherence) {
-    case 'apto_avancar':
-      return { ...base, activePhase: nextPhase(plannedPhase), action: 'advance', reasonLabel: WEEK_ACTION_LABEL['advance'] };
-    case 'manter_semana':
-      return { ...base, action: 'hold', reasonLabel: WEEK_ACTION_LABEL['hold'] };
-    case 'repetir_semana':
-      return {
-        ...base,
-        activePhase: prevPhase(plannedPhase),
-        action: 'repeat',
-        blockOverload: true,
-        reasonLabel: WEEK_ACTION_LABEL['repeat'],
-      };
-    case 'sugerir_reanalise':
-      return { ...base, action: 'revise', suggestRevision: true, blockOverload: true, reasonLabel: WEEK_ACTION_LABEL['revise'] };
-    case 'dados_insuficientes':
-    default:
-      return { ...base, action: 'awaiting_data', blockOverload: true, reasonLabel: WEEK_ACTION_LABEL['awaiting_data'] };
+  if (!adherence) {
+    return out('awaiting_data', plannedPhase, ['no_adherence_data'], { blockOverload: true });
   }
+
+  const a: AdherenceLike = typeof adherence === 'string' ? { status: adherence } : adherence;
+  const { level, downgraded } = adherenceLevelOf(a);
+  const perf = performance ?? null;
+
+  const reasons: WeekDecisionReason[] = [ADHERENCE_REASON[level]];
+  if (downgraded) reasons.push('partial_sessions_downgrade');
+
+  // Performance de baixa confiança nunca bloqueia sozinha o avanço.
+  const perfConfident = perf?.confidence === 'high';
+  const relevantRegression = !!perf?.hasRelevantRegression;
+  if (perf) {
+    if (!perfConfident) reasons.push('performance_low_confidence');
+    else if (relevantRegression) reasons.push('significant_regression');
+    else if (perf.improvementRate > 0) reasons.push('performance_improved');
+    else reasons.push('performance_stable');
+    if (perfConfident && !relevantRegression) reasons.push('no_significant_regression');
+  }
+
+  const confidence: WeekConfidence =
+    level === 'insufficient' || (perf ? !perfConfident : false) ? 'low' : 'high';
+  const withConfidence = { confidence };
+
+  // ---- S4 Deload: avaliado por execução da recuperação, não por performance.
+  if (plannedPhase === 'deload') {
+    if (perf) reasons.push('deload_performance_ignored');
+    if (level === 'high' || level === 'medium') {
+      return out('advance', nextPhase(plannedPhase), [...reasons, 'deload_week_completed', 'cycle_restart'], withConfidence);
+    }
+    if (level === 'revise') {
+      return out('revise', plannedPhase, reasons, { suggestRevision: true, blockOverload: true, ...withConfidence });
+    }
+    if (level === 'insufficient') {
+      return out('awaiting_data', plannedPhase, reasons, { blockOverload: true, confidence: 'low' });
+    }
+    return out('repeat', plannedPhase, [...reasons, 'deload_not_executed'], { blockOverload: true, ...withConfidence });
+  }
+
+  if (level === 'revise') {
+    return out('revise', plannedPhase, reasons, { suggestRevision: true, blockOverload: true, ...withConfidence });
+  }
+  if (level === 'insufficient') {
+    return out('awaiting_data', plannedPhase, reasons, { blockOverload: true, confidence: 'low' });
+  }
+  if (level === 'low') {
+    // Repetir = repetir a SEMANA ATUAL, nunca voltar de fase.
+    return out('repeat', plannedPhase, plannedPhase === 'semana_3'
+      ? [...reasons, 'overload_stimulus_not_delivered']
+      : reasons, { blockOverload: true, ...withConfidence });
+  }
+
+  // ---- S3 Overload: regressão no fim do overload é evidência de fadiga
+  // acumulada e NÃO deve bloquear o deload.
+  if (plannedPhase === 'semana_3') {
+    if (level === 'high') {
+      const extraReasons: WeekDecisionReason[] = ['overload_week_completed'];
+      if (relevantRegression) extraReasons.push('regression_consistent_with_accumulated_fatigue');
+      return out('advance_to_deload', 'deload', [...reasons, ...extraReasons], withConfidence);
+    }
+    return out('hold', plannedPhase, reasons, withConfidence);
+  }
+
+  // ---- S1 / S2
+  if (level === 'high') {
+    if (relevantRegression) {
+      return out('hold', plannedPhase, reasons, { blockOverload: true, ...withConfidence });
+    }
+    if (perf?.poorLogQuality) {
+      return out('revise', plannedPhase, [...reasons, 'poor_log_quality'], {
+        suggestRevision: true,
+        blockOverload: true,
+        ...withConfidence,
+      });
+    }
+    return out('advance', nextPhase(plannedPhase), reasons, withConfidence);
+  }
+
+  // level === 'medium'
+  return out('hold', plannedPhase, reasons, withConfidence);
 };
+
 // ============================================================
 // ESTADO DO SCHEMA E LIMITAÇÕES
 // ------------------------------------------------------------
