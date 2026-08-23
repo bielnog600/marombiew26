@@ -55,6 +55,10 @@ export interface SessionRecommendation {
   bodyweight: boolean;
   basis: string;
   reasons: string[];
+  /** Só havia UMA performance válida anterior (sem tendência inferida). */
+  singlePerformance?: boolean;
+  /** Alguma sessão usada não tinha plan_id conhecido (legado). */
+  legacyFallback?: boolean;
   /** Telemetria futura: comparar recomendado x executado. Nunca vira log. */
   executedLoadKg?: number | null;
 }
@@ -64,7 +68,16 @@ export interface ProgressionSnapshot {
   generatedAt: string;
   sessionId: string | null;
   phase: TrainingPhase | null;
+  /** Plano usado como contexto de comparabilidade (null = desconhecido). */
+  planId?: string | null;
   recommendations: Record<string, SessionRecommendation>;
+}
+
+/** Metadados de sessões anteriores (workout_sessions), buscados em lote. */
+export interface SessionMetaRow {
+  sessionId: string;
+  planId?: string | null;
+  phase?: string | null;
 }
 
 export interface BuildSessionRecommendationsInput {
@@ -75,6 +88,10 @@ export interface BuildSessionRecommendationsInput {
   activePhase: TrainingPhase | null;
   /** Mapa exerciseKey → incremento configurado (kg), buscado em lote. */
   configuredIncrements: Record<string, number>;
+  /** sessionId → { planId, phase } das sessões anteriores. */
+  sessionMeta?: Record<string, SessionMetaRow>;
+  /** Plano da sessão atual; null = desconhecido (sem filtro por plano). */
+  currentPlanId?: string | null;
 }
 
 /** Remove explicitamente qualquer log pertencente à sessão em andamento. */
@@ -86,6 +103,76 @@ export const excludeCurrentSessionLogs = <T extends { session_id?: string | null
 const byTimeAsc = (a: SessionLog, b: SessionLog) =>
   new Date(a.performed_at).getTime() - new Date(b.performed_at).getTime();
 
+/** Chave de agrupamento por sessão (dado legado sem session_id → por dia). */
+export const sessionGroupKey = (l: SessionLog): string =>
+  l.session_id || String(l.performed_at).slice(0, 10);
+
+export interface ComparableHistoryResult {
+  logs: SessionLog[];
+  /** Alguma sessão usada não tem plan_id conhecido (histórico legado). */
+  legacyFallback: boolean;
+  excludedDeloadSessions: number;
+  excludedOtherPlanSessions: number;
+}
+
+/**
+ * POLÍTICA DE COMPARABILIDADE (explícita, conservadora)
+ * =====================================================
+ *  1. a sessão atual nunca entra (dupla proteção: query + aqui);
+ *  2. sessões de DELOAD nunca servem como evidência de tendência — uma S4 de
+ *     70 kg depois de 100 kg em S3 não pode virar `reduce_load` na nova S1;
+ *  3. plano: se o plano atual é conhecido e a sessão pertence a OUTRO plano,
+ *     ela é descartada (nunca misturamos planos silenciosamente);
+ *  4. plano desconhecido na sessão antiga (legado) → entra como fallback
+ *     explícito, com confiança reduzida (ver `legacyFallback`);
+ *  5. fase divergente mas não-deload (S1 x S2 x S3 do mesmo plano) é
+ *     comparável; fase null é legado e também entra como fallback.
+ *
+ * Não reproduz `resolveActiveWeek`: apenas seleciona quais performances
+ * passadas podem alimentar `buildExercisePerformance`.
+ */
+export const filterComparableSessionHistory = (input: {
+  logs: SessionLog[];
+  currentSessionId: string | null;
+  currentPlanId?: string | null;
+  sessionMeta?: Record<string, SessionMetaRow>;
+}): ComparableHistoryResult => {
+  const logs = excludeCurrentSessionLogs(input.logs ?? [], input.currentSessionId);
+  const meta = input.sessionMeta ?? {};
+  const currentPlanId = input.currentPlanId ?? null;
+
+  const groups = new Map<string, SessionLog[]>();
+  logs.forEach((l) => {
+    const k = sessionGroupKey(l);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k)!.push(l);
+  });
+
+  const kept: SessionLog[] = [];
+  let excludedDeloadSessions = 0;
+  let excludedOtherPlanSessions = 0;
+  let legacyFallback = false;
+
+  groups.forEach((rows, key) => {
+    const m = meta[key];
+    const phase = (rows.find((r: any) => r?.phase) as any)?.phase ?? m?.phase ?? null;
+    const planId = m?.planId ?? null;
+
+    if (String(phase ?? '') === 'deload') {
+      excludedDeloadSessions += 1;
+      return;
+    }
+    if (currentPlanId && planId && planId !== currentPlanId) {
+      excludedOtherPlanSessions += 1;
+      return;
+    }
+    if (currentPlanId && !planId) legacyFallback = true;
+    kept.push(...rows);
+  });
+
+  return { logs: kept, legacyFallback, excludedDeloadSessions, excludedOtherPlanSessions };
+};
+
 /**
  * Divide o histórico de UM exercício em (sessão mais recente, sessão anterior).
  * Quando não há session_id (dado legado), agrupa por dia.
@@ -94,11 +181,10 @@ export const splitLastTwoSessions = (
   logs: SessionLog[],
 ): { current: SessionLog[]; previous: SessionLog[] } => {
   const sorted = [...logs].sort(byTimeAsc);
-  const groupKey = (l: SessionLog) => l.session_id || String(l.performed_at).slice(0, 10);
   const order: string[] = [];
   const groups = new Map<string, SessionLog[]>();
   sorted.forEach((l) => {
-    const k = groupKey(l);
+    const k = sessionGroupKey(l);
     if (!groups.has(k)) {
       groups.set(k, []);
       order.push(k);
@@ -116,14 +202,61 @@ export const splitLastTwoSessions = (
 const plannedRepsTextOf = (ex: ParsedExercise): string =>
   ex.setScheme?.sets?.map((s) => s.target_reps).filter(Boolean).join('/') || ex.reps || '';
 
+/**
+ * Ajuste conservador quando a evidência é fraca:
+ *  - apenas UMA performance válida anterior → não inferimos tendência
+ *    (improved/regressed): nada de `increase_load` nem `reduce_load`;
+ *  - histórico legado (sem plan_id conhecido) → confiança baixa e nunca
+ *    `reduce_load` (evita regressão falsa vinda de outro contexto).
+ */
+const applyEvidencePolicy = (
+  rec: SessionRecommendation,
+  opts: { singlePerformance: boolean; legacyFallback: boolean },
+): SessionRecommendation => {
+  let out = { ...rec };
+
+  if (opts.legacyFallback) {
+    out.confidence = 'low';
+    out.legacyFallback = true;
+    out.reasons = [...out.reasons, 'historico_legado_sem_plano'];
+    if (out.action === 'reduce_load') {
+      out = { ...out, action: 'maintain', recommendedLoadKg: null, qualitative: true, basis: 'evidencia_legada' };
+    } else if (out.action === 'increase_load' && out.incrementSource !== 'configured') {
+      out = { ...out, recommendedLoadKg: null, qualitative: true };
+    }
+  }
+
+  if (opts.singlePerformance) {
+    out.singlePerformance = true;
+    out.confidence = 'low';
+    out.reasons = [...out.reasons, 'apenas_uma_performance_valida'];
+    if (out.action === 'increase_load' || out.action === 'reduce_load' || out.action === 'manual_increment_required') {
+      out = {
+        ...out,
+        action: 'maintain',
+        recommendedLoadKg: null,
+        qualitative: !out.currentLoadKg,
+        basis: 'apenas_uma_performance_valida',
+      };
+    }
+  }
+
+  return out;
+};
+
 /** Motor central: recebe exercícios + histórico anterior, devolve o snapshot. */
 export const buildSessionProgressionRecommendations = (
   input: BuildSessionRecommendationsInput,
 ): ProgressionSnapshot => {
-  const safeLogs = excludeCurrentSessionLogs(input.logs ?? [], input.currentSessionId);
+  const comparable = filterComparableSessionHistory({
+    logs: input.logs ?? [],
+    currentSessionId: input.currentSessionId,
+    currentPlanId: input.currentPlanId ?? null,
+    sessionMeta: input.sessionMeta,
+  });
 
   const byKey = new Map<string, SessionLog[]>();
-  safeLogs.forEach((l) => {
+  comparable.logs.forEach((l) => {
     const key = normalizeExerciseKey(l.exercise_name || '');
     if (!key) return;
     if (!byKey.has(key)) byKey.set(key, []);
@@ -137,7 +270,7 @@ export const buildSessionProgressionRecommendations = (
     const key = normalizeExerciseKey(name);
     if (!key || recommendations[key]) return;
     const history = byKey.get(key) ?? [];
-    // Aluno sem histórico: não inventamos recomendação (regra 21/22).
+    // Aluno sem histórico comparável: não inventamos recomendação (regra 21/22).
     if (history.length === 0) return;
 
     const { current, previous } = splitLastTwoSessions(history);
@@ -155,12 +288,45 @@ export const buildSessionProgressionRecommendations = (
       plannedRepsText: plannedRepsTextOf(ex),
     });
 
-    // Sem base quantificável: nada é exibido (evita card vazio).
-    if (quant.basis === 'sem_base_quantificavel') return;
-
+    const singlePerformance = previous.length === 0;
     const bodyweight = !!performance.bestSet && performance.bestSet.weightKg <= 0;
 
-    recommendations[key] = {
+    // Sem base quantificável: nada é exibido (evita card vazio), EXCETO quando
+    // existe uma única performance válida com carga conhecida — nesse caso
+    // damos apenas a referência conservadora de manutenção (regra 7).
+    if (quant.basis === 'sem_base_quantificavel') {
+      const refLoad = performance.bestSet?.weightKg ?? null;
+      if (!singlePerformance || !refLoad || refLoad <= 0) return;
+      recommendations[key] = applyEvidencePolicy(
+        {
+          exerciseKey: key,
+          exerciseName: name,
+          action: 'maintain',
+          sourceAction: quant.sourceAction,
+          currentLoadKg: refLoad,
+          recommendedLoadKg: null,
+          currentReps: performance.bestSet?.reps ?? null,
+          targetReps: null,
+          workingSetTargets: null,
+          repRange,
+          confidence: 'low',
+          incrementKg: quant.incrementKg,
+          incrementSource: quant.incrementSource,
+          incrementConfidence: quant.incrementConfidence,
+          qualitative: false,
+          bodyweight,
+          basis: 'apenas_uma_performance_valida',
+          reasons: quant.reasons,
+          singlePerformance: true,
+          legacyFallback: false,
+          executedLoadKg: null,
+        },
+        { singlePerformance: true, legacyFallback: comparable.legacyFallback },
+      );
+      return;
+    }
+
+    const base: SessionRecommendation = {
       exerciseKey: key,
       exerciseName: name,
       action: quant.action,
@@ -179,8 +345,15 @@ export const buildSessionProgressionRecommendations = (
       bodyweight,
       basis: quant.basis,
       reasons: quant.reasons,
+      singlePerformance: previous.length === 0,
+      legacyFallback: false,
       executedLoadKg: null,
     };
+
+    recommendations[key] = applyEvidencePolicy(base, {
+      singlePerformance: previous.length === 0,
+      legacyFallback: comparable.legacyFallback,
+    });
   });
 
   return {
@@ -188,6 +361,7 @@ export const buildSessionProgressionRecommendations = (
     generatedAt: new Date().toISOString(),
     sessionId: input.currentSessionId,
     phase: input.activePhase ?? null,
+    planId: input.currentPlanId ?? null,
     recommendations,
   };
 };
