@@ -176,6 +176,8 @@ export const useStudentsWeeklySummary = () => {
           exercise_name: l.exercise_name,
           reps: l.reps,
           weight_kg: l.weight_kg,
+          rpe: (l as any).rpe ?? null,
+          set_number: (l as any).set_number ?? null,
           performed_at: l.performed_at,
         });
       }
