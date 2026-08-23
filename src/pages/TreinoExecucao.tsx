@@ -26,6 +26,11 @@ import { fetchWithCache, getCached, setCache } from '@/lib/offlineCache';
 import { useRestTimer } from '@/hooks/useRestTimer';
 
 
+import {
+  resolveStaleWorkoutSessionsThrottled,
+  isSessionStale,
+} from '@/lib/workoutSessionResolution';
+
 const normalizeExName = (name: string) => name.trim().replace(/\s+/g, ' ').toUpperCase();
 
 const VARIATION_PREF_KEY = 'mw_exercise_variation_pref';
@@ -244,10 +249,13 @@ const TreinoExecucao = () => {
         }
       };
 
+      // 0. Resolve sessões antigas que ficaram abertas (aluno não finalizou).
+      await resolveStaleWorkoutSessionsThrottled(user.id, true);
+
       // 1. Verifica se já existe sessão em andamento
       const { data: existing, error: existingError } = await supabase
         .from('workout_sessions')
-        .select('id, started_at, day_name, phase, session_state')
+        .select('id, started_at, created_at, last_active_at, day_name, phase, session_state')
         .eq('student_id', user.id)
         .eq('status', 'in_progress')
         .order('started_at', { ascending: false })
@@ -255,9 +263,10 @@ const TreinoExecucao = () => {
         .maybeSingle();
 
       if (existing && existing.started_at) {
-        const age = Date.now() - new Date(existing.started_at).getTime();
+        // Retomada depende de INATIVIDADE, não do tempo total desde o início.
+        const stale = isSessionStale(existing as any);
         const sameDay = !dayName || !existing.day_name || existing.day_name === dayName;
-        if (age <= 12 * 60 * 60 * 1000 && sameDay) {
+        if (!stale && sameDay) {
           const state = (activeSession?.id === existing.id ? activeSession.session_state : null) ?? existing.session_state;
           setSessionId(existing.id);
           setSessionStartAt(new Date(existing.started_at).getTime());
@@ -272,15 +281,24 @@ const TreinoExecucao = () => {
           });
           return;
         } else {
-          await supabase.from('workout_sessions').update({ status: 'abandoned' }).eq('id', existing.id);
+          // Sessão parada ou de outro dia: resolve com a regra centralizada
+          // (classifica em completed/partial/abandoned) antes de iniciar outra.
+          await resolveStaleWorkoutSessionsThrottled(user.id, true);
+          if (!stale) {
+            await supabase
+              .from('workout_sessions')
+              .update({ status: 'abandoned', completion_source: 'automatic' })
+              .eq('id', existing.id)
+              .eq('status', 'in_progress');
+          }
           clearActiveSession();
         }
       }
 
       if (existingError && activeSession?.id && activeSession.started_at) {
-        const age = Date.now() - new Date(activeSession.started_at).getTime();
+        const staleLocal = isSessionStale({ started_at: activeSession.started_at });
         const sameDayLocal = !dayName || !activeSession.day_name || activeSession.day_name === dayName;
-        if (age <= 12 * 60 * 60 * 1000 && sameDayLocal) {
+        if (!staleLocal && sameDayLocal) {
           setSessionId(activeSession.id);
           setSessionStartAt(new Date(activeSession.started_at).getTime());
           applyState(activeSession.session_state);
@@ -298,6 +316,7 @@ const TreinoExecucao = () => {
           phase: phase ?? null,
           status: 'in_progress',
           started_at: startedAtIso,
+          last_active_at: startedAtIso,
           duration_minutes: 0,
           exercises_completed: 0,
           total_exercises: exercises.length,
@@ -326,6 +345,15 @@ const TreinoExecucao = () => {
     })();
   }, [user, dayName, phase, exercises.length, setLocalActiveSession, activeSession]);
 
+  // Metadados do treino gravados no session_state: permitem classificar e
+  // recuperar as séries mesmo quando o aluno não finaliza manualmente.
+  const sessionMeta = useMemo(() => ({
+    exerciseNames: exercises.map((ex: any) => ex?.exercise || ''),
+    plannedSets: exercises.map((ex: any) =>
+      buildSetPlan(ex?.series, ex?.series2, ex?.reps, ex?.setScheme).length || 3,
+    ),
+  }), [exercises]);
+
   const formatElapsed = (totalSec: number) => {
     const h = Math.floor(totalSec / 3600);
     const m = Math.floor((totalSec % 3600) / 60);
@@ -342,9 +370,9 @@ const TreinoExecucao = () => {
       day_name: dayName,
       phase: phase ?? null,
       started_at: new Date(targetStartedAt).toISOString(),
-      session_state: { sets: nextSets, currentIndex: nextIndex },
+      session_state: { sets: nextSets, currentIndex: nextIndex, ...sessionMeta },
     });
-  }, [sessionId, sessionStartAt, user, setLocalActiveSession, dayName, phase]);
+  }, [sessionId, sessionStartAt, user, setLocalActiveSession, dayName, phase, sessionMeta]);
 
   useEffect(() => {
     syncLocalActiveSession(sets, currentIndex);
@@ -356,12 +384,12 @@ const TreinoExecucao = () => {
     const t = setTimeout(() => {
       supabase
         .from('workout_sessions')
-        .update({ session_state: { sets, currentIndex } as any })
+        .update({ session_state: { sets, currentIndex, ...sessionMeta } as any })
         .eq('id', sessionId)
         .then(() => {});
     }, 800);
     return () => clearTimeout(t);
-  }, [sets, currentIndex, sessionId]);
+  }, [sets, currentIndex, sessionId, sessionMeta]);
 
   // Flush imediato ao backgrounded/fechar app — evita perder reps/cargas digitadas
   // que ainda não foram persistidas pelo debounce.
@@ -370,7 +398,7 @@ const TreinoExecucao = () => {
     const flush = () => {
       supabase
         .from('workout_sessions')
-        .update({ session_state: { sets, currentIndex } as any })
+        .update({ session_state: { sets, currentIndex, ...sessionMeta } as any })
         .eq('id', sessionId)
         .then(() => {});
     };
@@ -383,7 +411,7 @@ const TreinoExecucao = () => {
       window.removeEventListener('pagehide', flush);
       document.removeEventListener('visibilitychange', onHide);
     };
-  }, [sets, currentIndex, sessionId]);
+  }, [sets, currentIndex, sessionId, sessionMeta]);
 
 
   // Auto-load training plan from DB when accessed directly (no state)
@@ -738,7 +766,10 @@ const TreinoExecucao = () => {
       if (sessionId) {
         supabase
           .from('workout_sessions')
-          .update({ session_state: { sets: next, currentIndex } as any })
+          .update({
+            session_state: { sets: next, currentIndex, ...sessionMeta } as any,
+            last_active_at: new Date().toISOString(),
+          })
           .eq('id', sessionId)
           .then(() => {});
       }
@@ -1260,7 +1291,9 @@ const TreinoExecucao = () => {
                   .from('workout_sessions')
                   .update({
                     status: 'completed',
+                    completion_source: 'manual',
                     completed_at: new Date().toISOString(),
+                    last_active_at: new Date().toISOString(),
                     duration_minutes: durationMinutes,
                     exercises_completed: exercisesCompleted,
                     total_exercises: exercises.length,
@@ -1279,6 +1312,8 @@ const TreinoExecucao = () => {
                     day_name: dayName,
                     phase: phase ?? null,
                     status: 'completed',
+                    completion_source: 'manual',
+                    completed_at: new Date().toISOString(),
                     duration_minutes: durationMinutes,
                     exercises_completed: exercisesCompleted,
                     total_exercises: exercises.length,

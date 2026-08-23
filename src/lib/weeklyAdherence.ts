@@ -21,10 +21,23 @@ export interface AdherenceLog {
   performed_at: string;
 }
 
+/** Sessão estruturada (workout_sessions) usada como fonte principal de presença. */
+export interface AdherenceSession {
+  status: string;
+  completed_at?: string | null;
+  started_at?: string | null;
+}
+
 export interface AdherenceReport {
   status: AdherenceStatus;
   sessionsPlanned: number;
   sessionsExecuted: number;
+  sessionsPartial: number;
+  sessionsAbandoned: number;
+  /** (completos + 0.5 * parciais) / planejados — 0..1 */
+  weightedSessionAdherence: number;
+  /** true quando sessionsExecuted veio de workout_sessions e não de logs. */
+  sessionsFromStructured: boolean;
   exercisesPlanned: number;
   exercisesLogged: number;
   setsTotal: number;
@@ -38,6 +51,7 @@ export interface AdherenceReport {
   windowStart: string; // ISO
   windowEnd: string;   // ISO
 }
+
 
 // Limiares ajustáveis
 const TH = {
@@ -73,6 +87,7 @@ export const buildAdherenceReport = (
   logs: AdherenceLog[],
   windowStart: Date,
   windowEnd: Date,
+  sessions?: AdherenceSession[],
 ): AdherenceReport => {
   const sessionsPlanned = plannedDays.length || 0;
   // Exercícios planejados que EXIGEM registro de carga.
@@ -99,7 +114,23 @@ export const buildAdherenceReport = (
     if ((l.weight_kg ?? 0) > 0 && (l.reps ?? 0) > 0) setsWithLoad += 1;
   }
 
-  const sessionsExecuted = Math.min(daysWithLogs.size, sessionsPlanned || daysWithLogs.size);
+  // Presença: quando existem sessões estruturadas na janela, elas são a fonte
+  // principal — apenas `completed` conta como sessão executada.
+  const structured = sessions ?? [];
+  const sessionsCompleted = structured.filter((s) => s.status === 'completed').length;
+  const sessionsPartial = structured.filter((s) => s.status === 'partial').length;
+  const sessionsAbandoned = structured.filter((s) => s.status === 'abandoned').length;
+  const sessionsFromStructured = structured.length > 0;
+
+  const cap = (n: number) => Math.min(n, sessionsPlanned || n);
+  const sessionsExecuted = sessionsFromStructured
+    ? cap(sessionsCompleted)
+    : Math.min(daysWithLogs.size, sessionsPlanned || daysWithLogs.size);
+
+  const weightedRaw = sessionsCompleted + 0.5 * sessionsPartial;
+  const weightedSessionAdherence = sessionsPlanned > 0
+    ? Math.min(1, weightedRaw / sessionsPlanned)
+    : 0;
 
   // Match de exercícios planejados x logados
   let exercisesLogged = 0;
@@ -138,12 +169,17 @@ export const buildAdherenceReport = (
   }
 
   const reasonLabel = REASON_LABELS[status];
-  const detailLabel = buildDetail(status, sessionsExecuted, sessionsPlanned, setsWithLoad, setsTotal);
+  const detailLabel = buildDetail(status, sessionsExecuted, sessionsPlanned, setsWithLoad, setsTotal)
+    + (sessionsPartial > 0 ? ` · ${sessionsPartial} parcial(is)` : '');
 
   return {
     status,
     sessionsPlanned,
     sessionsExecuted,
+    sessionsPartial,
+    sessionsAbandoned,
+    weightedSessionAdherence,
+    sessionsFromStructured,
     exercisesPlanned,
     exercisesLogged,
     setsTotal,
@@ -158,6 +194,7 @@ export const buildAdherenceReport = (
     windowEnd: windowEnd.toISOString(),
   };
 };
+
 
 const REASON_LABELS: Record<AdherenceStatus, string> = {
   apto_avancar: 'Apto para avançar de semana',

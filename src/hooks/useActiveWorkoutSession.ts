@@ -1,6 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  isSessionStale,
+  resolveStaleWorkoutSessions,
+  STALE_INACTIVITY_MINUTES,
+} from '@/lib/workoutSessionResolution';
 
 export interface ActiveWorkoutSession {
   id: string;
@@ -12,8 +17,8 @@ export interface ActiveWorkoutSession {
 }
 
 const LOCAL_KEY = 'mw_active_workout_session';
-// Sessões com mais de 12h são consideradas abandonadas
-const MAX_SESSION_AGE_MS = 12 * 60 * 60 * 1000;
+// Retomada é baseada em INATIVIDADE (não no tempo total desde o início).
+const MAX_SESSION_AGE_MS = STALE_INACTIVITY_MINUTES * 60 * 1000;
 
 export function useActiveWorkoutSession() {
   const { user } = useAuth();
@@ -42,7 +47,7 @@ export function useActiveWorkoutSession() {
     }
     const { data, error } = await supabase
       .from('workout_sessions')
-      .select('id, student_id, day_name, phase, started_at, session_state, status')
+      .select('id, student_id, day_name, phase, started_at, created_at, last_active_at, session_state, status')
       .eq('student_id', user.id)
       .eq('status', 'in_progress')
       .order('started_at', { ascending: false })
@@ -55,13 +60,9 @@ export function useActiveWorkoutSession() {
     }
 
     if (data && data.started_at) {
-      const age = Date.now() - new Date(data.started_at).getTime();
-      if (age > MAX_SESSION_AGE_MS) {
-        // Auto-abandona sessão muito antiga
-        await supabase
-          .from('workout_sessions')
-          .update({ status: 'abandoned' })
-          .eq('id', data.id);
+      if (isSessionStale(data as any)) {
+        // Sessão parada: classifica automaticamente (completed/partial/abandoned)
+        await resolveStaleWorkoutSessions(user.id);
         localStorage.removeItem(LOCAL_KEY);
         setSession(null);
       } else {
