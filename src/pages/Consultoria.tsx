@@ -34,7 +34,7 @@ const Consultoria: React.FC = () => {
   const [alertFilter, setAlertFilter] = useState<FollowupFilter>('hoje');
 
   const { summaries: weeklySummaries = [], loading: weeklyLoading, reload: reloadWeekly } = useStudentsWeeklySummary();
-  const { alerts: behavioralAlerts, loading: behavioralLoading, refresh: refreshBehavioral, generate: generateBehavioral, generating: behavioralGenerating, updateStatus: updateBehavioralStatus } = useBehavioralAlerts();
+  const { alerts: behavioralAlerts, loading: behavioralLoading, generate: generateBehavioral, generating: behavioralGenerating, updateStatus: updateBehavioralStatus, reload: refreshBehavioral } = useBehavioralAlerts();
   const { notifications, loading: notifLoading, refresh: refreshNotifs, dismissNotification } = useNotifications();
   const { followups, loading: followupsLoading, reload: reloadFollowups, markAsDone, reopen, archive } = useStudentFollowups();
   const { data: progressionReviews, isLoading: progressionLoading, refetch: reloadProgression } = useWeeklyProgressionReview();
