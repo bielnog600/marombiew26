@@ -1050,6 +1050,16 @@ serve(async (req) => {
         );
       }
 
+      const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
+      console.log("[ai-routing]", {
+        agent: "diet",
+        primaryModel: routingMeta.routing.primaryModel,
+        finalModel: routingMeta.routing.finalModel,
+        fallbackUsed: routingMeta.routing.fallbackUsed,
+        fallbackReason: routingMeta.routing.fallbackReason,
+        usage: routingMeta.usage,
+      });
+
       return new Response(
         JSON.stringify({
           plan: finalPlan,
@@ -1080,6 +1090,8 @@ serve(async (req) => {
             totalProteinG: Math.round(nutrition.totalProteinG),
             totalKcal: Math.round(nutrition.totalKcal),
           },
+          aiRouting: routingMeta.routing,
+          aiUsage: routingMeta.usage,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
