@@ -110,37 +110,6 @@ Deno.serve(async (req) => {
       const studentTracking = tracking.filter((t) => t.student_id === studentId);
       const studentLogs = setLogs.filter((l) => l.student_id === studentId);
 
-      // ALTA: 5+ dias sem app_opened
-      const lastOpen = studentEvents
-        .filter((e) => e.event_type === 'app_opened')
-        .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
-      if (!lastOpen || new Date(lastOpen.created_at) < daysAgo(5)) {
-        const key = 'inactive_5d';
-        activeKeysByStudent[studentId].add(key);
-        alerts.push({
-          student_id: studentId,
-          alert_key: key,
-          priority: 'alta',
-          title: 'Inativo há 5+ dias',
-          description: 'Aluno não acessa o app há mais de 5 dias — risco de abandono.',
-        });
-      }
-
-      // ALTA: sem treino concluído nos últimos 3 dias
-      const recentSessions = studentSessions.filter(
-        (s) => new Date(s.completed_at) >= daysAgo(3)
-      );
-      if (!recentSessions.length) {
-        const key = 'no_workout_3d';
-        activeKeysByStudent[studentId].add(key);
-        alerts.push({
-          student_id: studentId,
-          alert_key: key,
-          priority: 'alta',
-          title: 'Sem treino há 3+ dias',
-          description: 'Nenhum treino concluído nos últimos 3 dias.',
-        });
-      }
 
       // ALTA: descuido combinado (sem treino + sem dieta + sem água) por 2 dias
       const last2DaysTracking = studentTracking.filter((t) => t.date >= daysAgo(2).toISOString().slice(0, 10));

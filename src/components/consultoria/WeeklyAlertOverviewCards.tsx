@@ -1,42 +1,59 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { MessageCircle, CheckCircle2, Clock, UserMinus } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { AlertCircle, CheckCircle2, Clock, Users, Zap, TrendingUp } from 'lucide-react';
 
-export type FollowupFilter = 'hoje' | 'falados' | 'espera' | 'inativos';
+export type FollowupFilter = 'hoje' | 'falados' | 'espera' | 'inativos' | 'progressao';
 
-interface Props {
-  counts: { hoje: number; falados: number; espera: number; inativos: number };
+interface WeeklyAlertOverviewCardsProps {
+  counts: {
+    hoje: number;
+    falados: number;
+    espera: number;
+    inativos: number;
+    progressao?: number;
+  };
   active: FollowupFilter;
-  onChange: (f: FollowupFilter) => void;
+  onChange: (filter: FollowupFilter) => void;
 }
 
-const WeeklyAlertOverviewCards: React.FC<Props> = ({ counts, active, onChange }) => {
-  const cards: { key: FollowupFilter; label: string; value: number; icon: any; color: string }[] = [
-    { key: 'hoje', label: 'Para falar hoje', value: counts.hoje, icon: MessageCircle, color: 'text-primary' },
-    { key: 'falados', label: 'Já falados', value: counts.falados, icon: CheckCircle2, color: 'text-emerald-500' },
-    { key: 'espera', label: 'Voltam depois', value: counts.espera, icon: Clock, color: 'text-amber-500' },
-    { key: 'inativos', label: 'Inativos +3 dias', value: counts.inativos, icon: UserMinus, color: 'text-destructive' },
-  ];
+const WeeklyAlertOverviewCards: React.FC<WeeklyAlertOverviewCardsProps> = ({ 
+  counts, 
+  active, 
+  onChange 
+}) => {
+  const cards = [
+    { id: 'hoje', label: 'Para falar hoje', icon: AlertCircle, color: 'text-orange-500', bg: 'bg-orange-500/10', count: counts.hoje },
+    { id: 'progressao', label: 'Progressão Semana', icon: TrendingUp, color: 'text-primary', bg: 'bg-primary/10', count: counts.progressao || 0 },
+    { id: 'falados', label: 'Já falados hoje', icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10', count: counts.falados },
+    { id: 'espera', label: 'Aguardando', icon: Clock, color: 'text-blue-500', bg: 'bg-blue-500/10', count: counts.espera },
+    { id: 'inativos', label: 'Inativos +3d', icon: Users, color: 'text-destructive', bg: 'bg-destructive/10', count: counts.inativos },
+  ] as const;
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      {cards.map((c) => {
-        const isActive = active === c.key;
+    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      {cards.map((card) => {
+        const isActive = active === card.id;
+        const Icon = card.icon;
         return (
-          <Card
-            key={c.key}
-            className={`cursor-pointer transition-all border ${
-              isActive ? 'border-primary bg-primary/10 shadow-md shadow-primary/10' : 'glass-card hover:bg-secondary/50'
+          <Card 
+            key={card.id}
+            className={`glass-card cursor-pointer transition-all border-2 ${
+              isActive ? 'border-primary shadow-lg shadow-primary/10' : 'border-transparent hover:bg-secondary/40'
             }`}
-            onClick={() => onChange(c.key)}
+            onClick={() => onChange(card.id)}
           >
-            <CardContent className="p-2.5 flex items-center gap-2">
-              <div className={`rounded-lg p-1.5 bg-secondary ${c.color}`}>
-                <c.icon className="h-3.5 w-3.5" />
+            <CardContent className="p-3 flex flex-col items-center text-center gap-2">
+              <div className={`p-2 rounded-xl ${card.bg} ${card.color}`}>
+                <Icon className="h-4 w-4" />
               </div>
-              <div className="min-w-0">
-                <p className="text-[9px] text-muted-foreground leading-tight uppercase truncate">{c.label}</p>
-                <p className="text-lg font-bold leading-tight">{c.value}</p>
+              <div className="space-y-0.5">
+                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight leading-tight">
+                  {card.label}
+                </p>
+                <p className="text-lg font-bold">
+                  {card.count}
+                </p>
               </div>
             </CardContent>
           </Card>

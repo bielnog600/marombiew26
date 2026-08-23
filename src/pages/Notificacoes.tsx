@@ -9,11 +9,9 @@ import { MessageSquare, CalendarClock, Cake, Phone, AlertTriangle, RefreshCw, Ex
 import { useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const typeConfig: Record<NotificationType, { icon: React.ElementType; label: string; color: string }> = {
+const typeConfig: Record<string, { icon: React.ElementType; label: string; color: string }> = {
   reavaliacao: { icon: CalendarClock, label: 'Reavaliação', color: 'text-orange-500' },
   aniversario: { icon: Cake, label: 'Aniversário', color: 'text-pink-500' },
-  mensagem_semanal: { icon: MessageSquare, label: 'Mensagem Semanal', color: 'text-blue-500' },
-  sem_telefone: { icon: Phone, label: 'Sem Telefone', color: 'text-red-500' },
   sem_treino: { icon: Dumbbell, label: 'Sem Treino', color: 'text-amber-500' },
   sem_dieta: { icon: UtensilsCrossed, label: 'Sem Dieta', color: 'text-emerald-500' },
   ficha_mensal: { icon: FileText, label: 'Ficha Mensal', color: 'text-violet-500' },
@@ -73,8 +71,6 @@ const Notificacoes: React.FC = () => {
         return `Olá ${n.studentName}! 😊 Está na hora da sua reavaliação. Vamos agendar? Entre em contato para marcarmos o melhor horário!`;
       case 'aniversario':
         return `Parabéns ${n.studentName}! 🎂🎉 Desejo tudo de melhor nesse novo ciclo! Continue firme nos treinos! 💪`;
-      case 'mensagem_semanal':
-        return `Olá ${n.studentName}! Como foi a semana de treinos? Alguma dúvida ou feedback? Estou aqui para ajudar! 💪`;
       case 'ficha_mensal':
         return `Olá ${n.studentName}! 📋 Enviei uma ficha alimentar para você preencher. Pode responder quando puder? É rapidinho e vai me ajudar a montar seu plano! 💪`;
       default:
@@ -86,7 +82,6 @@ const Notificacoes: React.FC = () => {
     all: count,
     reavaliacao: notifications.filter(n => n.type === 'reavaliacao').length,
     aniversario: notifications.filter(n => n.type === 'aniversario').length,
-    mensagem_semanal: notifications.filter(n => n.type === 'mensagem_semanal').length,
     sem_telefone: notifications.filter(n => n.type === 'sem_telefone').length,
     sem_treino: notifications.filter(n => n.type === 'sem_treino').length,
     sem_dieta: notifications.filter(n => n.type === 'sem_dieta').length,
@@ -167,7 +162,6 @@ const Notificacoes: React.FC = () => {
                 { value: 'all', label: 'Todos', count: tabCounts.all, icon: null },
                 { value: 'reavaliacao', label: 'Reavaliação', count: tabCounts.reavaliacao, icon: CalendarClock },
                 { value: 'aniversario', label: 'Aniversário', count: tabCounts.aniversario, icon: Cake },
-                { value: 'mensagem_semanal', label: 'Semanal', count: tabCounts.mensagem_semanal, icon: MessageSquare },
                 { value: 'sem_telefone', label: 'Sem Tel', count: tabCounts.sem_telefone, icon: Phone },
                 { value: 'sem_treino', label: 'Sem Treino', count: tabCounts.sem_treino, icon: Dumbbell },
                 { value: 'sem_dieta', label: 'Sem Dieta', count: tabCounts.sem_dieta, icon: UtensilsCrossed },
