@@ -19,7 +19,6 @@ import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { fetchWithCache } from '@/lib/offlineCache';
 import WeeklyAdherenceBanner from '@/components/training/WeeklyAdherenceBanner';
 import { useWeeklyTraining } from '@/hooks/useWeeklyTraining';
-import { resolveActiveWeek } from '@/lib/weeklyProgression';
 import {
   TRAINING_PHASES,
   PHASE_LABELS,
@@ -221,7 +220,6 @@ const MeusTreinos = () => {
   const {
     report: adherenceReport,
     resolution,
-    performance,
     loading: weeklyLoading,
   } = useWeeklyTraining(activePlanForAdherence, plannedPhase);
 
