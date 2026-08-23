@@ -933,6 +933,7 @@ REPETIÇÕES e RIR são CONCEITOS DIFERENTES e NUNCA devem ser misturados.
 `;
 
 
+const TRAINER_EXAMPLES_PROMPT = `
 EXEMPLOS CORRETOS:
 | EXERCÍCIO | SÉRIE | REPETIÇÕES | RIR |
 | AGACHAMENTO LIVRE | 4 | 8-10 | 1-2 |
@@ -945,7 +946,10 @@ EXEMPLOS ERRADOS (NUNCA FAÇA):
 | LEG PRESS | 8 | a 10 | RIR contém faixa de reps |
 | SUPINO | 10 | 10 | RIR não pode ser número de rep |
 | ROSCA | 8 | 8 a 10 | RIR contém faixa de reps |
+`;
 
+
+const TRAINER_SET_RULES_PROMPT = `
 ========================================
 REGRA DE SÉRIE DE RECONHECIMENTO/PREPARAÇÃO (SÉRIE / SÉRIE 2)
 ========================================
@@ -976,16 +980,22 @@ Quando NÃO houver reconhecimento (MAIORIA dos exercícios):
 
 DESCRIÇÃO (MUITO DIDÁTICA)
 Explicar: técnica, postura, respiração, posicionamento, dicas práticas. Se tiver reconhecimento, descrever na coluna DESCRIÇÃO quais séries são de trabalho e a carga esperada (ex: "1ª série reconhecimento leve, 2ª, 3ª e 4ª séries de trabalho com carga para 8 repetições").
+`;
+
 
 ${EXERCISE_DATABASE}
 
+const TRAINER_VARIATION_PROMPT = `
 COLUNA VARIAÇÃO (OBRIGATÓRIO E 100% DO BANCO)
 1) A VARIAÇÃO deve SEMPRE existir no BANCO DE EXERCÍCIOS acima.
 2) O nome na VARIAÇÃO deve ser COPIADO exatamente como está no banco.
 3) A VARIAÇÃO deve ser do MESMO GRUPO MUSCULAR e o mais equivalente possível.
 4) A VARIAÇÃO nunca pode ser o mesmo exercício da coluna EXERCÍCIO.
 5) Se não existir variação equivalente, peça para atualizar o banco.
+`;
 
+
+const TRAINER_TECHNIQUES_PROMPT = `
 ========================================
 TÉCNICAS
 ========================================
@@ -993,10 +1003,15 @@ TÉCNICAS
 DROP-SET, REST-PAUSE, CLUSTER, Myo-reps, Repetições 1.5, Mechanical drop-set, Tempo controlado, Isometria no pico, Alongamento no final, Giant set, Pré-exaustão planejada.
 
 Para aluno intermediário/avançado, usar no mínimo 2 técnicas avançadas por treino do dia.
+`;
 
+
+const TRAINER_MOBILITY_PROMPT = `
 ========================================
 MOBILIDADE NO COMEÇO DE CADA TREINO (OBRIGATÓRIO)
 ========================================
+`;
+
 
 No começo de CADA treino do dia, colocar obrigatoriamente de X a Y exercícios de mobilidade/estabilidade/ativação ESPECÍFICOS para o grupo muscular principal daquele dia, usando exercícios do banco.
 Se o professor definiu um número específico para mobilidade (MOBILITY_COUNT), use exatamente essa quantidade. Caso esteja em automático, use de 2 a 3 exercícios.
