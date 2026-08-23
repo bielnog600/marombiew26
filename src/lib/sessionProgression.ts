@@ -55,6 +55,10 @@ export interface SessionRecommendation {
   bodyweight: boolean;
   basis: string;
   reasons: string[];
+  /** Só havia UMA performance válida anterior (sem tendência inferida). */
+  singlePerformance?: boolean;
+  /** Alguma sessão usada não tinha plan_id conhecido (legado). */
+  legacyFallback?: boolean;
   /** Telemetria futura: comparar recomendado x executado. Nunca vira log. */
   executedLoadKg?: number | null;
 }
