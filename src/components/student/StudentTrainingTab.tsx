@@ -37,6 +37,7 @@ import {
   getPhasePreview,
   type TrainingPhase,
 } from '@/lib/trainingPhase';
+import { resolveCurrentTrainingPhase } from '@/lib/currentPhase';
 import { useAdminTrainerSession } from '@/contexts/AdminTrainerSessionContext';
 
 interface StudentTrainingTabProps {
