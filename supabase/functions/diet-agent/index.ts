@@ -862,7 +862,10 @@ serve(async (req) => {
             fallbackReason = fallbackReason || "high_quantity_overlap"; 
             fallbackReasons.push("high_quantity_overlap"); 
           }
-          if (variationRetryAllowed && primarySourceTooRepetitive) { fallbackReason = fallbackReason || "source_repetition"; fallbackReasons.push("source_repetition"); }
+          if (variationRetryAllowed && primarySourceTooRepetitive) { 
+            fallbackReason = fallbackReason || "source_repetition"; 
+            fallbackReasons.push("source_repetition"); 
+          }
         }
 
         const retryParts = [];
