@@ -84,20 +84,29 @@ const ConsultoriaStudentSearch: React.FC = () => {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return rows.filter(r => {
-      if (q && !r.name.toLowerCase().includes(q) && !r.email.toLowerCase().includes(q)) return false;
-      // Filtros que NÃO são "desativados" só consideram alunos ativos
-      if (filter !== 'desativados' && !r.ativo) return false;
-      switch (filter) {
-        case 'risco_alto': return r.risk === 'alto';
-        case 'sem_plano': return !r.hasPlan;
-        case 'baixa_aderencia': return r.adherence < 40;
-        case 'ativos': return r.risk === 'baixo';
-        case 'desativados': return !r.ativo;
-        default: return true;
-      }
-    });
-  }, [rows, query, filter]);
+    return rows
+      .filter(r => {
+        if (q && !r.name.toLowerCase().includes(q) && !r.email.toLowerCase().includes(q)) return false;
+        // Filtros que NÃO são "desativados" só consideram alunos ativos
+        if (filter !== 'desativados' && !r.ativo) return false;
+        switch (filter) {
+          case 'risco_alto': return r.risk === 'alto';
+          case 'sem_plano': return !r.hasPlan;
+          case 'baixa_aderencia': return r.adherence < 40;
+          case 'ativos': return r.risk === 'baixo';
+          case 'desativados': return !r.ativo;
+          default: return true;
+        }
+      })
+      .sort((a, b) => {
+        if (sortOrder === 'name') return a.name.localeCompare(b.name);
+        
+        // "last_access" logic: those who never opened or opened longest ago first
+        const daysA = a.daysSinceOpen ?? 9999;
+        const daysB = b.daysSinceOpen ?? 9999;
+        return daysB - daysA;
+      });
+  }, [rows, query, filter, sortOrder]);
 
   const filters: { value: FilterKey; label: string; count: number }[] = [
     { value: 'todos', label: 'Todos', count: rows.filter(r => r.ativo).length },
