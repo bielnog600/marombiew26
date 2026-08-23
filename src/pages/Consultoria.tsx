@@ -356,10 +356,32 @@ const Consultoria: React.FC = () => {
           </TabsContent>
 
           <TabsContent value="dietas" className="mt-6 space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Ciclo de Dietas (45 dias)</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Ciclo de Dietas (45 dias)</h3>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-7 text-[10px] gap-1.5"
+                onClick={() => setDietSort(prev => prev === 'name' ? 'overdue' : 'name')}
+              >
+                <ArrowUpDown className="h-3 w-3" />
+                {dietSort === 'name' ? 'Ordenar por Vencimento' : 'Ordenar por Nome'}
+              </Button>
+            </div>
             <div className="space-y-2">
               {loadingPlans ? <Skeleton className="h-20 w-full" /> : 
-                weeklySummaries.filter(s => s.active).map(s => {
+                weeklySummaries
+                  .filter(s => s.active)
+                  .sort((a, b) => {
+                    if (dietSort === 'name') return a.studentName.localeCompare(b.studentName);
+                    const da = studentPlansMap.get(a.studentId)?.latestDieta;
+                    const db = studentPlansMap.get(b.studentId)?.latestDieta;
+                    const cycleA = getCycleInfo(da || null);
+                    const cycleB = getCycleInfo(db || null);
+                    // More overdue first (higher days since last plan)
+                    return cycleB.days - cycleA.days;
+                  })
+                  .map(s => {
 
                   const d = studentPlansMap.get(s.studentId);
                   if (!d?.latestDieta) return null;
