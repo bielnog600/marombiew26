@@ -260,6 +260,8 @@ export const AdminTrainerSessionProvider: React.FC<{ children: React.ReactNode }
       const durationMinutes = Math.max(1, Math.round((completedAt.getTime() - startedAt.getTime()) / 60000));
       const first = active.students[0];
       const firstTotals = totalsByStudent[first.id] || { exercisesCompleted: 0, totalExercises: 0 };
+      const studentSnapshots = active.sessionState?.progressionRecommendationsByStudent || {};
+      
       await supabase
         .from('workout_sessions')
         .update({
@@ -269,6 +271,9 @@ export const AdminTrainerSessionProvider: React.FC<{ children: React.ReactNode }
           duration_minutes: durationMinutes,
           exercises_completed: firstTotals.exercisesCompleted,
           total_exercises: firstTotals.totalExercises,
+          session_state: {
+            progressionRecommendations: studentSnapshots[first.id] || null
+          }
         })
         .eq('id', active.id);
 
@@ -292,6 +297,10 @@ export const AdminTrainerSessionProvider: React.FC<{ children: React.ReactNode }
           executed_by: 'coach',
           session_mode: 'duo',
           paired_student_id: first.id,
+          plan_id: second.planId || null,
+          session_state: {
+            progressionRecommendations: studentSnapshots[second.id] || null
+          }
         } as any);
       }
 

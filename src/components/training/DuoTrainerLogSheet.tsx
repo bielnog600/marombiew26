@@ -471,18 +471,22 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
       return { ...prev, state: { ...prev.state, [exIdx]: { ...prev.state[exIdx], saving: true } } };
     });
 
-    const rows = validSets.map((s: any) => ({
-      student_id: st.studentId,
-      session_id: sessionId,
-      exercise_name: normalizeExName(exerciseName),
-      set_number: s.idx + 1,
-      weight_kg: Number.isNaN(s.weight) ? null : s.weight,
-      reps: Number.isNaN(s.reps) ? null : s.reps,
-      day_name: day.day,
-      phase: st.phase || null,
-      performed_at: new Date().toISOString(),
-      source: 'admin',
-    }));
+    const rows = validSets.map((s: any) => {
+      const p = exState.plan?.[s.idx];
+      return {
+        student_id: st.studentId,
+        session_id: sessionId,
+        exercise_name: normalizeExName(exerciseName),
+        set_number: s.idx + 1,
+        weight_kg: Number.isNaN(s.weight) ? null : s.weight,
+        reps: Number.isNaN(s.reps) ? null : s.reps,
+        set_type: p?.kind === 'recon' ? 'recognition' : 'work',
+        day_name: day.day,
+        phase: st.phase || null,
+        performed_at: new Date().toISOString(),
+        source: 'admin',
+      };
+    });
 
     const { error } = await supabase.from('exercise_set_logs').upsert(rows, { onConflict: 'session_id,student_id,exercise_name,set_number' });
 
