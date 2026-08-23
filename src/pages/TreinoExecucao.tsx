@@ -186,6 +186,9 @@ const TreinoExecucao = () => {
   const [loadedMedia, setLoadedMedia] = useState<ExerciseMediaMap>(stateData?.exerciseMedia || {});
   const [phase, setPhase] = useState<TrainingPhase | null>(stateData?.phase || null);
   const [sessionPlanId, setSessionPlanId] = useState<string | null>(stateData?.planId || null);
+  // Item 4: Flag explícita para aguardar o contexto do treino antes de criar uma nova sessão
+  const workoutContextReady = stateData?.exercises ? true : false;
+  const [contextReady, setContextReady] = useState(workoutContextReady);
 
   const exercises = loadedExercises;
   const dayName = loadedDayName;
