@@ -1342,6 +1342,7 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
     }
 
 
+    const legacySystem = TRAINER_CORE_PROMPT + "\n" + TRAINER_LEGACY_PROMPT + "\n" + contextMessage;
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -1351,13 +1352,14 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
       body: JSON.stringify({
         model: "gpt-4o",
         messages: [
-          { role: "system", content: SYSTEM_PROMPT + contextMessage },
+          { role: "system", content: legacySystem },
           ...messages,
         ],
         stream: true,
         max_tokens: 16000,
       }),
     });
+
 
     if (!response.ok) {
       if (response.status === 429) {
