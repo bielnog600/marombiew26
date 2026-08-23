@@ -1190,6 +1190,10 @@ const TreinoExecucao = () => {
           )}
         </div>
 
+        <ProgressionHintCard
+          recommendation={getRecommendationFor(progressionSnapshot, selectedExerciseName)}
+        />
+
         <div className="space-y-2">
           <div className="grid grid-cols-[36px_1fr_1fr_44px] gap-1.5 px-2">
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Série</span>
