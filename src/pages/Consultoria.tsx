@@ -543,11 +543,6 @@ const Consultoria = () => {
             <DropdownMenuContent align="end" className="w-64">
               <DropdownMenuLabel className="text-xs">Tipo de mensagem</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <a href={buildWhatsAppUrl(phone, getQuickMessage(n, 'sugestao_dia'))} target="_blank" rel="noopener noreferrer" className="cursor-pointer">
-                  <div className="flex flex-col">
-                    <span className="text-xs font-medium">🚀 Sugestão do dia</span>
-                    <span className="text-[10px] text-muted-foreground">Antes de treinar — carga, reps, técnica</span>
                   </div>
                 </a>
               </DropdownMenuItem>
