@@ -131,7 +131,18 @@ export const AdminTrainerSessionProvider: React.FC<{ children: React.ReactNode }
       if (students.length === 0) throw new Error('Nenhum aluno');
       const startedAt = new Date();
       const calendarEventIds: Record<string, string> = {};
-      for (const s of students) {
+      
+      const studentsWithContext = students.map(s => {
+        // Se a fase ou plano não vierem do botão "Treinar" (ex: agenda ou lista),
+        // eles podem estar ausentes. Precisamos garantir integridade.
+        return {
+          ...s,
+          planId: s.planId ?? null,
+          phase: s.phase ?? null
+        };
+      });
+
+      for (const s of studentsWithContext) {
         try {
           const { calendarEventId } = await linkOrCreateAgendaEventForSession({
             studentId: s.id,
@@ -145,12 +156,12 @@ export const AdminTrainerSessionProvider: React.FC<{ children: React.ReactNode }
           console.error('agenda link failed', e);
         }
       }
-      const first = students[0];
-      const second = students[1];
+      const first = studentsWithContext[0];
+      const second = studentsWithContext[1];
       const meta = {
         admin_id: user.id,
         mode,
-        students: students.map((s) => ({
+        students: studentsWithContext.map((s) => ({
           id: s.id,
           nome: s.nome,
           planId: s.planId ?? null,
@@ -159,9 +170,11 @@ export const AdminTrainerSessionProvider: React.FC<{ children: React.ReactNode }
         })),
         calendar_event_ids: calendarEventIds,
       };
+      
       const session_state = { meta, form: {} };
       const insertPayload: any = {
         student_id: first.id,
+        plan_id: first.planId,
         day_name: first.dayName || null,
         phase: first.phase || null,
         started_at: startedAt.toISOString(),
@@ -188,7 +201,7 @@ export const AdminTrainerSessionProvider: React.FC<{ children: React.ReactNode }
         id: data.id,
         mode,
         startedAtReal: startedAt.toISOString(),
-        students,
+        students: studentsWithContext,
         calendarEventIds,
         sessionState: session_state,
       };

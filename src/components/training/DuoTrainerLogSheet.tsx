@@ -24,6 +24,8 @@ import {
 } from './TrainerLogSheetUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdminTrainerSession } from '@/contexts/AdminTrainerSessionContext';
+import { useSessionProgression } from '@/hooks/useSessionProgression';
+import { readProgressionSnapshot, type ProgressionSnapshot } from '@/lib/sessionProgression';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,6 +53,7 @@ interface StudentSessionState {
   state: Record<number, any>;
   plan: any;
   loading: boolean;
+  snapshot?: ProgressionSnapshot | null;
 }
 
 export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentAId, planA }) => {
@@ -113,6 +116,47 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
       }
     })();
   }, [open, studentAId]);
+
+  // Hook de progressão para Aluno A
+  const { snapshot: snapshotA } = useSessionProgression({
+    studentId: studentA?.studentId,
+    sessionId: active?.id ?? null,
+    exercises: studentA?.days[studentA?.activeDayIdx]?.exercises ?? [],
+    phase: studentA?.plan?.fase || null,
+    planId: studentA?.plan?.id || null,
+    restoredSnapshot: readProgressionSnapshot(active?.sessionState?.progressionRecommendationsA)
+  });
+
+  // Hook de progressão para Aluno B
+  const { snapshot: snapshotB } = useSessionProgression({
+    studentId: studentB?.studentId,
+    sessionId: active?.id ?? null,
+    exercises: studentB?.days[studentB?.activeDayIdx]?.exercises ?? [],
+    phase: studentB?.plan?.fase || null,
+    planId: studentB?.plan?.id || null,
+    restoredSnapshot: readProgressionSnapshot(active?.sessionState?.progressionRecommendationsB)
+  });
+
+  // Persistir snapshots no session_state (Duo)
+  useEffect(() => {
+    if (!active?.id) return;
+    const existingA = readProgressionSnapshot(active.sessionState?.progressionRecommendationsA);
+    const existingB = readProgressionSnapshot(active.sessionState?.progressionRecommendationsB);
+    
+    if (snapshotA && !existingA) {
+      finish && mutateSlot('A', prev => ({ ...prev })); // Apenas para forçar refresh se necessário, mas melhor patchState direto
+    }
+    
+    if ((snapshotA && !existingA) || (snapshotB && !existingB)) {
+      supabase.from('workout_sessions').update({
+        session_state: {
+          ...active.sessionState,
+          progressionRecommendationsA: snapshotA || existingA,
+          progressionRecommendationsB: snapshotB || existingB
+        }
+      }).eq('id', active.id).then();
+    }
+  }, [active?.id, snapshotA, snapshotB]);
 
   // Load student A data
   useEffect(() => {
@@ -595,6 +639,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                           ExerciseNamePicker={ExerciseNamePicker}
                           HistoryPopover={HistoryPopover}
                           parsePauseSeconds={parsePauseSeconds}
+                          progressionSnapshot={snapshotA}
                         />
                       ))}
                       <Button
@@ -673,6 +718,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                           ExerciseNamePicker={ExerciseNamePicker}
                           HistoryPopover={HistoryPopover}
                           parsePauseSeconds={(p) => 60}
+                          progressionSnapshot={snapshotB}
                         />
                       ))}
                       <Button

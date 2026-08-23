@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dumbbell, Save, Loader2, Check, Timer, Plus, Minus, Trash2, X, Settings2 } from 'lucide-react';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { ExercisePicker } from '@/components/tabata/ExercisePicker';
+import { ProgressionHintCard } from './ProgressionHintCard';
+import { getRecommendationFor, type ProgressionSnapshot } from '@/lib/sessionProgression';
 
 interface SetEntry {
   weight: string;
@@ -56,6 +58,7 @@ interface Props {
   ExerciseNamePicker: React.FC<any>;
   HistoryPopover: React.FC<any>;
   parsePauseSeconds: (raw?: string | null) => number;
+  progressionSnapshot?: ProgressionSnapshot | null;
 }
 
 type StructureMode = 'standard' | 'recognition' | 'per_set';
@@ -87,6 +90,7 @@ const ExerciseLogCard: React.FC<Props> = ({
   ExerciseNamePicker,
   HistoryPopover,
   parsePauseSeconds,
+  progressionSnapshot,
 }) => {
   const [editOpen, setEditOpen] = useState(false);
   const mode: StructureMode = detectMode(ex);
@@ -157,6 +161,8 @@ const ExerciseLogCard: React.FC<Props> = ({
     commitPerSet(perSetSets.filter((_, i) => i !== idx));
   };
 
+  const recommendation = getRecommendationFor(progressionSnapshot ?? null, st.exerciseName || ex.exercise);
+
   return (
     <Card className="border-border/60">
       <CardContent className="p-3 space-y-3">
@@ -210,7 +216,11 @@ const ExerciseLogCard: React.FC<Props> = ({
           )}
         </div>
 
-        <div>
+        <div className="space-y-2">
+          {recommendation && (
+            <ProgressionHintCard recommendation={recommendation} variant="compact" />
+          )}
+          
           <div className="flex items-center gap-2 flex-wrap">
           <Button
             type="button"
