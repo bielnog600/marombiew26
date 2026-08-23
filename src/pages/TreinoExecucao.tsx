@@ -1409,16 +1409,19 @@ const TreinoExecucao = () => {
                     total_volume_kg: totalVolumeKg || null,
                     total_sets: totalSets,
                     session_state: {
-                      progressionRecommendations: progressionSnapshot
+                      progressionRecommendations: progressionSnapshot ?? restoredSnapshot ?? activeSession?.session_state?.progressionRecommendations ?? null
                     } as any,
                   })
                   .eq('id', finalSessionId);
               } else {
                 // Fallback: cria nova já completada (não havia sessão em andamento)
+                const finalSnapshot = progressionSnapshot ?? restoredSnapshot ?? activeSession?.session_state?.progressionRecommendations ?? null;
+                
                 const { data: sessionRow } = await supabase
                   .from('workout_sessions')
                   .insert({
                     student_id: user.id,
+                    plan_id: sessionPlanId,
                     day_name: dayName,
                     phase: phase ?? null,
                     status: 'completed',
@@ -1431,7 +1434,7 @@ const TreinoExecucao = () => {
                     total_volume_kg: totalVolumeKg || null,
                     total_sets: totalSets,
                     session_state: {
-                      progressionRecommendations: progressionSnapshot
+                      progressionRecommendations: finalSnapshot
                     } as any,
                   })
                   .select('id')

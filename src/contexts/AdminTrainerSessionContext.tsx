@@ -267,7 +267,9 @@ export const AdminTrainerSessionProvider: React.FC<{ children: React.ReactNode }
         firstStudentSnapshot = active.sessionState?.progressionRecommendations || null;
       } else {
         const studentSnapshots = active.sessionState?.progressionRecommendationsByStudent || {};
-        firstStudentSnapshot = studentSnapshots[first.id] || null;
+        const storedSnapshot = studentSnapshots[first.id];
+        // Recuperar snapshot restaurado do cache local se o estado em memória estiver vazio por race condition
+        firstStudentSnapshot = active.sessionState?.progressionRecommendations ?? storedSnapshot ?? null;
       }
       
       await supabase
