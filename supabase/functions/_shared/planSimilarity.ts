@@ -1,16 +1,16 @@
 /**
  * Deterministic similarity gate between a freshly generated plan and the
  * student's recent history. Returns a 0..1 score (1.0 = identical).
- *
- * Strategy:
- * - Workout: per-day overlap of normalized exercise names (Jaccard),
- *   averaged across matched days, with extra weight when reps/rir also match.
- * - Diet: per-meal overlap of normalized food names (Jaccard), averaged
- *   across matched meal slots.
- * - Final score against history = max over weighted-by-age pairwise scores.
  */
 
-import { HISTORY_DECAY } from "./variationProfiles.ts";
+import { HISTORY_DECAY, type VariationIntensity } from "./variationProfiles.ts";
+
+export const SIMILARITY_THRESHOLDS: Record<VariationIntensity, number> = {
+  baixa: 0.75,
+  media: 0.55,
+  alta: 0.35,
+};
+
 
 // ─────────────────────────── helpers ───────────────────────────
 

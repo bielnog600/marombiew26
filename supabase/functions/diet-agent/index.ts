@@ -6,15 +6,14 @@ import {
   type AIRouterResponse,
 } from "../_shared/aiModelRouter.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+
 import {
   computeDietSimilarity,
   SIMILARITY_THRESHOLDS,
   type VariationIntensity,
 } from "../_shared/planSimilarity.ts";
-import {
-  validateDietNutrition,
-  type DietNutritionValidation,
-} from "../_shared/nutritionValidator.ts";
+import { validateDietNutrition, type DietNutritionValidation } from "../_shared/planSimilarity.ts";
+
 import {
   normalizeDailyAdjustments,
   validateDailyAdjustments,
