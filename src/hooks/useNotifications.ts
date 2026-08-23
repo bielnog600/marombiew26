@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { differenceInDays, parseISO, format } from 'date-fns';
 import { normalizeWhatsAppPhone } from '@/lib/phone';
 
-export type NotificationType = 'reavaliacao' | 'aniversario' | 'mensagem_semanal' | 'sem_telefone' | 'sem_treino' | 'sem_dieta' | 'ficha_mensal';
+export type NotificationType = 'reavaliacao' | 'aniversario' | 'sem_telefone' | 'sem_treino' | 'sem_dieta' | 'ficha_mensal';
 
 export interface Notification {
   id: string;
@@ -19,7 +19,6 @@ export interface Notification {
     workoutsCompleted: number;
     setsWithoutLoad: number;
     setsWithoutReps: number;
-    setsWithoutRpe: number;
     avgWaterGlasses: number;
     daysWithMeals: number;
     weighedThisWeek: boolean;
@@ -28,18 +27,6 @@ export interface Notification {
     totalSetsLogged: number;
     trackingDays: number;
     presencial?: boolean;
-    progression?: {
-      tone: 'progress' | 'maintain' | 'caution';
-      avgRpe: number;
-      muscleLabel: string;
-      summary: string;
-      topExercises?: Array<{
-        name: string;
-        weight: number | null;
-        reps: number | null;
-        rpe: number | null;
-      }>;
-    } | null;
   };
 }
 
@@ -150,117 +137,7 @@ export function useNotifications() {
 
       let weeklyStatsMap = new Map<string, NonNullable<Notification['weeklyStats']>>();
 
-      // Janela "mesmo dia da semana passada" para sugestão de progressão diária
-      const lastWeekSameDayStart = new Date(today);
-      lastWeekSameDayStart.setDate(lastWeekSameDayStart.getDate() - 7);
-      lastWeekSameDayStart.setHours(0, 0, 0, 0);
-      const lastWeekSameDayEnd = new Date(lastWeekSameDayStart);
-      lastWeekSameDayEnd.setHours(23, 59, 59, 999);
-      const todayDateStr = today.toISOString().slice(0, 10);
-
-      // Buscar logs/sessões da semana passada (mesmo dia) — sempre, p/ sugestão diária
-      const eightDaysAgoISO = new Date(today.getTime() - 8 * 86400000).toISOString();
-      const [lastWeekSessionsRes, lastWeekLogsRes, todaySessionsRes] = await Promise.all([
-        supabase
-          .from('workout_sessions')
-          .select('id, student_id, day_name, avg_rpe, completed_at')
-          .in('student_id', userIds)
-          .gte('completed_at', lastWeekSameDayStart.toISOString())
-          .lte('completed_at', lastWeekSameDayEnd.toISOString()),
-        supabase
-          .from('exercise_set_logs')
-          .select('student_id, session_id, muscle_group, exercise_name, weight_kg, reps, rpe, performed_at')
-          .in('student_id', userIds)
-          .gte('performed_at', eightDaysAgoISO),
-        supabase
-          .from('workout_sessions')
-          .select('student_id, completed_at')
-          .in('student_id', userIds)
-          .gte('completed_at', `${todayDateStr}T00:00:00`),
-      ]);
-
-      const progressionMap = new Map<string, NonNullable<NonNullable<Notification['weeklyStats']>['progression']>>();
-      for (const uid of userIds) {
-        const alreadyToday = (todaySessionsRes.data ?? []).some(s => s.student_id === uid);
-        if (alreadyToday) continue;
-        // Só gera sugestão para alunos que possuem plano de treino ativo
-        const hasTreino = studentPlansMap.get(uid)?.has('treino');
-        if (!hasTreino) continue;
-
-        const lwSession = (lastWeekSessionsRes.data ?? []).find(s => s.student_id === uid);
-        const lwDateStr = lastWeekSameDayStart.toISOString().slice(0, 10);
-        const lwLogs = lwSession
-          ? (lastWeekLogsRes.data ?? []).filter(l => {
-              if (l.student_id !== uid) return false;
-              if (l.session_id && lwSession.id && l.session_id === lwSession.id) return true;
-              return l.performed_at?.slice(0, 10) === lwDateStr;
-            })
-          : [];
-        const rpes = lwLogs.map(l => Number(l.rpe)).filter(r => Number.isFinite(r) && r > 0);
-        const avgRpe = rpes.length > 0
-          ? rpes.reduce((a, b) => a + b, 0) / rpes.length
-          : (lwSession?.avg_rpe ? Number(lwSession.avg_rpe) : NaN);
-
-        // Determinar grupo muscular (preferir histórico; senão usar day_name da sessão; senão genérico)
-        const muscleCounts: Record<string, number> = {};
-        for (const l of lwLogs) {
-          const m = (l.muscle_group || '').trim();
-          if (m) muscleCounts[m] = (muscleCounts[m] || 0) + 1;
-        }
-        const topMuscles = Object.entries(muscleCounts)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 2)
-          .map(([m]) => m);
-        const muscleLabel = topMuscles.length > 0
-          ? topMuscles.join(' / ')
-          : (lwSession?.day_name || 'treino de hoje');
-
-        // Top exercícios da semana passada (com maior carga registrada)
-        const exerciseMap = new Map<string, { weight: number | null; reps: number | null; rpe: number | null }>();
-        for (const l of lwLogs) {
-          const name = (l.exercise_name || '').trim();
-          if (!name) continue;
-          const w = Number(l.weight_kg);
-          const r = Number(l.reps);
-          const rp = Number(l.rpe);
-          const cur = exerciseMap.get(name);
-          const wVal = Number.isFinite(w) && w > 0 ? w : null;
-          const rVal = Number.isFinite(r) && r > 0 ? r : null;
-          const rpVal = Number.isFinite(rp) && rp > 0 ? rp : null;
-          if (!cur || (wVal !== null && (cur.weight === null || wVal > cur.weight))) {
-            exerciseMap.set(name, { weight: wVal, reps: rVal, rpe: rpVal });
-          }
-        }
-        const topExercises = Array.from(exerciseMap.entries())
-          .filter(([, v]) => v.weight !== null || v.reps !== null)
-          .sort((a, b) => (b[1].weight ?? 0) - (a[1].weight ?? 0))
-          .slice(0, 3)
-          .map(([name, v]) => ({ name, ...v }));
-
-        let tone: 'progress' | 'maintain' | 'caution' = 'maintain';
-        let summary = '';
-        let avgRpeOut = 0;
-
-        if (Number.isFinite(avgRpe)) {
-          avgRpeOut = Number((avgRpe as number).toFixed(1));
-          if ((avgRpe as number) <= 7) {
-            tone = 'progress';
-            summary = `Semana passada esse treino teve RPE médio ${avgRpeOut} (folga). Sugerir +2,5 a 5 kg ou +1–2 reps nos principais.`;
-          } else if ((avgRpe as number) >= 9) {
-            tone = 'caution';
-            summary = `RPE médio ${avgRpeOut} na semana passada (muito alto). Manter cargas e focar em técnica/recuperação.`;
-          } else {
-            tone = 'maintain';
-            summary = `RPE médio ${avgRpeOut} na semana passada (zona ideal). Manter cargas ou +1 rep.`;
-          }
-        } else {
-          // Sem histórico do mesmo dia da semana passada → dica preparatória genérica
-          tone = 'progress';
-          summary = `Sem histórico recente desse treino. Foque em ativação: aquecimento específico (1–2 séries leves), boa técnica e tente +1 rep ou pequena progressão de carga vs. a última vez.`;
-        }
-
-        progressionMap.set(uid, { tone, avgRpe: avgRpeOut, muscleLabel, summary, topExercises });
-      }
+      // Progression logic removed - now handled by Weekly Progression Card engine
 
       if (isSaturday) {
         const [sessionsRes, setLogsRes, trackingRes, weightsRes] = await Promise.all([
@@ -294,7 +171,7 @@ export function useNotifications() {
 
           const setsWithoutLoad = logs.filter(l => l.weight_kg == null || Number(l.weight_kg) === 0).length;
           const setsWithoutReps = logs.filter(l => l.reps == null || Number(l.reps) === 0).length;
-          const setsWithoutRpe = logs.filter(l => l.rpe == null).length;
+          
 
           const totalWater = tracking.reduce((sum, t) => sum + (t.water_glasses ?? 0), 0);
           const avgWaterGlasses = tracking.length > 0 ? Math.round(totalWater / tracking.length) : 0;
@@ -306,7 +183,7 @@ export function useNotifications() {
             workoutsCompleted: sessions.length,
             setsWithoutLoad,
             setsWithoutReps,
-            setsWithoutRpe,
+            
             avgWaterGlasses,
             daysWithMeals,
             weighedThisWeek: weights.length > 0,
@@ -319,7 +196,7 @@ export function useNotifications() {
               const studentLogs = logs.filter((l: any) => (l.source ?? 'student') !== 'admin').length;
               return adminLogs > 0 && studentLogs === 0;
             })(),
-            progression: progressionMap.get(uid) ?? null,
+            
           });
         }
       }
@@ -422,9 +299,8 @@ export function useNotifications() {
           }
         }
 
-        // 4. Weekly message reminder (every Saturday) — personalized per student
-        const progressionTip = progressionMap.get(student.user_id);
-        if (isSaturday || progressionTip) {
+        // 4. Weekly message reminder (every Saturday)
+        if (isSaturday) {
           let stats = weeklyStatsMap.get(student.user_id);
           if (!stats && progressionTip) {
             const studentPlanTypes = studentPlansMap.get(student.user_id) ?? new Set<string>();
