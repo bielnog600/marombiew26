@@ -1,42 +1,9 @@
-/**
- * Trainer Redundancy Validator for MAROMBIEW.
- * Detects excessive concentration of functionally similar exercises.
- * Uses patterns from exerciseClassifier.ts to ensure consistency.
- */
-
 import { normalizeName } from "../_shared/planSimilarity.ts";
-
-// Movement Pattern / Family Taxonomy (Reusing/extending existing categories)
-import { CLASSIFIER_VERSION } from "../_shared/exerciseClassifier.ts";
-
-function getExerciseFamily(name: string): string | null {
-  const norm = normalizeName(name);
-  if (!norm) return null;
-
-  // Reusing patterns logic from exerciseClassifier to ensure consistency.
-  // We check for tokens that match specific functional families.
-  const name_norm = norm;
-
-  if (name_norm.includes("agachamento") || name_norm.includes("leg press") || name_norm.includes("hack machine") || name_norm.includes("agachamento hack") || name_norm.includes("afundo") || name_norm.includes("avanco")) return "squat_family";
-  if (name_norm.includes("stiff") || name_norm.includes("levantamento terra") || name_norm.includes("good morning") || name_norm.includes("romanian") || name_norm.includes("elevacao pelvica") || name_norm.includes("hip thrust")) return "hinge_family";
-  if (name_norm.includes("cadeira extensora") || name_norm.includes("extensao de joelho")) return "knee_extension";
-  if (name_norm.includes("mesa flexora") || name_norm.includes("flexora deitado") || name_norm.includes("flexora sentado")) return "knee_flexion";
-  if (name_norm.includes("supino") || name_norm.includes("chest press") || name_norm.includes("flexao de braco")) return "horizontal_push";
-  if (name_norm.includes("desenvolvimento") || name_norm.includes("military press") || name_norm.includes("overhead press") || name_norm.includes("arnold")) return "vertical_push";
-  if (name_norm.includes("remada")) return "horizontal_pull";
-  if (name_norm.includes("puxada") || name_norm.includes("pull up") || name_norm.includes("chin up") || name_norm.includes("barra fixa")) return "vertical_pull";
-  if (name_norm.includes("rosca")) return "elbow_flexion";
-  if (name_norm.includes("triceps") || name_norm.includes("kickback") || name_norm.includes("frances")) return "elbow_extension";
-  if (name_norm.includes("elevacao lateral")) return "shoulder_abduction";
-  if (name_norm.includes("panturrilha") || name_norm.includes("calf raise")) return "calf_raise";
-  if (name_norm.includes("mobilidade") || name_norm.includes("alongamento") || name_norm.includes("stretch") || name_norm.includes("90/90") || name_norm.includes("cat cow")) return "mobility_family";
-
-  return null;
-}
+import { getExerciseFunctionalProfile } from "../_shared/exerciseClassifier.ts";
 
 export type RedundancyIssue = {
   day: string;
-  family: string;
+  family: string | "exact_duplicate";
   exercises: string[];
   severity: "low" | "medium" | "high";
 };
@@ -50,45 +17,57 @@ export function validateWorkoutRedundancy(plan: any): { ok: boolean; issues: Red
   if (!plan?.days || !Array.isArray(plan.days)) return { ok: true, issues: [] };
 
   for (const day of plan.days) {
-    const dayLabel = day.day || day.focus || "Dia";
-    const familyCounts = new Map<string, string[]>();
+    const dayLabel = day.day || day.label || day.focus || "Dia";
+    const exercises = day.exercises || [];
+    
+    // 1. Exact nominal duplicate check (count >= 2 is hard reject)
+    const nameCounts = new Map<string, string[]>();
+    for (const ex of exercises) {
+      if (!ex.exercise) continue;
+      const norm = normalizeName(ex.exercise);
+      if (!norm) continue;
+      const list = nameCounts.get(norm) || [];
+      list.push(ex.exercise);
+      nameCounts.set(norm, list);
+    }
 
-    for (const ex of day.exercises || []) {
-      const family = getExerciseFamily(ex.exercise);
-      if (family) {
-        const list = familyCounts.get(family) || [];
-        list.push(ex.exercise);
-        familyCounts.set(family, list);
+    for (const [normName, instances] of nameCounts.entries()) {
+      if (instances.length >= 2) {
+        issues.push({
+          day: dayLabel,
+          family: "exact_duplicate",
+          exercises: instances,
+          severity: "high"
+        });
       }
     }
 
-    for (const [family, exercises] of familyCounts.entries()) {
-      // 3 or more exercises of the same family in a single day is usually redundant
-      if (exercises.length >= 3) {
+    // 2. Functional duplicate check (Pattern + Equipment)
+    const functionalGroups = new Map<string, string[]>();
+    for (const ex of exercises) {
+      if (!ex.exercise) continue;
+      const profile = getExerciseFunctionalProfile(ex.exercise);
+      if (profile.pattern) {
+        const key = `${profile.pattern}_${profile.equipment || 'none'}`;
+        const list = functionalGroups.get(key) || [];
+        list.push(ex.exercise);
+        functionalGroups.set(key, list);
+      }
+    }
+
+    for (const [key, list] of functionalGroups.entries()) {
+      if (list.length >= 3) {
+        const pattern = key.split('_')[0];
         issues.push({
           day: dayLabel,
-          family,
-          exercises,
-          severity: exercises.length >= 4 ? "high" : "medium"
+          family: pattern,
+          exercises: list,
+          severity: "medium"
         });
-      }
-      
-      // Special case: mobility exercises shouldn't be duplicated unless very different
-      if (family === "mobility_family" && exercises.length >= 2) {
-        const uniqueNames = new Set(exercises.map(normalizeName));
-        if (uniqueNames.size < exercises.length) {
-          issues.push({
-            day: dayLabel,
-            family,
-            exercises,
-            severity: "medium"
-          });
-        }
       }
     }
   }
 
-  // A plan is considered redundant if it has medium/high severity issues
-  const ok = !issues.some(i => i.severity === "medium" || i.severity === "high");
+  const ok = !issues.some(i => i.severity === "high");
   return { ok, issues };
 }

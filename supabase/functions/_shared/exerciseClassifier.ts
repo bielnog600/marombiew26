@@ -31,7 +31,7 @@ function nrm(s: string | null | undefined): string {
 }
 
 // Equipment lookup by name tokens
-const EQUIP_RULES: Array<{ eq: string; tokens: string[]; conf: number }> = [
+export const EQUIP_RULES: Array<{ eq: string; tokens: string[]; conf: number }> = [
   { eq: "machine",   tokens: ["maquina", "cadeira", "leg press", "hack", "pec deck", "voador", "smith", "chest press", "seated row", "peck deck"], conf: 0.9 },
   { eq: "cable",     tokens: ["cabo", "polia", "cross over", "crossover", "pulley"], conf: 0.92 },
   { eq: "barbell",   tokens: ["barra "], conf: 0.9 },
@@ -42,27 +42,27 @@ const EQUIP_RULES: Array<{ eq: string; tokens: string[]; conf: number }> = [
 ];
 
 // Class hints by name
-const ISOLATION_TOKENS = [
+export const ISOLATION_TOKENS = [
   "extensora", "flexora", "rosca", "triceps", "elevacao lateral", "elevacao frontal",
   "crucifixo", "voador", "pec deck", "panturrilha", "abducao", "aducao",
   "extensao de", "flexao de perna", "kickback",
 ];
-const COMPOUND_TOKENS = [
+export const COMPOUND_TOKENS = [
   "agachamento", "levantamento terra", "supino", "desenvolvimento",
   "remada", "puxada", "afundo", "avanco", "stiff", "leg press", "clean", "snatch",
 ];
-const POWER_TOKENS = ["clean", "snatch", "arremesso", "push jerk", "jerk"];
-const PLYO_TOKENS = ["salto", "jump", "pliometrico"];
-const MOBILITY_TOKENS = ["mobilidade", "alongamento", "stretch"];
-const CARDIO_TOKENS = ["corrida", "esteira", "bike", "ciclismo", "remo ergometro", "cardio"];
-const CORE_TOKENS = ["prancha", "abdominal", "russo", "wood chop", "core", "ab wheel"];
+export const POWER_TOKENS = ["clean", "snatch", "arremesso", "push jerk", "jerk"];
+export const PLYO_TOKENS = ["salto", "jump", "pliometrico"];
+export const MOBILITY_TOKENS = ["mobilidade", "alongamento", "stretch", "90/90", "cat cow"];
+export const CARDIO_TOKENS = ["corrida", "esteira", "bike", "ciclismo", "remo ergometro", "cardio"];
+export const CORE_TOKENS = ["prancha", "abdominal", "russo", "wood chop", "core", "ab wheel"];
 
 // Movement pattern hints
-const MOVEMENT_PATTERNS: Array<{ pattern: string; tokens: string[]; conf: number }> = [
+export const MOVEMENT_PATTERNS: Array<{ pattern: string; tokens: string[]; conf: number }> = [
   { pattern: "knee_extension", tokens: ["cadeira extensora", "extensao de joelho"], conf: 0.97 },
   { pattern: "knee_flexion",   tokens: ["mesa flexora", "flexora deitad", "flexora sentad"], conf: 0.95 },
-  { pattern: "hip_hinge",      tokens: ["stiff", "levantamento terra", "good morning", "romanian"], conf: 0.9 },
-  { pattern: "squat",          tokens: ["agachamento", "leg press", "hack"], conf: 0.88 },
+  { pattern: "hip_hinge",      tokens: ["stiff", "levantamento terra", "good morning", "romanian", "elevacao pelvica", "hip thrust"], conf: 0.9 },
+  { pattern: "squat",          tokens: ["agachamento", "leg press", "hack", "afundo", "avanco"], conf: 0.88 },
   { pattern: "horizontal_push",tokens: ["supino", "chest press", "flexao "], conf: 0.88 },
   { pattern: "vertical_push",  tokens: ["desenvolvimento", "military press", "overhead press", "arnold"], conf: 0.88 },
   { pattern: "horizontal_pull",tokens: ["remada"], conf: 0.9 },
@@ -71,7 +71,28 @@ const MOVEMENT_PATTERNS: Array<{ pattern: string; tokens: string[]; conf: number
   { pattern: "elbow_extension",tokens: ["triceps", "kickback", "frances"], conf: 0.9 },
   { pattern: "shoulder_abduction", tokens: ["elevacao lateral"], conf: 0.93 },
   { pattern: "calf_raise",     tokens: ["panturrilha", "calf raise"], conf: 0.95 },
+  { pattern: "mobility", tokens: ["mobilidade", "alongamento", "stretch", "90/90", "cat cow"], conf: 0.95 },
 ];
+
+export function getExerciseFunctionalProfile(name: string | null | undefined) {
+  const normName = nrm(name);
+  if (!normName) return { pattern: null, equipment: null };
+
+  let mp: string | null = null;
+  for (const r of MOVEMENT_PATTERNS) {
+    if (r.tokens.some((t) => normName.includes(t))) { mp = r.pattern; break; }
+  }
+
+  let eq: string | null = null;
+  for (const r of EQUIP_RULES) {
+    if (r.tokens.some((t) => normName.includes(t))) { eq = r.eq; break; }
+  }
+
+  return { pattern: mp, equipment: eq };
+}
+
+
+// Class hints by name
 
 // Primary muscle guess from grupo_muscular
 const MUSCLE_MAP: Record<string, string[]> = {
