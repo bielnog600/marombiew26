@@ -1056,9 +1056,6 @@ const TRAINER_SAFETY_PROMPT = `
 ========================================
 SEGURANÇA E CONTRAINDICAÇÕES (REGRA CRÍTICA — PRIORIDADE MÁXIMA)
 ========================================
-`;
-
-
 ANTES de montar o treino, analise TODOS os dados do aluno: lesões, dores, cirurgias, restrições, desvios posturais, histórico de saúde, medicação, mobilidade e testes de performance. Cruze essas informações com CADA exercício selecionado.
 
 REGRAS ABSOLUTAS:
@@ -1078,6 +1075,10 @@ EXEMPLOS DE CONTRAINDICAÇÕES (não exaustivo — aplique raciocínio clínico)
 6) Na coluna DESCRIÇÃO, SEMPRE mencione adaptações de amplitude/carga quando o exercício for próximo de uma região lesionada.
 
 SE HOUVER DÚVIDA SOBRE A SEGURANÇA DE UM EXERCÍCIO PARA UMA CONDIÇÃO ESPECÍFICA, NÃO INCLUA O EXERCÍCIO. Opte pela alternativa mais segura.
+`;
+
+
+
 
 ========================================
 FILTRO RÍGIDO DE SEGURANÇA (PRIORIDADE ABSOLUTA — ACIMA DE TUDO)
