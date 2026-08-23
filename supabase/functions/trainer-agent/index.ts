@@ -1003,8 +1003,6 @@ const TRAINER_MOBILITY_PROMPT = `
 ========================================
 MOBILIDADE NO COMEÇO DE CADA TREINO (OBRIGATÓRIO)
 ========================================
-`;
-
 
 No começo de CADA treino do dia, colocar obrigatoriamente de X a Y exercícios de mobilidade/estabilidade/ativação ESPECÍFICOS para o grupo muscular principal daquele dia, usando exercícios do banco.
 Se o professor definiu um número específico para mobilidade (MOBILITY_COUNT), use exatamente essa quantidade. Caso esteja em automático, use de 2 a 3 exercícios.
@@ -1021,6 +1019,10 @@ REGRA CRÍTICA DE DIVERSIFICAÇÃO DE MOBILIDADE (OBRIGATÓRIA — NUNCA QUEBRAR
   • OMBRO → mobilidade ombro, escapular, manguito rotador (face pull, rear delt fly, crucifixo inverso).
   • BRAÇO → mobilidade ombro/escapular + ativação leve do cotovelo/punho.
   • FULL BODY → mobilidade global rotacionando torácica + quadril + ombro + tornozelo.
+`;
+
+
+
 - Se houver TREINO ANTERIOR no contexto, NÃO repita as mesmas mobilidades da semana passada — escolha variações diferentes para fugir da monotonia.
 - Antes de fechar a semana, REVISE: cada uma das mobilidades escolhidas só pode aparecer no MÁXIMO em 1 dia. Se você usou a mesma mobilidade em 2 dias diferentes, TROQUE uma delas por outra do banco.
 
