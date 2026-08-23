@@ -397,37 +397,26 @@ async function callStructuredModel({
   if (!upstream.ok) {
     const t = await upstream.text();
     console.error("trainer-agent[json] gateway error:", upstream.status, t);
-    modelAttempts.push({ model: modelToUse, durationMs, reason: `Error: ${upstream.status}` });
-    if (upstream.status === 429) {
-      return {
-        ok: false,
-        response: new Response(
-          JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns minutos." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        ),
-      };
-    }
-    if (upstream.status === 402) {
-      return {
-        ok: false,
-        response: new Response(
-          JSON.stringify({ error: "Créditos insuficientes na sua conta OpenAI." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        ),
-      };
-    }
+    attempts.push({ model: modelToUse, durationMs, reason: `Error: ${upstream.status}` });
+    
+    const isRetryable = upstream.status !== 401 && upstream.status !== 402 && upstream.status !== 429;
+    
     return {
       ok: false,
-      response: new Response(JSON.stringify({ error: "Erro no gateway de IA", detail: t }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }),
+      error_code: "upstream_error",
+      response: new Response(
+        JSON.stringify({ 
+          error: upstream.status === 429 ? "Limite de requisições excedido." : "Erro no gateway de IA",
+          retryable: isRetryable 
+        }),
+        { status: upstream.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      ),
     };
   }
 
   const payload = await upstream.json();
   const usage = payload?.usage;
-  modelAttempts.push({
+  attempts.push({
     model: modelToUse,
     durationMs,
     reason,
@@ -437,12 +426,14 @@ async function callStructuredModel({
       totalTokens: usage.total_tokens
     } : null
   });
+  
   const content = payload?.choices?.[0]?.message?.content;
-  if (typeof content !== "string") {
+  if (!content || typeof content !== "string" || content.trim().length === 0) {
     return {
       ok: false,
+      error_code: "empty_response",
       response: new Response(
-        JSON.stringify({ error: "Resposta vazia do modelo" }),
+        JSON.stringify({ error: "Resposta vazia do modelo", retryable: true }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       ),
     };
@@ -455,9 +446,10 @@ async function callStructuredModel({
     console.error("trainer-agent[json] parse error:", e, content.slice(0, 500));
     return {
       ok: false,
+      error_code: "invalid_json",
       response: new Response(
-        JSON.stringify({ error: "Modelo retornou JSON inválido" }),
-        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        JSON.stringify({ error: "JSON inválido", retryable: true }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       ),
     };
   }
