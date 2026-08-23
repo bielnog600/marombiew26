@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useAdminTrainerSession } from '@/contexts/AdminTrainerSessionContext';
+import { useAdminTrainerSessionOptional } from '@/contexts/AdminTrainerSessionContext';
 import { supabase } from '@/integrations/supabase/client';
 import { parseTrainingSections } from '@/lib/trainingResultParser';
 import TrainerLogSheet from './TrainerLogSheet';
@@ -7,7 +7,10 @@ import DuoTrainerLogSheet from './DuoTrainerLogSheet';
 import AdminTrainerSessionBanner from './AdminTrainerSessionBanner';
 
 const AdminTrainerSessionMount: React.FC = () => {
-  const { active, isOpen, close } = useAdminTrainerSession();
+  const ctx = useAdminTrainerSessionOptional();
+  const active = ctx?.active ?? null;
+  const isOpen = ctx?.isOpen ?? false;
+  const close = ctx?.close ?? (() => {});
   const [plan, setPlan] = useState<any | null>(null);
   const [loadingPlanId, setLoadingPlanId] = useState<string | null>(null);
 

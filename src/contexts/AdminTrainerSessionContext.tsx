@@ -44,6 +44,8 @@ interface Ctx {
 
 const AdminTrainerSessionContext = createContext<Ctx | null>(null);
 
+export const useAdminTrainerSessionOptional = () => useContext(AdminTrainerSessionContext);
+
 export const useAdminTrainerSession = () => {
   const v = useContext(AdminTrainerSessionContext);
   if (!v) throw new Error('AdminTrainerSessionProvider missing');
