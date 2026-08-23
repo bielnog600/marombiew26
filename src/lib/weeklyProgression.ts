@@ -465,12 +465,22 @@ export const buildExercisePerformance = (
  * Recomendação conservadora para a próxima sessão (double progression).
  * Nunca manda subir carga só porque a semana foi boa: exige topo da faixa
  * (ou RIR com folga real quando não há faixa prescrita).
+ *
+ * TOPO DA FAIXA:
+ *  - RIR >= 2                  => increase_load;
+ *  - RIR <= 1                  => maintain;
+ *  - RIR desconhecido (null)   => política conservadora: só sobe carga se o
+ *    topo já tinha sido atingido na semana anterior com carga igual ou maior
+ *    (topo repetido em sessões comparáveis). Na primeira vez => maintain
+ *    ("confirmar performance"). Ausência de RIR nunca é autorização
+ *    automática para aumentar carga.
  */
 export const nextActionFor = (
   status: PerformanceStatus,
   bestSet: PerformedSet | undefined,
   repRange: RepRange | null,
   e1rmDeltaPct: number | null,
+  previousBestSet?: PerformedSet | null,
 ): NextAction => {
   if (!bestSet || status === 'missing' || status === 'insufficient_data') return 'review';
 
@@ -487,7 +497,12 @@ export const nextActionFor = (
       return status === 'improved' ? 'maintain' : maxedOut ? 'reduce_load' : 'maintain';
     }
     if (bestSet.reps >= repRange.max) {
-      return maxedOut ? 'maintain' : 'increase_load';
+      if (rir != null) return rir >= RIR_ROOM_TO_ADD_LOAD ? 'increase_load' : 'maintain';
+      const repeatedTop =
+        !!previousBestSet &&
+        previousBestSet.reps >= repRange.max &&
+        previousBestSet.weightKg >= bestSet.weightKg;
+      return repeatedTop ? 'increase_load' : 'maintain';
     }
     return 'increase_reps'; // dentro da faixa, ainda abaixo do topo
   }
@@ -496,6 +511,7 @@ export const nextActionFor = (
   if (rir != null && rir >= RIR_ROOM_TO_ADD_LOAD) return 'increase_load';
   return 'maintain';
 };
+
 
 export const NEXT_ACTION_LABEL: Record<NextAction, string> = {
   increase_load: 'Aumentar carga',
