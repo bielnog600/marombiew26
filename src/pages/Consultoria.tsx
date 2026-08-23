@@ -19,7 +19,8 @@ import {
   Video,
   Bell,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  ArrowUpDown
 } from 'lucide-react';
 import { differenceInDays, startOfWeek, format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
