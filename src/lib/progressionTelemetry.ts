@@ -1,5 +1,7 @@
 import { PROGRESSION_SNAPSHOT_VERSION, type ProgressionSnapshot, type SessionRecommendation } from './sessionProgression';
 import { normalizeExerciseKey } from './loadIncrement';
+import { supabase } from '@/integrations/supabase/client';
+
 
 export type TelemetryAlignmentStatus =
   | 'matched'
