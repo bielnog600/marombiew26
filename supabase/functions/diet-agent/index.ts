@@ -791,8 +791,13 @@ serve(async (req) => {
         }
       };
 
+      let fallbackReason: string | null = null;
+      let fallbackReasons: string[] = [];
+
       const first = await callModel(
         dietVariationPrompt(intensity, historySummary, undefined, requireMenuVariation),
+        AI_MODELS.primary,
+        "first_attempt"
       );
       if (!first.ok) return first.resp;
 
@@ -812,21 +817,43 @@ serve(async (req) => {
       const protRepeat = similarity.primaryProteinRepeatRatio ?? 0;
       const carbRepeat = similarity.primaryCarbRepeatRatio ?? 0;
       const primarySourceTooRepetitive = Math.max(protRepeat, carbRepeat) >= 0.6;
-      // Trigger regen if:
-      //  - nutrition guardrail failed (main meals must have primary protein), OR
-      //  - similarity above threshold, OR
-      //  - the change is essentially "same foods, different portions", OR
-      //  - admin asked for regeneration / menu renewal and we got portion_only
-      //  - primary protein/carb groups repeat in ≥60% of meals vs previous plan
+      
+      const schedule = (dietConfig && typeof dietConfig === "object")
+        ? (dietConfig as any).weeklyEnergySchedule
+        : null;
+      let initialAdjValidation = { ok: true, errors: [] as string[] };
+      if (schedule && typeof schedule === "object" && schedule.days) {
+        const modelAdj = (first.plan && typeof first.plan === "object")
+          ? (first.plan as any).dailyAdjustments
+          : null;
+        const { adjustments, missing } = normalizeDailyAdjustments(modelAdj, schedule);
+        initialAdjValidation = hasDailyCalorieVariation(schedule)
+          ? validateDailyAdjustments(adjustments, missing)
+          : { ok: true, errors: [] as string[] };
+      }
+
       const needsRetry =
         !nutrition.ok ||
-        historyJsons.length > 0 &&
-        (similarity.score > threshold ||
-          isPortionOnly ||
-          (requireMenuVariation && qOnly > 0.3) ||
-          primarySourceTooRepetitive);
+        !initialAdjValidation.ok ||
+        (historyJsons.length > 0 &&
+          (similarity.score > threshold ||
+            (intent !== "update" && isPortionOnly) ||
+            (requireMenuVariation && qOnly > 0.3) ||
+            primarySourceTooRepetitive));
 
       if (needsRetry) {
+        if (!nutrition.ok) { fallbackReason = "nutrition_invalid"; fallbackReasons.push("nutrition_invalid"); }
+        if (!initialAdjValidation.ok) { 
+          fallbackReason = fallbackReason || "daily_adjustments_invalid"; 
+          fallbackReasons.push("daily_adjustments_invalid"); 
+        }
+        if (historyJsons.length > 0) {
+          if (similarity.score > threshold) { fallbackReason = fallbackReason || "high_similarity"; fallbackReasons.push("high_similarity"); }
+          if (intent !== "update" && isPortionOnly) { fallbackReason = fallbackReason || "portion_only"; fallbackReasons.push("portion_only"); }
+          if (requireMenuVariation && qOnly > 0.3) { fallbackReason = fallbackReason || "high_quantity_overlap"; fallbackReasons.push("high_quantity_overlap"); }
+          if (primarySourceTooRepetitive) { fallbackReason = fallbackReason || "source_repetition"; fallbackReasons.push("source_repetition"); }
+        }
+
         const overlapList = similarity.worstOverlap.length
           ? `Alimentos repetidos do cardápio anterior (TROQUE A MAIORIA): ${similarity.worstOverlap.join(", ")}.`
           : "Muitos alimentos coincidem com o cardápio anterior.";
@@ -887,8 +914,16 @@ serve(async (req) => {
             `❗ Em ${Math.round(carbRepeat * 100)}% das refeições o CARBOIDRATO PRINCIPAL repete a MESMA FAMÍLIA (refeições: ${similarity.carbRepeatMeals.join(", ")}). Alterne entre cereais, tubérculos, frutas e leguminosas.`,
           );
         }
+        if (!initialAdjValidation.ok) {
+          retryParts.push(
+            `❗ Falha no campo dailyAdjustments: ${initialAdjValidation.errors.join(". ")}.`,
+            "Respeite EXATAMENTE o shape JSON solicitado para dailyAdjustments (7 dias, target_kcal correto, instructions coerentes)."
+          );
+        }
         const second = await callModel(
           dietVariationPrompt(intensity, historySummary, retryParts.join(" "), true),
+          AI_MODELS.fallback,
+          fallbackReason || "retry"
         );
         if (second.ok) {
           const sim2 = computeDietSimilarity(second.plan, historyJsons);
