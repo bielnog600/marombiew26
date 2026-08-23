@@ -646,6 +646,10 @@ serve(async (req) => {
 
     // ─── Structured (JSON) generation mode ───
     if (mode === "structured") {
+      const schedule =
+        dietConfig && typeof dietConfig === "object"
+          ? (dietConfig as any).weeklyEnergySchedule
+          : null;
       const layeredInstructions = buildLayeredInstructions(dietConfig, trainingContext);
       // Resolve intent: explicit `intent` wins; legacy `regenerateIntent` maps to "regenerate".
       const intent: DietIntent =
