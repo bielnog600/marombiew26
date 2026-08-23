@@ -185,6 +185,7 @@ const TreinoExecucao = () => {
   const [loadedDayName, setLoadedDayName] = useState(stateData?.dayName || 'Treino');
   const [loadedMedia, setLoadedMedia] = useState<ExerciseMediaMap>(stateData?.exerciseMedia || {});
   const [phase, setPhase] = useState<TrainingPhase | null>(stateData?.phase || null);
+  const [sessionPlanId, setSessionPlanId] = useState<string | null>(stateData?.planId || null);
 
   const exercises = loadedExercises;
   const dayName = loadedDayName;
