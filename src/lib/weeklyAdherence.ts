@@ -52,9 +52,16 @@ export interface AdherenceReport {
   exercisesLogged: number;
   setsTotal: number;
   setsWithLoad: number;
+  /**
+   * (sessões COMPLETAS + dias legados) / planejadas — ignora parciais.
+   * Mantido para UI/telemetria; NÃO é a métrica de classificação.
+   */
   sessionsPct: number;
+  /** Alias explícito de `sessionsPct` (somente sessões completas). */
+  sessionsCompletedPct: number;
   exercisesPct: number;
   setsPct: number;
+
   reasonLabel: string;
   detailLabel: string;
   canAutoAdvance: boolean;
