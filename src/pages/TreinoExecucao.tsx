@@ -1300,10 +1300,14 @@ const TreinoExecucao = () => {
                const useVariation = variationPrefs[normalizeExerciseKey(ex.exercise)] ?? loadVariationPref(user?.id, ex.exercise);
                const exName = useVariation && ex.variation ? ex.variation : (ex.exercise || '');
               const muscle = exerciseDB.find((d) => d.nome.toLowerCase() === exName.toLowerCase())?.grupo_muscular || null;
+              // Tipo estrutural da série vem do plano (reconhecimento vs trabalho).
+              const plannedTypes = buildSetPlan(ex?.series, ex?.series2, ex?.reps, ex?.setScheme).map((p) => p.type);
               arr.forEach((s, i) => {
                 if (!s.completed) return;
                 const reps = parseInt(s.reps) || 0;
                 const weight = parseFloat(s.weight.replace(',', '.')) || 0;
+                const rirRaw = (s.rir ?? '').trim();
+                const rirNum = rirRaw === '' ? null : Number(rirRaw);
                 totalSets += 1;
                 totalVolumeKg += reps * weight;
                 setLogRows.push({
@@ -1314,11 +1318,15 @@ const TreinoExecucao = () => {
                   reps: reps || null,
                   weight_kg: weight || null,
                   rpe: null,
+                  // RIR é opcional: ausência grava null (desconhecido), nunca 0.
+                  rir: rirNum != null && Number.isFinite(rirNum) ? rirNum : null,
+                  set_type: plannedTypes[i] === 'recognition' ? 'recognition' : 'work',
                   phase: phase ?? null,
                   day_name: dayName,
                 });
               });
             });
+
           }
 
           try {
