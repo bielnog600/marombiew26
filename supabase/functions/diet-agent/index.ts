@@ -3,7 +3,7 @@ import {
   AI_MODELS,
   callAI,
   createRoutingMetadata,
-  type AIRoutingResponse,
+  type AIRouterResponse,
 } from "../_shared/aiModelRouter.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import {
@@ -309,7 +309,8 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error("diet-agent error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    const message = error instanceof Error ? error.message : String(error);
+    return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
