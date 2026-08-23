@@ -225,8 +225,10 @@ const MeusTreinos = () => {
     loading: weeklyLoading,
   } = useWeeklyTraining(activePlanForAdherence, plannedPhase);
 
-  const adherenceLoading = weeklyLoading || (!!activePlanForAdherence && !adherenceReport && weeklyLoading);
-  const progression = resolution ?? resolveActiveWeek(plannedPhase, adherenceReport ?? undefined, performance ?? undefined);
+  // Sem recalcular nada localmente: a decisão vem pronta do hook central.
+  const adherenceLoading = weeklyLoading;
+  const progression = resolution;
+
 
   // Aplica a semana ativa resolvida (somente se o usuário não trocou manualmente
   // e se houver um plano para essa semana resolvida).
