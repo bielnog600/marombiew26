@@ -1,5 +1,4 @@
 /**
-/**
  * Shared AI Model Router for MAROMBIEW.
  * Centralizes model selection and environment overrides.
  */
@@ -41,6 +40,25 @@ export type AIRouterResponse = {
   usage: AIUsageMetadata;
 };
 
+export type ModelCallFailure = {
+  code:
+    | "upstream_error"
+    | "empty_response"
+    | "invalid_json"
+    | "plan_validation_failed"
+    | "daily_adjustments_invalid"
+    | "nutrition_invalid"
+    | "high_similarity"
+    | "internal_redundancy"
+    | "catalog_mismatch"
+    | "portion_only"
+    | "high_quantity_overlap"
+    | "source_repetition"
+    | "critical_failure";
+  retryable: boolean;
+  status?: number;
+};
+
 export function createRoutingMetadata(
   attempts: AIAttemptMetadata[],
   fallbackReason: string | null,
@@ -59,7 +77,7 @@ export function createRoutingMetadata(
   return {
     routing: {
       primaryModel: AI_MODELS.primary,
-      finalModel: finalAttempt.model,
+      finalModel: finalAttempt ? finalAttempt.model : AI_MODELS.primary,
       fallbackUsed,
       fallbackReason,
       fallbackReasons,

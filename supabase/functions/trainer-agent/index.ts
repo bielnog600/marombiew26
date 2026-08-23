@@ -336,8 +336,6 @@ function workoutPlanToMarkdown(plan: any): string {
   return lines.join("\n");
 }
 
-const modelAttempts: AIAttemptMetadata[] = [];
-
 async function callStructuredModel({
   apiKey,
   systemPrompt,
@@ -345,9 +343,15 @@ async function callStructuredModel({
   extraSystem,
   modelToUse,
   reason,
-}: StructuredArgs & { extraSystem?: string; modelToUse: string; reason: string }): Promise<
+  attempts,
+}: StructuredArgs & { 
+  extraSystem?: string; 
+  modelToUse: string; 
+  reason: string;
+  attempts: AIAttemptMetadata[];
+}): Promise<
   | { ok: true; data: any }
-  | { ok: false; response: Response }
+  | { ok: false; response: Response; error_code?: string }
 > {
   const start = Date.now();
   
@@ -393,37 +397,26 @@ async function callStructuredModel({
   if (!upstream.ok) {
     const t = await upstream.text();
     console.error("trainer-agent[json] gateway error:", upstream.status, t);
-    modelAttempts.push({ model: modelToUse, durationMs, reason: `Error: ${upstream.status}` });
-    if (upstream.status === 429) {
-      return {
-        ok: false,
-        response: new Response(
-          JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns minutos." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        ),
-      };
-    }
-    if (upstream.status === 402) {
-      return {
-        ok: false,
-        response: new Response(
-          JSON.stringify({ error: "Créditos insuficientes na sua conta OpenAI." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        ),
-      };
-    }
+    attempts.push({ model: modelToUse, durationMs, reason: `Error: ${upstream.status}` });
+    
+    const isRetryable = upstream.status !== 401 && upstream.status !== 402 && upstream.status !== 429;
+    
     return {
       ok: false,
-      response: new Response(JSON.stringify({ error: "Erro no gateway de IA", detail: t }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }),
+      error_code: "upstream_error",
+      response: new Response(
+        JSON.stringify({ 
+          error: upstream.status === 429 ? "Limite de requisições excedido." : "Erro no gateway de IA",
+          retryable: isRetryable 
+        }),
+        { status: upstream.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      ),
     };
   }
 
   const payload = await upstream.json();
   const usage = payload?.usage;
-  modelAttempts.push({
+  attempts.push({
     model: modelToUse,
     durationMs,
     reason,
@@ -433,12 +426,14 @@ async function callStructuredModel({
       totalTokens: usage.total_tokens
     } : null
   });
+  
   const content = payload?.choices?.[0]?.message?.content;
-  if (typeof content !== "string") {
+  if (!content || typeof content !== "string" || content.trim().length === 0) {
     return {
       ok: false,
+      error_code: "empty_response",
       response: new Response(
-        JSON.stringify({ error: "Resposta vazia do modelo" }),
+        JSON.stringify({ error: "Resposta vazia do modelo", retryable: true }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       ),
     };
@@ -451,9 +446,10 @@ async function callStructuredModel({
     console.error("trainer-agent[json] parse error:", e, content.slice(0, 500));
     return {
       ok: false,
+      error_code: "invalid_json",
       response: new Response(
-        JSON.stringify({ error: "Modelo retornou JSON inválido" }),
-        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        JSON.stringify({ error: "JSON inválido", retryable: true }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       ),
     };
   }
@@ -463,8 +459,9 @@ async function callStructuredModel({
     console.error("trainer-agent[json] validation error:", validation.error);
     return {
       ok: false,
+      error_code: "plan_validation_failed",
       response: new Response(
-        JSON.stringify({ error: "Plano gerado é inválido", detail: validation.error }),
+        JSON.stringify({ error: "Plano gerado é inválido", detail: validation.error, retryable: true }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       ),
     };
@@ -495,6 +492,7 @@ async function generateStructuredWorkoutWithVariation(args: {
 
   let fallbackReason: string | null = null;
   let fallbackReasons: string[] = [];
+  const modelAttempts: AIAttemptMetadata[] = [];
 
   // 1st attempt
   const first = await callStructuredModel({
@@ -503,8 +501,61 @@ async function generateStructuredWorkoutWithVariation(args: {
     messages: args.messages,
     extraSystem: variationBlock,
     modelToUse: AI_MODELS.primary,
-    reason: "first_attempt"
+    reason: "first_attempt",
+    attempts: modelAttempts
   });
+  
+  const isCriticalFailure = !first.ok && (first.error_code === "upstream_error" || first.error_code === "empty_response" || first.error_code === "invalid_json" || first.error_code === "plan_validation_failed");
+  
+  if (isCriticalFailure) {
+    // If not retryable, return immediately
+    const body = await first.response.clone().json().catch(() => ({}));
+    if (body.retryable === false) return first.response;
+    
+    // Fallback for critical error
+    fallbackReason = first.error_code || "critical_failure";
+    fallbackReasons.push(fallbackReason);
+    
+    const retryBlock = variationBlock + "\n\n🚨 OCORREU UM ERRO TÉCNICO NA GERAÇÃO ANTERIOR (" + fallbackReason + "). Certifique-se de seguir o SCHEMA JSON estritamente e não deixar campos vazios.";
+    
+    const second = await callStructuredModel({
+      apiKey: args.apiKey,
+      systemPrompt: args.systemPrompt,
+      messages: args.messages,
+      extraSystem: retryBlock,
+      modelToUse: AI_MODELS.fallback,
+      reason: "critical_fallback",
+      attempts: modelAttempts
+    });
+    
+    if (!second.ok) return second.response;
+    
+    // If we reached here, first was failing but second worked.
+    // Proceed with the second attempt data.
+    const historyJsons = history
+      .map((h) => h.conteudo_json)
+      .filter((j) => j && typeof j === "object") as any[];
+      
+    let finalPlan = second.data;
+    
+    // snapPlanToCatalog and evaluate before returning
+    const unmatchedExercises = snapPlanToCatalog(finalPlan, args.catalog ?? []);
+    const markdownFinal = workoutPlanToMarkdown(finalPlan);
+    const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
+    
+    return new Response(
+      JSON.stringify({
+        json: finalPlan,
+        markdown: markdownFinal,
+        unmatchedExercises,
+        similarity: { score: 0, threshold: SIMILARITY_THRESHOLDS[intensity], intensity, historyCount: historyJsons.length },
+        aiRouting: routingMeta.routing,
+        aiUsage: routingMeta.usage,
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
   if (!first.ok) return first.response;
 
   const historyJsons = history
@@ -556,7 +607,8 @@ async function generateStructuredWorkoutWithVariation(args: {
       messages: args.messages,
       extraSystem: retryBlock,
       modelToUse: AI_MODELS.fallback,
-      reason: fallbackReason || "retry"
+      reason: fallbackReason || "retry",
+      attempts: modelAttempts
     });
     if (second.ok) {
       const sim2 = computeWorkoutSimilarity(second.data, historyJsons);

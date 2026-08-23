@@ -646,6 +646,10 @@ serve(async (req) => {
 
     // ─── Structured (JSON) generation mode ───
     if (mode === "structured") {
+      const schedule =
+        dietConfig && typeof dietConfig === "object"
+          ? (dietConfig as any).weeklyEnergySchedule
+          : null;
       const layeredInstructions = buildLayeredInstructions(dietConfig, trainingContext);
       // Resolve intent: explicit `intent` wins; legacy `regenerateIntent` maps to "regenerate".
       const intent: DietIntent =
@@ -740,16 +744,21 @@ serve(async (req) => {
           const t = await r.text();
           console.error("structured diet-agent error:", status, t);
           modelAttempts.push({ model: modelToUse, durationMs, reason: `Error: ${status}` });
+          
+          const isRetryable = status !== 401 && status !== 402 && status !== 429;
+          
           return {
             ok: false,
             resp: new Response(
               JSON.stringify({
                 error:
                   status === 429
-                    ? "Limite de requisições excedido. Tente novamente em alguns minutos."
+                    ? "Limite de requisições excedido."
                     : status === 402
                       ? "Créditos insuficientes na conta OpenAI."
                       : "Erro ao gerar dieta estruturada.",
+                retryable: isRetryable,
+                error_code: "upstream_error",
               }),
               { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
             ),
@@ -772,7 +781,7 @@ serve(async (req) => {
           return {
             ok: false,
             resp: new Response(
-              JSON.stringify({ error: "Resposta vazia do modelo." }),
+              JSON.stringify({ error: "Resposta vazia do modelo.", retryable: true, error_code: "empty_response" }),
               { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
             ),
           };
@@ -784,7 +793,7 @@ serve(async (req) => {
           return {
             ok: false,
             resp: new Response(
-              JSON.stringify({ error: "Modelo retornou JSON inválido.", raw }),
+              JSON.stringify({ error: "Modelo retornou JSON inválido.", raw, retryable: true, error_code: "invalid_json" }),
               { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
             ),
           };
@@ -799,7 +808,36 @@ serve(async (req) => {
         AI_MODELS.primary,
         "first_attempt"
       );
-      if (!first.ok) return first.resp;
+      
+      if (!first.ok) {
+        const body = await first.resp.clone().json().catch(() => ({}));
+        if (body.retryable) {
+          fallbackReason = body.error_code || "critical_failure";
+          fallbackReasons.push(fallbackReason as string);
+          const second = await callModel(
+            dietVariationPrompt(intensity, historySummary, `🚨 OCORREU UM ERRO TÉCNICO (${fallbackReason}). Gere o JSON novamente respeitando o contrato.`, false),
+            AI_MODELS.fallback,
+            "critical_fallback"
+          );
+          if (second.ok) {
+            const historyJsons = history
+              .map((h) => h.conteudo_json)
+              .filter((j) => j && typeof j === "object") as any[];
+            const similarity = computeDietSimilarity(second.plan, historyJsons);
+            const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
+            return new Response(
+              JSON.stringify({
+                plan: second.plan,
+                similarity: { score: similarity.score, threshold: SIMILARITY_THRESHOLDS[intensity], intensity, historyCount: historyJsons.length },
+                aiRouting: routingMeta.routing,
+                aiUsage: routingMeta.usage,
+              }),
+              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            );
+          }
+        }
+        return first.resp;
+      }
 
       const historyJsons = history
         .map((h) => h.conteudo_json)
@@ -818,9 +856,6 @@ serve(async (req) => {
       const carbRepeat = similarity.primaryCarbRepeatRatio ?? 0;
       const primarySourceTooRepetitive = Math.max(protRepeat, carbRepeat) >= 0.6;
       
-      const schedule = (dietConfig && typeof dietConfig === "object")
-        ? (dietConfig as any).weeklyEnergySchedule
-        : null;
       let initialAdjValidation = { ok: true, errors: [] as string[] };
       if (schedule && typeof schedule === "object" && schedule.days) {
         const modelAdj = (first.plan && typeof first.plan === "object")
@@ -832,36 +867,56 @@ serve(async (req) => {
           : { ok: true, errors: [] as string[] };
       }
 
+      const variationRetryAllowed = intent !== "update";
+
       const needsRetry =
         !nutrition.ok ||
         !initialAdjValidation.ok ||
         (historyJsons.length > 0 &&
           (similarity.score > threshold ||
-            (intent !== "update" && isPortionOnly) ||
+            (variationRetryAllowed && isPortionOnly) ||
             (requireMenuVariation && qOnly > 0.3) ||
-            primarySourceTooRepetitive));
+            (variationRetryAllowed && primarySourceTooRepetitive)));
 
       if (needsRetry) {
-        if (!nutrition.ok) { fallbackReason = "nutrition_invalid"; fallbackReasons.push("nutrition_invalid"); }
+        if (!nutrition.ok) { 
+          fallbackReason = "nutrition_invalid"; 
+          fallbackReasons.push("nutrition_invalid"); 
+        }
         if (!initialAdjValidation.ok) { 
           fallbackReason = fallbackReason || "daily_adjustments_invalid"; 
           fallbackReasons.push("daily_adjustments_invalid"); 
         }
         if (historyJsons.length > 0) {
-          if (similarity.score > threshold) { fallbackReason = fallbackReason || "high_similarity"; fallbackReasons.push("high_similarity"); }
-          if (intent !== "update" && isPortionOnly) { fallbackReason = fallbackReason || "portion_only"; fallbackReasons.push("portion_only"); }
-          if (requireMenuVariation && qOnly > 0.3) { fallbackReason = fallbackReason || "high_quantity_overlap"; fallbackReasons.push("high_quantity_overlap"); }
-          if (primarySourceTooRepetitive) { fallbackReason = fallbackReason || "source_repetition"; fallbackReasons.push("source_repetition"); }
+          if (similarity.score > threshold) { 
+            fallbackReason = fallbackReason || "high_similarity"; 
+            fallbackReasons.push("high_similarity"); 
+          }
+          if (variationRetryAllowed && isPortionOnly) { 
+            fallbackReason = fallbackReason || "portion_only"; 
+            fallbackReasons.push("portion_only"); 
+          }
+          if (requireMenuVariation && qOnly > 0.3) { 
+            fallbackReason = fallbackReason || "high_quantity_overlap"; 
+            fallbackReasons.push("high_quantity_overlap"); 
+          }
+          if (variationRetryAllowed && primarySourceTooRepetitive) { 
+            fallbackReason = fallbackReason || "source_repetition"; 
+            fallbackReasons.push("source_repetition"); 
+          }
         }
 
-        const overlapList = similarity.worstOverlap.length
-          ? `Alimentos repetidos do cardápio anterior (TROQUE A MAIORIA): ${similarity.worstOverlap.join(", ")}.`
-          : "Muitos alimentos coincidem com o cardápio anterior.";
-        const retryParts = [
-          overlapList,
-          "Substitua por equivalentes em macros usando o BANCO DE ALIMENTOS.",
-          "Preserve metas calóricas, macros, restrições e preferências.",
-        ];
+        const retryParts = [];
+        if (intent !== "update") {
+          const overlapList = similarity.worstOverlap.length
+            ? `Alimentos repetidos do cardápio anterior (TROQUE A MAIORIA): ${similarity.worstOverlap.join(", ")}.`
+            : "Muitos alimentos coincidem com o cardápio anterior.";
+          retryParts.push(
+            overlapList,
+            "Substitua por equivalentes em macros usando o BANCO DE ALIMENTOS.",
+            "Preserve metas calóricas, macros, restrições e preferências."
+          );
+        }
         if (!nutrition.ok) {
           const missing = nutrition.issues
             .filter((i) => i.reason === "missing_primary_protein")
@@ -920,8 +975,16 @@ serve(async (req) => {
             "Respeite EXATAMENTE o shape JSON solicitado para dailyAdjustments (7 dias, target_kcal correto, instructions coerentes)."
           );
         }
+        const forceMenuVariation =
+          intent === "regenerate" ||
+          (intent === "new" &&
+            (similarity.score > threshold ||
+              isPortionOnly ||
+              qOnly > 0.3 ||
+              primarySourceTooRepetitive));
+              
         const second = await callModel(
-          dietVariationPrompt(intensity, historySummary, retryParts.join(" "), true),
+          dietVariationPrompt(intensity, historySummary, retryParts.join(" "), forceMenuVariation),
           AI_MODELS.fallback,
           fallbackReason || "retry"
         );
@@ -994,9 +1057,6 @@ serve(async (req) => {
       // Quando o cliente enviou um weeklyEnergySchedule, os targets são
       // determinísticos e vêm do schedule (fonte de verdade). A IA fornece
       // apenas instructions / summary / estimated_adjustment_kcal.
-      const schedule = (dietConfig && typeof dietConfig === "object")
-        ? (dietConfig as any).weeklyEnergySchedule
-        : null;
       let normalizedDailyAdjustments: any = null;
       let dailyAdjustmentsError: string | null = null;
       if (schedule && typeof schedule === "object" && schedule.days) {
