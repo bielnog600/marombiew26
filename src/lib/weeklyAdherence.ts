@@ -218,6 +218,8 @@ export const buildAdherenceReport = (
     setsTotal,
     setsWithLoad,
     sessionsPct,
+    sessionsCompletedPct,
+
     exercisesPct,
     setsPct,
     reasonLabel,
