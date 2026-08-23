@@ -717,12 +717,23 @@ export const resolveActiveWeek = (
   }
 };
 // ============================================================
-// LIMITAÇÕES DO SCHEMA ATUAL (documentado, sem migration nesta etapa)
+// ESTADO DO SCHEMA E LIMITAÇÕES
 // ------------------------------------------------------------
-//  - exercise_set_logs tem `rpe` (numeric) mas NÃO tem coluna `rir`. Hoje
-//    100% dos registros têm rpe = null, então o modificador de RIR fica
-//    inerte até o app passar a coletar esforço por série. A leitura já está
-//    pronta: `rir` explícito ou derivado de 10 - rpe.
+//  - exercise_set_logs agora tem `rir` (smallint, opcional, 0-10) e
+//    `set_type` (warmup/recognition/work/top/backoff/drop/rest_pause/
+//    myo_reps/technique). Ambos aceitam NULL: registros legados continuam
+//    válidos e NUNCA são preenchidos artificialmente.
+//  - RIR é OPCIONAL: nenhuma série é bloqueada por falta dele e toda a
+//    progressão funciona só com peso + reps. Quando ausente, o topo da faixa
+//    exige topo repetido em semanas comparáveis para liberar increase_load.
+//  - `rpe` por série permanece como fonte secundária (RIR = 10 - RPE) e o
+//    RPE global da sessão (workout_sessions.avg_rpe) NÃO é usado aqui:
+//    esforço de treino inteiro não representa esforço de um exercício.
+//  - Hoje a execução só emite `recognition` e `work`. Backoff, drop-set,
+//    rest-pause e myo-reps ainda não têm UI própria; os valores existem no
+//    contrato para quando forem prescritos/registrados. Enquanto isso, séries
+//    sem tipo (legado) são tratadas como `work` (fallback documentado) e a
+//    comparação é marcada como `fallback_untyped`.
 //  - Não há duração/tempo por série: exercícios isométricos ou por tempo
 //    (prancha, 30s → 40s) não têm dado estruturado e caem em
 //    insufficient_data ou são avaliados só por repetições quando existirem.
@@ -731,3 +742,4 @@ export const resolveActiveWeek = (
 //    aparecem como exercícios diferentes.
 //  - A faixa prescrita vem do texto do plano (reps "8-12" ou setScheme);
 //    quando ausente, nextAction fica conservador (maintain).
+
