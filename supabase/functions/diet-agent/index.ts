@@ -204,7 +204,7 @@ Deno.serve(async (req) => {
       };
     };
 
-    const threshold = SIMILARITY_THRESHOLDS[intensity];
+    const threshold = SIMILARITY_THRESHOLDS[intensity as VariationIntensity];
     let fallbackReason: string | null = null;
     let fallbackReasons: string[] = [];
 
