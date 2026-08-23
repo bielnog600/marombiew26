@@ -6,10 +6,11 @@ import {
   normalizeExerciseKey,
 } from '@/lib/loadIncrement';
 import { buildQuantitativeProgressionRecommendation } from '@/lib/quantitativeProgression';
-import type { ExerciseLog, ExercisePerformance } from '@/lib/weeklyProgression';
+import type { ExercisePerformance } from '@/lib/weeklyProgression';
+import type { ComparableLog } from '@/lib/loadIncrement';
 
 let clock = 0;
-const log = (weight: number, set_type: string = 'work', reps = 10): ExerciseLog => {
+const log = (weight: number, set_type: string = 'work', reps = 10): ComparableLog => {
   clock += 1;
   return {
     exercise_name: 'SUPINO RETO',

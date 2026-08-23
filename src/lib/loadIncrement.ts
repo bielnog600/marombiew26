@@ -49,6 +49,13 @@ export const MIN_BASE_SHARE = 0.5;
 /** Carga absurda: acima disto o log é considerado anômalo e ignorado. */
 export const MAX_PLAUSIBLE_LOAD_KG = 600;
 
+/**
+ * `exercise_set_logs` traz `session_id`, mas o tipo compartilhado
+ * `ExerciseLog` (weeklyProgression, que não pode ser alterado) não o declara.
+ * Extensão local, usada apenas para deduplicar séries repetidas.
+ */
+export type ComparableLog = ExerciseLog & { session_id?: string | null };
+
 export type IncrementSource = 'configured' | 'inferred_history' | 'unknown';
 export type IncrementConfidence = 'high' | 'medium' | 'low';
 
@@ -77,7 +84,7 @@ export interface ResolveIncrementInput {
   /** Configuração explícita por aluno + exercício (kg), quando existir. */
   configuredIncrementKg?: number | null;
   /** Séries de trabalho históricas do MESMO aluno e MESMO exercício. */
-  historicalWorkingSets?: ExerciseLog[];
+  historicalWorkingSets?: ComparableLog[];
 }
 
 const gramsOf = (kg: number) => Math.round(kg * 1000);
@@ -140,7 +147,7 @@ export const validateIncrementInput = (raw: string | number | null | undefined):
 // Série cronológica comparável
 // ------------------------------------------------------------------
 
-const timeOf = (l: ExerciseLog): number => {
+const timeOf = (l: ComparableLog): number => {
   const t = Date.parse(String(l.performed_at ?? ''));
   return Number.isFinite(t) ? t : 0;
 };
@@ -151,9 +158,9 @@ const timeOf = (l: ExerciseLog): number => {
  * rest-pause, myo-reps e técnicas ficam de fora — nunca definem incremento.
  * Duplicados exatos (mesma sessão + mesma série + mesma carga) são removidos.
  */
-export const comparableWorkingSets = (logs: ExerciseLog[] = []): { kept: ExerciseLog[]; excluded: number } => {
+export const comparableWorkingSets = (logs: ComparableLog[] = []): { kept: ComparableLog[]; excluded: number } => {
   const seen = new Set<string>();
-  const kept: ExerciseLog[] = [];
+  const kept: ComparableLog[] = [];
   let excluded = 0;
   const ordered = [...logs].sort((a, b) => {
     const dt = timeOf(a) - timeOf(b);
@@ -207,7 +214,7 @@ const unknown = (evidence: IncrementEvidence): ResolvedIncrement => ({
  *     transições (predominância);
  *  7. qualquer inconsistência ⇒ source = unknown (nunca chutar kg).
  */
-export const inferIncrementFromTransitions = (logs: ExerciseLog[] = []): ResolvedIncrement => {
+export const inferIncrementFromTransitions = (logs: ComparableLog[] = []): ResolvedIncrement => {
   const { kept, excluded } = comparableWorkingSets(logs);
   const series = kept.map((l) => round2(Number(l.weight_kg)));
   if (series.length < 2) {
