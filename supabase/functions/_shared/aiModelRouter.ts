@@ -50,7 +50,11 @@ export type ModelCallFailure = {
     | "nutrition_invalid"
     | "high_similarity"
     | "internal_redundancy"
-    | "catalog_mismatch";
+    | "catalog_mismatch"
+    | "portion_only"
+    | "high_quantity_overlap"
+    | "source_repetition"
+    | "critical_failure";
   retryable: boolean;
   status?: number;
 };
