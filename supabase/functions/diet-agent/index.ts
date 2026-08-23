@@ -813,7 +813,7 @@ serve(async (req) => {
         const body = await first.resp.clone().json().catch(() => ({}));
         if (body.retryable) {
           fallbackReason = body.error_code || "critical_failure";
-          fallbackReasons.push(fallbackReason);
+          fallbackReasons.push(fallbackReason as string);
           const second = await callModel(
             dietVariationPrompt(intensity, historySummary, `🚨 OCORREU UM ERRO TÉCNICO (${fallbackReason}). Gere o JSON novamente respeitando o contrato.`, false),
             AI_MODELS.fallback,
