@@ -818,9 +818,6 @@ serve(async (req) => {
       const carbRepeat = similarity.primaryCarbRepeatRatio ?? 0;
       const primarySourceTooRepetitive = Math.max(protRepeat, carbRepeat) >= 0.6;
       
-      const schedule = (dietConfig && typeof dietConfig === "object")
-        ? (dietConfig as any).weeklyEnergySchedule
-        : null;
       let initialAdjValidation = { ok: true, errors: [] as string[] };
       if (schedule && typeof schedule === "object" && schedule.days) {
         const modelAdj = (first.plan && typeof first.plan === "object")
