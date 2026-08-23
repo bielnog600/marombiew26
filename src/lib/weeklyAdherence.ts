@@ -36,7 +36,7 @@ export interface AdherenceSession {
  * exercise_set_log não transforma mais o dia em "sessão executada".
  * Antes disso, o fallback por "dias com logs" continua valendo (dados legados).
  */
-export const STRUCTURED_SESSIONS_SINCE = '2026-08-10';
+export const STRUCTURED_SESSIONS_SINCE = '2026-08-23';
 
 export interface AdherenceReport {
   status: AdherenceStatus;
