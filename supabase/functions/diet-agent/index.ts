@@ -1116,19 +1116,10 @@ serve(async (req) => {
               : { ok: true, errors: [] as string[] };
           }
 
-          // Prefer the second plan when it (a) lowers similarity OR
-          // (b) escapes portion_only mode OR
-          // (c) reduces primary-source repetition OR
-          // (d) fixes a nutrition guardrail failure.
-          // (e) fixes dailyAdjustments.
-          const escapedPortion =
-            isPortionOnly && sim2.changeKind !== "portion_only";
           const sim2Primary = Math.max(
             sim2.primaryProteinRepeatRatio ?? 0,
             sim2.primaryCarbRepeatRatio ?? 0,
           );
-          const reducedPrimary =
-            primarySourceTooRepetitive && sim2Primary < Math.max(protRepeat, carbRepeat);
           const result2 = evaluateDietCandidate({
             plan: second.plan,
             historyJsons,
