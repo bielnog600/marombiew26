@@ -928,10 +928,23 @@ serve(async (req) => {
         if (second.ok) {
           const sim2 = computeDietSimilarity(second.plan, historyJsons);
           const nut2 = validateDietNutrition(second.plan);
+          
+          let initialAdjValidation2 = { ok: true, errors: [] as string[] };
+          if (schedule && typeof schedule === "object" && schedule.days) {
+            const modelAdj2 = (second.plan && typeof second.plan === "object")
+              ? (second.plan as any).dailyAdjustments
+              : null;
+            const { adjustments: adjustments2, missing: missing2 } = normalizeDailyAdjustments(modelAdj2, schedule);
+            initialAdjValidation2 = hasDailyCalorieVariation(schedule)
+              ? validateDailyAdjustments(adjustments2, missing2)
+              : { ok: true, errors: [] as string[] };
+          }
+
           // Prefer the second plan when it (a) lowers similarity OR
           // (b) escapes portion_only mode OR
           // (c) reduces primary-source repetition OR
           // (d) fixes a nutrition guardrail failure.
+          // (e) fixes dailyAdjustments.
           const escapedPortion =
             isPortionOnly && sim2.changeKind !== "portion_only";
           const sim2Primary = Math.max(
@@ -941,12 +954,13 @@ serve(async (req) => {
           const reducedPrimary =
             primarySourceTooRepetitive && sim2Primary < Math.max(protRepeat, carbRepeat);
           const fixedNutrition = !nutrition.ok && nut2.issues.length < nutrition.issues.length;
-          // Nutrition guardrail trumps similarity preference: if the first plan
-          // was nutritionally invalid and the second is valid (or better),
-          // always take the second.
+          const fixedAdj = !initialAdjValidation.ok && initialAdjValidation2.ok;
+
+          // Hierarchy: VALIDITY/SAFETY > NUTRITION > CONTRACT (dailyAdj) > SIMILARITY
           if (
             fixedNutrition ||
-            (nutrition.ok &&
+            fixedAdj ||
+            (nutrition.ok && initialAdjValidation2.ok &&
               (sim2.score <= similarity.score || escapedPortion || reducedPrimary))
           ) {
             finalPlan = second.plan;
@@ -968,9 +982,11 @@ serve(async (req) => {
         } else {
           warning = !nutrition.ok
             ? "incomplete_nutrition"
-            : isPortionOnly
-              ? "quantity_only"
-              : "high_similarity";
+            : !initialAdjValidation.ok
+              ? "daily_adjustments_invalid"
+              : isPortionOnly
+                ? "quantity_only"
+                : "high_similarity";
         }
       }
 
