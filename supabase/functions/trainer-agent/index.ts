@@ -1043,17 +1043,21 @@ const TRAINER_EVOLUTION_PROMPT = `
 ========================================
 ANTI REPETIÇÃO E EVOLUÇÃO
 ========================================
-`;
-
-
 1) Variação inteligente de ângulo, pegada, base
 2) Progressão real
 3) Periodização de 4 semanas (perguntar qual semana)
 4) Evitar repetir mais de 40% dos exercícios se houver treino anterior
+`;
 
+
+
+
+const TRAINER_SAFETY_PROMPT = `
 ========================================
 SEGURANÇA E CONTRAINDICAÇÕES (REGRA CRÍTICA — PRIORIDADE MÁXIMA)
 ========================================
+`;
+
 
 ANTES de montar o treino, analise TODOS os dados do aluno: lesões, dores, cirurgias, restrições, desvios posturais, histórico de saúde, medicação, mobilidade e testes de performance. Cruze essas informações com CADA exercício selecionado.
 
