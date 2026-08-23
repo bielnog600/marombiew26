@@ -292,11 +292,13 @@ export const buildSessionProgressionRecommendations = (
     const bodyweight = !!performance.bestSet && performance.bestSet.weightKg <= 0;
 
     // Sem base quantificável: nada é exibido (evita card vazio), EXCETO quando
-    // existe uma única performance válida com carga conhecida — nesse caso
-    // damos apenas a referência conservadora de manutenção (regra 7).
+    // existe uma performance válida (mesmo que única) com carga conhecida — nesse
+    // caso damos apenas a referência conservadora de manutenção (regra 7).
     if (quant.basis === 'sem_base_quantificavel') {
       const refLoad = performance.bestSet?.weightKg ?? null;
-      if (!singlePerformance || !refLoad || refLoad <= 0) return;
+      // Se não houver bestSet nem carga, não há o que sugerir.
+      if (!performance.bestSet) return;
+
       recommendations[key] = applyEvidencePolicy(
         {
           exerciseKey: key,
@@ -313,15 +315,15 @@ export const buildSessionProgressionRecommendations = (
           incrementKg: quant.incrementKg,
           incrementSource: quant.incrementSource,
           incrementConfidence: quant.incrementConfidence,
-          qualitative: false,
+          qualitative: bodyweight || !refLoad,
           bodyweight,
-          basis: 'apenas_uma_performance_valida',
+          basis: singlePerformance ? 'apenas_uma_performance_valida' : 'sem_base_quantificavel',
           reasons: quant.reasons,
-          singlePerformance: true,
+          singlePerformance,
           legacyFallback: false,
           executedLoadKg: null,
         },
-        { singlePerformance: true, legacyFallback: comparable.legacyFallback },
+        { singlePerformance, legacyFallback: comparable.legacyFallback },
       );
       return;
     }
