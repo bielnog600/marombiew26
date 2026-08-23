@@ -322,22 +322,34 @@ export const buildExercisePerformance = (
   const bestSet = selectBestSet(currentLogs);
   const previousBestSet = selectBestSet(previousLogs);
 
-  const workingSets = currentLogs.filter((l) => (l.reps ?? 0) > 0 || (l.weight_kg ?? 0) > 0);
-  const totalWorkingSets = workingSets.length;
-  const totalReps = workingSets.reduce((a, l) => a + (Number(l.reps) || 0), 0);
-  const totalVolume = +workingSets
+  const usable = currentLogs.filter((l) => (l.reps ?? 0) > 0 || (l.weight_kg ?? 0) > 0);
+  const primarySets = usable.filter((l) => setRoleOf(l) === 'primary');
+  const auxiliarySets = usable.filter((l) => setRoleOf(l) === 'auxiliary');
+  const preparationSets = usable.filter((l) => setRoleOf(l) === 'preparation');
+  // Técnicas não são perdidas: entram em volume/reps/contagem de trabalho.
+  const countedSets = [...primarySets, ...auxiliarySets];
+  const totalWorkingSets = countedSets.length;
+  const totalReps = countedSets.reduce((a, l) => a + (Number(l.reps) || 0), 0);
+  const totalVolume = +countedSets
     .reduce((a, l) => a + (Number(l.reps) || 0) * (Number(l.weight_kg) || 0), 0)
     .toFixed(1);
   const loaded = !!bestSet && bestSet.weightKg > 0;
+  const comparisonBasis: ComparisonBasis =
+    hasStructuredSetTypes(currentLogs) && (previousLogs.length === 0 || hasStructuredSetTypes(previousLogs))
+      ? 'like_for_like'
+      : 'fallback_untyped';
 
   const base: ExercisePerformance = {
     exerciseName,
     bestSet,
     previousBestSet,
     totalWorkingSets,
+    auxiliarySets: auxiliarySets.length,
+    preparationSets: preparationSets.length,
     totalReps,
     totalVolume,
     loaded,
+    comparisonBasis,
     repRange: repRange ?? null,
     status: 'insufficient_data',
     nextAction: 'review',
@@ -347,6 +359,7 @@ export const buildExercisePerformance = (
     weightDelta: null,
     rirDelta: null,
   };
+
 
   if (!bestSet) {
     return { ...base, status: 'missing', nextAction: 'review', reason: 'Exercício planejado sem registro na semana.' };
