@@ -354,5 +354,7 @@ export function useNotifications() {
     setDismissedKeys(prev => new Set(Array.from(prev)).add(notificationId));
   };
 
-  return { notifications, loading, count: notifications.length, refresh: loadNotifications, dismissNotification };
+  const highPriorityCount = notifications.filter(n => n.priority === 'high').length;
+
+  return { notifications, loading, count: notifications.length, highPriorityCount, refresh: loadNotifications, dismissNotification };
 }
