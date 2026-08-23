@@ -632,6 +632,7 @@ const Consultoria = () => {
     { value: 'all', label: 'Todos', count: notifTabCounts.all, icon: null },
     { value: 'reavaliacao', label: 'Reavaliação', count: notifTabCounts.reavaliacao, icon: CalendarClock },
     { value: 'aniversario', label: 'Aniversário', count: notifTabCounts.aniversario, icon: Cake },
+    
     { value: 'sem_telefone', label: 'Sem Tel', count: notifTabCounts.sem_telefone, icon: Phone },
     { value: 'sem_treino', label: 'Sem Treino', count: notifTabCounts.sem_treino, icon: Dumbbell },
     { value: 'sem_dieta', label: 'Sem Dieta', count: notifTabCounts.sem_dieta, icon: UtensilsCrossed },
