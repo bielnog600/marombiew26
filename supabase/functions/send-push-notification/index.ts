@@ -1,7 +1,8 @@
 // Edge function para enviar push via OneSignal REST API
 // Aceita: { user_ids?: string[], title, message, data?, url? }
-// Se user_ids vazio = envia para todos os admins
+// Autorização obrigatória: admin autenticado OU chamada interna com service role.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { authorizePrivilegedRequest, unauthorizedResponse } from "../_shared/authorizePrivilegedRequest.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,8 +18,12 @@ const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  const auth = await authorizePrivilegedRequest(req);
+  if (!auth.ok) return unauthorizedResponse(auth, corsHeaders);
+
   try {
     const body = await req.json();
+
     const { user_ids, title, message, data = {}, url, send_to_admins } = body ?? {};
 
     if (!title || !message) {
