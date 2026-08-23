@@ -58,7 +58,9 @@ export interface StudentWeeklySummary {
   attention: AttentionKind;
   priority: number; // menor = mais urgente
   actionLabel: string;
+  active: boolean;
 }
+
 
 const classify = (
   adherence: AdherenceReport | null,
@@ -106,10 +108,12 @@ export const useStudentsWeeklySummary = () => {
       if (allIds.length === 0) { setSummaries([]); return; }
       const { data: actives } = await supabase
         .from('students_profile')
-        .select('user_id')
-        .eq('ativo', true)
+        .select('user_id, ativo')
         .in('user_id', allIds);
-      const ids = (actives ?? []).map((a) => a.user_id);
+      const studentProfileStatus = new Map<string, boolean>((actives ?? []).map(a => [a.user_id, !!a.ativo]));
+      const ids = (actives ?? []).filter(a => a.ativo).map((a) => a.user_id);
+
+
       if (ids.length === 0) { setSummaries([]); return; }
 
       // 2. perfis (nome, telefone)
@@ -365,7 +369,9 @@ export const useStudentsWeeklySummary = () => {
           attention: cFinal.kind,
           priority: cFinal.priority,
           actionLabel: cFinal.action,
+          active: studentProfileStatus.get(p.user_id) ?? false,
         });
+
       }
 
       result.sort((a, b) => a.priority - b.priority || a.studentName.localeCompare(b.studentName));
