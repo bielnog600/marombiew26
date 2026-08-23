@@ -164,7 +164,7 @@ export const useStudentsWeeklySummary = () => {
       const { start: adhStart, end: adhEnd } = getPreviousWeekWindow();
       const { data: logs } = await supabase
         .from('exercise_set_logs')
-        .select('student_id, exercise_name, reps, weight_kg, rpe, set_number, performed_at')
+        .select('student_id, exercise_name, reps, weight_kg, rpe, rir, set_type, set_number, performed_at')
         .in('student_id', ids)
         .gte('performed_at', prevStart.toISOString())
         .lt('performed_at', lastEnd.toISOString());
@@ -177,6 +177,8 @@ export const useStudentsWeeklySummary = () => {
           reps: l.reps,
           weight_kg: l.weight_kg,
           rpe: (l as any).rpe ?? null,
+          rir: (l as any).rir ?? null,
+          set_type: (l as any).set_type ?? null,
           set_number: (l as any).set_number ?? null,
           performed_at: l.performed_at,
         });
