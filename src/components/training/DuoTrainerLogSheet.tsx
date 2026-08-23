@@ -717,6 +717,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                           ExerciseNamePicker={ExerciseNamePicker}
                           HistoryPopover={HistoryPopover}
                           parsePauseSeconds={(p) => 60}
+                          progressionSnapshot={snapshotA}
                         />
                       ))}
                       <Button
