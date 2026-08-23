@@ -64,7 +64,16 @@ export interface ProgressionSnapshot {
   generatedAt: string;
   sessionId: string | null;
   phase: TrainingPhase | null;
+  /** Plano usado como contexto de comparabilidade (null = desconhecido). */
+  planId?: string | null;
   recommendations: Record<string, SessionRecommendation>;
+}
+
+/** Metadados de sessões anteriores (workout_sessions), buscados em lote. */
+export interface SessionMetaRow {
+  sessionId: string;
+  planId?: string | null;
+  phase?: string | null;
 }
 
 export interface BuildSessionRecommendationsInput {
@@ -75,6 +84,10 @@ export interface BuildSessionRecommendationsInput {
   activePhase: TrainingPhase | null;
   /** Mapa exerciseKey → incremento configurado (kg), buscado em lote. */
   configuredIncrements: Record<string, number>;
+  /** sessionId → { planId, phase } das sessões anteriores. */
+  sessionMeta?: Record<string, SessionMetaRow>;
+  /** Plano da sessão atual; null = desconhecido (sem filtro por plano). */
+  currentPlanId?: string | null;
 }
 
 /** Remove explicitamente qualquer log pertencente à sessão em andamento. */
@@ -86,6 +99,76 @@ export const excludeCurrentSessionLogs = <T extends { session_id?: string | null
 const byTimeAsc = (a: SessionLog, b: SessionLog) =>
   new Date(a.performed_at).getTime() - new Date(b.performed_at).getTime();
 
+/** Chave de agrupamento por sessão (dado legado sem session_id → por dia). */
+export const sessionGroupKey = (l: SessionLog): string =>
+  l.session_id || String(l.performed_at).slice(0, 10);
+
+export interface ComparableHistoryResult {
+  logs: SessionLog[];
+  /** Alguma sessão usada não tem plan_id conhecido (histórico legado). */
+  legacyFallback: boolean;
+  excludedDeloadSessions: number;
+  excludedOtherPlanSessions: number;
+}
+
+/**
+ * POLÍTICA DE COMPARABILIDADE (explícita, conservadora)
+ * =====================================================
+ *  1. a sessão atual nunca entra (dupla proteção: query + aqui);
+ *  2. sessões de DELOAD nunca servem como evidência de tendência — uma S4 de
+ *     70 kg depois de 100 kg em S3 não pode virar `reduce_load` na nova S1;
+ *  3. plano: se o plano atual é conhecido e a sessão pertence a OUTRO plano,
+ *     ela é descartada (nunca misturamos planos silenciosamente);
+ *  4. plano desconhecido na sessão antiga (legado) → entra como fallback
+ *     explícito, com confiança reduzida (ver `legacyFallback`);
+ *  5. fase divergente mas não-deload (S1 x S2 x S3 do mesmo plano) é
+ *     comparável; fase null é legado e também entra como fallback.
+ *
+ * Não reproduz `resolveActiveWeek`: apenas seleciona quais performances
+ * passadas podem alimentar `buildExercisePerformance`.
+ */
+export const filterComparableSessionHistory = (input: {
+  logs: SessionLog[];
+  currentSessionId: string | null;
+  currentPlanId?: string | null;
+  sessionMeta?: Record<string, SessionMetaRow>;
+}): ComparableHistoryResult => {
+  const logs = excludeCurrentSessionLogs(input.logs ?? [], input.currentSessionId);
+  const meta = input.sessionMeta ?? {};
+  const currentPlanId = input.currentPlanId ?? null;
+
+  const groups = new Map<string, SessionLog[]>();
+  logs.forEach((l) => {
+    const k = sessionGroupKey(l);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k)!.push(l);
+  });
+
+  const kept: SessionLog[] = [];
+  let excludedDeloadSessions = 0;
+  let excludedOtherPlanSessions = 0;
+  let legacyFallback = false;
+
+  groups.forEach((rows, key) => {
+    const m = meta[key];
+    const phase = rows.find((r) => (r as any).phase)?.['phase' as keyof SessionLog] ?? m?.phase ?? null;
+    const planId = m?.planId ?? null;
+
+    if (String(phase ?? '') === 'deload') {
+      excludedDeloadSessions += 1;
+      return;
+    }
+    if (currentPlanId && planId && planId !== currentPlanId) {
+      excludedOtherPlanSessions += 1;
+      return;
+    }
+    if (currentPlanId && !planId) legacyFallback = true;
+    kept.push(...rows);
+  });
+
+  return { logs: kept, legacyFallback, excludedDeloadSessions, excludedOtherPlanSessions };
+};
+
 /**
  * Divide o histórico de UM exercício em (sessão mais recente, sessão anterior).
  * Quando não há session_id (dado legado), agrupa por dia.
@@ -94,11 +177,10 @@ export const splitLastTwoSessions = (
   logs: SessionLog[],
 ): { current: SessionLog[]; previous: SessionLog[] } => {
   const sorted = [...logs].sort(byTimeAsc);
-  const groupKey = (l: SessionLog) => l.session_id || String(l.performed_at).slice(0, 10);
   const order: string[] = [];
   const groups = new Map<string, SessionLog[]>();
   sorted.forEach((l) => {
-    const k = groupKey(l);
+    const k = sessionGroupKey(l);
     if (!groups.has(k)) {
       groups.set(k, []);
       order.push(k);
