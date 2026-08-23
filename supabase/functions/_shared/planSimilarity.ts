@@ -4,7 +4,8 @@
  */
 
 import { HISTORY_DECAY, type VariationIntensity } from "./variationProfiles.ts";
-export type { VariationIntensity };
+export { type VariationIntensity };
+
 
 
 
