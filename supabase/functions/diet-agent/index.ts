@@ -672,9 +672,13 @@ serve(async (req) => {
         historySummary = history.map((p, i) => summarizeDietForPrompt(p, i)).join("\n");
       }
 
+      const modelAttempts: AIAttemptMetadata[] = [];
       const callModel = async (
         extraSystem: string,
-      ): Promise<{ ok: true; plan: any } | { ok: false; resp: Response }> => {
+        modelToUse: string,
+        reason: string
+      ): Promise<{ ok: true; plan: any; usage?: any } | { ok: false; resp: Response }> => {
+        const start = Date.now();
         const hungerCtx = detectHungerContext(studentContext);
         const cyclePlan: CarbCyclePlan | undefined =
           dietConfig && typeof dietConfig === "object" && dietConfig.carbCyclePlan
@@ -684,8 +688,19 @@ serve(async (req) => {
           dietConfig && typeof dietConfig === "object"
             ? (dietConfig as any).weeklyEnergySchedule
             : null;
+        
+        // Limpeza de instruções de formato incompatíveis com JSON
+        const cleanSystemPrompt = SYSTEM_PROMPT
+          .replace(/gere o treino em uma tabela markdown/gi, "")
+          .replace(/A tabela do TREINO deve ter exatamente 9 colunas/gi, "")
+          .replace(/A tabela do cardápio deve ter as colunas/gi, "")
+          .replace(/\| Refeição \| Horário \| Alimento \| Quantidade \(g\) \| Kcal \| Proteína \(g\) \| Carboidrato \(g\) \| Gordura \(g\) \|/gi, "")
+          .replace(/Inclua TOTAL de cada refeição e TOTAL DIÁRIO\./gi, "")
+          .replace(/A linha "Total" da tabela DEVE refletir EXATAMENTE a soma dos alimentos acima dela\./gi, "")
+          .replace(/Os valores do "Resumo Nutricional" DEVEM ser IDÊNTICOS aos totais da tabela\./gi, "");
+
         const jsonSystem =
-          SYSTEM_PROMPT +
+          cleanSystemPrompt +
           contextMessage +
           layeredInstructions +
           "\n\n" +
@@ -709,7 +724,7 @@ serve(async (req) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "gpt-4o",
+            model: modelToUse,
             messages: [
               { role: "system", content: jsonSystem },
               ...messages,
@@ -719,10 +734,12 @@ serve(async (req) => {
             response_format: { type: "json_object" },
           }),
         });
+        const durationMs = Date.now() - start;
         if (!r.ok) {
           const status = r.status;
           const t = await r.text();
           console.error("structured diet-agent error:", status, t);
+          modelAttempts.push({ model: modelToUse, durationMs, reason: `Error: ${status}` });
           return {
             ok: false,
             resp: new Response(
@@ -739,6 +756,17 @@ serve(async (req) => {
           };
         }
         const completion = await r.json();
+        const usage = completion?.usage;
+        modelAttempts.push({
+          model: modelToUse,
+          durationMs,
+          reason,
+          usage: usage ? {
+            promptTokens: usage.prompt_tokens,
+            completionTokens: usage.completion_tokens,
+            totalTokens: usage.total_tokens
+          } : null
+        });
         const raw = completion?.choices?.[0]?.message?.content;
         if (!raw) {
           return {
