@@ -112,6 +112,7 @@ export interface TelemetryLog {
   reps: number | null;
   rir?: number | null;
   set_type?: string | null;
+  performed_at?: string;
 }
 
 export interface TelemetrySessionInput {
