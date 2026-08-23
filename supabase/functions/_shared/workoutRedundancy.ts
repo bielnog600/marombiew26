@@ -74,7 +74,7 @@ export function validateWorkoutRedundancy(plan: any): { ok: boolean; issues: Red
       }
       
       // Special case: mobility exercises shouldn't be duplicated unless very different
-      if (family.startsWith("mobility_") && exercises.length >= 2) {
+      if (family === "mobility_family" && exercises.length >= 2) {
         const uniqueNames = new Set(exercises.map(normalizeName));
         if (uniqueNames.size < exercises.length) {
           issues.push({
