@@ -1,10 +1,23 @@
 /**
+ * Camada determinística de PERFORMANCE semanal.
+ *
  * Compara duas janelas semanais (semana anterior vs. 2 semanas atrás) de
- * exercise_set_logs e classifica cada exercício como improved | regressed.
- * Também identifica exercícios planejados sem nenhum log na semana anterior.
+ * exercise_set_logs e classifica cada exercício em
+ * improved | stable | regressed | missing | insufficient_data,
+ * além de recomendar a próxima ação (increase_load, increase_reps, ...).
+ *
+ * REGRA CENTRAL: nunca combinar a maior carga de uma série com as maiores
+ * repetições de outra. Toda comparação usa UM set real (carga + reps + RIR do
+ * mesmo registro).
+ *
+ * Aderência (o aluno treinou?) continua vindo de workout_sessions /
+ * weeklyAdherence.ts. Este módulo NÃO decide presença — só performance.
+ *
+ * A IA nunca decide a matemática: ela apenas transforma este resultado
+ * determinístico em texto.
  */
 
-import type { ParsedTrainingDay } from './trainingResultParser';
+import type { ParsedTrainingDay, ParsedExercise } from './trainingResultParser';
 import type { AdherenceStatus } from './weeklyAdherence';
 import { TRAINING_PHASES, type TrainingPhase } from './trainingPhase';
 import { isNoLoadExercise } from './exerciseLoadType';
@@ -14,6 +27,89 @@ export interface ExerciseLog {
   weight_kg: number | null;
   reps: number | null;
   performed_at: string; // ISO
+  set_number?: number | null;
+  /**
+   * Escala de esforço registrada no set. O schema atual só tem `rpe`
+   * (0-10, hoje sempre null — ver LIMITAÇÕES no fim do arquivo).
+   * RIR é derivado como 10 - rpe quando `rir` não vem explícito.
+   */
+  rpe?: number | null;
+  rir?: number | null;
+}
+
+// ============================================================
+// Constantes de decisão (centralizadas)
+// ============================================================
+
+/** e1RM (Epley) só é aplicado em sets com carga externa e reps nesta faixa. */
+export const E1RM_MIN_REPS = 1;
+export const E1RM_MAX_REPS = 15;
+
+/** Faixa neutra de e1RM: variação dentro de ±3% é ruído humano => stable. */
+export const E1RM_NEUTRAL_PCT = 0.03;
+
+/** Queda de e1RM a partir da qual a recomendação vira reduce_load. */
+export const E1RM_STRONG_DROP_PCT = 0.07;
+
+/** Bodyweight: diferença de até 1 rep é considerada oscilação (stable). */
+export const BODYWEIGHT_REPS_TOLERANCE = 1;
+
+/** Mesma carga com apenas 1 rep a menos => stable (ruído), não regressão. */
+export const SAME_LOAD_REPS_TOLERANCE = 1;
+
+/** RIR: ganho/perda mínima de reserva para modificar a classificação. */
+export const RIR_MEANINGFUL_DELTA = 2;
+
+/** RIR a partir do qual há margem real para subir carga no topo da faixa. */
+export const RIR_ROOM_TO_ADD_LOAD = 2;
+
+export type PerformanceStatus =
+  | 'improved'
+  | 'stable'
+  | 'regressed'
+  | 'missing'
+  | 'insufficient_data';
+
+export type NextAction =
+  | 'increase_load'
+  | 'increase_reps'
+  | 'maintain'
+  | 'reduce_load'
+  | 'review';
+
+export interface PerformedSet {
+  weightKg: number;
+  reps: number;
+  rir: number | null;
+  performedAt: string;
+  setNumber: number | null;
+  /** Epley, só quando aplicável (carga > 0 e reps entre 1 e 15). */
+  estimated1RM: number | null;
+}
+
+export interface RepRange {
+  min: number;
+  max: number;
+}
+
+export interface ExercisePerformance {
+  exerciseName: string;
+  /** Set real com a melhor performance da janela (nunca um set sintético). */
+  bestSet?: PerformedSet;
+  totalWorkingSets: number;
+  totalReps: number;
+  totalVolume: number; // Σ(peso × reps) — métrica AUXILIAR, nunca decisória
+  loaded: boolean;     // teve carga externa registrada
+  status: PerformanceStatus;
+  /** Só presente quando há set atual e set anterior comparáveis. */
+  e1rmDeltaPct?: number | null;
+  repsDelta?: number | null;
+  weightDelta?: number | null;
+  rirDelta?: number | null;
+  previousBestSet?: PerformedSet;
+  repRange?: RepRange | null;
+  nextAction: NextAction;
+  reason: string;
 }
 
 export interface ExerciseDelta {
@@ -31,6 +127,8 @@ export interface ProgressionReport {
   regressed: ExerciseDelta[];
   missing: string[]; // exercícios planejados sem nenhum log na semana
   hasProgress: boolean;
+  /** Camada nova: performance real por exercício (fonte para IA e admin). */
+  performances: ExercisePerformance[];
 }
 
 const norm = (s: string) =>
@@ -57,16 +155,260 @@ export const getProgressionWindows = (now: Date = new Date()) => {
   };
 };
 
-const bestSet = (logs: ExerciseLog[]) => {
-  let maxWeight = 0;
-  let maxReps = 0;
-  for (const l of logs) {
-    const w = l.weight_kg ?? 0;
-    const r = l.reps ?? 0;
-    if (w > maxWeight) maxWeight = w;
-    if (r > maxReps) maxReps = r;
+// ============================================================
+// Set real / e1RM
+// ============================================================
+
+/** Epley. Só faz sentido com carga externa e reps baixas/moderadas. */
+export const estimate1RM = (weightKg: number, reps: number): number | null => {
+  if (!(weightKg > 0)) return null;
+  if (!Number.isFinite(reps) || reps < E1RM_MIN_REPS || reps > E1RM_MAX_REPS) return null;
+  return +(weightKg * (1 + reps / 30)).toFixed(2);
+};
+
+const rirOf = (l: ExerciseLog): number | null => {
+  if (l.rir != null && Number.isFinite(l.rir)) return Number(l.rir);
+  if (l.rpe != null && Number.isFinite(l.rpe)) return +(10 - Number(l.rpe)).toFixed(1);
+  return null;
+};
+
+export const toPerformedSet = (l: ExerciseLog): PerformedSet => {
+  const weightKg = Number(l.weight_kg ?? 0) || 0;
+  const reps = Number(l.reps ?? 0) || 0;
+  return {
+    weightKg,
+    reps,
+    rir: rirOf(l),
+    performedAt: l.performed_at,
+    setNumber: l.set_number ?? null,
+    estimated1RM: estimate1RM(weightKg, reps),
+  };
+};
+
+/**
+ * Escolhe UM set real como referência da janela.
+ *  - com carga externa: maior e1RM; empate => maior carga; depois mais reps;
+ *    depois melhor RIR (mais reserva com o mesmo trabalho).
+ *  - sem carga externa (bodyweight/isométrico): mais repetições.
+ * Nunca mistura o peso de um set com as reps de outro.
+ */
+export const selectBestSet = (logs: ExerciseLog[]): PerformedSet | undefined => {
+  const sets = logs.map(toPerformedSet).filter((s) => s.reps > 0 || s.weightKg > 0);
+  if (sets.length === 0) return undefined;
+  const loaded = sets.filter((s) => s.weightKg > 0);
+  const pool = loaded.length > 0 ? loaded : sets;
+
+  return pool.reduce((best, s) => {
+    if (!best) return s;
+    const a = s.estimated1RM ?? -1;
+    const b = best.estimated1RM ?? -1;
+    if (a !== b) return a > b ? s : best;
+    if (s.weightKg !== best.weightKg) return s.weightKg > best.weightKg ? s : best;
+    if (s.reps !== best.reps) return s.reps > best.reps ? s : best;
+    const sr = s.rir ?? -1;
+    const br = best.rir ?? -1;
+    return sr > br ? s : best;
+  });
+};
+
+/** Faixa prescrita de repetições: "8-12", "8 a 12", "10", "12/10/8" (usa min-max). */
+export const parseRepRange = (raw?: string | null): RepRange | null => {
+  const txt = String(raw ?? '').replace(',', '.');
+  const nums = (txt.match(/\d+(?:\.\d+)?/g) ?? []).map(Number).filter((n) => n > 0 && n <= 100);
+  if (nums.length === 0) return null;
+  const min = Math.min(...nums);
+  const max = Math.max(...nums);
+  return { min, max };
+};
+
+/** Faixa prescrita do exercício no plano (setScheme tem prioridade). */
+export const repRangeFromPlanned = (e?: ParsedExercise | null): RepRange | null => {
+  if (!e) return null;
+  const schemeReps = e.setScheme?.sets?.map((s) => s.target_reps).filter(Boolean).join('-');
+  return parseRepRange(schemeReps || e.reps);
+};
+
+// ============================================================
+// Performance por exercício
+// ============================================================
+
+export const buildExercisePerformance = (
+  exerciseName: string,
+  currentLogs: ExerciseLog[],
+  previousLogs: ExerciseLog[],
+  repRange?: RepRange | null,
+): ExercisePerformance => {
+  const bestSet = selectBestSet(currentLogs);
+  const previousBestSet = selectBestSet(previousLogs);
+
+  const workingSets = currentLogs.filter((l) => (l.reps ?? 0) > 0 || (l.weight_kg ?? 0) > 0);
+  const totalWorkingSets = workingSets.length;
+  const totalReps = workingSets.reduce((a, l) => a + (Number(l.reps) || 0), 0);
+  const totalVolume = +workingSets
+    .reduce((a, l) => a + (Number(l.reps) || 0) * (Number(l.weight_kg) || 0), 0)
+    .toFixed(1);
+  const loaded = !!bestSet && bestSet.weightKg > 0;
+
+  const base: ExercisePerformance = {
+    exerciseName,
+    bestSet,
+    previousBestSet,
+    totalWorkingSets,
+    totalReps,
+    totalVolume,
+    loaded,
+    repRange: repRange ?? null,
+    status: 'insufficient_data',
+    nextAction: 'review',
+    reason: 'Sem dados suficientes para avaliar performance.',
+    e1rmDeltaPct: null,
+    repsDelta: null,
+    weightDelta: null,
+    rirDelta: null,
+  };
+
+  if (!bestSet) {
+    return { ...base, status: 'missing', nextAction: 'review', reason: 'Exercício planejado sem registro na semana.' };
   }
-  return { maxWeight, maxReps };
+  if (bestSet.reps <= 0 && bestSet.weightKg <= 0) {
+    return base;
+  }
+
+  const rirDelta =
+    bestSet.rir != null && previousBestSet?.rir != null ? bestSet.rir - previousBestSet.rir : null;
+
+  if (!previousBestSet) {
+    return {
+      ...base,
+      rirDelta,
+      status: 'insufficient_data',
+      nextAction: nextActionFor('insufficient_data', bestSet, repRange ?? null, null),
+      reason: 'Primeira semana com registro — sem base de comparação.',
+    };
+  }
+
+  const weightDelta = +(bestSet.weightKg - previousBestSet.weightKg).toFixed(1);
+  const repsDelta = bestSet.reps - previousBestSet.reps;
+
+  let status: PerformanceStatus;
+  let reason: string;
+  let e1rmDeltaPct: number | null = null;
+
+  const bothLoaded = bestSet.weightKg > 0 && previousBestSet.weightKg > 0;
+  const e1rmComparable = bothLoaded && bestSet.estimated1RM != null && previousBestSet.estimated1RM != null;
+
+  if (e1rmComparable) {
+    e1rmDeltaPct = +(
+      (bestSet.estimated1RM! - previousBestSet.estimated1RM!) / previousBestSet.estimated1RM!
+    ).toFixed(4);
+    const sameLoadSmallRepDrop =
+      weightDelta === 0 && repsDelta < 0 && Math.abs(repsDelta) <= SAME_LOAD_REPS_TOLERANCE;
+
+    if (e1rmDeltaPct > E1RM_NEUTRAL_PCT) {
+      status = 'improved';
+      reason = `e1RM ${(e1rmDeltaPct * 100).toFixed(1)}% acima da semana anterior (${bestSet.weightKg}kg × ${bestSet.reps}).`;
+    } else if (e1rmDeltaPct < -E1RM_NEUTRAL_PCT && !sameLoadSmallRepDrop) {
+      status = 'regressed';
+      reason = `e1RM ${(e1rmDeltaPct * 100).toFixed(1)}% abaixo da semana anterior (${bestSet.weightKg}kg × ${bestSet.reps}).`;
+    } else {
+      status = 'stable';
+      reason = 'Performance equivalente à semana anterior (dentro da faixa neutra).';
+    }
+  } else if (!bothLoaded && bestSet.weightKg === 0 && previousBestSet.weightKg === 0) {
+    // Bodyweight / isométrico com reps: só repetições fazem sentido.
+    if (repsDelta > BODYWEIGHT_REPS_TOLERANCE) {
+      status = 'improved';
+      reason = `Peso corporal: ${previousBestSet.reps} → ${bestSet.reps} repetições.`;
+    } else if (repsDelta < -BODYWEIGHT_REPS_TOLERANCE) {
+      status = 'regressed';
+      reason = `Peso corporal: queda de ${previousBestSet.reps} para ${bestSet.reps} repetições.`;
+    } else {
+      status = 'stable';
+      reason = 'Peso corporal: repetições equivalentes à semana anterior.';
+    }
+  } else {
+    // Reps fora da faixa do e1RM (ex.: >15) ou carga só em uma das semanas.
+    if (weightDelta > 0 && repsDelta >= 0) {
+      status = 'improved';
+      reason = 'Mais carga com as mesmas (ou mais) repetições.';
+    } else if (weightDelta < 0 || repsDelta < -BODYWEIGHT_REPS_TOLERANCE) {
+      status = 'regressed';
+      reason = 'Queda de carga ou de repetições em relação à semana anterior.';
+    } else if (repsDelta > BODYWEIGHT_REPS_TOLERANCE) {
+      status = 'improved';
+      reason = 'Mais repetições com a mesma carga.';
+    } else {
+      status = 'stable';
+      reason = 'Performance equivalente à semana anterior.';
+    }
+  }
+
+  // RIR como MODIFICADOR (nunca requisito): só age quando o resultado bruto
+  // ficou estável e existe RIR nas duas semanas.
+  if (status === 'stable' && rirDelta != null && Math.abs(rirDelta) >= RIR_MEANINGFUL_DELTA) {
+    if (rirDelta > 0) {
+      status = 'improved';
+      reason = `Mesmo trabalho com mais reserva (RIR ${previousBestSet.rir} → ${bestSet.rir}).`;
+    } else {
+      status = 'regressed';
+      reason = `Mesmo trabalho com muito mais esforço (RIR ${previousBestSet.rir} → ${bestSet.rir}).`;
+    }
+  }
+
+  return {
+    ...base,
+    status,
+    reason,
+    e1rmDeltaPct,
+    repsDelta,
+    weightDelta,
+    rirDelta,
+    nextAction: nextActionFor(status, bestSet, repRange ?? null, e1rmDeltaPct),
+  };
+};
+
+/**
+ * Recomendação conservadora para a próxima sessão (double progression).
+ * Nunca manda subir carga só porque a semana foi boa: exige topo da faixa
+ * (ou RIR com folga real quando não há faixa prescrita).
+ */
+export const nextActionFor = (
+  status: PerformanceStatus,
+  bestSet: PerformedSet | undefined,
+  repRange: RepRange | null,
+  e1rmDeltaPct: number | null,
+): NextAction => {
+  if (!bestSet || status === 'missing' || status === 'insufficient_data') return 'review';
+
+  if (status === 'regressed') {
+    return e1rmDeltaPct != null && e1rmDeltaPct <= -E1RM_STRONG_DROP_PCT ? 'reduce_load' : 'maintain';
+  }
+
+  const rir = bestSet.rir;
+  const maxedOut = rir != null && rir <= 1; // esforço máximo declarado
+
+  if (repRange) {
+    if (bestSet.reps < repRange.min) {
+      // Abaixo da faixa: nunca subir carga.
+      return status === 'improved' ? 'maintain' : maxedOut ? 'reduce_load' : 'maintain';
+    }
+    if (bestSet.reps >= repRange.max) {
+      return maxedOut ? 'maintain' : 'increase_load';
+    }
+    return 'increase_reps'; // dentro da faixa, ainda abaixo do topo
+  }
+
+  // Sem faixa prescrita: só sobe carga com folga de RIR explícita.
+  if (rir != null && rir >= RIR_ROOM_TO_ADD_LOAD) return 'increase_load';
+  return 'maintain';
+};
+
+export const NEXT_ACTION_LABEL: Record<NextAction, string> = {
+  increase_load: 'Aumentar carga',
+  increase_reps: 'Aumentar repetições',
+  maintain: 'Manter',
+  reduce_load: 'Reduzir carga',
+  review: 'Revisar/registrar',
 };
 
 const groupByExercise = (logs: ExerciseLog[]) => {
@@ -88,38 +430,54 @@ export const buildProgressionReport = (
   const lastByEx = groupByExercise(lastWeekLogs);
   const prevByEx = groupByExercise(prevWeekLogs);
 
+  // Faixa prescrita por exercício (quando o plano informa).
+  const rangeByEx = new Map<string, RepRange | null>();
+  const plannedByEx = new Map<string, ParsedExercise>();
+  for (const d of plannedDays) {
+    for (const e of d.exercises) {
+      const key = norm(e.exercise);
+      if (!key || plannedByEx.has(key)) continue;
+      plannedByEx.set(key, e);
+      rangeByEx.set(key, repRangeFromPlanned(e));
+    }
+  }
+
+  const performances: ExercisePerformance[] = [];
   const improved: ExerciseDelta[] = [];
   const regressed: ExerciseDelta[] = [];
 
   for (const [key, { display, logs }] of lastByEx.entries()) {
-    const last = bestSet(logs);
-    const prev = prevByEx.get(key);
-    if (!prev) continue; // sem base de comparação
-    const prevBest = bestSet(prev.logs);
-    const weightDelta = +(last.maxWeight - prevBest.maxWeight).toFixed(1);
-    const repsDelta = last.maxReps - prevBest.maxReps;
+    const perf = buildExercisePerformance(
+      display,
+      logs,
+      prevByEx.get(key)?.logs ?? [],
+      rangeByEx.get(key) ?? null,
+    );
+    performances.push(perf);
 
+    const prevBest = perf.previousBestSet;
+    if (!perf.bestSet || !prevBest) continue;
+
+    // Contrato legado (admin/consultoria/IA de texto): sempre derivado do
+    // MESMO set real, nunca de máximos combinados.
     const delta: ExerciseDelta = {
       exercise: display,
-      weightDelta,
-      repsDelta,
-      lastWeight: last.maxWeight,
-      lastReps: last.maxReps,
-      prevWeight: prevBest.maxWeight,
-      prevReps: prevBest.maxReps,
+      weightDelta: perf.weightDelta ?? 0,
+      repsDelta: perf.repsDelta ?? 0,
+      lastWeight: perf.bestSet.weightKg,
+      lastReps: perf.bestSet.reps,
+      prevWeight: prevBest.weightKg,
+      prevReps: prevBest.reps,
     };
-
-    if (weightDelta > 0 || (weightDelta === 0 && repsDelta > 0)) {
-      improved.push(delta);
-    } else if (weightDelta < 0 || (weightDelta === 0 && repsDelta < 0)) {
-      regressed.push(delta);
-    }
+    if (perf.status === 'improved') improved.push(delta);
+    else if (perf.status === 'regressed') regressed.push(delta);
   }
 
   improved.sort((a, b) => (b.weightDelta - a.weightDelta) || (b.repsDelta - a.repsDelta));
   regressed.sort((a, b) => (a.weightDelta - b.weightDelta) || (a.repsDelta - b.repsDelta));
 
-  // Missing = planejado mas sem nenhum log na semana
+  // Missing = planejado mas sem nenhum log na semana. Isso é ADERÊNCIA/registro,
+  // não regressão de performance.
   const missing: string[] = [];
   if (plannedDays.length > 0) {
     const seen = new Set<string>();
@@ -130,7 +488,20 @@ export const buildProgressionReport = (
         seen.add(key);
         // Mobilidade/alongamento/ativação não devem virar "exercício faltante"
         if (isNoLoadExercise(e.exercise)) continue;
-        if (!lastByEx.has(key)) missing.push(e.exercise);
+        if (!lastByEx.has(key)) {
+          missing.push(e.exercise);
+          performances.push({
+            exerciseName: e.exercise,
+            totalWorkingSets: 0,
+            totalReps: 0,
+            totalVolume: 0,
+            loaded: false,
+            repRange: rangeByEx.get(key) ?? null,
+            status: 'missing',
+            nextAction: 'review',
+            reason: 'Exercício planejado sem registro na semana.',
+          });
+        }
       }
     }
   }
@@ -140,8 +511,10 @@ export const buildProgressionReport = (
     regressed: regressed.slice(0, 3),
     missing: missing.slice(0, 5),
     hasProgress: improved.length > 0,
+    performances,
   };
 };
+
 
 export const formatDelta = (d: ExerciseDelta): string => {
   const parts: string[] = [];
