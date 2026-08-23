@@ -81,17 +81,18 @@ export const performanceComparablePhase = (
  * usada por workout-renewal-analyzer e pelos painéis de renovação), NÃO a
  * duração de uma fase/semana. Todos os planos reais têm cycle_days = 45.
  *
- * A fase (`semana_1..semana_3`, `deload`) é SEMPRE semanal (7 dias). Usar
- * cycle_days como passo produzia uma única janela de 45 dias (bug corrigido).
- * Valores pequenos (<= 14) continuam sendo aceitos como duração de fase para
- * compatibilidade com chamadas/testes antigos.
+ * A fase (`semana_1..semana_3`, `deload`) é SEMPRE semanal (7 dias) e
+ * `cycle_days` NUNCA altera essa duração — nem por heurística de valores
+ * pequenos (cycle_days = 10 continua sendo duração de ciclo). Só um campo
+ * explicitamente definido no schema como "duração da fase" poderia mudar
+ * isso; ele não existe hoje.
  */
 export const PHASE_DURATION_DAYS = 7;
 
-export const phaseDurationFromCycle = (cycleDays?: number | null): number => {
-  if (!cycleDays || cycleDays <= 0) return PHASE_DURATION_DAYS;
-  return cycleDays <= 14 ? cycleDays : PHASE_DURATION_DAYS;
-};
+/** Mantida por compatibilidade: a duração da fase é sempre 7 dias. */
+export const phaseDurationFromCycle = (_cycleDays?: number | null): number =>
+  PHASE_DURATION_DAYS;
+
 
 export interface ResolveWeekContextsInput {
   planId?: string | null;
