@@ -742,7 +742,7 @@ const TreinoExecucao = () => {
     })();
   }, [currentIndex, totalSeries, exercise, user, lastLogsByExercise, loadedLogsForIndex]);
 
-  const updateSet = (setIndex: number, field: 'reps' | 'weight', value: string) => {
+  const updateSet = (setIndex: number, field: 'reps' | 'weight' | 'rir', value: string) => {
     setSets((prev) => {
       const current = [...(prev[currentIndex] || [])];
       current[setIndex] = { ...current[setIndex], [field]: value };
