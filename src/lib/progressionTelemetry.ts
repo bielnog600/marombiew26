@@ -1,5 +1,4 @@
-import type { ProgressionSnapshot, SessionRecommendation } from './sessionProgression';
-import type { TrainingPhase } from './trainingPhase';
+import { PROGRESSION_SNAPSHOT_VERSION, type ProgressionSnapshot } from './sessionProgression';
 import { normalizeExerciseKey } from './loadIncrement';
 
 export type TelemetryAlignmentStatus =
