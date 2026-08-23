@@ -755,19 +755,30 @@ const Consultoria = () => {
                 const f = followups.get(s.studentId);
                 if (bucketFor(f) === 'arquivado') return false;
                 if (!f?.last_contacted_at) return true;
-                // Após o contato, o alerta só volta se passarem +3 dias
-                // sem nenhuma atividade nova do aluno.
                 const ref = Math.max(
                   new Date(f.last_contacted_at).getTime(),
                   s.lastActivity ? new Date(s.lastActivity).getTime() : 0,
                 );
                 return (Date.now() - ref) / 86400000 > 3;
               });
+
+              const handleProgressionContact = async (studentId: string, planId: string) => {
+                const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+                await supabase.from('weekly_progression_contacts').upsert({
+                  student_id: studentId,
+                  plan_id: planId,
+                  week_start_date: format(weekStart, 'yyyy-MM-dd'),
+                  trainer_id: (await supabase.auth.getUser()).data.user?.id
+                });
+                reloadProgression();
+              };
+
               const counts = {
                 hoje: withBucket.filter((x) => x.b === 'hoje').length,
                 falados: withBucket.filter((x) => x.b === 'falados').length,
                 espera: withBucket.filter((x) => x.b === 'espera').length,
                 inativos: inactiveVisible.length,
+                progressao: progressionReviews?.filter(r => r.hasPendingReview).length || 0,
               };
               const filtered = withBucket.filter((x) => x.b === alertFilter).map((x) => x.s);
               return (
@@ -786,21 +797,105 @@ const Consultoria = () => {
                         {alertFilter === 'falados' && 'Já falados hoje'}
                         {alertFilter === 'espera' && 'Voltam depois'}
                         {alertFilter === 'inativos' && 'Inativos há mais de 3 dias'}
+                        {alertFilter === 'progressao' && 'Análise de Progressão Semanal'}
                       </h3>
-                      <Badge variant="outline" className="text-[10px]">{alertFilter === 'inativos' ? inactiveVisible.length : filtered.length}</Badge>
+                      <Badge variant="outline" className="text-[10px]">
+                        {alertFilter === 'inativos' ? inactiveVisible.length : 
+                         alertFilter === 'progressao' ? (progressionReviews?.length || 0) : 
+                         filtered.length}
+                      </Badge>
                     </div>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => { refreshNotifs(); generateBehavioral(); reloadWeekly(); reloadFollowups(); reloadInactive(); }}
-                      disabled={notifLoading || behavioralGenerating || weeklyLoading || followupsLoading}
+                      onClick={() => { refreshNotifs(); generateBehavioral(); reloadWeekly(); reloadFollowups(); reloadInactive(); reloadProgression(); }}
+                      disabled={notifLoading || behavioralGenerating || weeklyLoading || followupsLoading || progressionLoading}
                     >
-                      <RefreshCw className={`h-4 w-4 mr-1 ${(notifLoading || behavioralGenerating || weeklyLoading || followupsLoading) ? 'animate-spin' : ''}`} />
+                      <RefreshCw className={`h-4 w-4 mr-1 ${(notifLoading || behavioralGenerating || weeklyLoading || followupsLoading || progressionLoading) ? 'animate-spin' : ''}`} />
                       Atualizar
                     </Button>
                   </div>
 
-                  {alertFilter === 'inativos' ? (
+                  {alertFilter === 'progressao' ? (
+                    progressionLoading ? (
+                      <div className="space-y-2">
+                        <Skeleton className="h-32 w-full rounded-lg" />
+                        <Skeleton className="h-32 w-full rounded-lg" />
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {progressionReviews?.map((r) => (
+                          <WeeklyProgressionReviewCard 
+                            key={r.studentId} 
+                            review={r} 
+                            onContacted={handleProgressionContact}
+                          />
+                        ))}
+                      </div>
+                    )
+                  ) : alertFilter === 'inativos' ? (
+                    inactiveLoading ? (
+                      <div className="space-y-2">
+                        <Skeleton className="h-24 w-full rounded-lg" />
+                        <Skeleton className="h-24 w-full rounded-lg" />
+                      </div>
+                    ) : inactiveVisible.length === 0 ? (
+                      <Card>
+                        <CardContent className="py-6 text-center text-xs text-muted-foreground">
+                          Nenhum aluno inativo há mais de 3 dias 🎉
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <div className="space-y-2">
+                        {inactiveVisible.map((s) => (
+                        <InactiveStudentCard
+                          key={s.studentId}
+                          student={s}
+                          onArchive={archive}
+                          onContacted={(id) => markAsDone(id, '3d')}
+                        />
+                        ))}
+                      </div>
+                    )
+                  ) : weeklyLoading || followupsLoading ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-32 w-full rounded-lg" />
+                      <Skeleton className="h-32 w-full rounded-lg" />
+                    </div>
+                  ) : filtered.length === 0 ? (
+                    <Card>
+                      <CardContent className="py-6 text-center text-xs text-muted-foreground">
+                        {alertFilter === 'hoje' && 'Nenhum aluno na fila de follow-up agora 🎉'}
+                        {alertFilter === 'falados' && 'Você ainda não marcou ninguém como falado hoje.'}
+                        {alertFilter === 'espera' && 'Nenhum aluno aguardando retorno.'}
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="space-y-2">
+                      {filtered.map((s) => (
+                        <StudentWeeklyCard
+                          key={s.studentId}
+                          summary={s}
+                          followup={followups.get(s.studentId)}
+                          onMarkDone={markAsDone}
+                          onReopen={reopen}
+                          onArchive={archive}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  <OtherAlertsSection
+                    notifications={notifications}
+                    behavioralAlerts={behavioralAlerts}
+                    onDismiss={dismissNotification}
+                    onUpdateBehavioral={updateBehavioralStatus}
+                  />
+                </>
+              );
+            })()}
+          </div>
+        )}
                     inactiveLoading ? (
                       <div className="space-y-2">
                         <Skeleton className="h-24 w-full rounded-lg" />
