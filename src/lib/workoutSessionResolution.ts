@@ -187,7 +187,6 @@ export const summarizeSessionState = (
 };
 
 /**
-/**
  * Monta as linhas de exercise_set_logs a partir das séries concluídas no
  * session_state. Função pura (testável sem rede).
  *
