@@ -147,7 +147,7 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const history = student_id ? await loadPlanHistory(student_id, "diet") : [];
+    const history = student_id ? await loadPlanHistory(student_id, "dieta") : [];
     const historySummary = history.map((h, i) => summarizeDietForPrompt(h, i)).join("\n\n");
     const foodDatabase = await loadFoodDatabase();
     const layeredInstructions = buildLayeredInstructions(dietConfig, trainingContext);
