@@ -24,6 +24,9 @@ import { Settings2, Info, BarChart3, Timer, Camera, Maximize2 } from 'lucide-rea
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { fetchWithCache, getCached, setCache } from '@/lib/offlineCache';
 import { useRestTimer } from '@/hooks/useRestTimer';
+import { useSessionProgression } from '@/hooks/useSessionProgression';
+import { getRecommendationFor, type ProgressionSnapshot } from '@/lib/sessionProgression';
+import { ProgressionHintCard } from '@/components/training/ProgressionHintCard';
 
 
 import {
