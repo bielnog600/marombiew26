@@ -21,10 +21,23 @@ export interface AdherenceLog {
   performed_at: string;
 }
 
+/** Sessão estruturada (workout_sessions) usada como fonte principal de presença. */
+export interface AdherenceSession {
+  status: string;
+  completed_at?: string | null;
+  started_at?: string | null;
+}
+
 export interface AdherenceReport {
   status: AdherenceStatus;
   sessionsPlanned: number;
   sessionsExecuted: number;
+  sessionsPartial: number;
+  sessionsAbandoned: number;
+  /** (completos + 0.5 * parciais) / planejados — 0..1 */
+  weightedSessionAdherence: number;
+  /** true quando sessionsExecuted veio de workout_sessions e não de logs. */
+  sessionsFromStructured: boolean;
   exercisesPlanned: number;
   exercisesLogged: number;
   setsTotal: number;
@@ -38,6 +51,7 @@ export interface AdherenceReport {
   windowStart: string; // ISO
   windowEnd: string;   // ISO
 }
+
 
 // Limiares ajustáveis
 const TH = {
