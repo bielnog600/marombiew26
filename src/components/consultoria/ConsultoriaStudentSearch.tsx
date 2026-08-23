@@ -34,6 +34,7 @@ const ConsultoriaStudentSearch: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterKey>('todos');
+  const [sortOrder, setSortOrder] = useState<'name' | 'last_access'>('name');
 
   useEffect(() => {
     (async () => {
