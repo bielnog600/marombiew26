@@ -368,6 +368,7 @@ const TreinoExecucao = () => {
     sessionId,
     exercises,
     phase: phase ?? null,
+    planId: stateData?.planId ?? null,
     restoredSnapshot,
   });
 
