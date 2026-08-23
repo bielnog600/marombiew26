@@ -123,22 +123,44 @@ export interface TelemetrySessionInput {
 }
 
 /**
+ * Avalia a sessão inteira e retorna o status estruturado (Regra 10).
+ */
+export function buildProgressionSessionTelemetry(input: TelemetrySessionInput): SessionTelemetryResult {
+  const { snapshot, sessionId } = input;
+  
+  if (!snapshot) {
+    return { status: 'without_snapshot', outcomes: [] };
+  }
+  
+  if (snapshot.version !== PROGRESSION_SNAPSHOT_VERSION) {
+    return { status: 'invalid_snapshot_version', outcomes: [] };
+  }
+  
+  if (snapshot.sessionId != null && snapshot.sessionId !== sessionId) {
+    return { status: 'snapshot_session_mismatch', outcomes: [] };
+  }
+  
+  const outcomes = buildProgressionExecutionOutcomes(input);
+  
+  if (outcomes.length === 0) {
+    return { status: 'empty_snapshot', outcomes: [] };
+  }
+  
+  return { status: 'available', outcomes };
+}
+
+/**
  * Motor de Telemetria (V1 Hardened & Fixed)
  */
 export function buildProgressionExecutionOutcomes(input: TelemetrySessionInput): ProgressionExecutionOutcome[] {
   const { snapshot, logs, studentId, sessionId, source, executedBy } = input;
   const outcomes: ProgressionExecutionOutcome[] = [];
   
-  // Regra 6 & 7: Validação de Snapshot Version e Session ID
-  if (snapshot) {
-    if (snapshot.version !== PROGRESSION_SNAPSHOT_VERSION) {
-      // invalid_snapshot_version - não retorna resultados comparáveis
-      return [];
-    }
-    if (snapshot.sessionId != null && snapshot.sessionId !== sessionId) {
-      // snapshot_session_mismatch - não retorna resultados comparáveis
-      return [];
-    }
+  if (!snapshot) return [];
+  
+  // Regra 6 & 7: Validação de Snapshot Version e Session ID (mantida por compatibilidade no motor interno)
+  if (snapshot.version !== PROGRESSION_SNAPSHOT_VERSION || (snapshot.sessionId != null && snapshot.sessionId !== sessionId)) {
+    return [];
   }
   
   // Agrupar logs por exercício
