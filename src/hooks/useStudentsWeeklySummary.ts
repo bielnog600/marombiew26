@@ -108,11 +108,11 @@ export const useStudentsWeeklySummary = () => {
       if (allIds.length === 0) { setSummaries([]); return; }
       const { data: actives } = await supabase
         .from('students_profile')
-        .select('user_id')
-        .eq('ativo', true)
+        .select('user_id, ativo')
         .in('user_id', allIds);
-      const studentProfileStatus = new Map<string, boolean>((actives ?? []).map(a => [a.user_id, a.ativo]));
-      const ids = (actives ?? []).map((a) => a.user_id);
+      const studentProfileStatus = new Map<string, boolean>((actives ?? []).map(a => [a.user_id, !!a.ativo]));
+      const ids = (actives ?? []).filter(a => a.ativo).map((a) => a.user_id);
+
 
       if (ids.length === 0) { setSummaries([]); return; }
 
