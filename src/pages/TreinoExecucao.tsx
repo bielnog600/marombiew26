@@ -332,7 +332,9 @@ const TreinoExecucao = () => {
         }
       }
 
-      // 2. Cria nova sessão em andamento
+      // 2. Cria nova sessão em andamento - APENAS se o contexto estiver pronto (Regra 4)
+      if (!contextReady) return;
+
       const startedAtIso = new Date().toISOString();
       const { data: newSession, error: createSessionError } = await supabase
         .from('workout_sessions')
@@ -371,7 +373,7 @@ const TreinoExecucao = () => {
         });
       }
     })();
-  }, [user, dayName, phase, exercises.length, setLocalActiveSession, activeSession]);
+  }, [user, dayName, phase, exercises.length, setLocalActiveSession, activeSession, contextReady, sessionPlanId]);
 
   // Recomendações consultivas da sessão (congeladas no início; nunca
   // recalculadas durante o treino e nunca gravadas em exercise_set_logs).
