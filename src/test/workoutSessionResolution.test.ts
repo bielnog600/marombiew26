@@ -6,6 +6,7 @@ import {
   summarizeSessionState,
   STALE_INACTIVITY_MINUTES,
 } from '@/lib/workoutSessionResolution';
+import { countsTowardWorkoutCompletion, isNoLoadExercise } from '@/lib/exerciseLoadType';
 
 const minsAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
 
@@ -88,5 +89,39 @@ describe('leitura do session_state', () => {
     expect(s.plannedSets).toBe(6);
     expect(s.executedExercises).toBe(2);
     expect(s.executedSets).toBe(4);
+  });
+});
+
+describe('peso corporal conta no completionScore', () => {
+  it('barra fixa / flexão / prancha contam; mobilidade e aquecimento não', () => {
+    expect(countsTowardWorkoutCompletion('BARRA FIXA')).toBe(true);
+    expect(countsTowardWorkoutCompletion('FLEXÃO DE BRAÇO')).toBe(true);
+    expect(countsTowardWorkoutCompletion('PRANCHA ISOMÉTRICA')).toBe(true);
+    expect(countsTowardWorkoutCompletion('ABDOMINAL SUPRA')).toBe(true);
+    expect(countsTowardWorkoutCompletion('MOBILIDADE DE QUADRIL')).toBe(false);
+    expect(countsTowardWorkoutCompletion('ALONGAMENTO DE PEITORAL')).toBe(false);
+    expect(countsTowardWorkoutCompletion('AQUECIMENTO ARTICULAR')).toBe(false);
+    expect(countsTowardWorkoutCompletion('ATIVAÇÃO DE GLÚTEO')).toBe(false);
+  });
+
+  it('não exigir carga não remove o exercício da sessão', () => {
+    expect(isNoLoadExercise('PRANCHA')).toBe(true);
+    expect(countsTowardWorkoutCompletion('PRANCHA')).toBe(true);
+  });
+
+  it('sessão de peso corporal completa é classificada como completed', () => {
+    const state = {
+      exerciseNames: ['MOBILIDADE DE OMBRO', 'BARRA FIXA', 'FLEXÃO', 'PRANCHA'],
+      plannedSets: [2, 3, 3, 3],
+      sets: {
+        0: [{ completed: false }, { completed: false }],
+        1: [{ completed: true }, { completed: true }, { completed: true }],
+        2: [{ completed: true }, { completed: true }, { completed: true }],
+        3: [{ completed: true }, { completed: true }, { completed: true }],
+      },
+    };
+    const r = computeCompletion(summarizeSessionState(state as any, 4));
+    expect(r.plannedExercises).toBe(3);
+    expect(r.status).toBe('completed');
   });
 });
