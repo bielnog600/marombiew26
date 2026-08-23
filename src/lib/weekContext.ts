@@ -218,9 +218,9 @@ export const phaseCompatible = (
   itemPhase: string | null | undefined,
   ctxPhase: TrainingPhase | null,
 ): boolean => {
-  if (!itemPhase) return true;
-  if (!ctxPhase) return true;
-  return itemPhase === ctxPhase;
+  if (itemPhase == null) return true; // session.phase = null -> aceita fallback temporal
+  if (ctxPhase == null) return true;
+  return itemPhase === ctxPhase; // session.phase diverge de ctxPhase -> REJEITA (identidade forte)
 };
 
 /** Compatibilidade de plano: plan_id ausente é legado e aceito. */
@@ -228,8 +228,9 @@ export const planCompatible = (
   itemPlanId: string | null | undefined,
   ctxPlanId: string | null | undefined,
 ): boolean => {
-  if (!itemPlanId || !ctxPlanId) return true;
-  return itemPlanId === ctxPlanId;
+  if (itemPlanId == null) return true; // plan_id null legado -> aceita temporalmente
+  if (ctxPlanId == null) return true;
+  return itemPlanId === ctxPlanId; // plan_id explicitamente diferente -> REJEITA
 };
 
 export const inWindow = (iso: string | null | undefined, ctx: WeekContext): boolean => {
