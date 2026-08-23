@@ -151,7 +151,7 @@ export const filterComparableSessionHistory = (input: {
 
   groups.forEach((rows, key) => {
     const m = meta[key];
-    const phase = rows.find((r) => (r as any).phase)?.['phase' as keyof SessionLog] ?? m?.phase ?? null;
+    const phase = (rows.find((r: any) => r?.phase) as any)?.phase ?? m?.phase ?? null;
     const planId = m?.planId ?? null;
 
     if (String(phase ?? '') === 'deload') {
