@@ -926,6 +926,7 @@ REPETIÇÕES e RIR são CONCEITOS DIFERENTES e NUNCA devem ser misturados.
 - ❌ NUNCA use o RIR para indicar faixa de repetições. Faixa de reps SEMPRE vai no campo REPETIÇÕES.
 - ✅ Se você não tem certeza do RIR a prescrever, deixe VAZIO. Não invente.
 `;
+const TRAINER_EXAMPLES_PROMPT = `
 EXEMPLOS CORRETOS:
 | EXERCÍCIO | SÉRIE | REPETIÇÕES | RIR |
 | AGACHAMENTO LIVRE | 4 | 8-10 | 1-2 |
@@ -938,6 +939,8 @@ EXEMPLOS ERRADOS (NUNCA FAÇA):
 | LEG PRESS | 8 | a 10 | RIR contém faixa de reps |
 | SUPINO | 10 | 10 | RIR não pode ser número de rep |
 | ROSCA | 8 | 8 a 10 | RIR contém faixa de reps |
+`;
+
 `;
 
 
