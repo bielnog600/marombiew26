@@ -192,7 +192,7 @@ const Consultoria: React.FC = () => {
 
           <TabsContent value="alertas" className="mt-6 space-y-6">
             {(() => {
-              const relevant = weeklySummaries.filter((s) => s.attention !== 'ok');
+              const relevant = weeklySummaries.filter((s) => s.active && s.attention !== 'ok');
               const withBucket = relevant
                 .map((s) => ({ s, b: bucketFor(followups.get(s.studentId)) }))
                 .filter((x) => x.b !== 'arquivado');
