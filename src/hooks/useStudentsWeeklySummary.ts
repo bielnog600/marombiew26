@@ -369,7 +369,9 @@ export const useStudentsWeeklySummary = () => {
           attention: cFinal.kind,
           priority: cFinal.priority,
           actionLabel: cFinal.action,
+          active: studentProfileStatus.get(p.user_id) ?? false,
         });
+
       }
 
       result.sort((a, b) => a.priority - b.priority || a.studentName.localeCompare(b.studentName));
