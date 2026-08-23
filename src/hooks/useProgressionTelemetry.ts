@@ -36,7 +36,7 @@ export function useProgressionTelemetry({ studentId, days = 30 }: Params) {
 
       if (sessionError) throw sessionError;
 
-      // Query 2: exercise_set_logs
+      // Query 2: exercise_set_logs - Item 10: Adicionar filtro student_id
       const sessionIds = (sessions || []).map(s => s.id);
       let logs: TelemetryLog[] = [];
       
@@ -45,6 +45,7 @@ export function useProgressionTelemetry({ studentId, days = 30 }: Params) {
           .from('exercise_set_logs')
           .select('student_id, session_id, exercise_name, set_number, weight_kg, reps, rir, set_type, source, performed_at')
           .in('session_id', sessionIds)
+          .eq('student_id', studentId)
           .order('performed_at', { ascending: false });
         
         if (logError) throw logError;
@@ -59,13 +60,17 @@ export function useProgressionTelemetry({ studentId, days = 30 }: Params) {
 
       const sessionResults = (sessions || []).map(s => {
         const snapshot = readProgressionSnapshot(s.session_state);
+        // Item 11: Passar metadados da sessão para o builder
         return buildProgressionSessionTelemetry({
           snapshot,
           logs: logsBySession.get(s.id) || [],
           studentId: s.student_id,
           sessionId: s.id,
           source: s.source || 'student',
-          executedBy: s.executed_by || 'student'
+          executedBy: s.executed_by || 'student',
+          completedAt: s.completed_at || undefined,
+          sessionMode: s.session_mode || undefined,
+          phase: s.phase || undefined
         });
       });
 
