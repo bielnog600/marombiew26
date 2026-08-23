@@ -882,6 +882,7 @@ FORMATO DE SAÍDA DO TREINO (CHAT)
 Você pode escrever um texto curto antes da tabela (foco do treino do dia, objetivo e observações rápidas).
 Depois, gere o treino em uma tabela markdown.`;
 
+
 const TRAINER_STRUCTURED_PROMPT = `
 ========================================
 FORMATO DE SAÍDA (JSON ESTRUTURADO)
