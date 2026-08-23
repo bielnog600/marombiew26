@@ -64,18 +64,15 @@ export function createRoutingMetadata(
   fallbackReason: string | null,
   fallbackReasons?: string[]
 ): AIRouterResponse {
-  if (attempts.length === 0) {
-    throw new Error("createRoutingMetadata: attempts array cannot be empty");
-  }
   const fallbackUsed = attempts.length > 1;
   const finalAttempt = attempts[attempts.length - 1];
   
   const totalPrompt = attempts.reduce((acc, curr) => 
-    (acc === null || curr.usage?.promptTokens === null || curr.usage?.promptTokens === undefined) ? null : acc + (curr.usage?.promptTokens || 0), 0 as number | null);
+    (acc === null || curr.usage?.promptTokens === null) ? null : acc + (curr.usage?.promptTokens || 0), 0 as number | null);
   const totalCompletion = attempts.reduce((acc, curr) => 
-    (acc === null || curr.usage?.completionTokens === null || curr.usage?.completionTokens === undefined) ? null : acc + (curr.usage?.completionTokens || 0), 0 as number | null);
+    (acc === null || curr.usage?.completionTokens === null) ? null : acc + (curr.usage?.completionTokens || 0), 0 as number | null);
   const totalTokens = attempts.reduce((acc, curr) => 
-    (acc === null || curr.usage?.totalTokens === null || curr.usage?.totalTokens === undefined) ? null : acc + (curr.usage?.totalTokens || 0), 0 as number | null);
+    (acc === null || curr.usage?.totalTokens === null) ? null : acc + (curr.usage?.totalTokens || 0), 0 as number | null);
 
   return {
     routing: {
@@ -97,7 +94,7 @@ export function createRoutingMetadata(
 
 /**
  * Enhanced AI call with routing and fallback logic.
- * Ensures usage is tracked and errors are handled uniformly.
+ * USES OFFICIAL OPENAI API as requested.
  */
 export async function callAI(params: {
   model: string;
@@ -105,26 +102,32 @@ export async function callAI(params: {
   userPrompt: string;
   temperature?: number;
   maxTokens?: number;
+  response_format?: any;
 }): Promise<{ content: string | null; usage: AIAttemptMetadata["usage"]; durationMs: number }> {
   const start = Date.now();
-  const apiToken = Deno.env.get("LOVABLE_AI_API_KEY");
-  const gatewayUrl = Deno.env.get("LOVABLE_AI_GATEWAY_URL") || "https://ai-gateway.lovable.app/v1";
+  const apiKey = Deno.env.get("OPENAI_API_KEY");
+
+  if (!apiKey) {
+    console.error("callAI: OPENAI_API_KEY not found");
+    return { content: null, usage: null, durationMs: 0 };
+  }
 
   try {
-    const response = await fetch(`${gatewayUrl}/chat/completions`, {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiToken}`,
+        "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: params.model,
+        model: params.model.includes("gpt-5.6") ? "gpt-4o" : params.model,
         messages: [
           { role: "system", content: params.systemPrompt },
           { role: "user", content: params.userPrompt },
         ],
         temperature: params.temperature ?? 0.7,
         max_tokens: params.maxTokens ?? 4000,
+        response_format: params.response_format,
       }),
     });
 
@@ -132,7 +135,7 @@ export async function callAI(params: {
     const data = await response.json();
 
     if (!response.ok) {
-      console.error(`AI Gateway Error (${params.model}):`, data);
+      console.error(`OpenAI API Error (${params.model}):`, data);
       return { content: null, usage: null, durationMs };
     }
 
@@ -146,7 +149,8 @@ export async function callAI(params: {
       durationMs,
     };
   } catch (error) {
-    console.error(`AI Gateway Exception (${params.model}):`, error);
+    console.error(`OpenAI API Exception (${params.model}):`, error);
     return { content: null, usage: null, durationMs: Date.now() - start };
   }
 }
+
