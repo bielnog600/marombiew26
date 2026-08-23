@@ -55,7 +55,7 @@ interface StudentSessionState {
   plan: any;
   loading: boolean;
   snapshot?: ProgressionSnapshot | null;
-  phase?: string | null;
+  phase?: import('@/lib/trainingPhase').TrainingPhase | null;
 }
 
 export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentAId, planA }) => {
@@ -124,7 +124,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     studentId: studentA?.studentId,
     sessionId: active?.id ?? null,
     exercises: studentA?.days[studentA?.activeDayIdx]?.exercises ?? [],
-    phase: studentA?.phase || null,
+    phase: studentA?.phase as any,
     planId: studentA?.plan?.id || null,
     restoredSnapshot: readProgressionSnapshot(active?.sessionState?.progressionRecommendationsByStudent?.[studentA?.studentId || ''])
   });
@@ -134,7 +134,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     studentId: studentB?.studentId,
     sessionId: active?.id ?? null,
     exercises: studentB?.days[studentB?.activeDayIdx]?.exercises ?? [],
-    phase: studentB?.phase || null,
+    phase: studentB?.phase as any,
     planId: studentB?.plan?.id || null,
     restoredSnapshot: readProgressionSnapshot(active?.sessionState?.progressionRecommendationsByStudent?.[studentB?.studentId || ''])
   });
