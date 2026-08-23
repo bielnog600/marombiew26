@@ -35,6 +35,7 @@ import {
   type ComparisonBasis,
   type WeekContext,
   type WeekContextSource,
+  performanceComparablePhase,
   type WeekContexts,
 } from './weekContext';
 import type { TrainingPhase } from './trainingPhase';
@@ -197,11 +198,7 @@ export const buildWeeklyTrainingReport = (
       input.windows!,
       plannedPhase,
       planId,
-      plannedPhase === 'semana_1' || plannedPhase === 'deload'
-        ? null
-        : (['semana_1', 'semana_2', 'semana_3', 'deload'] as TrainingPhase[])[
-            ['semana_1', 'semana_2', 'semana_3', 'deload'].indexOf(plannedPhase) - 1
-          ],
+      performanceComparablePhase(plannedPhase),
     );
 
   const current = contexts.current;
