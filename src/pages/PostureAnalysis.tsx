@@ -120,7 +120,7 @@ const PhotoCard = ({
       <div className="relative aspect-[3/4] bg-secondary/30">
         {photoUrl ? (
           <>
-            <img ref={imgRef} src={renderedOverlayUrl || photoUrl} className="w-full h-full object-cover" loading="lazy" />
+            <SignedImage src={renderedOverlayUrl || photoUrl} className="w-full h-full object-cover" loading="lazy" />
             {/* Overlay buttons */}
             <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <Button size="sm" variant="secondary" className="h-7 w-7 p-0" onClick={onExpand}>
@@ -964,7 +964,7 @@ const PostureAnalysis = () => {
         <Dialog open={!!expandedPhoto} onOpenChange={() => setExpandedPhoto(null)}>
           <DialogContent className="max-w-3xl">
             <DialogHeader><DialogTitle>Foto ampliada</DialogTitle></DialogHeader>
-            {expandedPhoto && <img src={expandedPhoto} className="w-full rounded-lg" />}
+            {expandedPhoto && <SignedImage src={expandedPhoto} className="w-full rounded-lg" />}
           </DialogContent>
         </Dialog>
       </div>
