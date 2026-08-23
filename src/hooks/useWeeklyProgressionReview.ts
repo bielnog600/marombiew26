@@ -85,7 +85,7 @@ export const useWeeklyProgressionReview = () => {
               nextAction: 'maintain', // Placeholder
               bestSet: {
                 reps: bestSet.reps,
-                weightKg: bestSet.weight_kg as number,
+                weightKg: (bestSet as any).weight_kg,
                 rir: (bestSet as any).rir
               },
               status: 'ok'
