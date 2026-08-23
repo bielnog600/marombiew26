@@ -67,7 +67,13 @@ interface ExerciseSet {
   reps: string;
   weight: string;
   completed: boolean;
+  /**
+   * RIR (reps na reserva) informado pelo aluno para ESTA série.
+   * Totalmente opcional: nunca bloqueia o registro da série. Vazio => null.
+   */
+  rir?: string;
 }
+
 
 interface ExerciseDBData {
   id?: string;
