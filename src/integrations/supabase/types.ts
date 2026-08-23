@@ -2949,6 +2949,8 @@ export type Database = {
           calendar_event_id: string | null
           completed_at: string | null
           completed_at_real: string | null
+          completion_score: number | null
+          completion_source: string | null
           created_at: string
           day_name: string | null
           duration_minutes: number
@@ -2976,6 +2978,8 @@ export type Database = {
           calendar_event_id?: string | null
           completed_at?: string | null
           completed_at_real?: string | null
+          completion_score?: number | null
+          completion_source?: string | null
           created_at?: string
           day_name?: string | null
           duration_minutes?: number
@@ -3003,6 +3007,8 @@ export type Database = {
           calendar_event_id?: string | null
           completed_at?: string | null
           completed_at_real?: string | null
+          completion_score?: number | null
+          completion_source?: string | null
           created_at?: string
           day_name?: string | null
           duration_minutes?: number
