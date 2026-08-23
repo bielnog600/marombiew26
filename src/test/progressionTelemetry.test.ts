@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
-import { buildProgressionExecutionOutcomes, TelemetrySessionInput } from '../src/lib/progressionTelemetry';
-import { ProgressionSnapshot } from '../src/lib/sessionProgression';
+import { describe, it, expect } from 'vitest';
+import { buildProgressionExecutionOutcomes, type TelemetrySessionInput } from '@/lib/progressionTelemetry';
+import type { ProgressionSnapshot } from '@/lib/sessionProgression';
 
 describe('progressionTelemetry', () => {
   it('detects partial increase_load correctly', () => {
