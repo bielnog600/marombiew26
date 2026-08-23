@@ -304,7 +304,6 @@ export const useStudentsWeeklySummary = () => {
           resolution = report.resolution;
         }
 
-        const c = classify(adherence, progression);
         const isPresencial = presencialMap.get(p.user_id) ?? false;
         const cFinal = classify(adherence, progression, isPresencial);
 
