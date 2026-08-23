@@ -210,6 +210,8 @@ const TreinoExecucao = () => {
   const [showAdjust, setShowAdjust] = useState(false);
   const [showVideoCapture, setShowVideoCapture] = useState(false);
   const [showLoadHistory, setShowLoadHistory] = useState(false);
+  // Snapshot consultivo de progressão restaurado do session_state (retomada).
+  const [restoredSnapshot, setRestoredSnapshot] = useState<ProgressionSnapshot | null>(null);
   const currentPhase = phase ?? getPhaseByMonthDay();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
