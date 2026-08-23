@@ -1029,9 +1029,12 @@ const TRAINER_MOBILITY_REVISION = `
 `;
 
 
+const TRAINER_VOLUME_PROMPT = `
 ========================================
 REGRA DE VOLUME
 ========================================
+`;
+
 
 Mais volume para INFERIORES e DORSAL. Variar ângulos, pegadas e variações.
 
