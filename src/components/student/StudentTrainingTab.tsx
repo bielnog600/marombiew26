@@ -392,7 +392,10 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                       studentId={studentId}
                       conteudo={currentMarkdown}
                       fase={(editedPhases[plan.id] ?? plan.fase) as TrainingPhase}
+                      faseInicioData={currentStartDate || null}
+                      cycleDays={plan.cycle_days ?? null}
                     />
+
                     {/* Ações Híbridas - Central de Ação Individual */}
                     <div className="flex flex-wrap gap-2 pb-2">
                       <Button 
