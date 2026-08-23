@@ -153,10 +153,18 @@ export interface ExercisePerformance {
   exerciseName: string;
   /** Set real com a melhor performance da janela (nunca um set sintético). */
   bestSet?: PerformedSet;
+  /** Séries de trabalho + auxiliares (aquecimento/reconhecimento não contam). */
   totalWorkingSets: number;
+  /** Backoff/drop/rest-pause/myo-reps: contexto, nunca decisão isolada. */
+  auxiliarySets: number;
+  /** Aquecimento/reconhecimento registrados na janela. */
+  preparationSets: number;
   totalReps: number;
   totalVolume: number; // Σ(peso × reps) — métrica AUXILIAR, nunca decisória
   loaded: boolean;     // teve carga externa registrada
+  /** Base da comparação semana a semana (tipos estruturados ou fallback legado). */
+  comparisonBasis: ComparisonBasis;
+
   status: PerformanceStatus;
   /** Só presente quando há set atual e set anterior comparáveis. */
   e1rmDeltaPct?: number | null;
