@@ -1080,14 +1080,21 @@ SE HOUVER DÚVIDA SOBRE A SEGURANÇA DE UM EXERCÍCIO PARA UMA CONDIÇÃO ESPEC�
 
 
 
+const TRAINER_SAFETY_FILTER_PROMPT = `
 ========================================
 FILTRO RÍGIDO DE SEGURANÇA (PRIORIDADE ABSOLUTA — ACIMA DE TUDO)
 ========================================
+`;
 
+
+const TRAINER_SAFETY_FILTER_RULES = `
 As informações em RESTRIÇÕES, LESÕES, OBSERVAÇÕES DO PROFESSOR e principalmente no bloco "🚨 REGRAS RÍGIDAS DE SEGURANÇA ESTRUTURADAS" (quando presente no prompt do usuário) NÃO SÃO sugestões nem observações soltas — são REGRAS OBRIGATÓRIAS DE SEGURANÇA que TÊM PRIORIDADE MÁXIMA sobre QUALQUER outra regra deste prompt (volume, variedade, intensidade, técnicas avançadas, divisão padrão, periodização, etc).
 
 Quando o prompt do usuário contiver um bloco "🚨 REGRAS RÍGIDAS DE SEGURANÇA ESTRUTURADAS" com campos como CASO_ADAPTADO, OBJETIVOS_TERAPEUTICOS_OBRIGATORIOS, EXERCICIOS_PROIBIDOS, PADROES_DE_MOVIMENTO_PROIBIDOS, EXERCICIOS_PERMITIDOS_OU_PRIORITARIOS e REGRAS_DE_CARGA_E_EXECUCAO — esse bloco é a FONTE PRIMÁRIA de regras. Leia-o ANTES de qualquer outra coisa, aplique todos os filtros antes de escolher exercícios, e mencione na coluna DESCRIÇÃO de cada exercício a adaptação concreta exigida pelas REGRAS_DE_CARGA_E_EXECUCAO.
+`;
 
+
+const TRAINER_SAFETY_ACTION_PLAN = `
 ANTES de montar QUALQUER treino, você DEVE:
 
 1) EXTRAIR das RESTRIÇÕES/LESÕES/OBSERVAÇÕES, de forma explícita:
@@ -1098,6 +1105,8 @@ ANTES de montar QUALQUER treino, você DEVE:
 
 2) APLICAR O FILTRO ANTES DE ESCOLHER QUALQUER EXERCÍCIO:
    - Para CADA exercício candidato, verifique:
+`;
+
        (i) o nome bate com algum proibido? → REJEITAR.
        (ii) o padrão de movimento bate com algum padrão proibido? → REJEITAR.
        (iii) sinônimo ou variação que mantém o mesmo padrão proibido? → REJEITAR.
