@@ -55,6 +55,7 @@ interface StudentSessionState {
   plan: any;
   loading: boolean;
   snapshot?: ProgressionSnapshot | null;
+  phase?: string | null;
 }
 
 export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentAId, planA }) => {
@@ -123,9 +124,9 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     studentId: studentA?.studentId,
     sessionId: active?.id ?? null,
     exercises: studentA?.days[studentA?.activeDayIdx]?.exercises ?? [],
-    phase: studentA?.plan?.fase || null,
+    phase: studentA?.phase || null,
     planId: studentA?.plan?.id || null,
-    restoredSnapshot: readProgressionSnapshot(active?.sessionState?.progressionRecommendationsA)
+    restoredSnapshot: readProgressionSnapshot(active?.sessionState?.progressionRecommendationsByStudent?.[studentA?.studentId || ''])
   });
 
   // Hook de progressão para Aluno B
@@ -133,9 +134,9 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     studentId: studentB?.studentId,
     sessionId: active?.id ?? null,
     exercises: studentB?.days[studentB?.activeDayIdx]?.exercises ?? [],
-    phase: studentB?.plan?.fase || null,
+    phase: studentB?.phase || null,
     planId: studentB?.plan?.id || null,
-    restoredSnapshot: readProgressionSnapshot(active?.sessionState?.progressionRecommendationsB)
+    restoredSnapshot: readProgressionSnapshot(active?.sessionState?.progressionRecommendationsByStudent?.[studentB?.studentId || ''])
   });
 
   // Persistir snapshots no session_state (Duo)
