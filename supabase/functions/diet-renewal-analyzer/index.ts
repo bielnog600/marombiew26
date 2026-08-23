@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { authorizePrivilegedRequest, unauthorizedResponse } from "../_shared/authorizePrivilegedRequest.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -646,6 +647,10 @@ async function analyzePlan(supabase: any, planId: string) {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  // Autorização obrigatória ANTES de qualquer uso do service role.
+  const auth = await authorizePrivilegedRequest(req);
+  if (!auth.ok) return unauthorizedResponse(auth, corsHeaders);
 
   try {
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
