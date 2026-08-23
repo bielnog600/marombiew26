@@ -12,6 +12,7 @@ export interface ActiveWorkoutSession {
   student_id: string;
   day_name: string | null;
   phase: string | null;
+  plan_id: string | null;
   started_at: string;
   session_state: any | null;
 }
@@ -47,7 +48,7 @@ export function useActiveWorkoutSession() {
     }
     const { data, error } = await supabase
       .from('workout_sessions')
-      .select('id, student_id, day_name, phase, started_at, created_at, last_active_at, session_state, status')
+      .select('id, student_id, plan_id, day_name, phase, started_at, created_at, last_active_at, session_state, status')
       .eq('student_id', user.id)
       .eq('status', 'in_progress')
       .order('started_at', { ascending: false })
@@ -81,6 +82,7 @@ export function useActiveWorkoutSession() {
         const active: ActiveWorkoutSession = {
           id: data.id,
           student_id: data.student_id,
+          plan_id: data.plan_id,
           day_name: data.day_name,
           phase: data.phase,
           started_at: data.started_at,

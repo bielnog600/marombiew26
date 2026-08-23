@@ -186,6 +186,9 @@ const TreinoExecucao = () => {
   const [loadedMedia, setLoadedMedia] = useState<ExerciseMediaMap>(stateData?.exerciseMedia || {});
   const [phase, setPhase] = useState<TrainingPhase | null>(stateData?.phase || null);
   const [sessionPlanId, setSessionPlanId] = useState<string | null>(stateData?.planId || null);
+  // Item 4: Flag explícita para aguardar o contexto do treino antes de criar uma nova sessão
+  const workoutContextReady = stateData?.exercises ? true : false;
+  const [contextReady, setContextReady] = useState(workoutContextReady);
 
   const exercises = loadedExercises;
   const dayName = loadedDayName;
@@ -215,6 +218,8 @@ const TreinoExecucao = () => {
   const [showLoadHistory, setShowLoadHistory] = useState(false);
   // Snapshot consultivo de progressão restaurado do session_state (retomada).
   const [restoredSnapshot, setRestoredSnapshot] = useState<ProgressionSnapshot | null>(null);
+  // Item 7: Flag para impedir que a fase seja sobrescrita na retomada
+  const resumedSessionRef = useRef(false);
   const currentPhase = phase ?? getPhaseByMonthDay();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -268,6 +273,7 @@ const TreinoExecucao = () => {
         // Regra 22: Fase e PlanId congelados na retomada
         if (existingSession?.phase) setPhase(existingSession.phase as TrainingPhase);
         if (existingSession?.plan_id) setSessionPlanId(existingSession.plan_id);
+        resumedSessionRef.current = true;
       };
 
 
@@ -296,6 +302,7 @@ const TreinoExecucao = () => {
           setLocalActiveSession({
             id: existing.id,
             student_id: user.id,
+            plan_id: existing.plan_id,
             day_name: existing.day_name,
             phase: existing.phase,
             started_at: existing.started_at,
@@ -323,12 +330,15 @@ const TreinoExecucao = () => {
         if (!staleLocal && sameDayLocal) {
           setSessionId(activeSession.id);
           setSessionStartAt(new Date(activeSession.started_at).getTime());
+          setSessionPlanId(activeSession.plan_id);
           applyState(activeSession.session_state, activeSession);
           return;
         }
       }
 
-      // 2. Cria nova sessão em andamento
+      // 2. Cria nova sessão em andamento - APENAS se o contexto estiver pronto (Regra 4)
+      if (!contextReady) return;
+
       const startedAtIso = new Date().toISOString();
       const { data: newSession, error: createSessionError } = await supabase
         .from('workout_sessions')
@@ -353,6 +363,7 @@ const TreinoExecucao = () => {
         setLocalActiveSession({
           id: newSession.id,
           student_id: user.id,
+          plan_id: sessionPlanId,
           day_name: dayName,
           phase: phase ?? null,
           started_at: newSession.started_at,
@@ -366,7 +377,7 @@ const TreinoExecucao = () => {
         });
       }
     })();
-  }, [user, dayName, phase, exercises.length, setLocalActiveSession, activeSession]);
+  }, [user, dayName, phase, exercises.length, setLocalActiveSession, activeSession, contextReady, sessionPlanId]);
 
   // Recomendações consultivas da sessão (congeladas no início; nunca
   // recalculadas durante o treino e nunca gravadas em exercise_set_logs).
@@ -407,6 +418,7 @@ const TreinoExecucao = () => {
     setLocalActiveSession({
       id: targetSessionId,
       student_id: user.id,
+      plan_id: sessionPlanId,
       day_name: dayName,
       phase: phase ?? null,
       started_at: new Date(targetStartedAt).toISOString(),
@@ -471,13 +483,18 @@ const TreinoExecucao = () => {
       });
       const treino = Array.isArray(plans) ? plans[0] : null;
       if (treino) {
+        // Bug 2: Definir PlanId ao carregar diretamente
+        setSessionPlanId(treino.id);
+
         // Fase da sessão vem da FONTE CENTRAL (timeline do plano), nunca de
         // um cálculo local — garante paridade com weeklyTraining e com o admin.
-        setPhase(resolveCurrentTrainingPhase({
-          id: treino.id,
-          fase: (treino as any).fase ?? null,
-          fase_inicio_data: (treino as any).fase_inicio_data ?? null,
-        }).phase);
+        if (!resumedSessionRef.current) {
+          setPhase(resolveCurrentTrainingPhase({
+            id: treino.id,
+            fase: (treino as any).fase ?? null,
+            fase_inicio_data: (treino as any).fase_inicio_data ?? null,
+          }).phase);
+        }
         const { days: allDays, isFromJSON } = getSafeWorkoutDays({ ...treino, tipo: 'treino' });
         trackPlanAccess({ ...treino, tipo: 'treino' }, isFromJSON);
         if (allDays.length > 0) {
@@ -496,6 +513,7 @@ const TreinoExecucao = () => {
           }
           setLoadedExercises(today.exercises);
           setLoadedDayName(today.day);
+          setContextReady(true);
 
           // Load exercise media
           const names = today.exercises
@@ -528,7 +546,7 @@ const TreinoExecucao = () => {
       }
 
       // Último recurso offline: retoma o treino salvo da última execução.
-      const lastWorkout = await getCached<{ exercises: ParsedExercise[]; dayName: string; media: ExerciseMediaMap; phase: TrainingPhase | null }>(
+      const lastWorkout = await getCached<{ exercises: ParsedExercise[]; dayName: string; media: ExerciseMediaMap; phase: TrainingPhase | null; planId: string | null }>(
         `workout:last:${user.id}`,
       );
       if (lastWorkout?.exercises?.length) {
@@ -536,6 +554,8 @@ const TreinoExecucao = () => {
         setLoadedDayName(lastWorkout.dayName || 'Treino');
         setLoadedMedia(lastWorkout.media || {});
         if (lastWorkout.phase) setPhase(lastWorkout.phase);
+        if (lastWorkout.planId) setSessionPlanId(lastWorkout.planId);
+        setContextReady(true);
       }
     };
     loadPlan();
@@ -549,6 +569,7 @@ const TreinoExecucao = () => {
       dayName: loadedDayName,
       media: loadedMedia,
       phase: phase ?? null,
+      planId: sessionPlanId,
     });
   }, [user, loadedExercises, loadedDayName, loadedMedia, phase]);
 
@@ -1388,16 +1409,19 @@ const TreinoExecucao = () => {
                     total_volume_kg: totalVolumeKg || null,
                     total_sets: totalSets,
                     session_state: {
-                      progressionRecommendations: progressionSnapshot
+                      progressionRecommendations: progressionSnapshot ?? restoredSnapshot ?? activeSession?.session_state?.progressionRecommendations ?? null
                     } as any,
                   })
                   .eq('id', finalSessionId);
               } else {
                 // Fallback: cria nova já completada (não havia sessão em andamento)
+                const finalSnapshot = progressionSnapshot ?? restoredSnapshot ?? activeSession?.session_state?.progressionRecommendations ?? null;
+                
                 const { data: sessionRow } = await supabase
                   .from('workout_sessions')
                   .insert({
                     student_id: user.id,
+                    plan_id: sessionPlanId,
                     day_name: dayName,
                     phase: phase ?? null,
                     status: 'completed',
@@ -1410,7 +1434,7 @@ const TreinoExecucao = () => {
                     total_volume_kg: totalVolumeKg || null,
                     total_sets: totalSets,
                     session_state: {
-                      progressionRecommendations: progressionSnapshot
+                      progressionRecommendations: finalSnapshot
                     } as any,
                   })
                   .select('id')
