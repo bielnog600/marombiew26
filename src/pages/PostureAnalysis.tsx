@@ -28,6 +28,7 @@ import {
 import { calculatePostureAngles, calculateRegionScores, analyzePostureConditions, type PoseKeypoint, type PostureAngles, type RegionScore, type PostureCondition } from '@/lib/postureUtils';
 import { renderPostureAnalysisDataUrl } from '@/lib/postureCanvas';
 import { SignedImage } from '@/components/SignedImage';
+import { resolvePhotoUrlMap } from '@/lib/storagePhotos';
 
 type CapturePosition = 'front' | 'side' | 'back';
 
@@ -467,9 +468,10 @@ const PostureAnalysis = () => {
     setAiLoading(true);
     setAiAnalysis(null);
     try {
+      const signedPhotos = await resolvePhotoUrlMap(photos);
       const { data, error } = await supabase.functions.invoke('posture-ai-analysis', {
         body: {
-          photos,
+          photos: signedPhotos,
           heightCm: heightCm ? parseFloat(heightCm) : null,
           sex,
           angles,
