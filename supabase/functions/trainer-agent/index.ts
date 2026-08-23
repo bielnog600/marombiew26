@@ -336,25 +336,40 @@ function workoutPlanToMarkdown(plan: any): string {
   return lines.join("\n");
 }
 
+const modelAttempts: AIAttemptMetadata[] = [];
+
 async function callStructuredModel({
   apiKey,
   systemPrompt,
   messages,
   extraSystem,
-}: StructuredArgs & { extraSystem?: string }): Promise<
+  modelToUse,
+  reason,
+}: StructuredArgs & { extraSystem?: string; modelToUse: string; reason: string }): Promise<
   | { ok: true; data: any }
   | { ok: false; response: Response }
 > {
+  const start = Date.now();
+  
+  // Limpeza de instruções de formato incompatíveis
+  const cleanSystemPrompt = systemPrompt
+    .replace(/DIETA COMPLETA E PERSONALIZADA/gi, "")
+    .replace(/gere o treino em uma tabela markdown/gi, "")
+    .replace(/A tabela do TREINO deve ter exatamente 9 colunas/gi, "")
+    .replace(/instrução para fazer perguntas/gi, "")
+    .replace(/mensagens WhatsApp/gi, "")
+    .replace(/Para aluno intermediário\/avançado, usar no mínimo 2 técnicas avançadas por treino do dia\./gi, "Técnicas avançadas são opcionais e só devem ser utilizadas quando coerentes com nível, fase, recuperação, objetivo e segurança. Não existe quantidade mínima obrigatória por treino.");
+
   const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "gpt-4o-2024-08-06",
+      model: modelToUse,
       messages: [
         {
           role: "system",
           content:
-            systemPrompt +
+            cleanSystemPrompt +
             "\n\n" +
             JSON_OUTPUT_INSTRUCTIONS +
             (extraSystem ? "\n\n" + extraSystem : ""),
@@ -373,9 +388,12 @@ async function callStructuredModel({
     }),
   });
 
+  const durationMs = Date.now() - start;
+
   if (!upstream.ok) {
     const t = await upstream.text();
     console.error("trainer-agent[json] gateway error:", upstream.status, t);
+    modelAttempts.push({ model: modelToUse, durationMs, reason: `Error: ${upstream.status}` });
     if (upstream.status === 429) {
       return {
         ok: false,
@@ -404,6 +422,17 @@ async function callStructuredModel({
   }
 
   const payload = await upstream.json();
+  const usage = payload?.usage;
+  modelAttempts.push({
+    model: modelToUse,
+    durationMs,
+    reason,
+    usage: usage ? {
+      promptTokens: usage.prompt_tokens,
+      completionTokens: usage.completion_tokens,
+      totalTokens: usage.total_tokens
+    } : null
+  });
   const content = payload?.choices?.[0]?.message?.content;
   if (typeof content !== "string") {
     return {
