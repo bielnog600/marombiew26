@@ -520,3 +520,51 @@ export function buildProgressionTelemetrySummary(results: SessionTelemetryResult
 
   return summary;
 }
+
+/**
+ * Busca logs e snapshots em lote para gerar a telemetria do período.
+ */
+export async function fetchTelemetryData(studentId: string, days: number = 30): Promise<SessionTelemetryResult[]> {
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+
+  // 1. Buscar sessões com snapshot no session_state
+  const { data: sessions, error: sessError } = await supabase
+    .from('workout_sessions')
+    .select('id, session_state, completed_at, executed_by')
+    .eq('student_id', studentId)
+    .not('session_state', 'is', null)
+    .gte('completed_at', startDate.toISOString())
+    .order('completed_at', { ascending: false })
+    .limit(50);
+
+  if (sessError || !sessions) return [];
+
+  // 2. Buscar logs dessas sessões
+  const sessionIds = sessions.map(s => s.id);
+  if (sessionIds.length === 0) return [];
+
+  const { data: logs, error: logsError } = await supabase
+    .from('exercise_set_logs')
+    .select('student_id, session_id, exercise_name, weight_kg, reps, rir, set_type, set_number, performed_at')
+    .in('session_id', sessionIds)
+    .order('set_number', { ascending: true });
+
+  if (logsError || !logs) return [];
+
+  // 3. Processar cada sessão
+  return sessions.map(session => {
+    const sessionLogs = logs.filter(l => l.session_id === session.id);
+    const state = session.session_state as any;
+    const snapshot = state?.progressionSnapshot as ProgressionSnapshot;
+
+    return buildProgressionSessionTelemetry({
+      snapshot: snapshot || null,
+      logs: sessionLogs as TelemetryLog[],
+      studentId,
+      sessionId: session.id,
+      source: 'telemetry_batch',
+      executedBy: session.executed_by
+    });
+  });
+}
