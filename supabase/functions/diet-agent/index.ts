@@ -800,8 +800,68 @@ serve(async (req) => {
         }
       };
 
-      let fallbackReason: string | null = null;
-      let fallbackReasons: string[] = [];
+      /** Unified evaluation pipeline for diet candidates. */
+      const evaluateDietCandidate = (params: {
+        plan: any;
+        historyJsons: any[];
+        schedule: any;
+        intensity: VariationIntensity;
+        threshold: number;
+        variationRetryAllowed: boolean;
+        requireMenuVariation: boolean;
+      }) => {
+        const similarity = computeDietSimilarity(params.plan, params.historyJsons);
+        const nutrition = validateDietNutrition(params.plan);
+        
+        let normalizedAdj: any = null;
+        let adjValidation = { ok: true, errors: [] as string[] };
+        
+        if (params.schedule && typeof params.schedule === "object" && params.schedule.days) {
+          const { adjustments, missing } = normalizeDailyAdjustments(
+            (params.plan as any).dailyAdjustments,
+            params.schedule
+          );
+          normalizedAdj = adjustments;
+          adjValidation = hasDailyCalorieVariation(params.schedule)
+            ? validateDailyAdjustments(adjustments, missing)
+            : { ok: true, errors: [] as string[] };
+        }
+
+        const qOnly = similarity.quantityOnlyRatio ?? 0;
+        const isPortionOnly = similarity.changeKind === "portion_only";
+        const protRepeat = similarity.primaryProteinRepeatRatio ?? 0;
+        const carbRepeat = similarity.primaryCarbRepeatRatio ?? 0;
+        const primarySourceTooRepetitive = Math.max(protRepeat, carbRepeat) >= 0.6;
+
+        const variationFailure =
+          params.variationRetryAllowed &&
+          params.historyJsons.length > 0 &&
+          (
+            similarity.score > params.threshold ||
+            isPortionOnly ||
+            (params.requireMenuVariation && qOnly > 0.3) ||
+            primarySourceTooRepetitive
+          );
+
+        const needsRetry = !nutrition.ok || !adjValidation.ok || variationFailure;
+
+        return {
+          plan: params.plan,
+          similarity,
+          nutrition,
+          normalizedAdj,
+          adjValidation,
+          variationFailure,
+          needsRetry,
+          qOnly,
+          isPortionOnly,
+          protRepeat,
+          carbRepeat,
+          primarySourceTooRepetitive
+        };
+      };
+
+      const threshold = SIMILARITY_THRESHOLDS[intensity];
 
       const first = await callModel(
         dietVariationPrompt(intensity, historySummary, undefined, requireMenuVariation),
