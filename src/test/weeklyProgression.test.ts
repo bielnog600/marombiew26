@@ -129,8 +129,8 @@ describe('nextAction (double progression)', () => {
     expect(p.nextAction).toBe('maintain');
   });
 
-  it('topo da faixa sem RIR registrado => increase_load conservador', () => {
-    expect(perf([log(70, 12)], [log(70, 10)], range).nextAction).toBe('increase_load');
+  it('topo da faixa sem RIR registrado pela 1a vez => maintain (política conservadora)', () => {
+    expect(perf([log(70, 12)], [log(70, 10)], range).nextAction).toBe('maintain');
   });
 
   it('abaixo da faixa nunca manda subir carga', () => {
@@ -199,5 +199,136 @@ describe('relatório semanal', () => {
     const p = buildExercisePerformance('SUPINO RETO', last, prev, null);
     expect(p.totalVolume).toBe(3200);
     expect(p.status).toBe('regressed');
+  });
+});
+
+// ============================================================
+// Tipos de série (set_type) e RIR opcional
+// ============================================================
+
+const tlog = (
+  weight: number | null,
+  reps: number | null,
+  set_type: string | null,
+  extra: Partial<ExerciseLog> = {},
+): ExerciseLog => ({ ...log(weight, reps, extra), set_type });
+
+describe('selectBestSet respeita o tipo estrutural da série', () => {
+  it('working set representa a performance mesmo quando o aquecimento é registrado', () => {
+    const best = selectBestSet([
+      tlog(40, 20, 'warmup', { set_number: 1 }),
+      tlog(80, 10, 'work', { set_number: 2 }),
+    ]);
+    expect(best!.weightKg).toBe(80);
+    expect(best!.reps).toBe(10);
+  });
+
+  it('série de reconhecimento não substitui a série de trabalho', () => {
+    const best = selectBestSet([
+      tlog(100, 12, 'recognition', { set_number: 1 }),
+      tlog(90, 8, 'work', { set_number: 2 }),
+    ]);
+    expect(best!.weightKg).toBe(90);
+  });
+
+  it('drop-set com e1RM maior não vira bestSet quando existe working set', () => {
+    const best = selectBestSet([
+      tlog(80, 8, 'work', { set_number: 1 }),
+      tlog(60, 25, 'drop', { set_number: 2 }),
+    ]);
+    expect(best!.weightKg).toBe(80);
+    expect(best!.reps).toBe(8);
+  });
+
+  it('rest-pause/myo-reps só entram quando não há nenhuma série principal', () => {
+    const best = selectBestSet([tlog(70, 15, 'rest_pause', { set_number: 1 })]);
+    expect(best!.weightKg).toBe(70);
+  });
+
+  it('múltiplos working sets: escolhe o de maior e1RM (set real)', () => {
+    const best = selectBestSet([
+      tlog(80, 8, 'work', { set_number: 1 }),
+      tlog(85, 8, 'work', { set_number: 2 }),
+      tlog(80, 10, 'work', { set_number: 3 }),
+    ]);
+    expect(best!.weightKg).toBe(85);
+    expect(best!.reps).toBe(8);
+  });
+
+  it('sem set_type (legado) trata tudo como working set — fallback documentado', () => {
+    const best = selectBestSet([log(80, 8), log(85, 8, { set_number: 2 })]);
+    expect(best!.weightKg).toBe(85);
+  });
+});
+
+describe('técnicas não são perdidas nas métricas auxiliares', () => {
+  it('drop-set conta em volume/reps mas não determina o bestSet nem gera falso progresso', () => {
+    const p = perf(
+      [tlog(80, 8, 'work', { set_number: 1 }), tlog(60, 25, 'drop', { set_number: 2 })],
+      [tlog(80, 8, 'work', { set_number: 1 })],
+    );
+    expect(p.bestSet!.weightKg).toBe(80);
+    expect(p.auxiliarySets).toBe(1);
+    expect(p.totalWorkingSets).toBe(2);
+    expect(p.totalReps).toBe(33);
+    expect(p.status).toBe('stable');
+  });
+
+  it('aquecimento não conta como série de trabalho', () => {
+    const p = perf(
+      [tlog(40, 20, 'warmup', { set_number: 1 }), tlog(80, 8, 'work', { set_number: 2 })],
+      [tlog(80, 8, 'work', { set_number: 1 })],
+    );
+    expect(p.preparationSets).toBe(1);
+    expect(p.totalWorkingSets).toBe(1);
+  });
+
+  it('marca a base de comparação como like_for_like quando ambas as janelas têm tipos', () => {
+    const p = perf([tlog(80, 8, 'work')], [tlog(78, 8, 'work')]);
+    expect(p.comparisonBasis).toBe('like_for_like');
+  });
+
+  it('marca fallback_untyped quando a semana anterior é legado sem tipos', () => {
+    const p = perf([tlog(80, 8, 'work')], [log(78, 8)]);
+    expect(p.comparisonBasis).toBe('fallback_untyped');
+  });
+});
+
+describe('RIR é opcional e nunca bloqueia o cálculo', () => {
+  it('calcula performance apenas com peso + reps (rir null)', () => {
+    const p = perf([tlog(85, 8, 'work')], [tlog(80, 8, 'work')]);
+    expect(p.status).toBe('improved');
+    expect(p.bestSet!.rir).toBeNull();
+  });
+
+  it('usa RIR quando presente sem exigir nas duas séries', () => {
+    const p = perf([tlog(80, 10, 'work', { rir: 3 })], [tlog(80, 10, 'work', { rir: 0 })]);
+    expect(p.rirDelta).toBe(3);
+    expect(p.status).toBe('improved');
+  });
+});
+
+describe('double progression no topo da faixa', () => {
+  const range = { min: 8, max: 12 };
+
+  it('topo da faixa com RIR >= 2 => increase_load', () => {
+    const p = perf([tlog(70, 12, 'work', { rir: 2 })], [tlog(70, 10, 'work', { rir: 1 })], range);
+    expect(p.nextAction).toBe('increase_load');
+  });
+
+  it('topo da faixa com RIR 0-1 => maintain', () => {
+    const p = perf([tlog(70, 12, 'work', { rir: 1 })], [tlog(70, 10, 'work', { rir: 1 })], range);
+    expect(p.nextAction).toBe('maintain');
+  });
+
+  it('topo da faixa SEM RIR pela primeira vez => maintain (confirmar performance)', () => {
+    const p = perf([tlog(70, 12, 'work')], [tlog(70, 9, 'work')], range);
+    expect(p.bestSet!.rir).toBeNull();
+    expect(p.nextAction).toBe('maintain');
+  });
+
+  it('topo da faixa SEM RIR repetido em semanas comparáveis => increase_load', () => {
+    const p = perf([tlog(70, 12, 'work')], [tlog(70, 12, 'work')], range);
+    expect(p.nextAction).toBe('increase_load');
   });
 });

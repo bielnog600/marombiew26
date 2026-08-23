@@ -89,6 +89,8 @@ interface SessionStateSet {
   reps?: string;
   weight?: string;
   rpe?: string;
+  /** RIR opcional informado na execução (string vazia = desconhecido). */
+  rir?: string;
   completed?: boolean;
 }
 
@@ -99,6 +101,8 @@ export interface WorkoutSessionState {
   exerciseNames?: string[];
   /** Séries planejadas por exercício, na mesma ordem de `exerciseNames`. */
   plannedSets?: number[];
+  /** Tipo estrutural planejado de cada série (recognition | work) por exercício. */
+  plannedSetTypes?: (string[] | undefined)[];
   muscleGroups?: (string | null)[];
 }
 
@@ -222,6 +226,9 @@ export const buildSessionStateLogRows = (
       if (!s?.completed) return;
       const reps = parseInt(String(s.reps ?? ''), 10) || 0;
       const weight = parseFloat(String(s.weight ?? '').replace(',', '.')) || 0;
+      const rirRaw = String(s.rir ?? '').trim();
+      const rirNum = rirRaw === '' ? null : Number(rirRaw);
+      const plannedType = state?.plannedSetTypes?.[idx]?.[i];
       totalSets += 1;
       totalVolumeKg += reps * weight;
       rows.push({
@@ -233,6 +240,9 @@ export const buildSessionStateLogRows = (
         reps: reps || null,
         weight_kg: weight || null,
         rpe: null,
+        // RIR opcional: ausência = desconhecido (null), nunca preenchido.
+        rir: rirNum != null && Number.isFinite(rirNum) ? rirNum : null,
+        set_type: plannedType === 'recognition' ? 'recognition' : 'work',
         phase: row.phase ?? null,
         day_name: row.day_name ?? null,
         performed_at: performedAtIso,

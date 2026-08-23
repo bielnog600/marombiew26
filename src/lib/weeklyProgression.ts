@@ -29,13 +29,70 @@ export interface ExerciseLog {
   performed_at: string; // ISO
   set_number?: number | null;
   /**
-   * Escala de esforço registrada no set. O schema atual só tem `rpe`
-   * (0-10, hoje sempre null — ver LIMITAÇÕES no fim do arquivo).
-   * RIR é derivado como 10 - rpe quando `rir` não vem explícito.
+   * Escala de esforço do set. `rir` é a fonte primária (coluna
+   * exercise_set_logs.rir, opcional, preenchida pelo aluno na execução).
+   * `rpe` (0-10) é aceito como fonte secundária: RIR = 10 - RPE.
+   * NULL = desconhecido — nunca inferido/preenchido artificialmente.
    */
   rpe?: number | null;
   rir?: number | null;
+  /**
+   * Tipo estrutural da série (exercise_set_logs.set_type).
+   * NULL = legado/desconhecido => tratado como série de trabalho (fallback).
+   */
+  set_type?: SetType | string | null;
 }
+
+/** Tipos de série reconhecidos (espelham o CHECK de exercise_set_logs.set_type). */
+export type SetType =
+  | 'warmup'
+  | 'recognition'
+  | 'work'
+  | 'top'
+  | 'backoff'
+  | 'drop'
+  | 'rest_pause'
+  | 'myo_reps'
+  | 'technique';
+
+/**
+ * Papel da série na avaliação de performance:
+ *  - primary: working set / top set — representa a performance da semana;
+ *  - auxiliary: backoff e técnicas (drop, rest-pause, myo-reps) — contam em
+ *    volume/reps/contexto, mas não substituem uma série principal;
+ *  - preparation: aquecimento e reconhecimento — nunca representam performance.
+ */
+export type SetRole = 'primary' | 'auxiliary' | 'preparation';
+
+const SET_ROLE_BY_TYPE: Record<SetType, SetRole> = {
+  warmup: 'preparation',
+  recognition: 'preparation',
+  work: 'primary',
+  top: 'primary',
+  backoff: 'auxiliary',
+  drop: 'auxiliary',
+  rest_pause: 'auxiliary',
+  myo_reps: 'auxiliary',
+  technique: 'auxiliary',
+};
+
+/** Sem tipo estrutural (dado legado) => assume série de trabalho. */
+export const setRoleOf = (log: Pick<ExerciseLog, 'set_type'>): SetRole => {
+  const t = String(log.set_type ?? '').trim() as SetType;
+  return SET_ROLE_BY_TYPE[t] ?? 'primary';
+};
+
+/** true quando pelo menos um log da janela traz tipo estrutural explícito. */
+export const hasStructuredSetTypes = (logs: ExerciseLog[]): boolean =>
+  logs.some((l) => !!String(l.set_type ?? '').trim());
+
+/**
+ * Como as duas janelas foram comparadas:
+ *  - like_for_like: ambas as janelas têm tipos estruturados (working set vs working set);
+ *  - fallback_untyped: uma ou ambas as janelas são dados legados sem set_type.
+ */
+export type ComparisonBasis = 'like_for_like' | 'fallback_untyped';
+
 
 // ============================================================
 // Constantes de decisão (centralizadas)
@@ -96,10 +153,18 @@ export interface ExercisePerformance {
   exerciseName: string;
   /** Set real com a melhor performance da janela (nunca um set sintético). */
   bestSet?: PerformedSet;
+  /** Séries de trabalho + auxiliares (aquecimento/reconhecimento não contam). */
   totalWorkingSets: number;
+  /** Backoff/drop/rest-pause/myo-reps: contexto, nunca decisão isolada. */
+  auxiliarySets: number;
+  /** Aquecimento/reconhecimento registrados na janela. */
+  preparationSets: number;
   totalReps: number;
   totalVolume: number; // Σ(peso × reps) — métrica AUXILIAR, nunca decisória
   loaded: boolean;     // teve carga externa registrada
+  /** Base da comparação semana a semana (tipos estruturados ou fallback legado). */
+  comparisonBasis: ComparisonBasis;
+
   status: PerformanceStatus;
   /** Só presente quando há set atual e set anterior comparáveis. */
   e1rmDeltaPct?: number | null;
@@ -187,14 +252,29 @@ export const toPerformedSet = (l: ExerciseLog): PerformedSet => {
 
 /**
  * Escolhe UM set real como referência da janela.
+ *
+ * PRIORIDADE DE TIPO (nunca cega):
+ *   working/top set  >  backoff e técnicas (drop/rest-pause/myo-reps)
+ *   > aquecimento/reconhecimento (último recurso).
+ * Uma técnica ou um aquecimento nunca substitui uma série principal como
+ * representação da performance semanal; só entram se não houver nenhuma
+ * série principal registrada.
+ *
+ * Dentro do pool escolhido:
  *  - com carga externa: maior e1RM; empate => maior carga; depois mais reps;
  *    depois melhor RIR (mais reserva com o mesmo trabalho).
  *  - sem carga externa (bodyweight/isométrico): mais repetições.
  * Nunca mistura o peso de um set com as reps de outro.
  */
 export const selectBestSet = (logs: ExerciseLog[]): PerformedSet | undefined => {
-  const sets = logs.map(toPerformedSet).filter((s) => s.reps > 0 || s.weightKg > 0);
-  if (sets.length === 0) return undefined;
+  const usable = logs.filter((l) => (Number(l.reps) || 0) > 0 || (Number(l.weight_kg) || 0) > 0);
+  if (usable.length === 0) return undefined;
+
+  const byRole = (role: SetRole) => usable.filter((l) => setRoleOf(l) === role);
+  const ordered = [byRole('primary'), byRole('auxiliary'), byRole('preparation')];
+  const chosenLogs = ordered.find((group) => group.length > 0)!;
+
+  const sets = chosenLogs.map(toPerformedSet);
   const loaded = sets.filter((s) => s.weightKg > 0);
   const pool = loaded.length > 0 ? loaded : sets;
 
@@ -210,6 +290,7 @@ export const selectBestSet = (logs: ExerciseLog[]): PerformedSet | undefined => 
     return sr > br ? s : best;
   });
 };
+
 
 /** Faixa prescrita de repetições: "8-12", "8 a 12", "10", "12/10/8" (usa min-max). */
 export const parseRepRange = (raw?: string | null): RepRange | null => {
@@ -241,22 +322,34 @@ export const buildExercisePerformance = (
   const bestSet = selectBestSet(currentLogs);
   const previousBestSet = selectBestSet(previousLogs);
 
-  const workingSets = currentLogs.filter((l) => (l.reps ?? 0) > 0 || (l.weight_kg ?? 0) > 0);
-  const totalWorkingSets = workingSets.length;
-  const totalReps = workingSets.reduce((a, l) => a + (Number(l.reps) || 0), 0);
-  const totalVolume = +workingSets
+  const usable = currentLogs.filter((l) => (l.reps ?? 0) > 0 || (l.weight_kg ?? 0) > 0);
+  const primarySets = usable.filter((l) => setRoleOf(l) === 'primary');
+  const auxiliarySets = usable.filter((l) => setRoleOf(l) === 'auxiliary');
+  const preparationSets = usable.filter((l) => setRoleOf(l) === 'preparation');
+  // Técnicas não são perdidas: entram em volume/reps/contagem de trabalho.
+  const countedSets = [...primarySets, ...auxiliarySets];
+  const totalWorkingSets = countedSets.length;
+  const totalReps = countedSets.reduce((a, l) => a + (Number(l.reps) || 0), 0);
+  const totalVolume = +countedSets
     .reduce((a, l) => a + (Number(l.reps) || 0) * (Number(l.weight_kg) || 0), 0)
     .toFixed(1);
   const loaded = !!bestSet && bestSet.weightKg > 0;
+  const comparisonBasis: ComparisonBasis =
+    hasStructuredSetTypes(currentLogs) && (previousLogs.length === 0 || hasStructuredSetTypes(previousLogs))
+      ? 'like_for_like'
+      : 'fallback_untyped';
 
   const base: ExercisePerformance = {
     exerciseName,
     bestSet,
     previousBestSet,
     totalWorkingSets,
+    auxiliarySets: auxiliarySets.length,
+    preparationSets: preparationSets.length,
     totalReps,
     totalVolume,
     loaded,
+    comparisonBasis,
     repRange: repRange ?? null,
     status: 'insufficient_data',
     nextAction: 'review',
@@ -266,6 +359,7 @@ export const buildExercisePerformance = (
     weightDelta: null,
     rirDelta: null,
   };
+
 
   if (!bestSet) {
     return { ...base, status: 'missing', nextAction: 'review', reason: 'Exercício planejado sem registro na semana.' };
@@ -363,7 +457,7 @@ export const buildExercisePerformance = (
     repsDelta,
     weightDelta,
     rirDelta,
-    nextAction: nextActionFor(status, bestSet, repRange ?? null, e1rmDeltaPct),
+    nextAction: nextActionFor(status, bestSet, repRange ?? null, e1rmDeltaPct, previousBestSet),
   };
 };
 
@@ -371,12 +465,22 @@ export const buildExercisePerformance = (
  * Recomendação conservadora para a próxima sessão (double progression).
  * Nunca manda subir carga só porque a semana foi boa: exige topo da faixa
  * (ou RIR com folga real quando não há faixa prescrita).
+ *
+ * TOPO DA FAIXA:
+ *  - RIR >= 2                  => increase_load;
+ *  - RIR <= 1                  => maintain;
+ *  - RIR desconhecido (null)   => política conservadora: só sobe carga se o
+ *    topo já tinha sido atingido na semana anterior com carga igual ou maior
+ *    (topo repetido em sessões comparáveis). Na primeira vez => maintain
+ *    ("confirmar performance"). Ausência de RIR nunca é autorização
+ *    automática para aumentar carga.
  */
 export const nextActionFor = (
   status: PerformanceStatus,
   bestSet: PerformedSet | undefined,
   repRange: RepRange | null,
   e1rmDeltaPct: number | null,
+  previousBestSet?: PerformedSet | null,
 ): NextAction => {
   if (!bestSet || status === 'missing' || status === 'insufficient_data') return 'review';
 
@@ -393,7 +497,12 @@ export const nextActionFor = (
       return status === 'improved' ? 'maintain' : maxedOut ? 'reduce_load' : 'maintain';
     }
     if (bestSet.reps >= repRange.max) {
-      return maxedOut ? 'maintain' : 'increase_load';
+      if (rir != null) return rir >= RIR_ROOM_TO_ADD_LOAD ? 'increase_load' : 'maintain';
+      const repeatedTop =
+        !!previousBestSet &&
+        previousBestSet.reps >= repRange.max &&
+        previousBestSet.weightKg >= bestSet.weightKg;
+      return repeatedTop ? 'increase_load' : 'maintain';
     }
     return 'increase_reps'; // dentro da faixa, ainda abaixo do topo
   }
@@ -402,6 +511,7 @@ export const nextActionFor = (
   if (rir != null && rir >= RIR_ROOM_TO_ADD_LOAD) return 'increase_load';
   return 'maintain';
 };
+
 
 export const NEXT_ACTION_LABEL: Record<NextAction, string> = {
   increase_load: 'Aumentar carga',
@@ -493,9 +603,13 @@ export const buildProgressionReport = (
           performances.push({
             exerciseName: e.exercise,
             totalWorkingSets: 0,
+            auxiliarySets: 0,
+            preparationSets: 0,
             totalReps: 0,
             totalVolume: 0,
             loaded: false,
+            comparisonBasis: 'fallback_untyped',
+
             repRange: rangeByEx.get(key) ?? null,
             status: 'missing',
             nextAction: 'review',
@@ -603,12 +717,23 @@ export const resolveActiveWeek = (
   }
 };
 // ============================================================
-// LIMITAÇÕES DO SCHEMA ATUAL (documentado, sem migration nesta etapa)
+// ESTADO DO SCHEMA E LIMITAÇÕES
 // ------------------------------------------------------------
-//  - exercise_set_logs tem `rpe` (numeric) mas NÃO tem coluna `rir`. Hoje
-//    100% dos registros têm rpe = null, então o modificador de RIR fica
-//    inerte até o app passar a coletar esforço por série. A leitura já está
-//    pronta: `rir` explícito ou derivado de 10 - rpe.
+//  - exercise_set_logs agora tem `rir` (smallint, opcional, 0-10) e
+//    `set_type` (warmup/recognition/work/top/backoff/drop/rest_pause/
+//    myo_reps/technique). Ambos aceitam NULL: registros legados continuam
+//    válidos e NUNCA são preenchidos artificialmente.
+//  - RIR é OPCIONAL: nenhuma série é bloqueada por falta dele e toda a
+//    progressão funciona só com peso + reps. Quando ausente, o topo da faixa
+//    exige topo repetido em semanas comparáveis para liberar increase_load.
+//  - `rpe` por série permanece como fonte secundária (RIR = 10 - RPE) e o
+//    RPE global da sessão (workout_sessions.avg_rpe) NÃO é usado aqui:
+//    esforço de treino inteiro não representa esforço de um exercício.
+//  - Hoje a execução só emite `recognition` e `work`. Backoff, drop-set,
+//    rest-pause e myo-reps ainda não têm UI própria; os valores existem no
+//    contrato para quando forem prescritos/registrados. Enquanto isso, séries
+//    sem tipo (legado) são tratadas como `work` (fallback documentado) e a
+//    comparação é marcada como `fallback_untyped`.
 //  - Não há duração/tempo por série: exercícios isométricos ou por tempo
 //    (prancha, 30s → 40s) não têm dado estruturado e caem em
 //    insufficient_data ou são avaliados só por repetições quando existirem.
@@ -617,3 +742,4 @@ export const resolveActiveWeek = (
 //    aparecem como exercícios diferentes.
 //  - A faixa prescrita vem do texto do plano (reps "8-12" ou setScheme);
 //    quando ausente, nextAction fica conservador (maintain).
+

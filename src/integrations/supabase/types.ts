@@ -1520,9 +1520,11 @@ export type Database = {
           performed_at: string
           phase: string | null
           reps: number | null
+          rir: number | null
           rpe: number | null
           session_id: string | null
           set_number: number
+          set_type: string | null
           source: string | null
           student_id: string
           weight_kg: number | null
@@ -1536,9 +1538,11 @@ export type Database = {
           performed_at?: string
           phase?: string | null
           reps?: number | null
+          rir?: number | null
           rpe?: number | null
           session_id?: string | null
           set_number: number
+          set_type?: string | null
           source?: string | null
           student_id: string
           weight_kg?: number | null
@@ -1552,9 +1556,11 @@ export type Database = {
           performed_at?: string
           phase?: string | null
           reps?: number | null
+          rir?: number | null
           rpe?: number | null
           session_id?: string | null
           set_number?: number
+          set_type?: string | null
           source?: string | null
           student_id?: string
           weight_kg?: number | null

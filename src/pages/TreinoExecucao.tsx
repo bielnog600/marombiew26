@@ -67,7 +67,13 @@ interface ExerciseSet {
   reps: string;
   weight: string;
   completed: boolean;
+  /**
+   * RIR (reps na reserva) informado pelo aluno para ESTA série.
+   * Totalmente opcional: nunca bloqueia o registro da série. Vazio => null.
+   */
+  rir?: string;
 }
+
 
 interface ExerciseDBData {
   id?: string;
@@ -352,7 +358,12 @@ const TreinoExecucao = () => {
     plannedSets: exercises.map((ex: any) =>
       buildSetPlan(ex?.series, ex?.series2, ex?.reps, ex?.setScheme).length || 3,
     ),
+    /** Tipo estrutural planejado de cada série (recognition | work). */
+    plannedSetTypes: exercises.map((ex: any) =>
+      buildSetPlan(ex?.series, ex?.series2, ex?.reps, ex?.setScheme).map((p) => p.type),
+    ),
   }), [exercises]);
+
 
   const formatElapsed = (totalSec: number) => {
     const h = Math.floor(totalSec / 3600);
@@ -736,7 +747,7 @@ const TreinoExecucao = () => {
     })();
   }, [currentIndex, totalSeries, exercise, user, lastLogsByExercise, loadedLogsForIndex]);
 
-  const updateSet = (setIndex: number, field: 'reps' | 'weight', value: string) => {
+  const updateSet = (setIndex: number, field: 'reps' | 'weight' | 'rir', value: string) => {
     setSets((prev) => {
       const current = [...(prev[currentIndex] || [])];
       current[setIndex] = { ...current[setIndex], [field]: value };
@@ -1172,18 +1183,47 @@ const TreinoExecucao = () => {
             const isRecognition = planned?.type === 'recognition';
             const isNextPending = i === nextPendingIndex;
             return (
-              <div key={i} className={`grid grid-cols-[36px_1fr_1fr_44px] gap-1.5 items-center p-2 rounded-lg transition-colors ${set.completed ? 'bg-primary/10 border border-primary/30' : isRecognition ? 'bg-accent/10 border border-accent/30' : 'bg-secondary/50'}`}>
-                <div className="flex flex-col items-center justify-center">
-                  <span className="text-sm font-bold text-center text-foreground leading-none">{i + 1}</span>
-                  {isRecognition && <span className="text-[8px] uppercase tracking-wider text-accent font-semibold mt-0.5">Rec</span>}
+              <div key={i} className={`rounded-lg transition-colors ${set.completed ? 'bg-primary/10 border border-primary/30' : isRecognition ? 'bg-accent/10 border border-accent/30' : 'bg-secondary/50'}`}>
+                <div className="grid grid-cols-[36px_1fr_1fr_44px] gap-1.5 items-center p-2">
+                  <div className="flex flex-col items-center justify-center">
+                    <span className="text-sm font-bold text-center text-foreground leading-none">{i + 1}</span>
+                    {isRecognition && <span className="text-[8px] uppercase tracking-wider text-accent font-semibold mt-0.5">Rec</span>}
+                  </div>
+                  <Input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} placeholder={planned?.reps || '10'} className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
+                  <Input type="text" inputMode="decimal" value={set.weight} onChange={(e) => updateSet(i, 'weight', e.target.value)} placeholder="0" className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
+                  <Button size="icon" variant={set.completed ? 'default' : 'outline'} className={`h-9 w-9 mx-auto rounded-full ${isNextPending ? 'animate-pulse-glow' : ''}`} onClick={() => toggleSetComplete(i)}>
+                    <Check className="h-4 w-4" />
+                  </Button>
                 </div>
-                <Input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} placeholder={planned?.reps || '10'} className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
-                <Input type="text" inputMode="decimal" value={set.weight} onChange={(e) => updateSet(i, 'weight', e.target.value)} placeholder="0" className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
-                <Button size="icon" variant={set.completed ? 'default' : 'outline'} className={`h-9 w-9 mx-auto rounded-full ${isNextPending ? 'animate-pulse-glow' : ''}`} onClick={() => toggleSetComplete(i)}>
-                  <Check className="h-4 w-4" />
-                </Button>
+                {/* RIR opcional — só em séries de trabalho e só depois de concluir.
+                    Um toque registra, outro toque limpa. Nunca obrigatório. */}
+                {!isRecognition && set.completed && (
+                  <div className="flex items-center gap-1.5 px-2 pb-2 -mt-0.5 flex-wrap">
+                    <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">
+                      RIR (opcional)
+                    </span>
+                    {['0', '1', '2', '3', '4'].map((v) => {
+                      const active = (set.rir ?? '') === v;
+                      return (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => updateSet(i, 'rir', active ? '' : v)}
+                          className={`h-6 min-w-[26px] px-1.5 rounded-md text-[11px] font-bold border transition-colors ${
+                            active
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-background/40 text-muted-foreground border-border/50'
+                          }`}
+                        >
+                          {v === '4' ? '4+' : v}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
+
             });
           })()}
         </div>
@@ -1260,10 +1300,14 @@ const TreinoExecucao = () => {
                const useVariation = variationPrefs[normalizeExerciseKey(ex.exercise)] ?? loadVariationPref(user?.id, ex.exercise);
                const exName = useVariation && ex.variation ? ex.variation : (ex.exercise || '');
               const muscle = exerciseDB.find((d) => d.nome.toLowerCase() === exName.toLowerCase())?.grupo_muscular || null;
+              // Tipo estrutural da série vem do plano (reconhecimento vs trabalho).
+              const plannedTypes = buildSetPlan(ex?.series, ex?.series2, ex?.reps, ex?.setScheme).map((p) => p.type);
               arr.forEach((s, i) => {
                 if (!s.completed) return;
                 const reps = parseInt(s.reps) || 0;
                 const weight = parseFloat(s.weight.replace(',', '.')) || 0;
+                const rirRaw = (s.rir ?? '').trim();
+                const rirNum = rirRaw === '' ? null : Number(rirRaw);
                 totalSets += 1;
                 totalVolumeKg += reps * weight;
                 setLogRows.push({
@@ -1274,11 +1318,15 @@ const TreinoExecucao = () => {
                   reps: reps || null,
                   weight_kg: weight || null,
                   rpe: null,
+                  // RIR é opcional: ausência grava null (desconhecido), nunca 0.
+                  rir: rirNum != null && Number.isFinite(rirNum) ? rirNum : null,
+                  set_type: plannedTypes[i] === 'recognition' ? 'recognition' : 'work',
                   phase: phase ?? null,
                   day_name: dayName,
                 });
               });
             });
+
           }
 
           try {
