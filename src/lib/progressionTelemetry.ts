@@ -100,6 +100,7 @@ export interface ProgressionExecutionOutcome {
   source?: string;
   executedBy?: string;
   phase?: string | null;
+  performed_at?: string;
 }
 
 export interface TelemetryLog {
