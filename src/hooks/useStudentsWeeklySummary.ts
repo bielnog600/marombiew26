@@ -183,7 +183,7 @@ export const useStudentsWeeklySummary = () => {
       // 4b. sessões estruturadas da janela de aderência (presença real)
       const { data: sessionRows } = await supabase
         .from('workout_sessions')
-        .select('student_id, status, completed_at, started_at')
+        .select('student_id, status, completed_at, started_at, created_at')
         .in('student_id', ids)
         .in('status', ['completed', 'partial', 'abandoned'])
         .gte('completed_at', adhStart.toISOString())

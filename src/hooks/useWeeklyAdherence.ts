@@ -47,7 +47,7 @@ export const useWeeklyAdherence = (plan: PlanLike | null | undefined) => {
             .lt('performed_at', end.toISOString()),
           supabase
             .from('workout_sessions')
-            .select('status, completed_at, started_at')
+            .select('status, completed_at, started_at, created_at')
             .eq('student_id', plan.student_id)
             .in('status', ['completed', 'partial', 'abandoned'])
             .gte('completed_at', start.toISOString())
