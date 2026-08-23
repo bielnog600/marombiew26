@@ -919,8 +919,16 @@ serve(async (req) => {
             "Respeite EXATAMENTE o shape JSON solicitado para dailyAdjustments (7 dias, target_kcal correto, instructions coerentes)."
           );
         }
+        const forceMenuVariation =
+          intent === "regenerate" ||
+          (intent === "new" &&
+            (similarity.score > threshold ||
+              isPortionOnly ||
+              qOnly > 0.3 ||
+              primarySourceTooRepetitive));
+              
         const second = await callModel(
-          dietVariationPrompt(intensity, historySummary, retryParts.join(" "), true),
+          dietVariationPrompt(intensity, historySummary, retryParts.join(" "), forceMenuVariation),
           AI_MODELS.fallback,
           fallbackReason || "retry"
         );
