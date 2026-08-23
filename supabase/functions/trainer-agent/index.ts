@@ -910,10 +910,12 @@ REGRAS DA TABELA
 
 
 
-========================================
+const TRAINER_RIR_PROMPT = `
 REGRA CRÍTICA — REPETIÇÕES vs RIR (LEIA COM ATENÇÃO MÁXIMA)
-========================================
+`;
 
+
+const TRAINER_RIR_RULES = `
 REPETIÇÕES e RIR são CONCEITOS DIFERENTES e NUNCA devem ser misturados.
 
 🔹 COLUNA "REPETIÇÕES" — SOMENTE reps ou faixa de reps
@@ -928,6 +930,8 @@ REPETIÇÕES e RIR são CONCEITOS DIFERENTES e NUNCA devem ser misturados.
 - ❌ NUNCA escreva no campo RIR: "a 8", "a 10", "8 a 10", "até 10", "10", "12", "15" (esses são valores de REPETIÇÕES, não de RIR).
 - ❌ NUNCA use o RIR para indicar faixa de repetições. Faixa de reps SEMPRE vai no campo REPETIÇÕES.
 - ✅ Se você não tem certeza do RIR a prescrever, deixe VAZIO. Não invente.
+`;
+
 
 EXEMPLOS CORRETOS:
 | EXERCÍCIO | SÉRIE | REPETIÇÕES | RIR |
