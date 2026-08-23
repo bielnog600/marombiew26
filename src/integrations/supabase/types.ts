@@ -2514,6 +2514,53 @@ export type Database = {
         }
         Relationships: []
       }
+      student_load_increments: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          exercise_id: string | null
+          exercise_key: string
+          exercise_name: string
+          id: string
+          increment_kg: number
+          note: string | null
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          exercise_id?: string | null
+          exercise_key: string
+          exercise_name: string
+          id?: string
+          increment_kg: number
+          note?: string | null
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          exercise_id?: string | null
+          exercise_key?: string
+          exercise_name?: string
+          id?: string
+          increment_kg?: number
+          note?: string | null
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_load_increments_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercises"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       students_profile: {
         Row: {
           altura: number | null

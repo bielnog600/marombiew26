@@ -209,6 +209,7 @@ describe('quantitativeProgression', () => {
       log(70, 10),
       log(72.5, 10),
       log(75, 9),
+      log(77.5, 8),
     ]);
     expect(inc.incrementKg).toBe(2.5);
   });

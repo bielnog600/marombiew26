@@ -33,6 +33,15 @@ import type {
 } from './weeklyProgression';
 import { setRoleOf } from './weeklyProgression';
 import type { TrainingPhase } from './trainingPhase';
+import {
+  inferIncrementFromTransitions,
+  resolveLoadIncrement,
+  MAX_INFERRED_INCREMENT_KG as MAX_INFERRED_KG,
+  MIN_INCREMENT_KG,
+  MIN_TRANSITIONS_FOR_INFERENCE,
+  type IncrementSource,
+  type ResolvedIncrement,
+} from './loadIncrement';
 
 // ------------------------------------------------------------------
 // Limites conservadores centralizados
@@ -47,14 +56,14 @@ export const ABSOLUTE_LOAD_DECREASE_MAX_PCT = 0.10;
 /** Regressão de e1RM a partir da qual aceitamos reduzir mais de um incremento. */
 export const STRONG_REGRESSION_PCT = 0.15;
 /** Incrementos plausíveis para inferência a partir do histórico (kg). */
-export const MIN_INFERRED_INCREMENT_KG = 0.5;
-export const MAX_INFERRED_INCREMENT_KG = 10;
-/** Mínimo de cargas distintas no histórico para inferir um incremento. */
-export const MIN_HISTORY_LOADS_FOR_INFERENCE = 3;
+export const MIN_INFERRED_INCREMENT_KG = MIN_INCREMENT_KG;
+export const MAX_INFERRED_INCREMENT_KG = MAX_INFERRED_KG;
+/** Mínimo de transições reais de carga para inferir um incremento. */
+export const MIN_HISTORY_LOADS_FOR_INFERENCE = MIN_TRANSITIONS_FOR_INFERENCE;
 
 export type RecommendationConfidence = 'high' | 'medium' | 'low';
 
-export type IncrementSource = 'configured' | 'inferred_history' | 'unknown';
+export type { IncrementSource };
 
 export type QuantitativeAction =
   | NextAction
@@ -65,7 +74,9 @@ export interface EquipmentIncrement {
   source: IncrementSource;
   confidence: RecommendationConfidence;
   reason: string;
+  evidence?: ResolvedIncrement['evidence'];
 }
+
 
 export interface QuantitativeRecommendation {
   exerciseName: string;
@@ -84,6 +95,8 @@ export interface QuantitativeRecommendation {
   repRange: RepRange | null;
   incrementKg: number | null;
   incrementSource: IncrementSource;
+  /** Confiança NA FONTE do incremento (independe da segurança do salto). */
+  incrementConfidence: RecommendationConfidence;
   relativeChangePct: number | null;
   confidence: RecommendationConfidence;
   /** true quando não há número confiável: só orientação em texto. */
@@ -116,80 +129,31 @@ export const workingSetsOf = (logs: ExerciseLog[] = []): ExerciseLog[] =>
     (l) => setRoleOf(l) !== 'preparation' && ((l.reps ?? 0) > 0 || (l.weight_kg ?? 0) > 0),
   );
 
-/** Apenas séries principais com carga — base para inferência de incremento. */
-const primaryLoads = (logs: ExerciseLog[] = []): number[] =>
-  logs
-    .filter((l) => setRoleOf(l) === 'primary' && (Number(l.weight_kg) || 0) > 0)
-    .map((l) => Number(l.weight_kg));
+const toEquipmentIncrement = (r: ResolvedIncrement): EquipmentIncrement => ({
+  incrementKg: r.incrementKg,
+  source: r.source,
+  confidence: r.confidence,
+  reason: r.evidence.reason,
+  evidence: r.evidence,
+});
 
 /**
- * Inferência de incremento a partir do histórico.
- * Só aceita quando o padrão é consistente: todas as diferenças entre cargas
- * distintas são múltiplas de um mesmo passo plausível. Warmups, drops e
- * séries auxiliares são ignorados (nunca definem incremento).
+ * Inferência de incremento a partir do histórico — delegada a
+ * `loadIncrement.inferIncrementFromTransitions`, que olha para TRANSIÇÕES
+ * reais de carga (não para a divisibilidade das cargas absolutas).
  */
-export const inferIncrementFromHistory = (logs: ExerciseLog[] = []): EquipmentIncrement => {
-  const loads = Array.from(new Set(primaryLoads(logs).map((w) => round2(w)))).sort((a, b) => a - b);
-  if (loads.length < MIN_HISTORY_LOADS_FOR_INFERENCE) {
-    return {
-      incrementKg: null,
-      source: 'unknown',
-      confidence: 'low',
-      reason: 'Histórico insuficiente para inferir o incremento do equipamento.',
-    };
-  }
+export const inferIncrementFromHistory = (logs: ExerciseLog[] = []): EquipmentIncrement =>
+  toEquipmentIncrement(inferIncrementFromTransitions(logs));
 
-  const diffs = loads.slice(1).map((w, i) => round2(w - loads[i])).filter((d) => d > 0);
-  if (diffs.length < 2) {
-    return {
-      incrementKg: null,
-      source: 'unknown',
-      confidence: 'low',
-      reason: 'Histórico insuficiente para inferir o incremento do equipamento.',
-    };
-  }
+/** Hierarquia: configurado (high) > histórico (medium) > desconhecido (low). */
+export const resolveIncrement = (input: QuantitativeInput): EquipmentIncrement =>
+  toEquipmentIncrement(
+    resolveLoadIncrement({
+      configuredIncrementKg: input.configuredIncrementKg ?? null,
+      historicalWorkingSets: [...(input.historyLogs ?? []), ...(input.recentLogs ?? [])],
+    }),
+  );
 
-  const step = Math.min(...diffs);
-  if (step < MIN_INFERRED_INCREMENT_KG || step > MAX_INFERRED_INCREMENT_KG) {
-    return {
-      incrementKg: null,
-      source: 'unknown',
-      confidence: 'low',
-      reason: 'Diferenças de carga fora do padrão plausível de incremento.',
-    };
-  }
-
-  const consistent = diffs.every((d) => Math.abs(d / step - Math.round(d / step)) < 0.02);
-  if (!consistent) {
-    return {
-      incrementKg: null,
-      source: 'unknown',
-      confidence: 'low',
-      reason: 'Histórico inconsistente (cargas não múltiplas de um mesmo passo).',
-    };
-  }
-
-  return {
-    incrementKg: step,
-    source: 'inferred_history',
-    confidence: 'medium',
-    reason: `Incremento de ${step} kg inferido de histórico consistente.`,
-  };
-};
-
-export const resolveIncrement = (input: QuantitativeInput): EquipmentIncrement => {
-  const configured = input.configuredIncrementKg;
-  if (typeof configured === 'number' && configured > 0) {
-    return {
-      incrementKg: round2(configured),
-      source: 'configured',
-      confidence: 'high',
-      reason: `Incremento configurado de ${round2(configured)} kg.`,
-    };
-  }
-  const pool = [...(input.historyLogs ?? []), ...(input.recentLogs ?? [])];
-  return inferIncrementFromHistory(pool);
-};
 
 /**
  * Esquemas suportados com alta confiança: faixa simples ("8-12") ou alvo
@@ -228,6 +192,7 @@ const qualitative = (
   repRange,
   incrementKg: increment.incrementKg,
   incrementSource: increment.source,
+  incrementConfidence: increment.confidence,
   relativeChangePct: null,
   confidence: 'low',
   qualitative: true,
@@ -281,6 +246,7 @@ export const buildQuantitativeProgressionRecommendation = (
       repRange,
       incrementKg: increment.incrementKg,
       incrementSource: increment.source,
+  incrementConfidence: increment.confidence,
       relativeChangePct: 0,
       confidence: 'high',
       qualitative: false,
@@ -316,6 +282,7 @@ export const buildQuantitativeProgressionRecommendation = (
         repRange,
         incrementKg: null,
         incrementSource: increment.source,
+  incrementConfidence: increment.confidence,
         relativeChangePct: null,
         confidence: 'high',
         qualitative: false,
@@ -373,7 +340,7 @@ export const buildQuantitativeProgressionRecommendation = (
         ...qualitative(
           p,
           'manual_increment_required',
-          'incremento_excessivo',
+          'available_increment_too_large',
           [
             `O próximo incremento disponível (${increment.incrementKg} kg) representa ${(rel * 100).toFixed(1)}% de aumento, acima do limite de ${ABSOLUTE_LOAD_INCREASE_MAX_PCT * 100}%.`,
             'Mantenha a carga e progrida em repetições/execução, ou ajuste manualmente.',
@@ -406,6 +373,7 @@ export const buildQuantitativeProgressionRecommendation = (
       repRange,
       incrementKg: increment.incrementKg,
       incrementSource: increment.source,
+  incrementConfidence: increment.confidence,
       relativeChangePct: rel,
       confidence: increment.confidence,
       qualitative: false,
@@ -431,6 +399,7 @@ export const buildQuantitativeProgressionRecommendation = (
       repRange,
       incrementKg: increment.incrementKg,
       incrementSource: increment.source,
+  incrementConfidence: increment.confidence,
       relativeChangePct: 0,
       confidence: 'high',
       qualitative: false,
@@ -489,6 +458,7 @@ export const buildQuantitativeProgressionRecommendation = (
       repRange,
       incrementKg: increment.incrementKg,
       incrementSource: increment.source,
+  incrementConfidence: increment.confidence,
       relativeChangePct: rel,
       confidence: increment.confidence,
       qualitative: false,
@@ -514,6 +484,7 @@ export const buildQuantitativeProgressionRecommendation = (
     repRange,
     incrementKg: increment.incrementKg,
     incrementSource: increment.source,
+  incrementConfidence: increment.confidence,
     relativeChangePct: 0,
     confidence: 'high',
     qualitative: false,
