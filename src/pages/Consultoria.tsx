@@ -19,7 +19,8 @@ import {
   Video,
   Bell,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  ArrowUpDown
 } from 'lucide-react';
 import { differenceInDays, startOfWeek, format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
@@ -75,6 +76,8 @@ const Consultoria: React.FC = () => {
   const [alertFilter, setAlertFilter] = useState<FollowupFilter>('hoje');
   const [plans, setPlans] = useState<any[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
+  const [dietSort, setDietSort] = useState<'name' | 'overdue'>('name');
+  const [workoutSort, setWorkoutSort] = useState<'name' | 'overdue'>('name');
 
   const { summaries: weeklySummaries = [], loading: weeklyLoading, reload: reloadWeekly } = useStudentsWeeklySummary();
   const { alerts: behavioralAlerts, loading: behavioralLoading, generate: generateBehavioral, generating: behavioralGenerating, updateStatus: updateBehavioralStatus, reload: refreshBehavioral } = useBehavioralAlerts();
@@ -353,10 +356,32 @@ const Consultoria: React.FC = () => {
           </TabsContent>
 
           <TabsContent value="dietas" className="mt-6 space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Ciclo de Dietas (45 dias)</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Ciclo de Dietas (45 dias)</h3>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-7 text-[10px] gap-1.5"
+                onClick={() => setDietSort(prev => prev === 'name' ? 'overdue' : 'name')}
+              >
+                <ArrowUpDown className="h-3 w-3" />
+                {dietSort === 'name' ? 'Ordenar por Vencimento' : 'Ordenar por Nome'}
+              </Button>
+            </div>
             <div className="space-y-2">
               {loadingPlans ? <Skeleton className="h-20 w-full" /> : 
-                weeklySummaries.filter(s => s.active).map(s => {
+                weeklySummaries
+                  .filter(s => s.active)
+                  .sort((a, b) => {
+                    if (dietSort === 'name') return a.studentName.localeCompare(b.studentName);
+                    const da = studentPlansMap.get(a.studentId)?.latestDieta;
+                    const db = studentPlansMap.get(b.studentId)?.latestDieta;
+                    const cycleA = getCycleInfo(da || null);
+                    const cycleB = getCycleInfo(db || null);
+                    // More overdue first (higher days since last plan)
+                    return cycleB.days - cycleA.days;
+                  })
+                  .map(s => {
 
                   const d = studentPlansMap.get(s.studentId);
                   if (!d?.latestDieta) return null;
@@ -383,10 +408,31 @@ const Consultoria: React.FC = () => {
           </TabsContent>
 
           <TabsContent value="treinos" className="mt-6 space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Ciclo de Treinos (45 dias)</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Ciclo de Treinos (45 dias)</h3>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-7 text-[10px] gap-1.5"
+                onClick={() => setWorkoutSort(prev => prev === 'name' ? 'overdue' : 'name')}
+              >
+                <ArrowUpDown className="h-3 w-3" />
+                {workoutSort === 'name' ? 'Ordenar por Vencimento' : 'Ordenar por Nome'}
+              </Button>
+            </div>
             <div className="space-y-2">
               {loadingPlans ? <Skeleton className="h-20 w-full" /> : 
-                weeklySummaries.filter(s => s.active).map(s => {
+                weeklySummaries
+                  .filter(s => s.active)
+                  .sort((a, b) => {
+                    if (workoutSort === 'name') return a.studentName.localeCompare(b.studentName);
+                    const da = studentPlansMap.get(a.studentId)?.latestTreino;
+                    const db = studentPlansMap.get(b.studentId)?.latestTreino;
+                    const cycleA = getCycleInfo(da || null);
+                    const cycleB = getCycleInfo(db || null);
+                    return cycleB.days - cycleA.days;
+                  })
+                  .map(s => {
                   const d = studentPlansMap.get(s.studentId);
                   if (!d?.latestTreino) return null;
                   const cycle = getCycleInfo(d.latestTreino);
