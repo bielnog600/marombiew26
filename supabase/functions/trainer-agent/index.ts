@@ -493,12 +493,17 @@ async function generateStructuredWorkoutWithVariation(args: {
   const intensity = args.intensity;
   const variationBlock = workoutVariationPrompt(intensity, historySummary);
 
+  let fallbackReason: string | null = null;
+  let fallbackReasons: string[] = [];
+
   // 1st attempt
   const first = await callStructuredModel({
     apiKey: args.apiKey,
     systemPrompt: args.systemPrompt,
     messages: args.messages,
     extraSystem: variationBlock,
+    modelToUse: AI_MODELS.primary,
+    reason: "first_attempt"
   });
   if (!first.ok) return first.response;
 
@@ -507,20 +512,42 @@ async function generateStructuredWorkoutWithVariation(args: {
     .filter((j) => j && typeof j === "object") as any[];
 
   let similarity = computeWorkoutSimilarity(first.data, historyJsons);
+  const redundancy = validateWorkoutRedundancy(first.data);
   const threshold = SIMILARITY_THRESHOLDS[intensity];
   let finalPlan = first.data;
   let regenerated = false;
   let warning: string | null = null;
 
-  if (similarity.score > threshold && historyJsons.length > 0) {
+  const needsRetry = (similarity.score > threshold && historyJsons.length > 0) || !redundancy.ok;
+
+  if (needsRetry) {
+    if (similarity.score > threshold) {
+      fallbackReason = "high_similarity";
+      fallbackReasons.push("high_similarity");
+    }
+    if (!redundancy.ok) {
+      fallbackReason = fallbackReason || "internal_redundancy";
+      fallbackReasons.push("internal_redundancy");
+    }
+
     const overlapList = similarity.worstOverlap.length
       ? `Exercícios que se repetem do plano anterior (TROQUE OU VARIE A MAIORIA): ${similarity.worstOverlap.join(", ")}.`
       : "Muitos exercícios coincidem com o plano anterior.";
-    const retryNotes = [
+    
+    let retryNotesArr = [
       overlapList,
       "Reduza coincidências para no máximo ~40% dos exercícios.",
       "Mantenha apenas compostos principais essenciais; substitua acessórios e mobilidade.",
-    ].join(" ");
+    ];
+
+    if (!redundancy.ok) {
+      const redDetails = redundancy.issues
+        .map(i => `${i.day}: ${i.exercises.join(", ")} (${i.family})`)
+        .join(" | ");
+      retryNotesArr.push(`🚨 REDUNDÂNCIA INTERNA DETECTADA: ${redDetails}. Substitua exercícios funcionalmente equivalentes por variações de pegada, ângulo ou equipamentos diferentes no mesmo dia.`);
+    }
+
+    const retryNotes = retryNotesArr.join(" ");
     const retryBlock = workoutVariationPrompt(intensity, historySummary, retryNotes);
 
     const second = await callStructuredModel({
@@ -528,11 +555,16 @@ async function generateStructuredWorkoutWithVariation(args: {
       systemPrompt: args.systemPrompt,
       messages: args.messages,
       extraSystem: retryBlock,
+      modelToUse: AI_MODELS.fallback,
+      reason: fallbackReason || "retry"
     });
     if (second.ok) {
       const sim2 = computeWorkoutSimilarity(second.data, historyJsons);
-      // Keep the more-different plan
-      if (sim2.score <= similarity.score) {
+      const red2 = validateWorkoutRedundancy(second.data);
+      // Hierarquia: SEGURANÇA (assumida) > SCHEMA VÁLIDO > REDUNDÂNCIA > SIMILARIDADE.
+      // Escolher o segundo se ele corrige a redundância ou melhora significativamente a similaridade.
+      const fixedRedundancy = !redundancy.ok && red2.ok;
+      if (fixedRedundancy || (red2.ok && sim2.score <= similarity.score)) {
         finalPlan = second.data;
         similarity = sim2;
       }
