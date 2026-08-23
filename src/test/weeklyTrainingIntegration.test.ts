@@ -146,7 +146,19 @@ describe('decisão combinada aderência + performance', () => {
   });
 
   it('5. baixa confiança de performance não bloqueia decisão por aderência', () => {
-    const r = build({ exercises: ['SUPINO RETO'], currentWeights: [60], prevWeights: [100] });
+    // 2 exercícios avaliados, só 1 comparável (o outro não tem semana anterior).
+    const two = ['SUPINO RETO', 'REMADA'];
+    const logs: RawSetLog[] = [];
+    two.forEach((e) => logs.push(...sets(e, 100, 10, dayIn(W.current, 1), 'semana_1')));
+    logs.push(...sets('SUPINO RETO', 100, 10, dayIn(W.previous, 1), 'deload'));
+    const r = buildWeeklyTrainingReport({
+      plannedPhase: 'semana_1',
+      plannedDays: [{ day: 'DIA 1', exercises: two.map((e) => ({ exercise: e, series: '3', reps: '8-12' })) }] as any,
+      windows: W,
+      logs,
+      sessions: sessions(W.current, 1),
+      planId: 'plan-1',
+    });
     expect(r.performance.confidence).toBe('low');
     expect(r.resolution.reasons).toContain('performance_low_confidence');
     expect(r.resolution.decision).toBe('advance');
