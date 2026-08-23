@@ -24,6 +24,9 @@ import { Settings2, Info, BarChart3, Timer, Camera, Maximize2 } from 'lucide-rea
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { fetchWithCache, getCached, setCache } from '@/lib/offlineCache';
 import { useRestTimer } from '@/hooks/useRestTimer';
+import { useSessionProgression } from '@/hooks/useSessionProgression';
+import { getRecommendationFor, type ProgressionSnapshot } from '@/lib/sessionProgression';
+import { ProgressionHintCard } from '@/components/training/ProgressionHintCard';
 
 
 import {
@@ -207,6 +210,8 @@ const TreinoExecucao = () => {
   const [showAdjust, setShowAdjust] = useState(false);
   const [showVideoCapture, setShowVideoCapture] = useState(false);
   const [showLoadHistory, setShowLoadHistory] = useState(false);
+  // Snapshot consultivo de progressão restaurado do session_state (retomada).
+  const [restoredSnapshot, setRestoredSnapshot] = useState<ProgressionSnapshot | null>(null);
   const currentPhase = phase ?? getPhaseByMonthDay();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -253,7 +258,12 @@ const TreinoExecucao = () => {
           const idxs = new Set<number>(Object.keys(state.sets).map((k) => Number(k)));
           setLoadedLogsForIndex(idxs);
         }
+        // Retomada: reaproveita o snapshot já calculado (nunca recalcula).
+        if (state?.progressionRecommendations) {
+          setRestoredSnapshot(state.progressionRecommendations as ProgressionSnapshot);
+        }
       };
+
 
       // 0. Resolve sessões antigas que ficaram abertas (aluno não finalizou).
       await resolveStaleWorkoutSessionsThrottled(user.id, true);
@@ -351,6 +361,16 @@ const TreinoExecucao = () => {
     })();
   }, [user, dayName, phase, exercises.length, setLocalActiveSession, activeSession]);
 
+  // Recomendações consultivas da sessão (congeladas no início; nunca
+  // recalculadas durante o treino e nunca gravadas em exercise_set_logs).
+  const { snapshot: progressionSnapshot } = useSessionProgression({
+    studentId: user?.id ?? null,
+    sessionId,
+    exercises,
+    phase: phase ?? null,
+    restoredSnapshot,
+  });
+
   // Metadados do treino gravados no session_state: permitem classificar e
   // recuperar as séries mesmo quando o aluno não finaliza manualmente.
   const sessionMeta = useMemo(() => ({
@@ -362,7 +382,8 @@ const TreinoExecucao = () => {
     plannedSetTypes: exercises.map((ex: any) =>
       buildSetPlan(ex?.series, ex?.series2, ex?.reps, ex?.setScheme).map((p) => p.type),
     ),
-  }), [exercises]);
+    ...(progressionSnapshot ? { progressionRecommendations: progressionSnapshot } : {}),
+  }), [exercises, progressionSnapshot]);
 
 
   const formatElapsed = (totalSec: number) => {
@@ -1168,6 +1189,10 @@ const TreinoExecucao = () => {
             </button>
           )}
         </div>
+
+        <ProgressionHintCard
+          recommendation={getRecommendationFor(progressionSnapshot, selectedExerciseName)}
+        />
 
         <div className="space-y-2">
           <div className="grid grid-cols-[36px_1fr_1fr_44px] gap-1.5 px-2">
