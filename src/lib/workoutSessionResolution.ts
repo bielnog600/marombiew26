@@ -19,7 +19,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
-import { isNoLoadExercise } from './exerciseLoadType';
+import { countsTowardWorkoutCompletion } from './exerciseLoadType';
 
 export type WorkoutSessionStatus = 'in_progress' | 'completed' | 'partial' | 'abandoned';
 export type CompletionSource = 'manual' | 'automatic';
@@ -143,8 +143,9 @@ export const summarizeSessionState = (
   const keys = Object.keys(sets);
 
   const plannedExercisesRaw = totalExercises || names.length || keys.length;
-  // Exercícios de mobilidade/alongamento/ativação não entram na conta de aderência.
-  const excluded = names.filter((n) => n && isNoLoadExercise(n)).length;
+  // Só preparo/recuperação (mobilidade, alongamento, aquecimento, ativação) sai
+  // da conta. Peso corporal (barra fixa, flexão, prancha, abdominal) conta.
+  const excluded = names.filter((n) => n && !countsTowardWorkoutCompletion(n)).length;
   const plannedExercises = Math.max(0, plannedExercisesRaw - excluded);
 
   let executedExercises = 0;
@@ -155,7 +156,7 @@ export const summarizeSessionState = (
   for (const key of keys) {
     const idx = Number(key);
     const name = names[idx];
-    if (name && isNoLoadExercise(name)) continue;
+    if (name && !countsTowardWorkoutCompletion(name)) continue;
     const arr = Array.isArray(sets[key]) ? sets[key] : [];
     const done = arr.filter((s) => s?.completed).length;
     visitedPlannedSets += arr.length;
@@ -166,7 +167,7 @@ export const summarizeSessionState = (
 
   const declaredPlanned = (state?.plannedSets ?? []).reduce((acc, n, i) => {
     const name = names[i];
-    if (name && isNoLoadExercise(name)) return acc;
+    if (name && !countsTowardWorkoutCompletion(name)) return acc;
     return acc + (Number(n) || 0);
   }, 0);
 
@@ -200,11 +201,13 @@ const flushSessionStateLogs = async (
   const sets = state?.sets ?? {};
   if (!names.length) return { totalSets, totalVolumeKg };
 
+  // 1ª barreira (evita tráfego desnecessário): sessão já tem logs?
   const { count } = await supabase
     .from('exercise_set_logs')
     .select('id', { count: 'exact', head: true })
-    .eq('session_id', row.id);
-  if ((count ?? 0) > 0) return { totalSets, totalVolumeKg };
+    .eq('session_id', row.id)
+    .eq('student_id', row.student_id);
+  const alreadyLogged = (count ?? 0) > 0;
 
   const rows: any[] = [];
   for (const key of Object.keys(sets)) {
@@ -234,8 +237,17 @@ const flushSessionStateLogs = async (
     });
   }
 
-  if (rows.length > 0) {
-    await supabase.from('exercise_set_logs').insert(rows);
+  if (rows.length > 0 && !alreadyLogged) {
+    // 2ª barreira (nível de dados): UNIQUE
+    // (session_id, student_id, exercise_name, set_number) + upsert que ignora
+    // duplicados. Retries, resolver repetido e finalização manual posterior
+    // nunca criam a mesma série duas vezes.
+    await supabase
+      .from('exercise_set_logs')
+      .upsert(rows, {
+        onConflict: 'session_id,student_id,exercise_name,set_number',
+        ignoreDuplicates: true,
+      });
   }
   return { totalSets, totalVolumeKg };
 };
