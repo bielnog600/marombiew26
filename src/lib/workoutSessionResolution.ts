@@ -187,30 +187,32 @@ export const summarizeSessionState = (
 };
 
 /**
- * Persiste no exercise_set_logs as séries concluídas que ficaram apenas no
- * session_state (aluno nunca clicou em Finalizar). Idempotente: só grava se a
- * sessão ainda não tiver nenhum log.
+ * Monta as linhas de exercise_set_logs a partir das séries concluídas no
+ * session_state. Função pura (testável sem rede).
+ *
+ * IDENTIDADE DA SÉRIE: (session_id, student_id, exercise_name, set_number).
+ * O session_state guarda os exercícios por índice de ocorrência, mas o log é
+ * gravado por nome normalizado — a mesma identidade usada pela execução ao vivo
+ * (TreinoExecucao) e pela planilha do admin (TrainerLogSheet). Se um mesmo
+ * exercício aparecesse duas vezes no mesmo dia de treino (bloco A e bloco B),
+ * as ocorrências colidiriam nessa chave. Hoje não existe `exercise_instance_id`
+ * / `workout_day_exercise_id` no schema (o plano é JSON e a sessão só guarda
+ * nomes), então essa garantia é apenas convencional: um exercício não se repete
+ * dentro do mesmo dia. Quando um ID estrutural existir, migrar a UNIQUE para
+ * (session_id, student_id, exercise_instance_id, set_number).
  */
-const flushSessionStateLogs = async (
-  row: StaleSessionRow,
+export const buildSessionStateLogRows = (
+  row: Pick<StaleSessionRow, 'id' | 'student_id' | 'phase' | 'day_name'>,
   state: WorkoutSessionState | null,
   performedAtIso: string,
-): Promise<{ totalSets: number; totalVolumeKg: number }> => {
+): { rows: any[]; totalSets: number; totalVolumeKg: number } => {
   let totalSets = 0;
   let totalVolumeKg = 0;
   const names = state?.exerciseNames ?? [];
   const sets = state?.sets ?? {};
-  if (!names.length) return { totalSets, totalVolumeKg };
-
-  // 1ª barreira (evita tráfego desnecessário): sessão já tem logs?
-  const { count } = await supabase
-    .from('exercise_set_logs')
-    .select('id', { count: 'exact', head: true })
-    .eq('session_id', row.id)
-    .eq('student_id', row.student_id);
-  const alreadyLogged = (count ?? 0) > 0;
-
   const rows: any[] = [];
+  if (!names.length) return { rows, totalSets, totalVolumeKg };
+
   for (const key of Object.keys(sets)) {
     const idx = Number(key);
     const name = names[idx];
@@ -237,17 +239,30 @@ const flushSessionStateLogs = async (
       });
     });
   }
+  return { rows, totalSets, totalVolumeKg };
+};
 
-  if (rows.length > 0 && !alreadyLogged) {
-    // 2ª barreira (nível de dados): UNIQUE
-    // (session_id, student_id, exercise_name, set_number) + upsert que ignora
-    // duplicados. Retries, resolver repetido e finalização manual posterior
-    // nunca criam a mesma série duas vezes.
+/**
+ * Persiste no exercise_set_logs TODAS as séries concluídas do session_state.
+ * A idempotência é por série (UNIQUE + upsert ignoreDuplicates), nunca por
+ * sessão: uma sessão parcialmente persistida (ex.: 3 de 18 séries já no banco)
+ * recebe as 15 faltantes sem duplicar as 3 existentes.
+ */
+const flushSessionStateLogs = async (
+  row: StaleSessionRow,
+  state: WorkoutSessionState | null,
+  performedAtIso: string,
+): Promise<{ totalSets: number; totalVolumeKg: number }> => {
+  const { rows, totalSets, totalVolumeKg } = buildSessionStateLogRows(row, state, performedAtIso);
+
+  if (rows.length > 0) {
     await supabase
       .from('exercise_set_logs')
       .upsert(rows, {
         onConflict: 'session_id,student_id,exercise_name,set_number',
         ignoreDuplicates: true,
+
+
       });
   }
   return { totalSets, totalVolumeKg };
