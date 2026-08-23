@@ -3,8 +3,9 @@
  * student's recent history. Returns a 0..1 score (1.0 = identical).
  */
 
-import { HISTORY_DECAY, type VariationIntensity } from "./variationProfiles.ts";
-export type { VariationIntensity };
+export { type VariationIntensity } from "./variationProfiles.ts";
+import { HISTORY_DECAY } from "./variationProfiles.ts";
+
 
 
 export const SIMILARITY_THRESHOLDS: Record<VariationIntensity, number> = {
