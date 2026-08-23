@@ -23,6 +23,7 @@ export function validateWorkoutRedundancy(plan: any): { ok: boolean; issues: Red
     // 1. Exact nominal duplicate check (count >= 2 is hard reject)
     const nameCounts = new Map<string, string[]>();
     for (const ex of exercises) {
+      if (!ex.exercise) continue;
       const norm = normalizeName(ex.exercise);
       if (!norm) continue;
       const list = nameCounts.get(norm) || [];
@@ -44,6 +45,7 @@ export function validateWorkoutRedundancy(plan: any): { ok: boolean; issues: Red
     // 2. Functional duplicate check (Pattern + Equipment)
     const functionalGroups = new Map<string, string[]>();
     for (const ex of exercises) {
+      if (!ex.exercise) continue;
       const profile = getExerciseFunctionalProfile(ex.exercise);
       if (profile.pattern) {
         const key = `${profile.pattern}_${profile.equipment || 'none'}`;
