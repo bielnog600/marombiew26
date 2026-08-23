@@ -212,7 +212,7 @@ const MeusTreinos = () => {
     // não sobre a semana atualmente exibida (que pode já ser uma resolução).
     const p = plans.find(pl => pl.fase === plannedPhase) || plans.find(pl => pl.fase === activePhase);
     if (!p || !user) return null;
-    return { id: p.id, student_id: user.id, conteudo: p.conteudo };
+    return { id: p.id, student_id: user.id, conteudo: p.conteudo, fase_inicio_data: (p as any).fase_inicio_data ?? null };
   }, [plans, activePhase, plannedPhase, user]);
 
   // Fonte única: aderência + performance + decisão, mesma janela e mesma
