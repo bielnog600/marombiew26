@@ -104,7 +104,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
             nome: studentName || 'Aluno',
             planId: eff.id,
             dayName: todayDayName(eff),
-            phase: eff.fase || null,
+            phase: resolveCurrentTrainingPhase(eff).phase,
           },
         ],
       });

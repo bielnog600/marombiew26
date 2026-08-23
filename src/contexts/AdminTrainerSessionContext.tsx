@@ -37,6 +37,7 @@ interface Ctx {
   finish: (totalsByStudent: Record<string, { exercisesCompleted: number; totalExercises: number }>) => Promise<void>;
   cancel: () => Promise<void>;
   patchState: (updater: (prev: any) => any) => void;
+  patchSessionState: (updater: (prev: any) => any) => void;
   refresh: () => Promise<void>;
   setPairedStudent: (student: AdminSessionStudent | null) => Promise<void>;
 }
@@ -233,6 +234,22 @@ export const AdminTrainerSessionProvider: React.FC<{ children: React.ReactNode }
     },
     [flushNow],
   );
+  
+  const patchSessionState: Ctx['patchSessionState'] = useCallback(
+    (updater) => {
+      setActive((prev) => {
+        if (!prev) return prev;
+        const nextState = updater(prev.sessionState);
+        pendingState.current = nextState;
+        if (saveTimer.current) window.clearTimeout(saveTimer.current);
+        saveTimer.current = window.setTimeout(() => {
+          flushNow();
+        }, 1500);
+        return { ...prev, sessionState: nextState };
+      });
+    },
+    [flushNow],
+  );
 
   const finish: Ctx['finish'] = useCallback(
     async (totalsByStudent) => {
@@ -396,7 +413,7 @@ export const AdminTrainerSessionProvider: React.FC<{ children: React.ReactNode }
 
   return (
     <AdminTrainerSessionContext.Provider
-      value={{ active, isOpen, loading, start, open, close, finish, cancel, patchState, refresh, setPairedStudent }}
+      value={{ active, isOpen, loading, start, open, close, finish, cancel, patchState, patchSessionState, refresh, setPairedStudent }}
     >
       {children}
     </AdminTrainerSessionContext.Provider>

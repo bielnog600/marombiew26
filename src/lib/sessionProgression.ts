@@ -368,13 +368,28 @@ export const buildSessionProgressionRecommendations = (
   };
 };
 
-/** Lê um snapshot já persistido no session_state (tolerante a formatos antigos). */
-export const readProgressionSnapshot = (state: any): ProgressionSnapshot | null => {
-  const snap = state?.progressionRecommendations;
-  if (!snap || typeof snap !== 'object') return null;
-  if (!snap.recommendations || typeof snap.recommendations !== 'object') return null;
-  if (Number(snap.version) !== PROGRESSION_SNAPSHOT_VERSION) return null;
-  return snap as ProgressionSnapshot;
+/** Lê um snapshot já persistido no session_state (tolerante a formatos antigos e Duo). */
+export const readProgressionSnapshot = (stateOrSnapshot: any): ProgressionSnapshot | null => {
+  if (!stateOrSnapshot || typeof stateOrSnapshot !== 'object') return null;
+  
+  // 1. Caso: objeto é o próprio snapshot (usado no Duo: snapshot[studentId])
+  if (stateOrSnapshot.recommendations && typeof stateOrSnapshot.recommendations === 'object') {
+    const v = Number(stateOrSnapshot.version);
+    if (v === PROGRESSION_SNAPSHOT_VERSION) {
+      return stateOrSnapshot as ProgressionSnapshot;
+    }
+  }
+
+  // 2. Caso: objeto é o session_state inteiro (usado no Individual)
+  const snap = stateOrSnapshot.progressionRecommendations;
+  if (snap && typeof snap === 'object' && snap.recommendations && typeof snap.recommendations === 'object') {
+    const v = Number(snap.version);
+    if (v === PROGRESSION_SNAPSHOT_VERSION) {
+      return snap as ProgressionSnapshot;
+    }
+  }
+  
+  return null;
 };
 
 export const getRecommendationFor = (

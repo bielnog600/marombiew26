@@ -261,7 +261,7 @@ export interface SessionState {
 
 export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId, days, phase, initialDayName, planId }) => {
   const { user } = useAuth();
-  const { active, close, cancel, finish, patchState } = useAdminTrainerSession();
+  const { active, close, cancel, finish, patchState, patchSessionState } = useAdminTrainerSession();
   const [state, setState] = useState<Record<number, ExerciseState>>({});
   const [loading, setLoading] = useState(true);
   const resolveInitialDayIdx = React.useCallback(() => {
@@ -314,12 +314,12 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     if (!active?.id || !snapshot) return;
     const existing = readProgressionSnapshot(active.sessionState);
     if (!existing) {
-      patchState((prev: any) => ({
+      patchSessionState((prev: any) => ({
         ...prev,
         progressionRecommendations: snapshot
       }));
     }
-  }, [active?.id, snapshot, patchState, active?.sessionState]);
+  }, [active?.id, snapshot, patchSessionState, active?.sessionState]);
 
   const session = {
     id: active?.id ?? null,
@@ -634,7 +634,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       weight_kg: Number.isNaN(s.weight) ? null : s.weight,
       reps: Number.isNaN(s.reps) ? null : s.reps,
       day_name: day.day,
-      phase: phase || null,
+      phase: effectivePhase,
       performed_at: new Date().toISOString(),
       source: 'admin',
     }));
