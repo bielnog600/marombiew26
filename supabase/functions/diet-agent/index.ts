@@ -32,6 +32,7 @@ import {
   validateDailyAdjustments,
   hasDailyCalorieVariation,
 } from "../_shared/dailyAdjustments.ts";
+import { AI_MODELS, createRoutingMetadata, type AIAttemptMetadata } from "../_shared/aiModelRouter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -671,9 +672,13 @@ serve(async (req) => {
         historySummary = history.map((p, i) => summarizeDietForPrompt(p, i)).join("\n");
       }
 
+      const modelAttempts: AIAttemptMetadata[] = [];
       const callModel = async (
         extraSystem: string,
-      ): Promise<{ ok: true; plan: any } | { ok: false; resp: Response }> => {
+        modelToUse: string,
+        reason: string
+      ): Promise<{ ok: true; plan: any; usage?: any } | { ok: false; resp: Response }> => {
+        const start = Date.now();
         const hungerCtx = detectHungerContext(studentContext);
         const cyclePlan: CarbCyclePlan | undefined =
           dietConfig && typeof dietConfig === "object" && dietConfig.carbCyclePlan
@@ -683,8 +688,19 @@ serve(async (req) => {
           dietConfig && typeof dietConfig === "object"
             ? (dietConfig as any).weeklyEnergySchedule
             : null;
+        
+        // Limpeza de instruções de formato incompatíveis com JSON
+        const cleanSystemPrompt = SYSTEM_PROMPT
+          .replace(/gere o treino em uma tabela markdown/gi, "")
+          .replace(/A tabela do TREINO deve ter exatamente 9 colunas/gi, "")
+          .replace(/A tabela do cardápio deve ter as colunas/gi, "")
+          .replace(/\| Refeição \| Horário \| Alimento \| Quantidade \(g\) \| Kcal \| Proteína \(g\) \| Carboidrato \(g\) \| Gordura \(g\) \|/gi, "")
+          .replace(/Inclua TOTAL de cada refeição e TOTAL DIÁRIO\./gi, "")
+          .replace(/A linha "Total" da tabela DEVE refletir EXATAMENTE a soma dos alimentos acima dela\./gi, "")
+          .replace(/Os valores do "Resumo Nutricional" DEVEM ser IDÊNTICOS aos totais da tabela\./gi, "");
+
         const jsonSystem =
-          SYSTEM_PROMPT +
+          cleanSystemPrompt +
           contextMessage +
           layeredInstructions +
           "\n\n" +
@@ -708,7 +724,7 @@ serve(async (req) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "gpt-4o",
+            model: modelToUse,
             messages: [
               { role: "system", content: jsonSystem },
               ...messages,
@@ -718,10 +734,12 @@ serve(async (req) => {
             response_format: { type: "json_object" },
           }),
         });
+        const durationMs = Date.now() - start;
         if (!r.ok) {
           const status = r.status;
           const t = await r.text();
           console.error("structured diet-agent error:", status, t);
+          modelAttempts.push({ model: modelToUse, durationMs, reason: `Error: ${status}` });
           return {
             ok: false,
             resp: new Response(
@@ -738,6 +756,17 @@ serve(async (req) => {
           };
         }
         const completion = await r.json();
+        const usage = completion?.usage;
+        modelAttempts.push({
+          model: modelToUse,
+          durationMs,
+          reason,
+          usage: usage ? {
+            promptTokens: usage.prompt_tokens,
+            completionTokens: usage.completion_tokens,
+            totalTokens: usage.total_tokens
+          } : null
+        });
         const raw = completion?.choices?.[0]?.message?.content;
         if (!raw) {
           return {
@@ -762,8 +791,13 @@ serve(async (req) => {
         }
       };
 
+      let fallbackReason: string | null = null;
+      let fallbackReasons: string[] = [];
+
       const first = await callModel(
         dietVariationPrompt(intensity, historySummary, undefined, requireMenuVariation),
+        AI_MODELS.primary,
+        "first_attempt"
       );
       if (!first.ok) return first.resp;
 
@@ -783,21 +817,43 @@ serve(async (req) => {
       const protRepeat = similarity.primaryProteinRepeatRatio ?? 0;
       const carbRepeat = similarity.primaryCarbRepeatRatio ?? 0;
       const primarySourceTooRepetitive = Math.max(protRepeat, carbRepeat) >= 0.6;
-      // Trigger regen if:
-      //  - nutrition guardrail failed (main meals must have primary protein), OR
-      //  - similarity above threshold, OR
-      //  - the change is essentially "same foods, different portions", OR
-      //  - admin asked for regeneration / menu renewal and we got portion_only
-      //  - primary protein/carb groups repeat in ≥60% of meals vs previous plan
+      
+      const schedule = (dietConfig && typeof dietConfig === "object")
+        ? (dietConfig as any).weeklyEnergySchedule
+        : null;
+      let initialAdjValidation = { ok: true, errors: [] as string[] };
+      if (schedule && typeof schedule === "object" && schedule.days) {
+        const modelAdj = (first.plan && typeof first.plan === "object")
+          ? (first.plan as any).dailyAdjustments
+          : null;
+        const { adjustments, missing } = normalizeDailyAdjustments(modelAdj, schedule);
+        initialAdjValidation = hasDailyCalorieVariation(schedule)
+          ? validateDailyAdjustments(adjustments, missing)
+          : { ok: true, errors: [] as string[] };
+      }
+
       const needsRetry =
         !nutrition.ok ||
-        historyJsons.length > 0 &&
-        (similarity.score > threshold ||
-          isPortionOnly ||
-          (requireMenuVariation && qOnly > 0.3) ||
-          primarySourceTooRepetitive);
+        !initialAdjValidation.ok ||
+        (historyJsons.length > 0 &&
+          (similarity.score > threshold ||
+            (intent !== "update" && isPortionOnly) ||
+            (requireMenuVariation && qOnly > 0.3) ||
+            primarySourceTooRepetitive));
 
       if (needsRetry) {
+        if (!nutrition.ok) { fallbackReason = "nutrition_invalid"; fallbackReasons.push("nutrition_invalid"); }
+        if (!initialAdjValidation.ok) { 
+          fallbackReason = fallbackReason || "daily_adjustments_invalid"; 
+          fallbackReasons.push("daily_adjustments_invalid"); 
+        }
+        if (historyJsons.length > 0) {
+          if (similarity.score > threshold) { fallbackReason = fallbackReason || "high_similarity"; fallbackReasons.push("high_similarity"); }
+          if (intent !== "update" && isPortionOnly) { fallbackReason = fallbackReason || "portion_only"; fallbackReasons.push("portion_only"); }
+          if (requireMenuVariation && qOnly > 0.3) { fallbackReason = fallbackReason || "high_quantity_overlap"; fallbackReasons.push("high_quantity_overlap"); }
+          if (primarySourceTooRepetitive) { fallbackReason = fallbackReason || "source_repetition"; fallbackReasons.push("source_repetition"); }
+        }
+
         const overlapList = similarity.worstOverlap.length
           ? `Alimentos repetidos do cardápio anterior (TROQUE A MAIORIA): ${similarity.worstOverlap.join(", ")}.`
           : "Muitos alimentos coincidem com o cardápio anterior.";
@@ -858,16 +914,37 @@ serve(async (req) => {
             `❗ Em ${Math.round(carbRepeat * 100)}% das refeições o CARBOIDRATO PRINCIPAL repete a MESMA FAMÍLIA (refeições: ${similarity.carbRepeatMeals.join(", ")}). Alterne entre cereais, tubérculos, frutas e leguminosas.`,
           );
         }
+        if (!initialAdjValidation.ok) {
+          retryParts.push(
+            `❗ Falha no campo dailyAdjustments: ${initialAdjValidation.errors.join(". ")}.`,
+            "Respeite EXATAMENTE o shape JSON solicitado para dailyAdjustments (7 dias, target_kcal correto, instructions coerentes)."
+          );
+        }
         const second = await callModel(
           dietVariationPrompt(intensity, historySummary, retryParts.join(" "), true),
+          AI_MODELS.fallback,
+          fallbackReason || "retry"
         );
         if (second.ok) {
           const sim2 = computeDietSimilarity(second.plan, historyJsons);
           const nut2 = validateDietNutrition(second.plan);
+          
+          let initialAdjValidation2 = { ok: true, errors: [] as string[] };
+          if (schedule && typeof schedule === "object" && schedule.days) {
+            const modelAdj2 = (second.plan && typeof second.plan === "object")
+              ? (second.plan as any).dailyAdjustments
+              : null;
+            const { adjustments: adjustments2, missing: missing2 } = normalizeDailyAdjustments(modelAdj2, schedule);
+            initialAdjValidation2 = hasDailyCalorieVariation(schedule)
+              ? validateDailyAdjustments(adjustments2, missing2)
+              : { ok: true, errors: [] as string[] };
+          }
+
           // Prefer the second plan when it (a) lowers similarity OR
           // (b) escapes portion_only mode OR
           // (c) reduces primary-source repetition OR
           // (d) fixes a nutrition guardrail failure.
+          // (e) fixes dailyAdjustments.
           const escapedPortion =
             isPortionOnly && sim2.changeKind !== "portion_only";
           const sim2Primary = Math.max(
@@ -877,12 +954,13 @@ serve(async (req) => {
           const reducedPrimary =
             primarySourceTooRepetitive && sim2Primary < Math.max(protRepeat, carbRepeat);
           const fixedNutrition = !nutrition.ok && nut2.issues.length < nutrition.issues.length;
-          // Nutrition guardrail trumps similarity preference: if the first plan
-          // was nutritionally invalid and the second is valid (or better),
-          // always take the second.
+          const fixedAdj = !initialAdjValidation.ok && initialAdjValidation2.ok;
+
+          // Hierarchy: VALIDITY/SAFETY > NUTRITION > CONTRACT (dailyAdj) > SIMILARITY
           if (
             fixedNutrition ||
-            (nutrition.ok &&
+            fixedAdj ||
+            (nutrition.ok && initialAdjValidation2.ok &&
               (sim2.score <= similarity.score || escapedPortion || reducedPrimary))
           ) {
             finalPlan = second.plan;
@@ -904,9 +982,11 @@ serve(async (req) => {
         } else {
           warning = !nutrition.ok
             ? "incomplete_nutrition"
-            : isPortionOnly
-              ? "quantity_only"
-              : "high_similarity";
+            : !initialAdjValidation.ok
+              ? "daily_adjustments_invalid"
+              : isPortionOnly
+                ? "quantity_only"
+                : "high_similarity";
         }
       }
 
@@ -986,6 +1066,16 @@ serve(async (req) => {
         );
       }
 
+      const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
+      console.log("[ai-routing]", {
+        agent: "diet",
+        primaryModel: routingMeta.routing.primaryModel,
+        finalModel: routingMeta.routing.finalModel,
+        fallbackUsed: routingMeta.routing.fallbackUsed,
+        fallbackReason: routingMeta.routing.fallbackReason,
+        usage: routingMeta.usage,
+      });
+
       return new Response(
         JSON.stringify({
           plan: finalPlan,
@@ -1016,6 +1106,8 @@ serve(async (req) => {
             totalProteinG: Math.round(nutrition.totalProteinG),
             totalKcal: Math.round(nutrition.totalKcal),
           },
+          aiRouting: routingMeta.routing,
+          aiUsage: routingMeta.usage,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );

@@ -18,6 +18,8 @@ import {
   snapPlanToCatalog,
   type CatalogEntry,
 } from "../_shared/exerciseCatalog.ts";
+import { AI_MODELS, createRoutingMetadata, type AIAttemptMetadata } from "../_shared/aiModelRouter.ts";
+import { validateWorkoutRedundancy } from "../_shared/workoutRedundancy.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -334,25 +336,40 @@ function workoutPlanToMarkdown(plan: any): string {
   return lines.join("\n");
 }
 
+const modelAttempts: AIAttemptMetadata[] = [];
+
 async function callStructuredModel({
   apiKey,
   systemPrompt,
   messages,
   extraSystem,
-}: StructuredArgs & { extraSystem?: string }): Promise<
+  modelToUse,
+  reason,
+}: StructuredArgs & { extraSystem?: string; modelToUse: string; reason: string }): Promise<
   | { ok: true; data: any }
   | { ok: false; response: Response }
 > {
+  const start = Date.now();
+  
+  // Limpeza de instruções de formato incompatíveis
+  const cleanSystemPrompt = systemPrompt
+    .replace(/DIETA COMPLETA E PERSONALIZADA/gi, "")
+    .replace(/gere o treino em uma tabela markdown/gi, "")
+    .replace(/A tabela do TREINO deve ter exatamente 9 colunas/gi, "")
+    .replace(/instrução para fazer perguntas/gi, "")
+    .replace(/mensagens WhatsApp/gi, "")
+    .replace(/Para aluno intermediário\/avançado, usar no mínimo 2 técnicas avançadas por treino do dia\./gi, "Técnicas avançadas são opcionais e só devem ser utilizadas quando coerentes com nível, fase, recuperação, objetivo e segurança. Não existe quantidade mínima obrigatória por treino.");
+
   const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "gpt-4o-2024-08-06",
+      model: modelToUse,
       messages: [
         {
           role: "system",
           content:
-            systemPrompt +
+            cleanSystemPrompt +
             "\n\n" +
             JSON_OUTPUT_INSTRUCTIONS +
             (extraSystem ? "\n\n" + extraSystem : ""),
@@ -371,9 +388,12 @@ async function callStructuredModel({
     }),
   });
 
+  const durationMs = Date.now() - start;
+
   if (!upstream.ok) {
     const t = await upstream.text();
     console.error("trainer-agent[json] gateway error:", upstream.status, t);
+    modelAttempts.push({ model: modelToUse, durationMs, reason: `Error: ${upstream.status}` });
     if (upstream.status === 429) {
       return {
         ok: false,
@@ -402,6 +422,17 @@ async function callStructuredModel({
   }
 
   const payload = await upstream.json();
+  const usage = payload?.usage;
+  modelAttempts.push({
+    model: modelToUse,
+    durationMs,
+    reason,
+    usage: usage ? {
+      promptTokens: usage.prompt_tokens,
+      completionTokens: usage.completion_tokens,
+      totalTokens: usage.total_tokens
+    } : null
+  });
   const content = payload?.choices?.[0]?.message?.content;
   if (typeof content !== "string") {
     return {
@@ -462,12 +493,17 @@ async function generateStructuredWorkoutWithVariation(args: {
   const intensity = args.intensity;
   const variationBlock = workoutVariationPrompt(intensity, historySummary);
 
+  let fallbackReason: string | null = null;
+  let fallbackReasons: string[] = [];
+
   // 1st attempt
   const first = await callStructuredModel({
     apiKey: args.apiKey,
     systemPrompt: args.systemPrompt,
     messages: args.messages,
     extraSystem: variationBlock,
+    modelToUse: AI_MODELS.primary,
+    reason: "first_attempt"
   });
   if (!first.ok) return first.response;
 
@@ -476,20 +512,42 @@ async function generateStructuredWorkoutWithVariation(args: {
     .filter((j) => j && typeof j === "object") as any[];
 
   let similarity = computeWorkoutSimilarity(first.data, historyJsons);
+  const redundancy = validateWorkoutRedundancy(first.data);
   const threshold = SIMILARITY_THRESHOLDS[intensity];
   let finalPlan = first.data;
   let regenerated = false;
   let warning: string | null = null;
 
-  if (similarity.score > threshold && historyJsons.length > 0) {
+  const needsRetry = (similarity.score > threshold && historyJsons.length > 0) || !redundancy.ok;
+
+  if (needsRetry) {
+    if (similarity.score > threshold) {
+      fallbackReason = "high_similarity";
+      fallbackReasons.push("high_similarity");
+    }
+    if (!redundancy.ok) {
+      fallbackReason = fallbackReason || "internal_redundancy";
+      fallbackReasons.push("internal_redundancy");
+    }
+
     const overlapList = similarity.worstOverlap.length
       ? `Exercícios que se repetem do plano anterior (TROQUE OU VARIE A MAIORIA): ${similarity.worstOverlap.join(", ")}.`
       : "Muitos exercícios coincidem com o plano anterior.";
-    const retryNotes = [
+    
+    let retryNotesArr = [
       overlapList,
       "Reduza coincidências para no máximo ~40% dos exercícios.",
       "Mantenha apenas compostos principais essenciais; substitua acessórios e mobilidade.",
-    ].join(" ");
+    ];
+
+    if (!redundancy.ok) {
+      const redDetails = redundancy.issues
+        .map(i => `${i.day}: ${i.exercises.join(", ")} (${i.family})`)
+        .join(" | ");
+      retryNotesArr.push(`🚨 REDUNDÂNCIA INTERNA DETECTADA: ${redDetails}. Substitua exercícios funcionalmente equivalentes por variações de pegada, ângulo ou equipamentos diferentes no mesmo dia.`);
+    }
+
+    const retryNotes = retryNotesArr.join(" ");
     const retryBlock = workoutVariationPrompt(intensity, historySummary, retryNotes);
 
     const second = await callStructuredModel({
@@ -497,11 +555,16 @@ async function generateStructuredWorkoutWithVariation(args: {
       systemPrompt: args.systemPrompt,
       messages: args.messages,
       extraSystem: retryBlock,
+      modelToUse: AI_MODELS.fallback,
+      reason: fallbackReason || "retry"
     });
     if (second.ok) {
       const sim2 = computeWorkoutSimilarity(second.data, historyJsons);
-      // Keep the more-different plan
-      if (sim2.score <= similarity.score) {
+      const red2 = validateWorkoutRedundancy(second.data);
+      // Hierarquia: SEGURANÇA (assumida) > SCHEMA VÁLIDO > REDUNDÂNCIA > SIMILARIDADE.
+      // Escolher o segundo se ele corrige a redundância ou melhora significativamente a similaridade.
+      const fixedRedundancy = !redundancy.ok && red2.ok;
+      if (fixedRedundancy || (red2.ok && sim2.score <= similarity.score)) {
         finalPlan = second.data;
         similarity = sim2;
       }
@@ -520,6 +583,16 @@ async function generateStructuredWorkoutWithVariation(args: {
     console.warn("trainer-agent: exercícios sem equivalente no banco:", unmatchedExercises.join(" | "));
   }
   const markdownFinal = workoutPlanToMarkdown(finalPlan);
+  const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
+  console.log("[ai-routing]", {
+    agent: "trainer",
+    primaryModel: routingMeta.routing.primaryModel,
+    finalModel: routingMeta.routing.finalModel,
+    fallbackUsed: routingMeta.routing.fallbackUsed,
+    fallbackReason: routingMeta.routing.fallbackReason,
+    usage: routingMeta.usage,
+  });
+
   return new Response(
     JSON.stringify({
       json: finalPlan,
@@ -534,6 +607,8 @@ async function generateStructuredWorkoutWithVariation(args: {
         worstOverlap: similarity.worstOverlap,
         historyCount: historyJsons.length,
       },
+      aiRouting: routingMeta.routing,
+      aiUsage: routingMeta.usage,
     }),
     { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
   );
@@ -839,22 +914,12 @@ REGRAS DE OURO (NÃO NEGOCIÁVEIS):
 - IGNORE as regras de "alta intensidade / alto volume / 2 técnicas avançadas obrigatórias / mais volume para inferiores e dorsal" SEMPRE que entrarem em conflito com o filtro de segurança.
 
 ========================================
-DIETA COMPLETA E PERSONALIZADA
-========================================
-
-Oferecer 3 estilos: A) flexível por macros, B) cardápio estruturado, C) ciclagem de carboidratos.
-Proteína: 1,6-2,2g/kg, Gordura: 0,6-1,0g/kg, Carboidrato: completar.
-Tabela: DIA | REFEIÇÃO | ALIMENTOS | QUANTIDADE | KCAL | P | C | G | OBS
-
-========================================
 COLETA DE DADOS — REGRA CRÍTICA
 ========================================
 
 IMPORTANTE: Você receberá TODOS os dados do aluno já disponíveis no sistema (perfil, avaliação física, anamnese, composição corporal, sinais vitais, testes de performance, dobras cutâneas, etc).
 
 USE ESSES DADOS DIRETAMENTE. NÃO pergunte informações que já foram fornecidas no contexto do aluno.
-
-Pergunte APENAS o que ainda falta para completar o protocolo, UMA PERGUNTA POR VEZ.
 
 Dados que você pode precisar perguntar (SE não estiverem no contexto):
 1) Nível (iniciante/intermediário/avançado)
