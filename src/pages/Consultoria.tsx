@@ -30,6 +30,8 @@ import type { FollowupFilter } from '@/components/consultoria/WeeklyAlertOvervie
 import OtherAlertsSection from '@/components/consultoria/OtherAlertsSection';
 import { useStudentsWeeklySummary } from '@/hooks/useStudentsWeeklySummary';
 import { useStudentFollowups, bucketFor, type FollowupBucket } from '@/hooks/useStudentFollowups';
+import { useWeeklyProgressionReview } from '@/hooks/useWeeklyProgressionReview';
+import WeeklyProgressionReviewCard from '@/components/consultoria/WeeklyProgressionReviewCard';
 import ConsultoriaStudentSearch from '@/components/consultoria/ConsultoriaStudentSearch';
 import PushNotificationsToday from '@/components/consultoria/PushNotificationsToday';
 import AllExecutionVideos from '@/components/consultoria/AllExecutionVideos';
@@ -116,6 +118,7 @@ const Consultoria = () => {
   const [notifFilter, setNotifFilter] = useState('all');
   const { summaries: weeklySummaries, loading: weeklyLoading, reload: reloadWeekly } = useStudentsWeeklySummary();
   const { followups, loading: followupsLoading, reload: reloadFollowups, markAsDone, reopen, archive } = useStudentFollowups();
+  const { data: progressionReviews, isLoading: progressionLoading, refetch: reloadProgression } = useWeeklyProgressionReview();
   const { students: inactiveStudents, loading: inactiveLoading, reload: reloadInactive } = useInactiveStudents(3);
   const [alertFilter, setAlertFilter] = useState<FollowupFilter>('hoje');
 
