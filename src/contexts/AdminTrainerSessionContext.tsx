@@ -290,28 +290,63 @@ export const AdminTrainerSessionProvider: React.FC<{ children: React.ReactNode }
         const t = totalsByStudent[second.id] || { exercisesCompleted: 0, totalExercises: 0 };
         const studentSnapshots = active.sessionState?.progressionRecommendationsByStudent || {};
         
-        await supabase.from('workout_sessions').insert({
-          student_id: second.id,
-          day_name: second.dayName || null,
-          phase: second.phase || null,
-          started_at: active.startedAtReal,
-          started_at_real: active.startedAtReal,
-          completed_at: completedAt.toISOString(),
-          completed_at_real: completedAt.toISOString(),
-          calendar_event_id: active.calendarEventIds[second.id] || null,
-          duration_minutes: durationMinutes,
-          exercises_completed: t.exercisesCompleted,
-          total_exercises: t.totalExercises,
-          status: 'completed',
-          source: 'admin',
-          executed_by: 'coach',
-          session_mode: 'duo',
-          paired_student_id: first.id,
-          plan_id: second.planId || null,
-          session_state: {
-            progressionRecommendations: studentSnapshots[second.id] || null
+        // Regra 2 & 5: Garantir que não criamos duplicata se finish() rodar de novo
+        const { data: existingSecond } = await supabase
+          .from('workout_sessions')
+          .select('id')
+          .eq('student_id', second.id)
+          .eq('started_at_real', active.startedAtReal)
+          .eq('session_mode', 'duo')
+          .eq('paired_student_id', first.id)
+          .maybeSingle();
+
+        if (!existingSecond) {
+          const { data: secondSession, error: secondError } = await supabase.from('workout_sessions').insert({
+            student_id: second.id,
+            day_name: second.dayName || null,
+            phase: second.phase || null,
+            started_at: active.startedAtReal,
+            started_at_real: active.startedAtReal,
+            completed_at: completedAt.toISOString(),
+            completed_at_real: completedAt.toISOString(),
+            calendar_event_id: active.calendarEventIds[second.id] || null,
+            duration_minutes: durationMinutes,
+            exercises_completed: t.exercisesCompleted,
+            total_exercises: t.totalExercises,
+            status: 'completed',
+            source: 'admin',
+            executed_by: 'coach',
+            session_mode: 'duo',
+            paired_student_id: first.id,
+            plan_id: second.planId || null,
+            session_state: {
+              // Regra 4: Snapshot canônico com sessionId definitivo do aluno B
+              progressionRecommendations: null // será atualizado após insert
+            }
+          } as any).select('id').single();
+
+          if (!secondError && secondSession) {
+            // Regra 3: Reassociar logs do aluno B ao ID da sessão definitiva dele
+            await supabase
+              .from('exercise_set_logs')
+              .update({ session_id: secondSession.id })
+              .eq('student_id', second.id)
+              .eq('session_id', active.id);
+
+            // Regra 4: Salvar snapshot canônico
+            const snapB = studentSnapshots[second.id];
+            if (snapB) {
+              await supabase
+                .from('workout_sessions')
+                .update({
+                  session_state: {
+                    progressionRecommendations: { ...snapB, sessionId: secondSession.id }
+                  }
+                })
+                .eq('id', secondSession.id);
+            }
           }
-        } as any);
+        }
       }
 
       for (const s of active.students) {
