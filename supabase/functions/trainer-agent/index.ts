@@ -1348,7 +1348,7 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
     }
 
 
-    const legacySystem = TRAINER_CORE_PROMPT + "\n" + TRAINER_LEGACY_PROMPT + "\n" + contextMessage;
+    const legacySystem = TRAINER_CORE_PROMPT + "\n" + TRAINER_LEGACY_PROMPT + "\n" + TRAINER_LEGACY_TABLE_PROMPT + "\n" + contextMessage;
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
