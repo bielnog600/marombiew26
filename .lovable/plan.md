@@ -9,11 +9,16 @@ This plan implements critical fixes for AI routing logic, structured prompts, an
     - Implement `invariant` error in `createRoutingMetadata([])`.
     - Fix usage tracking: Ensure missing usage fields resolve to `null` instead of `0`.
     - Remove model downgrade: `callAI` will now send the exact model requested.
+    - **Semantic Metadata:** Update `createRoutingMetadata` to accept `selectedModel` explicitly. Metadata will include:
+        - `primaryModel`: Initial requested model.
+        - `finalModel`: The model that produced the accepted candidate.
+        - `lastAttemptModel`: The last API call made (regardless of acceptance).
+        - `fallbackUsed`, `fallbackReason`, `fallbackReasons`, `attempts`.
 - **Diet Agent (`supabase/functions/diet-agent/index.ts`):**
     - **Update Fallback Constraints:** Prohibit Terra fallback for variation issues (similarity, portion overlap, source repetition) if `intent === 'update'`.
     - **Unified Pipeline:** Remove early returns for technical fallbacks. Ensure all model outputs (Luna or Terra) pass through parsing, nutrition validation, daily adjustments normalization/validation, and similarity checks.
     - **Strict Validity:** A Terra candidate is only accepted if `criticalValid` is true (valid nutrition AND valid daily adjustments if required). Return `422 review_required` if Terra remains invalid.
-    - **Metadata/Error Handling:** Ensure 422 responses include full metadata (error_code, validationReasons, aiRouting, aiUsage). Remove `raw` from `invalid_json` responses.
+    - **Metadata/Error Handling:** Ensure 422 responses include full semantic metadata. Remove `raw` from `invalid_json` responses.
     - **Absolute Limit:** Maximum of 2 model calls (Luna then optional Terra). No third call in any branch.
     - **Legacy Support:** Ensure legacy/streaming paths explicitly use `model: "gpt-4o"`.
 - **Trainer Agent (`supabase/functions/trainer-agent/index.ts`):**
@@ -21,7 +26,7 @@ This plan implements critical fixes for AI routing logic, structured prompts, an
     - **Redundancy Checks:** Ensure all fallback candidates pass through redundancy validation.
     - **Catalog Integration:** Move critical catalog matching into the candidate evaluation phase. Use clones to avoid mutation side effects during evaluation.
     - **Final Validation:** Hard reject if Terra remains redundant or has critical catalog mismatches.
-    - **Metadata/Error Handling:** When at least one Luna/Terra attempt has occurred, errors (422, 502, etc.) must include metadata (error_code, validationReasons, aiRouting, aiUsage). Never return raw model output, prompts, or PII.
+    - **Metadata/Error Handling:** When at least one attempt has occurred, all errors (422, 502, etc.) must include full semantic metadata. Never return raw model output, prompts, or PII.
     - **Absolute Limit:** Maximum of 2 model calls. No third call in any branch.
     - **Legacy Support:** Ensure legacy/streaming paths explicitly use `model: "gpt-4o"`.
 
@@ -37,13 +42,13 @@ This plan implements critical fixes for AI routing logic, structured prompts, an
 - **Constraint:** Do NOT alter Vite version. Do NOT use `--force` or `--legacy-peer-deps`.
 
 ### 4. Testing & Validation
-- **New Tests:** Create `supabase/functions/tests/ai-routing-logic.test.ts` to verify routing decisions, fallback triggers, and metadata generation without calling the live OpenAI API.
-- **Structured Prompt Tests:** Explicitly verify structured prompts lack conversational/markdown instructions while preserving technical constraints.
-- **Call Budget Tests:** Verify max 2 calls per request for both diet and trainer agents.
+- **New Tests:** Create `supabase/functions/tests/ai-routing-logic.test.ts` to verify routing decisions, fallback triggers, semantic metadata, and call budgets without calling the live OpenAI API.
 - **Specific Coverage:**
-    - Router: 1 vs 2 calls, invariant on empty attempts, usage null handling, exact model sending.
+    - Router: Semantic metadata tests (Luna aceita sem fallback, Luna rejeitada + Terra aceita, Luna válida + Terra rejeitada = finalModel Luna), invariant on empty attempts, usage null handling.
     - Diet: Update constraints, invalid_json/nutrition/dailyAdj fallbacks, technical fallback validation, 422 on Terra failure.
     - Trainer: Similarity calculation, exact duplicate handling, catalog mismatch handling, no "invented" scores.
+    - Structured: Verification of excluded conversational/markdown instructions.
+    - Budgets: Max 2 calls verification.
     - Legacy: Model gpt-4o confirmation.
 - **Integrity Checks:** `deno check` on agents/shared, `deno test`, `npm test`, `npm run build`.
 
