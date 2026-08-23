@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
-import { resolveWeeklyWindows } from '@/lib/weeklyWindows';
+import { resolveWeekContexts, fetchRangeFor } from '@/lib/weekContext';
 import {
   buildWeeklyTrainingReport,
   type WeeklyTrainingReport,
@@ -16,6 +16,8 @@ interface PlanLike {
   student_id: string;
   conteudo?: string | null;
   fase?: TrainingPhase | null;
+  fase_inicio_data?: string | null;
+  cycle_days?: number | null;
 }
 
 /**
@@ -45,9 +47,28 @@ export const useWeeklyTraining = (
       try {
         await resolveStaleWorkoutSessionsThrottled(plan.student_id);
 
-        const windows = resolveWeeklyWindows();
-        const from = windows.previous.start.toISOString();
-        const to = windows.current.end.toISOString();
+        // Identidade da semana: fase do plano (fase_inicio_data + cycle_days).
+        let phaseStart = plan.fase_inicio_data ?? null;
+        let cycleDays = plan.cycle_days ?? null;
+        if (phaseStart == null || cycleDays == null) {
+          const { data: planRow } = await supabase
+            .from('ai_plans')
+            .select('fase_inicio_data, cycle_days')
+            .eq('id', plan.id)
+            .maybeSingle();
+          phaseStart = phaseStart ?? planRow?.fase_inicio_data ?? null;
+          cycleDays = cycleDays ?? planRow?.cycle_days ?? null;
+        }
+
+        const contexts = resolveWeekContexts({
+          planId: plan.id,
+          phase: plannedPhase,
+          phaseStartDate: phaseStart,
+          cycleDays,
+        });
+        const range = fetchRangeFor(contexts);
+        const from = range.from.toISOString();
+        const to = range.to.toISOString();
 
         const plannedDays: ParsedTrainingDay[] = parseTrainingSections(plan.conteudo || '')
           .flatMap((s) => s.days || []);
@@ -55,13 +76,13 @@ export const useWeeklyTraining = (
         const [{ data: logRows }, { data: sessionRows }] = await Promise.all([
           supabase
             .from('exercise_set_logs')
-            .select('exercise_name, reps, weight_kg, performed_at, set_number, rir, rpe, set_type, phase')
+            .select('exercise_name, reps, weight_kg, performed_at, set_number, rir, rpe, set_type, phase, session_id')
             .eq('student_id', plan.student_id)
             .gte('performed_at', from)
             .lt('performed_at', to),
           supabase
             .from('workout_sessions')
-            .select('status, completed_at, started_at, created_at, plan_id')
+            .select('id, status, completed_at, started_at, created_at, plan_id, phase')
             .eq('student_id', plan.student_id)
             .in('status', ['completed', 'partial', 'abandoned'])
             .gte('completed_at', from)
@@ -71,7 +92,7 @@ export const useWeeklyTraining = (
         const report = buildWeeklyTrainingReport({
           plannedPhase,
           plannedDays,
-          windows,
+          contexts,
           logs: (logRows ?? []) as RawSetLog[],
           sessions: (sessionRows ?? []) as RawSession[],
           planId: plan.id,
