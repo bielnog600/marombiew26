@@ -255,7 +255,8 @@ export function buildProgressionExecutionOutcomes(input: TelemetrySessionInput):
 
     if (!rec) {
       outcome.alignmentStatus = 'not_evaluable';
-      outcome.reasons.push('sem_recomendacao_no_inicio');
+      outcome.targetStatus = 'not_evaluable';
+      outcome.reasons.push('no_recommendation_for_exercise');
     } else if (primaryLogs.length === 0) {
       outcome.alignmentStatus = 'no_execution';
       outcome.targetStatus = 'not_evaluable';
