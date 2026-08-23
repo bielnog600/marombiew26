@@ -75,12 +75,30 @@ export const performanceComparablePhase = (
   return i > 0 ? TRAINING_PHASES[i - 1] : null;
 };
 
+/**
+ * SEMÂNTICA CONFIRMADA de `ai_plans.cycle_days` (auditada no banco):
+ * é a duração do CICLO INTEIRO do plano (default 45 dias — mesma constante
+ * usada por workout-renewal-analyzer e pelos painéis de renovação), NÃO a
+ * duração de uma fase/semana. Todos os planos reais têm cycle_days = 45.
+ *
+ * A fase (`semana_1..semana_3`, `deload`) é SEMPRE semanal (7 dias). Usar
+ * cycle_days como passo produzia uma única janela de 45 dias (bug corrigido).
+ * Valores pequenos (<= 14) continuam sendo aceitos como duração de fase para
+ * compatibilidade com chamadas/testes antigos.
+ */
+export const PHASE_DURATION_DAYS = 7;
+
+export const phaseDurationFromCycle = (cycleDays?: number | null): number => {
+  if (!cycleDays || cycleDays <= 0) return PHASE_DURATION_DAYS;
+  return cycleDays <= 14 ? cycleDays : PHASE_DURATION_DAYS;
+};
+
 export interface ResolveWeekContextsInput {
   planId?: string | null;
   phase: TrainingPhase;
-  /** ai_plans.fase_inicio_data */
+  /** ai_plans.fase_inicio_data (início do ciclo) */
   phaseStartDate?: string | null;
-  /** ai_plans.cycle_days (default 7) */
+  /** ai_plans.cycle_days — duração do CICLO (45), não da fase. */
   cycleDays?: number | null;
   now?: Date;
 }
@@ -91,8 +109,9 @@ export interface ResolveWeekContextsInput {
  */
 export const resolveWeekContexts = (input: ResolveWeekContextsInput): WeekContexts => {
   const { planId = null, phase, phaseStartDate, now = new Date() } = input;
-  const cycleDays = input.cycleDays && input.cycleDays > 0 ? input.cycleDays : 7;
+  const cycleDays = phaseDurationFromCycle(input.cycleDays);
   const prevPhase = performanceComparablePhase(phase);
+
 
   const cycleStart = parseDay(phaseStartDate);
   if (!cycleStart) {
