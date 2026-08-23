@@ -262,6 +262,7 @@ const flushSessionStateLogs = async (
         onConflict: 'session_id,student_id,exercise_name,set_number',
         ignoreDuplicates: true,
 
+
       });
   }
   return { totalSets, totalVolumeKg };
