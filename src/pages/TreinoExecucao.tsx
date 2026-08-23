@@ -1178,18 +1178,47 @@ const TreinoExecucao = () => {
             const isRecognition = planned?.type === 'recognition';
             const isNextPending = i === nextPendingIndex;
             return (
-              <div key={i} className={`grid grid-cols-[36px_1fr_1fr_44px] gap-1.5 items-center p-2 rounded-lg transition-colors ${set.completed ? 'bg-primary/10 border border-primary/30' : isRecognition ? 'bg-accent/10 border border-accent/30' : 'bg-secondary/50'}`}>
-                <div className="flex flex-col items-center justify-center">
-                  <span className="text-sm font-bold text-center text-foreground leading-none">{i + 1}</span>
-                  {isRecognition && <span className="text-[8px] uppercase tracking-wider text-accent font-semibold mt-0.5">Rec</span>}
+              <div key={i} className={`rounded-lg transition-colors ${set.completed ? 'bg-primary/10 border border-primary/30' : isRecognition ? 'bg-accent/10 border border-accent/30' : 'bg-secondary/50'}`}>
+                <div className="grid grid-cols-[36px_1fr_1fr_44px] gap-1.5 items-center p-2">
+                  <div className="flex flex-col items-center justify-center">
+                    <span className="text-sm font-bold text-center text-foreground leading-none">{i + 1}</span>
+                    {isRecognition && <span className="text-[8px] uppercase tracking-wider text-accent font-semibold mt-0.5">Rec</span>}
+                  </div>
+                  <Input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} placeholder={planned?.reps || '10'} className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
+                  <Input type="text" inputMode="decimal" value={set.weight} onChange={(e) => updateSet(i, 'weight', e.target.value)} placeholder="0" className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
+                  <Button size="icon" variant={set.completed ? 'default' : 'outline'} className={`h-9 w-9 mx-auto rounded-full ${isNextPending ? 'animate-pulse-glow' : ''}`} onClick={() => toggleSetComplete(i)}>
+                    <Check className="h-4 w-4" />
+                  </Button>
                 </div>
-                <Input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} placeholder={planned?.reps || '10'} className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
-                <Input type="text" inputMode="decimal" value={set.weight} onChange={(e) => updateSet(i, 'weight', e.target.value)} placeholder="0" className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
-                <Button size="icon" variant={set.completed ? 'default' : 'outline'} className={`h-9 w-9 mx-auto rounded-full ${isNextPending ? 'animate-pulse-glow' : ''}`} onClick={() => toggleSetComplete(i)}>
-                  <Check className="h-4 w-4" />
-                </Button>
+                {/* RIR opcional — só em séries de trabalho e só depois de concluir.
+                    Um toque registra, outro toque limpa. Nunca obrigatório. */}
+                {!isRecognition && set.completed && (
+                  <div className="flex items-center gap-1.5 px-2 pb-2 -mt-0.5 flex-wrap">
+                    <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">
+                      RIR (opcional)
+                    </span>
+                    {['0', '1', '2', '3', '4'].map((v) => {
+                      const active = (set.rir ?? '') === v;
+                      return (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => updateSet(i, 'rir', active ? '' : v)}
+                          className={`h-6 min-w-[26px] px-1.5 rounded-md text-[11px] font-bold border transition-colors ${
+                            active
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-background/40 text-muted-foreground border-border/50'
+                          }`}
+                        >
+                          {v === '4' ? '4+' : v}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
+
             });
           })()}
         </div>
