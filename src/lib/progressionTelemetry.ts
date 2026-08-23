@@ -411,3 +411,106 @@ function evaluateTargetMultiSet(outcome: ProgressionExecutionOutcome, rec: Sessi
     }
   }
 }
+
+/**
+ * Agrega múltiplos resultados de sessões para gerar o sumário (Regra 13 & 14).
+ */
+export function buildProgressionTelemetrySummary(results: SessionTelemetryResult[]): TelemetrySummary {
+  const summary: TelemetrySummary = {
+    sessionsWithSnapshot: 0,
+    sessionsWithoutSnapshot: 0,
+    sessionsWithoutRecommendation: 0,
+    invalidSnapshotSessions: 0,
+    recommendationsShown: 0,
+    evaluableRecommendations: 0,
+    recommendationsWithExecution: 0,
+    matchedCount: 0,
+    partialCount: 0,
+    differentCount: 0,
+    noExecutionCount: 0,
+    alignmentRate: 0,
+    fullOrPartialAlignmentRate: 0,
+    executionCoverage: 0,
+    targetsEvaluable: 0,
+    targetAchievedCount: 0,
+    targetPartialCount: 0,
+    targetNotAchievedCount: 0,
+    targetAchievementRate: 0,
+    targetAtLeastPartialRate: 0,
+    deloadExcludedCount: 0,
+  };
+
+  results.forEach(res => {
+    if (res.status === 'without_snapshot') {
+      summary.sessionsWithoutSnapshot++;
+      return;
+    }
+    if (res.status === 'empty_snapshot') {
+      summary.sessionsWithSnapshot++;
+      summary.sessionsWithoutRecommendation++;
+      return;
+    }
+    if (res.status === 'invalid_snapshot_version' || res.status === 'snapshot_session_mismatch') {
+      summary.invalidSnapshotSessions++;
+      return;
+    }
+
+    summary.sessionsWithSnapshot++;
+    
+    res.outcomes.forEach(out => {
+      // Regra 14: Excluir Deload do alinhamento
+      if (out.reasons.includes('deload_excluded_from_progression_kpi')) {
+        summary.deloadExcludedCount++;
+        return;
+      }
+
+      summary.recommendationsShown++;
+      
+      if (out.alignmentStatus === 'no_execution') {
+        summary.noExecutionCount++;
+        return;
+      }
+
+      summary.recommendationsWithExecution++;
+
+      if (out.alignmentStatus === 'not_evaluable') {
+        return;
+      }
+
+      summary.evaluableRecommendations++;
+      if (out.alignmentStatus === 'matched') summary.matchedCount++;
+      else if (out.alignmentStatus === 'partial') summary.partialCount++;
+      else if (out.alignmentStatus === 'different') summary.differentCount++;
+
+      // Target evaluation
+      if (out.targetStatus !== 'not_evaluable') {
+        summary.targetsEvaluable++;
+        if (out.targetStatus === 'achieved') summary.targetAchievedCount++;
+        else if (out.targetStatus === 'partially_achieved') summary.targetPartialCount++;
+        else if (out.targetStatus === 'not_achieved') summary.targetNotAchievedCount++;
+      }
+    });
+  });
+
+  // Cálculo das taxas
+  const totalEval = summary.matchedCount + summary.partialCount + summary.differentCount;
+  if (totalEval > 0) {
+    summary.alignmentRate = summary.matchedCount / totalEval;
+    summary.fullOrPartialAlignmentRate = (summary.matchedCount + summary.partialCount) / totalEval;
+  }
+
+  if (summary.recommendationsShown > 0) {
+    summary.executionCoverage = summary.recommendationsWithExecution / summary.recommendationsShown;
+  }
+
+  const totalTargetEval = summary.targetAchievedCount + summary.targetPartialCount + summary.targetNotAchievedCount;
+  if (totalTargetEval > 0) {
+    summary.targetAchievementRate = summary.targetAchievedCount / totalTargetEval;
+  }
+  
+  if (summary.targetsEvaluable > 0) {
+    summary.targetAtLeastPartialRate = (summary.targetAchievedCount + summary.targetPartialCount) / summary.targetsEvaluable;
+  }
+
+  return summary;
+}
