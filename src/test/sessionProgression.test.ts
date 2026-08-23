@@ -118,7 +118,11 @@ describe('snapshot de progressão da sessão', () => {
   });
 
   it('9. incremento inferido do histórico mostra kg como estimado', () => {
-    const r = build(baseHistory(), { configuredIncrements: {} }).recommendations['SUPINO RETO'];
+    const logs = [
+      log('SUPINO RETO', 'S0', day(1), 67.5, 12, 2),
+      ...baseHistory().map((l, i) => ({ ...l, performed_at: day(8 + i * 7) })),
+    ];
+    const r = build(logs, { configuredIncrements: {} }).recommendations['SUPINO RETO'];
     expect(r.incrementSource).toBe('inferred_history');
     const hint = formatSessionHint(r)!;
     expect(hint.estimated).toBe(true);
