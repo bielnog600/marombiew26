@@ -829,14 +829,16 @@ serve(async (req) => {
           : { ok: true, errors: [] as string[] };
       }
 
+      const variationRetryAllowed = intent !== "update";
+
       const needsRetry =
         !nutrition.ok ||
         !initialAdjValidation.ok ||
         (historyJsons.length > 0 &&
           (similarity.score > threshold ||
-            (intent !== "update" && isPortionOnly) ||
+            (variationRetryAllowed && isPortionOnly) ||
             (requireMenuVariation && qOnly > 0.3) ||
-            primarySourceTooRepetitive));
+            (variationRetryAllowed && primarySourceTooRepetitive)));
 
       if (needsRetry) {
         if (!nutrition.ok) { fallbackReason = "nutrition_invalid"; fallbackReasons.push("nutrition_invalid"); }
