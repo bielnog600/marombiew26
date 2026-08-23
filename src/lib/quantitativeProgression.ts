@@ -95,6 +95,8 @@ export interface QuantitativeRecommendation {
   repRange: RepRange | null;
   incrementKg: number | null;
   incrementSource: IncrementSource;
+  /** Confiança NA FONTE do incremento (independe da segurança do salto). */
+  incrementConfidence: RecommendationConfidence;
   relativeChangePct: number | null;
   confidence: RecommendationConfidence;
   /** true quando não há número confiável: só orientação em texto. */
@@ -190,6 +192,7 @@ const qualitative = (
   repRange,
   incrementKg: increment.incrementKg,
   incrementSource: increment.source,
+  incrementConfidence: increment.confidence,
   relativeChangePct: null,
   confidence: 'low',
   qualitative: true,
@@ -243,6 +246,7 @@ export const buildQuantitativeProgressionRecommendation = (
       repRange,
       incrementKg: increment.incrementKg,
       incrementSource: increment.source,
+  incrementConfidence: increment.confidence,
       relativeChangePct: 0,
       confidence: 'high',
       qualitative: false,
@@ -278,6 +282,7 @@ export const buildQuantitativeProgressionRecommendation = (
         repRange,
         incrementKg: null,
         incrementSource: increment.source,
+  incrementConfidence: increment.confidence,
         relativeChangePct: null,
         confidence: 'high',
         qualitative: false,
@@ -368,6 +373,7 @@ export const buildQuantitativeProgressionRecommendation = (
       repRange,
       incrementKg: increment.incrementKg,
       incrementSource: increment.source,
+  incrementConfidence: increment.confidence,
       relativeChangePct: rel,
       confidence: increment.confidence,
       qualitative: false,
@@ -393,6 +399,7 @@ export const buildQuantitativeProgressionRecommendation = (
       repRange,
       incrementKg: increment.incrementKg,
       incrementSource: increment.source,
+  incrementConfidence: increment.confidence,
       relativeChangePct: 0,
       confidence: 'high',
       qualitative: false,
@@ -451,6 +458,7 @@ export const buildQuantitativeProgressionRecommendation = (
       repRange,
       incrementKg: increment.incrementKg,
       incrementSource: increment.source,
+  incrementConfidence: increment.confidence,
       relativeChangePct: rel,
       confidence: increment.confidence,
       qualitative: false,
@@ -476,6 +484,7 @@ export const buildQuantitativeProgressionRecommendation = (
     repRange,
     incrementKg: increment.incrementKg,
     incrementSource: increment.source,
+  incrementConfidence: increment.confidence,
     relativeChangePct: 0,
     confidence: 'high',
     qualitative: false,
