@@ -10,9 +10,11 @@ import { corsHeaders } from "../_shared/cors.ts";
 import {
   computeDietSimilarity,
   SIMILARITY_THRESHOLDS,
+  validateDietNutrition,
   type VariationIntensity,
+  type DietNutritionValidation,
 } from "../_shared/planSimilarity.ts";
-import { validateDietNutrition, type DietNutritionValidation } from "../_shared/planSimilarity.ts";
+
 
 import {
   normalizeDailyAdjustments,
