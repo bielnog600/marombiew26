@@ -288,6 +288,8 @@ export const AdminTrainerSessionProvider: React.FC<{ children: React.ReactNode }
       if (active.mode === 'duo' && active.students[1]) {
         const second = active.students[1];
         const t = totalsByStudent[second.id] || { exercisesCompleted: 0, totalExercises: 0 };
+        const studentSnapshots = active.sessionState?.progressionRecommendationsByStudent || {};
+        
         await supabase.from('workout_sessions').insert({
           student_id: second.id,
           day_name: second.dayName || null,
