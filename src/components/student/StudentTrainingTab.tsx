@@ -17,8 +17,7 @@ import { saveWorkoutPlanFromMarkdown } from '@/lib/workoutPlanRepo';
 import AiEditAllDaysDialog from '@/components/training/AiEditAllDaysDialog';
 import TemplatesDialog from '@/components/training/TemplatesDialog';
 import WeeklyAdherenceBanner from '@/components/training/WeeklyAdherenceBanner';
-import { useWeeklyAdherence } from '@/hooks/useWeeklyAdherence';
-import { resolveActiveWeek } from '@/lib/weeklyProgression';
+import { useWeeklyTraining } from '@/hooks/useWeeklyTraining';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -624,10 +623,11 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
 export default StudentTrainingTab;
 
 const PlanAdherence: React.FC<{ planId: string; studentId: string; conteudo: string; fase?: TrainingPhase | null }> = ({ planId, studentId, conteudo, fase }) => {
-  const { report, loading } = useWeeklyAdherence({ id: planId, student_id: studentId, conteudo });
-  const progression = React.useMemo(
-    () => resolveActiveWeek((fase as TrainingPhase) || 'semana_1', report ?? undefined),
-    [fase, report],
+  // Admin consome exatamente a mesma fonte/decisão que o aluno.
+  const phase = (fase as TrainingPhase) || 'semana_1';
+  const { report, resolution, loading } = useWeeklyTraining(
+    { id: planId, student_id: studentId, conteudo },
+    phase,
   );
-  return <WeeklyAdherenceBanner report={report} loading={loading} progression={progression} />;
+  return <WeeklyAdherenceBanner report={report} loading={loading} progression={resolution} />;
 };
