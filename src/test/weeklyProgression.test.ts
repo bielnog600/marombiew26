@@ -211,7 +211,7 @@ const tlog = (
   reps: number | null,
   set_type: string | null,
   extra: Partial<ExerciseLog> = {},
-): ExerciseLog => log(weight, reps, { ...extra, set_type } as Partial<ExerciseLog>);
+): ExerciseLog => ({ ...log(weight, reps, extra), set_type });
 
 describe('selectBestSet respeita o tipo estrutural da série', () => {
   it('working set representa a performance mesmo quando o aquecimento é registrado', () => {
