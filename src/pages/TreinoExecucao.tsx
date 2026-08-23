@@ -29,7 +29,6 @@ import { useRestTimer } from '@/hooks/useRestTimer';
 import {
   resolveStaleWorkoutSessionsThrottled,
   isSessionStale,
-  touchWorkoutSession,
 } from '@/lib/workoutSessionResolution';
 
 const normalizeExName = (name: string) => name.trim().replace(/\s+/g, ' ').toUpperCase();
