@@ -13,6 +13,7 @@ import { type ParsedExercise, parseTrainingSections } from '@/lib/trainingResult
 import { buildSetPlan, buildPlanSummary, type PlannedSet } from '@/lib/setPlanBuilder';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { PHASE_SHORT_LABELS, getPhaseByMonthDay, type TrainingPhase } from '@/lib/trainingPhase';
+import { resolveCurrentTrainingPhase } from '@/lib/currentPhase';
 import { getSafeWorkoutDays, trackPlanAccess } from '@/lib/planMigrationUtils';
 import { WorkoutSummaryShare } from '@/components/training/WorkoutSummaryShare';
 import { PhaseInfoSheet } from '@/components/training/PhaseInfoSheet';
