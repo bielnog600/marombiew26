@@ -33,6 +33,15 @@ import type {
 } from './weeklyProgression';
 import { setRoleOf } from './weeklyProgression';
 import type { TrainingPhase } from './trainingPhase';
+import {
+  inferIncrementFromTransitions,
+  resolveLoadIncrement,
+  MAX_INFERRED_INCREMENT_KG as MAX_INFERRED_KG,
+  MIN_INCREMENT_KG,
+  MIN_TRANSITIONS_FOR_INFERENCE,
+  type IncrementSource,
+  type ResolvedIncrement,
+} from './loadIncrement';
 
 // ------------------------------------------------------------------
 // Limites conservadores centralizados
@@ -47,14 +56,14 @@ export const ABSOLUTE_LOAD_DECREASE_MAX_PCT = 0.10;
 /** Regressão de e1RM a partir da qual aceitamos reduzir mais de um incremento. */
 export const STRONG_REGRESSION_PCT = 0.15;
 /** Incrementos plausíveis para inferência a partir do histórico (kg). */
-export const MIN_INFERRED_INCREMENT_KG = 0.5;
-export const MAX_INFERRED_INCREMENT_KG = 10;
-/** Mínimo de cargas distintas no histórico para inferir um incremento. */
-export const MIN_HISTORY_LOADS_FOR_INFERENCE = 3;
+export const MIN_INFERRED_INCREMENT_KG = MIN_INCREMENT_KG;
+export const MAX_INFERRED_INCREMENT_KG = MAX_INFERRED_KG;
+/** Mínimo de transições reais de carga para inferir um incremento. */
+export const MIN_HISTORY_LOADS_FOR_INFERENCE = MIN_TRANSITIONS_FOR_INFERENCE;
 
 export type RecommendationConfidence = 'high' | 'medium' | 'low';
 
-export type IncrementSource = 'configured' | 'inferred_history' | 'unknown';
+export type { IncrementSource };
 
 export type QuantitativeAction =
   | NextAction
@@ -65,7 +74,9 @@ export interface EquipmentIncrement {
   source: IncrementSource;
   confidence: RecommendationConfidence;
   reason: string;
+  evidence?: ResolvedIncrement['evidence'];
 }
+
 
 export interface QuantitativeRecommendation {
   exerciseName: string;
