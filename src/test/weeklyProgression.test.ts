@@ -129,8 +129,8 @@ describe('nextAction (double progression)', () => {
     expect(p.nextAction).toBe('maintain');
   });
 
-  it('topo da faixa sem RIR registrado => increase_load conservador', () => {
-    expect(perf([log(70, 12)], [log(70, 10)], range).nextAction).toBe('increase_load');
+  it('topo da faixa sem RIR registrado pela 1a vez => maintain (política conservadora)', () => {
+    expect(perf([log(70, 12)], [log(70, 10)], range).nextAction).toBe('maintain');
   });
 
   it('abaixo da faixa nunca manda subir carga', () => {
