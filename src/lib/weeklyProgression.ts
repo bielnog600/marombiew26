@@ -254,8 +254,9 @@ export const toPerformedSet = (l: ExerciseLog): PerformedSet => {
  * Escolhe UM set real como referência da janela.
  *
  * PRIORIDADE DE TIPO (nunca cega):
- *   working/top set  >  backoff e técnicas (drop/rest-pause/myo-reps)
- *   > aquecimento/reconhecimento (último recurso).
+ *   working/top set  >  backoff e técnicas (drop/rest-pause/myo-reps).
+ * Aquecimento/reconhecimento estão FORA da seleção: mesmo sendo as únicas
+ * séries registradas, não viram bestSet.
  * Uma técnica ou um aquecimento nunca substitui uma série principal como
  * representação da performance semanal; só entram se não houver nenhuma
  * série principal registrada.
@@ -271,8 +272,13 @@ export const selectBestSet = (logs: ExerciseLog[]): PerformedSet | undefined => 
   if (usable.length === 0) return undefined;
 
   const byRole = (role: SetRole) => usable.filter((l) => setRoleOf(l) === role);
-  const ordered = [byRole('primary'), byRole('auxiliary'), byRole('preparation')];
-  const chosenLogs = ordered.find((group) => group.length > 0)!;
+  // Aquecimento/reconhecimento NUNCA representam a performance semanal, nem
+  // como último recurso: se o aluno só fez warmup/recognition, não existe
+  // performance válida (=> insufficient_data). Séries legadas sem set_type
+  // continuam sendo tratadas como `primary` (fallback documentado).
+  const ordered = [byRole('primary'), byRole('auxiliary')];
+  const chosenLogs = ordered.find((group) => group.length > 0);
+  if (!chosenLogs) return undefined;
 
   const sets = chosenLogs.map(toPerformedSet);
   const loaded = sets.filter((s) => s.weightKg > 0);
@@ -362,6 +368,17 @@ export const buildExercisePerformance = (
 
 
   if (!bestSet) {
+    // Diferença importante: existe registro (aquecimento/reconhecimento), mas
+    // nenhuma série de trabalho => dado insuficiente, NUNCA improved/stable/
+    // regressed e também não é `missing` (o aluno esteve lá).
+    if (preparationSets.length > 0) {
+      return {
+        ...base,
+        status: 'insufficient_data',
+        nextAction: 'review',
+        reason: 'Somente aquecimento/reconhecimento registrado — sem série de trabalho para avaliar.',
+      };
+    }
     return { ...base, status: 'missing', nextAction: 'review', reason: 'Exercício planejado sem registro na semana.' };
   }
   if (bestSet.reps <= 0 && bestSet.weightKg <= 0) {
