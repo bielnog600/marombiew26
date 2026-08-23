@@ -905,11 +905,6 @@ REGRAS DA TABELA
 1) A coluna "TREINO DO DIA" deve usar SEMPRE EM MAIÚSCULAS: SEGUNDA-FEIRA, TERÇA-FEIRA, QUARTA-FEIRA, QUINTA-FEIRA, SEXTA-FEIRA, SÁBADO ou DOMINGO.
 2) "PAUSA" deve SEMPRE usar o sufixo "s" (segundos). Exemplos VÁLIDOS: 30s, 45s, 60s, 90s, 120s, 180s. ❌ NUNCA use aspas (") nem a palavra "seg" ou "segundos". Apenas o número seguido de "s" minúsculo.
 `;
-
-
-
-
-
 const TRAINER_RIR_PROMPT = `
 REGRA CRÍTICA — REPETIÇÕES vs RIR (LEIA COM ATENÇÃO MÁXIMA)
 `;
@@ -931,9 +926,6 @@ REPETIÇÕES e RIR são CONCEITOS DIFERENTES e NUNCA devem ser misturados.
 - ❌ NUNCA use o RIR para indicar faixa de repetições. Faixa de reps SEMPRE vai no campo REPETIÇÕES.
 - ✅ Se você não tem certeza do RIR a prescrever, deixe VAZIO. Não invente.
 `;
-
-
-const TRAINER_EXAMPLES_PROMPT = `
 EXEMPLOS CORRETOS:
 | EXERCÍCIO | SÉRIE | REPETIÇÕES | RIR |
 | AGACHAMENTO LIVRE | 4 | 8-10 | 1-2 |
