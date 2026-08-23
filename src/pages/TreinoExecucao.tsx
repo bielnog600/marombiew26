@@ -361,6 +361,16 @@ const TreinoExecucao = () => {
     })();
   }, [user, dayName, phase, exercises.length, setLocalActiveSession, activeSession]);
 
+  // Recomendações consultivas da sessão (congeladas no início; nunca
+  // recalculadas durante o treino e nunca gravadas em exercise_set_logs).
+  const { snapshot: progressionSnapshot } = useSessionProgression({
+    studentId: user?.id ?? null,
+    sessionId,
+    exercises,
+    phase: phase ?? null,
+    restoredSnapshot,
+  });
+
   // Metadados do treino gravados no session_state: permitem classificar e
   // recuperar as séries mesmo quando o aluno não finaliza manualmente.
   const sessionMeta = useMemo(() => ({
@@ -372,7 +382,8 @@ const TreinoExecucao = () => {
     plannedSetTypes: exercises.map((ex: any) =>
       buildSetPlan(ex?.series, ex?.series2, ex?.reps, ex?.setScheme).map((p) => p.type),
     ),
-  }), [exercises]);
+    ...(progressionSnapshot ? { progressionRecommendations: progressionSnapshot } : {}),
+  }), [exercises, progressionSnapshot]);
 
 
   const formatElapsed = (totalSec: number) => {
