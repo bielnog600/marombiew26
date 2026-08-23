@@ -336,8 +336,6 @@ function workoutPlanToMarkdown(plan: any): string {
   return lines.join("\n");
 }
 
-const modelAttempts: AIAttemptMetadata[] = [];
-
 async function callStructuredModel({
   apiKey,
   systemPrompt,
@@ -345,9 +343,15 @@ async function callStructuredModel({
   extraSystem,
   modelToUse,
   reason,
-}: StructuredArgs & { extraSystem?: string; modelToUse: string; reason: string }): Promise<
+  attempts,
+}: StructuredArgs & { 
+  extraSystem?: string; 
+  modelToUse: string; 
+  reason: string;
+  attempts: AIAttemptMetadata[];
+}): Promise<
   | { ok: true; data: any }
-  | { ok: false; response: Response }
+  | { ok: false; response: Response; error_code?: string }
 > {
   const start = Date.now();
   
