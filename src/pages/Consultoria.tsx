@@ -124,9 +124,10 @@ const Consultoria: React.FC = () => {
     
     let dietasVencidas = 0;
     let treinosVencidas = 0;
-    studentPlansMap.forEach(d => {
-      if (getCycleInfo(d.latestDieta).status === 'vencido') dietasVencidas++;
-      if (getCycleInfo(d.latestTreino).status === 'vencido') treinosVencidas++;
+    activeSummaries.forEach(s => {
+      const d = studentPlansMap.get(s.studentId);
+      if (d && getCycleInfo(d.latestDieta).status === 'vencido') dietasVencidas++;
+      if (d && getCycleInfo(d.latestTreino).status === 'vencido') treinosVencidas++;
     });
 
     return { totalStudents, semDieta, semTreino, dietasVencidas, treinosVencidas };
