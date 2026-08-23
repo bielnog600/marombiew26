@@ -793,7 +793,13 @@ serve(async (req) => {
           return {
             ok: false,
             resp: new Response(
-              JSON.stringify({ error: "Modelo retornou JSON inválido.", raw, retryable: true, error_code: "invalid_json" }),
+              JSON.stringify({ 
+                error: "Modelo retornou JSON inválido.", 
+                retryable: true, 
+                error_code: "invalid_json",
+                aiRouting: createRoutingMetadata(modelAttempts, "invalid_json").routing,
+                aiUsage: createRoutingMetadata(modelAttempts, "invalid_json").usage
+              }),
               { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
             ),
           };
