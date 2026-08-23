@@ -48,7 +48,7 @@ export function useActiveWorkoutSession() {
     }
     const { data, error } = await supabase
       .from('workout_sessions')
-      .select('id, student_id, day_name, phase, started_at, created_at, last_active_at, session_state, status')
+      .select('id, student_id, plan_id, day_name, phase, started_at, created_at, last_active_at, session_state, status')
       .eq('student_id', user.id)
       .eq('status', 'in_progress')
       .order('started_at', { ascending: false })
