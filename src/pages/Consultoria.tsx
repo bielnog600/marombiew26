@@ -76,6 +76,8 @@ const Consultoria: React.FC = () => {
   const [alertFilter, setAlertFilter] = useState<FollowupFilter>('hoje');
   const [plans, setPlans] = useState<any[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
+  const [dietSort, setDietSort] = useState<'name' | 'overdue'>('name');
+  const [workoutSort, setWorkoutSort] = useState<'name' | 'overdue'>('name');
 
   const { summaries: weeklySummaries = [], loading: weeklyLoading, reload: reloadWeekly } = useStudentsWeeklySummary();
   const { alerts: behavioralAlerts, loading: behavioralLoading, generate: generateBehavioral, generating: behavioralGenerating, updateStatus: updateBehavioralStatus, reload: refreshBehavioral } = useBehavioralAlerts();
