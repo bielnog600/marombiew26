@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { readProgressionSnapshot } from '../lib/sessionProgression';
+import { describe, it, expect } from 'vitest';
+import { readProgressionSnapshot, PROGRESSION_SNAPSHOT_VERSION } from '../lib/sessionProgression';
 
 describe('TrainerLogSheet Snapshot Persistence & Restoration', () => {
   const mockSnapshot = {
+    version: PROGRESSION_SNAPSHOT_VERSION,
     studentId: 'student-1',
     sessionId: 'session-123',
     phase: 'semana_1',
