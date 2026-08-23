@@ -335,7 +335,7 @@ export const buildQuantitativeProgressionRecommendation = (
         ...qualitative(
           p,
           'manual_increment_required',
-          'incremento_excessivo',
+          'available_increment_too_large',
           [
             `O próximo incremento disponível (${increment.incrementKg} kg) representa ${(rel * 100).toFixed(1)}% de aumento, acima do limite de ${ABSOLUTE_LOAD_INCREASE_MAX_PCT * 100}%.`,
             'Mantenha a carga e progrida em repetições/execução, ou ajuste manualmente.',
