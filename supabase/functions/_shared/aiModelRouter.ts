@@ -64,15 +64,18 @@ export function createRoutingMetadata(
   fallbackReason: string | null,
   fallbackReasons?: string[]
 ): AIRouterResponse {
+  if (attempts.length === 0) {
+    throw new Error("createRoutingMetadata: attempts array cannot be empty");
+  }
   const fallbackUsed = attempts.length > 1;
   const finalAttempt = attempts[attempts.length - 1];
   
   const totalPrompt = attempts.reduce((acc, curr) => 
-    (acc === null || curr.usage?.promptTokens === null) ? null : acc + (curr.usage?.promptTokens || 0), 0 as number | null);
+    (acc === null || curr.usage?.promptTokens === null || curr.usage?.promptTokens === undefined) ? null : acc + (curr.usage?.promptTokens || 0), 0 as number | null);
   const totalCompletion = attempts.reduce((acc, curr) => 
-    (acc === null || curr.usage?.completionTokens === null) ? null : acc + (curr.usage?.completionTokens || 0), 0 as number | null);
+    (acc === null || curr.usage?.completionTokens === null || curr.usage?.completionTokens === undefined) ? null : acc + (curr.usage?.completionTokens || 0), 0 as number | null);
   const totalTokens = attempts.reduce((acc, curr) => 
-    (acc === null || curr.usage?.totalTokens === null) ? null : acc + (curr.usage?.totalTokens || 0), 0 as number | null);
+    (acc === null || curr.usage?.totalTokens === null || curr.usage?.totalTokens === undefined) ? null : acc + (curr.usage?.totalTokens || 0), 0 as number | null);
 
   return {
     routing: {
