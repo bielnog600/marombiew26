@@ -121,6 +121,11 @@ export default defineConfig(({ mode }) => ({
       },
     }),
   ].filter(Boolean),
+  build: {
+    modulePreload: {
+      polyfill: false
+    }
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
