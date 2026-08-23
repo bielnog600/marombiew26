@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
-import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar, Send, ClipboardList, Plus, Sparkles, Activity, Wand2, Zap, GitCompare, RefreshCw, Users, Settings2 } from 'lucide-react';
+import { Dumbbell, Save, Loader2, ChevronDown, ChevronUp, Calendar, Send, ClipboardList, Plus, Sparkles, Activity, Wand2, Zap, GitCompare, RefreshCw, Users, Settings2, Weight } from 'lucide-react';
 import { Trash2, Copy, User } from 'lucide-react';
 import { BookMarked } from 'lucide-react';
 import { toast } from 'sonner';
@@ -16,6 +16,7 @@ import { rebuildTrainingMarkdown } from '@/lib/trainingResultParser';
 import { saveWorkoutPlanFromMarkdown } from '@/lib/workoutPlanRepo';
 import AiEditAllDaysDialog from '@/components/training/AiEditAllDaysDialog';
 import TemplatesDialog from '@/components/training/TemplatesDialog';
+import LoadIncrementsDialog from '@/components/training/LoadIncrementsDialog';
 import WeeklyAdherenceBanner from '@/components/training/WeeklyAdherenceBanner';
 import { useWeeklyTraining } from '@/hooks/useWeeklyTraining';
 import { Badge } from '@/components/ui/badge';
@@ -59,6 +60,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [aiAllDaysOpen, setAiAllDaysOpen] = useState<string | null>(null);
   const [templatesFor, setTemplatesFor] = useState<any | null>(null);
+  const [incrementsFor, setIncrementsFor] = useState<string[] | null>(null);
   const editedMarkdownsRef = useRef<Record<string, string>>({});
   const [starting, setStarting] = useState(false);
 
@@ -310,6 +312,18 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                   <div className="flex items-center gap-2 shrink-0">
                     <Button
                       variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground"
+                      title="Incremento de carga"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIncrementsFor(currentDays.flatMap((d) => (d.exercises || []).map((ex: any) => ex.exercise)).filter(Boolean));
+                      }}
+                    >
+                      <Weight className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
                       size="sm"
                       className="h-7 gap-1 px-2 text-xs"
                       title="Treinar aluno"
@@ -512,6 +526,15 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
           );
         })}
       </div>
+
+      {incrementsFor && (
+        <LoadIncrementsDialog
+          open={!!incrementsFor}
+          onOpenChange={(v) => { if (!v) setIncrementsFor(null); }}
+          studentId={studentId}
+          exerciseNames={incrementsFor}
+        />
+      )}
 
       <Dialog open={!!trainModeChoice} onOpenChange={(v) => !v && setTrainModeChoice(null)}>
         <DialogContent className="sm:max-w-md">
