@@ -897,9 +897,11 @@ PROIBIDO incluir:
 - Instruções de "comece perguntando"
 `;
 
-
+const TRAINER_LEGACY_TABLE_PROMPT = \`
 A tabela do TREINO deve ter exatamente 9 colunas com estes títulos, nessa ordem:
 TREINO DO DIA | EXERCÍCIO | SÉRIE | SÉRIE 2 | REPETIÇÕES | RIR | PAUSA | DESCRIÇÃO | VARIAÇÃO
+\`;
+
 
 REGRAS DA TABELA
 1) A coluna "TREINO DO DIA" deve usar SEMPRE EM MAIÚSCULAS: SEGUNDA-FEIRA, TERÇA-FEIRA, QUARTA-FEIRA, QUINTA-FEIRA, SEXTA-FEIRA, SÁBADO ou DOMINGO.
