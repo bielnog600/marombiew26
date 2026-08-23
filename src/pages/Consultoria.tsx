@@ -765,11 +765,12 @@ const Consultoria = () => {
 
               const handleProgressionContact = async (studentId: string, planId: string) => {
                 const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+                const { data: { user } } = await supabase.auth.getUser();
                 await supabase.from('weekly_progression_contacts').upsert({
                   student_id: studentId,
                   plan_id: planId,
                   week_start_date: format(weekStart, 'yyyy-MM-dd'),
-                  trainer_id: (await supabase.auth.getUser()).data.user?.id
+                  trainer_id: user?.id
                 });
                 reloadProgression();
               };
@@ -812,7 +813,7 @@ const Consultoria = () => {
                       onClick={() => { refreshNotifs(); generateBehavioral(); reloadWeekly(); reloadFollowups(); reloadInactive(); reloadProgression(); }}
                       disabled={notifLoading || behavioralGenerating || weeklyLoading || followupsLoading || progressionLoading}
                     >
-                      <RefreshCw className={} />
+                      <RefreshCw className={`h-4 w-4 mr-1 ${(notifLoading || behavioralGenerating || weeklyLoading || followupsLoading || progressionLoading) ? 'animate-spin' : ''}`} />
                       Atualizar
                     </Button>
                   </div>
@@ -834,7 +835,69 @@ const Consultoria = () => {
                         ))}
                       </div>
                     )
-                  ) : alertFilter === 'inativos' ? ())
+                  ) : alertFilter === 'inativos' ? (
+                    inactiveLoading ? (
+                      <div className="space-y-2">
+                        <Skeleton className="h-24 w-full rounded-lg" />
+                        <Skeleton className="h-24 w-full rounded-lg" />
+                      </div>
+                    ) : inactiveVisible.length === 0 ? (
+                      <Card>
+                        <CardContent className="py-6 text-center text-xs text-muted-foreground">
+                          Nenhum aluno inativo há mais de 3 dias 🎉
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <div className="space-y-2">
+                        {inactiveVisible.map((s) => (
+                        <InactiveStudentCard
+                          key={s.studentId}
+                          student={s}
+                          onArchive={archive}
+                          onContacted={(id) => markAsDone(id, '3d')}
+                        />
+                        ))}
+                      </div>
+                    )
+                  ) : weeklyLoading || followupsLoading ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-32 w-full rounded-lg" />
+                      <Skeleton className="h-32 w-full rounded-lg" />
+                    </div>
+                  ) : filtered.length === 0 ? (
+                    <Card>
+                      <CardContent className="py-6 text-center text-xs text-muted-foreground">
+                        {alertFilter === 'hoje' && 'Nenhum aluno na fila de follow-up agora 🎉'}
+                        {alertFilter === 'falados' && 'Você ainda não marcou ninguém como falado hoje.'}
+                        {alertFilter === 'espera' && 'Nenhum aluno aguardando retorno.'}
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="space-y-2">
+                      {filtered.map((s) => (
+                        <StudentWeeklyCard
+                          key={s.studentId}
+                          summary={s}
+                          followup={followups.get(s.studentId)}
+                          onMarkDone={markAsDone}
+                          onReopen={reopen}
+                          onArchive={archive}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  <OtherAlertsSection
+                    notifications={notifications}
+                    behavioralAlerts={behavioralAlerts}
+                    onDismiss={dismissNotification}
+                    onUpdateBehavioral={updateBehavioralStatus}
+                  />
+                </>
+              );
+            })()}
+          </div>
+        )}))
                 .filter((x) => x.b !== 'arquivado');
               const inactiveVisible = inactiveStudents.filter((s) => {
                 const f = followups.get(s.studentId);
