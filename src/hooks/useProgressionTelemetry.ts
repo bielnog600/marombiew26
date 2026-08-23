@@ -44,7 +44,6 @@ export function useProgressionTelemetry({ studentId, days = 30 }: Params) {
         const { data: logRows, error: logError } = await supabase
           .from('exercise_set_logs')
           .select('student_id, session_id, exercise_name, set_number, weight_kg, reps, rir, set_type, source, performed_at')
-          .eq('student_id', studentId)
           .in('session_id', sessionIds)
           .order('performed_at', { ascending: false });
         
