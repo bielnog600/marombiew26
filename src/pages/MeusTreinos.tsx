@@ -25,9 +25,10 @@ import {
   PHASE_SHORT_LABELS,
   PHASE_BADGE_CLASS,
   PHASE_DESCRIPTIONS,
-  calculateCurrentPhase,
   type TrainingPhase,
 } from '@/lib/trainingPhase';
+import { resolveCurrentTrainingPhaseFromPlans } from '@/lib/currentPhase';
+
 
 interface PlanRow {
   id: string;
