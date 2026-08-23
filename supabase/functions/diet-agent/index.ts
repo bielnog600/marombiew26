@@ -991,9 +991,6 @@ serve(async (req) => {
       // Quando o cliente enviou um weeklyEnergySchedule, os targets são
       // determinísticos e vêm do schedule (fonte de verdade). A IA fornece
       // apenas instructions / summary / estimated_adjustment_kcal.
-      const schedule = (dietConfig && typeof dietConfig === "object")
-        ? (dietConfig as any).weeklyEnergySchedule
-        : null;
       let normalizedDailyAdjustments: any = null;
       let dailyAdjustmentsError: string | null = null;
       if (schedule && typeof schedule === "object" && schedule.days) {
