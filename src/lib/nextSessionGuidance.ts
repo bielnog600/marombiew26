@@ -11,43 +11,70 @@ const list = (items: string[], max = 2) => {
 
 /**
  * Gera um parágrafo curto, direto e acionável com orientação para a próxima
- * sessão/semana do aluno, baseado em aderência + progressão da semana.
+ * sessão/semana do aluno.
+ *
+ * FONTE DA DECISÃO: `resolution` (WeekResolution de resolveActiveWeek) —
+ * decision / activePhase / blockOverload. O guidance NÃO recria a decisão a
+ * partir de `adherence.status`; esse status só é usado como fallback legado
+ * quando não há resolution (dados antigos / chamadas sem a camada semanal).
  */
 export const buildNextSessionGuidance = (s: StudentWeeklySummary): string => {
   const name = firstName(s.studentName);
   const a = s.adherence;
   const p = s.progression;
+  const r = s.resolution ?? null;
 
   if (!a || !p) {
     return `Sem plano ativo ou sem registros suficientes para ${name}. Próxima sessão: cobrar registro de carga e reps em todos os exercícios para gerar base de progressão.`;
   }
 
   const parts: string[] = [];
+  const deload = r?.activePhase === 'deload';
+  const decision = r?.decision ?? null;
+  // Sem resolution: mapeia o status legado para uma decisão equivalente.
+  const legacyDecision =
+    a.status === 'apto_avancar' ? 'advance'
+      : a.status === 'manter_semana' ? 'hold'
+        : a.status === 'repetir_semana' ? 'repeat'
+          : a.status === 'sugerir_reanalise' ? 'revise'
+            : 'awaiting_data';
+  const d = decision ?? legacyDecision;
+  const conservative = deload || !!r?.blockOverload || d === 'repeat' || d === 'hold'
+    || d === 'revise' || d === 'awaiting_data';
 
-  // 1. Direção da semana
-  switch (a.status) {
-    case 'apto_avancar':
-      parts.push(p.improved.length > 0
-        ? `${cap(name)}, semana boa — pode avançar.`
-        : `${cap(name)}, aderência ok, mas sem evolução clara — avance com cautela.`);
+  // 1. Direção da semana — vinda da decisão semanal.
+  switch (d) {
+    case 'advance_to_deload':
+      parts.push(`${cap(name)}, semana de sobrecarga concluída — entrar em deload: reduzir volume e intensidade e priorizar recuperação.`);
       break;
-    case 'manter_semana':
-      parts.push(`${cap(name)}, manter a semana atual e consolidar execução.`);
+    case 'advance':
+      if (deload) {
+        parts.push(`${cap(name)}, próxima semana é deload — reduzir volume e intensidade, sem buscar sobrecarga.`);
+      } else {
+        parts.push(p.improved.length > 0
+          ? `${cap(name)}, semana boa — pode avançar.`
+          : `${cap(name)}, aderência ok, mas sem evolução clara — avance com cautela.`);
+      }
       break;
-    case 'repetir_semana':
-      parts.push(`${cap(name)}, repetir a semana — aderência ficou baixa.`);
+    case 'hold':
+      parts.push(deload
+        ? `${cap(name)}, manter a semana de deload e focar em recuperação.`
+        : `${cap(name)}, manter a semana atual e consolidar execução.`);
       break;
-    case 'sugerir_reanalise':
+    case 'repeat':
+      parts.push(`${cap(name)}, repetir a semana — execução ficou baixa.`);
+      break;
+    case 'revise':
       parts.push(`${cap(name)}, registros confusos — vou reanalisar o plano antes de progredir.`);
       break;
-    case 'dados_insuficientes':
+    case 'awaiting_data':
+    default:
       parts.push(`${cap(name)}, faltou registro de carga/reps — sem base para progredir.`);
       break;
   }
 
-  // 2. Exercícios que evoluíram → aumentar carga / topo da faixa
-  // Prioriza a recomendação determinística por exercício (weeklyProgression);
-  // se ainda não houver performances estruturadas, usa o contrato legado.
+  // 2. Exercícios que evoluíram → aumentar carga / topo da faixa.
+  // Nunca em deload nem quando a decisão bloqueia sobrecarga.
   const readyForLoad = (p.performances || [])
     .filter((perf) => perf.nextAction === 'increase_load')
     .slice(0, 2)
@@ -55,15 +82,17 @@ export const buildNextSessionGuidance = (s: StudentWeeklySummary): string => {
   const improvedTop = readyForLoad.length > 0
     ? readyForLoad
     : p.improved
-        .filter((d) => d.weightDelta > 0 || d.repsDelta > 0)
+        .filter((x) => x.weightDelta > 0 || x.repsDelta > 0)
         .slice(0, 2)
-        .map((d) => d.exercise);
-  if (improvedTop.length > 0 && a.status !== 'repetir_semana') {
+        .map((x) => x.exercise);
+  if (improvedTop.length > 0 && !conservative) {
     parts.push(`Na próxima sessão, subir carga ou buscar o topo da faixa em ${list(improvedTop)}.`);
+  } else if (improvedTop.length > 0 && deload) {
+    parts.push(`Mesmo com evolução em ${list(improvedTop)}, no deload mantenha a carga — sem recordes.`);
   }
 
   // 3. Exercícios que regrediram → manter/reduzir e ajustar execução
-  const regressedTop = p.regressed.slice(0, 2).map((d) => d.exercise);
+  const regressedTop = p.regressed.slice(0, 2).map((x) => x.exercise);
   if (regressedTop.length > 0) {
     parts.push(`Em ${list(regressedTop)}, manter (ou reduzir) a carga e focar em amplitude e controle.`);
   }
@@ -74,15 +103,14 @@ export const buildNextSessionGuidance = (s: StudentWeeklySummary): string => {
     parts.push(`Sem base confiável em ${list(missingTop)} — pedir para registrar carga e reps na próxima sessão.`);
   }
 
-  // 5. Fechamento conservador quando aderência baixa
-  if (a.status === 'repetir_semana' || a.status === 'manter_semana') {
-    if (improvedTop.length === 0 && regressedTop.length === 0) {
-      parts.push('Semana conservadora: mesmo plano, foco em presença e execução.');
-    }
+  // 5. Fechamento conservador
+  if ((d === 'repeat' || d === 'hold') && improvedTop.length === 0 && regressedTop.length === 0) {
+    parts.push('Semana conservadora: mesmo plano, foco em presença e execução.');
   }
 
   return parts.join(' ');
 };
+
 // ============================================================
 // Orientação por exercício (determinística, a partir de nextAction)
 // ------------------------------------------------------------
