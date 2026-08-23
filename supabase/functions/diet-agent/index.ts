@@ -1180,74 +1180,21 @@ serve(async (req) => {
         }
       }
 
-      // === dailyAdjustments contract ===
-      // Quando o cliente enviou um weeklyEnergySchedule, os targets são
-      // determinísticos e vêm do schedule (fonte de verdade). A IA fornece
-      // apenas instructions / summary / estimated_adjustment_kcal.
-      let normalizedDailyAdjustments: any = null;
-      let dailyAdjustmentsError: string | null = null;
-      if (schedule && typeof schedule === "object" && schedule.days) {
-        const hasVariation = hasDailyCalorieVariation(schedule);
-        console.log("[diet-agent] weekly_schedule_received=true", {
-          requested_day_count: ENERGY_WEEKDAYS.filter((wd) => schedule.days?.[wd]).length,
-          has_daily_variation: hasVariation,
-          model_daily_adjustments_present:
-            !!(finalPlan && typeof finalPlan === "object" && (finalPlan as any).dailyAdjustments),
-        });
-        const modelAdj = (finalPlan && typeof finalPlan === "object")
-          ? (finalPlan as any).dailyAdjustments
-          : null;
-        const { adjustments, missing } = normalizeDailyAdjustments(modelAdj, schedule);
-        const requested = buildRequestedFromSchedule(schedule);
-        // Log divergências de target (nunca aceitas silenciosamente).
-        for (const wd of ENERGY_WEEKDAYS) {
-          const modelDay = modelAdj?.[wd];
-          if (modelDay && Number(modelDay.target_kcal) !== requested[wd].target_kcal) {
-            console.warn(`[diet-agent] target divergence on ${wd}: model=${modelDay.target_kcal} authoritative=${requested[wd].target_kcal}`);
-          }
-        }
-        // Sem variação real → não exigir dailyAdjustments da IA. Os 7 dias já
-        // vieram do normalizador como base_day + summary "Manter plano base".
-        const validation = hasVariation
-          ? validateDailyAdjustments(adjustments, missing)
-          : { ok: true, errors: [] as string[] };
-        console.log("[diet-agent] normalized_day_count", {
-          count: Object.keys(adjustments).length,
-          missing_count: missing.length,
-          validation_ok: validation.ok,
-          has_variation: hasVariation,
-        });
-        if (!validation.ok) {
-          dailyAdjustmentsError = validation.errors.join(" | ");
-        } else {
-          normalizedDailyAdjustments = adjustments;
-        }
-
-        if (!normalizedDailyAdjustments && missing.length > 0) {
-          const WD_LABEL: Record<string, string> = {
-            seg: "Segunda", ter: "Terça", qua: "Quarta", qui: "Quinta",
-            sex: "Sexta", sab: "Sábado", dom: "Domingo",
-          };
-          const names = missing.map((wd) => WD_LABEL[wd] ?? wd).join(", ");
-          return new Response(
-            JSON.stringify({
-              error: `A IA não devolveu os ajustes dos seguintes dias: ${names}.`,
-              error_code: "daily_adjustments_invalid",
-              missing_days: missing,
-              details: dailyAdjustmentsError,
-            }),
-            { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-          );
-        }
-      }
-
-      if (schedule && !normalizedDailyAdjustments) {
+      // Final validation before response
+      if (!nutrition.ok || (schedule && !normalizedDailyAdjustments)) {
+        const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
         return new Response(
           JSON.stringify({
-            error:
-              "A dieta foi gerada, mas os ajustes calóricos por dia não foram devolvidos corretamente. Regere o plano.",
-            error_code: "daily_adjustments_invalid",
-            details: dailyAdjustmentsError,
+            error: !nutrition.ok 
+              ? "A dieta gerada é nutricionalmente incompleta." 
+              : "Os ajustes calóricos por dia não foram devolvidos corretamente.",
+            error_code: "review_required",
+            validationReasons: [
+              ...(!nutrition.ok ? ["nutrition_invalid"] : []),
+              ...(schedule && !normalizedDailyAdjustments ? ["daily_adjustments_invalid"] : [])
+            ],
+            aiRouting: routingMeta.routing,
+            aiUsage: routingMeta.usage,
           }),
           { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
