@@ -602,3 +602,18 @@ export const resolveActiveWeek = (
       return { ...base, action: 'awaiting_data', blockOverload: true, reasonLabel: WEEK_ACTION_LABEL['awaiting_data'] };
   }
 };
+// ============================================================
+// LIMITAÇÕES DO SCHEMA ATUAL (documentado, sem migration nesta etapa)
+// ------------------------------------------------------------
+//  - exercise_set_logs tem `rpe` (numeric) mas NÃO tem coluna `rir`. Hoje
+//    100% dos registros têm rpe = null, então o modificador de RIR fica
+//    inerte até o app passar a coletar esforço por série. A leitura já está
+//    pronta: `rir` explícito ou derivado de 10 - rpe.
+//  - Não há duração/tempo por série: exercícios isométricos ou por tempo
+//    (prancha, 30s → 40s) não têm dado estruturado e caem em
+//    insufficient_data ou são avaliados só por repetições quando existirem.
+//  - A correspondência entre semanas é por nome normalizado do exercício
+//    (não há exercise_id / exercise_instance_id no log). Trocas de variação
+//    aparecem como exercícios diferentes.
+//  - A faixa prescrita vem do texto do plano (reps "8-12" ou setScheme);
+//    quando ausente, nextAction fica conservador (maintain).
