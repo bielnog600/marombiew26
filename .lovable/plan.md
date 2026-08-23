@@ -1,54 +1,54 @@
-# Plan - AI Routing and Integrity Hardening (Revised)
+# Plan - AI Routing and Integrity Hardening (Final Version)
 
-This plan fixes critical bugs in AI model routing, validation pipelines, and technical fallbacks, incorporating user feedback on redundancy rules and usage metadata.
+This plan finalizes the AI routing and validation architecture, ensuring strict adherence to technical guardrails, proper taxonomy sharing, and protection of the `update` intent.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> - **Redundancy Rule Relaxed**: The "3+ exercises of the same family" blocker has been removed. Redundancy now focuses on **exact duplicates** and **functional equivalents**.
-> - **Update Integrity**: `intent === "update"` will no longer fall back to Terra due to similarity/variation issues (High Similarity, Portion Only, etc.). Fallbacks for updates are now strictly for technical or nutritional failures.
-> - **Strict Usage Metadata**: Missing AI usage data will be represented as `null` rather than `0`.
+> - **Unified Taxonomy**: `exerciseClassifier.ts` is now the single source of truth for movement patterns. `workoutRedundancy.ts` consumes this taxonomy.
+> - **Strict 2-Call Limit**: Maximum of 2 model calls (Luna + optional Terra). No third calls.
+> - **Critical Validity**: Terra attempts are rejected with a `422 review_required` if they fail critical checks (Nutrition/Adjustments for Diet; Catalog/Redundancy for Workout).
+> - **Structured Prompt Isolation**: Core prompts are strictly separated from structured output instructions to prevent leaked formatting (Markdown/WhatsApp) in JSON responses.
 
 ## Proposed Changes
 
-### 1. Shared Logic & Taxonomy
-- **Unified Movement Patterns**: Refactor `supabase/functions/_shared/workoutRedundancy.ts` to export and share movement pattern tokens with `exerciseClassifier.ts` to ensure a single source of truth for taxonomy.
-- **Redundancy Motor Refactor**:
-    - **Remove** the "3+ per family" rejection rule.
-    - **Implement** `exact_duplicate` detection for ALL exercises (count >= 2 per day).
-    - **Maintain** functional equivalence checks (e.g., matching both movement pattern AND equipment/class).
-- **AI Router Metadata**: 
-    - Update `createRoutingMetadata` to preserve `null` for missing token counts.
-    - Add invariant: `modelAttempts` must never be empty or zero-length.
+### 1. Taxonomy & Redundancy
+- **Centralized Taxonomy**: Refactor `exerciseClassifier.ts` to export its `MOVEMENT_PATTERNS` and token logic. `workoutRedundancy.ts` will import these to classify exercises, ensuring functional consistency.
+- **Conservative Redundancy**:
+    - **Exact Duplicate**: `count >= 2` of the same normalized name in a day triggers a rejection.
+    - **Functional Duplicate**: Redundancy is flagged only when there is strong evidence (matching movement pattern AND equipment/class).
 
-### 2. Diet Agent (`diet-agent`)
-- **Pipeline Unification**: Use `evaluateDietCandidate` to validate all attempts (Luna, Terra, Technical).
-- **Update Mode Protection**:
-    - Protect all variation-based retry triggers (`similarity.score > threshold`, `isPortionOnly`, `qOnly > 0.3`, `primarySourceTooRepetitive`) behind `variationRetryAllowed && intent !== "update"`.
-    - Ensure `fallbackReasons` for updates only include technical/nutritional codes.
-- **Retry Prompt Hardening**: If `intent === "update"`, the retry prompt will strictly focus on fixing nutrition/adjustments, omitting "Substitua alimentos" or "Troque por outra família" instructions.
-- **Critical Failure Handling**: If Terra persists with a critical failure (Nutrition/DailyAdjustments), return `422 review_required`.
+### 2. Validation Pipelines & Criticality
+- **Unified Evaluation**: Luna, Terra, and Technical fallbacks all pass through `evaluateDietCandidate` or `evaluateWorkoutCandidate` with **no early returns**.
+- **Critical Acceptance (Diet)**: Terra is accepted ONLY if `nutrition.ok === true` and `dailyAdjustments` are valid (if schedule exists). Otherwise, return `422 review_required`.
+- **Critical Acceptance (Workout)**: Terra must pass schema, catalog (main exercises), and redundancy (no exact duplicates). Critical mismatches trigger `422 review_required`.
 
-### 3. Training Agent (`trainer-agent`)
-- **Pipeline Unification**: Use `evaluateWorkoutCandidate` for all attempts.
-- **Catalog-Driven Fallback**:
-    - Trigger Terra fallback if `hasCatalogMismatch` is true in Luna's output.
-- **Similarity & Redundancy Integrity**:
-    - Remove hardcoded `similarity: 0` for fallbacks; compute real similarity.
-    - If both attempts are redundant (exact duplicates) or mismatched against the catalog, return `422 review_required`.
+### 3. Intent Protection (`intent === "update"`)
+- **Variation Protection**: Re-verify that `similarity.score > threshold`, `isPortionOnly`, and other variation-only failures are strictly protected by `variationRetryAllowed && intent !== "update"`.
+- **Prompt Sanitization**: Ensure the retry prompt for updates excludes instructions to swap foods or families.
+
+### 4. Prompt Engineering & Formatting
+- **Prompt Separation**: Split system prompts into `*_CORE_PROMPT` (knowledge), `*_STRUCTURED_PROMPT` (JSON format), and `*_LEGACY_PROMPT` (chat context).
+- **JSON Integrity**: Strictly exclude Markdown tables, WhatsApp formatting, and "one question at a time" instructions from the `STRUCTURED` prompt.
+
+### 5. Metadata & Usage
+- **Usage Invariants**: Missing usage data stays `null` (no transformation to 0).
+- **Routing Observability**: `createRoutingMetadata` will always reflect the exact model path taken.
 
 ## Technical Details
 
-### AI Usage Invariant
+### Movement Pattern Sharing
 ```typescript
-const usage = {
-  prompt_tokens: attempt.usage?.prompt_tokens ?? null,
-  completion_tokens: attempt.usage?.completion_tokens ?? null,
-  total_tokens: attempt.usage?.total_tokens ?? null
-};
+// Shared module for movement pattern detection
+export const MOVEMENT_PATTERNS = [...];
+export function getPattern(name: string) { ... }
 ```
 
-### Redundancy Logic (Conservative)
-1. **Rule A**: If `normalizeName(ex1) === normalizeName(ex2)` in the same day -> **REJECT**.
-2. **Rule B**: If `family1 === family2` AND `equipment1 === equipment2` AND `class1 === class2` -> **REJECT** (Functional Duplicate).
-3. **Rule C** (Removed): 3+ of same family -> **ALLOW**.
+### Critical Acceptance Logic
+```typescript
+const isCriticallyValid = agent === 'diet' 
+  ? (nut.ok && (hasSchedule ? adj.ok : true))
+  : (red.ok && !hasCriticalCatalogMismatch);
+
+if (!isCriticallyValid) return respond422(reasons);
+```
