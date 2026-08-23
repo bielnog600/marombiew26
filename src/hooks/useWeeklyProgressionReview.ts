@@ -73,7 +73,7 @@ export const useWeeklyProgressionReview = () => {
         const recs: any[] = [];
 
         for (const exercise of exercises) {
-          const exerciseLogs = studentLogs.filter((l: any) => l.exercise_name === exercise.name);
+          const exerciseLogs = studentLogs.filter((l: any) => l.exercise_name === exercise.exercise);
           if (exerciseLogs.length === 0) continue;
 
           const bestSet = selectBestSet(exerciseLogs as any);
@@ -81,8 +81,8 @@ export const useWeeklyProgressionReview = () => {
 
           const recommendation = buildQuantitativeProgressionRecommendation({
             performance: {
-              exerciseName: exercise.name,
-              nextAction: 'maintain', // Placeholder, idealmente viria de buildWeeklyTrainingReport
+              exerciseName: exercise.exercise,
+              nextAction: 'maintain', // Placeholder
               bestSet: {
                 reps: bestSet.reps,
                 weightKg: bestSet.weight_kg,
@@ -100,7 +100,7 @@ export const useWeeklyProgressionReview = () => {
 
           if (nextAction !== 'maintain') {
             recs.push({
-              exerciseName: exercise.name,
+              exerciseName: exercise.exercise,
               nextAction,
               suggestedIncrement: recommendation.recommendedLoadKg ? (recommendation.recommendedLoadKg - (recommendation.currentLoadKg || 0)) : 0,
               recommendation
