@@ -20,6 +20,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { countsTowardWorkoutCompletion } from './exerciseLoadType';
+import { normalizeExName } from '@/components/training/TrainerLogSheetUtils';
 
 export type WorkoutSessionStatus = 'in_progress' | 'completed' | 'partial' | 'abandoned';
 export type CompletionSource = 'manual' | 'automatic';
@@ -224,7 +225,7 @@ const flushSessionStateLogs = async (
       rows.push({
         student_id: row.student_id,
         session_id: row.id,
-        exercise_name: name.toUpperCase().trim(),
+        exercise_name: normalizeExName(name),
         muscle_group: state?.muscleGroups?.[idx] ?? null,
         set_number: i + 1,
         reps: reps || null,
