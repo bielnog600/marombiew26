@@ -86,13 +86,18 @@ export const buildNextSessionGuidance = (s: StudentWeeklySummary): string => {
 // ============================================================
 // Orientação por exercício (determinística, a partir de nextAction)
 // ------------------------------------------------------------
-// Consome as `nextAction` já calculadas em weeklyProgression. Nenhuma nova
-// regra de progressão é criada aqui e NENHUM incremento quantitativo de carga
-// (+2.5 kg, +5%) é sugerido — isso é etapa posterior.
+// Consome as `nextAction` já calculadas em weeklyProgression e, quando
+// disponível, os números do motor quantitativo (quantitativeProgression.ts).
+// Nenhuma regra de progressão nova é criada aqui.
 // ============================================================
 
 import type { ExercisePerformance } from '@/lib/weeklyProgression';
 import type { TrainingPhase } from '@/lib/trainingPhase';
+import {
+  formatQuantitativeRecommendation,
+  type QuantitativeRecommendation,
+} from '@/lib/quantitativeProgression';
+
 
 export interface ExerciseGuidance {
   exerciseName: string;
