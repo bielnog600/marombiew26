@@ -14,6 +14,7 @@ import {
 import { PHASE_SHORT_LABELS } from '@/lib/trainingPhase';
 import type { WeekResolution } from '@/lib/weeklyProgression';
 import { WEEK_ACTION_LABEL } from '@/lib/weeklyProgression';
+import { describeWeekDecision } from '@/lib/weeklyTraining';
 
 interface Props {
   report: AdherenceReport | null;
@@ -71,8 +72,13 @@ const WeeklyAdherenceBanner: React.FC<Props> = ({ report, loading, compact, prog
               )}
             </div>
             <p className="text-xs mt-1 text-foreground/90">
-              {progression?.reasonLabel || report.reasonLabel}
+              {describeWeekDecision(progression) || report.reasonLabel}
             </p>
+            {progression?.performance?.confidence === 'low' && (
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Dados de performance insuficientes — decisão baseada principalmente na aderência.
+              </p>
+            )}
             <p className="text-[11px] text-muted-foreground mt-0.5">{report.detailLabel}</p>
             {progression && (
               <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px]">
@@ -112,7 +118,7 @@ const WeeklyAdherenceBanner: React.FC<Props> = ({ report, loading, compact, prog
 
           <div className="mt-4 space-y-3">
             <div className={`p-3 rounded-lg border ${badge}`}>
-              <p className="text-sm font-semibold">{progression?.reasonLabel || report.reasonLabel}</p>
+              <p className="text-sm font-semibold">{describeWeekDecision(progression) || report.reasonLabel}</p>
               <p className="text-xs mt-1 text-foreground/80">{report.detailLabel}</p>
               {progression && (
                 <p className="text-xs mt-2 text-foreground/80">

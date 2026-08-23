@@ -83,3 +83,87 @@ export const buildNextSessionGuidance = (s: StudentWeeklySummary): string => {
 
   return parts.join(' ');
 };
+// ============================================================
+// Orientação por exercício (determinística, a partir de nextAction)
+// ------------------------------------------------------------
+// Consome as `nextAction` já calculadas em weeklyProgression. Nenhuma nova
+// regra de progressão é criada aqui e NENHUM incremento quantitativo de carga
+// (+2.5 kg, +5%) é sugerido — isso é etapa posterior.
+// ============================================================
+
+import type { ExercisePerformance } from '@/lib/weeklyProgression';
+import type { TrainingPhase } from '@/lib/trainingPhase';
+
+export interface ExerciseGuidance {
+  exerciseName: string;
+  nextAction: ExercisePerformance['nextAction'];
+  text: string;
+}
+
+const rangeText = (p: ExercisePerformance) =>
+  p.repRange ? `${p.repRange.min}–${p.repRange.max} reps` : 'faixa prescrita';
+
+const loadText = (p: ExercisePerformance) =>
+  p.bestSet && p.bestSet.weightKg > 0 ? `${p.bestSet.weightKg} kg` : 'a carga atual';
+
+/**
+ * Traduz a recomendação por exercício em texto acionável.
+ * No deload, nada de sobrecarga: increase_load/increase_reps viram manutenção.
+ */
+export const buildExerciseGuidance = (
+  performances: ExercisePerformance[] = [],
+  opts: { activePhase?: TrainingPhase | null; lowConfidence?: boolean; max?: number } = {},
+): ExerciseGuidance[] => {
+  const deload = opts.activePhase === 'deload';
+  const out: ExerciseGuidance[] = [];
+
+  for (const p of performances) {
+    // missing / insufficient_data nunca geram recomendação agressiva.
+    if (p.status === 'missing' || p.status === 'insufficient_data') {
+      out.push({
+        exerciseName: p.exerciseName,
+        nextAction: 'review',
+        text: 'Sem base confiável — registre carga e repetições na próxima sessão.',
+      });
+      continue;
+    }
+
+    let action = p.nextAction;
+    if (deload && (action === 'increase_load' || action === 'increase_reps')) action = 'maintain';
+
+    let text: string;
+    switch (action) {
+      case 'increase_load':
+        text = `Atingiu o topo da faixa com reserva adequada; considere pequeno aumento de carga.`;
+        break;
+      case 'increase_reps':
+        text = `Mantenha ${loadText(p)} e tente aumentar as repetições dentro da ${rangeText(p)}.`;
+        break;
+      case 'reduce_load':
+        text = deload
+          ? 'Semana de deload: reduza a carga e priorize recuperação.'
+          : 'Performance caiu de forma relevante; reduza a carga e recupere a faixa prescrita.';
+        break;
+      case 'maintain':
+        text = deload
+          ? 'Deload: mantenha carga e faixa atual, sem buscar progressão.'
+          : 'Mantenha carga e faixa atual.';
+        break;
+      default:
+        text = 'Registre a execução completa para permitir avaliação na próxima semana.';
+    }
+
+    out.push({ exerciseName: p.exerciseName, nextAction: action, text });
+  }
+
+  const ordered = out.sort((a, b) => ACTION_PRIORITY[a.nextAction] - ACTION_PRIORITY[b.nextAction]);
+  return typeof opts.max === 'number' ? ordered.slice(0, opts.max) : ordered;
+};
+
+const ACTION_PRIORITY: Record<ExerciseGuidance['nextAction'], number> = {
+  reduce_load: 0,
+  increase_load: 1,
+  increase_reps: 2,
+  maintain: 3,
+  review: 4,
+};

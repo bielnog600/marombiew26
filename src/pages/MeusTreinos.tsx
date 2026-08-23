@@ -18,8 +18,7 @@ import { getSafeWorkoutDays, trackPlanAccess } from '@/lib/planMigrationUtils';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { fetchWithCache } from '@/lib/offlineCache';
 import WeeklyAdherenceBanner from '@/components/training/WeeklyAdherenceBanner';
-import { useWeeklyAdherence } from '@/hooks/useWeeklyAdherence';
-import { resolveActiveWeek } from '@/lib/weeklyProgression';
+import { useWeeklyTraining } from '@/hooks/useWeeklyTraining';
 import {
   TRAINING_PHASES,
   PHASE_LABELS,
@@ -216,26 +215,33 @@ const MeusTreinos = () => {
     return { id: p.id, student_id: user.id, conteudo: p.conteudo };
   }, [plans, activePhase, plannedPhase, user]);
 
-  const { report: adherenceReport, loading: adherenceLoading } = useWeeklyAdherence(activePlanForAdherence);
+  // Fonte única: aderência + performance + decisão, mesma janela e mesma
+  // lógica consumida pelo admin (StudentTrainingTab).
+  const {
+    report: adherenceReport,
+    resolution,
+    loading: weeklyLoading,
+  } = useWeeklyTraining(activePlanForAdherence, plannedPhase);
 
-  // Resolve a semana ativa a partir da semana planejada + aderência real.
-  const progression = useMemo(
-    // Passa o relatório completo (aderência ponderada) e não só o status.
-    () => resolveActiveWeek(plannedPhase, adherenceReport ?? undefined),
-    [plannedPhase, adherenceReport],
-  );
+  // Sem recalcular nada localmente: a decisão vem pronta do hook central.
+  const adherenceLoading = weeklyLoading;
+  const progression = resolution;
+
 
   // Aplica a semana ativa resolvida (somente se o usuário não trocou manualmente
   // e se houver um plano para essa semana resolvida).
+  // Enquanto aderência OU performance estiverem carregando, nada muda: a
+  // decisão automática só roda com o relatório combinado pronto.
   useEffect(() => {
     if (!autoPhaseSet || userOverridePhase) return;
-    if (adherenceLoading) return;
-    const target = progression.activePhase;
+    if (weeklyLoading || !resolution) return;
+    const target = resolution.activePhase;
     const hasPlanForTarget = plans.some(p => p.fase === target);
     if (hasPlanForTarget && target !== activePhase) {
       setActivePhase(target);
     }
-  }, [progression, plans, adherenceLoading, autoPhaseSet, userOverridePhase, activePhase]);
+  }, [resolution, plans, weeklyLoading, autoPhaseSet, userOverridePhase, activePhase]);
+
 
   const todayIndex = useMemo(() => {
     if (trainingDays.length === 0) return -1;
