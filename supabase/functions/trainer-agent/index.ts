@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
     attempts.push({ ...res, model: AI_MODELS.primary });
     
     // Hardening: Explicitly passing null for fallbackReason and false for reviewRequired
-    const routing = createRoutingMetadata(attempts, null, false);
+    const routing = createRoutingMetadata(attempts, null);
     return new Response(
       JSON.stringify({ content: res.content, routing }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

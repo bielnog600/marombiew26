@@ -147,7 +147,7 @@ Deno.serve(async (req) => {
         finalCandidate = terraEval;
       } else {
         // Critical Failure
-        const routing = createRoutingMetadata(attempts, terraEval.reason || "unknown", true);
+        const routing = createRoutingMetadata(attempts, terraEval.reason || "unknown", [terraEval.reason || "unknown"]);
         return new Response(
           JSON.stringify({
             error: "review_required",
@@ -160,7 +160,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const routing = createRoutingMetadata(attempts, null, false);
+    const routing = createRoutingMetadata(attempts, null);
     return new Response(
       JSON.stringify({
         plan: finalCandidate.plan,
