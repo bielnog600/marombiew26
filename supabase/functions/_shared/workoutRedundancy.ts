@@ -1,14 +1,11 @@
 /**
- * Workout Redundancy Validator for MAROMBIEW.
+ * Trainer Redundancy Validator for MAROMBIEW.
  * Detects excessive concentration of functionally similar exercises.
  */
 
-import { normalizeName } from "./planSimilarity.ts";
+import { normalizeName } from "../_shared/planSimilarity.ts";
 
-/**
- * Functional exercise families/patterns.
- * Used to detect overlap within a single workout day.
- */
+// Movement Pattern / Family Taxonomy (Reusing/extending existing categories)
 const EXERCISE_FAMILIES: Record<string, string[]> = {
   knee_dominant_heavy: [
     "agachamento livre", "agachamento barra", "agachamento smith",
