@@ -9,7 +9,7 @@ import { MessageSquare, CalendarClock, Cake, Phone, AlertTriangle, RefreshCw, Ex
 import { useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const typeConfig: Record<NotificationType, { icon: React.ElementType; label: string; color: string }> = {
+const typeConfig: Record<string, { icon: React.ElementType; label: string; color: string }> = {
   reavaliacao: { icon: CalendarClock, label: 'Reavaliação', color: 'text-orange-500' },
   aniversario: { icon: Cake, label: 'Aniversário', color: 'text-pink-500' },
   sem_treino: { icon: Dumbbell, label: 'Sem Treino', color: 'text-amber-500' },

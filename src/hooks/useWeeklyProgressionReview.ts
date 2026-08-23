@@ -32,30 +32,27 @@ export const useWeeklyProgressionReview = () => {
 
       const { data: students, error: studentsError } = await supabase
         .from('students_profile')
-        .select(`
-          id,
-          nome,
-          telefone,
-          ai_plans (
-            id,
-            workout_json,
-            cycle_days,
-            created_at,
-            phase_start_date
-          )
-        `)
-        .eq('status', 'ativo');
+        .select('id, nome, telefone')
+        .eq('status', 'ativo' as any);
 
       if (studentsError) throw studentsError;
 
-      const { data: contacts, error: contactsError } = await supabase
+      const { data: plans, error: plansError } = await supabase
+        .from('ai_plans')
+        .select('*')
+        .in('student_id', students.map(s => s.id))
+        .eq('is_draft', false);
+
+      if (plansError) throw plansError;
+
+      const { data: contacts, error: contactsError } = await (supabase as any)
         .from('weekly_progression_contacts')
-        .select('student_id, contacted_at, week_start_date');
+        .select('*');
 
       if (contactsError) throw contactsError;
       
       const weeklyContactedIds = new Set(
-        contacts
+        (contacts as any[])
           .filter(c => c.week_start_date === weekStartStr)
           .map(c => c.student_id)
       );
@@ -65,7 +62,7 @@ export const useWeeklyProgressionReview = () => {
       
       const { data: allLogs, error: logsError } = await supabase
         .from('exercise_set_logs')
-        .select('student_id, exercise_name, peso, reps, rir, set_type, created_at')
+        .select('*')
         .gte('created_at', thirtyDaysAgo.toISOString())
         .order('created_at', { ascending: false });
 
@@ -74,7 +71,8 @@ export const useWeeklyProgressionReview = () => {
       const reviews: StudentProgressionReview[] = [];
 
       for (const student of students) {
-        const activePlan = student.ai_plans?.sort((a, b) => 
+        const studentPlans = plans.filter(p => p.student_id === student.id);
+        const activePlan = studentPlans.sort((a, b) => 
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         )[0];
 
@@ -82,7 +80,7 @@ export const useWeeklyProgressionReview = () => {
 
         const workoutData = typeof activePlan.workout_json === 'string' 
           ? JSON.parse(activePlan.workout_json) 
-          : activePlan.workout_json;
+          : (activePlan.workout_json as any);
         const workouts = workoutData.workouts || [];
         const studentLogs = allLogs.filter(l => l.student_id === student.id);
         
@@ -92,7 +90,7 @@ export const useWeeklyProgressionReview = () => {
         const recs: StudentProgressionReview['recommendations'] = [];
 
         for (const workout of workouts) {
-          for (const exercise of workout.exercises || []) {
+          for (const exercise of (workout.exercises || [])) {
             const exerciseLogs = studentLogs.filter(l => l.exercise_name === exercise.name);
             if (exerciseLogs.length === 0) continue;
 
@@ -101,9 +99,9 @@ export const useWeeklyProgressionReview = () => {
 
             const recommendation = buildQuantitativeProgressionRecommendation({
               performance: {
-                load: bestSet.peso,
-                reps: bestSet.reps,
-                rir: bestSet.rir ?? undefined,
+                load: (bestSet as any).peso || 0,
+                reps: (bestSet as any).reps || 0,
+                rir: (bestSet as any).rir ?? undefined,
                 repRange: exercise.reps ? { 
                   min: parseInt(exercise.reps.split('-')[0]) || 8, 
                   max: parseInt(exercise.reps.split('-')[1]) || 12 
@@ -123,14 +121,14 @@ export const useWeeklyProgressionReview = () => {
               recs.push({
                 exerciseName: exercise.name,
                 nextAction,
-                suggestedIncrement: recommendation.incrementKg || 0,
+                suggestedIncrement: recommendation.recommendedLoadKg ? (recommendation.recommendedLoadKg - (recommendation.currentLoadKg || 0)) : 0,
                 recommendation
               });
             }
           }
         }
 
-        const lastContact = contacts
+        const lastContact = (contacts as any[])
           .filter(c => c.student_id === student.id)
           .sort((a, b) => new Date(b.contacted_at).getTime() - new Date(a.contacted_at).getTime())[0];
 
