@@ -108,7 +108,6 @@ Deno.serve(async (req) => {
     let finalModel = AI_MODELS.primary;
 
     // ATTEMPT 1: Luna (Primary)
-    const lunaStart = Date.now();
     const lunaRes = await callAI({
       model: AI_MODELS.primary,
       systemPrompt: DIET_CORE_PROMPT + "\n" + DIET_STRUCTURED_PROMPT,
