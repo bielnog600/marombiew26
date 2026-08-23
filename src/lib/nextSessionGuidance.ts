@@ -46,10 +46,18 @@ export const buildNextSessionGuidance = (s: StudentWeeklySummary): string => {
   }
 
   // 2. Exercícios que evoluíram → aumentar carga / topo da faixa
-  const improvedTop = p.improved
-    .filter((d) => d.weightDelta > 0 || d.repsDelta > 0)
+  // Prioriza a recomendação determinística por exercício (weeklyProgression);
+  // se ainda não houver performances estruturadas, usa o contrato legado.
+  const readyForLoad = (p.performances || [])
+    .filter((perf) => perf.nextAction === 'increase_load')
     .slice(0, 2)
-    .map((d) => d.exercise);
+    .map((perf) => perf.exerciseName);
+  const improvedTop = readyForLoad.length > 0
+    ? readyForLoad
+    : p.improved
+        .filter((d) => d.weightDelta > 0 || d.repsDelta > 0)
+        .slice(0, 2)
+        .map((d) => d.exercise);
   if (improvedTop.length > 0 && a.status !== 'repetir_semana') {
     parts.push(`Na próxima sessão, subir carga ou buscar o topo da faixa em ${list(improvedTop)}.`);
   }
