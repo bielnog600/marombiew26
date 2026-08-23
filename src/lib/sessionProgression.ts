@@ -198,14 +198,61 @@ export const splitLastTwoSessions = (
 const plannedRepsTextOf = (ex: ParsedExercise): string =>
   ex.setScheme?.sets?.map((s) => s.target_reps).filter(Boolean).join('/') || ex.reps || '';
 
+/**
+ * Ajuste conservador quando a evidência é fraca:
+ *  - apenas UMA performance válida anterior → não inferimos tendência
+ *    (improved/regressed): nada de `increase_load` nem `reduce_load`;
+ *  - histórico legado (sem plan_id conhecido) → confiança baixa e nunca
+ *    `reduce_load` (evita regressão falsa vinda de outro contexto).
+ */
+const applyEvidencePolicy = (
+  rec: SessionRecommendation,
+  opts: { singlePerformance: boolean; legacyFallback: boolean },
+): SessionRecommendation => {
+  let out = { ...rec };
+
+  if (opts.legacyFallback) {
+    out.confidence = 'low';
+    out.legacyFallback = true;
+    out.reasons = [...out.reasons, 'historico_legado_sem_plano'];
+    if (out.action === 'reduce_load') {
+      out = { ...out, action: 'maintain', recommendedLoadKg: null, qualitative: true, basis: 'evidencia_legada' };
+    } else if (out.action === 'increase_load' && out.incrementSource !== 'configured') {
+      out = { ...out, recommendedLoadKg: null, qualitative: true };
+    }
+  }
+
+  if (opts.singlePerformance) {
+    out.singlePerformance = true;
+    out.confidence = 'low';
+    out.reasons = [...out.reasons, 'apenas_uma_performance_valida'];
+    if (out.action === 'increase_load' || out.action === 'reduce_load' || out.action === 'manual_increment_required') {
+      out = {
+        ...out,
+        action: 'maintain',
+        recommendedLoadKg: null,
+        qualitative: !out.currentLoadKg,
+        basis: 'apenas_uma_performance_valida',
+      };
+    }
+  }
+
+  return out;
+};
+
 /** Motor central: recebe exercícios + histórico anterior, devolve o snapshot. */
 export const buildSessionProgressionRecommendations = (
   input: BuildSessionRecommendationsInput,
 ): ProgressionSnapshot => {
-  const safeLogs = excludeCurrentSessionLogs(input.logs ?? [], input.currentSessionId);
+  const comparable = filterComparableSessionHistory({
+    logs: input.logs ?? [],
+    currentSessionId: input.currentSessionId,
+    currentPlanId: input.currentPlanId ?? null,
+    sessionMeta: input.sessionMeta,
+  });
 
   const byKey = new Map<string, SessionLog[]>();
-  safeLogs.forEach((l) => {
+  comparable.logs.forEach((l) => {
     const key = normalizeExerciseKey(l.exercise_name || '');
     if (!key) return;
     if (!byKey.has(key)) byKey.set(key, []);
@@ -219,7 +266,7 @@ export const buildSessionProgressionRecommendations = (
     const key = normalizeExerciseKey(name);
     if (!key || recommendations[key]) return;
     const history = byKey.get(key) ?? [];
-    // Aluno sem histórico: não inventamos recomendação (regra 21/22).
+    // Aluno sem histórico comparável: não inventamos recomendação (regra 21/22).
     if (history.length === 0) return;
 
     const { current, previous } = splitLastTwoSessions(history);
@@ -242,7 +289,7 @@ export const buildSessionProgressionRecommendations = (
 
     const bodyweight = !!performance.bestSet && performance.bestSet.weightKg <= 0;
 
-    recommendations[key] = {
+    const base: SessionRecommendation = {
       exerciseKey: key,
       exerciseName: name,
       action: quant.action,
@@ -261,8 +308,15 @@ export const buildSessionProgressionRecommendations = (
       bodyweight,
       basis: quant.basis,
       reasons: quant.reasons,
+      singlePerformance: previous.length === 0,
+      legacyFallback: false,
       executedLoadKg: null,
     };
+
+    recommendations[key] = applyEvidencePolicy(base, {
+      singlePerformance: previous.length === 0,
+      legacyFallback: comparable.legacyFallback,
+    });
   });
 
   return {
@@ -270,6 +324,7 @@ export const buildSessionProgressionRecommendations = (
     generatedAt: new Date().toISOString(),
     sessionId: input.currentSessionId,
     phase: input.activePhase ?? null,
+    planId: input.currentPlanId ?? null,
     recommendations,
   };
 };
