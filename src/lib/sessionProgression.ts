@@ -372,7 +372,9 @@ export const buildSessionProgressionRecommendations = (
 export const readProgressionSnapshot = (stateOrSnapshot: any): ProgressionSnapshot | null => {
   if (!stateOrSnapshot || typeof stateOrSnapshot !== 'object') return null;
   
-  // 1. Caso: objeto é o próprio snapshot (usado no Duo: snapshot[studentId])
+  // Regra 2: readProgressionSnapshotValue logic — tolerante a ProgressionSnapshot direto ou session_state
+  
+  // 1. Caso: objeto é o próprio snapshot (Duo ou retorno direto)
   if (stateOrSnapshot.recommendations && typeof stateOrSnapshot.recommendations === 'object') {
     const v = Number(stateOrSnapshot.version);
     if (v === PROGRESSION_SNAPSHOT_VERSION) {
@@ -380,7 +382,7 @@ export const readProgressionSnapshot = (stateOrSnapshot: any): ProgressionSnapsh
     }
   }
 
-  // 2. Caso: objeto é o session_state inteiro (usado no Individual)
+  // 2. Caso: objeto é o session_state inteiro (Individual)
   const snap = stateOrSnapshot.progressionRecommendations;
   if (snap && typeof snap === 'object' && snap.recommendations && typeof snap.recommendations === 'object') {
     const v = Number(snap.version);
