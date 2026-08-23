@@ -1023,8 +1023,11 @@ REGRA CRÍTICA DE DIVERSIFICAÇÃO DE MOBILIDADE (OBRIGATÓRIA — NUNCA QUEBRAR
 
 
 
+const TRAINER_MOBILITY_REVISION = `
 - Se houver TREINO ANTERIOR no contexto, NÃO repita as mesmas mobilidades da semana passada — escolha variações diferentes para fugir da monotonia.
 - Antes de fechar a semana, REVISE: cada uma das mobilidades escolhidas só pode aparecer no MÁXIMO em 1 dia. Se você usou a mesma mobilidade em 2 dias diferentes, TROQUE uma delas por outra do banco.
+`;
+
 
 ========================================
 REGRA DE VOLUME
