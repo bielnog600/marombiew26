@@ -583,6 +583,16 @@ async function generateStructuredWorkoutWithVariation(args: {
     console.warn("trainer-agent: exercícios sem equivalente no banco:", unmatchedExercises.join(" | "));
   }
   const markdownFinal = workoutPlanToMarkdown(finalPlan);
+  const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
+  console.log("[ai-routing]", {
+    agent: "trainer",
+    primaryModel: routingMeta.routing.primaryModel,
+    finalModel: routingMeta.routing.finalModel,
+    fallbackUsed: routingMeta.routing.fallbackUsed,
+    fallbackReason: routingMeta.routing.fallbackReason,
+    usage: routingMeta.usage,
+  });
+
   return new Response(
     JSON.stringify({
       json: finalPlan,
@@ -597,6 +607,8 @@ async function generateStructuredWorkoutWithVariation(args: {
         worstOverlap: similarity.worstOverlap,
         historyCount: historyJsons.length,
       },
+      aiRouting: routingMeta.routing,
+      aiUsage: routingMeta.usage,
     }),
     { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
   );
