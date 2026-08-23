@@ -948,6 +948,7 @@ serve(async (req) => {
             aiRouting: routingMeta.routing,
             aiUsage: routingMeta.usage,
           }),
+
           { status: first.resp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
