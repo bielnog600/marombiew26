@@ -21,8 +21,10 @@ import {
   TrendingUp,
   AlertTriangle
 } from 'lucide-react';
-import { differenceInDays } from 'date-fns';
+import { differenceInDays, startOfWeek, format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
+import { cn } from '@/lib/utils';
+
 
 // Shared Hooks
 import { useStudentsWeeklySummary } from '@/hooks/useStudentsWeeklySummary';
@@ -210,9 +212,10 @@ const Consultoria: React.FC = () => {
                 await supabase.from('weekly_progression_contacts').upsert({
                   student_id: studentId,
                   plan_id: planId,
-                  week_start_date: format(weekStart, 'yyyy-MM-dd'),
-                  trainer_id: user?.id
-                });
+                  week_start: format(weekStart, 'yyyy-MM-dd'),
+                  admin_id: user?.id
+                } as any);
+
                 reloadProgression();
               };
 
