@@ -457,7 +457,7 @@ export const buildExercisePerformance = (
     repsDelta,
     weightDelta,
     rirDelta,
-    nextAction: nextActionFor(status, bestSet, repRange ?? null, e1rmDeltaPct),
+    nextAction: nextActionFor(status, bestSet, repRange ?? null, e1rmDeltaPct, previousBestSet),
   };
 };
 
