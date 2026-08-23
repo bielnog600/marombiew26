@@ -232,10 +232,13 @@ export const buildWeeklyTrainingReport = (
 
   // ---- Troca de plano/ciclo: se TODAS as sessões da semana anterior apontam
   // para outro plano, a comparação não é válida (não misturar ciclos).
-  const prevPlanIds = previousSessions.map((s) => s.plan_id).filter(Boolean) as string[];
+  const previousSessionsAnyPlan = previous
+    ? sessions.filter((s) => phaseCompatible(s.phase, previous.phase) && inWindow(sessionAt(s), previous))
+    : [];
+  const prevPlanIds = previousSessionsAnyPlan.map((s) => s.plan_id).filter(Boolean) as string[];
   const planStillMatches =
     !planId || prevPlanIds.length === 0 || prevPlanIds.some((id) => id === planId);
-  const previousWeekComparable = !!previous && planStillMatches;
+  const previousWeekComparable = !!previous && planStillMatches && prev.logs.length > 0;
 
   const progression = buildProgressionReport(
     cur.logs,
