@@ -258,7 +258,12 @@ const TreinoExecucao = () => {
           const idxs = new Set<number>(Object.keys(state.sets).map((k) => Number(k)));
           setLoadedLogsForIndex(idxs);
         }
+        // Retomada: reaproveita o snapshot já calculado (nunca recalcula).
+        if (state?.progressionRecommendations) {
+          setRestoredSnapshot(state.progressionRecommendations as ProgressionSnapshot);
+        }
       };
+
 
       // 0. Resolve sessões antigas que ficaram abertas (aluno não finalizou).
       await resolveStaleWorkoutSessionsThrottled(user.id, true);
