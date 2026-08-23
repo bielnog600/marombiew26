@@ -505,19 +505,26 @@ async function generateStructuredWorkoutWithVariation(args: {
     attempts: modelAttempts
   });
   
-  const isCriticalFailure = !first.ok && (first.error_code === "upstream_error" || first.error_code === "empty_response" || first.error_code === "invalid_json" || first.error_code === "plan_validation_failed");
-  
+  const isCriticalFailure =
+    !first.ok &&
+    (first.error_code === "upstream_error" ||
+      first.error_code === "empty_response" ||
+      first.error_code === "invalid_json" ||
+      first.error_code === "plan_validation_failed");
+
   if (isCriticalFailure) {
-    // If not retryable, return immediately
     const body = await first.response.clone().json().catch(() => ({}));
     if (body.retryable === false) return first.response;
-    
-    // Fallback for critical error
+
     fallbackReason = first.error_code || "critical_failure";
     fallbackReasons.push(fallbackReason);
-    
-    const retryBlock = variationBlock + "\n\n🚨 OCORREU UM ERRO TÉCNICO NA GERAÇÃO ANTERIOR (" + fallbackReason + "). Certifique-se de seguir o SCHEMA JSON estritamente e não deixar campos vazios.";
-    
+
+    const retryBlock =
+      variationBlock +
+      "\n\n🚨 OCORREU UM ERRO TÉCNICO NA GERAÇÃO ANTERIOR (" +
+      fallbackReason +
+      "). Certifique-se de seguir o SCHEMA JSON estritamente e não deixar campos vazios.";
+
     const second = await callStructuredModel({
       apiKey: args.apiKey,
       systemPrompt: args.systemPrompt,
@@ -525,34 +532,54 @@ async function generateStructuredWorkoutWithVariation(args: {
       extraSystem: retryBlock,
       modelToUse: AI_MODELS.fallback,
       reason: "critical_fallback",
-      attempts: modelAttempts
+      attempts: modelAttempts,
     });
-    
-    if (!second.ok) return second.response;
-    
-    // If we reached here, first was failing but second worked.
-    // Proceed with the second attempt data.
-    const historyJsons = history
-      .map((h) => h.conteudo_json)
-      .filter((j) => j && typeof j === "object") as any[];
-      
-    let finalPlan = second.data;
-    
-    // snapPlanToCatalog and evaluate before returning
-    const unmatchedExercises = snapPlanToCatalog(finalPlan, args.catalog ?? []);
-    const markdownFinal = workoutPlanToMarkdown(finalPlan);
-    const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
-    
+
+    if (second.ok) {
+      const historyJsons = history
+        .map((h) => h.conteudo_json)
+        .filter((j) => j && typeof j === "object") as any[];
+
+      let finalPlan = second.data;
+      const sim2 = computeWorkoutSimilarity(finalPlan, historyJsons);
+      const red2 = validateWorkoutRedundancy(finalPlan);
+
+      if (red2.ok) {
+        const unmatchedExercises = snapPlanToCatalog(finalPlan, args.catalog ?? []);
+        const markdownFinal = workoutPlanToMarkdown(finalPlan);
+        const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, AI_MODELS.fallback);
+
+        return new Response(
+          JSON.stringify({
+            json: finalPlan,
+            markdown: markdownFinal,
+            unmatchedExercises,
+            similarity: {
+              score: Number(sim2.score.toFixed(3)),
+              threshold: SIMILARITY_THRESHOLDS[intensity],
+              intensity,
+              historyCount: historyJsons.length,
+            },
+            aiRouting: routingMeta.routing,
+            aiUsage: routingMeta.usage,
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      } else {
+        fallbackReason = "internal_redundancy";
+        fallbackReasons.push(fallbackReason);
+      }
+    }
+
+    const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, null);
     return new Response(
       JSON.stringify({
-        json: finalPlan,
-        markdown: markdownFinal,
-        unmatchedExercises,
-        similarity: { score: 0, threshold: SIMILARITY_THRESHOLDS[intensity], intensity, historyCount: historyJsons.length },
+        error: "Falha crítica na geração do fallback.",
+        error_code: fallbackReason,
         aiRouting: routingMeta.routing,
         aiUsage: routingMeta.usage,
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 
@@ -621,11 +648,11 @@ async function generateStructuredWorkoutWithVariation(args: {
         similarity = sim2;
       }
       regenerated = true;
-      if (similarity.score > threshold) {
-        warning = "high_similarity";
+      if (similarity.score > threshold || !red2.ok) {
+        warning = !red2.ok ? "internal_redundancy" : "high_similarity";
       }
     } else {
-      warning = "high_similarity";
+      warning = "technical_fallback_failed";
     }
   }
 
@@ -635,7 +662,11 @@ async function generateStructuredWorkoutWithVariation(args: {
     console.warn("trainer-agent: exercícios sem equivalente no banco:", unmatchedExercises.join(" | "));
   }
   const markdownFinal = workoutPlanToMarkdown(finalPlan);
-  const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
+  const selectedModelName = (finalPlan === first.data)
+    ? (AI_MODELS.primary === modelAttempts[0]?.model ? AI_MODELS.primary : modelAttempts[0]?.model)
+    : AI_MODELS.fallback;
+
+  const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, selectedModelName);
   console.log("[ai-routing]", {
     agent: "trainer",
     primaryModel: routingMeta.routing.primaryModel,
@@ -1214,7 +1245,7 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
       });
     }
 
-    const routingMeta = createRoutingMetadata([], null);
+    // Legacy path does not need metadata if zero attempts occurred
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -1222,7 +1253,7 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: AI_MODELS.primary.includes("gpt-5.6") ? "gpt-4o" : AI_MODELS.primary,
+        model: "gpt-4o",
         messages: [
           { role: "system", content: SYSTEM_PROMPT + contextMessage },
           ...messages,

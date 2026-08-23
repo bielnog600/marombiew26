@@ -10,7 +10,8 @@ export const AI_MODELS = {
 
 export type AIRoutingMetadata = {
   primaryModel: string;
-  finalModel: string;
+  finalModel: string | null;
+  lastAttemptModel: string;
   fallbackUsed: boolean;
   fallbackReason: string | null;
   fallbackReasons?: string[];
@@ -59,25 +60,38 @@ export type ModelCallFailure = {
   status?: number;
 };
 
+/**
+ * Creates routing and usage metadata for AI responses.
+ * @param attempts List of model attempts made.
+ * @param fallbackReason The primary reason for fallback.
+ * @param fallbackReasons All reasons that triggered retries.
+ * @param selectedModel The model that produced the final accepted candidate.
+ */
 export function createRoutingMetadata(
   attempts: AIAttemptMetadata[],
   fallbackReason: string | null,
-  fallbackReasons?: string[]
+  fallbackReasons?: string[],
+  selectedModel: string | null = null
 ): AIRouterResponse {
+  if (attempts.length === 0) {
+    throw new Error("createRoutingMetadata: zero attempts provided (invariant error)");
+  }
+
   const fallbackUsed = attempts.length > 1;
-  const finalAttempt = attempts[attempts.length - 1];
+  const lastAttempt = attempts[attempts.length - 1];
   
   const totalPrompt = attempts.reduce((acc, curr) => 
-    (acc === null || curr.usage?.promptTokens === null) ? null : acc + (curr.usage?.promptTokens || 0), 0 as number | null);
+    (acc === null || curr.usage == null || curr.usage.promptTokens == null) ? null : acc + (curr.usage.promptTokens || 0), 0 as number | null);
   const totalCompletion = attempts.reduce((acc, curr) => 
-    (acc === null || curr.usage?.completionTokens === null) ? null : acc + (curr.usage?.completionTokens || 0), 0 as number | null);
+    (acc === null || curr.usage == null || curr.usage.completionTokens == null) ? null : acc + (curr.usage.completionTokens || 0), 0 as number | null);
   const totalTokens = attempts.reduce((acc, curr) => 
-    (acc === null || curr.usage?.totalTokens === null) ? null : acc + (curr.usage?.totalTokens || 0), 0 as number | null);
+    (acc === null || curr.usage == null || curr.usage.totalTokens == null) ? null : acc + (curr.usage.totalTokens || 0), 0 as number | null);
 
   return {
     routing: {
       primaryModel: AI_MODELS.primary,
-      finalModel: finalAttempt ? finalAttempt.model : AI_MODELS.primary,
+      finalModel: selectedModel,
+      lastAttemptModel: lastAttempt.model,
       fallbackUsed,
       fallbackReason,
       fallbackReasons,
@@ -120,7 +134,7 @@ export async function callAI(params: {
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: params.model.includes("gpt-5.6") ? "gpt-4o" : params.model,
+        model: params.model,
         messages: [
           { role: "system", content: params.systemPrompt },
           { role: "user", content: params.userPrompt },
@@ -142,9 +156,9 @@ export async function callAI(params: {
     return {
       content: data.choices[0]?.message?.content || null,
       usage: {
-        promptTokens: data.usage?.prompt_tokens || null,
-        completionTokens: data.usage?.completion_tokens || null,
-        totalTokens: data.usage?.total_tokens || null,
+        promptTokens: data.usage?.prompt_tokens ?? null,
+        completionTokens: data.usage?.completion_tokens ?? null,
+        totalTokens: data.usage?.total_tokens ?? null,
       },
       durationMs,
     };
@@ -153,4 +167,3 @@ export async function callAI(params: {
     return { content: null, usage: null, durationMs: Date.now() - start };
   }
 }
-
