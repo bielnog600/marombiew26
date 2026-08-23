@@ -218,6 +218,8 @@ const TreinoExecucao = () => {
   const [showLoadHistory, setShowLoadHistory] = useState(false);
   // Snapshot consultivo de progressão restaurado do session_state (retomada).
   const [restoredSnapshot, setRestoredSnapshot] = useState<ProgressionSnapshot | null>(null);
+  // Item 7: Flag para impedir que a fase seja sobrescrita na retomada
+  const resumedSessionRef = useRef(false);
   const currentPhase = phase ?? getPhaseByMonthDay();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -271,6 +273,7 @@ const TreinoExecucao = () => {
         // Regra 22: Fase e PlanId congelados na retomada
         if (existingSession?.phase) setPhase(existingSession.phase as TrainingPhase);
         if (existingSession?.plan_id) setSessionPlanId(existingSession.plan_id);
+        resumedSessionRef.current = true;
       };
 
 
@@ -327,6 +330,7 @@ const TreinoExecucao = () => {
         if (!staleLocal && sameDayLocal) {
           setSessionId(activeSession.id);
           setSessionStartAt(new Date(activeSession.started_at).getTime());
+          setSessionPlanId(activeSession.plan_id);
           applyState(activeSession.session_state, activeSession);
           return;
         }
@@ -484,11 +488,13 @@ const TreinoExecucao = () => {
 
         // Fase da sessão vem da FONTE CENTRAL (timeline do plano), nunca de
         // um cálculo local — garante paridade com weeklyTraining e com o admin.
-        setPhase(resolveCurrentTrainingPhase({
-          id: treino.id,
-          fase: (treino as any).fase ?? null,
-          fase_inicio_data: (treino as any).fase_inicio_data ?? null,
-        }).phase);
+        if (!resumedSessionRef.current) {
+          setPhase(resolveCurrentTrainingPhase({
+            id: treino.id,
+            fase: (treino as any).fase ?? null,
+            fase_inicio_data: (treino as any).fase_inicio_data ?? null,
+          }).phase);
+        }
         const { days: allDays, isFromJSON } = getSafeWorkoutDays({ ...treino, tipo: 'treino' });
         trackPlanAccess({ ...treino, tipo: 'treino' }, isFromJSON);
         if (allDays.length > 0) {
@@ -540,7 +546,7 @@ const TreinoExecucao = () => {
       }
 
       // Último recurso offline: retoma o treino salvo da última execução.
-      const lastWorkout = await getCached<{ exercises: ParsedExercise[]; dayName: string; media: ExerciseMediaMap; phase: TrainingPhase | null }>(
+      const lastWorkout = await getCached<{ exercises: ParsedExercise[]; dayName: string; media: ExerciseMediaMap; phase: TrainingPhase | null; planId: string | null }>(
         `workout:last:${user.id}`,
       );
       if (lastWorkout?.exercises?.length) {
@@ -548,6 +554,7 @@ const TreinoExecucao = () => {
         setLoadedDayName(lastWorkout.dayName || 'Treino');
         setLoadedMedia(lastWorkout.media || {});
         if (lastWorkout.phase) setPhase(lastWorkout.phase);
+        if (lastWorkout.planId) setSessionPlanId(lastWorkout.planId);
         setContextReady(true);
       }
     };
@@ -562,6 +569,7 @@ const TreinoExecucao = () => {
       dayName: loadedDayName,
       media: loadedMedia,
       phase: phase ?? null,
+      planId: sessionPlanId,
     });
   }, [user, loadedExercises, loadedDayName, loadedMedia, phase]);
 
