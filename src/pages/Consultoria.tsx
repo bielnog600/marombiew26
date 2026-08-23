@@ -218,6 +218,7 @@ const Consultoria: React.FC = () => {
                   admin_id: user?.id
                 } as any);
 
+
                 reloadProgression();
               };
 
