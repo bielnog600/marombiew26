@@ -32,6 +32,7 @@ import {
   validateDailyAdjustments,
   hasDailyCalorieVariation,
 } from "../_shared/dailyAdjustments.ts";
+import { AI_MODELS, createRoutingMetadata, type AIAttemptMetadata } from "../_shared/aiModelRouter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

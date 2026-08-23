@@ -18,6 +18,8 @@ import {
   snapPlanToCatalog,
   type CatalogEntry,
 } from "../_shared/exerciseCatalog.ts";
+import { AI_MODELS, createRoutingMetadata, type AIAttemptMetadata } from "../_shared/aiModelRouter.ts";
+import { validateWorkoutRedundancy } from "../_shared/workoutRedundancy.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
