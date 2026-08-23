@@ -26,15 +26,15 @@ const ALIGNMENT_LABELS: Record<TelemetryAlignmentStatus, string> = {
   matched: 'Seguiu sugestão',
   partial: 'Parcial',
   different: 'Diferente',
-  no_execution: 'Não executou',
+  no_execution: 'Pularam',
   not_evaluable: 'Sem dados'
 };
 
 const TARGET_LABELS: Record<TelemetryTargetStatus, string> = {
-  achieved: 'Alvo atingido',
-  partially_achieved: 'Parcial',
-  not_achieved: 'Não atingido',
-  not_evaluable: 'Sem dados'
+  achieved: 'Meta atingida',
+  partially_achieved: 'Meta parcial',
+  not_achieved: 'Meta não atingida',
+  not_evaluable: 'Sem meta'
 };
 
 const ALIGNMENT_COLORS: Record<TelemetryAlignmentStatus, string> = {
@@ -43,6 +43,32 @@ const ALIGNMENT_COLORS: Record<TelemetryAlignmentStatus, string> = {
   different: 'text-rose-500 bg-rose-500/10 border-rose-500/20',
   no_execution: 'text-muted-foreground bg-muted border-transparent',
   not_evaluable: 'text-muted-foreground bg-muted border-transparent'
+};
+
+const TARGET_COLORS: Record<TelemetryTargetStatus, string> = {
+  achieved: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20',
+  partially_achieved: 'text-amber-500 bg-amber-500/10 border-amber-500/20',
+  not_achieved: 'text-rose-400 bg-rose-400/5 border-rose-400/10',
+  not_evaluable: 'text-muted-foreground bg-muted border-transparent'
+};
+
+const REASON_MAP: Record<string, string> = {
+  'load_increased_less_than_recommended': 'Carga subiu menos que o sugerido',
+  'qualitative_load_not_increased': 'Carga não aumentou (sugestão qualitativa)',
+  'incomplete_load_evidence': 'Dados de carga incompletos na sessão',
+  'missing_current_load': 'Sem histórico de carga base para comparar',
+  'missing_load_for_alignment': 'Carga não registrada no log',
+  'missing_reps_for_target_evaluation': 'Reps não registradas no log',
+  'fewer_working_sets_than_target': 'Fez menos séries de trabalho que o alvo',
+  'deload_excluded_from_progression_kpi': 'Semana de Deload (KPI neutro)'
+};
+
+const ACTION_MAP: Record<string, string> = {
+  'increase_load': 'Aumentar carga',
+  'increase_reps': 'Aumentar reps',
+  'maintain': 'Manter',
+  'reduce_load': 'Reduzir carga',
+  'manual_increment_required': 'Incremento manual'
 };
 
 export const ProgressionAnalyticsCard: React.FC<Props> = ({ studentId }) => {
@@ -144,15 +170,22 @@ export const ProgressionAnalyticsCard: React.FC<Props> = ({ studentId }) => {
             </SheetDescription>
           </SheetHeader>
 
-          <div className="mt-6 space-y-6">
+          <div className="mt-6 space-y-6 pb-12">
             {results.filter(r => r.status === 'available').map((res, i) => (
-              <div key={i} className="space-y-3">
+              <div key={res.sessionId} className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <Badge variant="outline" className="text-[10px]">
-                    Sessão {new Date(results[i].outcomes[0]?.source === 'admin' ? results[i].outcomes[0].performed_at : '').toLocaleDateString('pt-BR')}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-[10px] bg-muted/50 border-transparent">
+                      {new Date(res.completedAt).toLocaleDateString('pt-BR')}
+                    </Badge>
+                    {res.phase && (
+                      <Badge variant="secondary" className="text-[9px] uppercase tracking-wider font-bold h-4">
+                        {res.phase.replace('_', ' ')}
+                      </Badge>
+                    )}
+                  </div>
                   <span className="text-[10px] text-muted-foreground">
-                    Origem: {res.outcomes[0]?.executedBy === 'coach' ? 'Personal' : 'Aluno'}
+                    Via: {res.executedBy === 'coach' ? 'Personal' : 'App Aluno'}
                   </span>
                 </div>
                 
@@ -161,13 +194,14 @@ export const ProgressionAnalyticsCard: React.FC<Props> = ({ studentId }) => {
                     <OutcomeRow key={j} outcome={out} />
                   ))}
                 </div>
-                {i < results.length - 1 && <div className="h-px bg-border my-4" />}
+                {i < results.length - 1 && <div className="h-px bg-border/50 my-6" />}
               </div>
             ))}
             
-            {results.length === 0 && (
+            {results.filter(r => r.status === 'available').length === 0 && (
               <div className="text-center py-12 text-muted-foreground">
-                Nenhum dado detalhado disponível.
+                <Activity className="h-10 w-10 mx-auto mb-3 opacity-20" />
+                <p className="text-sm">Nenhum treino auditado disponível.</p>
               </div>
             )}
           </div>
@@ -182,50 +216,65 @@ const OutcomeRow = ({ outcome }: { outcome: ProgressionExecutionOutcome }) => {
   const isNotEval = outcome.alignmentStatus === 'not_evaluable';
 
   return (
-    <div className="p-3 rounded-xl border bg-card/50 space-y-2.5">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h4 className="text-xs font-bold uppercase tracking-tight truncate max-w-[200px]">
+    <div className="p-3 rounded-xl border bg-card/50 space-y-3 relative overflow-hidden">
+      {/* Indicador lateral de status */}
+      <div className={`absolute left-0 top-0 bottom-0 w-1 ${
+        outcome.alignmentStatus === 'matched' ? 'bg-emerald-500/50' : 
+        outcome.alignmentStatus === 'partial' ? 'bg-amber-500/50' :
+        outcome.alignmentStatus === 'different' ? 'bg-rose-500/50' : 'bg-muted'
+      }`} />
+
+      <div className="flex items-start justify-between gap-2 ml-1">
+        <div className="flex-1 min-w-0">
+          <h4 className="text-xs font-bold uppercase tracking-tight truncate">
             {outcome.exerciseName}
           </h4>
-          <p className="text-[10px] text-muted-foreground">
-            {outcome.recommendationAction ? `Ação: ${outcome.recommendationAction}` : 'Sem sugestão'}
-          </p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <Badge variant="outline" className="text-[9px] px-1 h-3.5 bg-muted/30 border-transparent text-muted-foreground uppercase font-bold">
+              {outcome.recommendationAction ? ACTION_MAP[outcome.recommendationAction] || outcome.recommendationAction : 'Sem ação'}
+            </Badge>
+          </div>
         </div>
-        <div className="flex flex-col items-end gap-1">
+        <div className="flex flex-col items-end gap-1 shrink-0">
           <Badge className={`text-[9px] px-1.5 py-0 h-4 border ${ALIGNMENT_COLORS[outcome.alignmentStatus]}`} variant="outline">
             {ALIGNMENT_LABELS[outcome.alignmentStatus]}
           </Badge>
           {!isNoExec && !isNotEval && (
-            <Badge className="text-[9px] px-1.5 py-0 h-4 bg-muted text-muted-foreground" variant="outline">
+            <Badge className={`text-[9px] px-1.5 py-0 h-4 border ${TARGET_COLORS[outcome.targetStatus]}`} variant="outline">
               {TARGET_LABELS[outcome.targetStatus]}
             </Badge>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 pt-1">
+      <div className="grid grid-cols-2 gap-4 pt-1 ml-1 border-t border-muted/50 mt-2">
         <div className="space-y-1">
           <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Sugestão</p>
-          <p className="text-xs font-medium">
-            {outcome.recommendedLoadKg ? `${outcome.recommendedLoadKg.toString().replace('.', ',')} kg` : 'Carga base'}
-            {' · '}
-            {outcome.recommendedTargetReps || (outcome.recommendedRepRange ? `${outcome.recommendedRepRange.min}-${outcome.recommendedRepRange.max}` : '?')} reps
-          </p>
+          <div className="text-xs font-medium flex items-center gap-1">
+             <span>
+               {outcome.recommendedLoadKg != null ? (
+                 outcome.recommendedLoadKg === 0 ? 'Bodyweight' : `${outcome.recommendedLoadKg.toString().replace('.', ',')} kg`
+               ) : 'Carga base'}
+             </span>
+             <span className="text-muted-foreground">·</span>
+             <span className="text-primary/80">
+               {outcome.recommendedTargetReps || (outcome.recommendedRepRange ? `${outcome.recommendedRepRange.min}-${outcome.recommendedRepRange.max}` : '?')} reps
+             </span>
+          </div>
         </div>
         <div className="space-y-1">
           <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Executado</p>
           <div className="text-xs font-medium">
             {isNoExec ? (
-              <span className="text-muted-foreground italic">Pularam</span>
+              <span className="text-muted-foreground italic text-[10px]">Pularam exercício</span>
             ) : outcome.mixedWorkingLoads ? (
-              outcome.executedWorkingSets.map(s => s.weightKg).join(' / ') + ' kg'
+              <span className="text-[10px]">{outcome.executedWorkingSets.map(s => s.weightKg).join('/')} kg</span>
             ) : (
-              `${(outcome.executedPrimaryLoadKg || 0).toString().replace('.', ',')} kg`
+              <span>{outcome.executedPrimaryLoadKg != null ? (outcome.executedPrimaryLoadKg === 0 ? 'BW' : `${outcome.executedPrimaryLoadKg.toString().replace('.', ',')} kg`) : '? kg'}</span>
             )}
             {!isNoExec && (
-              <span className="text-muted-foreground ml-1">
-                ({outcome.executedReps.join(' / ')} reps)
+              <span className="text-muted-foreground ml-1 text-[10px]">
+                ({outcome.executedReps.join('/')} reps)
               </span>
             )}
           </div>
@@ -233,10 +282,10 @@ const OutcomeRow = ({ outcome }: { outcome: ProgressionExecutionOutcome }) => {
       </div>
       
       {outcome.reasons.length > 0 && (
-        <div className="flex flex-wrap gap-1 pt-1">
+        <div className="flex flex-wrap gap-1 pt-1 ml-1">
           {outcome.reasons.map((r, i) => (
-            <span key={i} className="text-[9px] text-rose-500/80 bg-rose-500/5 px-1.5 py-0.5 rounded flex items-center gap-1">
-              <AlertCircle className="h-2 w-2" /> {r}
+            <span key={i} className="text-[9px] text-rose-500/80 bg-rose-500/5 px-1.5 py-0.5 rounded flex items-center gap-1 border border-rose-500/10">
+              <AlertCircle className="h-2.5 w-2.5" /> {REASON_MAP[r] || r}
             </span>
           ))}
         </div>
