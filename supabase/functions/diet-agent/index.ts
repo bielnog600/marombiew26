@@ -740,16 +740,21 @@ serve(async (req) => {
           const t = await r.text();
           console.error("structured diet-agent error:", status, t);
           modelAttempts.push({ model: modelToUse, durationMs, reason: `Error: ${status}` });
+          
+          const isRetryable = status !== 401 && status !== 402 && status !== 429;
+          
           return {
             ok: false,
             resp: new Response(
               JSON.stringify({
                 error:
                   status === 429
-                    ? "Limite de requisições excedido. Tente novamente em alguns minutos."
+                    ? "Limite de requisições excedido."
                     : status === 402
                       ? "Créditos insuficientes na conta OpenAI."
                       : "Erro ao gerar dieta estruturada.",
+                retryable: isRetryable,
+                error_code: "upstream_error",
               }),
               { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
             ),
@@ -772,7 +777,7 @@ serve(async (req) => {
           return {
             ok: false,
             resp: new Response(
-              JSON.stringify({ error: "Resposta vazia do modelo." }),
+              JSON.stringify({ error: "Resposta vazia do modelo.", retryable: true, error_code: "empty_response" }),
               { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
             ),
           };
@@ -784,7 +789,7 @@ serve(async (req) => {
           return {
             ok: false,
             resp: new Response(
-              JSON.stringify({ error: "Modelo retornou JSON inválido.", raw }),
+              JSON.stringify({ error: "Modelo retornou JSON inválido.", raw, retryable: true, error_code: "invalid_json" }),
               { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
             ),
           };
@@ -799,7 +804,36 @@ serve(async (req) => {
         AI_MODELS.primary,
         "first_attempt"
       );
-      if (!first.ok) return first.resp;
+      
+      if (!first.ok) {
+        const body = await first.resp.clone().json().catch(() => ({}));
+        if (body.retryable) {
+          fallbackReason = body.error_code || "critical_failure";
+          fallbackReasons.push(fallbackReason);
+          const second = await callModel(
+            dietVariationPrompt(intensity, historySummary, `🚨 OCORREU UM ERRO TÉCNICO (${fallbackReason}). Gere o JSON novamente respeitando o contrato.`, false),
+            AI_MODELS.fallback,
+            "critical_fallback"
+          );
+          if (second.ok) {
+            const historyJsons = history
+              .map((h) => h.conteudo_json)
+              .filter((j) => j && typeof j === "object") as any[];
+            const similarity = computeDietSimilarity(second.plan, historyJsons);
+            const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
+            return new Response(
+              JSON.stringify({
+                plan: second.plan,
+                similarity: { score: similarity.score, threshold: SIMILARITY_THRESHOLDS[intensity], intensity, historyCount: historyJsons.length },
+                aiRouting: routingMeta.routing,
+                aiUsage: routingMeta.usage,
+              }),
+              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            );
+          }
+        }
+        return first.resp;
+      }
 
       const historyJsons = history
         .map((h) => h.conteudo_json)
