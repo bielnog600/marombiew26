@@ -459,8 +459,9 @@ async function callStructuredModel({
     console.error("trainer-agent[json] validation error:", validation.error);
     return {
       ok: false,
+      error_code: "plan_validation_failed",
       response: new Response(
-        JSON.stringify({ error: "Plano gerado é inválido", detail: validation.error }),
+        JSON.stringify({ error: "Plano gerado é inválido", detail: validation.error, retryable: true }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       ),
     };
