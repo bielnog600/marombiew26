@@ -868,15 +868,21 @@ serve(async (req) => {
       }
 
       const variationRetryAllowed = intent !== "update";
+      
+      const variationFailure =
+        variationRetryAllowed &&
+        historyJsons.length > 0 &&
+        (
+          similarity.score > threshold ||
+          isPortionOnly ||
+          (requireMenuVariation && qOnly > 0.3) ||
+          primarySourceTooRepetitive
+        );
 
       const needsRetry =
         !nutrition.ok ||
         !initialAdjValidation.ok ||
-        (historyJsons.length > 0 &&
-          (similarity.score > threshold ||
-            (variationRetryAllowed && isPortionOnly) ||
-            (requireMenuVariation && qOnly > 0.3) ||
-            (variationRetryAllowed && primarySourceTooRepetitive)));
+        variationFailure;
 
       if (needsRetry) {
         if (!nutrition.ok) { 
@@ -907,13 +913,13 @@ serve(async (req) => {
         }
 
         const retryParts = [];
-        if (intent !== "update") {
+        if (variationRetryAllowed) {
           const overlapList = similarity.worstOverlap.length
             ? `Alimentos repetidos do cardápio anterior (TROQUE A MAIORIA): ${similarity.worstOverlap.join(", ")}.`
             : "Muitos alimentos coincidem com o cardápio anterior.";
           retryParts.push(
             overlapList,
-            "Substitua por equivalentes em macros usando o BANCO DE ALIMENTOS.",
+            "Substitua de fato os alimentos por outros equivalentes em macros usando o BANCO DE ALIMENTOS.",
             "Preserve metas calóricas, macros, restrições e preferências."
           );
         }
@@ -954,17 +960,17 @@ serve(async (req) => {
             "Todas as correções devem usar alimentos da lista de preferidos/acessíveis/práticos do questionário do aluno.",
           );
         }
-        if (isPortionOnly || qOnly > 0.3) {
+        if (variationRetryAllowed && (isPortionOnly || qOnly > 0.3)) {
           retryParts.push(
-            "❗ A geração anterior apenas mudou GRAMAGEM dos mesmos alimentos. Isto NÃO é variação. Substitua de fato os alimentos por outros equivalentes (proteínas, carbs e gorduras diferentes).",
+            "❗ A geração anterior apenas mudou GRAMAGEM ou teve sobreposição excessiva de quantidades. Isto NÃO é variação. Substitua de fato os alimentos por outros equivalentes (proteínas, carbs e gorduras diferentes).",
           );
         }
-        if (protRepeat >= 0.6 && similarity.proteinRepeatMeals?.length) {
+        if (variationRetryAllowed && protRepeat >= 0.6 && similarity.proteinRepeatMeals?.length) {
           retryParts.push(
             `❗ Em ${Math.round(protRepeat * 100)}% das refeições a PROTEÍNA PRINCIPAL repete a MESMA FAMÍLIA do cardápio anterior (refeições: ${similarity.proteinRepeatMeals.join(", ")}). Troque por outra família: se antes era carne vermelha, use frango, peixe, ovos, vísceras (fígado/moela) ou laticínios — não outra carne vermelha.`,
           );
         }
-        if (carbRepeat >= 0.6 && similarity.carbRepeatMeals?.length) {
+        if (variationRetryAllowed && carbRepeat >= 0.6 && similarity.carbRepeatMeals?.length) {
           retryParts.push(
             `❗ Em ${Math.round(carbRepeat * 100)}% das refeições o CARBOIDRATO PRINCIPAL repete a MESMA FAMÍLIA (refeições: ${similarity.carbRepeatMeals.join(", ")}). Alterne entre cereais, tubérculos, frutas e leguminosas.`,
           );
