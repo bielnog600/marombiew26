@@ -14,6 +14,48 @@ export type TelemetryTargetStatus =
   | 'not_achieved'
   | 'not_evaluable';
 
+export type TelemetrySessionStatus =
+  | 'available'
+  | 'without_snapshot'
+  | 'empty_snapshot'
+  | 'invalid_snapshot_version'
+  | 'snapshot_session_mismatch';
+
+export interface SessionTelemetryResult {
+  status: TelemetrySessionStatus;
+  outcomes: ProgressionExecutionOutcome[];
+}
+
+export interface TelemetrySummary {
+  sessionsWithSnapshot: number;
+  sessionsWithoutSnapshot: number;
+  sessionsWithoutRecommendation: number;
+  invalidSnapshotSessions: number;
+
+  recommendationsShown: number;
+  evaluableRecommendations: number;
+  recommendationsWithExecution: number;
+
+  matchedCount: number;
+  partialCount: number;
+  differentCount: number;
+  noExecutionCount: number;
+
+  alignmentRate: number;
+  fullOrPartialAlignmentRate: number;
+  executionCoverage: number;
+
+  targetsEvaluable: number;
+  targetAchievedCount: number;
+  targetPartialCount: number;
+  targetNotAchievedCount: number;
+
+  targetAchievementRate: number;
+  targetAtLeastPartialRate: number;
+
+  deloadExcludedCount: number;
+}
+
 export const LOAD_FLOAT_TOLERANCE_KG = 0.05;
 
 /** Regra 15: Helper para comparar cargas com tolerância explícita */
