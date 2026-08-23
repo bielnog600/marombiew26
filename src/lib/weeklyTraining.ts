@@ -1,14 +1,14 @@
 /**
  * Camada de integração: junta ADERÊNCIA + PERFORMANCE + FASE numa única
  * avaliação semanal determinística, usada tanto pelo aluno (MeusTreinos)
- * quanto pelo admin (StudentTrainingTab).
+ * quanto pelo admin (StudentTrainingTab e resumo em lote da Consultoria).
  *
  * Regras:
  *  - toda a matemática continua em weeklyAdherence.ts / weeklyProgression.ts;
- *  - aqui só há montagem de contexto (janela, fase, ciclo) e chamada das
- *    funções puras — nenhuma decisão nova, nenhum threshold novo;
- *  - a janela é única (weeklyWindows.ts): aderência e performance avaliam
- *    exatamente o mesmo intervalo.
+ *  - a semana avaliada é a SEMANA LÓGICA do plano (weekContext.ts). A janela
+ *    móvel de 7 dias só é usada como fallback legado;
+ *  - fase explicitamente diferente NUNCA entra na avaliação (não relaxamos);
+ *  - S1 de novo ciclo e deload não produzem comparação de performance.
  */
 
 import type { ParsedTrainingDay } from './trainingResultParser';
@@ -27,23 +27,38 @@ import {
   type PerformanceSummary,
   type WeekResolution,
 } from './weeklyProgression';
-import { previousComparablePhase, type WeeklyWindows } from './weeklyWindows';
+import type { WeeklyWindows } from './weeklyWindows';
+import {
+  inWindow,
+  phaseCompatible,
+  planCompatible,
+  type ComparisonBasis,
+  type WeekContext,
+  type WeekContextSource,
+  type WeekContexts,
+} from './weekContext';
 import type { TrainingPhase } from './trainingPhase';
 
 /** Log cru vindo de exercise_set_logs (superset de AdherenceLog + ExerciseLog). */
 export interface RawSetLog extends ExerciseLog {
   phase?: string | null;
+  session_id?: string | null;
 }
 
 export interface RawSession extends AdherenceSession {
+  id?: string | null;
   plan_id?: string | null;
+  phase?: string | null;
 }
 
 export interface WeeklyTrainingInput {
   plannedPhase: TrainingPhase;
   plannedDays: ParsedTrainingDay[];
-  windows: WeeklyWindows;
-  /** Todos os logs das DUAS janelas (uma única query). */
+  /** Identidade estruturada da semana (preferencial). */
+  contexts?: WeekContexts;
+  /** Fallback legado: janela móvel de 7 dias. */
+  windows?: WeeklyWindows;
+  /** Todos os logs das duas janelas (uma única query). */
   logs: RawSetLog[];
   /** Sessões estruturadas das duas janelas. */
   sessions: RawSession[];
@@ -56,61 +71,155 @@ export interface WeeklyTrainingReport {
   progression: ProgressionReport;
   performance: PerformanceSummary;
   resolution: WeekResolution;
-  /** Diagnóstico da janela/ciclo (para UI e debug). */
+  /** Diagnóstico da semana/identidade (para UI, admin e debug). */
   context: {
     currentStart: string;
     currentEnd: string;
-    previousStart: string;
-    previousEnd: string;
+    previousStart: string | null;
+    previousEnd: string | null;
     evaluatedPhase: TrainingPhase;
-    comparedPhase: TrainingPhase;
-    /** false quando a semana anterior pertence a outro plano/ciclo. */
+    /** Fase comparada (null quando não há semana comparável). */
+    comparedPhase: TrainingPhase | null;
+    /** De onde veio a identidade da semana avaliada. */
+    weekContextSource: WeekContextSource;
+    /** Base da comparação de performance. */
+    comparisonBasis: ComparisonBasis;
+    comparisonNote?: string;
+    /** false quando não há semana anterior comparável (S1, deload, troca de plano). */
     previousWeekComparable: boolean;
-    /** true quando os logs não têm `phase` e o filtro de fase foi relaxado. */
+    /** Sempre false: fase explicitamente divergente nunca é relaxada. */
     phaseFilterRelaxed: boolean;
+    /** Logs descartados por pertencerem a outra fase/plano. */
+    rejectedByPhase: number;
+    /** Logs da semana atual sem session_id (dados legados). */
+    legacyLogs: number;
+    /** Logs da semana atual vinculados a uma workout_session. */
+    structuredLogs: number;
   };
 }
 
-const inWindow = (iso: string, start: Date, end: Date) => {
-  const t = new Date(iso).getTime();
-  return t >= start.getTime() && t < end.getTime();
-};
-
 const sessionAt = (s: RawSession) => s.completed_at || s.started_at || s.created_at || '';
 
+/** Contexto derivado de janelas móveis (compat com chamadas antigas). */
+const contextsFromWindows = (
+  windows: WeeklyWindows,
+  phase: TrainingPhase,
+  planId: string | null,
+  comparedPhase: TrainingPhase | null,
+): WeekContexts => ({
+  current: {
+    planId,
+    phase,
+    startedAt: windows.current.start,
+    endedAt: windows.current.end,
+    source: 'legacy_time_window',
+  },
+  previous: comparedPhase
+    ? {
+        planId,
+        phase: comparedPhase,
+        startedAt: windows.previous.start,
+        endedAt: windows.previous.end,
+        source: 'legacy_time_window',
+      }
+    : null,
+  comparisonBasis: comparedPhase ? 'legacy_time_window' : 'none',
+});
+
+interface Selection {
+  logs: RawSetLog[];
+  rejectedByPhase: number;
+  legacyLogs: number;
+  structuredLogs: number;
+}
+
 /**
- * Mantém apenas logs compatíveis com a fase avaliada.
- * Logs legados (phase = null) são sempre aceitos. Se o filtro eliminar tudo
- * mas existirem logs, o filtro é relaxado (dado legado sem fase confiável).
+ * Seleciona os logs que pertencem ao contexto da semana.
+ *
+ * 1. Se o log tem session_id e a sessão é conhecida → identidade ESTRUTURADA:
+ *    a sessão precisa pertencer à janela, à fase e ao plano do contexto.
+ * 2. Sem session_id (ou sessão desconhecida) → FALLBACK legado por janela
+ *    temporal, ainda respeitando a fase quando ela existe no próprio log.
+ * 3. Fase explicitamente diferente → rejeitada em qualquer caso.
  */
-const filterByPhase = (logs: RawSetLog[], phase: TrainingPhase) => {
-  const filtered = logs.filter((l) => !l.phase || l.phase === phase);
-  if (filtered.length === 0 && logs.length > 0) {
-    return { logs, relaxed: true };
+const selectLogsForContext = (
+  logs: RawSetLog[],
+  ctx: WeekContext,
+  sessionsById: Map<string, RawSession>,
+): Selection => {
+  let rejectedByPhase = 0;
+  let legacyLogs = 0;
+  let structuredLogs = 0;
+  const out: RawSetLog[] = [];
+
+  for (const l of logs) {
+    const s = l.session_id ? sessionsById.get(l.session_id) : undefined;
+    if (s) {
+      const okPhase = phaseCompatible(s.phase ?? l.phase, ctx.phase);
+      const okPlan = planCompatible(s.plan_id, ctx.planId);
+      if (!okPhase || !okPlan) {
+        if (!okPhase) rejectedByPhase += 1;
+        continue;
+      }
+      if (!inWindow(sessionAt(s), ctx) && !inWindow(l.performed_at, ctx)) continue;
+      structuredLogs += 1;
+      out.push(l);
+      continue;
+    }
+    if (!phaseCompatible(l.phase, ctx.phase)) {
+      rejectedByPhase += 1;
+      continue;
+    }
+    if (!inWindow(l.performed_at, ctx)) continue;
+    legacyLogs += 1;
+    out.push(l);
   }
-  return { logs: filtered, relaxed: false };
+
+  return { logs: out, rejectedByPhase, legacyLogs, structuredLogs };
 };
+
+const selectSessionsForContext = (sessions: RawSession[], ctx: WeekContext): RawSession[] =>
+  sessions.filter(
+    (s) =>
+      phaseCompatible(s.phase, ctx.phase) &&
+      planCompatible(s.plan_id, ctx.planId) &&
+      inWindow(sessionAt(s), ctx),
+  );
 
 export const buildWeeklyTrainingReport = (
   input: WeeklyTrainingInput,
 ): WeeklyTrainingReport => {
-  const { plannedPhase, plannedDays, windows, logs, sessions, planId } = input;
-  const { current, previous } = windows;
+  const { plannedPhase, plannedDays, logs, sessions, planId = null } = input;
 
-  const currentLogsRaw = logs.filter((l) => inWindow(l.performed_at, current.start, current.end));
-  const previousLogsRaw = logs.filter((l) => inWindow(l.performed_at, previous.start, previous.end));
+  const contexts: WeekContexts =
+    input.contexts ??
+    contextsFromWindows(
+      input.windows!,
+      plannedPhase,
+      planId,
+      plannedPhase === 'semana_1' || plannedPhase === 'deload'
+        ? null
+        : (['semana_1', 'semana_2', 'semana_3', 'deload'] as TrainingPhase[])[
+            ['semana_1', 'semana_2', 'semana_3', 'deload'].indexOf(plannedPhase) - 1
+          ],
+    );
 
-  const currentSessions = sessions.filter((s) => {
-    const at = sessionAt(s);
-    return !!at && inWindow(at, current.start, current.end);
-  });
-  const previousSessions = sessions.filter((s) => {
-    const at = sessionAt(s);
-    return !!at && inWindow(at, previous.start, previous.end);
-  });
+  const current = contexts.current;
+  const previous = contexts.previous;
 
-  // ---- ADERÊNCIA: janela atual (mesma de sempre).
-  const adherenceLogs: AdherenceLog[] = currentLogsRaw.map((l) => ({
+  const sessionsById = new Map<string, RawSession>();
+  for (const s of sessions) if (s.id) sessionsById.set(s.id, s);
+
+  const cur = selectLogsForContext(logs, current, sessionsById);
+  const prev = previous
+    ? selectLogsForContext(logs, previous, sessionsById)
+    : { logs: [] as RawSetLog[], rejectedByPhase: 0, legacyLogs: 0, structuredLogs: 0 };
+
+  const currentSessions = selectSessionsForContext(sessions, current);
+  const previousSessions = previous ? selectSessionsForContext(sessions, previous) : [];
+
+  // ---- ADERÊNCIA: janela da semana avaliada.
+  const adherenceLogs: AdherenceLog[] = cur.logs.map((l) => ({
     exercise_name: l.exercise_name,
     reps: l.reps,
     weight_kg: l.weight_kg,
@@ -119,28 +228,39 @@ export const buildWeeklyTrainingReport = (
   const adherence = buildAdherenceReport(
     plannedDays,
     adherenceLogs,
-    current.start,
-    current.end,
+    current.startedAt,
+    current.endedAt,
     currentSessions,
   );
 
-  // ---- PERFORMANCE: mesma janela atual + semana anterior comparável.
-  const comparedPhase = previousComparablePhase(plannedPhase);
-  const cur = filterByPhase(currentLogsRaw, plannedPhase);
-  const prev = filterByPhase(previousLogsRaw, comparedPhase);
-
-  // Troca de plano/ciclo: se TODAS as sessões da semana anterior apontam para
-  // outro plano, a comparação não é válida (não misturar ciclos).
+  // ---- Troca de plano/ciclo: se TODAS as sessões da semana anterior apontam
+  // para outro plano, a comparação não é válida (não misturar ciclos).
   const prevPlanIds = previousSessions.map((s) => s.plan_id).filter(Boolean) as string[];
-  const previousWeekComparable =
+  const planStillMatches =
     !planId || prevPlanIds.length === 0 || prevPlanIds.some((id) => id === planId);
+  const previousWeekComparable = !!previous && planStillMatches;
 
   const progression = buildProgressionReport(
     cur.logs,
     previousWeekComparable ? prev.logs : [],
     plannedDays,
   );
-  const performance = buildPerformanceSummary(progression.performances);
+  let performance = buildPerformanceSummary(progression.performances);
+
+  // Dados legados (sem session_id) nunca têm a mesma confiança de sessões
+  // estruturadas: rebaixa a confiança sem alterar nenhum threshold.
+  const comparisonBasis: ComparisonBasis = !previousWeekComparable
+    ? 'none'
+    : prev.structuredLogs > 0 && cur.structuredLogs > 0
+      ? contexts.comparisonBasis === 'none'
+        ? 'structured_previous_phase'
+        : contexts.comparisonBasis
+      : 'legacy_time_window';
+
+  if (comparisonBasis !== 'structured_previous_phase' && performance.confidence === 'high') {
+    performance = { ...performance, confidence: 'low', hasRelevantRegression: false };
+  }
+
   const resolution = resolveActiveWeek(plannedPhase, adherence, performance);
 
   return {
@@ -149,14 +269,20 @@ export const buildWeeklyTrainingReport = (
     performance,
     resolution,
     context: {
-      currentStart: current.start.toISOString(),
-      currentEnd: current.end.toISOString(),
-      previousStart: previous.start.toISOString(),
-      previousEnd: previous.end.toISOString(),
+      currentStart: current.startedAt.toISOString(),
+      currentEnd: current.endedAt.toISOString(),
+      previousStart: previous ? previous.startedAt.toISOString() : null,
+      previousEnd: previous ? previous.endedAt.toISOString() : null,
       evaluatedPhase: plannedPhase,
-      comparedPhase,
+      comparedPhase: previous?.phase ?? null,
+      weekContextSource: current.source,
+      comparisonBasis,
+      comparisonNote: contexts.comparisonNote,
       previousWeekComparable,
-      phaseFilterRelaxed: cur.relaxed || prev.relaxed,
+      phaseFilterRelaxed: false,
+      rejectedByPhase: cur.rejectedByPhase + prev.rejectedByPhase,
+      legacyLogs: cur.legacyLogs,
+      structuredLogs: cur.structuredLogs,
     },
   };
 };
