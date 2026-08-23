@@ -848,9 +848,9 @@ serve(async (req) => {
         }
         if (historyJsons.length > 0) {
           if (similarity.score > threshold) { fallbackReason = fallbackReason || "high_similarity"; fallbackReasons.push("high_similarity"); }
-          if (intent !== "update" && isPortionOnly) { fallbackReason = fallbackReason || "portion_only"; fallbackReasons.push("portion_only"); }
+          if (variationRetryAllowed && isPortionOnly) { fallbackReason = fallbackReason || "portion_only"; fallbackReasons.push("portion_only"); }
           if (requireMenuVariation && qOnly > 0.3) { fallbackReason = fallbackReason || "high_quantity_overlap"; fallbackReasons.push("high_quantity_overlap"); }
-          if (primarySourceTooRepetitive) { fallbackReason = fallbackReason || "source_repetition"; fallbackReasons.push("source_repetition"); }
+          if (variationRetryAllowed && primarySourceTooRepetitive) { fallbackReason = fallbackReason || "source_repetition"; fallbackReasons.push("source_repetition"); }
         }
 
         const overlapList = similarity.worstOverlap.length
