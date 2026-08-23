@@ -29,13 +29,70 @@ export interface ExerciseLog {
   performed_at: string; // ISO
   set_number?: number | null;
   /**
-   * Escala de esforço registrada no set. O schema atual só tem `rpe`
-   * (0-10, hoje sempre null — ver LIMITAÇÕES no fim do arquivo).
-   * RIR é derivado como 10 - rpe quando `rir` não vem explícito.
+   * Escala de esforço do set. `rir` é a fonte primária (coluna
+   * exercise_set_logs.rir, opcional, preenchida pelo aluno na execução).
+   * `rpe` (0-10) é aceito como fonte secundária: RIR = 10 - RPE.
+   * NULL = desconhecido — nunca inferido/preenchido artificialmente.
    */
   rpe?: number | null;
   rir?: number | null;
+  /**
+   * Tipo estrutural da série (exercise_set_logs.set_type).
+   * NULL = legado/desconhecido => tratado como série de trabalho (fallback).
+   */
+  set_type?: SetType | string | null;
 }
+
+/** Tipos de série reconhecidos (espelham o CHECK de exercise_set_logs.set_type). */
+export type SetType =
+  | 'warmup'
+  | 'recognition'
+  | 'work'
+  | 'top'
+  | 'backoff'
+  | 'drop'
+  | 'rest_pause'
+  | 'myo_reps'
+  | 'technique';
+
+/**
+ * Papel da série na avaliação de performance:
+ *  - primary: working set / top set — representa a performance da semana;
+ *  - auxiliary: backoff e técnicas (drop, rest-pause, myo-reps) — contam em
+ *    volume/reps/contexto, mas não substituem uma série principal;
+ *  - preparation: aquecimento e reconhecimento — nunca representam performance.
+ */
+export type SetRole = 'primary' | 'auxiliary' | 'preparation';
+
+const SET_ROLE_BY_TYPE: Record<SetType, SetRole> = {
+  warmup: 'preparation',
+  recognition: 'preparation',
+  work: 'primary',
+  top: 'primary',
+  backoff: 'auxiliary',
+  drop: 'auxiliary',
+  rest_pause: 'auxiliary',
+  myo_reps: 'auxiliary',
+  technique: 'auxiliary',
+};
+
+/** Sem tipo estrutural (dado legado) => assume série de trabalho. */
+export const setRoleOf = (log: Pick<ExerciseLog, 'set_type'>): SetRole => {
+  const t = String(log.set_type ?? '').trim() as SetType;
+  return SET_ROLE_BY_TYPE[t] ?? 'primary';
+};
+
+/** true quando pelo menos um log da janela traz tipo estrutural explícito. */
+export const hasStructuredSetTypes = (logs: ExerciseLog[]): boolean =>
+  logs.some((l) => !!String(l.set_type ?? '').trim());
+
+/**
+ * Como as duas janelas foram comparadas:
+ *  - like_for_like: ambas as janelas têm tipos estruturados (working set vs working set);
+ *  - fallback_untyped: uma ou ambas as janelas são dados legados sem set_type.
+ */
+export type ComparisonBasis = 'like_for_like' | 'fallback_untyped';
+
 
 // ============================================================
 // Constantes de decisão (centralizadas)
