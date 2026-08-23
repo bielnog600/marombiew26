@@ -479,6 +479,9 @@ const TreinoExecucao = () => {
       });
       const treino = Array.isArray(plans) ? plans[0] : null;
       if (treino) {
+        // Bug 2: Definir PlanId ao carregar diretamente
+        setSessionPlanId(treino.id);
+
         // Fase da sessão vem da FONTE CENTRAL (timeline do plano), nunca de
         // um cálculo local — garante paridade com weeklyTraining e com o admin.
         setPhase(resolveCurrentTrainingPhase({
