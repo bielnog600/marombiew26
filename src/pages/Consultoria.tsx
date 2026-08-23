@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import React, { useState, useMemo } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -27,6 +28,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useInactiveStudents } from '@/hooks/useInactiveStudents';
 
 const Consultoria: React.FC = () => {
+  const navigate = useNavigate();
   const [tab, setTab] = useState('alertas');
   const [searchTerm, setSearchTerm] = useState('');
   const [alertFilter, setAlertFilter] = useState<FollowupFilter>('hoje');
