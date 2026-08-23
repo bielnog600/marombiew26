@@ -1,18 +1,16 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
+import { type AdherenceReport } from '@/lib/weeklyAdherence';
+import { type ProgressionReport, type WeekResolution } from '@/lib/weeklyProgression';
+import { resolveWeekContexts, fetchRangeFor } from '@/lib/weekContext';
 import {
-  buildAdherenceReport,
-  getPreviousWeekWindow,
-  type AdherenceReport,
-  type AdherenceSession,
-} from '@/lib/weeklyAdherence';
-import {
-  buildProgressionReport,
-  getProgressionWindows,
-  type ProgressionReport,
-  type ExerciseLog,
-} from '@/lib/weeklyProgression';
+  buildWeeklyTrainingReport,
+  describeWeekDecision,
+  type RawSetLog,
+  type RawSession,
+} from '@/lib/weeklyTraining';
+import type { TrainingPhase } from '@/lib/trainingPhase';
 
 export type AttentionKind =
   | 'regressao'
@@ -52,6 +50,9 @@ export interface StudentWeeklySummary {
   planContent: string | null;
   adherence: AdherenceReport | null;
   progression: ProgressionReport | null;
+  /** MESMA decisão exibida em MeusTreinos / StudentTrainingTab. */
+  resolution: WeekResolution | null;
+  decisionLabel: string;
   diet: DietWellnessSummary;
   attention: AttentionKind;
   priority: number; // menor = mais urgente
@@ -147,29 +148,61 @@ export const useStudentsWeeklySummary = () => {
       // 3. último plano de treino ativo de cada aluno
       const { data: plans } = await supabase
         .from('ai_plans')
-        .select('id, student_id, conteudo, created_at')
+        .select('id, student_id, conteudo, created_at, fase, fase_inicio_data, cycle_days')
         .eq('tipo', 'treino')
         .eq('is_draft', false)
         .in('student_id', ids)
         .order('created_at', { ascending: false });
-      const latestPlan = new Map<string, { id: string; conteudo: string | null }>();
+      const latestPlan = new Map<string, {
+        id: string;
+        conteudo: string | null;
+        fase: TrainingPhase | null;
+        fase_inicio_data: string | null;
+        cycle_days: number | null;
+      }>();
       for (const p of plans ?? []) {
         if (!latestPlan.has(p.student_id)) {
-          latestPlan.set(p.student_id, { id: p.id, conteudo: p.conteudo });
+          latestPlan.set(p.student_id, {
+            id: p.id,
+            conteudo: p.conteudo,
+            fase: (p as any).fase ?? null,
+            fase_inicio_data: (p as any).fase_inicio_data ?? null,
+            cycle_days: (p as any).cycle_days ?? null,
+          });
         }
       }
 
-      // 4. logs de duas semanas
-      const { lastStart, lastEnd, prevStart, prevEnd } = getProgressionWindows();
-      const { start: adhStart, end: adhEnd } = getPreviousWeekWindow();
+      // Contexto semanal (semana lógica do plano) de cada aluno — puro, local.
+      const contextsByStudent = new Map<string, ReturnType<typeof resolveWeekContexts>>();
+      for (const [studentId, plan] of latestPlan.entries()) {
+        contextsByStudent.set(studentId, resolveWeekContexts({
+          planId: plan.id,
+          phase: (plan.fase as TrainingPhase) || 'semana_1',
+          phaseStartDate: plan.fase_inicio_data,
+          cycleDays: plan.cycle_days,
+        }));
+      }
+
+      // 4. logs e sessões em LOTE (2 queries para todos os alunos — zero N+1).
+      // Busca o superset temporal que cobre todos os contextos semanais.
+      const nowMs = Date.now();
+      let batchFrom = new Date(nowMs);
+      let batchTo = new Date(nowMs);
+      for (const ctx of contextsByStudent.values()) {
+        const r = fetchRangeFor(ctx);
+        if (r.from < batchFrom) batchFrom = r.from;
+        if (r.to > batchTo) batchTo = r.to;
+      }
+      if (contextsByStudent.size === 0) batchFrom.setDate(batchFrom.getDate() - 14);
+
       const { data: logs } = await supabase
         .from('exercise_set_logs')
-        .select('student_id, exercise_name, reps, weight_kg, rpe, rir, set_type, set_number, performed_at')
+        .select('student_id, exercise_name, reps, weight_kg, rpe, rir, set_type, set_number, performed_at, phase, session_id')
         .in('student_id', ids)
-        .gte('performed_at', prevStart.toISOString())
-        .lt('performed_at', lastEnd.toISOString());
+        .gte('performed_at', batchFrom.toISOString())
+        .lt('performed_at', batchTo.toISOString());
 
-      const logsByStudent = new Map<string, ExerciseLog[]>();
+      const logsByStudent = new Map<string, RawSetLog[]>();
       for (const l of logs ?? []) {
         if (!logsByStudent.has(l.student_id)) logsByStudent.set(l.student_id, []);
         logsByStudent.get(l.student_id)!.push({
@@ -181,24 +214,29 @@ export const useStudentsWeeklySummary = () => {
           set_type: (l as any).set_type ?? null,
           set_number: (l as any).set_number ?? null,
           performed_at: l.performed_at,
+          phase: (l as any).phase ?? null,
+          session_id: (l as any).session_id ?? null,
         });
       }
 
-      // 4b. sessões estruturadas da janela de aderência (presença real)
       const { data: sessionRows } = await supabase
         .from('workout_sessions')
-        .select('student_id, status, completed_at, started_at, created_at')
+        .select('id, student_id, status, completed_at, started_at, created_at, plan_id, phase')
         .in('student_id', ids)
         .in('status', ['completed', 'partial', 'abandoned'])
-        .gte('completed_at', adhStart.toISOString())
-        .lt('completed_at', adhEnd.toISOString());
-      const sessionsByStudent = new Map<string, AdherenceSession[]>();
+        .gte('completed_at', batchFrom.toISOString())
+        .lt('completed_at', batchTo.toISOString());
+      const sessionsByStudent = new Map<string, RawSession[]>();
       for (const s of sessionRows ?? []) {
         if (!sessionsByStudent.has(s.student_id)) sessionsByStudent.set(s.student_id, []);
         sessionsByStudent.get(s.student_id)!.push({
+          id: s.id,
           status: s.status,
           completed_at: s.completed_at,
           started_at: s.started_at,
+          created_at: (s as any).created_at,
+          plan_id: (s as any).plan_id ?? null,
+          phase: (s as any).phase ?? null,
         });
       }
 
@@ -242,8 +280,6 @@ export const useStudentsWeeklySummary = () => {
       for (const p of profiles ?? []) {
         const plan = latestPlan.get(p.user_id) ?? null;
         const allLogs = logsByStudent.get(p.user_id) ?? [];
-        const lastLogs = allLogs.filter((l) => new Date(l.performed_at) >= lastStart && new Date(l.performed_at) < lastEnd);
-        const prevLogs = allLogs.filter((l) => new Date(l.performed_at) >= prevStart && new Date(l.performed_at) < prevEnd);
 
         let plannedDays: ParsedTrainingDay[] = [];
         if (plan?.conteudo) {
@@ -252,18 +288,22 @@ export const useStudentsWeeklySummary = () => {
 
         let adherence: AdherenceReport | null = null;
         let progression: ProgressionReport | null = null;
+        let resolution: WeekResolution | null = null;
         if (plan) {
-          adherence = buildAdherenceReport(
+          // MESMAS funções puras do aluno/admin — só a busca de dados é em lote.
+          const report = buildWeeklyTrainingReport({
+            plannedPhase: (plan.fase as TrainingPhase) || 'semana_1',
             plannedDays,
-            lastLogs.filter((l) => new Date(l.performed_at) >= adhStart && new Date(l.performed_at) < adhEnd),
-            adhStart,
-            adhEnd,
-            sessionsByStudent.get(p.user_id) ?? [],
-          );
-          progression = buildProgressionReport(lastLogs, prevLogs, plannedDays);
+            contexts: contextsByStudent.get(p.user_id)!,
+            logs: allLogs,
+            sessions: sessionsByStudent.get(p.user_id) ?? [],
+            planId: plan.id,
+          });
+          adherence = report.adherence;
+          progression = report.progression;
+          resolution = report.resolution;
         }
 
-        const c = classify(adherence, progression);
         const isPresencial = presencialMap.get(p.user_id) ?? false;
         const cFinal = classify(adherence, progression, isPresencial);
 
@@ -308,6 +348,8 @@ export const useStudentsWeeklySummary = () => {
           planContent: plan?.conteudo ?? null,
           adherence,
           progression,
+          resolution,
+          decisionLabel: describeWeekDecision(resolution),
           diet,
           attention: cFinal.kind,
           priority: cFinal.priority,
