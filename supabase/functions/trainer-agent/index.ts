@@ -487,9 +487,43 @@ async function generateStructuredWorkoutWithVariation(args: {
       .join("\n");
   }
 
-  const intensity = args.intensity;
-  const variationBlock = workoutVariationPrompt(intensity, historySummary);
+  /** Unified evaluation pipeline for workout candidates. */
+  const evaluateWorkoutCandidate = (params: {
+    data: any;
+    historyJsons: any[];
+    catalog: CatalogEntry[];
+    intensity: VariationIntensity;
+    threshold: number;
+  }) => {
+    // Snap every exercise/variation name to a real row of public.exercises.
+    // Use clone to avoid mutating the original data in history comparisons.
+    const snapData = structuredClone(params.data);
+    const unmatchedExercises = snapPlanToCatalog(snapData, params.catalog);
+    
+    // Similarity and Redundancy
+    const similarity = computeWorkoutSimilarity(snapData, params.historyJsons);
+    const redundancy = validateWorkoutRedundancy(snapData);
+    
+    // Catalog mismatch check: primary exercises must match.
+    // If snapPlanToCatalog left an exercise unmatched, it's a catalog_mismatch.
+    const hasCatalogMismatch = unmatchedExercises.length > 0;
 
+    const needsRetry = (similarity.score > params.threshold && params.historyJsons.length > 0) || 
+                       !redundancy.ok || 
+                       hasCatalogMismatch;
+
+    return {
+      data: snapData,
+      similarity,
+      redundancy,
+      unmatchedExercises,
+      hasCatalogMismatch,
+      needsRetry,
+      markdown: workoutPlanToMarkdown(snapData)
+    };
+  };
+
+  const threshold = SIMILARITY_THRESHOLDS[args.intensity];
   let fallbackReason: string | null = null;
   let fallbackReasons: string[] = [];
   const modelAttempts: AIAttemptMetadata[] = [];
