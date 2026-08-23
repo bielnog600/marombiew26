@@ -143,21 +143,33 @@ const ConsultoriaStudentSearch: React.FC = () => {
         />
       </div>
 
-      <div className="flex gap-2 flex-wrap">
-        {filters.map(f => (
-          <button
-            key={f.value}
-            onClick={() => setFilter(f.value)}
-            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
-              filter === f.value
-                ? 'bg-foreground text-background border-foreground'
-                : 'bg-secondary/50 text-muted-foreground border-border hover:bg-secondary'
-            }`}
-          >
-            {f.label}
-            <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-none ${filter === f.value ? 'bg-background/20' : 'bg-muted'}`}>{f.count}</span>
-          </button>
-        ))}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
+          {filters.map(f => (
+            <button
+              key={f.value}
+              onClick={() => setFilter(f.value)}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+                filter === f.value
+                  ? 'bg-foreground text-background border-foreground'
+                  : 'bg-secondary/50 text-muted-foreground border-border hover:bg-secondary'
+              }`}
+            >
+              {f.label}
+              <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-none ${filter === f.value ? 'bg-background/20' : 'bg-muted'}`}>{f.count}</span>
+            </button>
+          ))}
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 text-[10px] gap-1.5"
+          onClick={() => setSortOrder(prev => prev === 'name' ? 'last_access' : 'name')}
+        >
+          <ArrowUpDown className="h-3 w-3" />
+          {sortOrder === 'name' ? 'Ordenar por Acesso' : 'Ordenar por Nome'}
+        </Button>
       </div>
 
       {loading ? (
