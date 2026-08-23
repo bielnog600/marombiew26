@@ -1214,6 +1214,7 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
       });
     }
 
+    const routingMeta = createRoutingMetadata([], null);
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -1221,7 +1222,7 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: AI_MODELS.primary.includes("gpt-5.6") ? "gpt-4o" : AI_MODELS.primary,
         messages: [
           { role: "system", content: SYSTEM_PROMPT + contextMessage },
           ...messages,
@@ -1243,11 +1244,12 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
         });
       }
       const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
-      return new Response(JSON.stringify({ error: "Erro no gateway de IA" }), {
+      console.error("OpenAI API error:", response.status, t);
+      return new Response(JSON.stringify({ error: "Erro na API de IA" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
 
     return new Response(response.body, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
