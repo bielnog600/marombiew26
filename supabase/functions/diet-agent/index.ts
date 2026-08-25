@@ -50,6 +50,52 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+type StructuredStreamResult = {
+  content: string;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
+};
+
+async function consumeStructuredChatStream(response: Response): Promise<StructuredStreamResult> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("Resposta de streaming sem corpo.");
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let content = "";
+  let usage: StructuredStreamResult["usage"];
+
+  const consumeEvent = (event: string) => {
+    for (const line of event.split("\n")) {
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (!data || data === "[DONE]") continue;
+      const chunk = JSON.parse(data);
+      const delta = chunk?.choices?.[0]?.delta?.content;
+      if (typeof delta === "string") content += delta;
+      if (chunk?.usage) usage = chunk.usage;
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, "\n");
+    let separator = buffer.indexOf("\n\n");
+    while (separator >= 0) {
+      consumeEvent(buffer.slice(0, separator));
+      buffer = buffer.slice(separator + 2);
+      separator = buffer.indexOf("\n\n");
+    }
+    if (done) break;
+  }
+
+  if (buffer.trim()) consumeEvent(buffer);
+  return { content, usage };
+}
+
 
 
 
@@ -742,7 +788,8 @@ serve(async (req) => {
               ...messages,
             ],
             max_completion_tokens: 8000,
-            stream: false,
+            stream: true,
+            stream_options: { include_usage: true },
             response_format: { type: "json_object" },
           }),
         });
@@ -772,7 +819,25 @@ serve(async (req) => {
             ),
           };
         }
-        const completion = await r.json();
+        let completion: StructuredStreamResult;
+        try {
+          completion = await consumeStructuredChatStream(r);
+        } catch (error) {
+          const durationMs = Date.now() - start;
+          console.error("structured diet-agent: invalid stream", error);
+          modelAttempts.push({ model: modelToUse, durationMs, reason: "invalid_stream", usage: null });
+          return {
+            ok: false,
+            resp: new Response(
+              JSON.stringify({
+                error: "Fluxo de resposta da IA inválido.",
+                retryable: true,
+                error_code: "invalid_stream",
+              }),
+              { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            ),
+          };
+        }
         const durationMs = Date.now() - start;
         const usage = completion.usage;
         modelAttempts.push({
@@ -785,7 +850,7 @@ serve(async (req) => {
             totalTokens: usage.total_tokens ?? null
           } : null
         });
-        const raw = completion.choices?.[0]?.message?.content;
+        const raw = completion.content;
         if (!raw) {
           return {
             ok: false,
@@ -870,6 +935,13 @@ serve(async (req) => {
       let regenerated = false;
       let warning: string | null = null;
       let nutrition: DietNutritionValidation = validateDietNutrition(finalPlan);
+      console.log("[diet-agent] nutrition_validation", {
+        model: selectedModel,
+        ok: nutrition.ok,
+        issues: nutrition.issues,
+        totalProteinG: Math.round(nutrition.totalProteinG),
+        totalKcal: Math.round(nutrition.totalKcal),
+      });
 
       const qOnly = similarity.quantityOnlyRatio ?? 0;
       const isPortionOnly = similarity.changeKind === "portion_only";
@@ -1066,6 +1138,13 @@ serve(async (req) => {
         if (second.ok) {
           const sim2 = computeDietSimilarity(second.plan, historyJsons);
           const nut2 = validateDietNutrition(second.plan);
+          console.log("[diet-agent] nutrition_validation", {
+            model: AI_MODELS.fallback,
+            ok: nut2.ok,
+            issues: nut2.issues,
+            totalProteinG: Math.round(nut2.totalProteinG),
+            totalKcal: Math.round(nut2.totalKcal),
+          });
           const initialAdjValidation2 = validateAdjustments(second.plan);
 
           const validity2 = evaluateDietCandidateValidity({

@@ -27,7 +27,7 @@ import {
   selectVariation,
   validateAndNormalizeVariations,
 } from "../_shared/variationSelection.ts";
-import { normalizeName } from "../_shared/planSimilarity.ts";
+import { normalizeName, validateDietNutrition } from "../_shared/planSimilarity.ts";
 import { getExerciseFunctionalProfile } from "../_shared/exerciseClassifier.ts";
 import {
   evaluateReferenceCompliance,
@@ -449,11 +449,40 @@ Deno.test("diet structured call streams upstream to avoid the 150s idle timeout"
   const start = src.indexOf('if (mode === "structured")');
   const end = src.indexOf("// ─── Legacy conversational mode", start);
   const structured = src.slice(start, end > start ? end : undefined);
-  assert(/max_completion_tokens:\s*16000/.test(structured));
+  assert(/max_completion_tokens:\s*8000/.test(structured));
   assert(/stream:\s*true/.test(structured));
   assert(/stream_options:\s*\{\s*include_usage:\s*true\s*\}/.test(structured));
   assert(/consumeStructuredChatStream\(r\)/.test(structured));
   assert(!/await\s+r\.json\(\)/.test(structured));
+});
+
+Deno.test("diet nutrition accepts an unclassified catalog protein with deterministic macros", () => {
+  const result = validateDietNutrition({
+    days: [{
+      meals: [{
+        name: "Almoço",
+        items: [
+          { name: "Preparação proteica especial", macros: { kcal: 220, p: 32, c: 4, g: 8 } },
+          { name: "Arroz", macros: { kcal: 180, p: 4, c: 39, g: 1 } },
+        ],
+      }],
+    }],
+  });
+  assertEquals(result.ok, true);
+  assertEquals(result.issues, []);
+});
+
+Deno.test("diet nutrition keeps low protein share in secondary meals as advisory", () => {
+  const result = validateDietNutrition({
+    days: [{
+      meals: [{
+        name: "Ceia",
+        items: [{ name: "Fruta com aveia", macros: { kcal: 240, p: 5, c: 45, g: 4 } }],
+      }],
+    }],
+  });
+  assertEquals(result.ok, true);
+  assertEquals(result.issues[0]?.reason, "low_protein_share");
 });
 
 Deno.test("trainer: non-retryable upstream statuses never reach Terra (1 call)", () => {
