@@ -97,8 +97,7 @@ export function isStrongFunctionalEquivalent(a: string, b: string): boolean {
   const ka = strongFamilyKey(a);
   const kb = strongFamilyKey(b);
   if (!ka || !kb) return false;
-  if (ka !== kb) return false;
-  return normalizeName(a) !== normalizeName(b) || true;
+  return ka === kb;
 }
 
 /**
