@@ -25,6 +25,7 @@ export type VariationReason =
   | "semantic_mismatch"
   | "creates_redundancy"
   | "safety_conflict"
+  | "equipment_unavailable"
   | null;
 
 export interface VariationVerdict {
@@ -47,6 +48,11 @@ export interface VariationOptions {
   restrictionsText?: string;
   /** Extra explicitly forbidden exercise names. */
   forbiddenNames?: string[];
+  /**
+   * Reliable list of equipment available to the student. Only pass it when the
+   * data really exists — when omitted, equipment is used for ranking only.
+   */
+  availableEquipment?: string[];
 }
 
 const clean = (s: unknown): string => String(s ?? "").trim();
@@ -134,6 +140,16 @@ export function evaluateVariationCandidate(input: {
   const mainProfile = getExerciseFunctionalProfile(exerciseName);
   const candProfile = getExerciseFunctionalProfile(candidate);
 
+  // Equipment is a hard requirement ONLY when a reliable availability list exists.
+  if (
+    Array.isArray(opts.availableEquipment) &&
+    opts.availableEquipment.length > 0 &&
+    candProfile.equipment &&
+    !opts.availableEquipment.map((e) => String(e).toLowerCase()).includes(candProfile.equipment)
+  ) {
+    return { valid: false, tier: null, reason: "equipment_unavailable" };
+  }
+
   if (!classCompatible(mainProfile.exerciseClass, candProfile.exerciseClass)) {
     return { valid: false, tier: null, reason: "semantic_mismatch" };
   }
@@ -176,6 +192,51 @@ export function evaluateVariationCandidate(input: {
 
 const TIER_RANK: Record<VariationTier, number> = { A: 0, B: 1, C: 2 };
 
+const UNILATERAL_TOKENS = ["unilateral", "alternando", "alternada", "afundo", "avanco", "bulgaro", "passada"];
+
+function isUnilateral(name: string): boolean {
+  const n = normalizeName(name);
+  return UNILATERAL_TOKENS.some((t) => n.includes(t));
+}
+
+function nameOverlap(a: string, b: string): number {
+  const ta = new Set(normalizeName(a).split(/\s+/).filter((t) => t.length > 2));
+  const tb = new Set(normalizeName(b).split(/\s+/).filter((t) => t.length > 2));
+  if (ta.size === 0 || tb.size === 0) return 0;
+  let shared = 0;
+  for (const t of ta) if (tb.has(t)) shared += 1;
+  return shared / Math.max(ta.size, tb.size);
+}
+
+/**
+ * Deterministic score used ONLY inside the same tier. Higher is better.
+ * Order of relevance: pattern > class > group > equipment > bilaterality > unused.
+ */
+function intraTierScore(input: {
+  exerciseName: string;
+  candidate: string;
+  catalog: CatalogEntryLike[];
+  used: boolean;
+}): number {
+  const { exerciseName, candidate, catalog, used } = input;
+  const main = getExerciseFunctionalProfile(exerciseName);
+  const cand = getExerciseFunctionalProfile(candidate);
+  const mainEntry = catalogLookup(catalog, exerciseName);
+  const candEntry = catalogLookup(catalog, candidate);
+
+  let score = 0;
+  if (main.pattern && cand.pattern && main.pattern === cand.pattern) score += 32;
+  if (main.exerciseClass && cand.exerciseClass && main.exerciseClass === cand.exerciseClass) score += 16;
+  if (mainEntry && candEntry && mainEntry.grupo === candEntry.grupo) score += 8;
+  if (main.equipment && cand.equipment && main.equipment === cand.equipment) score += 4;
+  if (isUnilateral(exerciseName) === isUnilateral(candidate)) score += 2;
+  // Nominal family overlap (e.g. "LEG PRESS 45 ART" -> "LEG PRESS") as a weak,
+  // deterministic tie-breaker between otherwise equivalent candidates.
+  score += nameOverlap(exerciseName, candidate) * 3;
+  if (!used) score += 1;
+  return score;
+}
+
 /** Picks the best deterministic variation for an exercise, or null. */
 export function selectVariation(input: {
   day: any;
@@ -189,7 +250,7 @@ export function selectVariation(input: {
     (day?.exercises ?? []).map((e: any) => normalizeName(clean(e?.exercise))).filter(Boolean),
   );
 
-  let best: { name: string; tier: VariationTier; used: boolean } | null = null;
+  let best: { name: string; tier: VariationTier; score: number } | null = null;
   for (const entry of catalog) {
     if (mainNames.has(normalizeName(entry.nome))) continue;
     const verdict = evaluateVariationCandidate({
@@ -201,14 +262,18 @@ export function selectVariation(input: {
     });
     if (!verdict.valid || !verdict.tier) continue;
     const used = usedVariations.has(normalizeName(entry.nome));
-    const cand = { name: entry.nome, tier: verdict.tier, used };
+    const cand = {
+      name: entry.nome,
+      tier: verdict.tier,
+      score: intraTierScore({ exerciseName, candidate: entry.nome, catalog, used }),
+    };
     if (!best) { best = cand; continue; }
-    // 8. Prefer unused variations, then the best tier.
-    if (Number(cand.used) !== Number(best.used)) {
-      if (!cand.used) best = cand;
+    // Tier is the primary biomechanical criterion; `used` is only a tie-breaker.
+    if (TIER_RANK[cand.tier] !== TIER_RANK[best.tier]) {
+      if (TIER_RANK[cand.tier] < TIER_RANK[best.tier]) best = cand;
       continue;
     }
-    if (TIER_RANK[cand.tier] < TIER_RANK[best.tier]) best = cand;
+    if (cand.score > best.score) best = cand;
   }
   return best ? { name: best.name, tier: best.tier } : null;
 }
