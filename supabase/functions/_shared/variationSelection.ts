@@ -47,6 +47,11 @@ export interface VariationOptions {
   restrictionsText?: string;
   /** Extra explicitly forbidden exercise names. */
   forbiddenNames?: string[];
+  /**
+   * Reliable list of equipment available to the student. Only pass it when the
+   * data really exists — when omitted, equipment is used for ranking only.
+   */
+  availableEquipment?: string[];
 }
 
 const clean = (s: unknown): string => String(s ?? "").trim();
