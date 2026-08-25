@@ -23,6 +23,12 @@ import {
   validateWorkoutRedundancy,
 } from "../_shared/workoutRedundancy.ts";
 import {
+  evaluateVariationCandidate,
+  selectVariation,
+  validateAndNormalizeVariations,
+} from "../_shared/variationSelection.ts";
+import { normalizeName } from "../_shared/planSimilarity.ts";
+import {
   evaluateReferenceCompliance,
   extractDeclaredReferenceMode,
   parseReferenceStructure,
