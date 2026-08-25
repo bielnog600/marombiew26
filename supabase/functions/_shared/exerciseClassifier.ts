@@ -61,8 +61,8 @@ export const CORE_TOKENS = ["prancha", "abdominal", "russo", "wood chop", "core"
 export const MOVEMENT_PATTERNS: Array<{ pattern: string; tokens: string[]; conf: number }> = [
   { pattern: "knee_extension", tokens: ["cadeira extensora", "extensao de joelho"], conf: 0.97 },
   { pattern: "knee_flexion",   tokens: ["mesa flexora", "flexora deitad", "flexora sentad"], conf: 0.95 },
-  { pattern: "hip_hinge",      tokens: ["stiff", "levantamento terra", "good morning", "romanian", "elevacao pelvica", "hip thrust"], conf: 0.9 },
-  { pattern: "squat",          tokens: ["agachamento", "leg press", "hack", "afundo", "avanco"], conf: 0.88 },
+  { pattern: "hip_hinge",      tokens: ["stiff", "terra", "good morning", "romanian", "elevacao pelvica", "hip thrust"], conf: 0.9 },
+  { pattern: "squat",          tokens: ["agachamento", "squat", "leg press", "hack", "afundo", "avanco"], conf: 0.88 },
   { pattern: "horizontal_push",tokens: ["supino", "chest press", "flexao "], conf: 0.88 },
   { pattern: "vertical_push",  tokens: ["desenvolvimento", "military press", "overhead press", "arnold"], conf: 0.88 },
   { pattern: "horizontal_pull",tokens: ["remada"], conf: 0.9 },
