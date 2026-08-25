@@ -5,9 +5,19 @@
  * `trainer-agent` and by the tests (never re-implemented in the tests).
  */
 
-export type TrainerCandidateSignals = {
+export type TrainerReferenceMode = "free" | "exact";
+
+export type TrainerCandidateValidity = {
   redundancyOk: boolean;
   criticalCatalogMismatchCount: number;
+  /** Optional; defaults derived from redundancyOk when omitted. */
+  exactDuplicate?: boolean;
+  strongFunctionalDuplicate?: boolean;
+  referenceMode?: TrainerReferenceMode;
+  referenceComplianceOk?: boolean;
+};
+
+export type TrainerCandidateSignals = TrainerCandidateValidity & {
   similarityScore: number;
   threshold: number;
   historyCount: number;
@@ -15,25 +25,40 @@ export type TrainerCandidateSignals = {
   technicalFallbackUsed: boolean;
 };
 
-export function isTrainerCandidateCriticalValid(
-  input: { redundancyOk: boolean; criticalCatalogMismatchCount: number },
-): boolean {
-  return input.redundancyOk && input.criticalCatalogMismatchCount === 0;
+export function isTrainerCandidateCriticalValid(input: TrainerCandidateValidity): boolean {
+  if (input.exactDuplicate === true) return false;
+  if (input.strongFunctionalDuplicate === true) return false;
+  if (!input.redundancyOk) return false;
+  if (input.criticalCatalogMismatchCount !== 0) return false;
+  if (input.referenceMode === "exact" && input.referenceComplianceOk === false) return false;
+  return true;
 }
 
 export function trainerCriticalReason(
-  input: { redundancyOk: boolean; criticalCatalogMismatchCount: number },
-): "internal_redundancy" | "catalog_mismatch" | null {
-  if (!input.redundancyOk) return "internal_redundancy";
+  input: TrainerCandidateValidity,
+): "internal_redundancy" | "strong_functional_duplicate" | "catalog_mismatch" | "reference_drift" | null {
+  if (input.strongFunctionalDuplicate === true) return "strong_functional_duplicate";
+  if (input.exactDuplicate === true || !input.redundancyOk) return "internal_redundancy";
   if (input.criticalCatalogMismatchCount > 0) return "catalog_mismatch";
+  if (input.referenceMode === "exact" && input.referenceComplianceOk === false) return "reference_drift";
   return null;
+}
+
+/**
+ * High similarity against history is only a fallback reason for FREE references.
+ * With an exact professor prescription the similarity is intentional.
+ */
+export function isSimilarityRetryAllowed(mode: TrainerReferenceMode | undefined): boolean {
+  return mode !== "exact";
 }
 
 /** Absolute budget: a technical fallback candidate is never retried again. */
 export function shouldRetryTrainerCandidate(s: TrainerCandidateSignals): boolean {
   if (s.technicalFallbackUsed) return false;
   const criticalInvalid = !isTrainerCandidateCriticalValid(s);
-  return criticalInvalid || (s.similarityScore > s.threshold && s.historyCount > 0);
+  const similarityRetry =
+    isSimilarityRetryAllowed(s.referenceMode) && s.similarityScore > s.threshold && s.historyCount > 0;
+  return criticalInvalid || similarityRetry;
 }
 
 /** Variation retry: Terra replaces Luna only when valid and not worse. */
