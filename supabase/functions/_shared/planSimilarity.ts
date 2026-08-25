@@ -199,6 +199,20 @@ const hasAnyProteinSource = (m: any): boolean => {
   return false;
 };
 
+/**
+ * Main meals may use catalog names that are more specific than our small
+ * family dictionary. A single item contributing a substantial amount of
+ * protein is deterministic evidence of a primary source and prevents valid
+ * catalog foods from being rejected only because their name is unknown.
+ */
+const hasPrimaryProteinEvidence = (m: any): boolean => {
+  if (primaryProteinGroup(m)) return true;
+  return (m?.items ?? []).some((item: any) => {
+    const protein = Number(item?.macros?.p);
+    return Number.isFinite(protein) && protein >= 15;
+  });
+};
+
 const mealProteinGrams = (m: any): number => {
   let total = 0;
   for (const it of m?.items ?? []) {
@@ -259,7 +273,7 @@ export function validateDietNutrition(
     totalKcal += k;
     const label = m?.name || mealKey(m);
     if (isMainMeal(m)) {
-      if (!primaryProteinGroup(m)) {
+      if (!hasPrimaryProteinEvidence(m)) {
         issues.push({ meal: label, reason: "missing_primary_protein", proteinG: p });
       } else if (p < floor) {
         issues.push({ meal: label, reason: "protein_below_floor", proteinG: p });
@@ -283,7 +297,11 @@ export function validateDietNutrition(
       }
     }
   }
-  return { ok: issues.length === 0, issues, totalProteinG, totalKcal };
+  // Low protein share in a secondary meal is useful review information, but
+  // it is not a critical structural failure. Only breakfast/main-meal issues
+  // may spend the Terra fallback or reject an otherwise valid plan.
+  const hasCriticalIssue = issues.some((issue) => issue.reason !== "low_protein_share");
+  return { ok: !hasCriticalIssue, issues, totalProteinG, totalKcal };
 }
 
 /** Pick the primary protein source of a meal (max protein grams; must classify). */
