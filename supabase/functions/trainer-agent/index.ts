@@ -20,6 +20,7 @@ import {
 } from "../_shared/exerciseCatalog.ts";
 import { AI_MODELS, createRoutingMetadata, type AIAttemptMetadata } from "../_shared/aiModelRouter.ts";
 import { validateWorkoutRedundancy } from "../_shared/workoutRedundancy.ts";
+import { sanitizeStructuredPrompt } from "../_shared/structuredPromptSanitizer.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -356,12 +357,7 @@ async function callStructuredModel({
   const start = Date.now();
   
   // Limpeza de instruções de formato incompatíveis
-  const cleanSystemPrompt = systemPrompt
-    .replace(/DIETA COMPLETA E PERSONALIZADA/gi, "")
-    .replace(/gere o treino em uma tabela markdown/gi, "")
-    .replace(/A tabela do TREINO deve ter exatamente 9 colunas/gi, "")
-    .replace(/instrução para fazer perguntas/gi, "")
-    .replace(/mensagens WhatsApp/gi, "")
+  const cleanSystemPrompt = sanitizeStructuredPrompt(systemPrompt)
     .replace(/Para aluno intermediário\/avançado, usar no mínimo 2 técnicas avançadas por treino do dia\./gi, "Técnicas avançadas são opcionais e só devem ser utilizadas quando coerentes com nível, fase, recuperação, objetivo e segurança. Não existe quantidade mínima obrigatória por treino.");
 
   const upstream = await fetch("https://api.openai.com/v1/chat/completions", {

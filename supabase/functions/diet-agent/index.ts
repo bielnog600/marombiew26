@@ -33,6 +33,7 @@ import {
   hasDailyCalorieVariation,
 } from "../_shared/dailyAdjustments.ts";
 import { AI_MODELS, createRoutingMetadata, type AIAttemptMetadata } from "../_shared/aiModelRouter.ts";
+import { sanitizeStructuredPrompt } from "../_shared/structuredPromptSanitizer.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -694,14 +695,7 @@ serve(async (req) => {
             : null;
         
         // Limpeza de instruções de formato incompatíveis com JSON
-        const cleanSystemPrompt = SYSTEM_PROMPT
-          .replace(/gere o treino em uma tabela markdown/gi, "")
-          .replace(/A tabela do TREINO deve ter exatamente 9 colunas/gi, "")
-          .replace(/A tabela do cardápio deve ter as colunas/gi, "")
-          .replace(/\| Refeição \| Horário \| Alimento \| Quantidade \(g\) \| Kcal \| Proteína \(g\) \| Carboidrato \(g\) \| Gordura \(g\) \|/gi, "")
-          .replace(/Inclua TOTAL de cada refeição e TOTAL DIÁRIO\./gi, "")
-          .replace(/A linha "Total" da tabela DEVE refletir EXATAMENTE a soma dos alimentos acima dela\./gi, "")
-          .replace(/Os valores do "Resumo Nutricional" DEVEM ser IDÊNTICOS aos totais da tabela\./gi, "");
+        const cleanSystemPrompt = sanitizeStructuredPrompt(SYSTEM_PROMPT);
 
         const jsonSystem =
           cleanSystemPrompt +
