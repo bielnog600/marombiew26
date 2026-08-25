@@ -106,6 +106,14 @@ const ANCHOR_MATCH_THRESHOLD = 0.7;
 export const isSameAnchor = (a: string, b: string): boolean =>
   anchorSimilarity(a, b) >= ANCHOR_MATCH_THRESHOLD;
 
+/** True when every meaningful token of `anchor` appears inside `phrase`. */
+export function phraseMentionsAnchor(phrase: string, anchor: string): boolean {
+  const target = anchorTokens(anchor);
+  if (target.length === 0) return false;
+  const source = new Set(anchorTokens(phrase));
+  return target.every((t) => source.has(t));
+}
+
 // ───────────────────────────── extraction ─────────────────────────────
 
 const REFERENCE_BLOCK =
@@ -245,7 +253,7 @@ export function isJustifiedSubstitution(input: {
       const piece = chunk.trim();
       if (!piece) continue;
       if (isConditionalOnly(piece)) continue;
-      if (isSameAnchor(piece, anchor)) return true;
+      if (phraseMentionsAnchor(piece, anchor)) return true;
     }
   }
   const catalog = input.catalogNames ?? [];
