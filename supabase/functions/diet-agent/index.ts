@@ -188,8 +188,8 @@ Responda APENAS com um objeto JSON válido (sem markdown, sem texto antes ou dep
       "totals": { "kcal": 0, "p": 0, "c": 0, "g": 0 }
     }
   ],
-  "tips": ["string"],
-  "whatsappMessages": ["string"]
+  "tips": ["string"]
+
 }
 
 REGRAS:
