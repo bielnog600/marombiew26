@@ -50,6 +50,55 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+type StructuredStreamResult = {
+  content: string;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
+};
+
+async function consumeStructuredChatStream(response: Response): Promise<StructuredStreamResult> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("Resposta de streaming sem corpo.");
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let content = "";
+  let usage: StructuredStreamResult["usage"];
+
+  const consumeEvent = (event: string) => {
+    for (const line of event.split("\n")) {
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (!data || data === "[DONE]") continue;
+
+      const chunk = JSON.parse(data);
+      const delta = chunk?.choices?.[0]?.delta?.content;
+      if (typeof delta === "string") content += delta;
+      if (chunk?.usage) usage = chunk.usage;
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, "\n");
+
+    let separator = buffer.indexOf("\n\n");
+    while (separator >= 0) {
+      consumeEvent(buffer.slice(0, separator));
+      buffer = buffer.slice(separator + 2);
+      separator = buffer.indexOf("\n\n");
+    }
+
+    if (done) break;
+  }
+
+  if (buffer.trim()) consumeEvent(buffer);
+  return { content, usage };
+}
+
 async function loadFoodDatabase(): Promise<string> {
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -738,12 +787,13 @@ serve(async (req) => {
               ...messages,
             ],
             max_completion_tokens: 16000,
-
+            stream: true,
+            stream_options: { include_usage: true },
             response_format: { type: "json_object" },
           }),
         });
-        const durationMs = Date.now() - start;
         if (!r.ok) {
+          const durationMs = Date.now() - start;
           const status = r.status;
           const t = await r.text();
           console.error("structured diet-agent error:", status, t);
@@ -768,8 +818,23 @@ serve(async (req) => {
             ),
           };
         }
-        const completion = await r.json();
-        const usage = completion?.usage;
+        let completion: StructuredStreamResult;
+        try {
+          completion = await consumeStructuredChatStream(r);
+        } catch (error) {
+          const durationMs = Date.now() - start;
+          console.error("structured diet-agent stream error:", error);
+          modelAttempts.push({ model: modelToUse, durationMs, reason: "Error: invalid_stream" });
+          return {
+            ok: false,
+            resp: new Response(
+              JSON.stringify({ error: "Fluxo de resposta da IA inválido.", retryable: true, error_code: "invalid_stream" }),
+              { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            ),
+          };
+        }
+        const durationMs = Date.now() - start;
+        const usage = completion.usage;
         modelAttempts.push({
           model: modelToUse,
           durationMs,
@@ -780,7 +845,7 @@ serve(async (req) => {
             totalTokens: usage.total_tokens
           } : null
         });
-        const raw = completion?.choices?.[0]?.message?.content;
+        const raw = completion.content;
         if (!raw) {
           return {
             ok: false,
