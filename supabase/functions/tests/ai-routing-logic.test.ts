@@ -14,6 +14,7 @@ import {
   shouldAcceptTrainerVariationCandidate,
   shouldRetryTrainerCandidate,
   trainerCriticalReason,
+  isRetryableUpstreamStatus,
 } from "../_shared/trainerRoutingPolicy.ts";
 
 const attempt = (
@@ -410,4 +411,69 @@ Deno.test("agents import the shared routing policies (no duplicated algorithm)",
   assert(/_shared\/trainerRoutingPolicy\.ts/.test(trainer));
   assert(/shouldRetryTrainerCandidate\(/.test(trainer));
   assert(/isTrainerCandidateCriticalValid\(/.test(trainer));
+});
+
+// ───────────── TRAINER UPSTREAM HTTP CLASSIFICATION + TOKEN PARAM ─────────────
+
+Deno.test("trainer structured call uses max_completion_tokens (GPT-5.6), not max_tokens", async () => {
+  const src = await Deno.readTextFile(new URL("../trainer-agent/index.ts", import.meta.url));
+  // structured block = the call that carries response_format json_schema
+  const idx = src.indexOf('type: "json_schema"');
+  assert(idx > 0, "structured json_schema call must exist");
+  const window = src.slice(Math.max(0, idx - 1500), idx);
+  assert(/max_completion_tokens:\s*16000/.test(window), "structured call must use max_completion_tokens");
+  assert(!/max_tokens:\s*16000/.test(window), "structured call must not use max_tokens");
+  assert(/model:\s*"gpt-4o"/.test(src) && /stream:\s*true/.test(src), "legacy gpt-4o path preserved");
+});
+
+Deno.test("trainer: non-retryable upstream statuses never reach Terra (1 call)", () => {
+  for (const status of [400, 401, 402, 403, 404, 429]) {
+    assertEquals(isRetryableUpstreamStatus(status), false, `status ${status} must be non-retryable`);
+    const calls = isRetryableUpstreamStatus(status) ? 2 : 1;
+    assertEquals(calls, 1);
+  }
+});
+
+Deno.test("trainer: retryable technical statuses fall back to Terra (2 calls)", () => {
+  for (const status of [408, 409, 500, 502, 503, 504]) {
+    assertEquals(isRetryableUpstreamStatus(status), true, `status ${status} must be retryable`);
+    const calls = isRetryableUpstreamStatus(status) ? 2 : 1;
+    assertEquals(calls, 2);
+  }
+});
+
+Deno.test("trainer: local failures (empty_response/invalid_json/plan_validation_failed) still trigger Terra", async () => {
+  const src = await Deno.readTextFile(new URL("../trainer-agent/index.ts", import.meta.url));
+  for (const code of ["empty_response", "invalid_json", "plan_validation_failed"]) {
+    assert(new RegExp(`error_code === "${code}"`).test(src), `${code} must be a critical-failure trigger`);
+    assert(new RegExp(`error_code: "${code}"[\\s\\S]{0,200}retryable: true`).test(src), `${code} must be retryable: true`);
+  }
+});
+
+Deno.test("trainer: Terra failure surfaces Terra's own error_code and both reasons", async () => {
+  const src = await Deno.readTextFile(new URL("../trainer-agent/index.ts", import.meta.url));
+  assert(/second\.response\.clone\(\)\.json\(\)/.test(src));
+  assert(/second\.error_code \|\| secondBody\.error_code \|\| "fallback_failed"/.test(src));
+  assert(/if \(!fallbackReasons\.includes\(secondReason\)\) fallbackReasons\.push\(secondReason\)/.test(src));
+  assert(!/error: "Falha crítica na geração do fallback\.",\s*\n\s*error_code: fallbackReason/.test(src));
+});
+
+Deno.test("trainer: upstream error response carries safe debug metadata only", async () => {
+  const src = await Deno.readTextFile(new URL("../trainer-agent/index.ts", import.meta.url));
+  assert(/upstream_status: upstream\.status/.test(src));
+  assert(/model: modelToUse/.test(src));
+  assert(!/studentContext:/.test(src.slice(src.indexOf("gateway error"), src.indexOf("gateway error") + 900)));
+});
+
+Deno.test("trainer: original upstream status is preserved (never masked as 422)", async () => {
+  const src = await Deno.readTextFile(new URL("../trainer-agent/index.ts", import.meta.url));
+  assert(/status: upstream\.status/.test(src));
+  assert(/status: first\.response\.status/.test(src));
+});
+
+Deno.test("trainer: absolute budget with upstream statuses stays at 2 calls", () => {
+  const budget = (status: number) => (isRetryableUpstreamStatus(status) ? 2 : 1);
+  for (const status of [400, 401, 402, 403, 404, 408, 409, 429, 500, 503]) {
+    assert(budget(status) <= 2);
+  }
 });

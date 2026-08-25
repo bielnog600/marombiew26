@@ -25,6 +25,7 @@ import {
   trainerCriticalReason,
   shouldRetryTrainerCandidate,
   shouldAcceptTrainerVariationCandidate,
+  isRetryableUpstreamStatus,
 } from "../_shared/trainerRoutingPolicy.ts";
 import { sanitizeStructuredPrompt } from "../_shared/structuredPromptSanitizer.ts";
 
@@ -382,7 +383,7 @@ async function callStructuredModel({
         },
         ...messages,
       ],
-      max_tokens: 16000,
+      max_completion_tokens: 16000,
       response_format: {
         type: "json_schema",
         json_schema: {
@@ -401,14 +402,17 @@ async function callStructuredModel({
     console.error("trainer-agent[json] gateway error:", upstream.status, t);
     attempts.push({ model: modelToUse, durationMs, reason: `Error: ${upstream.status}` });
     
-    const isRetryable = upstream.status !== 401 && upstream.status !== 402 && upstream.status !== 429;
-    
+    const isRetryable = isRetryableUpstreamStatus(upstream.status);
+
     return {
       ok: false,
       error_code: "upstream_error",
       response: new Response(
         JSON.stringify({ 
           error: upstream.status === 429 ? "Limite de requisições excedido." : "Erro no gateway de IA",
+          error_code: "upstream_error",
+          upstream_status: upstream.status,
+          model: modelToUse,
           retryable: isRetryable 
         }),
         { status: upstream.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -571,6 +575,9 @@ async function generateStructuredWorkoutWithVariation(args: {
         JSON.stringify({
           error: body.error || "Erro na geração do treino",
           error_code: body.error_code || reason,
+          upstream_status: body.upstream_status ?? null,
+          model: body.model ?? AI_MODELS.primary,
+          retryable: false,
           validationReasons: fallbackReasons,
           aiRouting: meta.routing,
           aiUsage: meta.usage,
@@ -599,11 +606,18 @@ async function generateStructuredWorkoutWithVariation(args: {
     });
 
     if (!second.ok) {
+      const secondBody = await second.response.clone().json().catch(() => ({} as any));
+      const secondReason = second.error_code || secondBody.error_code || "fallback_failed";
+      if (!fallbackReasons.includes(secondReason)) fallbackReasons.push(secondReason);
       const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, null);
+      console.error("trainer-agent[json] fallback failed:", secondReason, secondBody.upstream_status ?? "");
       return new Response(
         JSON.stringify({
-          error: "Falha crítica na geração do fallback.",
-          error_code: fallbackReason,
+          error: secondBody.error || "Falha crítica na geração do fallback.",
+          error_code: secondReason,
+          upstream_status: secondBody.upstream_status ?? null,
+          model: secondBody.model ?? AI_MODELS.fallback,
+          retryable: false,
           validationReasons: fallbackReasons,
           aiRouting: routingMeta.routing,
           aiUsage: routingMeta.usage,
