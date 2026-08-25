@@ -33,6 +33,16 @@ import {
   hasDailyCalorieVariation,
 } from "../_shared/dailyAdjustments.ts";
 import { AI_MODELS, createRoutingMetadata, type AIAttemptMetadata } from "../_shared/aiModelRouter.ts";
+import {
+  isVariationRetryAllowed,
+  needsDietVariationRetry,
+  evaluateDietCandidateValidity,
+  shouldRetryDietCandidate,
+  shouldAcceptDietVariationCandidate,
+  PRIMARY_SOURCE_REPEAT_LIMIT,
+  QUANTITY_OVERLAP_LIMIT,
+  type DietCandidateSignals,
+} from "../_shared/dietRoutingPolicy.ts";
 import { sanitizeStructuredPrompt } from "../_shared/structuredPromptSanitizer.ts";
 
 const corsHeaders = {
