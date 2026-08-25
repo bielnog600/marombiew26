@@ -139,6 +139,16 @@ export function evaluateVariationCandidate(input: {
   const mainProfile = getExerciseFunctionalProfile(exerciseName);
   const candProfile = getExerciseFunctionalProfile(candidate);
 
+  // Equipment is a hard requirement ONLY when a reliable availability list exists.
+  if (
+    Array.isArray(opts.availableEquipment) &&
+    opts.availableEquipment.length > 0 &&
+    candProfile.equipment &&
+    !opts.availableEquipment.map((e) => String(e).toLowerCase()).includes(candProfile.equipment)
+  ) {
+    return { valid: false, tier: null, reason: "equipment_unavailable" };
+  }
+
   if (!classCompatible(mainProfile.exerciseClass, candProfile.exerciseClass)) {
     return { valid: false, tier: null, reason: "semantic_mismatch" };
   }
