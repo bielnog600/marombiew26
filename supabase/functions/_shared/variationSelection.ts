@@ -199,6 +199,15 @@ function isUnilateral(name: string): boolean {
   return UNILATERAL_TOKENS.some((t) => n.includes(t));
 }
 
+function nameOverlap(a: string, b: string): number {
+  const ta = new Set(normalizeName(a).split(/\s+/).filter((t) => t.length > 2));
+  const tb = new Set(normalizeName(b).split(/\s+/).filter((t) => t.length > 2));
+  if (ta.size === 0 || tb.size === 0) return 0;
+  let shared = 0;
+  for (const t of ta) if (tb.has(t)) shared += 1;
+  return shared / Math.max(ta.size, tb.size);
+}
+
 /**
  * Deterministic score used ONLY inside the same tier. Higher is better.
  * Order of relevance: pattern > class > group > equipment > bilaterality > unused.
@@ -221,6 +230,9 @@ function intraTierScore(input: {
   if (mainEntry && candEntry && mainEntry.grupo === candEntry.grupo) score += 8;
   if (main.equipment && cand.equipment && main.equipment === cand.equipment) score += 4;
   if (isUnilateral(exerciseName) === isUnilateral(candidate)) score += 2;
+  // Nominal family overlap (e.g. "LEG PRESS 45 ART" -> "LEG PRESS") as a weak,
+  // deterministic tie-breaker between otherwise equivalent candidates.
+  score += nameOverlap(exerciseName, candidate) * 3;
   if (!used) score += 1;
   return score;
 }

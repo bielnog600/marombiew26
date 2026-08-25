@@ -918,23 +918,27 @@ Deno.test("variation ranking: Tier A used beats Tier C unused", () => {
 });
 
 Deno.test("variation ranking: Tier A unused beats Tier A used", () => {
-  const day = dayWith("HACK MACHINE", "LEG PRESS 45 ART");
-  const usedPick = selectVariation({
+  const catalog = [
+    { nome: "CADEIRA EXTENSORA", grupo: "PERNAS" },
+    { nome: "CADEIRA EXTENSORA UNILATERAL", grupo: "PERNAS" },
+    { nome: "EXTENSAO DE JOELHO MAQUINA", grupo: "PERNAS" },
+  ];
+  const day = dayWith("CADEIRA EXTENSORA");
+  const first = selectVariation({
     day,
-    exerciseName: "HACK MACHINE",
-    catalog: VAR_CATALOG,
+    exerciseName: "CADEIRA EXTENSORA",
+    catalog,
     usedVariations: new Set<string>(),
   });
-  assert(usedPick !== null);
-  const secondPick = selectVariation({
+  assertEquals(first?.name, "CADEIRA EXTENSORA UNILATERAL");
+  const second = selectVariation({
     day,
-    exerciseName: "HACK MACHINE",
-    catalog: VAR_CATALOG,
-    usedVariations: new Set([normalizeName(usedPick!.name)]),
+    exerciseName: "CADEIRA EXTENSORA",
+    catalog,
+    usedVariations: new Set([normalizeName("CADEIRA EXTENSORA UNILATERAL")]),
   });
-  assert(secondPick !== null);
-  assertEquals(secondPick!.tier, usedPick!.tier);
-  assert(secondPick!.name !== usedPick!.name);
+  assertEquals(second?.tier, first?.tier);
+  assertEquals(second?.name, "EXTENSAO DE JOELHO MAQUINA");
 });
 
 Deno.test("variation ranking: GLOBET SQUATS beats AFUNDO ALTERNANDO for HACK MACHINE", () => {
