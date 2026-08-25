@@ -1030,51 +1030,60 @@ serve(async (req) => {
           AI_MODELS.fallback,
           fallbackReason || "retry"
         );
+        const criticalRetry = !nutrition.ok || !initialAdjValidation.ok;
+        const reviewRequired = (reason: string) => {
+          fallbackReasons.push(reason);
+          const meta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, null);
+          return new Response(
+            JSON.stringify({
+              error: "Plano gerado não passou na validação crítica. Revisão necessária.",
+              error_code: "review_required",
+              validationReasons: fallbackReasons,
+              aiRouting: meta.routing,
+              aiUsage: meta.usage,
+            }),
+            { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        };
+
         if (second.ok) {
           const sim2 = computeDietSimilarity(second.plan, historyJsons);
           const nut2 = validateDietNutrition(second.plan);
-          
-          let initialAdjValidation2 = { ok: true, errors: [] as string[] };
-          if (schedule && typeof schedule === "object" && schedule.days) {
-            const modelAdj2 = (second.plan && typeof second.plan === "object")
-              ? (second.plan as any).dailyAdjustments
-              : null;
-            const { adjustments: adjustments2, missing: missing2 } = normalizeDailyAdjustments(modelAdj2, schedule);
-            initialAdjValidation2 = hasDailyCalorieVariation(schedule)
-              ? validateDailyAdjustments(adjustments2, missing2)
-              : { ok: true, errors: [] as string[] };
-          }
+          const initialAdjValidation2 = validateAdjustments(second.plan);
 
-          // Prefer the second plan when it (a) lowers similarity OR
-          // (b) escapes portion_only mode OR
-          // (c) reduces primary-source repetition OR
-          // (d) fixes a nutrition guardrail failure.
-          // (e) fixes dailyAdjustments.
-          const escapedPortion =
-            isPortionOnly && sim2.changeKind !== "portion_only";
-          const sim2Primary = Math.max(
-            sim2.primaryProteinRepeatRatio ?? 0,
-            sim2.primaryCarbRepeatRatio ?? 0,
-          );
-          const reducedPrimary =
-            primarySourceTooRepetitive && sim2Primary < Math.max(protRepeat, carbRepeat);
-          const fixedNutrition = !nutrition.ok && nut2.issues.length < nutrition.issues.length;
-          const fixedAdj = !initialAdjValidation.ok && initialAdjValidation2.ok;
+          const nutritionValid = nut2.ok;
+          const dailyAdjustmentsValid = initialAdjValidation2.ok;
+          const criticalValid = nutritionValid && dailyAdjustmentsValid;
 
-          // Hierarchy: VALIDITY/SAFETY > NUTRITION > CONTRACT (dailyAdj) > SIMILARITY
-          if (
-            fixedNutrition ||
-            fixedAdj ||
-            (nutrition.ok && initialAdjValidation2.ok &&
-              (sim2.score <= similarity.score || escapedPortion || reducedPrimary))
-          ) {
+          if (criticalRetry) {
+            // Terra is only acceptable when critically valid; otherwise 422.
+            if (!criticalValid) {
+              return reviewRequired(!nutritionValid ? "nutrition_invalid" : "daily_adjustments_invalid");
+            }
             finalPlan = second.plan;
             similarity = sim2;
             nutrition = nut2;
+            selectedModel = AI_MODELS.fallback;
+          } else {
+            // Pure variation retry: Luna is already critically valid. Only swap
+            // when Terra is also critically valid AND improves variation.
+            const escapedPortion = isPortionOnly && sim2.changeKind !== "portion_only";
+            const sim2Primary = Math.max(
+              sim2.primaryProteinRepeatRatio ?? 0,
+              sim2.primaryCarbRepeatRatio ?? 0,
+            );
+            const reducedPrimary =
+              primarySourceTooRepetitive && sim2Primary < Math.max(protRepeat, carbRepeat);
+            if (criticalValid && (sim2.score <= similarity.score || escapedPortion || reducedPrimary)) {
+              finalPlan = second.plan;
+              similarity = sim2;
+              nutrition = nut2;
+              selectedModel = AI_MODELS.fallback;
+            }
           }
+
           regenerated = true;
-          if (!nutrition.ok) warning = "incomplete_nutrition";
-          else if (similarity.changeKind === "portion_only") warning = "quantity_only";
+          if (similarity.changeKind === "portion_only") warning = "quantity_only";
           else if (similarity.score > threshold) warning = "high_similarity";
           else if (
             Math.max(
@@ -1085,14 +1094,12 @@ serve(async (req) => {
             warning = "primary_source_repeated";
           }
         } else {
-          warning = !nutrition.ok
-            ? "incomplete_nutrition"
-            : !initialAdjValidation.ok
-              ? "daily_adjustments_invalid"
-              : isPortionOnly
-                ? "quantity_only"
-                : "high_similarity";
+          if (criticalRetry) {
+            return reviewRequired(!nutrition.ok ? "nutrition_invalid" : "daily_adjustments_invalid");
+          }
+          warning = isPortionOnly ? "quantity_only" : "high_similarity";
         }
+
       }
 
       // === dailyAdjustments contract ===
