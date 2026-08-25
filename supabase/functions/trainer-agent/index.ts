@@ -20,6 +20,7 @@ import {
 } from "../_shared/exerciseCatalog.ts";
 import { AI_MODELS, createRoutingMetadata, type AIAttemptMetadata } from "../_shared/aiModelRouter.ts";
 import { validateWorkoutRedundancy, enforceVariationIntegrity } from "../_shared/workoutRedundancy.ts";
+import { validateAndNormalizeVariations } from "../_shared/variationSelection.ts";
 import {
   buildExactReferenceBlock,
   EXACT_REFERENCE_PRIORITY_BLOCK,
@@ -565,6 +566,7 @@ async function generateStructuredWorkoutWithVariation(args: {
       similarity,
       referenceCompliance,
       variationFixes,
+      variationVerdicts,
     };
   };
 
