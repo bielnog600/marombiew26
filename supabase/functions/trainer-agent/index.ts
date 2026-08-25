@@ -402,14 +402,17 @@ async function callStructuredModel({
     console.error("trainer-agent[json] gateway error:", upstream.status, t);
     attempts.push({ model: modelToUse, durationMs, reason: `Error: ${upstream.status}` });
     
-    const isRetryable = upstream.status !== 401 && upstream.status !== 402 && upstream.status !== 429;
-    
+    const isRetryable = isRetryableUpstreamStatus(upstream.status);
+
     return {
       ok: false,
       error_code: "upstream_error",
       response: new Response(
         JSON.stringify({ 
           error: upstream.status === 429 ? "Limite de requisições excedido." : "Erro no gateway de IA",
+          error_code: "upstream_error",
+          upstream_status: upstream.status,
+          model: modelToUse,
           retryable: isRetryable 
         }),
         { status: upstream.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
