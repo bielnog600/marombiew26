@@ -14,8 +14,18 @@ import {
   shouldAcceptTrainerVariationCandidate,
   shouldRetryTrainerCandidate,
   trainerCriticalReason,
+  type TrainerCandidateSignals,
   isRetryableUpstreamStatus,
+  isSimilarityRetryAllowed,
 } from "../_shared/trainerRoutingPolicy.ts";
+import {
+  enforceVariationIntegrity,
+  validateWorkoutRedundancy,
+} from "../_shared/workoutRedundancy.ts";
+import {
+  evaluateReferenceCompliance,
+  parseReferenceStructure,
+} from "../_shared/trainerReferencePolicy.ts";
 
 const attempt = (
   model: string,
@@ -222,7 +232,7 @@ Deno.test("diet: 422 metadata carries finalModel null", () => {
 
 // ──────────────── TRAINER POLICY (production module under test) ────────────────
 
-const trainerBase = {
+const trainerBase: TrainerCandidateSignals = {
   redundancyOk: true,
   criticalCatalogMismatchCount: 0,
   similarityScore: 0.2,
@@ -231,7 +241,7 @@ const trainerBase = {
   technicalFallbackUsed: false,
 };
 
-const trainerCalls = (s: typeof trainerBase) => (shouldRetryTrainerCandidate(s) ? 2 : 1);
+const trainerCalls = (s: TrainerCandidateSignals) => (shouldRetryTrainerCandidate(s) ? 2 : 1);
 
 Deno.test("trainer: exact duplicate / redundancy on Luna → Terra", () => {
   assertEquals(trainerCalls({ ...trainerBase, redundancyOk: false }), 2);
@@ -476,4 +486,227 @@ Deno.test("trainer: absolute budget with upstream statuses stays at 2 calls", ()
   for (const status of [400, 401, 402, 403, 404, 408, 409, 429, 500, 503]) {
     assert(budget(status) <= 2);
   }
+});
+
+// ─────────── REFERÊNCIA EXATA + REDUNDÂNCIA FUNCIONAL (produção) ───────────
+
+const REFERENCE_LOWER_A = `SEGUNDA — LOWER A
+1) Flexora sentada 3x12 descanso 60s
+2) Hack Squat 4x8-10 descanso 120s
+3) Hip Thrust 4x10 descanso 90s
+4) Leg Press 45° 3x12 descanso 90s
+5) Extensora 3x15 descanso 60s
+6) Abdutora 3x20 descanso 45s`;
+
+const CATALOG_LOWER = [
+  "CADEIRA FLEXORA",
+  "HACK MACHINE",
+  "ELEVAÇÃO PÉLVICA",
+  "LEG PRESS 45 ART",
+  "LEG PRESS",
+  "CADEIRA EXTENSORA",
+  "CADEIRA ABDUTORA",
+  "STIFF ROMENO",
+];
+
+const complianceFor = (candidate: string[], opts: {
+  catalogNames?: string[];
+  restrictionsText?: string;
+  strongDuplicateNames?: string[];
+} = {}) =>
+  evaluateReferenceCompliance({
+    structure: parseReferenceStructure(REFERENCE_LOWER_A),
+    candidateDays: [{ label: "SEGUNDA-FEIRA", exercises: candidate }],
+    catalogNames: opts.catalogNames ?? CATALOG_LOWER,
+    restrictionsText: opts.restrictionsText,
+    strongDuplicateNames: opts.strongDuplicateNames,
+  });
+
+const PRESERVED = [
+  "CADEIRA FLEXORA",
+  "HACK MACHINE",
+  "ELEVAÇÃO PÉLVICA",
+  "LEG PRESS 45 ART",
+  "CADEIRA EXTENSORA",
+  "CADEIRA ABDUTORA",
+];
+
+Deno.test("reference: protocolo detalhado do professor é classificado como exact", () => {
+  assertEquals(parseReferenceStructure(REFERENCE_LOWER_A).mode, "exact");
+  assertEquals(parseReferenceStructure(REFERENCE_LOWER_A).days[0].exercises.length, 6);
+});
+
+Deno.test("reference: observações genéricas continuam como referência livre", () => {
+  const free = parseReferenceStructure("Gosto de treinos curtos, foco em glúteo e pouca esteira.");
+  assertEquals(free.mode, "free");
+  assertEquals(isSimilarityRetryAllowed(free.mode), true);
+});
+
+Deno.test("reference exact: referência preservada → compliance ok", () => {
+  const rc = complianceFor(PRESERVED);
+  assert(rc.ok, JSON.stringify(rc));
+});
+
+Deno.test("reference exact: Hack trocado por Leg Press sem justificativa → drift", () => {
+  const candidate = [
+    "CADEIRA FLEXORA",
+    "LEG PRESS",
+    "ELEVAÇÃO PÉLVICA",
+    "LEG PRESS 45 ART",
+    "CADEIRA EXTENSORA",
+    "CADEIRA ABDUTORA",
+  ];
+  const red = validateWorkoutRedundancy({
+    days: [{ day: "SEGUNDA-FEIRA", exercises: candidate.map((e) => ({ exercise: e })) }],
+  });
+  assert(red.strongFunctionalDuplicate, "LEG PRESS + LEG PRESS 45 ART deve ser duplicata forte");
+
+  const rc = complianceFor(candidate, { strongDuplicateNames: red.strongDuplicateNames });
+  assertEquals(rc.ok, false);
+  assert(rc.missingAnchors.some((a) => /HACK/i.test(a)));
+  assert(rc.unexpectedSubstitutions.length > 0);
+});
+
+Deno.test("reference exact: exercício removido por restrição explícita → NÃO é drift", () => {
+  const withoutHack = PRESERVED.filter((e) => e !== "HACK MACHINE");
+  const rc = complianceFor(withoutHack, { restrictionsText: "Proibido HACK MACHINE por dor patelar" });
+  assert(rc.ok, JSON.stringify(rc));
+  assert(rc.justifiedSubstitutions.length === 1);
+});
+
+Deno.test("reference exact: ausência no catálogo → NÃO é drift", () => {
+  const catalogSemHack = CATALOG_LOWER.filter((n) => n !== "HACK MACHINE");
+  const rc = complianceFor(PRESERVED.filter((e) => e !== "HACK MACHINE"), { catalogNames: catalogSemHack });
+  assert(rc.ok, JSON.stringify(rc));
+});
+
+Deno.test("reference exact: condicional 'somente sem dor' não vira proibição automática", () => {
+  const rc = complianceFor(PRESERVED.filter((e) => e !== "HACK MACHINE"), {
+    restrictionsText: "Hack Squat — somente amplitude sem dor",
+  });
+  assertEquals(rc.ok, false);
+  assert(rc.missingAnchors.some((a) => /HACK/i.test(a)));
+  assertEquals(rc.justifiedSubstitutions.length, 0);
+});
+
+Deno.test("reference exact: mudança arbitrária de ordem relevante → drift", () => {
+  const reordered = [
+    "HACK MACHINE",
+    "CADEIRA FLEXORA",
+    "ELEVAÇÃO PÉLVICA",
+    "LEG PRESS 45 ART",
+    "CADEIRA EXTENSORA",
+    "CADEIRA ABDUTORA",
+  ];
+  const rc = complianceFor(reordered);
+  assertEquals(rc.ok, false);
+  assert(rc.orderViolations.length > 0);
+});
+
+Deno.test("reference exact: high_similarity não aciona Terra", () => {
+  assertEquals(isSimilarityRetryAllowed("exact"), false);
+  assertEquals(
+    shouldRetryTrainerCandidate({
+      ...trainerBase,
+      similarityScore: 0.98,
+      referenceMode: "exact",
+      referenceComplianceOk: true,
+    }),
+    false,
+  );
+  // referência livre mantém o comportamento atual
+  assertEquals(
+    shouldRetryTrainerCandidate({ ...trainerBase, similarityScore: 0.98, referenceMode: "free" }),
+    true,
+  );
+});
+
+Deno.test("reference exact: Luna com drift → Terra; Terra com drift → 422", () => {
+  const drift = {
+    ...trainerBase,
+    referenceMode: "exact" as const,
+    referenceComplianceOk: false,
+  };
+  assertEquals(trainerCalls(drift), 2);
+  assertEquals(isTrainerCandidateCriticalValid(drift), false);
+  assertEquals(trainerCriticalReason(drift), "reference_drift");
+});
+
+Deno.test("routing: strong functional duplicate Luna → Terra; Terra → 422", () => {
+  const dupe = { ...trainerBase, strongFunctionalDuplicate: true };
+  assertEquals(trainerCalls(dupe), 2);
+  assertEquals(isTrainerCandidateCriticalValid(dupe), false);
+  assertEquals(trainerCriticalReason(dupe), "strong_functional_duplicate");
+});
+
+const dayRedundancy = (names: string[]) =>
+  validateWorkoutRedundancy({
+    days: [{ day: "SEGUNDA-FEIRA", exercises: names.map((n) => ({ exercise: n })) }],
+  });
+
+Deno.test("redundancy: equivalências funcionais fortes são bloqueadas", () => {
+  for (const pair of [
+    ["LEG PRESS", "LEG PRESS 45 ART"],
+    ["LEG PRESS", "LEG 180"],
+    ["SUPINO RETO", "SUPINO RETO ARTICULADO"],
+    ["SUPINO INCLINADO HALTERES", "SUPINO INCLINADO ART."],
+    ["PUXADA ALTA PRONADA", "PUXADA ALTA PRONADA ART."],
+    ["CADEIRA FLEXORA", "CADEIRA FLEXORA 2"],
+  ]) {
+    const r = dayRedundancy(pair);
+    assert(r.strongFunctionalDuplicate, `${pair.join(" + ")} deveria ser duplicata forte`);
+    assertEquals(r.ok, false);
+  }
+});
+
+Deno.test("redundancy: combinações funcionalmente distintas continuam permitidas", () => {
+  for (const pair of [
+    ["HACK MACHINE", "LEG PRESS"],
+    ["CADEIRA FLEXORA", "STIFF ROMENO"],
+    ["REMADA CURVADA", "PUXADA ALTA PRONADA"],
+    ["SUPINO RETO", "CRUCIFIXO"],
+    ["CADEIRA EXTENSORA", "LEG PRESS"],
+    ["ELEVAÇÃO PÉLVICA", "CADEIRA ABDUTORA"],
+  ]) {
+    const r = dayRedundancy(pair);
+    assertEquals(r.strongFunctionalDuplicate, false, `${pair.join(" + ")} não pode ser bloqueado`);
+    assert(r.ok, `${pair.join(" + ")} deveria ser aceito`);
+  }
+});
+
+Deno.test("variation: a variação nunca pode ser o próprio exercício", () => {
+  const plan = {
+    days: [{
+      day: "SEGUNDA-FEIRA",
+      exercises: [
+        { exercise: "MOBILIDADE DE QUADRIL", variation: "MOBILIDADE DE QUADRIL" },
+        { exercise: "LEG PRESS", variation: "HACK MACHINE" },
+      ],
+    }],
+  };
+  const fixed = enforceVariationIntegrity(plan, [
+    { nome: "MOBILIDADE DE QUADRIL", grupo: "MOBILIDADE" },
+    { nome: "MOBILIDADE TORNOZELO", grupo: "MOBILIDADE" },
+  ]);
+  assertEquals(fixed, ["MOBILIDADE DE QUADRIL"]);
+  assertEquals(plan.days[0].exercises[0].variation, "MOBILIDADE TORNOZELO");
+  // variação válida e diferente permanece intocada
+  assertEquals(plan.days[0].exercises[1].variation, "HACK MACHINE");
+});
+
+Deno.test("variation: sem equivalente seguro a variação vira null", () => {
+  const plan = {
+    days: [{ day: "SEGUNDA-FEIRA", exercises: [{ exercise: "LEG PRESS", variation: "LEG PRESS" }] }],
+  };
+  enforceVariationIntegrity(plan, [{ nome: "LEG PRESS", grupo: "PERNAS" }]);
+  assertEquals(plan.days[0].exercises[0].variation, null);
+});
+
+Deno.test("trainer-agent usa os módulos compartilhados de referência e variação", async () => {
+  const src = await Deno.readTextFile(new URL("../trainer-agent/index.ts", import.meta.url));
+  assert(/_shared\/trainerReferencePolicy\.ts/.test(src));
+  assert(/parseReferenceStructure\(/.test(src));
+  assert(/evaluateReferenceCompliance\(/.test(src));
+  assert(/enforceVariationIntegrity\(/.test(src));
+  assert(/isSimilarityRetryAllowed\(/.test(src));
 });

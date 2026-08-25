@@ -19,10 +19,19 @@ import {
   type CatalogEntry,
 } from "../_shared/exerciseCatalog.ts";
 import { AI_MODELS, createRoutingMetadata, type AIAttemptMetadata } from "../_shared/aiModelRouter.ts";
-import { validateWorkoutRedundancy } from "../_shared/workoutRedundancy.ts";
+import { validateWorkoutRedundancy, enforceVariationIntegrity } from "../_shared/workoutRedundancy.ts";
+import {
+  buildExactReferenceBlock,
+  EXACT_REFERENCE_PRIORITY_BLOCK,
+  evaluateReferenceCompliance,
+  extractReferenceText,
+  parseReferenceStructure,
+  type ReferenceStructure,
+} from "../_shared/trainerReferencePolicy.ts";
 import {
   isTrainerCandidateCriticalValid,
   trainerCriticalReason,
+  isSimilarityRetryAllowed,
   shouldRetryTrainerCandidate,
   shouldAcceptTrainerVariationCandidate,
   isRetryableUpstreamStatus,
@@ -483,6 +492,8 @@ async function generateStructuredWorkoutWithVariation(args: {
   studentId?: string;
   intensity: VariationIntensity;
   catalog?: CatalogEntry[];
+  reference?: ReferenceStructure;
+  restrictionsText?: string;
 }): Promise<Response> {
   let history: HistoryPlan[] = [];
   let historySummary = "";
@@ -505,6 +516,7 @@ async function generateStructuredWorkoutWithVariation(args: {
     .filter((j) => j && typeof j === "object") as any[];
 
   const threshold = SIMILARITY_THRESHOLDS[intensity];
+  const referenceMode = args.reference?.mode ?? "free";
 
   // Candidate evaluation always happens on a CLONE: catalog snapping,
   // redundancy and similarity are computed BEFORE acceptance.
@@ -521,9 +533,32 @@ async function generateStructuredWorkoutWithVariation(args: {
     // Only unmatched MAIN exercises are critical; optional variations are
     // correctable and never block acceptance.
     const criticalCatalogMismatch = unmatched.filter((u) => mainNames.has(u));
+    // A variation can never be the exercise itself.
+    const variationFixes = enforceVariationIntegrity(clone, args.catalog ?? []);
     const redundancy = validateWorkoutRedundancy(clone);
     const similarity = computeWorkoutSimilarity(clone, historyJsons);
-    return { clone, unmatched, criticalCatalogMismatch, redundancy, similarity };
+    const referenceCompliance =
+      referenceMode === "exact" && args.reference
+        ? evaluateReferenceCompliance({
+            structure: args.reference,
+            candidateDays: (clone?.days ?? []).map((d: any) => ({
+              label: String(d?.day ?? ""),
+              exercises: (d?.exercises ?? []).map((e: any) => String(e?.exercise ?? "")),
+            })),
+            catalogNames: (args.catalog ?? []).map((c) => c.nome),
+            restrictionsText: args.restrictionsText,
+            strongDuplicateNames: redundancy.strongDuplicateNames,
+          })
+        : null;
+    return {
+      clone,
+      unmatched,
+      criticalCatalogMismatch,
+      redundancy,
+      similarity,
+      referenceCompliance,
+      variationFixes,
+    };
   };
 
   const reviewRequired = (reason: string) => {
@@ -645,6 +680,10 @@ async function generateStructuredWorkoutWithVariation(args: {
   const candidateValidityInput = {
     redundancyOk: evaluation.redundancy.ok,
     criticalCatalogMismatchCount: evaluation.criticalCatalogMismatch.length,
+    exactDuplicate: evaluation.redundancy.exactDuplicate,
+    strongFunctionalDuplicate: evaluation.redundancy.strongFunctionalDuplicate,
+    referenceMode,
+    referenceComplianceOk: evaluation.referenceCompliance?.ok ?? true,
   };
 
   if (technicalFallbackUsed && !isTrainerCandidateCriticalValid(candidateValidityInput)) {
@@ -663,13 +702,25 @@ async function generateStructuredWorkoutWithVariation(args: {
   });
 
   if (needsRetry) {
-    if (similarity.score > threshold && historyJsons.length > 0) {
+    if (
+      isSimilarityRetryAllowed(referenceMode) &&
+      similarity.score > threshold &&
+      historyJsons.length > 0
+    ) {
       fallbackReason = "high_similarity";
       fallbackReasons.push("high_similarity");
     }
-    if (!evaluation.redundancy.ok) {
+    if (evaluation.redundancy.strongFunctionalDuplicate) {
+      fallbackReason = fallbackReason || "strong_functional_duplicate";
+      fallbackReasons.push("strong_functional_duplicate");
+    }
+    if (!evaluation.redundancy.ok && !evaluation.redundancy.strongFunctionalDuplicate) {
       fallbackReason = fallbackReason || "internal_redundancy";
       fallbackReasons.push("internal_redundancy");
+    }
+    if (referenceMode === "exact" && evaluation.referenceCompliance && !evaluation.referenceCompliance.ok) {
+      fallbackReason = fallbackReason || "reference_drift";
+      fallbackReasons.push("reference_drift");
     }
     if (evaluation.criticalCatalogMismatch.length > 0) {
       fallbackReason = fallbackReason || "catalog_mismatch";
@@ -691,6 +742,14 @@ async function generateStructuredWorkoutWithVariation(args: {
         .map(i => `${i.day}: ${i.exercises.join(", ")} (${i.family})`)
         .join(" | ");
       retryNotesArr.push(`🚨 REDUNDÂNCIA INTERNA DETECTADA: ${redDetails}. Substitua exercícios funcionalmente equivalentes por variações de pegada, ângulo ou equipamentos diferentes no mesmo dia.`);
+    }
+
+    if (referenceMode === "exact" && evaluation.referenceCompliance && !evaluation.referenceCompliance.ok) {
+      const rc = evaluation.referenceCompliance;
+      retryNotesArr = [
+        `🚨 A REFERÊNCIA EXATA DO PROFESSOR FOI DESRESPEITADA. Exercícios ausentes sem justificativa: ${rc.missingAnchors.join(", ") || "-"}. Substituições indevidas: ${rc.unexpectedSubstitutions.join(", ") || "-"}. Violações de ordem: ${rc.orderViolations.join(", ") || "-"}.`,
+        "Regenere preservando dias, foco, ordem, número de exercícios, séries, reps e descanso da referência. NÃO troque exercícios apenas por variedade.",
+      ];
     }
 
     if (evaluation.criticalCatalogMismatch.length > 0) {
@@ -720,6 +779,10 @@ async function generateStructuredWorkoutWithVariation(args: {
       const validity2 = {
         redundancyOk: eval2.redundancy.ok,
         criticalCatalogMismatchCount: eval2.criticalCatalogMismatch.length,
+        exactDuplicate: eval2.redundancy.exactDuplicate,
+        strongFunctionalDuplicate: eval2.redundancy.strongFunctionalDuplicate,
+        referenceMode,
+        referenceComplianceOk: eval2.referenceCompliance?.ok ?? true,
       };
       const secondCriticalValid = isTrainerCandidateCriticalValid(validity2);
 
@@ -744,7 +807,9 @@ async function generateStructuredWorkoutWithVariation(args: {
         selectedModel = AI_MODELS.fallback;
       }
       regenerated = true;
-      if (similarity.score > threshold) warning = "high_similarity";
+      if (isSimilarityRetryAllowed(referenceMode) && similarity.score > threshold) {
+        warning = "high_similarity";
+      }
     }
   }
 
@@ -879,7 +944,7 @@ ORDEM DE PRIORIDADE DO AGENTE:
 3. Objetivos e prioridades musculares (Tiers).
 4. Semana do ciclo e Equipamento disponível.
 5. Histórico de treino e logbook (quando existirem).
-6. Treino de referência (usar como apoio secundário/estilo).
+6. Treino de referência: quando o professor fornecer uma REFERÊNCIA EXATA (bloco "TREINO DE REFERÊNCIA EXATO DO PROFESSOR"), ela é a arquitetura base obrigatória e vem logo após segurança e restrições estruturadas. Quando for apenas referência livre, use como apoio secundário/estilo.
 7. Observações gerais.
 
 ========================================
@@ -1323,10 +1388,26 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
         catalog.length > 0
           ? SYSTEM_PROMPT.replace(EXERCISE_DATABASE, buildCatalogBlock(catalog))
           : SYSTEM_PROMPT;
+      const referenceText = extractReferenceText(Array.isArray(messages) ? messages : []);
+      const reference = parseReferenceStructure(referenceText);
+      const exactReferenceBlock =
+        reference.mode === "exact" && referenceText
+          ? EXACT_REFERENCE_PRIORITY_BLOCK + buildExactReferenceBlock(referenceText)
+          : "";
+      const restrictionsText = [
+        studentContext?.restricoes,
+        studentContext?.lesoes,
+        studentContext?.observacoes,
+      ]
+        .filter((v) => typeof v === "string" && v.trim().length > 0)
+        .join("\n");
+
       return await generateStructuredWorkoutWithVariation({
         apiKey: OPENAI_API_KEY,
-        systemPrompt: systemWithCatalog + contextMessage,
+        systemPrompt: systemWithCatalog + contextMessage + exactReferenceBlock,
         messages,
+        reference,
+        restrictionsText,
         studentId: typeof studentId === "string" && studentId.length > 0 ? studentId : undefined,
         intensity,
         catalog,
