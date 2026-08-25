@@ -1151,12 +1151,16 @@ serve(async (req) => {
             sex: "Sexta", sab: "Sábado", dom: "Domingo",
           };
           const names = missing.map((wd) => WD_LABEL[wd] ?? wd).join(", ");
+          const meta = createRoutingMetadata(modelAttempts, fallbackReason, [...fallbackReasons, "daily_adjustments_invalid"], null);
           return new Response(
             JSON.stringify({
               error: `A IA não devolveu os ajustes dos seguintes dias: ${names}.`,
               error_code: "daily_adjustments_invalid",
               missing_days: missing,
               details: dailyAdjustmentsError,
+              validationReasons: [...fallbackReasons, "daily_adjustments_invalid"],
+              aiRouting: meta.routing,
+              aiUsage: meta.usage,
             }),
             { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
           );
@@ -1164,18 +1168,23 @@ serve(async (req) => {
       }
 
       if (schedule && !normalizedDailyAdjustments) {
+        const meta = createRoutingMetadata(modelAttempts, fallbackReason, [...fallbackReasons, "daily_adjustments_invalid"], null);
         return new Response(
           JSON.stringify({
             error:
               "A dieta foi gerada, mas os ajustes calóricos por dia não foram devolvidos corretamente. Regere o plano.",
             error_code: "daily_adjustments_invalid",
             details: dailyAdjustmentsError,
+            validationReasons: [...fallbackReasons, "daily_adjustments_invalid"],
+            aiRouting: meta.routing,
+            aiUsage: meta.usage,
           }),
           { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
 
-      const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
+      const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, selectedModel);
+
       console.log("[ai-routing]", {
         agent: "diet",
         primaryModel: routingMeta.routing.primaryModel,
