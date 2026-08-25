@@ -1,6 +1,20 @@
 import { assert, assertEquals, assertThrows } from "https://deno.land/std@0.203.0/testing/asserts.ts";
 import { createRoutingMetadata, AI_MODELS, type AIAttemptMetadata } from "../_shared/aiModelRouter.ts";
 import { sanitizeStructuredPrompt } from "../_shared/structuredPromptSanitizer.ts";
+import {
+  evaluateDietCandidateValidity,
+  isVariationRetryAllowed,
+  needsDietVariationRetry,
+  shouldAcceptDietVariationCandidate,
+  shouldRetryDietCandidate,
+  type DietCandidateSignals,
+} from "../_shared/dietRoutingPolicy.ts";
+import {
+  isTrainerCandidateCriticalValid,
+  shouldAcceptTrainerVariationCandidate,
+  shouldRetryTrainerCandidate,
+  trainerCriticalReason,
+} from "../_shared/trainerRoutingPolicy.ts";
 
 const attempt = (
   model: string,
@@ -68,55 +82,50 @@ Deno.test("router: no candidate accepted → finalModel null", () => {
   assertEquals(r.routing.attempts, 2);
 });
 
-// ───────────────────── DIET / TRAINER DECISION LOGIC ─────────────────────
-// Pure re-implementations of the gates enforced in the agents, so decisions
-// are verified without hitting the live model API.
+Deno.test("router: non-retryable post-model error keeps 1 attempt and null finalModel", () => {
+  const r = createRoutingMetadata([attempt(AI_MODELS.primary, "first_attempt")], "upstream_error", ["upstream_error"], null);
+  assertEquals(r.routing.attempts, 1);
+  assertEquals(r.routing.finalModel, null);
+  assertEquals(r.routing.lastAttemptModel, AI_MODELS.primary);
+  assertEquals(r.routing.fallbackUsed, false);
+});
 
-type DietState = {
-  intent: "new" | "update" | "regenerate";
-  historyCount: number;
-  similarityAbove: boolean;
-  portionOnly: boolean;
-  quantityOverlap: boolean;
-  sourceRepetition: boolean;
-  nutritionOk: boolean;
-  dailyAdjOk: boolean;
-  requireMenuVariation?: boolean;
-};
+// ───────────────── DIET POLICY (production module under test) ─────────────────
 
-const dietNeedsRetry = (s: DietState) => {
-  const variationRetryAllowed = s.intent !== "update";
-  const needsVariationRetry =
-    variationRetryAllowed &&
-    s.historyCount > 0 &&
-    (s.similarityAbove || s.portionOnly || ((s.requireMenuVariation ?? true) && s.quantityOverlap) || s.sourceRepetition);
-  return !s.nutritionOk || !s.dailyAdjOk || needsVariationRetry;
-};
-
-const dietCalls = (s: DietState) => (dietNeedsRetry(s) ? 2 : 1);
-
-const base: DietState = {
+const base: DietCandidateSignals = {
   intent: "new",
   historyCount: 1,
-  similarityAbove: false,
-  portionOnly: false,
-  quantityOverlap: false,
-  sourceRepetition: false,
+  similarityScore: 0.1,
+  threshold: 0.6,
+  isPortionOnly: false,
+  requireMenuVariation: true,
+  quantityOnlyRatio: 0,
+  primarySourceRepeatRatio: 0,
   nutritionOk: true,
-  dailyAdjOk: true,
+  dailyAdjustmentsOk: true,
+  technicalFallbackUsed: false,
 };
 
+/** Number of model calls implied by the REAL policy used by diet-agent. */
+const dietCalls = (s: DietCandidateSignals) => (shouldRetryDietCandidate(s) ? 2 : 1);
+
+Deno.test("diet: UPDATE blocks variation retries", () => {
+  assertEquals(isVariationRetryAllowed("update"), false);
+  assertEquals(isVariationRetryAllowed("new"), true);
+  assertEquals(isVariationRetryAllowed("regenerate"), true);
+});
+
 Deno.test("diet: UPDATE + high similarity → 1 call (never Terra)", () => {
-  assertEquals(dietCalls({ ...base, intent: "update", similarityAbove: true }), 1);
+  assertEquals(dietCalls({ ...base, intent: "update", similarityScore: 0.95 }), 1);
 });
 
 Deno.test("diet: UPDATE + portion_only → 1 call", () => {
-  assertEquals(dietCalls({ ...base, intent: "update", portionOnly: true }), 1);
+  assertEquals(dietCalls({ ...base, intent: "update", isPortionOnly: true }), 1);
 });
 
 Deno.test("diet: UPDATE + quantity overlap / source repetition → 1 call", () => {
-  assertEquals(dietCalls({ ...base, intent: "update", quantityOverlap: true }), 1);
-  assertEquals(dietCalls({ ...base, intent: "update", sourceRepetition: true }), 1);
+  assertEquals(dietCalls({ ...base, intent: "update", quantityOnlyRatio: 0.9 }), 1);
+  assertEquals(dietCalls({ ...base, intent: "update", primarySourceRepeatRatio: 0.9 }), 1);
 });
 
 Deno.test("diet: UPDATE with invalid nutrition still falls back to Terra", () => {
@@ -125,25 +134,37 @@ Deno.test("diet: UPDATE with invalid nutrition still falls back to Terra", () =>
 
 Deno.test("diet: Luna nutrition/dailyAdj invalid → Terra", () => {
   assertEquals(dietCalls({ ...base, nutritionOk: false }), 2);
-  assertEquals(dietCalls({ ...base, dailyAdjOk: false }), 2);
+  assertEquals(dietCalls({ ...base, dailyAdjustmentsOk: false }), 2);
 });
 
 Deno.test("diet: NEW high similarity → Terra (variation retry allowed)", () => {
-  assertEquals(dietCalls({ ...base, similarityAbove: true }), 2);
+  assertEquals(dietCalls({ ...base, similarityScore: 0.95 }), 2);
+  assert(needsDietVariationRetry({ ...base, similarityScore: 0.95 }));
+});
+
+Deno.test("diet: no history → never a variation retry", () => {
+  assertEquals(dietCalls({ ...base, historyCount: 0, similarityScore: 0.99, isPortionOnly: true }), 1);
+});
+
+Deno.test("diet: technical fallback candidate is never retried (budget 2)", () => {
+  assertEquals(
+    dietCalls({ ...base, technicalFallbackUsed: true, nutritionOk: false, similarityScore: 0.99 }),
+    1,
+  );
 });
 
 Deno.test("diet: absolute budget is 2 calls", () => {
-  const states: DietState[] = [
+  const states: DietCandidateSignals[] = [
     { ...base },
-    { ...base, nutritionOk: false, dailyAdjOk: false, similarityAbove: true, portionOnly: true },
-    { ...base, intent: "regenerate", similarityAbove: true },
+    { ...base, nutritionOk: false, dailyAdjustmentsOk: false, similarityScore: 0.99, isPortionOnly: true },
+    { ...base, intent: "regenerate", similarityScore: 0.99 },
   ];
   for (const s of states) assert(dietCalls(s) <= 2);
 });
 
 // Critical validity of the Terra candidate (technical or critical fallback).
 const dietTerraOutcome = (nut2Ok: boolean, adj2Ok: boolean) =>
-  nut2Ok && adj2Ok ? 200 : 422;
+  evaluateDietCandidateValidity({ nutritionOk: nut2Ok, dailyAdjustmentsOk: adj2Ok }).criticalValid ? 200 : 422;
 
 Deno.test("diet: Luna invalid JSON → Terra valid → 200 with full contract", () => {
   assertEquals(dietTerraOutcome(true, true), 200);
@@ -156,10 +177,35 @@ Deno.test("diet: Luna invalid JSON → Terra valid → 200 with full contract", 
 
 Deno.test("diet: Terra nutrition invalid → 422 review_required", () => {
   assertEquals(dietTerraOutcome(false, true), 422);
+  assertEquals(
+    evaluateDietCandidateValidity({ nutritionOk: false, dailyAdjustmentsOk: true }).reason,
+    "nutrition_invalid",
+  );
 });
 
 Deno.test("diet: Terra dailyAdjustments invalid → 422 review_required", () => {
   assertEquals(dietTerraOutcome(true, false), 422);
+  assertEquals(
+    evaluateDietCandidateValidity({ nutritionOk: true, dailyAdjustmentsOk: false }).reason,
+    "daily_adjustments_invalid",
+  );
+});
+
+Deno.test("diet: variation candidate only accepted when valid and better", () => {
+  const accept = (o: Partial<Parameters<typeof shouldAcceptDietVariationCandidate>[0]>) =>
+    shouldAcceptDietVariationCandidate({
+      candidateCriticalValid: true,
+      candidateScore: 0.2,
+      currentScore: 0.8,
+      escapedPortionOnly: false,
+      reducedPrimarySourceRepeat: false,
+      ...o,
+    });
+  assert(accept({}));
+  assert(!accept({ candidateCriticalValid: false }));
+  assert(!accept({ candidateScore: 0.9 }));
+  assert(accept({ candidateScore: 0.9, escapedPortionOnly: true }));
+  assert(accept({ candidateScore: 0.9, reducedPrimarySourceRepeat: true }));
 });
 
 Deno.test("diet: 422 metadata carries finalModel null", () => {
@@ -173,75 +219,71 @@ Deno.test("diet: 422 metadata carries finalModel null", () => {
   assertEquals(meta.routing.lastAttemptModel, AI_MODELS.fallback);
 });
 
-// ───────────────────────────── TRAINER ─────────────────────────────
+// ──────────────── TRAINER POLICY (production module under test) ────────────────
 
-type TrainerEval = {
-  redundancyOk: boolean;
-  exactDuplicates: number;
-  criticalCatalogMismatch: number;
-  similarity: number;
+const trainerBase = {
+  redundancyOk: true,
+  criticalCatalogMismatchCount: 0,
+  similarityScore: 0.2,
+  threshold: 0.6,
+  historyCount: 1,
+  technicalFallbackUsed: false,
 };
 
-const trainerDecision = (first: TrainerEval, second?: TrainerEval, threshold = 0.6, historyCount = 1) => {
-  const criticalInvalid = !first.redundancyOk || first.criticalCatalogMismatch > 0;
-  const needsRetry = criticalInvalid || (first.similarity > threshold && historyCount > 0);
-  if (!needsRetry) return { calls: 1, status: 200, selected: AI_MODELS.primary, similarity: first.similarity };
-  if (!second) return { calls: 2, status: criticalInvalid ? 422 : 200, selected: criticalInvalid ? null : AI_MODELS.primary, similarity: first.similarity };
-  const secondValid = second.redundancyOk && second.criticalCatalogMismatch === 0;
-  if (criticalInvalid) {
-    return secondValid
-      ? { calls: 2, status: 200, selected: AI_MODELS.fallback, similarity: second.similarity }
-      : { calls: 2, status: 422, selected: null, similarity: second.similarity };
-  }
-  return secondValid && second.similarity <= first.similarity
-    ? { calls: 2, status: 200, selected: AI_MODELS.fallback, similarity: second.similarity }
-    : { calls: 2, status: 200, selected: AI_MODELS.primary, similarity: first.similarity };
-};
+const trainerCalls = (s: typeof trainerBase) => (shouldRetryTrainerCandidate(s) ? 2 : 1);
 
-const ok: TrainerEval = { redundancyOk: true, exactDuplicates: 0, criticalCatalogMismatch: 0, similarity: 0.2 };
-
-Deno.test("trainer: technical fallback uses REAL similarity of the candidate", () => {
-  const r = trainerDecision({ ...ok, similarity: 0.9 }, { ...ok, similarity: 0.31 });
-  assertEquals(r.similarity, 0.31);
-  assert(r.similarity !== 0);
+Deno.test("trainer: exact duplicate / redundancy on Luna → Terra", () => {
+  assertEquals(trainerCalls({ ...trainerBase, redundancyOk: false }), 2);
+  assertEquals(trainerCriticalReason({ redundancyOk: false, criticalCatalogMismatchCount: 0 }), "internal_redundancy");
 });
 
-Deno.test("trainer: exact duplicate on Luna → Terra", () => {
-  const r = trainerDecision({ ...ok, redundancyOk: false, exactDuplicates: 2 }, ok);
-  assertEquals(r.calls, 2);
-  assertEquals(r.status, 200);
-  assertEquals(r.selected, AI_MODELS.fallback);
-});
-
-Deno.test("trainer: exact duplicate persists on Terra → 422", () => {
-  const r = trainerDecision(
-    { ...ok, redundancyOk: false, exactDuplicates: 2 },
-    { ...ok, redundancyOk: false, exactDuplicates: 2 },
-  );
-  assertEquals(r.status, 422);
-  assertEquals(r.selected, null);
+Deno.test("trainer: redundancy persists on Terra → 422 (never 200 with warning)", () => {
+  const terra = { redundancyOk: false, criticalCatalogMismatchCount: 0 };
+  assertEquals(isTrainerCandidateCriticalValid(terra), false);
+  assertEquals(trainerCriticalReason(terra), "internal_redundancy");
 });
 
 Deno.test("trainer: critical catalog mismatch on Luna → Terra", () => {
-  const r = trainerDecision({ ...ok, criticalCatalogMismatch: 3 }, ok);
-  assertEquals(r.status, 200);
-  assertEquals(r.selected, AI_MODELS.fallback);
+  assertEquals(trainerCalls({ ...trainerBase, criticalCatalogMismatchCount: 3 }), 2);
+  assertEquals(
+    trainerCriticalReason({ redundancyOk: true, criticalCatalogMismatchCount: 3 }),
+    "catalog_mismatch",
+  );
 });
 
 Deno.test("trainer: critical catalog mismatch on Terra → 422", () => {
-  const r = trainerDecision({ ...ok, criticalCatalogMismatch: 3 }, { ...ok, criticalCatalogMismatch: 1 });
-  assertEquals(r.status, 422);
+  assertEquals(isTrainerCandidateCriticalValid({ redundancyOk: true, criticalCatalogMismatchCount: 1 }), false);
 });
 
-Deno.test("trainer: Terra still redundant → 422 (never 200 with warning)", () => {
-  const r = trainerDecision({ ...ok, redundancyOk: false }, { ...ok, redundancyOk: false });
-  assertEquals(r.status, 422);
+Deno.test("trainer: high similarity with history → Terra; without history → 1 call", () => {
+  assertEquals(trainerCalls({ ...trainerBase, similarityScore: 0.9 }), 2);
+  assertEquals(trainerCalls({ ...trainerBase, similarityScore: 0.9, historyCount: 0 }), 1);
+});
+
+Deno.test("trainer: technical fallback uses REAL similarity of the candidate", () => {
+  // A valid Terra candidate with lower real similarity replaces Luna's.
+  assert(shouldAcceptTrainerVariationCandidate({
+    candidateCriticalValid: true,
+    candidateScore: 0.31,
+    currentScore: 0.9,
+  }));
+  assert(!shouldAcceptTrainerVariationCandidate({
+    candidateCriticalValid: true,
+    candidateScore: 0.95,
+    currentScore: 0.9,
+  }));
+  assert(!shouldAcceptTrainerVariationCandidate({
+    candidateCriticalValid: false,
+    candidateScore: 0.1,
+    currentScore: 0.9,
+  }));
 });
 
 Deno.test("trainer: absolute budget is 2 calls", () => {
-  assert(trainerDecision(ok).calls <= 2);
-  assert(trainerDecision({ ...ok, redundancyOk: false }, ok).calls <= 2);
-  assert(trainerDecision({ ...ok, similarity: 0.95 }, { ...ok, similarity: 0.9 }).calls <= 2);
+  assert(trainerCalls(trainerBase) <= 2);
+  assert(trainerCalls({ ...trainerBase, redundancyOk: false }) <= 2);
+  assert(trainerCalls({ ...trainerBase, similarityScore: 0.95 }) <= 2);
+  assertEquals(trainerCalls({ ...trainerBase, technicalFallbackUsed: true, redundancyOk: false }), 1);
 });
 
 // ───────────────────────────── PROMPTS ─────────────────────────────
@@ -252,6 +294,13 @@ REGRAS DE SEGURANÇA E RESTRIÇÕES
 ========================================
 Respeite restrições alimentares e alergias do aluno.
 Preserve o weeklyEnergySchedule e o campo dailyAdjustments.
+
+========================================
+VARIEDADE E CRIATIVIDADE NO CARDÁPIO
+========================================
+OBRIGATÓRIO: Gere EXATAMENTE 1 (UM) cardápio completo para a semana inteira.
+No início, escreva claramente: "## CARDÁPIO ÚNICO (segue de segunda a domingo)".
+NUNCA repita a mesma proteína em mais de 2 refeições do mesmo dia.
 
 ========================================
 FORMATO DA TABELA
@@ -277,6 +326,18 @@ Cruze cada exercício contra lesões, dores e restrições. Use apenas o catálo
 Respeite o split e a periodização definidos.
 
 ========================================
+FORMATO DE SAÍDA DO TREINO
+========================================
+Você pode escrever um texto curto antes da tabela (foco do treino do dia).
+Depois, gere o treino em uma tabela markdown.
+A tabela do TREINO deve ter exatamente 9 colunas.
+
+========================================
+REGRAS TÉCNICAS DE PRESCRIÇÃO
+========================================
+Defina series, reps, RIR, rest, description e set_scheme coerentes com a fase.
+
+========================================
 COLETA DE DADOS — REGRA CRÍTICA
 ========================================
 Comece perguntando APENAS o que falta. UMA PERGUNTA POR VEZ.
@@ -287,28 +348,36 @@ MENSAGENS WHATSAPP (NO FINAL)
 Depois de tudo, criar mensagens simples prontas para WhatsApp em partes.
 `;
 
-Deno.test("prompts: diet structured has no WhatsApp / Markdown table / justificativa", () => {
+Deno.test("prompts: diet structured has no WhatsApp / Markdown table / headings inside sentences", () => {
   const clean = sanitizeStructuredPrompt(DIET_PROMPT);
   assert(!/whatsapp/i.test(clean));
   assert(!/após a tabela/i.test(clean));
   assert(!/colunas/i.test(clean));
-  assert(!/justificativa técnica/i.test(clean));
+  assert(!/escreva claramente/i.test(clean));
+  assert(!/##\s*CARDÁPIO ÚNICO/i.test(clean));
   // technical content preserved
   assert(/restrições alimentares/i.test(clean));
   assert(/weeklyEnergySchedule/.test(clean));
   assert(/dailyAdjustments/.test(clean));
+  assert(/NUNCA repita a mesma proteína/i.test(clean));
 });
 
-Deno.test("prompts: trainer structured has no questions / WhatsApp / conversational flow", () => {
+Deno.test("prompts: trainer structured drops legacy output section and keeps technical rules", () => {
   const clean = sanitizeStructuredPrompt(TRAINER_PROMPT);
   assert(!/whatsapp/i.test(clean));
   assert(!/comece perguntando/i.test(clean));
   assert(!/uma pergunta por vez/i.test(clean));
+  assert(!/FORMATO DE SAÍDA DO TREINO/i.test(clean));
+  assert(!/antes da tabela/i.test(clean));
+  assert(!/tabela markdown/i.test(clean));
+  assert(!/9 colunas/i.test(clean));
   // technical content preserved
   assert(/lesões/i.test(clean));
   assert(/catálogo/i.test(clean));
   assert(/split/i.test(clean));
   assert(/periodização/i.test(clean));
+  assert(/set_scheme/.test(clean));
+  assert(/RIR/.test(clean));
 });
 
 Deno.test("prompts: sentence-level scrub keeps safety text in mixed lines", () => {
@@ -328,4 +397,17 @@ Deno.test("legacy: diet and trainer conversational paths stay on gpt-4o", async 
   const trainer = await Deno.readTextFile(new URL("../trainer-agent/index.ts", import.meta.url));
   assert(/model:\s*"gpt-4o"/.test(diet), "diet legacy must use gpt-4o");
   assert(/model:\s*"gpt-4o"/.test(trainer), "trainer legacy must use gpt-4o");
+});
+
+// ─────────────── AGENTS MUST USE THE SHARED POLICY MODULES ───────────────
+
+Deno.test("agents import the shared routing policies (no duplicated algorithm)", async () => {
+  const diet = await Deno.readTextFile(new URL("../diet-agent/index.ts", import.meta.url));
+  const trainer = await Deno.readTextFile(new URL("../trainer-agent/index.ts", import.meta.url));
+  assert(/_shared\/dietRoutingPolicy\.ts/.test(diet));
+  assert(/shouldRetryDietCandidate\(/.test(diet));
+  assert(/evaluateDietCandidateValidity\(/.test(diet));
+  assert(/_shared\/trainerRoutingPolicy\.ts/.test(trainer));
+  assert(/shouldRetryTrainerCandidate\(/.test(trainer));
+  assert(/isTrainerCandidateCriticalValid\(/.test(trainer));
 });
