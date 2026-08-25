@@ -444,6 +444,18 @@ Deno.test("trainer structured call uses max_completion_tokens (GPT-5.6), not max
   assert(/model:\s*"gpt-4o"/.test(src) && /stream:\s*true/.test(src), "legacy gpt-4o path preserved");
 });
 
+Deno.test("diet structured call streams upstream to avoid the 150s idle timeout", async () => {
+  const src = await Deno.readTextFile(new URL("../diet-agent/index.ts", import.meta.url));
+  const start = src.indexOf('if (mode === "structured")');
+  const end = src.indexOf("// ─── Legacy conversational mode", start);
+  const structured = src.slice(start, end > start ? end : undefined);
+  assert(/max_completion_tokens:\s*16000/.test(structured));
+  assert(/stream:\s*true/.test(structured));
+  assert(/stream_options:\s*\{\s*include_usage:\s*true\s*\}/.test(structured));
+  assert(/consumeStructuredChatStream\(r\)/.test(structured));
+  assert(!/await\s+r\.json\(\)/.test(structured));
+});
+
 Deno.test("trainer: non-retryable upstream statuses never reach Terra (1 call)", () => {
   for (const status of [400, 401, 402, 403, 404, 429]) {
     assertEquals(isRetryableUpstreamStatus(status), false, `status ${status} must be non-retryable`);

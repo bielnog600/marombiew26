@@ -50,6 +50,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+
+
+
+
 async function loadFoodDatabase(): Promise<string> {
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -737,13 +741,13 @@ serve(async (req) => {
               { role: "system", content: jsonSystem },
               ...messages,
             ],
-            max_completion_tokens: 16000,
-
+            max_completion_tokens: 8000,
+            stream: false,
             response_format: { type: "json_object" },
           }),
         });
-        const durationMs = Date.now() - start;
         if (!r.ok) {
+          const durationMs = Date.now() - start;
           const status = r.status;
           const t = await r.text();
           console.error("structured diet-agent error:", status, t);
@@ -769,18 +773,19 @@ serve(async (req) => {
           };
         }
         const completion = await r.json();
-        const usage = completion?.usage;
+        const durationMs = Date.now() - start;
+        const usage = completion.usage;
         modelAttempts.push({
           model: modelToUse,
           durationMs,
           reason,
           usage: usage ? {
-            promptTokens: usage.prompt_tokens,
-            completionTokens: usage.completion_tokens,
-            totalTokens: usage.total_tokens
+            promptTokens: usage.prompt_tokens ?? null,
+            completionTokens: usage.completion_tokens ?? null,
+            totalTokens: usage.total_tokens ?? null
           } : null
         });
-        const raw = completion?.choices?.[0]?.message?.content;
+        const raw = completion.choices?.[0]?.message?.content;
         if (!raw) {
           return {
             ok: false,
