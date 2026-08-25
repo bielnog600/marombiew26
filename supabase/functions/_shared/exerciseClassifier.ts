@@ -48,7 +48,7 @@ export const ISOLATION_TOKENS = [
   "extensao de", "flexao de perna", "kickback",
 ];
 export const COMPOUND_TOKENS = [
-  "agachamento", "levantamento terra", "supino", "desenvolvimento",
+  "agachamento", "squat", "hack", "levantamento terra", "supino", "desenvolvimento",
   "remada", "puxada", "afundo", "avanco", "stiff", "leg press", "clean", "snatch",
 ];
 export const POWER_TOKENS = ["clean", "snatch", "arremesso", "push jerk", "jerk"];
