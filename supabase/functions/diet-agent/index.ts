@@ -786,9 +786,8 @@ serve(async (req) => {
               { role: "system", content: jsonSystem },
               ...messages,
             ],
-            max_completion_tokens: 16000,
-            stream: true,
-            stream_options: { include_usage: true },
+            max_completion_tokens: 8000,
+            stream: false,
             response_format: { type: "json_object" },
           }),
         });
