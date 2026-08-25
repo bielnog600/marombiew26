@@ -20,6 +20,7 @@ import {
 } from "../_shared/exerciseCatalog.ts";
 import { AI_MODELS, createRoutingMetadata, type AIAttemptMetadata } from "../_shared/aiModelRouter.ts";
 import { validateWorkoutRedundancy, enforceVariationIntegrity } from "../_shared/workoutRedundancy.ts";
+import { validateAndNormalizeVariations } from "../_shared/variationSelection.ts";
 import {
   buildExactReferenceBlock,
   EXACT_REFERENCE_PRIORITY_BLOCK,
@@ -536,7 +537,13 @@ async function generateStructuredWorkoutWithVariation(args: {
     const criticalCatalogMismatch = unmatched.filter((u) => mainNames.has(u));
     // A variation can never be the exercise itself.
     const variationFixes = enforceVariationIntegrity(clone, args.catalog ?? []);
+    // Deterministic semantics for the VARIATION column (functional substitute,
+    // counterfactual redundancy check). Never a fallback trigger.
+    const variationVerdicts = validateAndNormalizeVariations(clone, args.catalog ?? [], {
+      restrictionsText: args.restrictionsText,
+    });
     const redundancy = validateWorkoutRedundancy(clone);
+
     const similarity = computeWorkoutSimilarity(clone, historyJsons);
     const referenceCompliance =
       referenceMode === "exact" && args.reference
@@ -559,6 +566,7 @@ async function generateStructuredWorkoutWithVariation(args: {
       similarity,
       referenceCompliance,
       variationFixes,
+      variationVerdicts,
     };
   };
 

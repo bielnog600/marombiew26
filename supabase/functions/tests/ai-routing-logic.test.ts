@@ -23,6 +23,12 @@ import {
   validateWorkoutRedundancy,
 } from "../_shared/workoutRedundancy.ts";
 import {
+  evaluateVariationCandidate,
+  selectVariation,
+  validateAndNormalizeVariations,
+} from "../_shared/variationSelection.ts";
+import { normalizeName } from "../_shared/planSimilarity.ts";
+import {
   evaluateReferenceCompliance,
   extractDeclaredReferenceMode,
   parseReferenceStructure,
@@ -730,4 +736,151 @@ Deno.test("trainer-agent usa os módulos compartilhados de referência e variaç
   assert(/evaluateReferenceCompliance\(/.test(src));
   assert(/enforceVariationIntegrity\(/.test(src));
   assert(/isSimilarityRetryAllowed\(/.test(src));
+});
+
+// ───────────────── variation column semantics (deterministic) ─────────────────
+
+const VAR_CATALOG = [
+  { nome: "HACK MACHINE", grupo: "PERNAS" },
+  { nome: "LEG PRESS", grupo: "PERNAS" },
+  { nome: "LEG PRESS 45 ART", grupo: "PERNAS" },
+  { nome: "LEG 180", grupo: "PERNAS" },
+  { nome: "GLOBET SQUATS", grupo: "PERNAS" },
+  { nome: "AGACHAMENTO SMITH", grupo: "PERNAS" },
+  { nome: "AFUNDO ALTERNANDO", grupo: "PERNAS" },
+  { nome: "CADEIRA EXTENSORA", grupo: "PERNAS" },
+  { nome: "CADEIRA EXTENSORA UNILATERAL", grupo: "PERNAS" },
+  { nome: "CADEIRA FLEXORA", grupo: "PERNAS" },
+  { nome: "MESA FLEXORA", grupo: "PERNAS" },
+  { nome: "SUPINO RETO", grupo: "PEITO" },
+  { nome: "SUPINO RETO ARTICULADO", grupo: "PEITO" },
+  { nome: "MOBILIDADE DE QUADRIL", grupo: "MOBILIDADE" },
+  { nome: "MOBILIDADE DE QUADRIL 2", grupo: "MOBILIDADE" },
+];
+
+const dayWith = (...names: string[]) => ({
+  day: "Lower A",
+  exercises: names.map((n) => ({ exercise: n, variation: null })),
+});
+
+const verdictFor = (day: any, exercise: string, candidate: string) =>
+  evaluateVariationCandidate({ day, exerciseName: exercise, candidate, catalog: VAR_CATALOG });
+
+Deno.test("variation: same exercise is invalid", () => {
+  const v = verdictFor(dayWith("CADEIRA EXTENSORA"), "CADEIRA EXTENSORA", "CADEIRA EXTENSORA");
+  assertEquals(v.valid, false);
+  assertEquals(v.reason, "same_exercise");
+});
+
+Deno.test("variation: counterfactual rejects HACK -> LEG PRESS when LEG PRESS 45 ART is in the day", () => {
+  const day = dayWith("HACK MACHINE", "LEG PRESS 45 ART");
+  const v = verdictFor(day, "HACK MACHINE", "LEG PRESS");
+  assertEquals(v.valid, false);
+  assertEquals(v.reason, "creates_redundancy");
+});
+
+Deno.test("variation: HACK -> GLOBET SQUATS is allowed in that same day", () => {
+  const day = dayWith("HACK MACHINE", "LEG PRESS 45 ART");
+  const v = verdictFor(day, "HACK MACHINE", "GLOBET SQUATS");
+  assertEquals(v.valid, true);
+});
+
+Deno.test("variation: LEG PRESS 45 ART -> LEG PRESS valid when no other leg press exists", () => {
+  const day = dayWith("LEG PRESS 45 ART", "CADEIRA FLEXORA");
+  const v = verdictFor(day, "LEG PRESS 45 ART", "LEG PRESS");
+  assertEquals(v.valid, true);
+  assert(v.tier === "A" || v.tier === "B");
+});
+
+Deno.test("variation: LEG PRESS 45 ART prefers a press over AFUNDO", () => {
+  const day = dayWith("LEG PRESS 45 ART", "CADEIRA FLEXORA");
+  const pick = selectVariation({
+    day,
+    exerciseName: "LEG PRESS 45 ART",
+    catalog: VAR_CATALOG,
+    usedVariations: new Set<string>(),
+  });
+  assert(pick !== null);
+  assert(/LEG/.test(pick!.name), `expected a press-like variation, got ${pick!.name}`);
+});
+
+Deno.test("variation: EXTENSORA does not pick LEG 180 when hack + leg press are prescribed", () => {
+  const day = dayWith("HACK MACHINE", "LEG PRESS", "CADEIRA EXTENSORA");
+  const pick = selectVariation({
+    day,
+    exerciseName: "CADEIRA EXTENSORA",
+    catalog: VAR_CATALOG,
+    usedVariations: new Set<string>(),
+  });
+  if (pick) assertEquals(pick.name === "LEG 180", false);
+});
+
+Deno.test("variation: no acceptable candidate yields null", () => {
+  const pick = selectVariation({
+    day: dayWith("CADEIRA EXTENSORA"),
+    exerciseName: "CADEIRA EXTENSORA",
+    catalog: [{ nome: "CADEIRA EXTENSORA", grupo: "PERNAS" }],
+    usedVariations: new Set<string>(),
+  });
+  assertEquals(pick, null);
+});
+
+Deno.test("variation: allowed equivalents (flexora, supino, mobilidade)", () => {
+  assertEquals(
+    verdictFor(dayWith("CADEIRA FLEXORA"), "CADEIRA FLEXORA", "MESA FLEXORA").valid,
+    true,
+  );
+  assertEquals(
+    verdictFor(dayWith("SUPINO RETO"), "SUPINO RETO", "SUPINO RETO ARTICULADO").valid,
+    true,
+  );
+  assertEquals(
+    verdictFor(dayWith("MOBILIDADE DE QUADRIL"), "MOBILIDADE DE QUADRIL", "MOBILIDADE DE QUADRIL 2").valid,
+    true,
+  );
+});
+
+Deno.test("variation: safety restrictions block a forbidden candidate", () => {
+  const v = evaluateVariationCandidate({
+    day: dayWith("CADEIRA EXTENSORA"),
+    exerciseName: "CADEIRA EXTENSORA",
+    candidate: "HACK MACHINE",
+    catalog: VAR_CATALOG,
+    options: { restrictionsText: "Proibido HACK MACHINE por dor patelar" },
+  });
+  assertEquals(v.valid, false);
+  assertEquals(v.reason, "safety_conflict");
+});
+
+Deno.test("variation: normalization never creates redundancy in the hypothetical day", () => {
+  const plan = {
+    days: [
+      {
+        day: "Lower A",
+        exercises: [
+          { exercise: "HACK MACHINE", variation: "LEG PRESS" },
+          { exercise: "LEG PRESS 45 ART", variation: "AFUNDO ALTERNANDO" },
+          { exercise: "CADEIRA EXTENSORA", variation: "CADEIRA EXTENSORA" },
+        ],
+      },
+    ],
+  };
+  validateAndNormalizeVariations(plan, VAR_CATALOG);
+  for (const ex of plan.days[0].exercises) {
+    assert(normalizeName(ex.exercise) !== normalizeName(String(ex.variation ?? "")));
+    if (!ex.variation) continue;
+    const hypo = {
+      days: [
+        {
+          day: "Lower A",
+          exercises: plan.days[0].exercises.map((e) => ({
+            exercise: e.exercise === ex.exercise ? ex.variation : e.exercise,
+          })),
+        },
+      ],
+    };
+    const r = validateWorkoutRedundancy(hypo);
+    assertEquals(r.exactDuplicate, false);
+    assertEquals(r.strongFunctionalDuplicate, false);
+  }
 });

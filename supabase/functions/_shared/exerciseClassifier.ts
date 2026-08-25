@@ -74,9 +74,37 @@ export const MOVEMENT_PATTERNS: Array<{ pattern: string; tokens: string[]; conf:
   { pattern: "mobility", tokens: ["mobilidade", "alongamento", "stretch", "90/90", "cat cow"], conf: 0.95 },
 ];
 
-export function getExerciseFunctionalProfile(name: string | null | undefined) {
+/**
+ * Deterministic class guess from the exercise name, reusing the token tables
+ * already defined above. Shared by the classifier and the variation selector.
+ */
+export function classifyExerciseClassByName(name: string | null | undefined): string | null {
+  const n = nrm(name);
+  if (!n) return null;
+  const table: Array<[string, string[]]> = [
+    ["cardio", CARDIO_TOKENS],
+    ["mobility", MOBILITY_TOKENS],
+    ["plyometric", PLYO_TOKENS],
+    ["power", POWER_TOKENS],
+    ["core", CORE_TOKENS],
+    ["isolation", ISOLATION_TOKENS],
+    ["compound", COMPOUND_TOKENS],
+  ];
+  for (const [cls, tokens] of table) {
+    if (tokens.some((t) => n.includes(t))) return cls;
+  }
+  return null;
+}
+
+export interface FunctionalProfile {
+  pattern: string | null;
+  equipment: string | null;
+  exerciseClass: string | null;
+}
+
+export function getExerciseFunctionalProfile(name: string | null | undefined): FunctionalProfile {
   const normName = nrm(name);
-  if (!normName) return { pattern: null, equipment: null };
+  if (!normName) return { pattern: null, equipment: null, exerciseClass: null };
 
   let mp: string | null = null;
   for (const r of MOVEMENT_PATTERNS) {
@@ -88,8 +116,9 @@ export function getExerciseFunctionalProfile(name: string | null | undefined) {
     if (r.tokens.some((t) => normName.includes(t))) { eq = r.eq; break; }
   }
 
-  return { pattern: mp, equipment: eq };
+  return { pattern: mp, equipment: eq, exerciseClass: classifyExerciseClassByName(name) };
 }
+
 
 
 // Class hints by name

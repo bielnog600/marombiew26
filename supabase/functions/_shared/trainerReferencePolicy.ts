@@ -265,8 +265,9 @@ export type ComplianceInput = {
   strongDuplicateNames?: string[];
 };
 
-const isConditionalOnly = (text: string): boolean =>
+export const isConditionalOnly = (text: string): boolean =>
   /(somente|apenas)\s+(?:com\s+)?(amplitude\s+)?sem\s+dor|se\s+n[ãa]o\s+doer|conforme\s+toler[âa]ncia/i.test(text);
+
 
 /**
  * A substitution is justified when the anchor cannot be honored:
