@@ -536,7 +536,13 @@ async function generateStructuredWorkoutWithVariation(args: {
     const criticalCatalogMismatch = unmatched.filter((u) => mainNames.has(u));
     // A variation can never be the exercise itself.
     const variationFixes = enforceVariationIntegrity(clone, args.catalog ?? []);
+    // Deterministic semantics for the VARIATION column (functional substitute,
+    // counterfactual redundancy check). Never a fallback trigger.
+    const variationVerdicts = validateAndNormalizeVariations(clone, args.catalog ?? [], {
+      restrictionsText: args.restrictionsText,
+    });
     const redundancy = validateWorkoutRedundancy(clone);
+
     const similarity = computeWorkoutSimilarity(clone, historyJsons);
     const referenceCompliance =
       referenceMode === "exact" && args.reference
