@@ -20,6 +20,12 @@ import {
 } from "../_shared/exerciseCatalog.ts";
 import { AI_MODELS, createRoutingMetadata, type AIAttemptMetadata } from "../_shared/aiModelRouter.ts";
 import { validateWorkoutRedundancy } from "../_shared/workoutRedundancy.ts";
+import {
+  isTrainerCandidateCriticalValid,
+  trainerCriticalReason,
+  shouldRetryTrainerCandidate,
+  shouldAcceptTrainerVariationCandidate,
+} from "../_shared/trainerRoutingPolicy.ts";
 import { sanitizeStructuredPrompt } from "../_shared/structuredPromptSanitizer.ts";
 
 const corsHeaders = {
@@ -555,7 +561,23 @@ async function generateStructuredWorkoutWithVariation(args: {
 
   if (isCriticalFailure) {
     const body = await first.response.clone().json().catch(() => ({}));
-    if (body.retryable === false) return first.response;
+    if (body.retryable === false) {
+      // Non-retryable post-model failure (401/402/429/…): never call Terra,
+      // but preserve full routing metadata alongside the original status.
+      const reason = first.error_code || "critical_failure";
+      if (!fallbackReasons.includes(reason)) fallbackReasons.push(reason);
+      const meta = createRoutingMetadata(modelAttempts, reason, fallbackReasons, null);
+      return new Response(
+        JSON.stringify({
+          error: body.error || "Erro na geração do treino",
+          error_code: body.error_code || reason,
+          validationReasons: fallbackReasons,
+          aiRouting: meta.routing,
+          aiUsage: meta.usage,
+        }),
+        { status: first.response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     fallbackReason = first.error_code || "critical_failure";
     fallbackReasons.push(fallbackReason);
@@ -606,18 +628,25 @@ async function generateStructuredWorkoutWithVariation(args: {
   let warning: string | null = null;
 
   // Terra candidate from a technical fallback must be critically valid.
-  if (technicalFallbackUsed) {
-    if (!evaluation.redundancy.ok) return reviewRequired("internal_redundancy");
-    if (evaluation.criticalCatalogMismatch.length > 0) return reviewRequired("catalog_mismatch");
+  const candidateValidityInput = {
+    redundancyOk: evaluation.redundancy.ok,
+    criticalCatalogMismatchCount: evaluation.criticalCatalogMismatch.length,
+  };
+
+  if (technicalFallbackUsed && !isTrainerCandidateCriticalValid(candidateValidityInput)) {
+    return reviewRequired(trainerCriticalReason(candidateValidityInput) as string);
   }
 
-  const criticalInvalid =
-    !evaluation.redundancy.ok || evaluation.criticalCatalogMismatch.length > 0;
+  const criticalInvalid = !isTrainerCandidateCriticalValid(candidateValidityInput);
 
   // Absolute budget: max 2 model calls per request.
-  const needsRetry =
-    !technicalFallbackUsed &&
-    (criticalInvalid || (similarity.score > threshold && historyJsons.length > 0));
+  const needsRetry = shouldRetryTrainerCandidate({
+    ...candidateValidityInput,
+    similarityScore: similarity.score,
+    threshold,
+    historyCount: historyJsons.length,
+    technicalFallbackUsed,
+  });
 
   if (needsRetry) {
     if (similarity.score > threshold && historyJsons.length > 0) {
@@ -669,28 +698,31 @@ async function generateStructuredWorkoutWithVariation(args: {
 
     if (!second.ok) {
       if (criticalInvalid) {
-        return reviewRequired(
-          !evaluation.redundancy.ok ? "internal_redundancy" : "catalog_mismatch",
-        );
+        return reviewRequired(trainerCriticalReason(candidateValidityInput) as string);
       }
       warning = "technical_fallback_failed";
     } else {
       const eval2 = evaluateCandidate(second.data);
-      const secondCriticalValid =
-        eval2.redundancy.ok && eval2.criticalCatalogMismatch.length === 0;
+      const validity2 = {
+        redundancyOk: eval2.redundancy.ok,
+        criticalCatalogMismatchCount: eval2.criticalCatalogMismatch.length,
+      };
+      const secondCriticalValid = isTrainerCandidateCriticalValid(validity2);
 
       if (criticalInvalid) {
         if (!secondCriticalValid) {
-          return reviewRequired(
-            !eval2.redundancy.ok ? "internal_redundancy" : "catalog_mismatch",
-          );
+          return reviewRequired(trainerCriticalReason(validity2) as string);
         }
         evaluation = eval2;
         finalPlan = eval2.clone;
         similarity = eval2.similarity;
         unmatchedExercises = eval2.unmatched;
         selectedModel = AI_MODELS.fallback;
-      } else if (secondCriticalValid && eval2.similarity.score <= similarity.score) {
+      } else if (shouldAcceptTrainerVariationCandidate({
+        candidateCriticalValid: secondCriticalValid,
+        candidateScore: eval2.similarity.score,
+        currentScore: similarity.score,
+      })) {
         evaluation = eval2;
         finalPlan = eval2.clone;
         similarity = eval2.similarity;

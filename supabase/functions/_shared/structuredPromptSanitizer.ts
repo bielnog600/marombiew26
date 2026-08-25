@@ -20,7 +20,7 @@ const DELIM = /^\s*={5,}\s*$/;
 
 /** Headers of sections that must NEVER reach a structured (JSON) call. */
 const FORBIDDEN_SECTION_HEADER =
-  /(WHATSAPP|MENSAGENS|COLETA DE DADOS|REGRAS DO FLUXO|SEÇÕES FINAIS|FORMATO DA TABELA|TABELA)/i;
+  /(WHATSAPP|MENSAGENS|COLETA DE DADOS|REGRAS DO FLUXO|SEÇÕES FINAIS|FORMATO DE SA[ÍI]DA DO TREINO|FORMATO DA TABELA|TABELA)/i;
 
 /** Sentences that must be stripped wherever they appear. */
 const FORBIDDEN_SENTENCE = [
@@ -43,6 +43,15 @@ const FORBIDDEN_SENTENCE = [
   /resumo nutricional/i,
   /\|\s*refeição\s*\|/i,
   /^#{1,3}\s/,
+  // Markdown headings embedded inside a sentence, e.g. escreva: "## CARDÁPIO ÚNICO".
+  /#{1,3}\s*[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/,
+  /escreva claramente/i,
+  /escreva (um )?(texto|t[ií]tulo|cabe[çc]alho)/i,
+  /texto (curto )?(antes|depois|após) (da|do) (tabela|json)/i,
+  /(antes|depois|após) (da|do) (tabela|json)/i,
+  /gere o (treino|cardápio|cardapio|plano) em uma tabela/i,
+  /apresenta(r|ção) (o resultado )?em tabela/i,
+  /tabela markdown/i,
 ] as const;
 
 const isForbiddenSentence = (s: string) =>
