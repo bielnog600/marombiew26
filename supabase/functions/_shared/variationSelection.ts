@@ -25,6 +25,7 @@ export type VariationReason =
   | "semantic_mismatch"
   | "creates_redundancy"
   | "safety_conflict"
+  | "equipment_unavailable"
   | null;
 
 export interface VariationVerdict {
