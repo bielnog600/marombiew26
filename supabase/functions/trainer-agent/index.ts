@@ -606,11 +606,18 @@ async function generateStructuredWorkoutWithVariation(args: {
     });
 
     if (!second.ok) {
+      const secondBody = await second.response.clone().json().catch(() => ({} as any));
+      const secondReason = second.error_code || secondBody.error_code || "fallback_failed";
+      if (!fallbackReasons.includes(secondReason)) fallbackReasons.push(secondReason);
       const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, null);
+      console.error("trainer-agent[json] fallback failed:", secondReason, secondBody.upstream_status ?? "");
       return new Response(
         JSON.stringify({
-          error: "Falha crítica na geração do fallback.",
-          error_code: fallbackReason,
+          error: secondBody.error || "Falha crítica na geração do fallback.",
+          error_code: secondReason,
+          upstream_status: secondBody.upstream_status ?? null,
+          model: secondBody.model ?? AI_MODELS.fallback,
+          retryable: false,
           validationReasons: fallbackReasons,
           aiRouting: routingMeta.routing,
           aiUsage: routingMeta.usage,
