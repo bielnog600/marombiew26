@@ -33,6 +33,7 @@ import {
   hasDailyCalorieVariation,
 } from "../_shared/dailyAdjustments.ts";
 import { AI_MODELS, createRoutingMetadata, type AIAttemptMetadata } from "../_shared/aiModelRouter.ts";
+import { sanitizeStructuredPrompt } from "../_shared/structuredPromptSanitizer.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -188,8 +189,8 @@ Responda APENAS com um objeto JSON válido (sem markdown, sem texto antes ou dep
       "totals": { "kcal": 0, "p": 0, "c": 0, "g": 0 }
     }
   ],
-  "tips": ["string"],
-  "whatsappMessages": ["string"]
+  "tips": ["string"]
+
 }
 
 REGRAS:
@@ -694,18 +695,11 @@ serve(async (req) => {
             : null;
         
         // Limpeza de instruções de formato incompatíveis com JSON
-        const cleanSystemPrompt = SYSTEM_PROMPT
-          .replace(/gere o treino em uma tabela markdown/gi, "")
-          .replace(/A tabela do TREINO deve ter exatamente 9 colunas/gi, "")
-          .replace(/A tabela do cardápio deve ter as colunas/gi, "")
-          .replace(/\| Refeição \| Horário \| Alimento \| Quantidade \(g\) \| Kcal \| Proteína \(g\) \| Carboidrato \(g\) \| Gordura \(g\) \|/gi, "")
-          .replace(/Inclua TOTAL de cada refeição e TOTAL DIÁRIO\./gi, "")
-          .replace(/A linha "Total" da tabela DEVE refletir EXATAMENTE a soma dos alimentos acima dela\./gi, "")
-          .replace(/Os valores do "Resumo Nutricional" DEVEM ser IDÊNTICOS aos totais da tabela\./gi, "");
+        const cleanSystemPrompt = sanitizeStructuredPrompt(SYSTEM_PROMPT);
 
         const jsonSystem =
           cleanSystemPrompt +
-          contextMessage +
+          sanitizeStructuredPrompt(contextMessage) +
           layeredInstructions +
           "\n\n" +
           dietIntentPrompt(intent) +
@@ -809,75 +803,55 @@ serve(async (req) => {
         "first_attempt"
       );
       
+      // Technical failure on Luna → single Terra retry. The Terra candidate then
+      // feeds the SAME final pipeline (no alternative/early 200 response).
+      let candidatePlan: any = null;
+      let selectedModel: string | null = AI_MODELS.primary;
+      let technicalFallbackUsed = false;
+
       if (!first.ok) {
         const body = await first.resp.clone().json().catch(() => ({}));
+        let second: Awaited<ReturnType<typeof callModel>> | null = null;
         if (body.retryable) {
           fallbackReason = body.error_code || "critical_failure";
           fallbackReasons.push(fallbackReason as string);
-          
-          const second = await callModel(
+
+          second = await callModel(
             dietVariationPrompt(intensity, historySummary, `🚨 OCORREU UM ERRO TÉCNICO (${fallbackReason}). Gere o JSON novamente respeitando o contrato.`, false),
             AI_MODELS.fallback,
             "critical_fallback"
           );
-          
-          if (second.ok) {
-            const historyJsons = history
-              .map((h) => h.conteudo_json)
-              .filter((j) => j && typeof j === "object") as any[];
-              
-            const similarity = computeDietSimilarity(second.plan, historyJsons);
-            const nutrition2 = validateDietNutrition(second.plan);
-            
-            let initialAdjValidation2 = { ok: true, errors: [] as string[] };
-            if (schedule && typeof schedule === "object" && schedule.days) {
-              const modelAdj2 = (second.plan as any).dailyAdjustments;
-              const { adjustments, missing } = normalizeDailyAdjustments(modelAdj2, schedule);
-              initialAdjValidation2 = hasDailyCalorieVariation(schedule)
-                ? validateDailyAdjustments(adjustments, missing)
-                : { ok: true, errors: [] as string[] };
-            }
-
-            const criticalValid = nutrition2.ok && initialAdjValidation2.ok;
-
-            if (criticalValid) {
-              const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, AI_MODELS.fallback);
-              return new Response(
-                JSON.stringify({
-                  plan: second.plan,
-                  similarity: { score: similarity.score, threshold: SIMILARITY_THRESHOLDS[intensity], intensity, historyCount: historyJsons.length },
-                  aiRouting: routingMeta.routing,
-                  aiUsage: routingMeta.usage,
-                }),
-                { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-              );
-            } else {
-              fallbackReason = !nutrition2.ok ? "nutrition_invalid" : "daily_adjustments_invalid";
-              fallbackReasons.push(fallbackReason);
-            }
-          }
         }
-        
-        const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, null);
-        const errorBody = await first.resp.clone().json().catch(() => ({}));
-        return new Response(
-          JSON.stringify({
-            error: errorBody.error || "Erro na geração da dieta",
-            error_code: fallbackReason || errorBody.error_code || "generation_failed",
-            aiRouting: routingMeta.routing,
-            aiUsage: routingMeta.usage
-          }),
-          { status: first.resp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+
+        if (second?.ok) {
+          candidatePlan = second.plan;
+          selectedModel = AI_MODELS.fallback;
+          technicalFallbackUsed = true;
+        } else {
+          const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, null);
+          const errorBody = await first.resp.clone().json().catch(() => ({}));
+          return new Response(
+            JSON.stringify({
+              error: errorBody.error || "Erro na geração da dieta",
+              error_code: fallbackReason || errorBody.error_code || "generation_failed",
+              validationReasons: fallbackReasons,
+              aiRouting: routingMeta.routing,
+              aiUsage: routingMeta.usage
+            }),
+            { status: first.resp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      } else {
+        candidatePlan = first.plan;
       }
 
       const historyJsons = history
         .map((h) => h.conteudo_json)
         .filter((j) => j && typeof j === "object") as any[];
 
-      let similarity = computeDietSimilarity(first.plan, historyJsons);
+      let similarity = computeDietSimilarity(candidatePlan, historyJsons);
       const threshold = SIMILARITY_THRESHOLDS[intensity];
-      let finalPlan = first.plan;
+      let finalPlan = candidatePlan;
       let regenerated = false;
       let warning: string | null = null;
       let nutrition: DietNutritionValidation = validateDietNutrition(finalPlan);
@@ -887,28 +861,57 @@ serve(async (req) => {
       const protRepeat = similarity.primaryProteinRepeatRatio ?? 0;
       const carbRepeat = similarity.primaryCarbRepeatRatio ?? 0;
       const primarySourceTooRepetitive = Math.max(protRepeat, carbRepeat) >= 0.6;
-      
-      let initialAdjValidation = { ok: true, errors: [] as string[] };
-      if (schedule && typeof schedule === "object" && schedule.days) {
-        const modelAdj = (first.plan && typeof first.plan === "object")
-          ? (first.plan as any).dailyAdjustments
-          : null;
+
+      const validateAdjustments = (plan: any) => {
+        if (!(schedule && typeof schedule === "object" && schedule.days)) {
+          return { ok: true, errors: [] as string[] };
+        }
+        const modelAdj = (plan && typeof plan === "object") ? (plan as any).dailyAdjustments : null;
         const { adjustments, missing } = normalizeDailyAdjustments(modelAdj, schedule);
-        initialAdjValidation = hasDailyCalorieVariation(schedule)
+        return hasDailyCalorieVariation(schedule)
           ? validateDailyAdjustments(adjustments, missing)
           : { ok: true, errors: [] as string[] };
+      };
+
+      const initialAdjValidation = validateAdjustments(candidatePlan);
+
+      // A Terra candidate produced by a technical fallback must be CRITICALLY valid.
+      if (technicalFallbackUsed) {
+        const criticalValid = nutrition.ok && initialAdjValidation.ok;
+        if (!criticalValid) {
+          const reason = !nutrition.ok ? "nutrition_invalid" : "daily_adjustments_invalid";
+          fallbackReasons.push(reason);
+          const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, null);
+          return new Response(
+            JSON.stringify({
+              error: "Plano gerado não passou na validação crítica. Revisão necessária.",
+              error_code: "review_required",
+              validationReasons: fallbackReasons,
+              aiRouting: routingMeta.routing,
+              aiUsage: routingMeta.usage,
+            }),
+            { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
       }
 
       const variationRetryAllowed = intent !== "update";
 
+      const needsVariationRetry =
+        variationRetryAllowed &&
+        historyJsons.length > 0 &&
+        (
+          similarity.score > threshold ||
+          isPortionOnly ||
+          (requireMenuVariation && qOnly > 0.3) ||
+          primarySourceTooRepetitive
+        );
+
+      // Absolute budget: max 2 model calls per request.
       const needsRetry =
-        !nutrition.ok ||
-        !initialAdjValidation.ok ||
-        (historyJsons.length > 0 &&
-          (similarity.score > threshold ||
-            (variationRetryAllowed && isPortionOnly) ||
-            (requireMenuVariation && qOnly > 0.3) ||
-            (variationRetryAllowed && primarySourceTooRepetitive)));
+        !technicalFallbackUsed &&
+        (!nutrition.ok || !initialAdjValidation.ok || needsVariationRetry);
+
 
       if (needsRetry) {
         if (!nutrition.ok) { 
@@ -919,12 +922,12 @@ serve(async (req) => {
           fallbackReason = fallbackReason || "daily_adjustments_invalid"; 
           fallbackReasons.push("daily_adjustments_invalid"); 
         }
-        if (historyJsons.length > 0) {
+        if (variationRetryAllowed && historyJsons.length > 0) {
           if (similarity.score > threshold) { 
             fallbackReason = fallbackReason || "high_similarity"; 
             fallbackReasons.push("high_similarity"); 
           }
-          if (variationRetryAllowed && isPortionOnly) { 
+          if (isPortionOnly) { 
             fallbackReason = fallbackReason || "portion_only"; 
             fallbackReasons.push("portion_only"); 
           }
@@ -932,11 +935,12 @@ serve(async (req) => {
             fallbackReason = fallbackReason || "high_quantity_overlap"; 
             fallbackReasons.push("high_quantity_overlap"); 
           }
-          if (variationRetryAllowed && primarySourceTooRepetitive) { 
+          if (primarySourceTooRepetitive) { 
             fallbackReason = fallbackReason || "source_repetition"; 
             fallbackReasons.push("source_repetition"); 
           }
         }
+
 
         const retryParts = [];
         if (intent !== "update") {
@@ -1020,51 +1024,60 @@ serve(async (req) => {
           AI_MODELS.fallback,
           fallbackReason || "retry"
         );
+        const criticalRetry = !nutrition.ok || !initialAdjValidation.ok;
+        const reviewRequired = (reason: string) => {
+          fallbackReasons.push(reason);
+          const meta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, null);
+          return new Response(
+            JSON.stringify({
+              error: "Plano gerado não passou na validação crítica. Revisão necessária.",
+              error_code: "review_required",
+              validationReasons: fallbackReasons,
+              aiRouting: meta.routing,
+              aiUsage: meta.usage,
+            }),
+            { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        };
+
         if (second.ok) {
           const sim2 = computeDietSimilarity(second.plan, historyJsons);
           const nut2 = validateDietNutrition(second.plan);
-          
-          let initialAdjValidation2 = { ok: true, errors: [] as string[] };
-          if (schedule && typeof schedule === "object" && schedule.days) {
-            const modelAdj2 = (second.plan && typeof second.plan === "object")
-              ? (second.plan as any).dailyAdjustments
-              : null;
-            const { adjustments: adjustments2, missing: missing2 } = normalizeDailyAdjustments(modelAdj2, schedule);
-            initialAdjValidation2 = hasDailyCalorieVariation(schedule)
-              ? validateDailyAdjustments(adjustments2, missing2)
-              : { ok: true, errors: [] as string[] };
-          }
+          const initialAdjValidation2 = validateAdjustments(second.plan);
 
-          // Prefer the second plan when it (a) lowers similarity OR
-          // (b) escapes portion_only mode OR
-          // (c) reduces primary-source repetition OR
-          // (d) fixes a nutrition guardrail failure.
-          // (e) fixes dailyAdjustments.
-          const escapedPortion =
-            isPortionOnly && sim2.changeKind !== "portion_only";
-          const sim2Primary = Math.max(
-            sim2.primaryProteinRepeatRatio ?? 0,
-            sim2.primaryCarbRepeatRatio ?? 0,
-          );
-          const reducedPrimary =
-            primarySourceTooRepetitive && sim2Primary < Math.max(protRepeat, carbRepeat);
-          const fixedNutrition = !nutrition.ok && nut2.issues.length < nutrition.issues.length;
-          const fixedAdj = !initialAdjValidation.ok && initialAdjValidation2.ok;
+          const nutritionValid = nut2.ok;
+          const dailyAdjustmentsValid = initialAdjValidation2.ok;
+          const criticalValid = nutritionValid && dailyAdjustmentsValid;
 
-          // Hierarchy: VALIDITY/SAFETY > NUTRITION > CONTRACT (dailyAdj) > SIMILARITY
-          if (
-            fixedNutrition ||
-            fixedAdj ||
-            (nutrition.ok && initialAdjValidation2.ok &&
-              (sim2.score <= similarity.score || escapedPortion || reducedPrimary))
-          ) {
+          if (criticalRetry) {
+            // Terra is only acceptable when critically valid; otherwise 422.
+            if (!criticalValid) {
+              return reviewRequired(!nutritionValid ? "nutrition_invalid" : "daily_adjustments_invalid");
+            }
             finalPlan = second.plan;
             similarity = sim2;
             nutrition = nut2;
+            selectedModel = AI_MODELS.fallback;
+          } else {
+            // Pure variation retry: Luna is already critically valid. Only swap
+            // when Terra is also critically valid AND improves variation.
+            const escapedPortion = isPortionOnly && sim2.changeKind !== "portion_only";
+            const sim2Primary = Math.max(
+              sim2.primaryProteinRepeatRatio ?? 0,
+              sim2.primaryCarbRepeatRatio ?? 0,
+            );
+            const reducedPrimary =
+              primarySourceTooRepetitive && sim2Primary < Math.max(protRepeat, carbRepeat);
+            if (criticalValid && (sim2.score <= similarity.score || escapedPortion || reducedPrimary)) {
+              finalPlan = second.plan;
+              similarity = sim2;
+              nutrition = nut2;
+              selectedModel = AI_MODELS.fallback;
+            }
           }
+
           regenerated = true;
-          if (!nutrition.ok) warning = "incomplete_nutrition";
-          else if (similarity.changeKind === "portion_only") warning = "quantity_only";
+          if (similarity.changeKind === "portion_only") warning = "quantity_only";
           else if (similarity.score > threshold) warning = "high_similarity";
           else if (
             Math.max(
@@ -1075,14 +1088,12 @@ serve(async (req) => {
             warning = "primary_source_repeated";
           }
         } else {
-          warning = !nutrition.ok
-            ? "incomplete_nutrition"
-            : !initialAdjValidation.ok
-              ? "daily_adjustments_invalid"
-              : isPortionOnly
-                ? "quantity_only"
-                : "high_similarity";
+          if (criticalRetry) {
+            return reviewRequired(!nutrition.ok ? "nutrition_invalid" : "daily_adjustments_invalid");
+          }
+          warning = isPortionOnly ? "quantity_only" : "high_similarity";
         }
+
       }
 
       // === dailyAdjustments contract ===
@@ -1134,12 +1145,16 @@ serve(async (req) => {
             sex: "Sexta", sab: "Sábado", dom: "Domingo",
           };
           const names = missing.map((wd) => WD_LABEL[wd] ?? wd).join(", ");
+          const meta = createRoutingMetadata(modelAttempts, fallbackReason, [...fallbackReasons, "daily_adjustments_invalid"], null);
           return new Response(
             JSON.stringify({
               error: `A IA não devolveu os ajustes dos seguintes dias: ${names}.`,
               error_code: "daily_adjustments_invalid",
               missing_days: missing,
               details: dailyAdjustmentsError,
+              validationReasons: [...fallbackReasons, "daily_adjustments_invalid"],
+              aiRouting: meta.routing,
+              aiUsage: meta.usage,
             }),
             { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
           );
@@ -1147,18 +1162,23 @@ serve(async (req) => {
       }
 
       if (schedule && !normalizedDailyAdjustments) {
+        const meta = createRoutingMetadata(modelAttempts, fallbackReason, [...fallbackReasons, "daily_adjustments_invalid"], null);
         return new Response(
           JSON.stringify({
             error:
               "A dieta foi gerada, mas os ajustes calóricos por dia não foram devolvidos corretamente. Regere o plano.",
             error_code: "daily_adjustments_invalid",
             details: dailyAdjustmentsError,
+            validationReasons: [...fallbackReasons, "daily_adjustments_invalid"],
+            aiRouting: meta.routing,
+            aiUsage: meta.usage,
           }),
           { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
 
-      const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons);
+      const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, selectedModel);
+
       console.log("[ai-routing]", {
         agent: "diet",
         primaryModel: routingMeta.routing.primaryModel,
