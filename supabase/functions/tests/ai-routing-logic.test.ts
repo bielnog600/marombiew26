@@ -884,3 +884,91 @@ Deno.test("variation: normalization never creates redundancy in the hypothetical
     assertEquals(r.strongFunctionalDuplicate, false);
   }
 });
+
+// ───────────────── variation ranking (tier first, unused as tie-breaker) ─────────────────
+
+Deno.test("classifier: HACK MACHINE is compound / squat, GLOBET SQUATS too", () => {
+  const hack = getExerciseFunctionalProfile("HACK MACHINE");
+  assertEquals(hack.exerciseClass, "compound");
+  assertEquals(hack.pattern, "squat");
+  const globet = getExerciseFunctionalProfile("GLOBET SQUATS");
+  assertEquals(globet.exerciseClass, "compound");
+  assertEquals(globet.pattern, "squat");
+});
+
+Deno.test("classifier: SUMO TERRA remains a hinge", () => {
+  assertEquals(getExerciseFunctionalProfile("SUMO TERRA").pattern, "hip_hinge");
+});
+
+Deno.test("variation ranking: Tier A used beats Tier C unused", () => {
+  const catalog = [
+    { nome: "CADEIRA EXTENSORA", grupo: "PERNAS" },
+    { nome: "CADEIRA EXTENSORA UNILATERAL", grupo: "PERNAS" },
+    { nome: "CADEIRA FLEXORA", grupo: "PERNAS" },
+  ];
+  const pick = selectVariation({
+    day: dayWith("CADEIRA EXTENSORA"),
+    exerciseName: "CADEIRA EXTENSORA",
+    catalog,
+    usedVariations: new Set([normalizeName("CADEIRA EXTENSORA UNILATERAL")]),
+  });
+  assertEquals(pick?.name, "CADEIRA EXTENSORA UNILATERAL");
+  assertEquals(pick?.tier, "A");
+});
+
+Deno.test("variation ranking: Tier A unused beats Tier A used", () => {
+  const day = dayWith("HACK MACHINE", "LEG PRESS 45 ART");
+  const usedPick = selectVariation({
+    day,
+    exerciseName: "HACK MACHINE",
+    catalog: VAR_CATALOG,
+    usedVariations: new Set<string>(),
+  });
+  assert(usedPick !== null);
+  const secondPick = selectVariation({
+    day,
+    exerciseName: "HACK MACHINE",
+    catalog: VAR_CATALOG,
+    usedVariations: new Set([normalizeName(usedPick!.name)]),
+  });
+  assert(secondPick !== null);
+  assertEquals(secondPick!.tier, usedPick!.tier);
+  assert(secondPick!.name !== usedPick!.name);
+});
+
+Deno.test("variation ranking: GLOBET SQUATS beats AFUNDO ALTERNANDO for HACK MACHINE", () => {
+  const day = dayWith("HACK MACHINE", "LEG PRESS 45 ART");
+  const catalog = [
+    { nome: "HACK MACHINE", grupo: "PERNAS" },
+    { nome: "LEG PRESS 45 ART", grupo: "PERNAS" },
+    { nome: "GLOBET SQUATS", grupo: "PERNAS" },
+    { nome: "AFUNDO ALTERNANDO", grupo: "PERNAS" },
+  ];
+  const pick = selectVariation({
+    day,
+    exerciseName: "HACK MACHINE",
+    catalog,
+    usedVariations: new Set<string>(),
+  });
+  assertEquals(pick?.name, "GLOBET SQUATS");
+});
+
+Deno.test("variation: equipment rejected only when availableEquipment is provided", () => {
+  const day = dayWith("HACK MACHINE", "LEG PRESS 45 ART");
+  const withoutList = evaluateVariationCandidate({
+    day,
+    exerciseName: "HACK MACHINE",
+    candidate: "AGACHAMENTO SMITH",
+    catalog: VAR_CATALOG,
+  });
+  assertEquals(withoutList.valid, true);
+  const withList = evaluateVariationCandidate({
+    day,
+    exerciseName: "HACK MACHINE",
+    candidate: "AGACHAMENTO SMITH",
+    catalog: VAR_CATALOG,
+    options: { availableEquipment: ["dumbbell"] },
+  });
+  assertEquals(withList.valid, false);
+  assertEquals(withList.reason, "equipment_unavailable");
+});
