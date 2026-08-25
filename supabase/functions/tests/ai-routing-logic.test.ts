@@ -28,6 +28,7 @@ import {
   validateAndNormalizeVariations,
 } from "../_shared/variationSelection.ts";
 import { normalizeName } from "../_shared/planSimilarity.ts";
+import { getExerciseFunctionalProfile } from "../_shared/exerciseClassifier.ts";
 import {
   evaluateReferenceCompliance,
   extractDeclaredReferenceMode,
