@@ -870,7 +870,8 @@ serve(async (req) => {
       const isPortionOnly = similarity.changeKind === "portion_only";
       const protRepeat = similarity.primaryProteinRepeatRatio ?? 0;
       const carbRepeat = similarity.primaryCarbRepeatRatio ?? 0;
-      const primarySourceTooRepetitive = Math.max(protRepeat, carbRepeat) >= 0.6;
+      const primarySourceRepeatRatio = Math.max(protRepeat, carbRepeat);
+      const primarySourceTooRepetitive = primarySourceRepeatRatio >= PRIMARY_SOURCE_REPEAT_LIMIT;
 
       const validateAdjustments = (plan: any) => {
         if (!(schedule && typeof schedule === "object" && schedule.days)) {
@@ -887,9 +888,12 @@ serve(async (req) => {
 
       // A Terra candidate produced by a technical fallback must be CRITICALLY valid.
       if (technicalFallbackUsed) {
-        const criticalValid = nutrition.ok && initialAdjValidation.ok;
-        if (!criticalValid) {
-          const reason = !nutrition.ok ? "nutrition_invalid" : "daily_adjustments_invalid";
+        const validity = evaluateDietCandidateValidity({
+          nutritionOk: nutrition.ok,
+          dailyAdjustmentsOk: initialAdjValidation.ok,
+        });
+        if (!validity.criticalValid) {
+          const reason = validity.reason as string;
           fallbackReasons.push(reason);
           const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, null);
           return new Response(
@@ -905,22 +909,26 @@ serve(async (req) => {
         }
       }
 
-      const variationRetryAllowed = intent !== "update";
+      const variationRetryAllowed = isVariationRetryAllowed(intent);
 
-      const needsVariationRetry =
-        variationRetryAllowed &&
-        historyJsons.length > 0 &&
-        (
-          similarity.score > threshold ||
-          isPortionOnly ||
-          (requireMenuVariation && qOnly > 0.3) ||
-          primarySourceTooRepetitive
-        );
+      const dietSignals: DietCandidateSignals = {
+        intent,
+        historyCount: historyJsons.length,
+        similarityScore: similarity.score,
+        threshold,
+        isPortionOnly,
+        requireMenuVariation,
+        quantityOnlyRatio: qOnly,
+        primarySourceRepeatRatio,
+        nutritionOk: nutrition.ok,
+        dailyAdjustmentsOk: initialAdjValidation.ok,
+        technicalFallbackUsed,
+      };
+
+      const needsVariationRetry = needsDietVariationRetry(dietSignals);
 
       // Absolute budget: max 2 model calls per request.
-      const needsRetry =
-        !technicalFallbackUsed &&
-        (!nutrition.ok || !initialAdjValidation.ok || needsVariationRetry);
+      const needsRetry = shouldRetryDietCandidate(dietSignals);
 
 
       if (needsRetry) {
@@ -941,7 +949,7 @@ serve(async (req) => {
             fallbackReason = fallbackReason || "portion_only"; 
             fallbackReasons.push("portion_only"); 
           }
-          if (requireMenuVariation && qOnly > 0.3) { 
+          if (requireMenuVariation && qOnly > QUANTITY_OVERLAP_LIMIT) { 
             fallbackReason = fallbackReason || "high_quantity_overlap"; 
             fallbackReasons.push("high_quantity_overlap"); 
           }
@@ -1055,14 +1063,16 @@ serve(async (req) => {
           const nut2 = validateDietNutrition(second.plan);
           const initialAdjValidation2 = validateAdjustments(second.plan);
 
-          const nutritionValid = nut2.ok;
-          const dailyAdjustmentsValid = initialAdjValidation2.ok;
-          const criticalValid = nutritionValid && dailyAdjustmentsValid;
+          const validity2 = evaluateDietCandidateValidity({
+            nutritionOk: nut2.ok,
+            dailyAdjustmentsOk: initialAdjValidation2.ok,
+          });
+          const criticalValid = validity2.criticalValid;
 
           if (criticalRetry) {
             // Terra is only acceptable when critically valid; otherwise 422.
             if (!criticalValid) {
-              return reviewRequired(!nutritionValid ? "nutrition_invalid" : "daily_adjustments_invalid");
+              return reviewRequired(validity2.reason as string);
             }
             finalPlan = second.plan;
             similarity = sim2;
@@ -1077,8 +1087,14 @@ serve(async (req) => {
               sim2.primaryCarbRepeatRatio ?? 0,
             );
             const reducedPrimary =
-              primarySourceTooRepetitive && sim2Primary < Math.max(protRepeat, carbRepeat);
-            if (criticalValid && (sim2.score <= similarity.score || escapedPortion || reducedPrimary)) {
+              primarySourceTooRepetitive && sim2Primary < primarySourceRepeatRatio;
+            if (shouldAcceptDietVariationCandidate({
+              candidateCriticalValid: criticalValid,
+              candidateScore: sim2.score,
+              currentScore: similarity.score,
+              escapedPortionOnly: escapedPortion,
+              reducedPrimarySourceRepeat: reducedPrimary,
+            })) {
               finalPlan = second.plan;
               similarity = sim2;
               nutrition = nut2;
@@ -1093,7 +1109,7 @@ serve(async (req) => {
             Math.max(
               similarity.primaryProteinRepeatRatio ?? 0,
               similarity.primaryCarbRepeatRatio ?? 0,
-            ) >= 0.6
+            ) >= PRIMARY_SOURCE_REPEAT_LIMIT
           ) {
             warning = "primary_source_repeated";
           }
