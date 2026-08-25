@@ -44,3 +44,15 @@ export function shouldAcceptTrainerVariationCandidate(input: {
 }): boolean {
   return input.candidateCriticalValid && input.candidateScore <= input.currentScore;
 }
+
+/**
+ * HTTP status classification for upstream (OpenAI) failures.
+ * Deterministic client errors must never spend a second model call.
+ */
+export const NON_RETRYABLE_UPSTREAM_STATUSES = [400, 401, 402, 403, 404, 429];
+
+export function isRetryableUpstreamStatus(status: number): boolean {
+  if (NON_RETRYABLE_UPSTREAM_STATUSES.includes(status)) return false;
+  if (status === 408 || status === 409) return true;
+  return status >= 500;
+}
