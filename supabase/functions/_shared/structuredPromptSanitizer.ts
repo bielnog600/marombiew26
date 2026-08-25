@@ -20,7 +20,7 @@ const DELIM = /^\s*={5,}\s*$/;
 
 /** Headers of sections that must NEVER reach a structured (JSON) call. */
 const FORBIDDEN_SECTION_HEADER =
-  /(WHATSAPP|MENSAGENS|COLETA DE DADOS|REGRAS DO FLUXO|SEÇÕES FINAIS|FORMATO DE SA[ÍI]DA|FORMATO DA TABELA|TABELA)/i;
+  /(WHATSAPP|MENSAGENS|COLETA DE DADOS|REGRAS DO FLUXO|SEÇÕES FINAIS|FORMATO DE SA[ÍI]DA DO TREINO|FORMATO DA TABELA|TABELA)/i;
 
 /** Sentences that must be stripped wherever they appear. */
 const FORBIDDEN_SENTENCE = [
