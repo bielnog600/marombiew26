@@ -840,9 +840,9 @@ serve(async (req) => {
           durationMs,
           reason,
           usage: usage ? {
-            promptTokens: usage.prompt_tokens,
-            completionTokens: usage.completion_tokens,
-            totalTokens: usage.total_tokens
+            promptTokens: usage.prompt_tokens ?? null,
+            completionTokens: usage.completion_tokens ?? null,
+            totalTokens: usage.total_tokens ?? null
           } : null
         });
         const raw = completion.content;
