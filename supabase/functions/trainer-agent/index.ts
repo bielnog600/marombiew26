@@ -575,6 +575,9 @@ async function generateStructuredWorkoutWithVariation(args: {
         JSON.stringify({
           error: body.error || "Erro na geração do treino",
           error_code: body.error_code || reason,
+          upstream_status: body.upstream_status ?? null,
+          model: body.model ?? AI_MODELS.primary,
+          retryable: false,
           validationReasons: fallbackReasons,
           aiRouting: meta.routing,
           aiUsage: meta.usage,
