@@ -192,6 +192,39 @@ export function evaluateVariationCandidate(input: {
 
 const TIER_RANK: Record<VariationTier, number> = { A: 0, B: 1, C: 2 };
 
+const UNILATERAL_TOKENS = ["unilateral", "alternando", "alternada", "afundo", "avanco", "bulgaro", "passada"];
+
+function isUnilateral(name: string): boolean {
+  const n = normalizeName(name);
+  return UNILATERAL_TOKENS.some((t) => n.includes(t));
+}
+
+/**
+ * Deterministic score used ONLY inside the same tier. Higher is better.
+ * Order of relevance: pattern > class > group > equipment > bilaterality > unused.
+ */
+function intraTierScore(input: {
+  exerciseName: string;
+  candidate: string;
+  catalog: CatalogEntryLike[];
+  used: boolean;
+}): number {
+  const { exerciseName, candidate, catalog, used } = input;
+  const main = getExerciseFunctionalProfile(exerciseName);
+  const cand = getExerciseFunctionalProfile(candidate);
+  const mainEntry = catalogLookup(catalog, exerciseName);
+  const candEntry = catalogLookup(catalog, candidate);
+
+  let score = 0;
+  if (main.pattern && cand.pattern && main.pattern === cand.pattern) score += 32;
+  if (main.exerciseClass && cand.exerciseClass && main.exerciseClass === cand.exerciseClass) score += 16;
+  if (mainEntry && candEntry && mainEntry.grupo === candEntry.grupo) score += 8;
+  if (main.equipment && cand.equipment && main.equipment === cand.equipment) score += 4;
+  if (isUnilateral(exerciseName) === isUnilateral(candidate)) score += 2;
+  if (!used) score += 1;
+  return score;
+}
+
 /** Picks the best deterministic variation for an exercise, or null. */
 export function selectVariation(input: {
   day: any;
@@ -205,7 +238,7 @@ export function selectVariation(input: {
     (day?.exercises ?? []).map((e: any) => normalizeName(clean(e?.exercise))).filter(Boolean),
   );
 
-  let best: { name: string; tier: VariationTier; used: boolean } | null = null;
+  let best: { name: string; tier: VariationTier; score: number } | null = null;
   for (const entry of catalog) {
     if (mainNames.has(normalizeName(entry.nome))) continue;
     const verdict = evaluateVariationCandidate({
@@ -217,14 +250,18 @@ export function selectVariation(input: {
     });
     if (!verdict.valid || !verdict.tier) continue;
     const used = usedVariations.has(normalizeName(entry.nome));
-    const cand = { name: entry.nome, tier: verdict.tier, used };
+    const cand = {
+      name: entry.nome,
+      tier: verdict.tier,
+      score: intraTierScore({ exerciseName, candidate: entry.nome, catalog, used }),
+    };
     if (!best) { best = cand; continue; }
-    // 8. Prefer unused variations, then the best tier.
-    if (Number(cand.used) !== Number(best.used)) {
-      if (!cand.used) best = cand;
+    // Tier is the primary biomechanical criterion; `used` is only a tie-breaker.
+    if (TIER_RANK[cand.tier] !== TIER_RANK[best.tier]) {
+      if (TIER_RANK[cand.tier] < TIER_RANK[best.tier]) best = cand;
       continue;
     }
-    if (TIER_RANK[cand.tier] < TIER_RANK[best.tier]) best = cand;
+    if (cand.score > best.score) best = cand;
   }
   return best ? { name: best.name, tier: best.tier } : null;
 }
