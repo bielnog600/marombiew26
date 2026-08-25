@@ -25,6 +25,7 @@ import {
   trainerCriticalReason,
   shouldRetryTrainerCandidate,
   shouldAcceptTrainerVariationCandidate,
+  isRetryableUpstreamStatus,
 } from "../_shared/trainerRoutingPolicy.ts";
 import { sanitizeStructuredPrompt } from "../_shared/structuredPromptSanitizer.ts";
 
