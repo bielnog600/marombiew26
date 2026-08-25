@@ -417,13 +417,13 @@ Deno.test("agents import the shared routing policies (no duplicated algorithm)",
 
 Deno.test("trainer structured call uses max_completion_tokens (GPT-5.6), not max_tokens", async () => {
   const src = await Deno.readTextFile(new URL("../trainer-agent/index.ts", import.meta.url));
-  const structured = src.slice(src.indexOf("json_schema"), 0) || src;
-  const idx = src.indexOf("workout_plan");
-  const window = src.slice(Math.max(0, idx - 1200), idx);
+  // structured block = the call that carries response_format json_schema
+  const idx = src.indexOf('type: "json_schema"');
+  assert(idx > 0, "structured json_schema call must exist");
+  const window = src.slice(Math.max(0, idx - 1500), idx);
   assert(/max_completion_tokens:\s*16000/.test(window), "structured call must use max_completion_tokens");
-  assert(!/max_tokens:\s*16000,\s*\n\s*response_format/.test(src), "structured call must not use max_tokens");
+  assert(!/max_tokens:\s*16000/.test(window), "structured call must not use max_tokens");
   assert(/model:\s*"gpt-4o"/.test(src) && /stream:\s*true/.test(src), "legacy gpt-4o path preserved");
-  assert(structured.length >= 0);
 });
 
 Deno.test("trainer: non-retryable upstream statuses never reach Terra (1 call)", () => {
