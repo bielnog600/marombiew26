@@ -24,6 +24,7 @@ import {
 } from "../_shared/workoutRedundancy.ts";
 import {
   evaluateReferenceCompliance,
+  extractDeclaredReferenceMode,
   parseReferenceStructure,
 } from "../_shared/trainerReferencePolicy.ts";
 
@@ -540,6 +541,26 @@ Deno.test("reference: observações genéricas continuam como referência livre"
   const free = parseReferenceStructure("Gosto de treinos curtos, foco em glúteo e pouca esteira.");
   assertEquals(free.mode, "free");
   assertEquals(isSimilarityRetryAllowed(free.mode), true);
+});
+
+Deno.test("reference: modo Livre explícito prevalece sobre texto estruturado", () => {
+  const messages = [{
+    role: "user",
+    content: `REFERÊNCIA DE TREINO FORNECIDA PELO PROFESSOR (USE APENAS COMO APOIO SECUNDÁRIO, NÃO SOBRESCREVA REGRAS RÍGIDAS):\n---\n${REFERENCE_LOWER_A}\n---`,
+  }];
+  const declaredMode = extractDeclaredReferenceMode(messages);
+  assertEquals(declaredMode, "free");
+  assertEquals(parseReferenceStructure(REFERENCE_LOWER_A, declaredMode).mode, "free");
+});
+
+Deno.test("reference: modo Exato explícito mantém hard gate para prescrição estruturada", () => {
+  const messages = [{
+    role: "user",
+    content: `REFERÊNCIA DE TREINO FORNECIDA PELO PROFESSOR (USE COMO BASE EXATA para estruturar o treino):\n---\n${REFERENCE_LOWER_A}\n---`,
+  }];
+  const declaredMode = extractDeclaredReferenceMode(messages);
+  assertEquals(declaredMode, "exact");
+  assertEquals(parseReferenceStructure(REFERENCE_LOWER_A, declaredMode).mode, "exact");
 });
 
 Deno.test("reference exact: referência preservada → compliance ok", () => {
