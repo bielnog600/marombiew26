@@ -737,8 +737,8 @@ serve(async (req) => {
               { role: "system", content: jsonSystem },
               ...messages,
             ],
-            temperature: 0.3,
-            max_tokens: 16000,
+            max_completion_tokens: 16000,
+
             response_format: { type: "json_object" },
           }),
         });
@@ -749,7 +749,7 @@ serve(async (req) => {
           console.error("structured diet-agent error:", status, t);
           modelAttempts.push({ model: modelToUse, durationMs, reason: `Error: ${status}` });
           
-          const isRetryable = status !== 401 && status !== 402 && status !== 429;
+          const isRetryable = ![400, 401, 402, 403, 404, 429].includes(status);
           
           return {
             ok: false,

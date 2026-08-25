@@ -126,6 +126,23 @@ export async function callAI(params: {
     return { content: null, usage: null, durationMs: 0 };
   }
 
+  // GPT-5.x models reject `max_tokens` and non-default `temperature`.
+  const isNextGen = /^gpt-5/.test(params.model);
+  const body: Record<string, unknown> = {
+    model: params.model,
+    messages: [
+      { role: "system", content: params.systemPrompt },
+      { role: "user", content: params.userPrompt },
+    ],
+    response_format: params.response_format,
+  };
+  if (isNextGen) {
+    body.max_completion_tokens = params.maxTokens ?? 4000;
+  } else {
+    body.max_tokens = params.maxTokens ?? 4000;
+    body.temperature = params.temperature ?? 0.7;
+  }
+
   try {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -133,17 +150,9 @@ export async function callAI(params: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model: params.model,
-        messages: [
-          { role: "system", content: params.systemPrompt },
-          { role: "user", content: params.userPrompt },
-        ],
-        temperature: params.temperature ?? 0.7,
-        max_tokens: params.maxTokens ?? 4000,
-        response_format: params.response_format,
-      }),
+      body: JSON.stringify(body),
     });
+
 
     const durationMs = Date.now() - start;
     const data = await response.json();
