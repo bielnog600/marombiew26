@@ -928,12 +928,12 @@ serve(async (req) => {
           fallbackReason = fallbackReason || "daily_adjustments_invalid"; 
           fallbackReasons.push("daily_adjustments_invalid"); 
         }
-        if (historyJsons.length > 0) {
+        if (variationRetryAllowed && historyJsons.length > 0) {
           if (similarity.score > threshold) { 
             fallbackReason = fallbackReason || "high_similarity"; 
             fallbackReasons.push("high_similarity"); 
           }
-          if (variationRetryAllowed && isPortionOnly) { 
+          if (isPortionOnly) { 
             fallbackReason = fallbackReason || "portion_only"; 
             fallbackReasons.push("portion_only"); 
           }
@@ -941,11 +941,12 @@ serve(async (req) => {
             fallbackReason = fallbackReason || "high_quantity_overlap"; 
             fallbackReasons.push("high_quantity_overlap"); 
           }
-          if (variationRetryAllowed && primarySourceTooRepetitive) { 
+          if (primarySourceTooRepetitive) { 
             fallbackReason = fallbackReason || "source_repetition"; 
             fallbackReasons.push("source_repetition"); 
           }
         }
+
 
         const retryParts = [];
         if (intent !== "update") {
