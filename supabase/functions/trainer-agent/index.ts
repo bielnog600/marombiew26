@@ -24,6 +24,7 @@ import {
   buildExactReferenceBlock,
   EXACT_REFERENCE_PRIORITY_BLOCK,
   evaluateReferenceCompliance,
+  extractDeclaredReferenceMode,
   extractReferenceText,
   parseReferenceStructure,
   type ReferenceStructure,
@@ -1389,7 +1390,8 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
           ? SYSTEM_PROMPT.replace(EXERCISE_DATABASE, buildCatalogBlock(catalog))
           : SYSTEM_PROMPT;
       const referenceText = extractReferenceText(Array.isArray(messages) ? messages : []);
-      const reference = parseReferenceStructure(referenceText);
+      const declaredReferenceMode = extractDeclaredReferenceMode(Array.isArray(messages) ? messages : []);
+      const reference = parseReferenceStructure(referenceText, declaredReferenceMode);
       const exactReferenceBlock =
         reference.mode === "exact" && referenceText
           ? EXACT_REFERENCE_PRIORITY_BLOCK + buildExactReferenceBlock(referenceText)

@@ -33,6 +33,11 @@ export type ReferenceStructure = {
   signals: string[];
 };
 
+const FREE_REFERENCE_HINT =
+  /REFER[EÊ]NCIA DE TREINO FORNECIDA PELO PROFESSOR[^\n]*(?:APOIO SECUND[ÁA]RIO|REFER[EÊ]NCIA LIVRE)/i;
+const EXACT_REFERENCE_HINT =
+  /REFER[EÊ]NCIA DE TREINO FORNECIDA PELO PROFESSOR[^\n]*(?:BASE EXATA|REFER[EÊ]NCIA EXATA)/i;
+
 export type ReferenceCompliance = {
   ok: boolean;
   missingAnchors: string[];
@@ -130,6 +135,23 @@ export function extractReferenceText(messages: Array<{ role?: string; content?: 
   return null;
 }
 
+/**
+ * Reads the mode explicitly selected by the UI. This must take precedence over
+ * structural inference: a detailed workout can intentionally be supplied only
+ * as secondary inspiration in "Livre" mode.
+ */
+export function extractDeclaredReferenceMode(
+  messages: Array<{ role?: string; content?: unknown }>,
+): ReferenceMode | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const content = messages[i]?.content;
+    if (typeof content !== "string") continue;
+    if (FREE_REFERENCE_HINT.test(content)) return "free";
+    if (EXACT_REFERENCE_HINT.test(content)) return "exact";
+  }
+  return null;
+}
+
 const DAY_LINE =
   /^\s*(?:[-*•]\s*)?(SEGUNDA|TER[ÇC]A|QUARTA|QUINTA|SEXTA|S[ÁA]BADO|DOMINGO|DIA\s*\d+|TREINO\s*[A-E]\b|UPPER\s*[A-B]?|LOWER\s*[A-B]?|PUSH|PULL|LEGS)\b(.*)$/i;
 
@@ -162,7 +184,10 @@ function parseRestSeconds(line: string): number | null {
 }
 
 /** Parses the professor's reference into days/exercises and classifies the mode. */
-export function parseReferenceStructure(text: string | null | undefined): ReferenceStructure {
+export function parseReferenceStructure(
+  text: string | null | undefined,
+  declaredMode?: ReferenceMode | null,
+): ReferenceStructure {
   const raw = (text ?? "").trim();
   if (!raw) return { mode: "free", days: [], signals: [] };
 
@@ -213,8 +238,15 @@ export function parseReferenceStructure(text: string | null | undefined): Refere
   if (hasOrdering) signals.push("order");
 
   // Conservative: only a text that really looks like a prescription becomes "exact".
-  const mode: ReferenceMode =
+  const inferredMode: ReferenceMode =
     exerciseCount >= 4 && signals.length >= 2 ? "exact" : "free";
+  // Explicit "Livre" always wins. Explicit "Exato" still requires a real
+  // structured prescription so loose notes cannot accidentally become anchors.
+  const mode: ReferenceMode = declaredMode === "free"
+    ? "free"
+    : declaredMode === "exact" && inferredMode === "exact"
+    ? "exact"
+    : inferredMode;
 
   return { mode, days, signals };
 }
