@@ -636,13 +636,14 @@ const MinhasDietas = () => {
                     ? 'Ajuste estimado dentro da tolerância — refeições futuras rebalanceadas automaticamente.'
                     : `Diferença atual: ${rebalance.residual.kcal > 0 ? '+' : ''}${Math.round(-rebalance.residual.kcal)} kcal em relação à meta.`}
                 </p>
-                <button
-                  type="button"
+                <Button
+                  variant="default"
+                  size="sm"
                   onClick={resetDayEdits}
-                  className="block w-full text-center text-[10px] font-medium text-primary hover:underline"
+                  className="w-full text-xs font-semibold"
                 >
-                  ajustar dieta
-                </button>
+                  Ajustar Dieta
+                </Button>
               </div>
             )}
           </div>
