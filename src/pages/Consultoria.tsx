@@ -72,8 +72,11 @@ const CycleStatusBadge: React.FC<{ status: CycleStatus; remaining: number }> = (
 
 const Consultoria: React.FC = () => {
   const navigate = useNavigate();
-  const [tab, setTab] = useState('alertas');
-  const [alertFilter, setAlertFilter] = useState<FollowupFilter>('hoje');
+  const initialParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+  const [tab, setTab] = useState(initialParams.get('tab') || 'alertas');
+  const [alertFilter, setAlertFilter] = useState<FollowupFilter>(
+    (initialParams.get('filtro') as FollowupFilter) || 'hoje',
+  );
   const [plans, setPlans] = useState<any[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [dietSort, setDietSort] = useState<'name' | 'overdue'>('name');
@@ -235,7 +238,7 @@ const Consultoria: React.FC = () => {
                 falados: withBucket.filter((x) => x.b === 'falados').length,
                 espera: withBucket.filter((x) => x.b === 'espera').length,
                 inativos: inactiveVisible.length,
-                progressao: progressionReviews?.filter(r => r.hasPendingReview).length || 0,
+                progressao: progressionReviews?.filter(r => r.hasPendingReview && r.attentionPriority !== 'none').length || 0,
               };
 
               const filtered = withBucket.filter((x) => x.b === alertFilter).map((x) => x.s);
