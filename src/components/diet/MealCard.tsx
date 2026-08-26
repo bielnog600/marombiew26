@@ -1,11 +1,15 @@
 import React, { useState, useCallback } from 'react';
-import { Clock, UtensilsCrossed, Check } from 'lucide-react';
+import { Clock, UtensilsCrossed, Check, Trash2, Pencil, Plus, X } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import type { ParsedFood, ParsedMeal } from '@/lib/dietResultParser';
+import { scaleFood, parseNumeric } from '@/lib/dailyDietRebalance';
 import FoodSubstitutionDialog from './FoodSubstitutionDialog';
+import AddFoodDialog from './AddFoodDialog';
+
 
 const MEAL_SURFACES = [
   'bg-gradient-to-br from-primary/12 to-accent/8 border-primary/25',
@@ -42,11 +46,19 @@ interface MealCardProps {
   onToggleComplete?: () => void;
   hideSubstitutions?: boolean;
   onFoodsChange?: (foods: ParsedFood[]) => void;
+  /** Enables student editing: change quantity, remove and add foods. */
+  editable?: boolean;
+  /** Optional badge rendered in the header (ex: estado da refeição). */
+  statusBadge?: React.ReactNode;
 }
 
-const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, isCompleted, onToggleComplete, hideSubstitutions, onFoodsChange }) => {
+const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, isCompleted, onToggleComplete, hideSubstitutions, onFoodsChange, editable, statusBadge }) => {
   const [foods, setFoods] = useState<ParsedFood[]>(initialMeal.foods);
   const [selectedFoodIndex, setSelectedFoodIndex] = useState<number | null>(null);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingQty, setEditingQty] = useState('');
+  const [addOpen, setAddOpen] = useState(false);
+
 
   // Sync when parent provides new initialMeal (e.g. day change with persisted subs)
   React.useEffect(() => {
@@ -88,6 +100,37 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, i
       return updated;
     });
   };
+
+  const handleRemoveFood = useCallback((foodIndex: number) => {
+    updateFoods((prev) => prev.filter((_, i) => i !== foodIndex));
+    toast.success('Alimento removido — refeições futuras reajustadas');
+  }, [updateFoods]);
+
+  const handleAddFood = useCallback((newFood: ParsedFood) => {
+    updateFoods((prev) => [...prev, newFood]);
+    toast.success('Alimento adicionado — refeições futuras reajustadas');
+  }, [updateFoods]);
+
+  const startEditQty = (foodIndex: number) => {
+    setEditingIndex(foodIndex);
+    const current = parseNumeric(foods[foodIndex]?.qty);
+    setEditingQty(current > 0 ? String(current) : '');
+  };
+
+  const confirmEditQty = () => {
+    if (editingIndex === null) return;
+    const target = Number(editingQty.replace(',', '.'));
+    const original = parseNumeric(foods[editingIndex]?.qty);
+    if (!Number.isFinite(target) || target <= 0 || original <= 0) {
+      setEditingIndex(null);
+      return;
+    }
+    const factor = target / original;
+    updateFoods((prev) => prev.map((f, i) => (i === editingIndex ? scaleFood(f, factor) : f)));
+    setEditingIndex(null);
+    toast.success('Quantidade atualizada — refeições futuras reajustadas');
+  };
+
 
   // Parse sub text like "1) Batata-doce (150g); 2) Inhame (140g); 3) Mandioca (120g)"
   const parseSubItems = (sub: string) => {
@@ -171,6 +214,7 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, i
                   {meal.time}
                 </span>
               )}
+              {statusBadge}
             </div>
             {onCopy(buildMealCopyText(meal))}
           </div>
@@ -186,6 +230,7 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, i
                   <TableHead className="h-9 px-3 text-right">C</TableHead>
                   <TableHead className="h-9 px-3 text-right">G</TableHead>
                   {hasSubs && <TableHead className="h-9 px-3">Substituição</TableHead>}
+                  {editable && <TableHead className="h-9 px-2 text-right">Ações</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -198,7 +243,42 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, i
                     >
                       {food.food}
                     </TableCell>
-                    <TableCell className="px-3 py-2 align-top text-muted-foreground">{food.qty || '—'}</TableCell>
+                    <TableCell className="px-3 py-2 align-top text-muted-foreground">
+                      {editable && editingIndex === foodIndex ? (
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            autoFocus
+                            value={editingQty}
+                            onChange={(e) => setEditingQty(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') confirmEditQty();
+                              if (e.key === 'Escape') setEditingIndex(null);
+                            }}
+                            className="h-7 w-16 px-2 text-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={confirmEditQty}
+                            className="text-primary"
+                            aria-label="Confirmar quantidade"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingIndex(null)}
+                            className="text-muted-foreground"
+                            aria-label="Cancelar"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        food.qty || '—'
+                      )}
+                    </TableCell>
                     <TableCell className="px-3 py-2 text-right align-top">{food.kcal || '—'}</TableCell>
                     <TableCell className="px-3 py-2 text-right align-top">{food.p || '—'}</TableCell>
                     <TableCell className="px-3 py-2 text-right align-top">{food.c || '—'}</TableCell>
@@ -221,11 +301,45 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, i
                         ) : '—'}
                       </TableCell>
                     )}
+                    {editable && (
+                      <TableCell className="px-2 py-2 align-top">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => startEditQty(foodIndex)}
+                            className="text-muted-foreground hover:text-primary transition-colors"
+                            aria-label={`Editar quantidade de ${food.food}`}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFood(foodIndex)}
+                            className="text-muted-foreground hover:text-destructive transition-colors"
+                            aria-label={`Remover ${food.food}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+
+            {editable && (
+              <button
+                type="button"
+                onClick={() => setAddOpen(true)}
+                className="mt-2 ml-1 inline-flex items-center gap-1.5 rounded-lg bg-secondary/60 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5 text-primary" />
+                Adicionar alimento
+              </button>
+            )}
           </div>
+
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 bg-background/60 px-4 py-3">
             <span className="text-xs font-semibold tracking-wide text-foreground">Total da refeição</span>
@@ -264,7 +378,12 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, i
           onSubstitute={handleSubstitute}
         />
       )}
+
+      {editable && (
+        <AddFoodDialog open={addOpen} onOpenChange={setAddOpen} onAdd={handleAddFood} />
+      )}
     </>
+
   );
 };
 
