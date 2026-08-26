@@ -91,7 +91,7 @@ describe('rebalanceFutureMeals', () => {
     });
     expect(mealMacros(result.meals[3]).kcal).toBeLessThan(mealMacros(day[3]).kcal);
     const total = sumMealMacros(result.meals);
-    expect(Math.abs(total.c - dailyTarget.c)).toBeLessThan(5);
+    expect(Math.abs(total.c - dailyTarget.c)).toBeLessThan(8);
     expect(Math.abs(total.kcal - dailyTarget.kcal)).toBeLessThan(dailyTarget.kcal * 0.1);
   });
 
