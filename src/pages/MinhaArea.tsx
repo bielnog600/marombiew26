@@ -22,6 +22,7 @@ import DietPlanCard from '@/components/DietPlanCard';
 import TabataDoDiaCard from '@/components/home/TabataDoDiaCard';
 import CardioDoDiaCard from '@/components/home/CardioDoDiaCard';
 import HomeCardsCarousel from '@/components/home/HomeCardsCarousel';
+import StudentWeightCard from '@/components/home/StudentWeightCard';
 import { useEventTracking } from '@/hooks/useEventTracking';
 import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
