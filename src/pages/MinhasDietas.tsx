@@ -12,6 +12,13 @@ import { parseSections, type ParsedSection } from '@/lib/dietResultParser';
 import { parseTrainingSections } from '@/lib/trainingResultParser';
 import { extractTargetsFromSections } from '@/lib/dietTargets';
 import MealCard from '@/components/diet/MealCard';
+import {
+  rebalanceFutureMeals,
+  resolveMealStates,
+  sumMealMacros,
+  type Macros,
+} from '@/lib/dailyDietRebalance';
+
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
@@ -109,6 +116,9 @@ const MinhasDietas = () => {
   // Índices dos dias (0=seg..6=dom) em que o aluno tem treino agendado.
   const [trainingDayIndices, setTrainingDayIndices] = useState<number[]>([]);
   const [substitutions, setSubstitutions] = useState<Record<string, any[]>>({});
+  /** Última refeição editada pelo aluno em cada dia (estado CURRENT). */
+  const [editedMealByGroup, setEditedMealByGroup] = useState<Record<number, number>>({});
+
   const [planVersion, setPlanVersion] = useState<string | null>(null);
   const [dietMarkdown, setDietMarkdown] = useState<string>('');
   const [protocolKeys, setProtocolKeys] = useState<ProtocolKey[]>([]);
@@ -124,6 +134,9 @@ const MinhasDietas = () => {
     try {
       const raw = localStorage.getItem(subsStorageKey);
       setSubstitutions(raw ? JSON.parse(raw) : {});
+      const rawMeta = localStorage.getItem(`${subsStorageKey}-meta`);
+      setEditedMealByGroup(rawMeta ? JSON.parse(rawMeta) : {});
+
       // Cleanup old subs from previous plan versions for this user
       if (user) {
         const prefix = `diet-subs-${user.id}-`;
@@ -271,15 +284,11 @@ const MinhasDietas = () => {
         };
       });
     }
-    // Apply persisted substitutions
-    return base.map((group, gi) => ({
-      ...group,
-      meals: group.meals.map((m, mi) => {
-        const saved = substitutions[`${gi}-${mi}`];
-        return saved ? { ...m, foods: saved } : m;
-      }),
-    }));
-  }, [mealGroups, usesMealOptions, substitutions, dietMarkdown]);
+    // NOTE: student edits are NOT applied here. This stays the PRESCRIBED
+    // plan (fonte da meta diária imutável). Edits are overlaid later, after
+    // the per-day scaling, so the professor's target never changes.
+    return base;
+  }, [mealGroups, usesMealOptions, dietMarkdown]);
 
   const persistFoodsChange = useCallback((groupIdx: number, mealIdx: number, foods: any[]) => {
     setSubstitutions((prev) => {
@@ -287,7 +296,13 @@ const MinhasDietas = () => {
       try { localStorage.setItem(subsStorageKey, JSON.stringify(next)); } catch { /* ignore */ }
       return next;
     });
+    setEditedMealByGroup((prev) => {
+      const next = { ...prev, [groupIdx]: mealIdx };
+      try { localStorage.setItem(`${subsStorageKey}-meta`, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
   }, [subsStorageKey]);
+
 
   const defaultGroupIndex = useMemo(() => {
     if (displayGroups.length === 0) return 0;
@@ -361,8 +376,8 @@ const MinhasDietas = () => {
 
   // Scale foods (qty + kcal + macros) proportionally to the per-day target
   // so the student sees a different meal size on adjusted days instead of
-  // the same base menu everywhere.
-  const currentMeals = useMemo(() => {
+  // the same base menu everywhere. This is the PRESCRIBED plan of the day.
+  const prescribedMeals = useMemo(() => {
     const target = daySchedule?.target;
     if (!target || target <= 0 || baseMealsForDay.length === 0) return baseMealsForDay;
     const baseTotal = baseMealsForDay.reduce(
@@ -401,6 +416,73 @@ const MinhasDietas = () => {
     }));
   }, [baseMealsForDay, daySchedule]);
 
+  // META PRESCRITA PELO PROFESSOR — imutável para o aluno.
+  const dailyTarget = useMemo<Macros>(() => sumMealMacros(prescribedMeals as any), [prescribedMeals]);
+
+  // Refeições já concluídas (registro real de consumo do dia).
+  const completedIndexes = useMemo(
+    () =>
+      prescribedMeals
+        .map((_, i) => i)
+        .filter((i) => tracking.meals_completed.includes(activeGroupIndex * 1000 + i)),
+    [prescribedMeals, tracking.meals_completed, activeGroupIndex],
+  );
+
+  // Overlay das edições do aluno sobre o plano prescrito.
+  const studentMeals = useMemo(
+    () =>
+      prescribedMeals.map((m, mi) => {
+        const saved = substitutions[`${activeGroupIndex}-${mi}`];
+        return saved ? { ...m, foods: saved } : m;
+      }),
+    [prescribedMeals, substitutions, activeGroupIndex],
+  );
+
+  // Rebalanceamento determinístico: apenas refeições FUTURAS absorvem a
+  // diferença; concluídas e a refeição editada permanecem congeladas.
+  const rebalance = useMemo(
+    () =>
+      rebalanceFutureMeals({
+        meals: studentMeals as any,
+        completedIndexes,
+        currentIndex: editedMealByGroup[activeGroupIndex] ?? -1,
+        dailyTarget,
+      }),
+    [studentMeals, completedIndexes, editedMealByGroup, activeGroupIndex, dailyTarget],
+  );
+
+  const hasStudentEdits = useMemo(
+    () => prescribedMeals.some((_, mi) => Boolean(substitutions[`${activeGroupIndex}-${mi}`])),
+    [prescribedMeals, substitutions, activeGroupIndex],
+  );
+
+  const currentMeals = hasStudentEdits ? rebalance.meals : prescribedMeals;
+
+  const mealStates = useMemo(
+    () =>
+      resolveMealStates(
+        currentMeals.length,
+        completedIndexes,
+        hasStudentEdits ? (editedMealByGroup[activeGroupIndex] ?? -1) : -1,
+      ),
+    [currentMeals.length, completedIndexes, editedMealByGroup, activeGroupIndex, hasStudentEdits],
+  );
+
+  const resetDayEdits = useCallback(() => {
+    setSubstitutions((prev) => {
+      const next = { ...prev };
+      prescribedMeals.forEach((_, mi) => { delete next[`${activeGroupIndex}-${mi}`]; });
+      try { localStorage.setItem(subsStorageKey, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+    setEditedMealByGroup((prev) => {
+      const next = { ...prev };
+      delete next[activeGroupIndex];
+      try { localStorage.setItem(`${subsStorageKey}-meta`, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, [prescribedMeals, activeGroupIndex, subsStorageKey]);
+
   // Sum directly from foods so totals reflect any carb-cycle scaling or
   // student substitutions instead of the cached meal totals from the parser.
   const sumFoods = (key: 'kcal' | 'p' | 'c' | 'g') =>
@@ -409,6 +491,7 @@ const MinhasDietas = () => {
   const totalP = sumFoods('p');
   const totalC = sumFoods('c');
   const totalG = sumFoods('g');
+
   // Always show the REAL sum of foods on the table — never the theoretical
   // "calorias alvo" written by the AI in the preamble, because the two often
   // diverge (ex: meta 1455 kcal mas alimentos somam 1830 kcal). The student
@@ -541,8 +624,30 @@ const MinhasDietas = () => {
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Gordura</p>
               </div>
             </div>
+            {hasStudentEdits && (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-2 space-y-1">
+                <p className="text-[11px] text-foreground">
+                  Meta prescrita do dia:{' '}
+                  <strong>{formatValue(dailyTarget.kcal, ' kcal')}</strong> · P {formatValue(dailyTarget.p, 'g')} · C{' '}
+                  {formatValue(dailyTarget.c, 'g')} · G {formatValue(dailyTarget.g, 'g')}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {Math.abs(rebalance.residual.kcal) <= 50
+                    ? 'Ajuste estimado dentro da tolerância — refeições futuras rebalanceadas automaticamente.'
+                    : `Diferença atual: ${rebalance.residual.kcal > 0 ? '+' : ''}${Math.round(-rebalance.residual.kcal)} kcal em relação à meta.`}
+                </p>
+                <button
+                  type="button"
+                  onClick={resetDayEdits}
+                  className="text-[10px] font-medium text-primary hover:underline"
+                >
+                  Restaurar plano do professor
+                </button>
+              </div>
+            )}
           </div>
         )}
+
 
         {/* Water counter - TOP */}
         <div className="rounded-xl border border-border/50 bg-secondary/30 p-3 space-y-3">
@@ -588,6 +693,15 @@ const MinhasDietas = () => {
             {currentMeals.map((meal, i) => {
               const mealKey = activeGroupIndex * 1000 + i;
               const done = tracking.meals_completed.includes(mealKey);
+              const state = mealStates[i];
+              const badgeLabel =
+                state === 'completed' ? 'Concluída' : state === 'current' ? 'Editada' : 'Ajustável';
+              const badgeClass =
+                state === 'completed'
+                  ? 'bg-green-500/15 text-green-500'
+                  : state === 'current'
+                    ? 'bg-primary/15 text-primary'
+                    : 'bg-secondary text-muted-foreground';
               return (
                 <div key={`day-${activeGroupIndex}-${meal.name}-${meal.time || 'sem-hora'}-${i}`}>
                   <MealCard
@@ -597,6 +711,12 @@ const MinhasDietas = () => {
                     isCompleted={done}
                     onToggleComplete={() => toggleMeal(mealKey)}
                     hideSubstitutions
+                    editable
+                    statusBadge={
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${badgeClass}`}>
+                        {badgeLabel}
+                      </span>
+                    }
                     onFoodsChange={(foods) => persistFoodsChange(activeGroupIndex, i, foods)}
                   />
                 </div>
@@ -604,6 +724,7 @@ const MinhasDietas = () => {
             })}
           </div>
         )}
+
 
         {currentMeals.length === 0 && (
           <Card className="glass-card">
