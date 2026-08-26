@@ -503,6 +503,10 @@ const MinhaArea = () => {
             total={todayMealCount}
           />
         </div>
+
+        {/* Evolução de peso + check-in de 15 dias */}
+        {user && <StudentWeightCard studentId={user.id} />}
+
         {/* No plans message */}
         {trainingDays.length === 0 && meals.length === 0 && (
           <Card className="glass-card">
