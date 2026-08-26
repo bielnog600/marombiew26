@@ -22,6 +22,7 @@ import DietPlanCard from '@/components/DietPlanCard';
 import TabataDoDiaCard from '@/components/home/TabataDoDiaCard';
 import CardioDoDiaCard from '@/components/home/CardioDoDiaCard';
 import HomeCardsCarousel from '@/components/home/HomeCardsCarousel';
+import StudentWeightCard from '@/components/home/StudentWeightCard';
 import { useEventTracking } from '@/hooks/useEventTracking';
 import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
@@ -502,6 +503,10 @@ const MinhaArea = () => {
             total={todayMealCount}
           />
         </div>
+
+        {/* Evolução de peso + check-in de 15 dias */}
+        {user && <StudentWeightCard studentId={user.id} />}
+
         {/* No plans message */}
         {trainingDays.length === 0 && meals.length === 0 && (
           <Card className="glass-card">
