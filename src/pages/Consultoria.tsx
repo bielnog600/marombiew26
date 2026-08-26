@@ -72,8 +72,11 @@ const CycleStatusBadge: React.FC<{ status: CycleStatus; remaining: number }> = (
 
 const Consultoria: React.FC = () => {
   const navigate = useNavigate();
-  const [tab, setTab] = useState('alertas');
-  const [alertFilter, setAlertFilter] = useState<FollowupFilter>('hoje');
+  const initialParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+  const [tab, setTab] = useState(initialParams.get('tab') || 'alertas');
+  const [alertFilter, setAlertFilter] = useState<FollowupFilter>(
+    (initialParams.get('filtro') as FollowupFilter) || 'hoje',
+  );
   const [plans, setPlans] = useState<any[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [dietSort, setDietSort] = useState<'name' | 'overdue'>('name');
@@ -213,16 +216,19 @@ const Consultoria: React.FC = () => {
                 return (Date.now() - ref) / 86400000 > 3;
               });
 
-              const handleProgressionContact = async (studentId: string, planId: string) => {
+              const handleProgressionContact = async (studentId: string, _planId: string) => {
                 const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
                 const { data: { user } } = await supabase.auth.getUser();
-                await supabase.from('weekly_progression_contacts').upsert({
-                  student_id: studentId,
-                  plan_id: planId,
-                  week_start: format(weekStart, 'yyyy-MM-dd'),
-                  admin_id: user?.id
-                } as any);
-
+                if (!user) return;
+                await supabase.from('weekly_progression_contacts').upsert(
+                  {
+                    student_id: studentId,
+                    week_start: format(weekStart, 'yyyy-MM-dd'),
+                    admin_id: user.id,
+                    whatsapp_opened_at: new Date().toISOString(),
+                  } as any,
+                  { onConflict: 'admin_id,student_id,week_start' },
+                );
 
                 reloadProgression();
               };
@@ -232,7 +238,7 @@ const Consultoria: React.FC = () => {
                 falados: withBucket.filter((x) => x.b === 'falados').length,
                 espera: withBucket.filter((x) => x.b === 'espera').length,
                 inativos: inactiveVisible.length,
-                progressao: progressionReviews?.filter(r => r.hasPendingReview).length || 0,
+                progressao: progressionReviews?.filter(r => r.hasPendingReview && r.attentionPriority !== 'none').length || 0,
               };
 
               const filtered = withBucket.filter((x) => x.b === alertFilter).map((x) => x.s);

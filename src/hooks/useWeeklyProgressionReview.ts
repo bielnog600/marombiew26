@@ -5,6 +5,12 @@ import { buildQuantitativeProgressionRecommendation } from '@/lib/quantitativePr
 import { resolveCurrentTrainingPhase } from '@/lib/currentPhase';
 import { selectBestSet } from '@/lib/weeklyProgression';
 import { parseTrainingSections } from '@/lib/trainingResultParser';
+import {
+  buildAttentionPriority,
+  sortProgressionReviews,
+  type AttentionPriority,
+  type IntensityStatus,
+} from '@/lib/trainingIntensityAttention';
 
 export interface StudentProgressionReview {
   studentId: string;
@@ -20,6 +26,14 @@ export interface StudentProgressionReview {
     recommendation: any;
   }[];
   hasPendingReview: boolean;
+  /** Derivados da camada de intensidade (não persistidos). */
+  latestSessionId: string | null;
+  latestSessionDate: string | null;
+  latestSessionStatus: string | null;
+  latestSessionRpe: number | null;
+  intensityStatus: IntensityStatus;
+  attentionPriority: AttentionPriority;
+  attentionReasons: string[];
 }
 
 export const useWeeklyProgressionReview = () => {
@@ -38,17 +52,27 @@ export const useWeeklyProgressionReview = () => {
       if (!students || students.length === 0) return [];
       const studentIds = students.map(s => s.user_id);
 
-      const [profilesRes, plansRes, contactsRes, logsRes] = await Promise.all([
+      const windowStart = new Date(Date.now() - 30 * 86400000).toISOString();
+
+      // Todas as consultas em lote — nunca uma query por aluno.
+      const [profilesRes, plansRes, contactsRes, logsRes, sessionsRes] = await Promise.all([
         supabase.from('profiles').select('user_id, nome, telefone').in('user_id', studentIds),
         supabase.from('ai_plans').select('*').in('student_id', studentIds).eq('is_draft', false).order('created_at', { ascending: false }),
         supabase.from('weekly_progression_contacts').select('*').in('student_id', studentIds),
-        supabase.from('exercise_set_logs').select('*').in('student_id', studentIds).gte('performed_at', new Date(Date.now() - 30 * 86400000).toISOString()).order('performed_at', { ascending: false })
+        supabase.from('exercise_set_logs').select('*').in('student_id', studentIds).gte('performed_at', windowStart).order('performed_at', { ascending: false }),
+        supabase
+          .from('workout_sessions')
+          .select('id, student_id, status, avg_rpe, phase, completed_at, created_at')
+          .in('student_id', studentIds)
+          .gte('created_at', windowStart)
+          .order('created_at', { ascending: false }),
       ]);
 
       const profileMap = new Map(profilesRes.data?.map(p => [p.user_id, p]) || []);
+      // Coluna real confirmada no schema: weekly_progression_contacts.week_start
       const contactedIds = new Set(
         (contactsRes.data || [])
-          .filter((c: any) => c.week_start_date === weekStartStr)
+          .filter((c: any) => c.week_start === weekStartStr)
           .map((c: any) => c.student_id)
       );
 
@@ -63,13 +87,10 @@ export const useWeeklyProgressionReview = () => {
 
         const studentLogs = (logsRes.data || []).filter((l: any) => l.student_id === student.user_id);
         const phaseResolution = resolveCurrentTrainingPhase(activePlan as any, now);
-        
-        // Corrigindo comparação de TrainingPhase
-        if (String(phaseResolution.phase) === 'S4') continue;
 
         const parsed = parseTrainingSections(activePlan.conteudo);
         const exercises = parsed.flatMap(s => s.days || []).flatMap(d => d.exercises || []);
-        
+
         const recs: any[] = [];
 
         for (const exercise of exercises) {
@@ -82,7 +103,7 @@ export const useWeeklyProgressionReview = () => {
           const recommendation = buildQuantitativeProgressionRecommendation({
             performance: {
               exerciseName: exercise.exercise,
-              nextAction: 'maintain', // Placeholder
+              nextAction: 'maintain',
               bestSet: {
                 reps: bestSet.reps,
                 weightKg: (bestSet as any).weight_kg,
@@ -108,11 +129,22 @@ export const useWeeklyProgressionReview = () => {
           }
         }
 
+        // Sessão comparável mais recente (completa) para leitura do RPE real.
+        const studentSessions = (sessionsRes.data || []).filter((s: any) => s.student_id === student.user_id);
+        const latestSession = studentSessions.find((s: any) => s.status === 'completed') || studentSessions[0] || null;
+
+        const attention = buildAttentionPriority({
+          sessionStatus: latestSession?.status ?? null,
+          rpe: latestSession?.avg_rpe != null ? Number(latestSession.avg_rpe) : null,
+          phase: String(phaseResolution.phase),
+          actions: recs.map((r) => r.nextAction),
+        });
+
         const lastContact = (contactsRes.data || [])
           .filter((c: any) => c.student_id === student.user_id)
           .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
 
-        if (recs.length > 0) {
+        if (recs.length > 0 || attention.attentionPriority === 'attention_only') {
           reviews.push({
             studentId: student.user_id,
             studentName: studentProfile?.nome || 'Aluno',
@@ -121,16 +153,19 @@ export const useWeeklyProgressionReview = () => {
             currentPhase: phaseResolution.phase,
             lastContactedAt: lastContact?.created_at || null,
             recommendations: recs,
-            hasPendingReview: !contactedIds.has(student.user_id)
+            hasPendingReview: !contactedIds.has(student.user_id),
+            latestSessionId: latestSession?.id ?? null,
+            latestSessionDate: latestSession?.completed_at ?? latestSession?.created_at ?? null,
+            latestSessionStatus: latestSession?.status ?? null,
+            latestSessionRpe: latestSession?.avg_rpe != null ? Number(latestSession.avg_rpe) : null,
+            intensityStatus: attention.intensityStatus,
+            attentionPriority: attention.attentionPriority,
+            attentionReasons: attention.attentionReasons,
           });
         }
       }
 
-      return reviews.sort((a, b) => {
-        if (a.hasPendingReview && !b.hasPendingReview) return -1;
-        if (!a.hasPendingReview && b.hasPendingReview) return 1;
-        return a.studentName.localeCompare(b.studentName);
-      });
+      return sortProgressionReviews(reviews);
     }
   });
 };
