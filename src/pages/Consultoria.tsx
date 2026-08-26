@@ -213,16 +213,19 @@ const Consultoria: React.FC = () => {
                 return (Date.now() - ref) / 86400000 > 3;
               });
 
-              const handleProgressionContact = async (studentId: string, planId: string) => {
+              const handleProgressionContact = async (studentId: string, _planId: string) => {
                 const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
                 const { data: { user } } = await supabase.auth.getUser();
-                await supabase.from('weekly_progression_contacts').upsert({
-                  student_id: studentId,
-                  plan_id: planId,
-                  week_start: format(weekStart, 'yyyy-MM-dd'),
-                  admin_id: user?.id
-                } as any);
-
+                if (!user) return;
+                await supabase.from('weekly_progression_contacts').upsert(
+                  {
+                    student_id: studentId,
+                    week_start: format(weekStart, 'yyyy-MM-dd'),
+                    admin_id: user.id,
+                    whatsapp_opened_at: new Date().toISOString(),
+                  } as any,
+                  { onConflict: 'admin_id,student_id,week_start' },
+                );
 
                 reloadProgression();
               };
