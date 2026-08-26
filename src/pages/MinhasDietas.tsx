@@ -639,9 +639,9 @@ const MinhasDietas = () => {
                 <button
                   type="button"
                   onClick={resetDayEdits}
-                  className="text-[10px] font-medium text-primary hover:underline"
+                  className="block w-full text-center text-[10px] font-medium text-primary hover:underline"
                 >
-                  Restaurar plano do professor
+                  ajustar dieta
                 </button>
               </div>
             )}
