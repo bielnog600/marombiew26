@@ -23,6 +23,8 @@ import AiEditExerciseDialog, { type AiEditAction } from './AiEditExerciseDialog'
 import { applyActionsToDay } from './AiEditAllDaysDialog';
 import { normalizeWorkoutPlan, parsedDaysToWorkoutPlan, type WorkoutPlan } from '@/lib/workoutSchema';
 import { workoutPlanToMarkdown } from '@/lib/workoutMarkdownSerializer';
+import { persistSessionDayEditsToPlan } from '@/lib/sessionPlanPersistence';
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -662,12 +664,25 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     if (!session.startedAt || !active) return;
     setFinishing(true);
     try {
-      // Persistir edições feitas na sessão de volta ao plano (como se tivesse editado o treino)
-      if (planId && day) {
+      // Persistir edições feitas na sessão de volta ao plano (admin e aluno veem depois)
+      if (effectivePlanId && day) {
         try {
-          await persistDayEditsToPlan();
+          const res = await persistSessionDayEditsToPlan({
+            planId: effectivePlanId,
+            dayName: day.day,
+            dayIndex: days.findIndex((d) => d.day === day.day),
+            exercises: currentExercises,
+            states: state,
+            fallbackDays: days,
+          });
+          if (res.success === false) {
+            toast.error('Treino finalizado, mas as edições não foram salvas no plano: ' + res.error);
+          } else if (res.updated) {
+            toast.success('Edições salvas no treino do aluno');
+          }
         } catch (e: any) {
           console.warn('[TrainerLogSheet] falha ao salvar edições no plano', e);
+          toast.error('Treino finalizado, mas as edições não foram salvas no plano');
         }
       }
       const exercisesCompleted = Object.values(state).filter(ex => ex.savedSets > 0).length;
@@ -685,62 +700,6 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     }
   };
 
-  const persistDayEditsToPlan = async () => {
-    if (!planId || !day) return;
-    const { data: planRow, error: loadErr } = await supabase
-      .from('ai_plans')
-      .select('id, conteudo, conteudo_json')
-      .eq('id', planId)
-      .maybeSingle();
-    if (loadErr || !planRow) return;
-
-    // Base plan: prefer existing JSON, fall back to reconstructing from parsed days
-    let plan: WorkoutPlan | null = normalizeWorkoutPlan(planRow.conteudo_json);
-    if (!plan) plan = parsedDaysToWorkoutPlan(days);
-
-    // Encontra o dia correspondente
-    const dayTarget = day.day.trim().toLowerCase();
-    const dayIdx = plan.days.findIndex((d) => d.day.trim().toLowerCase() === dayTarget);
-    if (dayIdx < 0) return;
-
-    // Reconstrói exercises a partir de currentExercises + state (para séries/notas)
-    const rebuiltExercises = currentExercises.map((ex, i) => {
-      const st = state[i];
-      const setPlan = st?.plan || [];
-      const reconCount = setPlan.filter((p) => p.kind === 'recon').length;
-      const workCount = setPlan.filter((p) => p.kind === 'work').length;
-      const totalCount = setPlan.length || (parseInt(ex.series2 || '', 10) || parseInt(ex.series || '', 10) || 0);
-      const series = reconCount > 0 ? String(reconCount) : String(totalCount || ex.series || '');
-      const series2 = reconCount > 0 ? String(workCount) : (ex.series2 || '');
-      const existingDay = plan!.days[dayIdx] as any;
-      const prevEx = (existingDay?.exercises || [])[i];
-      return {
-        id: prevEx?.id || (crypto as any)?.randomUUID?.() || `ex_${Date.now()}_${i}`,
-        exercise: (st?.exerciseName || ex.exercise || '').trim(),
-        exerciseId: prevEx?.exerciseId,
-        series,
-        series2,
-        reps: ex.reps || '',
-        rir: ex.rir || '',
-        pause: ex.pause || '',
-        restSeconds: prevEx?.restSeconds,
-        description: ex.description || '',
-        variation: ex.variation || '',
-        notes: st?.notes ? st.notes : (prevEx?.notes || ''),
-      };
-    });
-
-    const updatedDays = plan.days.map((d, i) =>
-      i === dayIdx ? { ...d, exercises: rebuiltExercises as any } : d,
-    );
-    const updatedPlan: WorkoutPlan = { ...plan, days: updatedDays };
-    const newMarkdown = workoutPlanToMarkdown(updatedPlan);
-
-    await supabase
-      .from('ai_plans')
-      .update({ conteudo: newMarkdown, conteudo_json: updatedPlan as any })
-      .eq('id', planId);
-  };
 
   if (!day) return null;
 
