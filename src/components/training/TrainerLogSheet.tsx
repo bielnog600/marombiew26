@@ -23,6 +23,8 @@ import AiEditExerciseDialog, { type AiEditAction } from './AiEditExerciseDialog'
 import { applyActionsToDay } from './AiEditAllDaysDialog';
 import { normalizeWorkoutPlan, parsedDaysToWorkoutPlan, type WorkoutPlan } from '@/lib/workoutSchema';
 import { workoutPlanToMarkdown } from '@/lib/workoutMarkdownSerializer';
+import { persistSessionDayEditsToPlan } from '@/lib/sessionPlanPersistence';
+
 import {
   AlertDialog,
   AlertDialogAction,
