@@ -27,6 +27,8 @@ import { useAdminTrainerSession } from '@/contexts/AdminTrainerSessionContext';
 import { useSessionProgression } from '@/hooks/useSessionProgression';
 import { readProgressionSnapshot, type ProgressionSnapshot, getRecommendationFor } from '@/lib/sessionProgression';
 import { resolveCurrentTrainingPhase } from '@/lib/currentPhase';
+import { persistSessionDayEditsToPlan } from '@/lib/sessionPlanPersistence';
+
 import {
   AlertDialog,
   AlertDialogAction,
