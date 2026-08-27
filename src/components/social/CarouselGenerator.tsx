@@ -68,6 +68,7 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
   const [slideStyle, setSlideStyle] = useState<CarouselStyle>('classic');
   const [footer, setFooter] = useState('@marombiew');
   const [postTitle, setPostTitle] = useState('');
+  const [videoDurationSec, setVideoDurationSec] = useState(6);
   const [exercises, setExercises] = useState<ExerciseRow[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -254,8 +255,9 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
   const renderSlideVideoBlob = async (
     slide: Slide,
     index: number,
-    durationMs = 6000,
+    durationMs,
   ): Promise<{ blob: Blob; ext: 'mp4' | 'webm' } | null> => {
+    const effectiveDurationMs = Math.min(60_000, Math.max(1_000, durationMs ?? 6_000));
     const media = mediaForSlide(slide);
     if (!(media instanceof HTMLVideoElement)) return null;
     if (typeof MediaRecorder === 'undefined') return null;
@@ -302,7 +304,7 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
 
     const blob = await new Promise<Blob>((resolve) => {
       recorder.onstop = () => resolve(new Blob(chunks, { type: recorder.mimeType || mime || 'video/webm' }));
-      window.setTimeout(() => { try { recorder.stop(); } catch { /* noop */ } }, durationMs);
+      window.setTimeout(() => { try { recorder.stop(); } catch { /* noop */ } }, effectiveDurationMs);
     });
     cancelAnimationFrame(raf);
     const ext: 'mp4' | 'webm' = (recorder.mimeType || mime).includes('mp4') ? 'mp4' : 'webm';
@@ -313,7 +315,7 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
     setBusy(true);
     try {
       for (let i = 0; i < slides.length; i += 1) {
-        const video = slideHasVideo(slides[i]) ? await renderSlideVideoBlob(slides[i], i) : null;
+        const video = slideHasVideo(slides[i]) ? await renderSlideVideoBlob(slides[i], i, videoDurationSec * 1000) : null;
         const blob = video?.blob ?? (await renderSlideBlob(slides[i], i));
         if (!blob) continue;
         const ext = video?.ext ?? 'png';
@@ -338,7 +340,7 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
       const paths: string[] = [];
       let coverPath: string | undefined;
       for (let i = 0; i < slides.length; i += 1) {
-        const video = slideHasVideo(slides[i]) ? await renderSlideVideoBlob(slides[i], i) : null;
+        const video = slideHasVideo(slides[i]) ? await renderSlideVideoBlob(slides[i], i, videoDurationSec * 1000) : null;
         const blob = video?.blob ?? (await renderSlideBlob(slides[i], i));
         if (!blob) continue;
         const path = await uploadSocialFile(blob, video?.ext ?? 'png', 'carousels');
@@ -394,6 +396,19 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
               <div className="space-y-1.5">
                 <Label>Rodapé / @perfil</Label>
                 <Input value={footer} onChange={(e) => setFooter(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Duração dos slides com vídeo (segundos)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={videoDurationSec}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v)) setVideoDurationSec(Math.min(60, Math.max(1, Math.round(v))));
+                  }}
+                />
               </div>
               <div className="space-y-1.5 sm:col-span-3">
                 <Label>Modelo do slide</Label>
@@ -520,7 +535,7 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Slides em 1080x1350 (4:5), formato ideal para carrossel do Instagram. Slides com vídeo são exportados como vídeo de 6s (.mp4 quando o navegador suportar, senão .webm); os demais saem em .png.
+              Slides em 1080x1350 (4:5), formato ideal para carrossel do Instagram. Slides com vídeo são exportados como vídeo com a duração escolhida acima (1–60s; .mp4 quando o navegador suportar, senão .webm); os demais saem em .png.
             </p>
           </CardContent>
         </Card>
