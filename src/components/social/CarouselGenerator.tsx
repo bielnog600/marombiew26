@@ -68,6 +68,7 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
   const [slideStyle, setSlideStyle] = useState<CarouselStyle>('classic');
   const [footer, setFooter] = useState('@marombiew');
   const [postTitle, setPostTitle] = useState('');
+  const [videoDurationSec, setVideoDurationSec] = useState(6);
   const [exercises, setExercises] = useState<ExerciseRow[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -254,8 +255,9 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
   const renderSlideVideoBlob = async (
     slide: Slide,
     index: number,
-    durationMs = 6000,
+    durationMs,
   ): Promise<{ blob: Blob; ext: 'mp4' | 'webm' } | null> => {
+    const effectiveDurationMs = Math.min(60_000, Math.max(1_000, durationMs ?? 6_000));
     const media = mediaForSlide(slide);
     if (!(media instanceof HTMLVideoElement)) return null;
     if (typeof MediaRecorder === 'undefined') return null;
