@@ -675,7 +675,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
             states: state,
             fallbackDays: days,
           });
-          if (!res.success) {
+          if (res.success === false) {
             toast.error('Treino finalizado, mas as edições não foram salvas no plano: ' + res.error);
           } else if (res.updated) {
             toast.success('Edições salvas no treino do aluno');

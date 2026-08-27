@@ -536,7 +536,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                 states: st.state,
                 fallbackDays: st.days,
               });
-              if (!res.success) {
+              if (res.success === false) {
                 toast.error(`Edições de ${st.nome} não foram salvas no plano: ${res.error}`);
               }
             } catch (e) {
