@@ -397,6 +397,19 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
                 <Label>Rodapé / @perfil</Label>
                 <Input value={footer} onChange={(e) => setFooter(e.target.value)} />
               </div>
+              <div className="space-y-1.5">
+                <Label>Duração dos slides com vídeo (segundos)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={videoDurationSec}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v)) setVideoDurationSec(Math.min(60, Math.max(1, Math.round(v))));
+                  }}
+                />
+              </div>
               <div className="space-y-1.5 sm:col-span-3">
                 <Label>Modelo do slide</Label>
                 <Select value={slideStyle} onValueChange={(v) => setSlideStyle(v as CarouselStyle)}>
@@ -522,7 +535,7 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Slides em 1080x1350 (4:5), formato ideal para carrossel do Instagram. Slides com vídeo são exportados como vídeo de 6s (.mp4 quando o navegador suportar, senão .webm); os demais saem em .png.
+              Slides em 1080x1350 (4:5), formato ideal para carrossel do Instagram. Slides com vídeo são exportados como vídeo com a duração escolhida acima (1–60s; .mp4 quando o navegador suportar, senão .webm); os demais saem em .png.
             </p>
           </CardContent>
         </Card>
