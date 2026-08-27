@@ -48,6 +48,7 @@ interface AiResult {
   recomendacoes?: string[];
   limitacoes?: string[];
   relatorio_markdown?: string | null;
+  calibracao?: { ancoras?: string[]; fator_global?: number | null } | null;
 }
 
 const MEASURE_LABELS: Record<string, string> = {
@@ -70,6 +71,8 @@ const AiBodyCompositionDialog: React.FC<Props> = ({ open, onOpenChange, studentI
   const [altura, setAltura] = useState<string>('');
   const [peso, setPeso] = useState<string>('');
   const [notes, setNotes] = useState('');
+  const [known, setKnown] = useState<Record<string, string>>({});
+  const [showKnown, setShowKnown] = useState(false);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState<ViewKey | null>(null);
   const [saving, setSaving] = useState(false);
@@ -125,6 +128,11 @@ const AiBodyCompositionDialog: React.FC<Props> = ({ open, onOpenChange, studentI
       toast.error('Selecione ou envie ao menos uma foto.');
       return;
     }
+    const knownNumbers: Record<string, number> = {};
+    for (const [k, v] of Object.entries(known)) {
+      const n = Number(String(v).replace(',', '.'));
+      if (isFinite(n) && n > 0) knownNumbers[k] = n;
+    }
     setLoading(true);
     setResult(null);
     try {
@@ -137,6 +145,7 @@ const AiBodyCompositionDialog: React.FC<Props> = ({ open, onOpenChange, studentI
           heightCm: altura ? Number(altura) : null,
           weightKg: peso ? Number(peso) : null,
           notes: notes || null,
+          knownMeasurements: knownNumbers,
         },
       });
       if (error) throw error;
@@ -291,6 +300,38 @@ const AiBodyCompositionDialog: React.FC<Props> = ({ open, onOpenChange, studentI
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Ex.: atleta, fase de cutting, retenção hídrica..." />
           </div>
 
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => setShowKnown(v => !v)}
+              className="text-xs font-semibold text-primary underline-offset-2 hover:underline"
+            >
+              {showKnown ? 'Ocultar' : 'Adicionar'} medidas reais de fita métrica (calibração)
+            </button>
+            {showKnown && (
+              <div className="space-y-2 rounded-lg border border-border p-3">
+                <p className="text-[11px] text-muted-foreground">
+                  Informe apenas as medidas que você aferiu com fita. Elas viram verdade absoluta e a IA recalibra
+                  as demais medidas do mesmo segmento pela mesma proporção.
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {Object.entries(MEASURE_LABELS).map(([key, label]) => (
+                    <div key={key} className="space-y-1">
+                      <Label className="text-[10px]">{label} (cm)</Label>
+                      <Input
+                        value={known[key] ?? ''}
+                        onChange={(e) => setKnown(k => ({ ...k, [key]: e.target.value }))}
+                        inputMode="decimal"
+                        placeholder="—"
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           <Button onClick={analyze} disabled={loading} className="w-full font-semibold">
             {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analisando...</> : <><Bot className="mr-2 h-4 w-4" /> Analisar com IA</>}
           </Button>
@@ -321,6 +362,12 @@ const AiBodyCompositionDialog: React.FC<Props> = ({ open, onOpenChange, studentI
                 {result.confianca && <Badge variant="outline">Confiança: {result.confianca}</Badge>}
                 {result.classificacao && <Badge variant="outline">{result.classificacao}</Badge>}
                 {result.somatotipo && <Badge variant="outline">{result.somatotipo}</Badge>}
+                {result.calibracao?.ancoras?.length ? (
+                  <Badge variant="outline">
+                    Calibrado com {result.calibracao.ancoras.length} medida(s) real(is)
+                    {result.calibracao.fator_global ? ` — fator ${result.calibracao.fator_global}x` : ''}
+                  </Badge>
+                ) : null}
               </div>
 
               {result.medidas_cm && (
