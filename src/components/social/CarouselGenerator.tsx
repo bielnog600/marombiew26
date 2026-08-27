@@ -304,7 +304,7 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
 
     const blob = await new Promise<Blob>((resolve) => {
       recorder.onstop = () => resolve(new Blob(chunks, { type: recorder.mimeType || mime || 'video/webm' }));
-      window.setTimeout(() => { try { recorder.stop(); } catch { /* noop */ } }, durationMs);
+      window.setTimeout(() => { try { recorder.stop(); } catch { /* noop */ } }, effectiveDurationMs);
     });
     cancelAnimationFrame(raf);
     const ext: 'mp4' | 'webm' = (recorder.mimeType || mime).includes('mp4') ? 'mp4' : 'webm';
@@ -315,7 +315,7 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
     setBusy(true);
     try {
       for (let i = 0; i < slides.length; i += 1) {
-        const video = slideHasVideo(slides[i]) ? await renderSlideVideoBlob(slides[i], i) : null;
+        const video = slideHasVideo(slides[i]) ? await renderSlideVideoBlob(slides[i], i, videoDurationSec * 1000) : null;
         const blob = video?.blob ?? (await renderSlideBlob(slides[i], i));
         if (!blob) continue;
         const ext = video?.ext ?? 'png';
