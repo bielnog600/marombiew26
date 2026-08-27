@@ -10,8 +10,16 @@ import { toast } from 'sonner';
 import Hls from 'hls.js';
 import { Loader2, Plus, Trash2, Upload, Images, Download, Save, ChevronLeft, ChevronRight } from 'lucide-react';
 import logoMarombiew from '@/assets/logo_marombiew.png';
-import { REEL_THEMES } from '@/lib/reelsRenderer';
-import { drawCarouselSlide, SLIDE_H, SLIDE_W } from '@/lib/carouselRenderer';
+import { pickRecorderMime, REEL_THEMES } from '@/lib/reelsRenderer';
+import {
+  CAROUSEL_STYLES,
+  CAROUSEL_TEXT_POSITIONS,
+  drawCarouselSlide,
+  SLIDE_H,
+  SLIDE_W,
+  type CarouselStyle,
+  type CarouselTextPosition,
+} from '@/lib/carouselRenderer';
 import { saveSocialPost, uploadSocialFile } from '@/lib/socialPosts';
 
 interface ExerciseRow { id: string; nome: string; imagem_url: string | null; video_embed: string | null }
@@ -25,6 +33,7 @@ interface Slide {
   mediaKind: MediaKind;
   exerciseId?: string;
   uploadName?: string;
+  textPosition: CarouselTextPosition;
 }
 
 const extractStreamVideoId = (embed?: string | null): string | null => {
@@ -47,6 +56,7 @@ const emptySlide = (index: number): Slide => ({
   title: index === 0 ? 'Título do carrossel' : `Slide ${index + 1}`,
   text: '',
   mediaKind: 'none',
+  textPosition: 'below',
 });
 
 interface Props { onSaved?: () => void }
@@ -55,6 +65,7 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
   const [slides, setSlides] = useState<Slide[]>([emptySlide(0), emptySlide(1), emptySlide(2)]);
   const [current, setCurrent] = useState(0);
   const [themeKey, setThemeKey] = useState<string>('ouro');
+  const [slideStyle, setSlideStyle] = useState<CarouselStyle>('classic');
   const [footer, setFooter] = useState('@marombiew');
   const [postTitle, setPostTitle] = useState('');
   const [exercises, setExercises] = useState<ExerciseRow[]>([]);
@@ -162,11 +173,13 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
         footer,
         index: current,
         total: slides.length,
+        textPosition: slide.textPosition,
+        style: slideStyle,
       });
     };
     rafRef.current = requestAnimationFrame(loop);
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [slides, current, theme, footer, mediaForSlide]);
+  }, [slides, current, theme, footer, mediaForSlide, slideStyle]);
 
   const patchSlide = (id: string, patch: Partial<Slide>) =>
     setSlides((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
@@ -229,24 +242,89 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
       footer,
       index,
       total: slides.length,
+      textPosition: slide.textPosition,
+      style: slideStyle,
     });
     return await new Promise<Blob | null>((resolve) => off.toBlob(resolve, 'image/png'));
+  };
+
+  const slideHasVideo = (slide: Slide) => mediaForSlide(slide) instanceof HTMLVideoElement;
+
+  // Slides com vídeo são exportados como vídeo (mp4 quando o navegador suportar, senão webm)
+  const renderSlideVideoBlob = async (
+    slide: Slide,
+    index: number,
+    durationMs = 6000,
+  ): Promise<{ blob: Blob; ext: 'mp4' | 'webm' } | null> => {
+    const media = mediaForSlide(slide);
+    if (!(media instanceof HTMLVideoElement)) return null;
+    if (typeof MediaRecorder === 'undefined') return null;
+
+    const off = document.createElement('canvas');
+    off.width = SLIDE_W;
+    off.height = SLIDE_H;
+    const ctx = off.getContext('2d');
+    if (!ctx) return null;
+
+    if (media.readyState < 2) {
+      await new Promise((resolve) => {
+        const t = window.setTimeout(resolve, 5000);
+        media.addEventListener('loadeddata', () => { window.clearTimeout(t); resolve(null); }, { once: true });
+      });
+    }
+    try { media.currentTime = 0; } catch { /* noop */ }
+    await media.play().catch(() => {});
+
+    const mime = pickRecorderMime();
+    const stream = off.captureStream(30);
+    const recorder = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 6_000_000 } : undefined);
+    const chunks: BlobPart[] = [];
+    recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+
+    let raf = 0;
+    const draw = () => {
+      raf = requestAnimationFrame(draw);
+      drawCarouselSlide(ctx, {
+        theme,
+        logo: logoRef.current,
+        title: slide.title,
+        text: slide.text,
+        media,
+        footer,
+        index,
+        total: slides.length,
+        textPosition: slide.textPosition,
+        style: slideStyle,
+      });
+    };
+    draw();
+    recorder.start();
+
+    const blob = await new Promise<Blob>((resolve) => {
+      recorder.onstop = () => resolve(new Blob(chunks, { type: recorder.mimeType || mime || 'video/webm' }));
+      window.setTimeout(() => { try { recorder.stop(); } catch { /* noop */ } }, durationMs);
+    });
+    cancelAnimationFrame(raf);
+    const ext: 'mp4' | 'webm' = (recorder.mimeType || mime).includes('mp4') ? 'mp4' : 'webm';
+    return { blob, ext };
   };
 
   const downloadAll = async () => {
     setBusy(true);
     try {
       for (let i = 0; i < slides.length; i += 1) {
-        const blob = await renderSlideBlob(slides[i], i);
+        const video = slideHasVideo(slides[i]) ? await renderSlideVideoBlob(slides[i], i) : null;
+        const blob = video?.blob ?? (await renderSlideBlob(slides[i], i));
         if (!blob) continue;
+        const ext = video?.ext ?? 'png';
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `carrossel-${(postTitle || 'post').toLowerCase().replace(/\s+/g, '-')}-${i + 1}.png`;
+        a.download = `carrossel-${(postTitle || 'post').toLowerCase().replace(/\s+/g, '-')}-${i + 1}.${ext}`;
         a.click();
         window.setTimeout(() => URL.revokeObjectURL(url), 4000);
       }
-      toast.success('Slides baixados.');
+      toast.success('Slides baixados (vídeos em mp4/webm).');
     } catch (e: any) {
       toast.error(e?.message ?? 'Falha ao gerar slides.');
     } finally {
@@ -258,18 +336,22 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
     setBusy(true);
     try {
       const paths: string[] = [];
+      let coverPath: string | undefined;
       for (let i = 0; i < slides.length; i += 1) {
-        const blob = await renderSlideBlob(slides[i], i);
+        const video = slideHasVideo(slides[i]) ? await renderSlideVideoBlob(slides[i], i) : null;
+        const blob = video?.blob ?? (await renderSlideBlob(slides[i], i));
         if (!blob) continue;
-        paths.push(await uploadSocialFile(blob, 'png', 'carousels'));
+        const path = await uploadSocialFile(blob, video?.ext ?? 'png', 'carousels');
+        paths.push(path);
+        if (!coverPath && !video) coverPath = path;
       }
       if (!paths.length) throw new Error('Nenhum slide gerado.');
       await saveSocialPost({
         kind: 'carousel',
         title: postTitle || slides[0]?.title || 'Carrossel',
         filePaths: paths,
-        coverPath: paths[0],
-        meta: { theme: themeKey, slides: paths.length },
+        coverPath: coverPath ?? paths[0],
+        meta: { theme: themeKey, style: slideStyle, slides: paths.length },
       });
       toast.success('Carrossel salvo na galeria.');
       onSaved?.();
@@ -313,6 +395,17 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
                 <Label>Rodapé / @perfil</Label>
                 <Input value={footer} onChange={(e) => setFooter(e.target.value)} />
               </div>
+              <div className="space-y-1.5 sm:col-span-3">
+                <Label>Modelo do slide</Label>
+                <Select value={slideStyle} onValueChange={(v) => setSlideStyle(v as CarouselStyle)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CAROUSEL_STYLES.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="flex items-center justify-between">
@@ -355,6 +448,20 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
                     placeholder="Escreva o conteúdo do slide…"
                     className="min-h-[90px]"
                   />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Posição do texto</Label>
+                  <Select
+                    value={slide.textPosition}
+                    onValueChange={(v) => patchSlide(slide.id, { textPosition: v as CarouselTextPosition })}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CAROUSEL_TEXT_POSITIONS.map((p) => (
+                        <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
@@ -413,7 +520,7 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Slides em 1080x1350 (4:5), formato ideal para carrossel do Instagram. Vídeos entram como frame estático na exportação.
+              Slides em 1080x1350 (4:5), formato ideal para carrossel do Instagram. Slides com vídeo são exportados como vídeo de 6s (.mp4 quando o navegador suportar, senão .webm); os demais saem em .png.
             </p>
           </CardContent>
         </Card>
