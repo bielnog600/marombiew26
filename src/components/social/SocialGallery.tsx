@@ -33,6 +33,35 @@ const SocialGallery: React.FC<Props> = ({ refreshKey = 0 }) => {
     })();
   }, [open]);
 
+  const saveFile = async (url: string, index: number) => {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const isVideo = blob.type.startsWith('video') || /\.(mp4|webm|mov)(\?|$)/i.test(url);
+      const ext = isVideo ? (blob.type.includes('webm') ? 'webm' : 'mp4') : 'png';
+      const name = `${(open?.title || 'publicacao').replace(/[^\w-]+/g, '-').toLowerCase()}-${index + 1}.${ext}`;
+      const file = new File([blob], name, { type: blob.type || (isVideo ? 'video/mp4' : 'image/png') });
+
+      const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+      if (nav.canShare?.({ files: [file] })) {
+        await nav.share({ files: [file], title: open?.title || 'Publicação' });
+        return;
+      }
+
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objUrl;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(objUrl), 4000);
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
+      toast.error('Não foi possível baixar o arquivo.');
+    }
+  };
+
   const remove = async (post: SocialPost) => {
     try {
       await deleteSocialPost(post);
@@ -106,10 +135,8 @@ const SocialGallery: React.FC<Props> = ({ refreshKey = 0 }) => {
                 ) : (
                   <img src={url} alt={`Slide ${i + 1}`} className="w-full rounded-lg" loading="lazy" />
                 )}
-                <Button asChild size="sm" variant="secondary">
-                  <a href={url} download>
-                    <Download className="h-4 w-4 mr-1" /> Baixar {open?.kind === 'reel' ? 'vídeo' : `slide ${i + 1}`}
-                  </a>
+                <Button size="sm" variant="secondary" onClick={() => saveFile(url, i)}>
+                  <Download className="h-4 w-4 mr-1" /> Baixar {open?.kind === 'reel' ? 'vídeo' : `slide ${i + 1}`}
                 </Button>
               </div>
             ))}
