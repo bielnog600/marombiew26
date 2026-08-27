@@ -512,8 +512,8 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     try {
       const totals: Record<string, { exercisesCompleted: number; totalExercises: number }> = {};
       const cleanup: Array<() => void> = [];
-      [studentA, studentB].forEach((st) => {
-        if (!st) return;
+      for (const st of [studentA, studentB]) {
+        if (!st) continue;
         const day = st.days[st.activeDayIdx];
         totals[st.studentId] = {
           exercisesCompleted: Object.values(st.state).filter((ex: any) => ex.savedSets > 0).length,
@@ -523,8 +523,26 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
           cleanup.push(() =>
             localStorage.removeItem(draftKey(st.studentId, day.day, makeDaySignature(day))),
           );
+          // Persistir edições do modal no plano do aluno
+          if (st.plan?.id) {
+            try {
+              const res = await persistSessionDayEditsToPlan({
+                planId: st.plan.id,
+                dayName: day.day,
+                dayIndex: st.activeDayIdx,
+                exercises: day.exercises,
+                states: st.state,
+                fallbackDays: st.days,
+              });
+              if (!res.success) {
+                toast.error(`Edições de ${st.nome} não foram salvas no plano: ${res.error}`);
+              }
+            } catch (e) {
+              console.warn('[DuoTrainerLogSheet] falha ao salvar edições no plano', e);
+            }
+          }
         }
-      });
+      }
       await finish(totals);
       cleanup.forEach((fn) => fn());
     } catch (err: any) {
@@ -533,6 +551,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
       setFinishing(false);
     }
   };
+
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
