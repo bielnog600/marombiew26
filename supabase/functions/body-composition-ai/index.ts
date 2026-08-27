@@ -204,6 +204,12 @@ Deno.serve(async (req) => {
 
     const body = (await req.json()) as Body;
     const photos = body.photos ?? {};
+    const known: Record<string, number> = {};
+    for (const [k, v] of Object.entries(body.knownMeasurements ?? {})) {
+      const n = num(v);
+      if (n !== null && n > 0 && (MEASURE_KEYS as readonly string[]).includes(k)) known[k] = n;
+    }
+    const knownList = Object.entries(known);
     const urls = [
       ["Vista FRONTAL", photos.front],
       ["Vista LATERAL", photos.side],
@@ -221,6 +227,7 @@ Deno.serve(async (req) => {
 - Altura: ${body.heightCm ?? "não informada"} cm
 - Peso: ${body.weightKg ?? "não informado"} kg
 - Observações: ${body.notes || "nenhuma"}
+${knownList.length ? `- MEDIDAS REAIS DE FITA MÉTRICA (verdade absoluta, repita exatamente e use para calibrar as demais):\n${knownList.map(([k, v]) => `  • ${k}: ${v} cm`).join("\n")}` : "- Medidas reais de fita métrica: nenhuma informada"}
 - Fotos disponíveis: ${urls.length} (${urls.map(([l]) => l).join(", ")})
 
 Analise as imagens e devolva o JSON pedido, com valores coerentes entre si.`,
@@ -234,40 +241,45 @@ Analise as imagens e devolva o JSON pedido, com valores coerentes entre si.`,
     // Mesma família de modelos usada na geração de treino e dieta.
     const models = Array.from(new Set([AI_MODELS.fallback, AI_MODELS.primary].filter(Boolean)));
     let last: { status: number; data: any } | null = null;
-    let raw: string | null = null;
     let usedModel: string | null = null;
+    const samples: any[] = [];
+
+    const parseJson = (raw: string): any => {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        const m = raw.match(/\{[\s\S]*\}/);
+        try { return m ? JSON.parse(m[0]) : null; } catch { return null; }
+      }
+    };
 
     for (const model of models) {
-      const r = await callOpenAIVision(model, content, apiKey);
-      if (r.ok) {
-        const text = r.data?.choices?.[0]?.message?.content;
-        if (text) {
-          raw = text;
-          usedModel = model;
-          break;
+      // 3 amostras independentes -> consenso por mediana (reduz o erro aleatório).
+      const results = await Promise.all([1, 2, 3].map(() => callOpenAIVision(model, content, apiKey)));
+      for (const r of results) {
+        if (r.ok) {
+          const text = r.data?.choices?.[0]?.message?.content;
+          const parsedSample = text ? parseJson(text) : null;
+          if (parsedSample) samples.push(parsedSample);
+        } else {
+          last = { status: r.status, data: r.data };
+          console.error(`body-composition-ai: falha no modelo ${model}`, r.status, JSON.stringify(r.data)?.slice(0, 400));
         }
       }
-      last = { status: r.status, data: r.data };
-      console.error(`body-composition-ai: falha no modelo ${model}`, r.status, JSON.stringify(r.data)?.slice(0, 400));
-      if (r.status === 401) break;
+      if (samples.length > 0) { usedModel = model; break; }
+      if (last?.status === 401) break;
     }
 
-    if (!raw) {
+    if (samples.length === 0) {
       if (last?.status === 429) return j(429, { error: "Limite de requisições atingido. Tente novamente em instantes." });
       if (last?.status === 401) return j(401, { error: "Chave OpenAI inválida ou sem créditos." });
       return j(502, { error: "Falha na análise de IA.", detail: JSON.stringify(last?.data ?? {}).slice(0, 500) });
     }
 
-    let parsed: any;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      const m = raw.match(/\{[\s\S]*\}/);
-      parsed = m ? JSON.parse(m[0]) : null;
-    }
-    if (!parsed) return j(502, { error: "Resposta da IA em formato inválido." });
+    let parsed = consensus(samples);
+    if (knownList.length > 0) parsed = calibrate(parsed, known);
 
-    return j(200, { result: parsed, model: usedModel });
+    return j(200, { result: parsed, model: usedModel, samples: samples.length });
   } catch (err) {
     console.error("body-composition-ai error", err);
     return j(500, { error: err instanceof Error ? err.message : "Erro desconhecido." });
