@@ -2419,6 +2419,42 @@ export type Database = {
           },
         ]
       }
+      social_media_posts: {
+        Row: {
+          cover_path: string | null
+          created_at: string
+          created_by: string
+          file_paths: string[]
+          id: string
+          kind: string
+          meta: Json
+          student_id: string | null
+          title: string | null
+        }
+        Insert: {
+          cover_path?: string | null
+          created_at?: string
+          created_by: string
+          file_paths?: string[]
+          id?: string
+          kind: string
+          meta?: Json
+          student_id?: string | null
+          title?: string | null
+        }
+        Update: {
+          cover_path?: string | null
+          created_at?: string
+          created_by?: string
+          file_paths?: string[]
+          id?: string
+          kind?: string
+          meta?: Json
+          student_id?: string | null
+          title?: string | null
+        }
+        Relationships: []
+      }
       student_events: {
         Row: {
           created_at: string
