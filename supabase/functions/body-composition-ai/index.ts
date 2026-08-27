@@ -78,8 +78,6 @@ async function callOpenAIVision(model: string, content: unknown[], apiKey: strin
   };
   if (isNextGen) {
     body.max_completion_tokens = 6000;
-    // GPT-5.6 em /chat/completions precisa de reasoning_effort explícito.
-    if (/^gpt-5\.6/.test(model)) body.reasoning_effort = "none";
   } else {
     body.max_tokens = 4000;
     body.temperature = 0.3;
@@ -131,7 +129,7 @@ Analise as imagens e devolva o JSON pedido, com valores coerentes entre si.`,
     }
 
     // Mesma família de modelos usada na geração de treino e dieta.
-    const models = [AI_MODELS.fallback, AI_MODELS.primary].filter(Boolean);
+    const models = Array.from(new Set([AI_MODELS.fallback, AI_MODELS.primary].filter(Boolean)));
     let last: { status: number; data: any } | null = null;
     let raw: string | null = null;
     let usedModel: string | null = null;
