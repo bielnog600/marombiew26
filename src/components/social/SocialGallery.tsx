@@ -130,7 +130,7 @@ const SocialGallery: React.FC<Props> = ({ refreshKey = 0 }) => {
           <div className="space-y-3">
             {urls.map((url, i) => (
               <div key={url} className="space-y-2">
-                {open?.kind === 'reel' ? (
+                {open?.kind === 'reel' || /\.(mp4|webm|mov)(\?|$)/i.test(open?.file_paths[i] ?? '') ? (
                   <video src={url} controls playsInline className="w-full rounded-lg bg-black" />
                 ) : (
                   <img src={url} alt={`Slide ${i + 1}`} className="w-full rounded-lg" loading="lazy" />
