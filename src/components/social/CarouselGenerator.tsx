@@ -340,7 +340,7 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
       const paths: string[] = [];
       let coverPath: string | undefined;
       for (let i = 0; i < slides.length; i += 1) {
-        const video = slideHasVideo(slides[i]) ? await renderSlideVideoBlob(slides[i], i) : null;
+        const video = slideHasVideo(slides[i]) ? await renderSlideVideoBlob(slides[i], i, videoDurationSec * 1000) : null;
         const blob = video?.blob ?? (await renderSlideBlob(slides[i], i));
         if (!blob) continue;
         const path = await uploadSocialFile(blob, video?.ext ?? 'png', 'carousels');
