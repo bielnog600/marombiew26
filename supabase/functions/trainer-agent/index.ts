@@ -355,6 +355,48 @@ function workoutPlanToMarkdown(plan: any): string {
   return lines.join("\n");
 }
 
+type StructuredStreamResult = {
+  content: string;
+  usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+};
+
+async function consumeStructuredChatStream(response: Response): Promise<StructuredStreamResult> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("Resposta de streaming sem corpo.");
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let content = "";
+  let usage: StructuredStreamResult["usage"];
+
+  const consumeEvent = (event: string) => {
+    for (const line of event.split("\n")) {
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (!data || data === "[DONE]") continue;
+      const chunk = JSON.parse(data);
+      const delta = chunk?.choices?.[0]?.delta?.content;
+      if (typeof delta === "string") content += delta;
+      if (chunk?.usage) usage = chunk.usage;
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, "\n");
+    let separator = buffer.indexOf("\n\n");
+    while (separator >= 0) {
+      consumeEvent(buffer.slice(0, separator));
+      buffer = buffer.slice(separator + 2);
+      separator = buffer.indexOf("\n\n");
+    }
+    if (done) break;
+  }
+
+  if (buffer.trim()) consumeEvent(buffer);
+  return { content, usage };
+}
+
 async function callStructuredModel({
   apiKey,
   systemPrompt,
