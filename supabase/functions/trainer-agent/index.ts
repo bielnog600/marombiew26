@@ -475,11 +475,26 @@ async function callStructuredModel({
     };
   }
 
-  const payload = await upstream.json();
-  const usage = payload?.usage;
+  let completion: StructuredStreamResult;
+  try {
+    completion = await consumeStructuredChatStream(upstream);
+  } catch (error) {
+    console.error("trainer-agent[json] invalid stream:", error);
+    attempts.push({ model: modelToUse, durationMs: Date.now() - start, reason: "invalid_stream" });
+    return {
+      ok: false,
+      error_code: "invalid_stream",
+      response: new Response(
+        JSON.stringify({ error: "Fluxo de resposta da IA inválido.", retryable: true, error_code: "invalid_stream" }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      ),
+    };
+  }
+
+  const usage = completion.usage;
   attempts.push({
     model: modelToUse,
-    durationMs,
+    durationMs: Date.now() - start,
     reason,
     usage: usage ? {
       promptTokens: usage.prompt_tokens,
@@ -488,7 +503,7 @@ async function callStructuredModel({
     } : null
   });
   
-  const content = payload?.choices?.[0]?.message?.content;
+  const content = completion.content;
   if (!content || typeof content !== "string" || content.trim().length === 0) {
     return {
       ok: false,
