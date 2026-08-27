@@ -437,6 +437,8 @@ async function callStructuredModel({
         ...messages,
       ],
       max_completion_tokens: 16000,
+      stream: true,
+      stream_options: { include_usage: true },
       response_format: {
         type: "json_schema",
         json_schema: {
