@@ -91,21 +91,8 @@ const drawFooter = (ctx: CanvasRenderingContext2D, theme: ReelTheme, footer: str
 
 type Media = HTMLVideoElement | HTMLImageElement;
 
-/** Desenha 1 ou 2 mídias dentro da área informada, respeitando o layout duplo. */
-const drawMediaArea = (
-  ctx: CanvasRenderingContext2D,
-  theme: ReelTheme,
-  medias: Media[],
-  x: number, y: number, w: number, h: number,
-  radius: number,
-  withBorder: boolean,
-) => {
-  const gap = medias.length > 1 ? 18 : 0;
-  const rects = medias.length > 1
-    ? (arguments as unknown as never, [] as { x: number; y: number; w: number; h: number }[])
-    : [{ x, y, w, h }];
-  return { rects, gap, radius, withBorder, theme, ctx };
-};
+
+
 
 const paintMedia = (
   ctx: CanvasRenderingContext2D,
