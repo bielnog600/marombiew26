@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import Hls from 'hls.js';
-import { Loader2, Plus, Trash2, Upload, Images, Download, Save, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Loader2, Plus, Trash2, Upload, Images, Download, Save, ChevronLeft, ChevronRight, ArrowLeftRight } from 'lucide-react';
 import logoMarombiew from '@/assets/logo_marombiew.png';
 import { pickRecorderMime, REEL_THEMES } from '@/lib/reelsRenderer';
 import {
@@ -204,6 +204,21 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
 
   const patchSlide = (id: string, patch: Partial<Slide>) =>
     setSlides((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+
+  const swapMedia = (s: Slide) => {
+    const a = mediaRef.current.get(`up:${s.id}`);
+    const b = mediaRef.current.get(`upB:${s.id}`);
+    if (a) mediaRef.current.set(`upB:${s.id}`, a); else mediaRef.current.delete(`upB:${s.id}`);
+    if (b) mediaRef.current.set(`up:${s.id}`, b); else mediaRef.current.delete(`up:${s.id}`);
+    patchSlide(s.id, {
+      mediaKind: s.mediaKindB,
+      mediaKindB: s.mediaKind,
+      exerciseId: s.exerciseIdB,
+      exerciseIdB: s.exerciseId,
+      uploadName: s.uploadNameB,
+      uploadNameB: s.uploadName,
+    });
+  };
 
   const addSlide = () => {
     if (slides.length >= 10) { toast.error('Máximo de 10 slides.'); return; }
