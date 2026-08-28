@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -26,7 +27,7 @@ import { saveSocialPost, uploadSocialFile } from '@/lib/socialPosts';
 
 interface ExerciseRow { id: string; nome: string; imagem_url: string | null; video_embed: string | null }
 
-type MediaKind = 'none' | 'upload' | 'exercise';
+type MediaKind = 'none' | 'upload' | 'exercise' | 'exercise_combo';
 
 interface Slide {
   id: string;
@@ -150,13 +151,31 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
     return null;
   }, [exercises]);
 
+  // Imagem cadastrada do exercício (usada no modo combinado imagem + vídeo)
+  const ensureExerciseImage = useCallback((exerciseId?: string) => {
+    if (!exerciseId) return null;
+    const key = `eximg:${exerciseId}`;
+    const existing = mediaRef.current.get(key);
+    if (existing) return existing;
+    const ex = exercises.find((e) => e.id === exerciseId);
+    if (!ex?.imagem_url) return null;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = ex.imagem_url;
+    mediaRef.current.set(key, img);
+    return img;
+  }, [exercises]);
+
   const mediaForSlide = useCallback((slide: Slide) => {
     if (slide.mediaKind === 'upload') return mediaRef.current.get(`up:${slide.id}`) ?? null;
     if (slide.mediaKind === 'exercise') return ensureExerciseMedia(slide.exerciseId);
+    if (slide.mediaKind === 'exercise_combo') return ensureExerciseImage(slide.exerciseId) ?? ensureExerciseMedia(slide.exerciseId);
     return null;
-  }, [ensureExerciseMedia]);
+  }, [ensureExerciseMedia, ensureExerciseImage]);
 
   const mediaBForSlide = useCallback((slide: Slide) => {
+    // Modo combinado: a 2ª mídia é sempre o vídeo do exercício escolhido
+    if (slide.mediaKind === 'exercise_combo') return ensureExerciseMedia(slide.exerciseId);
     if (slide.mediaKindB === 'upload') return mediaRef.current.get(`upB:${slide.id}`) ?? null;
     if (slide.mediaKindB === 'exercise') return ensureExerciseMedia(slide.exerciseIdB);
     return null;
@@ -535,6 +554,7 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
                         <SelectItem value="none">Somente texto</SelectItem>
                         <SelectItem value="upload">Imagem/vídeo enviado</SelectItem>
                         <SelectItem value="exercise">Vídeo do exercício</SelectItem>
+                        <SelectItem value="exercise_combo">Imagem + vídeo do exercício (app)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
