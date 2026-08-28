@@ -555,6 +555,76 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
                     </div>
                   )}
                 </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 border-t border-border pt-3">
+                  <div className="space-y-1.5">
+                    <Label>Segunda mídia (vídeo + imagem)</Label>
+                    <Select value={slide.mediaKindB} onValueChange={(v) => patchSlide(slide.id, { mediaKindB: v as MediaKind })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Sem segunda mídia</SelectItem>
+                        <SelectItem value="upload">Imagem/vídeo enviado</SelectItem>
+                        <SelectItem value="exercise">Vídeo do exercício</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {slide.mediaKindB === 'upload' && (
+                    <div className="space-y-1.5">
+                      <Label>Arquivo (2ª mídia)</Label>
+                      <Button asChild variant="secondary" size="sm">
+                        <label className="cursor-pointer">
+                          <Upload className="h-4 w-4 mr-1" /> Enviar
+                          <input
+                            type="file" accept="image/*,video/*" className="hidden"
+                            onChange={(e) => handleUpload(slide, e.target.files?.[0], 'b')}
+                          />
+                        </label>
+                      </Button>
+                      {slide.uploadNameB && <p className="text-xs text-muted-foreground truncate">{slide.uploadNameB}</p>}
+                    </div>
+                  )}
+                  {slide.mediaKindB === 'exercise' && (
+                    <div className="space-y-1.5">
+                      <Label>Exercício (2ª mídia)</Label>
+                      <Select
+                        value={slide.exerciseIdB ?? ''}
+                        onValueChange={(v) => patchSlide(slide.id, { exerciseIdB: v })}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                        <SelectContent className="max-h-72">
+                          {exercises.map((ex) => (
+                            <SelectItem key={ex.id} value={ex.id}>{ex.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {slide.mediaKindB !== 'none' && (
+                    <>
+                      <div className="space-y-1.5">
+                        <Label>Layout das mídias</Label>
+                        <Select
+                          value={slide.dualLayout}
+                          onValueChange={(v) => patchSlide(slide.id, { dualLayout: v as CarouselDualLayout })}
+                        >
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {CAROUSEL_DUAL_LAYOUTS.map((l) => (
+                              <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Ordem</Label>
+                        <Button size="sm" variant="secondary" onClick={() => swapMedia(slide)}>
+                          <ArrowLeftRight className="h-4 w-4 mr-1" /> Inverter mídias
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+
               </div>
             )}
 
