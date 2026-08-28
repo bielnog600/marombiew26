@@ -14,11 +14,13 @@ import { pickRecorderMime, REEL_THEMES } from '@/lib/reelsRenderer';
 import {
   CAROUSEL_STYLES,
   CAROUSEL_TEXT_POSITIONS,
+  CAROUSEL_DUAL_LAYOUTS,
   drawCarouselSlide,
   SLIDE_H,
   SLIDE_W,
   type CarouselStyle,
   type CarouselTextPosition,
+  type CarouselDualLayout,
 } from '@/lib/carouselRenderer';
 import { saveSocialPost, uploadSocialFile } from '@/lib/socialPosts';
 
@@ -33,6 +35,11 @@ interface Slide {
   mediaKind: MediaKind;
   exerciseId?: string;
   uploadName?: string;
+  // Segunda mídia (ex.: vídeo + imagem no mesmo slide)
+  mediaKindB: MediaKind;
+  exerciseIdB?: string;
+  uploadNameB?: string;
+  dualLayout: CarouselDualLayout;
   textPosition: CarouselTextPosition;
 }
 
@@ -56,6 +63,8 @@ const emptySlide = (index: number): Slide => ({
   title: index === 0 ? 'Título do carrossel' : `Slide ${index + 1}`,
   text: '',
   mediaKind: 'none',
+  mediaKindB: 'none',
+  dualLayout: 'vertical',
   textPosition: 'below',
 });
 
@@ -105,12 +114,12 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
     objectUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
   }, []);
 
-  const ensureExerciseMedia = useCallback((slide: Slide) => {
-    if (slide.mediaKind !== 'exercise' || !slide.exerciseId) return null;
-    const key = `ex:${slide.exerciseId}`;
+  const ensureExerciseMedia = useCallback((exerciseId?: string) => {
+    if (!exerciseId) return null;
+    const key = `ex:${exerciseId}`;
     const existing = mediaRef.current.get(key);
     if (existing) return existing;
-    const ex = exercises.find((e) => e.id === slide.exerciseId);
+    const ex = exercises.find((e) => e.id === exerciseId);
     if (!ex) return null;
     const uid = extractStreamVideoId(ex.video_embed);
     if (uid) {
@@ -143,7 +152,13 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
 
   const mediaForSlide = useCallback((slide: Slide) => {
     if (slide.mediaKind === 'upload') return mediaRef.current.get(`up:${slide.id}`) ?? null;
-    if (slide.mediaKind === 'exercise') return ensureExerciseMedia(slide);
+    if (slide.mediaKind === 'exercise') return ensureExerciseMedia(slide.exerciseId);
+    return null;
+  }, [ensureExerciseMedia]);
+
+  const mediaBForSlide = useCallback((slide: Slide) => {
+    if (slide.mediaKindB === 'upload') return mediaRef.current.get(`upB:${slide.id}`) ?? null;
+    if (slide.mediaKindB === 'exercise') return ensureExerciseMedia(slide.exerciseIdB);
     return null;
   }, [ensureExerciseMedia]);
 
@@ -161,16 +176,21 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
       const slide = slides[current];
       if (!slide) return;
       const media = mediaForSlide(slide);
+      const mediaB = mediaBForSlide(slide);
       mediaRef.current.forEach((m) => {
-        if (m instanceof HTMLVideoElement && m !== media && !m.paused) m.pause();
+        if (m instanceof HTMLVideoElement && m !== media && m !== mediaB && !m.paused) m.pause();
       });
-      if (media instanceof HTMLVideoElement && media.paused) media.play().catch(() => {});
+      [media, mediaB].forEach((m) => {
+        if (m instanceof HTMLVideoElement && m.paused) m.play().catch(() => {});
+      });
       drawCarouselSlide(ctx, {
         theme,
         logo: logoRef.current,
         title: slide.title,
         text: slide.text,
         media,
+        mediaB,
+        dualLayout: slide.dualLayout,
         footer,
         index: current,
         total: slides.length,
@@ -180,7 +200,7 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
     };
     rafRef.current = requestAnimationFrame(loop);
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [slides, current, theme, footer, mediaForSlide, slideStyle]);
+  }, [slides, current, theme, footer, mediaForSlide, mediaBForSlide, slideStyle]);
 
   const patchSlide = (id: string, patch: Partial<Slide>) =>
     setSlides((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
@@ -196,11 +216,11 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
     setCurrent((c) => Math.max(0, Math.min(c, slides.length - 2)));
   };
 
-  const handleUpload = (slide: Slide, file?: File | null) => {
+  const handleUpload = (slide: Slide, file?: File | null, slot: 'a' | 'b' = 'a') => {
     if (!file) return;
     const url = URL.createObjectURL(file);
     objectUrlsRef.current.push(url);
-    const key = `up:${slide.id}`;
+    const key = slot === 'a' ? `up:${slide.id}` : `upB:${slide.id}`;
     if (file.type.startsWith('video')) {
       const video = document.createElement('video');
       video.src = url; video.muted = true; video.loop = true; video.playsInline = true;
@@ -211,7 +231,8 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
       img.src = url;
       mediaRef.current.set(key, img);
     }
-    patchSlide(slide.id, { mediaKind: 'upload', uploadName: file.name });
+    if (slot === 'a') patchSlide(slide.id, { mediaKind: 'upload', uploadName: file.name });
+    else patchSlide(slide.id, { mediaKindB: 'upload', uploadNameB: file.name });
   };
 
   const renderSlideBlob = async (slide: Slide, index: number): Promise<Blob | null> => {
@@ -221,18 +242,21 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
     const ctx = off.getContext('2d');
     if (!ctx) return null;
     const media = mediaForSlide(slide);
-    if (media instanceof HTMLVideoElement && media.readyState < 2) {
-      await new Promise((resolve) => {
-        const t = window.setTimeout(resolve, 4000);
-        media.addEventListener('loadeddata', () => { window.clearTimeout(t); resolve(null); }, { once: true });
-      });
-    }
-    if (media instanceof HTMLImageElement && !media.complete) {
-      await new Promise((resolve) => {
-        const t = window.setTimeout(resolve, 4000);
-        media.addEventListener('load', () => { window.clearTimeout(t); resolve(null); }, { once: true });
-        media.addEventListener('error', () => { window.clearTimeout(t); resolve(null); }, { once: true });
-      });
+    const mediaB = mediaBForSlide(slide);
+    for (const m of [media, mediaB]) {
+      if (m instanceof HTMLVideoElement && m.readyState < 2) {
+        await new Promise((resolve) => {
+          const t = window.setTimeout(resolve, 4000);
+          m.addEventListener('loadeddata', () => { window.clearTimeout(t); resolve(null); }, { once: true });
+        });
+      }
+      if (m instanceof HTMLImageElement && !m.complete) {
+        await new Promise((resolve) => {
+          const t = window.setTimeout(resolve, 4000);
+          m.addEventListener('load', () => { window.clearTimeout(t); resolve(null); }, { once: true });
+          m.addEventListener('error', () => { window.clearTimeout(t); resolve(null); }, { once: true });
+        });
+      }
     }
     drawCarouselSlide(ctx, {
       theme,
@@ -240,6 +264,8 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
       title: slide.title,
       text: slide.text,
       media,
+      mediaB,
+      dualLayout: slide.dualLayout,
       footer,
       index,
       total: slides.length,
@@ -249,7 +275,8 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
     return await new Promise<Blob | null>((resolve) => off.toBlob(resolve, 'image/png'));
   };
 
-  const slideHasVideo = (slide: Slide) => mediaForSlide(slide) instanceof HTMLVideoElement;
+  const slideHasVideo = (slide: Slide) =>
+    mediaForSlide(slide) instanceof HTMLVideoElement || mediaBForSlide(slide) instanceof HTMLVideoElement;
 
   // Slides com vídeo são exportados como vídeo (mp4 quando o navegador suportar, senão webm)
   const renderSlideVideoBlob = async (
@@ -259,7 +286,9 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
   ): Promise<{ blob: Blob; ext: 'mp4' | 'webm' } | null> => {
     const effectiveDurationMs = Math.min(60_000, Math.max(1_000, durationMs ?? 6_000));
     const media = mediaForSlide(slide);
-    if (!(media instanceof HTMLVideoElement)) return null;
+    const mediaB = mediaBForSlide(slide);
+    const videos = [media, mediaB].filter((m): m is HTMLVideoElement => m instanceof HTMLVideoElement);
+    if (!videos.length) return null;
     if (typeof MediaRecorder === 'undefined') return null;
 
     const off = document.createElement('canvas');
@@ -268,14 +297,16 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
     const ctx = off.getContext('2d');
     if (!ctx) return null;
 
-    if (media.readyState < 2) {
-      await new Promise((resolve) => {
-        const t = window.setTimeout(resolve, 5000);
-        media.addEventListener('loadeddata', () => { window.clearTimeout(t); resolve(null); }, { once: true });
-      });
+    for (const v of videos) {
+      if (v.readyState < 2) {
+        await new Promise((resolve) => {
+          const t = window.setTimeout(resolve, 5000);
+          v.addEventListener('loadeddata', () => { window.clearTimeout(t); resolve(null); }, { once: true });
+        });
+      }
+      try { v.currentTime = 0; } catch { /* noop */ }
+      await v.play().catch(() => {});
     }
-    try { media.currentTime = 0; } catch { /* noop */ }
-    await media.play().catch(() => {});
 
     const mime = pickRecorderMime();
     const stream = off.captureStream(30);
@@ -292,6 +323,8 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
         title: slide.title,
         text: slide.text,
         media,
+        mediaB,
+        dualLayout: slide.dualLayout,
         footer,
         index,
         total: slides.length,
