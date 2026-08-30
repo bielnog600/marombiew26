@@ -486,7 +486,9 @@ serve(async (req) => {
       variationIntensity,
       regenerateIntent,
       intent: rawIntent,
+      referenceDietProvided: rawReferenceDietProvided,
     } = await req.json();
+    const referenceDietProvided = Boolean(rawReferenceDietProvided);
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
@@ -729,7 +731,10 @@ serve(async (req) => {
               : DEFAULT_INTENSITY;
 
       // Hard demand for menu variation when explicitly regenerating.
-      const requireMenuVariation = intent === "regenerate";
+      // Uma "dieta modelo" colada pelo admin exige repetir os mesmos alimentos:
+      // nesse caso a variação nunca pode ser exigida nem bloquear a geração.
+      const requireMenuVariation = intent === "regenerate" && !referenceDietProvided;
+
       let history: HistoryPlan[] = [];
       let historySummary = "";
       if (typeof studentId === "string" && studentId.length > 0) {
@@ -986,7 +991,7 @@ serve(async (req) => {
         }
       }
 
-      const variationRetryAllowed = isVariationRetryAllowed(intent);
+      const variationRetryAllowed = isVariationRetryAllowed(intent, referenceDietProvided);
 
       const dietSignals: DietCandidateSignals = {
         intent,
@@ -1000,6 +1005,7 @@ serve(async (req) => {
         nutritionOk: nutrition.ok,
         dailyAdjustmentsOk: initialAdjValidation.ok,
         technicalFallbackUsed,
+        referenceDietProvided,
       };
 
       const needsVariationRetry = needsDietVariationRetry(dietSignals);
@@ -1038,7 +1044,7 @@ serve(async (req) => {
 
 
         const retryParts = [];
-        if (intent !== "update") {
+        if (intent !== "update" && !referenceDietProvided) {
           const overlapList = similarity.worstOverlap.length
             ? `Alimentos repetidos do cardápio anterior (TROQUE A MAIORIA): ${similarity.worstOverlap.join(", ")}.`
             : "Muitos alimentos coincidem com o cardápio anterior.";
@@ -1107,12 +1113,13 @@ serve(async (req) => {
           );
         }
         const forceMenuVariation =
-          intent === "regenerate" ||
-          (intent === "new" &&
-            (similarity.score > threshold ||
-              isPortionOnly ||
-              qOnly > 0.3 ||
-              primarySourceTooRepetitive));
+          !referenceDietProvided &&
+          (intent === "regenerate" ||
+            (intent === "new" &&
+              (similarity.score > threshold ||
+                isPortionOnly ||
+                qOnly > 0.3 ||
+                primarySourceTooRepetitive)));
               
         const second = await callModel(
           dietVariationPrompt(intensity, historySummary, retryParts.join(" "), forceMenuVariation),

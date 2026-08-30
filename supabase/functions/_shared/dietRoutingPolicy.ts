@@ -22,16 +22,22 @@ export type DietCandidateSignals = {
   dailyAdjustmentsOk: boolean;
   /** True when the candidate already came from a Terra technical fallback. */
   technicalFallbackUsed: boolean;
+  /**
+   * True when the admin pasted a reference ("dieta modelo"). The plan MUST mirror
+   * those foods, so variation/repetition signals are expected and must never
+   * block generation.
+   */
+  referenceDietProvided?: boolean;
 };
 
 /** Variation-only failures may never trigger a fallback on an UPDATE. */
-export function isVariationRetryAllowed(intent: string): boolean {
-  return intent !== "update";
+export function isVariationRetryAllowed(intent: string, referenceDietProvided = false): boolean {
+  return intent !== "update" && !referenceDietProvided;
 }
 
 export function needsDietVariationRetry(s: DietCandidateSignals): boolean {
   return (
-    isVariationRetryAllowed(s.intent) &&
+    isVariationRetryAllowed(s.intent, s.referenceDietProvided) &&
     s.historyCount > 0 &&
     (
       s.similarityScore > s.threshold ||
@@ -41,6 +47,7 @@ export function needsDietVariationRetry(s: DietCandidateSignals): boolean {
     )
   );
 }
+
 
 export type DietCandidateValidity = {
   nutritionValid: boolean;
