@@ -1565,6 +1565,9 @@ const DietaIA = () => {
         variationIntensity,
         intent,
         regenerateIntent: intent === 'regenerate',
+        // Dieta modelo colada: o plano deve repetir os alimentos de referência,
+        // então os filtros de variação/repetição não podem bloquear a geração.
+        referenceDietProvided: Boolean(modelDiet.trim()),
       }),
     });
     if (!resp.ok) {
@@ -2011,14 +2014,18 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
       // não pode exibir um plano sem os ajustes por dia.
       if (weeklySchedule && structuredError) {
         const isDailyAdj = structuredError.code === 'daily_adjustments_invalid';
+        const isReview = structuredError.code === 'review_required';
         console.warn('[DietaIA] structured_failed_with_schedule', structuredError);
         toast.error(
           isDailyAdj
             ? (structuredError.message || 'A IA não devolveu os ajustes dos dias com variação calórica. Regere o plano.')
-            : structuredError.message || 'Falha ao gerar dieta estruturada. Regere o plano.',
+            : isReview
+              ? 'O plano gerado não passou na validação (estrutura nutricional ou ajustes diários). Clique em gerar novamente.'
+              : structuredError.message || 'Falha ao gerar dieta estruturada. Regere o plano.',
         );
         return;
       }
+
 
       // ── 2) FALLBACK: streaming markdown ──
       console.warn('Structured path unavailable, falling back to markdown stream.');
