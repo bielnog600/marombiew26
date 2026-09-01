@@ -58,9 +58,23 @@ export interface VariationOptions {
 const clean = (s: unknown): string => String(s ?? "").trim();
 const isEmptyVariation = (s: string): boolean => !s || s === "-" || s === "—";
 
+// Catalog lookups happen thousands of times per plan; index each catalog once.
+const CATALOG_INDEX = new WeakMap<object, Map<string, CatalogEntryLike>>();
+
+function catalogIndex(catalog: CatalogEntryLike[]): Map<string, CatalogEntryLike> {
+  const existing = CATALOG_INDEX.get(catalog as unknown as object);
+  if (existing) return existing;
+  const index = new Map<string, CatalogEntryLike>();
+  for (const c of catalog) {
+    const key = normalizeName(c.nome);
+    if (key && !index.has(key)) index.set(key, c);
+  }
+  CATALOG_INDEX.set(catalog as unknown as object, index);
+  return index;
+}
+
 function catalogLookup(catalog: CatalogEntryLike[], name: string): CatalogEntryLike | undefined {
-  const n = normalizeName(name);
-  return catalog.find((c) => normalizeName(c.nome) === n);
+  return catalogIndex(catalog).get(normalizeName(name));
 }
 
 /** Safety gate: a variation can never be an exercise the professor forbade. */
@@ -80,16 +94,17 @@ export function isForbiddenByRestrictions(name: string, opts: VariationOptions):
   return false;
 }
 
-/** Replaces `exercise` with `candidate` inside a cloned day. */
+/** Replaces `exercise` with `candidate` inside a lightweight copy of the day. */
 function hypotheticalDay(day: any, exerciseName: string, candidate: string): any {
-  const clone = JSON.parse(JSON.stringify(day ?? {}));
-  clone.exercises = (clone.exercises ?? []).map((e: any) =>
-    normalizeName(clean(e?.exercise)) === normalizeName(exerciseName)
+  const target = normalizeName(exerciseName);
+  const exercises = (day?.exercises ?? []).map((e: any) =>
+    normalizeName(clean(e?.exercise)) === target
       ? { ...e, exercise: candidate, variation: null }
       : { ...e, variation: null },
   );
-  return clone;
+  return { ...(day ?? {}), exercises };
 }
+
 
 const CLASS_INCOMPATIBLE = new Set(["mobility", "cardio"]);
 
