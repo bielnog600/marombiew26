@@ -964,6 +964,7 @@ serve(async (req) => {
       // mesmo quando Terra termina com um plano válido. Iniciamos a segunda
       // candidata em paralelo e só a aceitamos pelos mesmos gates determinísticos.
       const fallbackAbort = new AbortController();
+      emit({ phase: "models_started", models: [AI_MODELS.primary, AI_MODELS.fallback] });
       const fallbackCandidatePromise = callModel(
         dietVariationPrompt(
           intensity,
@@ -974,13 +975,18 @@ serve(async (req) => {
         AI_MODELS.fallback,
         "parallel_fallback",
         fallbackAbort.signal,
+        "seguranca",
       );
 
       const first = await callModel(
         dietVariationPrompt(intensity, historySummary, undefined, requireMenuVariation),
         AI_MODELS.primary,
-        "first_attempt"
+        "first_attempt",
+        undefined,
+        "principal",
       );
+      emit({ phase: "primary_done", ok: first.ok });
+
       
       // Technical failure on Luna → single Terra retry. The Terra candidate then
       // feeds the SAME final pipeline (no alternative/early 200 response).
