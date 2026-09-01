@@ -79,18 +79,27 @@ const STRONG_FAMILIES: Array<{ family: string; match: (n: string) => boolean }> 
  */
 const GRIP_TOKENS = ["PRONADA", "SUPINADA", "NEUTRA", "ABERTA", "FECHADA", "TRIANGULO"];
 
+const STRONG_KEY_CACHE = new Map<string, string | null>();
+
 export function strongFamilyKey(name: string): string | null {
+  const cacheKey = name ?? "";
+  if (STRONG_KEY_CACHE.has(cacheKey)) return STRONG_KEY_CACHE.get(cacheKey)!;
   const n = norm(name);
-  if (!n) return null;
-  for (const f of STRONG_FAMILIES) {
-    if (f.match(n)) {
-      // Grip/pattern differences split the family (e.g. PUXADA ALTA PRONADA vs SUPINADA).
-      const grip = GRIP_TOKENS.find((g) => n.includes(g));
-      return grip ? `${f.family}:${grip}` : f.family;
+  let out: string | null = null;
+  if (n) {
+    for (const f of STRONG_FAMILIES) {
+      if (f.match(n)) {
+        // Grip/pattern differences split the family (e.g. PUXADA ALTA PRONADA vs SUPINADA).
+        const grip = GRIP_TOKENS.find((g) => n.includes(g));
+        out = grip ? `${f.family}:${grip}` : f.family;
+        break;
+      }
     }
   }
-  return null;
+  if (STRONG_KEY_CACHE.size < 20000) STRONG_KEY_CACHE.set(cacheKey, out);
+  return out;
 }
+
 
 /** True when both exercises occupy the same strong functional slot. */
 export function isStrongFunctionalEquivalent(a: string, b: string): boolean {
