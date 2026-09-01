@@ -1755,7 +1755,8 @@ const DietaIA = () => {
     const intent: DietIntent = opts.intent ?? (opts.regenerateIntent ? 'regenerate' : 'new');
     setLastIntent(intent);
     setGenerating(true);
-    setGenProgress(null);
+    setGenOutcome(null);
+    setGenProgress({ label: 'Preparando dados do aluno...', ratio: 0.03 });
     setResult('');
     setMacroReport(null);
     setStructuredPlan(null);
@@ -2161,10 +2162,12 @@ ${generated}`;
       }
     } catch (e: any) {
       console.error(e);
+      setGenOutcome({ status: 'error', message: e?.message || 'Erro ao gerar dieta' });
       toast.error(e.message || 'Erro ao gerar dieta');
     } finally {
       setGenerating(false);
       setGenProgress(null);
+      setGenOutcome((prev) => prev ?? { status: 'success' });
     }
   };
 
