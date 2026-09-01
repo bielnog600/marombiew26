@@ -396,6 +396,8 @@ const DietaIA = () => {
 
   // Result
   const [generating, setGenerating] = useState(false);
+  const [genProgress, setGenProgress] = useState<{ label: string; detail?: string; ratio: number } | null>(null);
+
   const [result, setResult] = useState('');
   const [macroReport, setMacroReport] = useState<DietMacroValidationReport | null>(null);
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
