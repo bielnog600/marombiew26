@@ -1549,7 +1549,7 @@ const DietaIA = () => {
       console.warn('structured: failed to load training context', e);
     }
 
-    const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/diet-agent`, {
+    const streamResp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/diet-agent`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1557,6 +1557,8 @@ const DietaIA = () => {
       },
       body: JSON.stringify({
         mode: 'structured',
+        // Progresso em tempo real: a função devolve SSE com fases + resultado final.
+        progressStream: true,
         messages: [{ role: 'user', content: userPrompt }],
         studentContext: studentCtx,
         dietConfig,
@@ -1570,19 +1572,68 @@ const DietaIA = () => {
         referenceDietProvided: Boolean(modelDiet.trim()),
       }),
     });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      console.warn('structured diet-agent non-200:', resp.status, err);
+
+    if (!streamResp.ok || !streamResp.body) {
+      const err = await streamResp.json().catch(() => ({}));
+      console.warn('structured diet-agent non-200:', streamResp.status, err);
       return {
         plan: null,
-        status: resp.status,
+        status: streamResp.status,
         errorCode: (err && typeof err === 'object' && (err as any).error_code) || undefined,
         message: (err && typeof err === 'object' && (err as any).error) || undefined,
       };
     }
-    const data = await resp.json().catch(() => null);
+
+    // Consome o SSE de progresso até o evento `result`.
+    let finalStatus = 500;
+    let finalBody = '';
+    {
+      const reader = streamResp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      const handleEvent = (block: string) => {
+        for (const line of block.split('\n')) {
+          if (!line.startsWith('data:')) continue;
+          const raw = line.slice(5).trim();
+          if (!raw) continue;
+          let evt: any;
+          try { evt = JSON.parse(raw); } catch { continue; }
+          if (evt.type === 'progress') setGenProgress(describeGenProgress(evt));
+          else if (evt.type === 'result') {
+            finalStatus = Number(evt.status) || 500;
+            finalBody = typeof evt.body === 'string' ? evt.body : '';
+          }
+        }
+      };
+      while (true) {
+        const { done, value } = await reader.read();
+        buf += decoder.decode(value, { stream: !done }).replace(/\r\n/g, '\n');
+        let sep = buf.indexOf('\n\n');
+        while (sep >= 0) {
+          handleEvent(buf.slice(0, sep));
+          buf = buf.slice(sep + 2);
+          sep = buf.indexOf('\n\n');
+        }
+        if (done) break;
+      }
+      if (buf.trim()) handleEvent(buf);
+    }
+
+    const resp = { status: finalStatus, ok: finalStatus >= 200 && finalStatus < 300 };
+    const parsedBody = (() => { try { return JSON.parse(finalBody); } catch { return null; } })();
+    if (!resp.ok) {
+      console.warn('structured diet-agent non-200:', resp.status, parsedBody);
+      return {
+        plan: null,
+        status: resp.status,
+        errorCode: parsedBody?.error_code || undefined,
+        message: parsedBody?.error || undefined,
+      };
+    }
+    const data = parsedBody;
     const raw = data?.plan;
     if (!raw) return { plan: null, status: resp.status };
+
     // Normalized daily adjustments (7 dias garantidos pelo servidor).
     try {
       const adjRaw = data?.dailyAdjustments ?? null;
