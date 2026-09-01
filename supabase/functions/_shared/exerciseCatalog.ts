@@ -113,18 +113,32 @@ const SYNONYMS: Array<[RegExp, string]> = [
   [/\bPECK DECK\b/g, "PECK DECK"],
 ];
 
+const CANON_CACHE = new Map<string, string>();
+
 const canonical = (s: string): string => {
+  const cached = CANON_CACHE.get(s);
+  if (cached !== undefined) return cached;
   let out = norm(s);
   for (const [re, rep] of SYNONYMS) out = out.replace(re, rep);
-  return out.replace(/\s+/g, " ").trim();
+  out = out.replace(/\s+/g, " ").trim();
+  if (CANON_CACHE.size < 20000) CANON_CACHE.set(s, out);
+  return out;
 };
 
 const STOP = new Set(["DE", "DA", "DO", "COM", "EM", "NA", "NO", "E", "A", "O", "PARA"]);
 
-const tokens = (s: string): string[] =>
-  canonical(s)
+const TOKENS_CACHE = new Map<string, string[]>();
+
+const tokens = (s: string): string[] => {
+  const cached = TOKENS_CACHE.get(s);
+  if (cached) return cached;
+  const out = canonical(s)
     .split(" ")
     .filter((t) => t.length > 1 && !STOP.has(t));
+  if (TOKENS_CACHE.size < 20000) TOKENS_CACHE.set(s, out);
+  return out;
+};
+
 
 const tokenEq = (a: string, b: string): boolean => {
   if (a === b) return true;
