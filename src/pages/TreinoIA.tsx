@@ -447,8 +447,9 @@ const TreinoIA = () => {
   };
 
   const generatePlan = async () => {
-    if (!canGenerate || !studentCtx) return;
+    if (!canGenerate || !studentCtx || generating) return;
     setGenerating(true);
+    setGenOutcome(null);
     setResult('');
     setGeneratedJson(null);
     setMarkdownEdited(false);
@@ -619,9 +620,11 @@ GERE TUDO DE UMA VEZ:
       }
     } catch (e: any) {
       console.error(e);
+      setGenOutcome({ status: 'error', message: e?.message || 'Erro ao gerar treino' });
       toast.error(e.message || 'Erro ao gerar treino');
     } finally {
       setGenerating(false);
+      setGenOutcome((prev) => prev ?? { status: 'success' });
     }
   };
 
@@ -702,6 +705,17 @@ GERE TUDO DE UMA VEZ:
         <Button variant="ghost" onClick={() => navigate(-1)} className="mb-2">
           <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
         </Button>
+
+        {(generating || genOutcome) && (
+          <div ref={genPanelRef}>
+            <GenerationProgress
+              kind="workout"
+              status={generating ? 'generating' : (genOutcome?.status ?? 'success')}
+              progress={genProgress}
+              errorMessage={genOutcome?.message}
+            />
+          </div>
+        )}
 
         {/* Student Summary */}
         <Card className="glass-card">
