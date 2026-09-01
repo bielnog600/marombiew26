@@ -1523,7 +1523,38 @@ const DietaIA = () => {
    * Returns the validated, totals-recomputed plan or null on failure.
    * The caller decides whether to fall back to streaming markdown.
    */
+  // Traduz os eventos de progresso do servidor para texto amigável na UI.
+  const describeGenProgress = (evt: any): { label: string; detail?: string; ratio: number } => {
+    switch (evt?.phase) {
+      case 'start':
+        return { label: 'Preparando contexto do aluno...', ratio: 0.03 };
+      case 'models_started':
+        return { label: 'Montando o plano alimentar...', detail: 'Duas candidatas em paralelo', ratio: 0.08 };
+      case 'generating':
+        return {
+          label: 'Montando o plano alimentar...',
+          detail: `Candidata ${evt.candidate === 'seguranca' ? 'de segurança' : 'principal'} — ${Math.round((Number(evt.ratio) || 0) * 100)}% do JSON`,
+          ratio: 0.08 + (Number(evt.ratio) || 0) * 0.62,
+        };
+      case 'primary_done':
+        return { label: 'Plano recebido, conferindo...', ratio: 0.72 };
+      case 'validating':
+        return { label: 'Validando macros, proteína e ajustes diários...', ratio: 0.8 };
+      case 'fallback_review':
+        return {
+          label: 'Revisando com a candidata de segurança...',
+          detail: Array.isArray(evt.reasons) && evt.reasons.length ? evt.reasons.join(', ') : undefined,
+          ratio: 0.86,
+        };
+      case 'finalizing':
+        return { label: 'Finalizando e normalizando o plano...', ratio: 0.95 };
+      default:
+        return { label: 'Gerando plano...', ratio: 0.5 };
+    }
+  };
+
   const generateStructuredPlan = async (
+
     userPrompt: string,
     dietConfig: { objective?: string; strategy?: string; style?: string; carbCyclePlan?: any; weeklyEnergySchedule?: any },
     targets: { kcal: number; p: number; c: number; g: number; tmb?: number; get?: number },
