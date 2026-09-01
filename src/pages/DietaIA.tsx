@@ -1753,6 +1753,7 @@ const DietaIA = () => {
     const intent: DietIntent = opts.intent ?? (opts.regenerateIntent ? 'regenerate' : 'new');
     setLastIntent(intent);
     setGenerating(true);
+    setGenProgress(null);
     setResult('');
     setMacroReport(null);
     setStructuredPlan(null);
@@ -1816,6 +1817,7 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
     if (!weeklySchedule || baseKcal.base_daily_kcal == null || baseKcalIssues.length > 0) {
       toast.error('Defina uma meta calórica base válida antes de gerar a dieta.');
       setGenerating(false);
+      setGenProgress(null);
       return;
     }
 
@@ -2160,6 +2162,7 @@ ${generated}`;
       toast.error(e.message || 'Erro ao gerar dieta');
     } finally {
       setGenerating(false);
+      setGenProgress(null);
     }
   };
 
