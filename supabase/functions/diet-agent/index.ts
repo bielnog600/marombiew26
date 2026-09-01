@@ -728,6 +728,10 @@ serve(async (req) => {
 
     // ─── Structured (JSON) generation mode ───
     if (mode === "structured") {
+      // Progresso é best-effort: quando o cliente pede `progressStream`, a
+      // resposta vira SSE e a UI acompanha a montagem do plano em tempo real.
+      const runStructured = async (emit: (event: Record<string, unknown>) => void): Promise<Response> => {
+
       const schedule =
         dietConfig && typeof dietConfig === "object"
           ? (dietConfig as any).weeklyEnergySchedule
