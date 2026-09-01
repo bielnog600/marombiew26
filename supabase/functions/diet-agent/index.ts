@@ -873,7 +873,17 @@ serve(async (req) => {
         }
         let completion: StructuredStreamResult;
         try {
-          completion = await consumeStructuredChatStream(r);
+          completion = await consumeStructuredChatStream(r, (chars) => {
+            emit({
+              phase: "generating",
+              candidate: candidate ?? "principal",
+              model: modelToUse,
+              chars,
+              // Estimativa de progresso do JSON (plano completo ~18k chars).
+              ratio: Math.min(0.95, Number((chars / 18000).toFixed(3))),
+            });
+          });
+
         } catch (error) {
           const durationMs = Date.now() - start;
           console.error("structured diet-agent: invalid stream", error);
