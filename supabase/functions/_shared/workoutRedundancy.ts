@@ -79,25 +79,26 @@ const STRONG_FAMILIES: Array<{ family: string; match: (n: string) => boolean }> 
 ];
 
 /**
- * Qualifiers that split a strong family into distinct functional slots.
+ * Qualifiers that split only the families where the qualifier changes the
+ * approved functional slot. Machine model/angle is intentionally irrelevant
+ * for leg_press: LEG PRESS, LEG PRESS 45 ART and LEG 180 are alternatives.
  */
-const DISCRIMINATOR_TOKENS = [
-  "PRONADA", "SUPINADA", "NEUTRA", "ABERTA", "FECHADA", "TRIANGULO",
-  "45", "180", "90", "ARTICULAD", "HORIZONTAL", "VERTICAL"
-];
+const FAMILY_DISCRIMINATOR_TOKENS: Readonly<Record<string, readonly string[]>> = {
+  puxada_alta: ["PRONADA", "SUPINADA", "NEUTRA", "ABERTA", "FECHADA", "TRIANGULO"],
+};
 
 const STRONG_KEY_CACHE = new Map<string, string | null>();
 
 export function strongFamilyKey(name: string): string | null {
   const cacheKey = name ?? "";
-  if (STRONG_KEY_CACHE.has(cacheKey)) return STRONG_KEY_CACHE.get(cacheKey)!;
+  const cached = STRONG_KEY_CACHE.get(cacheKey);
+  if (cached !== undefined || STRONG_KEY_CACHE.has(cacheKey)) return cached ?? null;
   const n = norm(name);
   let out: string | null = null;
   if (n) {
     for (const f of STRONG_FAMILIES) {
       if (f.match(n)) {
-        // Variants split the family (e.g. LEG PRESS 45 vs 180, or PUXADA ALTA PRONADA vs SUPINADA).
-        const variant = DISCRIMINATOR_TOKENS.find((v) => n.includes(v));
+        const variant = FAMILY_DISCRIMINATOR_TOKENS[f.family]?.find((token) => n.includes(token));
         out = variant ? `${f.family}:${variant}` : f.family;
         break;
       }
