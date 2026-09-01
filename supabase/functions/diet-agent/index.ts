@@ -52,12 +52,14 @@ const corsHeaders = {
 
 type StructuredStreamResult = {
   content: string;
+  finishReason?: string | null;
   usage?: {
     prompt_tokens?: number;
     completion_tokens?: number;
     total_tokens?: number;
   };
 };
+
 
 async function consumeStructuredChatStream(response: Response): Promise<StructuredStreamResult> {
   const reader = response.body?.getReader();
