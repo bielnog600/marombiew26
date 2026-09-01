@@ -27,12 +27,14 @@ function nrm(s: string | null | undefined): string {
   return (s ?? "")
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 // Equipment lookup by name tokens
 export const EQUIP_RULES: Array<{ eq: string; tokens: string[]; conf: number }> = [
-  { eq: "machine",   tokens: ["maquina", "cadeira", "leg press", "hack", "pec deck", "voador", "smith", "chest press", "seated row", "peck deck"], conf: 0.9 },
+  { eq: "machine",   tokens: ["maquina", "cadeira", "leg press", "leg 180", "leg 45", "hack", "pec deck", "voador", "smith", "chest press", "seated row", "peck deck"], conf: 0.9 },
   { eq: "cable",     tokens: ["cabo", "polia", "cross over", "crossover", "pulley"], conf: 0.92 },
   { eq: "barbell",   tokens: ["barra "], conf: 0.9 },
   { eq: "dumbbell",  tokens: ["halter", "dumbbell"], conf: 0.9 },
@@ -44,7 +46,7 @@ export const EQUIP_RULES: Array<{ eq: string; tokens: string[]; conf: number }> 
 // Class hints by name
 export const ISOLATION_TOKENS = [
   "extensora", "flexora", "rosca", "triceps", "elevacao lateral", "elevacao frontal",
-  "crucifixo", "voador", "pec deck", "panturrilha", "abducao", "aducao",
+  "crucifixo", "voador", "pec deck", "panturrilha", "gemeos", "abducao", "aducao",
   "extensao de", "flexao de perna", "kickback",
 ];
 export const COMPOUND_TOKENS = [
@@ -126,11 +128,6 @@ export function getExerciseFunctionalProfile(name: string | null | undefined): F
   if (PROFILE_CACHE.size < 20000) PROFILE_CACHE.set(key, profile);
   return profile;
 }
-
-
-
-
-// Class hints by name
 
 // Primary muscle guess from grupo_muscular
 const MUSCLE_MAP: Record<string, string[]> = {
