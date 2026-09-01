@@ -1221,7 +1221,9 @@ serve(async (req) => {
                 qOnly > 0.3 ||
                 primarySourceTooRepetitive)));
               
+        emit({ phase: "fallback_review", reasons: fallbackReasons });
         const second = await fallbackCandidatePromise;
+
         const criticalRetry = !nutrition.ok || !initialAdjValidation.ok;
         const reviewRequired = (reason: string) => {
           fallbackReasons.push(reason);
