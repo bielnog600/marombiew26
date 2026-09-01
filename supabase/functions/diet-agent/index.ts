@@ -68,6 +68,7 @@ async function consumeStructuredChatStream(response: Response): Promise<Structur
   const decoder = new TextDecoder();
   let buffer = "";
   let content = "";
+  let finishReason: string | null = null;
   let usage: StructuredStreamResult["usage"];
 
   const consumeEvent = (event: string) => {
@@ -78,6 +79,8 @@ async function consumeStructuredChatStream(response: Response): Promise<Structur
       const chunk = JSON.parse(data);
       const delta = chunk?.choices?.[0]?.delta?.content;
       if (typeof delta === "string") content += delta;
+      const fr = chunk?.choices?.[0]?.finish_reason;
+      if (typeof fr === "string") finishReason = fr;
       if (chunk?.usage) usage = chunk.usage;
     }
   };
@@ -95,8 +98,9 @@ async function consumeStructuredChatStream(response: Response): Promise<Structur
   }
 
   if (buffer.trim()) consumeEvent(buffer);
-  return { content, usage };
+  return { content, usage, finishReason };
 }
+
 
 
 
