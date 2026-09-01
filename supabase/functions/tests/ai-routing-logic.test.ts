@@ -731,6 +731,8 @@ Deno.test("redundancy: equivalências funcionais fortes são bloqueadas", () => 
 Deno.test("redundancy: combinações funcionalmente distintas continuam permitidas", () => {
   for (const pair of [
     ["HACK MACHINE", "LEG PRESS"],
+    ["LEG PRESS 45 ART", "GÊMEOS LEG PRESS"],
+    ["LEG 180", "PANTURRILHA LEG PRESS"],
     ["CADEIRA FLEXORA", "STIFF ROMENO"],
     ["REMADA CURVADA", "PUXADA ALTA PRONADA"],
     ["SUPINO RETO", "CRUCIFIXO"],

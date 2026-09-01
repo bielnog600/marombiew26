@@ -37,7 +37,12 @@ const norm = (s: string): string =>
 const STRONG_FAMILIES: Array<{ family: string; match: (n: string) => boolean }> = [
   {
     family: "leg_press",
-    match: (n) => /\bLEG PRESS\b/.test(n) || /\bLEG 180\b/.test(n) || /\bLEG 45\b/.test(n),
+    // Calf raises performed on the leg press use the machine name, but occupy
+    // a different functional slot and must not be grouped with knee-dominant
+    // leg-press movements.
+    match: (n) =>
+      !/\bGEMEOS\b|\bPANTURRILHA\b|\bCALF\b/.test(n) &&
+      (/\bLEG PRESS\b/.test(n) || /\bLEG 180\b/.test(n) || /\bLEG 45\b/.test(n)),
   },
   {
     family: "supino_inclinado",
