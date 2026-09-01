@@ -630,20 +630,39 @@ async function generateStructuredWorkoutWithVariation(args: {
     };
   };
 
-  const reviewRequired = (reason: string) => {
+  const reviewRequired = (reason: string, evalObj?: ReturnType<typeof evaluateCandidate>) => {
     if (!fallbackReasons.includes(reason)) fallbackReasons.push(reason);
+    const details = evalObj
+      ? {
+          criticalCatalogMismatch: evalObj.criticalCatalogMismatch,
+          redundancyIssues: (evalObj.redundancy.issues ?? []).map((i: any) => ({
+            day: i.day,
+            family: i.family,
+            exercises: i.exercises,
+          })),
+          exactDuplicate: evalObj.redundancy.exactDuplicate ?? false,
+          strongFunctionalDuplicate: evalObj.redundancy.strongFunctionalDuplicate ?? false,
+          strongDuplicateNames: evalObj.redundancy.strongDuplicateNames ?? [],
+          referenceMissingAnchors: evalObj.referenceCompliance?.missingAnchors ?? [],
+          referenceUnexpectedSubstitutions: evalObj.referenceCompliance?.unexpectedSubstitutions ?? [],
+          referenceOrderViolations: evalObj.referenceCompliance?.orderViolations ?? [],
+        }
+      : null;
+    console.error("[trainer-agent] review_required", JSON.stringify({ reason, fallbackReasons, details }));
     const meta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, null);
     return new Response(
       JSON.stringify({
         error: "Plano gerado não passou na validação crítica. Revisão necessária.",
         error_code: "review_required",
         validationReasons: fallbackReasons,
+        validationDetails: details,
         aiRouting: meta.routing,
         aiUsage: meta.usage,
       }),
       { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   };
+
 
   // 1st attempt
   const first = await callStructuredModel({
