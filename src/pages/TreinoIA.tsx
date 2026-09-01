@@ -24,6 +24,7 @@ import {
 import { normalizeWorkoutPlan, type WorkoutPlan } from '@/lib/workoutSchema';
 import ReactMarkdown from 'react-markdown';
 import TrainingResultCards from '@/components/TrainingResultCards';
+import { GenerationProgress, useSimulatedProgress, useScrollToOnStart } from '@/components/GenerationProgress';
 import {
   DEFAULT_INTENSITY,
   VARIATION_OPTIONS,
@@ -197,6 +198,15 @@ const TreinoIA = () => {
   const [lastWorkoutPlan, setLastWorkoutPlan] = useState<any>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const resultRef = useRef<HTMLDivElement>(null);
+  // Painel de progresso compartilhado com a Dieta IA.
+  const [genOutcome, setGenOutcome] = useState<{ status: 'success' | 'error'; message?: string } | null>(null);
+  const genProgress = useSimulatedProgress(generating);
+  const genPanelRef = useScrollToOnStart(generating);
+  useEffect(() => {
+    if (genOutcome?.status !== 'success') return;
+    const id = setTimeout(() => setGenOutcome(null), 3000);
+    return () => clearTimeout(id);
+  }, [genOutcome]);
 
   useEffect(() => {
     if (studentId) loadStudentData();
