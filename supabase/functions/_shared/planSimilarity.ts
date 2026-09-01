@@ -22,14 +22,22 @@ export const SIMILARITY_THRESHOLDS: Record<VariationIntensity, number> = {
 const stripAccents = (s: string) =>
   s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
+const NORMALIZE_CACHE = new Map<string, string>();
+
 export const normalizeName = (s: unknown): string => {
   if (typeof s !== "string") return "";
-  return stripAccents(s)
+  const cached = NORMALIZE_CACHE.get(s);
+  if (cached !== undefined) return cached;
+  const out = stripAccents(s)
     .toLowerCase()
     .replace(/\([^)]*\)/g, " ")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+  // Bounded cache: exercise names are a small, repetitive vocabulary.
+  if (NORMALIZE_CACHE.size < 20000) NORMALIZE_CACHE.set(s, out);
+  return out;
 };
+
 
 const jaccard = (a: Set<string>, b: Set<string>): number => {
   if (a.size === 0 && b.size === 0) return 0;
