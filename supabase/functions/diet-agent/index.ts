@@ -1394,7 +1394,9 @@ serve(async (req) => {
         );
       }
 
+      emit({ phase: "finalizing", model: selectedModel });
       const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, selectedModel);
+
 
       console.log("[ai-routing]", {
         agent: "diet",
