@@ -24,6 +24,7 @@ import {
 import { normalizeWorkoutPlan, type WorkoutPlan } from '@/lib/workoutSchema';
 import ReactMarkdown from 'react-markdown';
 import TrainingResultCards from '@/components/TrainingResultCards';
+import { GenerationProgress, useSimulatedProgress, useScrollToOnStart } from '@/components/GenerationProgress';
 import {
   DEFAULT_INTENSITY,
   VARIATION_OPTIONS,
@@ -197,6 +198,15 @@ const TreinoIA = () => {
   const [lastWorkoutPlan, setLastWorkoutPlan] = useState<any>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const resultRef = useRef<HTMLDivElement>(null);
+  // Painel de progresso compartilhado com a Dieta IA.
+  const [genOutcome, setGenOutcome] = useState<{ status: 'success' | 'error'; message?: string } | null>(null);
+  const genProgress = useSimulatedProgress(generating);
+  const genPanelRef = useScrollToOnStart(generating);
+  useEffect(() => {
+    if (genOutcome?.status !== 'success') return;
+    const id = setTimeout(() => setGenOutcome(null), 3000);
+    return () => clearTimeout(id);
+  }, [genOutcome]);
 
   useEffect(() => {
     if (studentId) loadStudentData();
@@ -437,8 +447,9 @@ const TreinoIA = () => {
   };
 
   const generatePlan = async () => {
-    if (!canGenerate || !studentCtx) return;
+    if (!canGenerate || !studentCtx || generating) return;
     setGenerating(true);
+    setGenOutcome(null);
     setResult('');
     setGeneratedJson(null);
     setMarkdownEdited(false);
@@ -609,9 +620,11 @@ GERE TUDO DE UMA VEZ:
       }
     } catch (e: any) {
       console.error(e);
+      setGenOutcome({ status: 'error', message: e?.message || 'Erro ao gerar treino' });
       toast.error(e.message || 'Erro ao gerar treino');
     } finally {
       setGenerating(false);
+      setGenOutcome((prev) => prev ?? { status: 'success' });
     }
   };
 
@@ -692,6 +705,17 @@ GERE TUDO DE UMA VEZ:
         <Button variant="ghost" onClick={() => navigate(-1)} className="mb-2">
           <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
         </Button>
+
+        {(generating || genOutcome) && (
+          <div ref={genPanelRef}>
+            <GenerationProgress
+              kind="workout"
+              status={generating ? 'generating' : (genOutcome?.status ?? 'success')}
+              progress={genProgress}
+              errorMessage={genOutcome?.message}
+            />
+          </div>
+        )}
 
         {/* Student Summary */}
         <Card className="glass-card">

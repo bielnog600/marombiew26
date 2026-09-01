@@ -39,6 +39,7 @@ import {
   type BaseKcalSource,
 } from '@/lib/weeklyEnergy';
 import WeeklyEnergyScheduleStep from '@/components/diet/WeeklyEnergyScheduleStep';
+import { GenerationProgress, useScrollToOnStart } from '@/components/GenerationProgress';
 import {
   type DailyAdjustments,
   normalizeDailyAdjustments,
@@ -397,6 +398,14 @@ const DietaIA = () => {
   // Result
   const [generating, setGenerating] = useState(false);
   const [genProgress, setGenProgress] = useState<{ label: string; detail?: string; ratio: number } | null>(null);
+  const [genOutcome, setGenOutcome] = useState<{ status: 'success' | 'error'; message?: string } | null>(null);
+  const genPanelRef = useScrollToOnStart(generating);
+  // Mantém o sucesso brevemente e depois revela o resultado.
+  useEffect(() => {
+    if (genOutcome?.status !== 'success') return;
+    const id = setTimeout(() => setGenOutcome(null), 3000);
+    return () => clearTimeout(id);
+  }, [genOutcome]);
 
   const [result, setResult] = useState('');
   const [macroReport, setMacroReport] = useState<DietMacroValidationReport | null>(null);
@@ -1749,11 +1758,12 @@ const DietaIA = () => {
   };
 
   const generatePlan = async (opts: { regenerateIntent?: boolean; intent?: DietIntent } = {}) => {
-    if (!canGenerate || !studentCtx) return;
+    if (!canGenerate || !studentCtx || generating) return;
     const intent: DietIntent = opts.intent ?? (opts.regenerateIntent ? 'regenerate' : 'new');
     setLastIntent(intent);
     setGenerating(true);
-    setGenProgress(null);
+    setGenOutcome(null);
+    setGenProgress({ label: 'Preparando dados do aluno...', ratio: 0.03 });
     setResult('');
     setMacroReport(null);
     setStructuredPlan(null);
@@ -2159,10 +2169,12 @@ ${generated}`;
       }
     } catch (e: any) {
       console.error(e);
+      setGenOutcome({ status: 'error', message: e?.message || 'Erro ao gerar dieta' });
       toast.error(e.message || 'Erro ao gerar dieta');
     } finally {
       setGenerating(false);
       setGenProgress(null);
+      setGenOutcome((prev) => prev ?? { status: 'success' });
     }
   };
 
@@ -2431,6 +2443,17 @@ ${generated}`;
         <Button variant="ghost" onClick={() => navigate(-1)} className="mb-2">
           <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
         </Button>
+
+        {(generating || genOutcome) && (
+          <div ref={genPanelRef}>
+            <GenerationProgress
+              kind="diet"
+              status={generating ? 'generating' : (genOutcome?.status ?? 'success')}
+              progress={genProgress}
+              errorMessage={genOutcome?.message}
+            />
+          </div>
+        )}
 
         {/* Student Summary */}
         <Card className="glass-card">
@@ -3137,25 +3160,6 @@ ${generated}`;
           );
         })()}
 
-        {generating && genProgress && (
-          <Card className="glass-card">
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                <h3 className="font-bold text-sm">{genProgress.label}</h3>
-              </div>
-              {genProgress.detail && (
-                <p className="text-xs text-muted-foreground">{genProgress.detail}</p>
-              )}
-              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-primary transition-all duration-500"
-                  style={{ width: `${Math.round(Math.min(1, Math.max(0.02, genProgress.ratio)) * 100)}%` }}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {result && generating && (
 
