@@ -571,8 +571,23 @@ GERE TUDO DE UMA VEZ:
 
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ error: 'Erro desconhecido' }));
-        throw new Error(err.detail || err.error || `Erro ${resp.status}`);
+        console.error('[TreinoIA] generation_failed', err);
+        const reasonLabels: Record<string, string> = {
+          catalog_mismatch: 'exercícios fora do catálogo',
+          internal_redundancy: 'exercícios repetidos no mesmo dia',
+          strong_functional_duplicate: 'exercícios funcionalmente duplicados',
+          reference_drift: 'treino de referência não respeitado',
+        };
+        const reasons: string[] = Array.isArray(err.validationReasons) ? err.validationReasons : [];
+        const detail = err.validationDetails?.criticalCatalogMismatch?.length
+          ? ` (${err.validationDetails.criticalCatalogMismatch.slice(0, 5).join(', ')})`
+          : '';
+        const reasonText = reasons.length
+          ? `: ${reasons.map((r) => reasonLabels[r] || r).join(', ')}${detail}`
+          : '';
+        throw new Error((err.detail || err.error || `Erro ${resp.status}`) + reasonText);
       }
+
 
       const payload = await resp.json();
       const json = normalizeWorkoutPlan(payload?.json);

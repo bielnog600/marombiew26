@@ -630,20 +630,39 @@ async function generateStructuredWorkoutWithVariation(args: {
     };
   };
 
-  const reviewRequired = (reason: string) => {
+  const reviewRequired = (reason: string, evalObj?: ReturnType<typeof evaluateCandidate>) => {
     if (!fallbackReasons.includes(reason)) fallbackReasons.push(reason);
+    const details = evalObj
+      ? {
+          criticalCatalogMismatch: evalObj.criticalCatalogMismatch,
+          redundancyIssues: (evalObj.redundancy.issues ?? []).map((i: any) => ({
+            day: i.day,
+            family: i.family,
+            exercises: i.exercises,
+          })),
+          exactDuplicate: evalObj.redundancy.exactDuplicate ?? false,
+          strongFunctionalDuplicate: evalObj.redundancy.strongFunctionalDuplicate ?? false,
+          strongDuplicateNames: evalObj.redundancy.strongDuplicateNames ?? [],
+          referenceMissingAnchors: evalObj.referenceCompliance?.missingAnchors ?? [],
+          referenceUnexpectedSubstitutions: evalObj.referenceCompliance?.unexpectedSubstitutions ?? [],
+          referenceOrderViolations: evalObj.referenceCompliance?.orderViolations ?? [],
+        }
+      : null;
+    console.error("[trainer-agent] review_required", JSON.stringify({ reason, fallbackReasons, details }));
     const meta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, null);
     return new Response(
       JSON.stringify({
         error: "Plano gerado não passou na validação crítica. Revisão necessária.",
         error_code: "review_required",
         validationReasons: fallbackReasons,
+        validationDetails: details,
         aiRouting: meta.routing,
         aiUsage: meta.usage,
       }),
       { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   };
+
 
   // 1st attempt
   const first = await callStructuredModel({
@@ -756,7 +775,7 @@ async function generateStructuredWorkoutWithVariation(args: {
   };
 
   if (technicalFallbackUsed && !isTrainerCandidateCriticalValid(candidateValidityInput)) {
-    return reviewRequired(trainerCriticalReason(candidateValidityInput) as string);
+    return reviewRequired(trainerCriticalReason(candidateValidityInput) as string, evaluation);
   }
 
   const criticalInvalid = !isTrainerCandidateCriticalValid(candidateValidityInput);
@@ -840,7 +859,7 @@ async function generateStructuredWorkoutWithVariation(args: {
 
     if (!second.ok) {
       if (criticalInvalid) {
-        return reviewRequired(trainerCriticalReason(candidateValidityInput) as string);
+        return reviewRequired(trainerCriticalReason(candidateValidityInput) as string, evaluation);
       }
       warning = "technical_fallback_failed";
     } else {
@@ -857,7 +876,7 @@ async function generateStructuredWorkoutWithVariation(args: {
 
       if (criticalInvalid) {
         if (!secondCriticalValid) {
-          return reviewRequired(trainerCriticalReason(validity2) as string);
+          return reviewRequired(trainerCriticalReason(validity2) as string, eval2);
         }
         evaluation = eval2;
         finalPlan = eval2.clone;
