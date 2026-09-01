@@ -785,7 +785,9 @@ serve(async (req) => {
           STRUCTURED_OUTPUT_INSTRUCTIONS +
           (scheduleForPrompt && typeof scheduleForPrompt === "object" && scheduleForPrompt.days
             ? "\n\nLEMBRETE FINAL (obrigatório): o JSON de saída DEVE conter o campo raiz \"dailyAdjustments\" com as 7 chaves seg, ter, qua, qui, sex, sab, dom, cada uma seguindo o shape estrito {target_kcal, requested_adjustment_kcal, estimated_adjustment_kcal, status, instructions, summary} descrito acima. Dias com requested_adjustment_kcal=0 usam status=\"base\", instructions=[], summary=\"Manter plano base\". Sem esse campo o servidor devolve 422 e a dieta é descartada.\n"
-            : "");
+            : "") +
+          "\n\nECONOMIA DE SAÍDA (obrigatório): produza JSON compacto. Textos livres (rationale, notes, summary, instructions, observações) devem ser curtos e objetivos (máx. 160 caracteres cada). Nunca repita listas de alimentos em campos textuais. Priorize sempre completar o JSON inteiro em vez de escrever explicações longas.";
+
         const r = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
