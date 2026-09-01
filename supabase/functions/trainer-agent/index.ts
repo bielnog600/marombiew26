@@ -775,7 +775,7 @@ async function generateStructuredWorkoutWithVariation(args: {
   };
 
   if (technicalFallbackUsed && !isTrainerCandidateCriticalValid(candidateValidityInput)) {
-    return reviewRequired(trainerCriticalReason(candidateValidityInput) as string);
+    return reviewRequired(trainerCriticalReason(candidateValidityInput) as string, evaluation);
   }
 
   const criticalInvalid = !isTrainerCandidateCriticalValid(candidateValidityInput);
@@ -859,7 +859,7 @@ async function generateStructuredWorkoutWithVariation(args: {
 
     if (!second.ok) {
       if (criticalInvalid) {
-        return reviewRequired(trainerCriticalReason(candidateValidityInput) as string);
+        return reviewRequired(trainerCriticalReason(candidateValidityInput) as string, evaluation);
       }
       warning = "technical_fallback_failed";
     } else {
@@ -876,7 +876,7 @@ async function generateStructuredWorkoutWithVariation(args: {
 
       if (criticalInvalid) {
         if (!secondCriticalValid) {
-          return reviewRequired(trainerCriticalReason(validity2) as string);
+          return reviewRequired(trainerCriticalReason(validity2) as string, eval2);
         }
         evaluation = eval2;
         finalPlan = eval2.clone;
