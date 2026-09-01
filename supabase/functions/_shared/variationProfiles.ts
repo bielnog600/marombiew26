@@ -135,6 +135,7 @@ export function workoutVariationPrompt(
     rules,
     "NUNCA gere um plano quase idêntico ao anterior sem justificativa técnica clara.",
     "Coerência técnica (objetivo, fase, segurança, periodização) tem PRIORIDADE MÁXIMA sobre variação. Não varie só para parecer novo.",
+    "REDUNDÂNCIA NO MESMO DIA: use no máximo UM exercício de cada família funcional forte. LEG PRESS, LEG PRESS 45 ART, LEG 180 e LEG 45 são alternativas entre si — nunca coloque dois deles no mesmo dia. GÊMEOS/PANTURRILHA LEG PRESS é panturrilha e não pertence a essa família.",
   ];
   if (historySummary) {
     block.push("", "PLANOS RECENTES DO ALUNO (mais novo primeiro):", historySummary);
@@ -142,7 +143,7 @@ export function workoutVariationPrompt(
   if (retryNotes) {
     block.push(
       "",
-      "⚠️ NOVA TENTATIVA — O plano anterior gerado ficou muito parecido com o histórico.",
+      "⚠️ NOVA TENTATIVA — O plano anterior gerado falhou em uma ou mais validações determinísticas.",
       "Aplique estas correções obrigatórias:",
       retryNotes,
     );

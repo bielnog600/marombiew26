@@ -29,6 +29,7 @@ import {
 } from "../_shared/variationSelection.ts";
 import { normalizeName, validateDietNutrition } from "../_shared/planSimilarity.ts";
 import { getExerciseFunctionalProfile } from "../_shared/exerciseClassifier.ts";
+import { workoutVariationPrompt } from "../_shared/variationProfiles.ts";
 import {
   evaluateReferenceCompliance,
   extractDeclaredReferenceMode,
@@ -743,6 +744,15 @@ Deno.test("redundancy: combinações funcionalmente distintas continuam permitid
     assertEquals(r.strongFunctionalDuplicate, false, `${pair.join(" + ")} não pode ser bloqueado`);
     assert(r.ok, `${pair.join(" + ")} deveria ser aceito`);
   }
+});
+
+Deno.test("trainer prompt: proíbe múltiplos leg presses e orienta nova tentativa determinística", () => {
+  const initial = workoutVariationPrompt("media", "");
+  assert(initial.includes("LEG PRESS, LEG PRESS 45 ART, LEG 180 e LEG 45 são alternativas entre si"));
+  assert(initial.includes("GÊMEOS/PANTURRILHA LEG PRESS é panturrilha"));
+
+  const retry = workoutVariationPrompt("media", "", "TERÇA-FEIRA: LEG PRESS, LEG 180");
+  assert(retry.includes("falhou em uma ou mais validações determinísticas"));
 });
 
 Deno.test("variation: a variação nunca pode ser o próprio exercício", () => {
