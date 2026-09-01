@@ -61,9 +61,13 @@ type StructuredStreamResult = {
 };
 
 
-async function consumeStructuredChatStream(response: Response): Promise<StructuredStreamResult> {
+async function consumeStructuredChatStream(
+  response: Response,
+  onChars?: (chars: number) => void,
+): Promise<StructuredStreamResult> {
   const reader = response.body?.getReader();
   if (!reader) throw new Error("Resposta de streaming sem corpo.");
+
 
   const decoder = new TextDecoder();
   let buffer = "";
@@ -85,6 +89,7 @@ async function consumeStructuredChatStream(response: Response): Promise<Structur
     }
   };
 
+  let lastReported = 0;
   while (true) {
     const { done, value } = await reader.read();
     buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, "\n");
@@ -94,8 +99,13 @@ async function consumeStructuredChatStream(response: Response): Promise<Structur
       buffer = buffer.slice(separator + 2);
       separator = buffer.indexOf("\n\n");
     }
+    if (onChars && content.length - lastReported >= 400) {
+      lastReported = content.length;
+      try { onChars(content.length); } catch { /* progresso é best-effort */ }
+    }
     if (done) break;
   }
+
 
   if (buffer.trim()) consumeEvent(buffer);
   return { content, usage, finishReason };
@@ -493,8 +503,11 @@ serve(async (req) => {
       regenerateIntent,
       intent: rawIntent,
       referenceDietProvided: rawReferenceDietProvided,
+      progressStream: rawProgressStream,
     } = await req.json();
     const referenceDietProvided = Boolean(rawReferenceDietProvided);
+    const wantsProgressStream = Boolean(rawProgressStream);
+
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
@@ -715,6 +728,10 @@ serve(async (req) => {
 
     // ─── Structured (JSON) generation mode ───
     if (mode === "structured") {
+      // Progresso é best-effort: quando o cliente pede `progressStream`, a
+      // resposta vira SSE e a UI acompanha a montagem do plano em tempo real.
+      const runStructured = async (emit: (event: Record<string, unknown>) => void): Promise<Response> => {
+
       const schedule =
         dietConfig && typeof dietConfig === "object"
           ? (dietConfig as any).weeklyEnergySchedule
@@ -754,6 +771,8 @@ serve(async (req) => {
         modelToUse: string,
         reason: string,
         signal?: AbortSignal,
+        candidate?: string,
+
       ): Promise<{ ok: true; plan: any; usage?: any } | { ok: false; resp: Response }> => {
         const start = Date.now();
         const hungerCtx = detectHungerContext(studentContext);
@@ -854,7 +873,17 @@ serve(async (req) => {
         }
         let completion: StructuredStreamResult;
         try {
-          completion = await consumeStructuredChatStream(r);
+          completion = await consumeStructuredChatStream(r, (chars) => {
+            emit({
+              phase: "generating",
+              candidate: candidate ?? "principal",
+              model: modelToUse,
+              chars,
+              // Estimativa de progresso do JSON (plano completo ~18k chars).
+              ratio: Math.min(0.95, Number((chars / 18000).toFixed(3))),
+            });
+          });
+
         } catch (error) {
           const durationMs = Date.now() - start;
           console.error("structured diet-agent: invalid stream", error);
@@ -935,6 +964,7 @@ serve(async (req) => {
       // mesmo quando Terra termina com um plano válido. Iniciamos a segunda
       // candidata em paralelo e só a aceitamos pelos mesmos gates determinísticos.
       const fallbackAbort = new AbortController();
+      emit({ phase: "models_started", models: [AI_MODELS.primary, AI_MODELS.fallback] });
       const fallbackCandidatePromise = callModel(
         dietVariationPrompt(
           intensity,
@@ -945,13 +975,18 @@ serve(async (req) => {
         AI_MODELS.fallback,
         "parallel_fallback",
         fallbackAbort.signal,
+        "seguranca",
       );
 
       const first = await callModel(
         dietVariationPrompt(intensity, historySummary, undefined, requireMenuVariation),
         AI_MODELS.primary,
-        "first_attempt"
+        "first_attempt",
+        undefined,
+        "principal",
       );
+      emit({ phase: "primary_done", ok: first.ok });
+
       
       // Technical failure on Luna → single Terra retry. The Terra candidate then
       // feeds the SAME final pipeline (no alternative/early 200 response).
@@ -997,7 +1032,9 @@ serve(async (req) => {
         .map((h) => h.conteudo_json)
         .filter((j) => j && typeof j === "object") as any[];
 
+      emit({ phase: "validating" });
       let similarity = computeDietSimilarity(candidatePlan, historyJsons);
+
       const threshold = SIMILARITY_THRESHOLDS[intensity];
       let finalPlan = candidatePlan;
       let regenerated = false;
@@ -1184,7 +1221,9 @@ serve(async (req) => {
                 qOnly > 0.3 ||
                 primarySourceTooRepetitive)));
               
+        emit({ phase: "fallback_review", reasons: fallbackReasons });
         const second = await fallbackCandidatePromise;
+
         const criticalRetry = !nutrition.ok || !initialAdjValidation.ok;
         const reviewRequired = (reason: string) => {
           fallbackReasons.push(reason);
@@ -1355,7 +1394,9 @@ serve(async (req) => {
         );
       }
 
+      emit({ phase: "finalizing", model: selectedModel });
       const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, selectedModel);
+
 
       console.log("[ai-routing]", {
         agent: "diet",
@@ -1401,7 +1442,58 @@ serve(async (req) => {
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
+      };
+
+      if (!wantsProgressStream) return await runStructured(() => {});
+
+      const encoder = new TextEncoder();
+      const sseStream = new ReadableStream({
+        start(controller) {
+          let closed = false;
+          const send = (payload: Record<string, unknown>) => {
+            if (closed) return;
+            try {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+            } catch { /* cliente desconectou */ }
+          };
+          // Heartbeat impede o idle timeout (150s) de matar gerações longas.
+          const heartbeat = setInterval(() => send({ type: "ping", t: Date.now() }), 10000);
+          send({ type: "progress", phase: "start" });
+          runStructured((event) => send({ type: "progress", ...event }))
+            .then(async (resp) => {
+              const body = await resp.text();
+              send({ type: "result", status: resp.status, body });
+            })
+            .catch((error) => {
+              send({
+                type: "result",
+                status: 500,
+                body: JSON.stringify({
+                  error: error instanceof Error ? error.message : "Erro desconhecido",
+                  error_code: "generation_failed",
+                  retryable: true,
+                }),
+              });
+            })
+            .finally(() => {
+              clearInterval(heartbeat);
+              send({ type: "done" });
+              closed = true;
+              try { controller.close(); } catch { /* já fechado */ }
+            });
+        },
+      });
+
+      return new Response(sseStream, {
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      });
     }
+
 
     // Legacy path does not need metadata if zero attempts occurred
     const response = await fetch("https://api.openai.com/v1/chat/completions", {

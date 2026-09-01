@@ -396,6 +396,8 @@ const DietaIA = () => {
 
   // Result
   const [generating, setGenerating] = useState(false);
+  const [genProgress, setGenProgress] = useState<{ label: string; detail?: string; ratio: number } | null>(null);
+
   const [result, setResult] = useState('');
   const [macroReport, setMacroReport] = useState<DietMacroValidationReport | null>(null);
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
@@ -1521,7 +1523,38 @@ const DietaIA = () => {
    * Returns the validated, totals-recomputed plan or null on failure.
    * The caller decides whether to fall back to streaming markdown.
    */
+  // Traduz os eventos de progresso do servidor para texto amigável na UI.
+  const describeGenProgress = (evt: any): { label: string; detail?: string; ratio: number } => {
+    switch (evt?.phase) {
+      case 'start':
+        return { label: 'Preparando contexto do aluno...', ratio: 0.03 };
+      case 'models_started':
+        return { label: 'Montando o plano alimentar...', detail: 'Duas candidatas em paralelo', ratio: 0.08 };
+      case 'generating':
+        return {
+          label: 'Montando o plano alimentar...',
+          detail: `Candidata ${evt.candidate === 'seguranca' ? 'de segurança' : 'principal'} — ${Math.round((Number(evt.ratio) || 0) * 100)}% do JSON`,
+          ratio: 0.08 + (Number(evt.ratio) || 0) * 0.62,
+        };
+      case 'primary_done':
+        return { label: 'Plano recebido, conferindo...', ratio: 0.72 };
+      case 'validating':
+        return { label: 'Validando macros, proteína e ajustes diários...', ratio: 0.8 };
+      case 'fallback_review':
+        return {
+          label: 'Revisando com a candidata de segurança...',
+          detail: Array.isArray(evt.reasons) && evt.reasons.length ? evt.reasons.join(', ') : undefined,
+          ratio: 0.86,
+        };
+      case 'finalizing':
+        return { label: 'Finalizando e normalizando o plano...', ratio: 0.95 };
+      default:
+        return { label: 'Gerando plano...', ratio: 0.5 };
+    }
+  };
+
   const generateStructuredPlan = async (
+
     userPrompt: string,
     dietConfig: { objective?: string; strategy?: string; style?: string; carbCyclePlan?: any; weeklyEnergySchedule?: any },
     targets: { kcal: number; p: number; c: number; g: number; tmb?: number; get?: number },
@@ -1549,7 +1582,7 @@ const DietaIA = () => {
       console.warn('structured: failed to load training context', e);
     }
 
-    const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/diet-agent`, {
+    const streamResp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/diet-agent`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1557,6 +1590,8 @@ const DietaIA = () => {
       },
       body: JSON.stringify({
         mode: 'structured',
+        // Progresso em tempo real: a função devolve SSE com fases + resultado final.
+        progressStream: true,
         messages: [{ role: 'user', content: userPrompt }],
         studentContext: studentCtx,
         dietConfig,
@@ -1570,19 +1605,68 @@ const DietaIA = () => {
         referenceDietProvided: Boolean(modelDiet.trim()),
       }),
     });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      console.warn('structured diet-agent non-200:', resp.status, err);
+
+    if (!streamResp.ok || !streamResp.body) {
+      const err = await streamResp.json().catch(() => ({}));
+      console.warn('structured diet-agent non-200:', streamResp.status, err);
       return {
         plan: null,
-        status: resp.status,
+        status: streamResp.status,
         errorCode: (err && typeof err === 'object' && (err as any).error_code) || undefined,
         message: (err && typeof err === 'object' && (err as any).error) || undefined,
       };
     }
-    const data = await resp.json().catch(() => null);
+
+    // Consome o SSE de progresso até o evento `result`.
+    let finalStatus = 500;
+    let finalBody = '';
+    {
+      const reader = streamResp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      const handleEvent = (block: string) => {
+        for (const line of block.split('\n')) {
+          if (!line.startsWith('data:')) continue;
+          const raw = line.slice(5).trim();
+          if (!raw) continue;
+          let evt: any;
+          try { evt = JSON.parse(raw); } catch { continue; }
+          if (evt.type === 'progress') setGenProgress(describeGenProgress(evt));
+          else if (evt.type === 'result') {
+            finalStatus = Number(evt.status) || 500;
+            finalBody = typeof evt.body === 'string' ? evt.body : '';
+          }
+        }
+      };
+      while (true) {
+        const { done, value } = await reader.read();
+        buf += decoder.decode(value, { stream: !done }).replace(/\r\n/g, '\n');
+        let sep = buf.indexOf('\n\n');
+        while (sep >= 0) {
+          handleEvent(buf.slice(0, sep));
+          buf = buf.slice(sep + 2);
+          sep = buf.indexOf('\n\n');
+        }
+        if (done) break;
+      }
+      if (buf.trim()) handleEvent(buf);
+    }
+
+    const resp = { status: finalStatus, ok: finalStatus >= 200 && finalStatus < 300 };
+    const parsedBody = (() => { try { return JSON.parse(finalBody); } catch { return null; } })();
+    if (!resp.ok) {
+      console.warn('structured diet-agent non-200:', resp.status, parsedBody);
+      return {
+        plan: null,
+        status: resp.status,
+        errorCode: parsedBody?.error_code || undefined,
+        message: parsedBody?.error || undefined,
+      };
+    }
+    const data = parsedBody;
     const raw = data?.plan;
     if (!raw) return { plan: null, status: resp.status };
+
     // Normalized daily adjustments (7 dias garantidos pelo servidor).
     try {
       const adjRaw = data?.dailyAdjustments ?? null;
@@ -1669,6 +1753,7 @@ const DietaIA = () => {
     const intent: DietIntent = opts.intent ?? (opts.regenerateIntent ? 'regenerate' : 'new');
     setLastIntent(intent);
     setGenerating(true);
+    setGenProgress(null);
     setResult('');
     setMacroReport(null);
     setStructuredPlan(null);
@@ -1732,6 +1817,7 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
     if (!weeklySchedule || baseKcal.base_daily_kcal == null || baseKcalIssues.length > 0) {
       toast.error('Defina uma meta calórica base válida antes de gerar a dieta.');
       setGenerating(false);
+      setGenProgress(null);
       return;
     }
 
@@ -2076,6 +2162,7 @@ ${generated}`;
       toast.error(e.message || 'Erro ao gerar dieta');
     } finally {
       setGenerating(false);
+      setGenProgress(null);
     }
   };
 
@@ -3050,7 +3137,28 @@ ${generated}`;
           );
         })()}
 
+        {generating && genProgress && (
+          <Card className="glass-card">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <h3 className="font-bold text-sm">{genProgress.label}</h3>
+              </div>
+              {genProgress.detail && (
+                <p className="text-xs text-muted-foreground">{genProgress.detail}</p>
+              )}
+              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-500"
+                  style={{ width: `${Math.round(Math.min(1, Math.max(0.02, genProgress.ratio)) * 100)}%` }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {result && generating && (
+
           <Card className="glass-card" ref={resultRef}>
             <CardContent className="p-4 space-y-4">
               <div className="flex items-center gap-2">
