@@ -752,7 +752,8 @@ serve(async (req) => {
       const callModel = async (
         extraSystem: string,
         modelToUse: string,
-        reason: string
+        reason: string,
+        signal?: AbortSignal,
       ): Promise<{ ok: true; plan: any; usage?: any } | { ok: false; resp: Response }> => {
         const start = Date.now();
         const hungerCtx = detectHungerContext(studentContext);
@@ -788,24 +789,43 @@ serve(async (req) => {
             : "") +
           "\n\nECONOMIA DE SAÍDA (obrigatório): produza JSON compacto. Textos livres (rationale, notes, summary, instructions, observações) devem ser curtos e objetivos (máx. 160 caracteres cada). Nunca repita listas de alimentos em campos textuais. Priorize sempre completar o JSON inteiro em vez de escrever explicações longas.";
 
-        const r = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${OPENAI_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: modelToUse,
-            messages: [
-              { role: "system", content: jsonSystem },
-              ...messages,
-            ],
-            max_completion_tokens: 24000,
-            stream: true,
-            stream_options: { include_usage: true },
-            response_format: { type: "json_object" },
-          }),
-        });
+        let r: Response;
+        try {
+          r = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            signal,
+            headers: {
+              Authorization: `Bearer ${OPENAI_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: modelToUse,
+              messages: [
+                { role: "system", content: jsonSystem },
+                ...messages,
+              ],
+              max_completion_tokens: 24000,
+              stream: true,
+              stream_options: { include_usage: true },
+              response_format: { type: "json_object" },
+            }),
+          });
+        } catch (error) {
+          const durationMs = Date.now() - start;
+          const aborted = error instanceof DOMException && error.name === "AbortError";
+          modelAttempts.push({ model: modelToUse, durationMs, reason: aborted ? "aborted" : "network_error", usage: null });
+          return {
+            ok: false,
+            resp: new Response(
+              JSON.stringify({
+                error: aborted ? "Geração alternativa cancelada." : "Falha de conexão com a IA.",
+                retryable: !aborted,
+                error_code: aborted ? "aborted" : "upstream_error",
+              }),
+              { status: aborted ? 499 : 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            ),
+          };
+        }
         if (!r.ok) {
           const durationMs = Date.now() - start;
           const status = r.status;
@@ -909,6 +929,24 @@ serve(async (req) => {
       let fallbackReason: string | null = null;
       let fallbackReasons: string[] = [];
 
+      // Dietas estruturadas grandes podem levar mais de 75s por tentativa. Se o
+      // fallback só começar após validar Luna, duas chamadas sequenciais excedem
+      // o limite de conexão móvel/proxy (~150s) e o cliente recebe "Load failed"
+      // mesmo quando Terra termina com um plano válido. Iniciamos a segunda
+      // candidata em paralelo e só a aceitamos pelos mesmos gates determinísticos.
+      const fallbackAbort = new AbortController();
+      const fallbackCandidatePromise = callModel(
+        dietVariationPrompt(
+          intensity,
+          historySummary,
+          "CANDIDATA DE SEGURANÇA: valide rigorosamente o contrato completo, os 7 dailyAdjustments e os pisos de proteína (30g no almoço/jantar e 15g no café da manhã). Corrija qualquer risco nutricional antes de concluir.",
+          requireMenuVariation,
+        ),
+        AI_MODELS.fallback,
+        "parallel_fallback",
+        fallbackAbort.signal,
+      );
+
       const first = await callModel(
         dietVariationPrompt(intensity, historySummary, undefined, requireMenuVariation),
         AI_MODELS.primary,
@@ -928,11 +966,9 @@ serve(async (req) => {
           fallbackReason = body.error_code || "critical_failure";
           fallbackReasons.push(fallbackReason as string);
 
-          second = await callModel(
-            dietVariationPrompt(intensity, historySummary, `🚨 OCORREU UM ERRO TÉCNICO (${fallbackReason}). Gere o JSON novamente respeitando o contrato.`, false),
-            AI_MODELS.fallback,
-            "critical_fallback"
-          );
+          second = await fallbackCandidatePromise;
+        } else {
+          fallbackAbort.abort();
         }
 
         if (second?.ok) {
@@ -1148,11 +1184,7 @@ serve(async (req) => {
                 qOnly > 0.3 ||
                 primarySourceTooRepetitive)));
               
-        const second = await callModel(
-          dietVariationPrompt(intensity, historySummary, retryParts.join(" "), forceMenuVariation),
-          AI_MODELS.fallback,
-          fallbackReason || "retry"
-        );
+        const second = await fallbackCandidatePromise;
         const criticalRetry = !nutrition.ok || !initialAdjValidation.ok;
         const reviewRequired = (reason: string) => {
           fallbackReasons.push(reason);
@@ -1239,6 +1271,8 @@ serve(async (req) => {
         }
 
       }
+
+      if (!needsRetry) fallbackAbort.abort();
 
       // === dailyAdjustments contract ===
       // Quando o cliente enviou um weeklyEnergySchedule, os targets são
