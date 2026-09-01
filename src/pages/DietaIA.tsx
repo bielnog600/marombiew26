@@ -399,6 +399,13 @@ const DietaIA = () => {
   const [generating, setGenerating] = useState(false);
   const [genProgress, setGenProgress] = useState<{ label: string; detail?: string; ratio: number } | null>(null);
   const [genOutcome, setGenOutcome] = useState<{ status: 'success' | 'error'; message?: string } | null>(null);
+  const genPanelRef = useScrollToOnStart(generating);
+  // Mantém o sucesso brevemente e depois revela o resultado.
+  useEffect(() => {
+    if (genOutcome?.status !== 'success') return;
+    const id = setTimeout(() => setGenOutcome(null), 3000);
+    return () => clearTimeout(id);
+  }, [genOutcome]);
 
   const [result, setResult] = useState('');
   const [macroReport, setMacroReport] = useState<DietMacroValidationReport | null>(null);
