@@ -27,12 +27,14 @@ function nrm(s: string | null | undefined): string {
   return (s ?? "")
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 // Equipment lookup by name tokens
 export const EQUIP_RULES: Array<{ eq: string; tokens: string[]; conf: number }> = [
-  { eq: "machine",   tokens: ["maquina", "cadeira", "leg press", "hack", "pec deck", "voador", "smith", "chest press", "seated row", "peck deck"], conf: 0.9 },
+  { eq: "machine",   tokens: ["maquina", "cadeira", "leg press", "leg 180", "leg 45", "hack", "pec deck", "voador", "smith", "chest press", "seated row", "peck deck"], conf: 0.9 },
   { eq: "cable",     tokens: ["cabo", "polia", "cross over", "crossover", "pulley"], conf: 0.92 },
   { eq: "barbell",   tokens: ["barra "], conf: 0.9 },
   { eq: "dumbbell",  tokens: ["halter", "dumbbell"], conf: 0.9 },
@@ -44,7 +46,7 @@ export const EQUIP_RULES: Array<{ eq: string; tokens: string[]; conf: number }> 
 // Class hints by name
 export const ISOLATION_TOKENS = [
   "extensora", "flexora", "rosca", "triceps", "elevacao lateral", "elevacao frontal",
-  "crucifixo", "voador", "pec deck", "panturrilha", "abducao", "aducao",
+  "crucifixo", "voador", "pec deck", "panturrilha", "gemeos", "abducao", "aducao",
   "extensao de", "flexao de perna", "kickback",
 ];
 export const COMPOUND_TOKENS = [
@@ -62,7 +64,8 @@ export const MOVEMENT_PATTERNS: Array<{ pattern: string; tokens: string[]; conf:
   { pattern: "knee_extension", tokens: ["cadeira extensora", "extensao de joelho"], conf: 0.97 },
   { pattern: "knee_flexion",   tokens: ["mesa flexora", "flexora deitad", "flexora sentad"], conf: 0.95 },
   { pattern: "hip_hinge",      tokens: ["stiff", "terra", "good morning", "romanian", "elevacao pelvica", "hip thrust"], conf: 0.9 },
-  { pattern: "squat",          tokens: ["agachamento", "squat", "leg press", "hack", "afundo", "avanco"], conf: 0.88 },
+  { pattern: "calf_raise",     tokens: ["panturrilha", "calf raise", "gemeos", "gem"], conf: 0.95 },
+  { pattern: "squat",          tokens: ["agachamento", "squat", "leg press", "leg 180", "leg 45", "hack", "afundo", "avanco"], conf: 0.88 },
   { pattern: "horizontal_push",tokens: ["supino", "chest press", "flexao "], conf: 0.88 },
   { pattern: "vertical_push",  tokens: ["desenvolvimento", "military press", "overhead press", "arnold"], conf: 0.88 },
   { pattern: "horizontal_pull",tokens: ["remada"], conf: 0.9 },
@@ -70,7 +73,6 @@ export const MOVEMENT_PATTERNS: Array<{ pattern: string; tokens: string[]; conf:
   { pattern: "elbow_flexion",  tokens: ["rosca"], conf: 0.9 },
   { pattern: "elbow_extension",tokens: ["triceps", "kickback", "frances"], conf: 0.9 },
   { pattern: "shoulder_abduction", tokens: ["elevacao lateral"], conf: 0.93 },
-  { pattern: "calf_raise",     tokens: ["panturrilha", "calf raise"], conf: 0.95 },
   { pattern: "mobility", tokens: ["mobilidade", "alongamento", "stretch", "90/90", "cat cow"], conf: 0.95 },
 ];
 
@@ -126,11 +128,6 @@ export function getExerciseFunctionalProfile(name: string | null | undefined): F
   if (PROFILE_CACHE.size < 20000) PROFILE_CACHE.set(key, profile);
   return profile;
 }
-
-
-
-
-// Class hints by name
 
 // Primary muscle guess from grupo_muscular
 const MUSCLE_MAP: Record<string, string[]> = {

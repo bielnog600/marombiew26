@@ -829,7 +829,7 @@ async function generateStructuredWorkoutWithVariation(args: {
       const redDetails = evaluation.redundancy.issues
         .map(i => `${i.day}: ${i.exercises.join(", ")} (${i.family})`)
         .join(" | ");
-      retryNotesArr.push(`🚨 REDUNDÂNCIA INTERNA DETECTADA: ${redDetails}. Substitua exercícios funcionalmente equivalentes por variações de pegada, ângulo ou equipamentos diferentes no mesmo dia.`);
+      retryNotesArr.push(`🚨 REDUNDÂNCIA INTERNA DETECTADA: ${redDetails}. Em cada grupo listado, MANTENHA APENAS UM dos exercícios e substitua os demais por padrões de movimento realmente distintos. Trocar LEG PRESS por outro ângulo/modelo de LEG PRESS NÃO corrige a redundância. GÊMEOS/PANTURRILHA LEG PRESS pode permanecer porque trabalha panturrilhas.`);
     }
 
     if (referenceMode === "exact" && evaluation.referenceCompliance && !evaluation.referenceCompliance.ok) {
