@@ -871,6 +871,24 @@ serve(async (req) => {
             ),
           };
         }
+        if (completion.finishReason === "length") {
+          console.error("structured diet-agent: output truncated (finish_reason=length)", {
+            model: modelToUse,
+            chars: raw.length,
+            completionTokens: usage?.completion_tokens ?? null,
+          });
+          return {
+            ok: false,
+            resp: new Response(
+              JSON.stringify({
+                error: "A resposta da IA foi cortada por limite de tamanho. Tente reduzir o número de refeições ou o tamanho da dieta modelo.",
+                retryable: true,
+                error_code: "output_truncated",
+              }),
+              { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            ),
+          };
+        }
         try {
           return { ok: true, plan: JSON.parse(raw) };
         } catch (e) {
@@ -883,6 +901,7 @@ serve(async (req) => {
             ),
           };
         }
+
       };
 
       let fallbackReason: string | null = null;
