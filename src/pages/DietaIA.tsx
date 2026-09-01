@@ -3137,7 +3137,28 @@ ${generated}`;
           );
         })()}
 
+        {generating && genProgress && (
+          <Card className="glass-card">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <h3 className="font-bold text-sm">{genProgress.label}</h3>
+              </div>
+              {genProgress.detail && (
+                <p className="text-xs text-muted-foreground">{genProgress.detail}</p>
+              )}
+              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-500"
+                  style={{ width: `${Math.round(Math.min(1, Math.max(0.02, genProgress.ratio)) * 100)}%` }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {result && generating && (
+
           <Card className="glass-card" ref={resultRef}>
             <CardContent className="p-4 space-y-4">
               <div className="flex items-center gap-2">
