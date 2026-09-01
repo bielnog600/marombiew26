@@ -1758,7 +1758,7 @@ const DietaIA = () => {
   };
 
   const generatePlan = async (opts: { regenerateIntent?: boolean; intent?: DietIntent } = {}) => {
-    if (!canGenerate || !studentCtx) return;
+    if (!canGenerate || !studentCtx || generating) return;
     const intent: DietIntent = opts.intent ?? (opts.regenerateIntent ? 'regenerate' : 'new');
     setLastIntent(intent);
     setGenerating(true);
