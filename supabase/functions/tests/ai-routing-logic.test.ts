@@ -20,6 +20,7 @@ import {
 } from "../_shared/trainerRoutingPolicy.ts";
 import {
   enforceVariationIntegrity,
+  strongFamilyKey,
   validateWorkoutRedundancy,
 } from "../_shared/workoutRedundancy.ts";
 import {
@@ -714,10 +715,42 @@ const dayRedundancy = (names: string[]) =>
     days: [{ day: "SEGUNDA-FEIRA", exercises: names.map((n) => ({ exercise: n })) }],
   });
 
-Deno.test("redundancy: equivalências funcionais fortes são bloqueadas", () => {
+Deno.test("redundancy: todas as variantes knee-dominant de leg press usam a mesma strong family", () => {
+  for (const name of ["LEG PRESS", "LEG PRESS 45", "LEG PRESS 45 ART", "LEG 180"]) {
+    assertEquals(strongFamilyKey(name), "leg_press", `${name} deve pertencer a leg_press`);
+  }
+  for (const calfName of ["GÊMEOS LEG PRESS", "PANTURRILHA LEG PRESS", "CALF LEG PRESS"]) {
+    assertEquals(strongFamilyKey(calfName), null, `${calfName} não pertence a leg_press`);
+  }
+});
+
+Deno.test("redundancy: pares de leg press da mesma família são bloqueados com severidade alta", () => {
   for (const pair of [
     ["LEG PRESS", "LEG PRESS 45 ART"],
+    ["LEG PRESS 45 ART", "LEG 180"],
     ["LEG PRESS", "LEG 180"],
+    ["LEG PRESS 45", "LEG PRESS 45 ART"],
+  ]) {
+    const r = dayRedundancy(pair);
+    assertEquals(r.ok, false, `${pair.join(" + ")} deve ser bloqueado`);
+    assert(r.strongFunctionalDuplicate, `${pair.join(" + ")} deve ser duplicata forte`);
+    assert(
+      r.issues.some((issue) => issue.severity === "high" && issue.family === "strong_functional_duplicate:leg_press"),
+      `${pair.join(" + ")} deve gerar redundância leg_press de severidade alta`,
+    );
+  }
+});
+
+Deno.test("redundancy: três leg presses mais gêmeos continua inválido pelos três leg presses", () => {
+  const r = dayRedundancy(["LEG PRESS 45 ART", "LEG PRESS", "LEG 180", "GÊMEOS LEG PRESS"]);
+  assertEquals(r.ok, false);
+  assertEquals(r.strongFunctionalDuplicate, true);
+  const legPressIssue = r.issues.find((issue) => issue.family === "strong_functional_duplicate:leg_press");
+  assertEquals(legPressIssue?.exercises, ["LEG PRESS 45 ART", "LEG PRESS", "LEG 180"]);
+});
+
+Deno.test("redundancy: outras equivalências funcionais fortes permanecem bloqueadas", () => {
+  for (const pair of [
     ["SUPINO RETO", "SUPINO RETO ARTICULADO"],
     ["SUPINO INCLINADO HALTERES", "SUPINO INCLINADO ART."],
     ["PUXADA ALTA PRONADA", "PUXADA ALTA PRONADA ART."],
@@ -731,19 +764,28 @@ Deno.test("redundancy: equivalências funcionais fortes são bloqueadas", () => 
 
 Deno.test("redundancy: combinações funcionalmente distintas continuam permitidas", () => {
   for (const pair of [
-    ["HACK MACHINE", "LEG PRESS"],
+    ["HACK MACHINE", "LEG PRESS 45 ART"],
     ["LEG PRESS 45 ART", "GÊMEOS LEG PRESS"],
-    ["LEG 180", "PANTURRILHA LEG PRESS"],
-    ["CADEIRA FLEXORA", "STIFF ROMENO"],
+    ["LEG 180", "GÊMEOS LEG PRESS"],
+    ["GÊMEOS LEG PRESS", "GÊMEOS SENTADO"],
+    ["STIFF ROMENO", "CADEIRA FLEXORA"],
     ["REMADA CURVADA", "PUXADA ALTA PRONADA"],
     ["SUPINO RETO", "CRUCIFIXO"],
-    ["CADEIRA EXTENSORA", "LEG PRESS"],
+    ["CADEIRA EXTENSORA", "LEG PRESS 45 ART"],
     ["ELEVAÇÃO PÉLVICA", "CADEIRA ABDUTORA"],
   ]) {
     const r = dayRedundancy(pair);
     assertEquals(r.strongFunctionalDuplicate, false, `${pair.join(" + ")} não pode ser bloqueado`);
     assert(r.ok, `${pair.join(" + ")} deveria ser aceito`);
   }
+});
+
+Deno.test("redundancy: pegadas aprovadas de puxada alta continuam discriminadas", () => {
+  assertEquals(strongFamilyKey("PUXADA ALTA PRONADA"), "puxada_alta:PRONADA");
+  assertEquals(strongFamilyKey("PUXADA ALTA SUPINADA"), "puxada_alta:SUPINADA");
+  const r = dayRedundancy(["PUXADA ALTA PRONADA", "PUXADA ALTA SUPINADA"]);
+  assertEquals(r.strongFunctionalDuplicate, false);
+  assertEquals(r.ok, true);
 });
 
 Deno.test("trainer prompt: proíbe múltiplos leg presses e orienta nova tentativa determinística", () => {
