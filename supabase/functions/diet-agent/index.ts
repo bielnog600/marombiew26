@@ -771,6 +771,8 @@ serve(async (req) => {
         modelToUse: string,
         reason: string,
         signal?: AbortSignal,
+        candidate?: string,
+
       ): Promise<{ ok: true; plan: any; usage?: any } | { ok: false; resp: Response }> => {
         const start = Date.now();
         const hungerCtx = detectHungerContext(studentContext);
