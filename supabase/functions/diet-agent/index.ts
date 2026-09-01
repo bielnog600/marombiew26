@@ -61,9 +61,13 @@ type StructuredStreamResult = {
 };
 
 
-async function consumeStructuredChatStream(response: Response): Promise<StructuredStreamResult> {
+async function consumeStructuredChatStream(
+  response: Response,
+  onChars?: (chars: number) => void,
+): Promise<StructuredStreamResult> {
   const reader = response.body?.getReader();
   if (!reader) throw new Error("Resposta de streaming sem corpo.");
+
 
   const decoder = new TextDecoder();
   let buffer = "";
