@@ -73,6 +73,20 @@ export const MOVEMENT_PATTERNS: Array<{ pattern: string; tokens: string[]; conf:
   { pattern: "shoulder_abduction", tokens: ["elevacao lateral"], conf: 0.93 },
   { pattern: "mobility", tokens: ["mobilidade", "alongamento", "stretch", "90/90", "cat cow"], conf: 0.95 },
 ];
+
+/**
+ * Deterministic class guess from the exercise name, reusing the token tables
+ * already defined above. Shared by the classifier and the variation selector.
+ */
+export function classifyExerciseClassByName(name: string | null | undefined): string | null {
+  const n = nrm(name);
+  if (!n) return null;
+  const table: Array<[string, string[]]> = [
+    ["cardio", CARDIO_TOKENS],
+    ["mobility", MOBILITY_TOKENS],
+    ["plyometric", PLYO_TOKENS],
+    ["power", POWER_TOKENS],
+    ["core", CORE_TOKENS],
     ["isolation", ISOLATION_TOKENS],
     ["compound", COMPOUND_TOKENS],
   ];

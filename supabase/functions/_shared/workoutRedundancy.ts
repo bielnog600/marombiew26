@@ -82,7 +82,7 @@ const STRONG_FAMILIES: Array<{ family: string; match: (n: string) => boolean }> 
  * Qualifiers that only describe the same slot in another machine/angle.
  * Names differing exclusively by these tokens stay in the same strong family.
  */
-const VARIANT_TOKENS = ["PRONADA", "SUPINADA", "NEUTRA", "ABERTA", "FECHADA", "TRIANGULO", "45", "180", "90", "ARTICULAD", "HORIZONTAL", "VERTICAL"];
+const GRIP_TOKENS = ["PRONADA", "SUPINADA", "NEUTRA", "ABERTA", "FECHADA", "TRIANGULO"];
 
 const STRONG_KEY_CACHE = new Map<string, string | null>();
 
@@ -95,8 +95,8 @@ export function strongFamilyKey(name: string): string | null {
     for (const f of STRONG_FAMILIES) {
       if (f.match(n)) {
         // Grip/pattern differences split the family (e.g. PUXADA ALTA PRONADA vs SUPINADA).
-        const variant = VARIANT_TOKENS.find((v) => n.includes(v));
-        out = variant ? `${f.family}:${variant}` : f.family;
+        const grip = GRIP_TOKENS.find((g) => n.includes(g));
+        out = grip ? `${f.family}:${grip}` : f.family;
         break;
       }
     }
