@@ -449,7 +449,7 @@ Deno.test("diet structured call streams upstream to avoid the 150s idle timeout"
   const start = src.indexOf('if (mode === "structured")');
   const end = src.indexOf("// ─── Legacy conversational mode", start);
   const structured = src.slice(start, end > start ? end : undefined);
-  assert(/max_completion_tokens:\s*8000/.test(structured));
+  assert(/max_completion_tokens:\s*24000/.test(structured));
   assert(/stream:\s*true/.test(structured));
   assert(/stream_options:\s*\{\s*include_usage:\s*true\s*\}/.test(structured));
   assert(/consumeStructuredChatStream\(r\)/.test(structured));
