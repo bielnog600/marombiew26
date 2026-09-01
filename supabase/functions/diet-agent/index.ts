@@ -89,6 +89,7 @@ async function consumeStructuredChatStream(
     }
   };
 
+  let lastReported = 0;
   while (true) {
     const { done, value } = await reader.read();
     buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, "\n");
@@ -98,8 +99,13 @@ async function consumeStructuredChatStream(
       buffer = buffer.slice(separator + 2);
       separator = buffer.indexOf("\n\n");
     }
+    if (onChars && content.length - lastReported >= 400) {
+      lastReported = content.length;
+      try { onChars(content.length); } catch { /* progresso é best-effort */ }
+    }
     if (done) break;
   }
+
 
   if (buffer.trim()) consumeEvent(buffer);
   return { content, usage, finishReason };
