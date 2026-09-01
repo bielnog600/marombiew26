@@ -102,7 +102,13 @@ export interface FunctionalProfile {
   exerciseClass: string | null;
 }
 
+const PROFILE_CACHE = new Map<string, FunctionalProfile>();
+
 export function getExerciseFunctionalProfile(name: string | null | undefined): FunctionalProfile {
+  const key = name ?? "";
+  const cached = PROFILE_CACHE.get(key);
+  if (cached) return cached;
+
   const normName = nrm(name);
   if (!normName) return { pattern: null, equipment: null, exerciseClass: null };
 
@@ -116,8 +122,11 @@ export function getExerciseFunctionalProfile(name: string | null | undefined): F
     if (r.tokens.some((t) => normName.includes(t))) { eq = r.eq; break; }
   }
 
-  return { pattern: mp, equipment: eq, exerciseClass: classifyExerciseClassByName(name) };
+  const profile = { pattern: mp, equipment: eq, exerciseClass: classifyExerciseClassByName(name) };
+  if (PROFILE_CACHE.size < 20000) PROFILE_CACHE.set(key, profile);
+  return profile;
 }
+
 
 
 
