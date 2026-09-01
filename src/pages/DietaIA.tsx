@@ -39,6 +39,7 @@ import {
   type BaseKcalSource,
 } from '@/lib/weeklyEnergy';
 import WeeklyEnergyScheduleStep from '@/components/diet/WeeklyEnergyScheduleStep';
+import { GenerationProgress, useScrollToOnStart } from '@/components/GenerationProgress';
 import {
   type DailyAdjustments,
   normalizeDailyAdjustments,
@@ -397,6 +398,7 @@ const DietaIA = () => {
   // Result
   const [generating, setGenerating] = useState(false);
   const [genProgress, setGenProgress] = useState<{ label: string; detail?: string; ratio: number } | null>(null);
+  const [genOutcome, setGenOutcome] = useState<{ status: 'success' | 'error'; message?: string } | null>(null);
 
   const [result, setResult] = useState('');
   const [macroReport, setMacroReport] = useState<DietMacroValidationReport | null>(null);
