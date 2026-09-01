@@ -1418,7 +1418,58 @@ serve(async (req) => {
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
+      };
+
+      if (!wantsProgressStream) return await runStructured(() => {});
+
+      const encoder = new TextEncoder();
+      const sseStream = new ReadableStream({
+        start(controller) {
+          let closed = false;
+          const send = (payload: Record<string, unknown>) => {
+            if (closed) return;
+            try {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+            } catch { /* cliente desconectou */ }
+          };
+          // Heartbeat impede o idle timeout (150s) de matar gerações longas.
+          const heartbeat = setInterval(() => send({ type: "ping", t: Date.now() }), 10000);
+          send({ type: "progress", phase: "start" });
+          runStructured((event) => send({ type: "progress", ...event }))
+            .then(async (resp) => {
+              const body = await resp.text();
+              send({ type: "result", status: resp.status, body });
+            })
+            .catch((error) => {
+              send({
+                type: "result",
+                status: 500,
+                body: JSON.stringify({
+                  error: error instanceof Error ? error.message : "Erro desconhecido",
+                  error_code: "generation_failed",
+                  retryable: true,
+                }),
+              });
+            })
+            .finally(() => {
+              clearInterval(heartbeat);
+              send({ type: "done" });
+              closed = true;
+              try { controller.close(); } catch { /* já fechado */ }
+            });
+        },
+      });
+
+      return new Response(sseStream, {
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      });
     }
+
 
     // Legacy path does not need metadata if zero attempts occurred
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
