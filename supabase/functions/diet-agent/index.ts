@@ -52,12 +52,14 @@ const corsHeaders = {
 
 type StructuredStreamResult = {
   content: string;
+  finishReason?: string | null;
   usage?: {
     prompt_tokens?: number;
     completion_tokens?: number;
     total_tokens?: number;
   };
 };
+
 
 async function consumeStructuredChatStream(response: Response): Promise<StructuredStreamResult> {
   const reader = response.body?.getReader();
@@ -66,6 +68,7 @@ async function consumeStructuredChatStream(response: Response): Promise<Structur
   const decoder = new TextDecoder();
   let buffer = "";
   let content = "";
+  let finishReason: string | null = null;
   let usage: StructuredStreamResult["usage"];
 
   const consumeEvent = (event: string) => {
@@ -76,6 +79,8 @@ async function consumeStructuredChatStream(response: Response): Promise<Structur
       const chunk = JSON.parse(data);
       const delta = chunk?.choices?.[0]?.delta?.content;
       if (typeof delta === "string") content += delta;
+      const fr = chunk?.choices?.[0]?.finish_reason;
+      if (typeof fr === "string") finishReason = fr;
       if (chunk?.usage) usage = chunk.usage;
     }
   };
@@ -93,8 +98,9 @@ async function consumeStructuredChatStream(response: Response): Promise<Structur
   }
 
   if (buffer.trim()) consumeEvent(buffer);
-  return { content, usage };
+  return { content, usage, finishReason };
 }
+
 
 
 
@@ -779,7 +785,9 @@ serve(async (req) => {
           STRUCTURED_OUTPUT_INSTRUCTIONS +
           (scheduleForPrompt && typeof scheduleForPrompt === "object" && scheduleForPrompt.days
             ? "\n\nLEMBRETE FINAL (obrigatório): o JSON de saída DEVE conter o campo raiz \"dailyAdjustments\" com as 7 chaves seg, ter, qua, qui, sex, sab, dom, cada uma seguindo o shape estrito {target_kcal, requested_adjustment_kcal, estimated_adjustment_kcal, status, instructions, summary} descrito acima. Dias com requested_adjustment_kcal=0 usam status=\"base\", instructions=[], summary=\"Manter plano base\". Sem esse campo o servidor devolve 422 e a dieta é descartada.\n"
-            : "");
+            : "") +
+          "\n\nECONOMIA DE SAÍDA (obrigatório): produza JSON compacto. Textos livres (rationale, notes, summary, instructions, observações) devem ser curtos e objetivos (máx. 160 caracteres cada). Nunca repita listas de alimentos em campos textuais. Priorize sempre completar o JSON inteiro em vez de escrever explicações longas.";
+
         const r = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -792,7 +800,7 @@ serve(async (req) => {
               { role: "system", content: jsonSystem },
               ...messages,
             ],
-            max_completion_tokens: 8000,
+            max_completion_tokens: 24000,
             stream: true,
             stream_options: { include_usage: true },
             response_format: { type: "json_object" },
@@ -865,6 +873,24 @@ serve(async (req) => {
             ),
           };
         }
+        if (completion.finishReason === "length") {
+          console.error("structured diet-agent: output truncated (finish_reason=length)", {
+            model: modelToUse,
+            chars: raw.length,
+            completionTokens: usage?.completion_tokens ?? null,
+          });
+          return {
+            ok: false,
+            resp: new Response(
+              JSON.stringify({
+                error: "A resposta da IA foi cortada por limite de tamanho. Tente reduzir o número de refeições ou o tamanho da dieta modelo.",
+                retryable: true,
+                error_code: "output_truncated",
+              }),
+              { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            ),
+          };
+        }
         try {
           return { ok: true, plan: JSON.parse(raw) };
         } catch (e) {
@@ -877,6 +903,7 @@ serve(async (req) => {
             ),
           };
         }
+
       };
 
       let fallbackReason: string | null = null;
