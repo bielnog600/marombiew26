@@ -1032,7 +1032,9 @@ serve(async (req) => {
         .map((h) => h.conteudo_json)
         .filter((j) => j && typeof j === "object") as any[];
 
+      emit({ phase: "validating" });
       let similarity = computeDietSimilarity(candidatePlan, historyJsons);
+
       const threshold = SIMILARITY_THRESHOLDS[intensity];
       let finalPlan = candidatePlan;
       let regenerated = false;
