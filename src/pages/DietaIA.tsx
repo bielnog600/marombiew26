@@ -2437,6 +2437,17 @@ ${generated}`;
           <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
         </Button>
 
+        {(generating || genOutcome) && (
+          <div ref={genPanelRef}>
+            <GenerationProgress
+              kind="diet"
+              status={generating ? 'generating' : (genOutcome?.status ?? 'success')}
+              progress={genProgress}
+              errorMessage={genOutcome?.message}
+            />
+          </div>
+        )}
+
         {/* Student Summary */}
         <Card className="glass-card">
           <CardContent className="p-4">
@@ -3142,25 +3153,6 @@ ${generated}`;
           );
         })()}
 
-        {generating && genProgress && (
-          <Card className="glass-card">
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                <h3 className="font-bold text-sm">{genProgress.label}</h3>
-              </div>
-              {genProgress.detail && (
-                <p className="text-xs text-muted-foreground">{genProgress.detail}</p>
-              )}
-              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-primary transition-all duration-500"
-                  style={{ width: `${Math.round(Math.min(1, Math.max(0.02, genProgress.ratio)) * 100)}%` }}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {result && generating && (
 
