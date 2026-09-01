@@ -503,8 +503,11 @@ serve(async (req) => {
       regenerateIntent,
       intent: rawIntent,
       referenceDietProvided: rawReferenceDietProvided,
+      progressStream: rawProgressStream,
     } = await req.json();
     const referenceDietProvided = Boolean(rawReferenceDietProvided);
+    const wantsProgressStream = Boolean(rawProgressStream);
+
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
