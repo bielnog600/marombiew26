@@ -793,7 +793,7 @@ ENTREGUE OBRIGATORIAMENTE:
     titulo: draft.titulo,
     conteudo: draftContent,
     fase: plan.fase,
-    snapshot_json: { draft_id: draft.id },
+    snapshot_json: { draft_id: draft.id, periodization: periodColumns.periodization_snapshot },
     reason_summary: reason,
   });
 
@@ -804,8 +804,23 @@ ENTREGUE OBRIGATORIAMENTE:
       .eq("id", latestAnalysis.id);
   }
 
-  return { draft, reused: false };
+  return {
+    draft,
+    reused: false,
+    periodization: {
+      model: periodization.snapshot.model,
+      block_type: periodization.snapshot.block.blockType,
+      block_number: periodization.snapshot.block.blockNumber,
+      week: periodization.snapshot.week.weekNumber,
+      decision: periodization.nextStep.action,
+      decision_reason: periodization.nextStep.reason,
+      anchors_retained: continuity.audit.anchorsRetained,
+      anchors_previous: continuity.audit.anchorsPrevious,
+      review_required: reviewRequired,
+    },
+  };
 }
+
 
 async function discardDraft(supabase: any, draftId: string) {
   const { data: draft } = await supabase.from("ai_plans").select("*").eq("id", draftId).maybeSingle();
