@@ -735,9 +735,27 @@ ENTREGUE OBRIGATORIAMENTE:
   // Snapshot current plan
   await snapshotPlan(supabase, plan, source === "manual" ? "manual" : "auto", `Snapshot antes do rascunho v${(plan.version ?? 1) + 1}`);
 
-  const reason =
-    latestAnalysis?.rationale?.slice(0, 500) ??
+  const baseReason =
+    latestAnalysis?.rationale?.slice(0, 400) ??
     (source === "manual" ? "Rascunho gerado manualmente pelo admin." : "Rascunho gerado automaticamente.");
+  const reason = `${baseReason} | Periodização: ${periodization.snapshot.model}, decisão ${periodization.nextStep.action}${reviewRequired ? " (REVIEW_REQUIRED)" : ""}`.slice(0, 500);
+
+  const periodColumns = snapshotToPlanColumns(periodization.snapshot);
+  periodColumns.periodization_snapshot = {
+    ...(periodization.snapshot as unknown as Record<string, unknown>),
+    resolver_decision: periodization.nextStep.action,
+    resolver_reason: periodization.nextStep.reason,
+    planned_week_before: periodization.plannedWeek,
+    anchors: periodization.anchors,
+    continuity: {
+      ok: continuity.ok,
+      similarity: Number(continuity.similarity.toFixed(2)),
+      anchors_retained: continuity.audit.anchorsRetained,
+      anchors_previous: continuity.audit.anchorsPrevious,
+      reason: continuity.reason,
+    },
+    review_required: reviewRequired,
+  };
 
   const { data: draft, error: draftErr } = await supabase
     .from("ai_plans")
@@ -756,10 +774,12 @@ ENTREGUE OBRIGATORIAMENTE:
       draft_source: source,
       draft_reason: reason,
       draft_analysis_id: latestAnalysis?.id ?? null,
+      ...periodColumns,
     })
     .select()
     .single();
   if (draftErr) throw draftErr;
+
 
   await supabase.from("ai_plans").update({ cycle_status: "rascunho_gerado" }).eq("id", plan.id);
 
