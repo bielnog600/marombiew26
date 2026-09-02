@@ -347,6 +347,13 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   const [exercisesList, setExercisesList] = useState<{ id: string; nome: string; grupo_muscular: string; imagem_url?: string | null }[]>([]);
   const [currentExercises, setCurrentExercises] = useState<ParsedExercise[]>([]);
   const [aiOpen, setAiOpen] = useState(false);
+  const [orderDirty, setOrderDirty] = useState(false);
+  const [savingOrder, setSavingOrder] = useState(false);
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
   const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer } = useRestTimer();
   
   const student = active?.students.find(s => s.id === studentId);
