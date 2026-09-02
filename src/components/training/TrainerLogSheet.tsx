@@ -624,7 +624,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
         setOrderDirty(false);
         toast.success('Sequência salva no treino do aluno');
       } else {
-        toast.error('Sequência não salva: ' + res.reason);
+        toast.error('Sequência não salva: ' + (res as { reason: string }).reason);
       }
     } catch (e: any) {
       toast.error('Erro ao salvar sequência: ' + (e?.message || 'desconhecido'));
