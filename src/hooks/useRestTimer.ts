@@ -143,10 +143,20 @@ export function useRestTimer() {
     };
   }, [clearScheduledBeeps]);
 
+  /**
+   * Reaponta o timer ativo para outro índice de exercício sem reiniciar a
+   * contagem (usado após reordenar a lista: a identidade do exercício é a
+   * mesma, apenas a posição mudou).
+   */
+  const setTimerExerciseIndex = useCallback((exIdx: number) => {
+    setRestTimer(prev => (prev && prev.exIdx !== exIdx ? { ...prev, exIdx } : prev));
+  }, []);
+
   return {
     restTimer,
     startTimer,
     stopTimer,
-    adjustTimer
+    adjustTimer,
+    setTimerExerciseIndex
   };
 }
