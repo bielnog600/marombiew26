@@ -601,6 +601,11 @@ async function generateDraft(supabase: any, planId: string, source: "manual" | "
   if (plan.is_draft) throw new Error("Source plan is already a draft");
   if (plan.tipo !== "treino") throw new Error("Not a workout plan");
 
+  // MODO MANUAL: nunca gerar automaticamente. O admin pode forçar (source manual).
+  if (source === "auto" && plan.renewal_mode === "manual") {
+    throw new Error("Plano em modo manual — geração automática desativada");
+  }
+
   const { data: existingDraft } = await supabase
     .from("ai_plans")
     .select("*")
@@ -630,6 +635,12 @@ async function generateDraft(supabase: any, planId: string, source: "manual" | "
 
   const lastSession = latestAnalysis?.context_snapshot?.last_session_summary ?? null;
   const recentStats = latestAnalysis?.context_snapshot?.recent_exercise_stats ?? [];
+
+  // ---- PERIODIZAÇÃO: decisão determinística ANTES de chamar a IA.
+  const analysisCtx = latestAnalysis?.context_snapshot ?? (await gatherContext(supabase, plan));
+  const periodization: RenewalPeriodization = resolveRenewalPeriodization(plan, analysisCtx);
+  const periodizationBlock = buildRenewalPromptBlock(periodization);
+
 
   const ctxBlock = latestAnalysis
     ? `\n\n=== ANÁLISE DE RENOVAÇÃO DA IA ===\nSugestão: ${latestAnalysis.suggested_action}\nAderência: ${latestAnalysis.adherence_score ?? "—"}\nFrequência semanal: ${latestAnalysis.session_frequency ?? "—"}\nProgressão de carga: ${latestAnalysis.load_progression ?? "—"}\nProgressão de reps: ${latestAnalysis.reps_progression ?? "—"}\nVolume: ${latestAnalysis.volume_trend ?? "—"}\nRPE médio: ${latestAnalysis.avg_rpe ?? "—"}\nFadiga: ${latestAnalysis.fatigue_signal ?? "—"}\nMonotonia: ${latestAnalysis.monotony_risk ?? "—"}\nJustificativa: ${latestAnalysis.rationale}\n=== FIM ANÁLISE ===\n`
