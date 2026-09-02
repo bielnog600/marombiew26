@@ -369,7 +369,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
-  const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer } = useRestTimer();
+  const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer, setTimerExerciseIndex } = useRestTimer();
   
   const student = active?.students.find(s => s.id === studentId);
   const effectivePhase = (student?.phase as any) || phase || null;
