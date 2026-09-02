@@ -821,7 +821,21 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   if (!day) return null;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet
+      open={open}
+      onOpenChange={(v) => {
+        if (!v && orderDirty) {
+          const keep = window.confirm(
+            'Você alterou a sequência do treino. Deseja salvar antes de sair?\n\nOK = Salvar · Cancelar = Descartar',
+          );
+          if (keep) {
+            void saveOrderToPlan();
+            return;
+          }
+        }
+        onOpenChange(v);
+      }}
+    >
       <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="flex items-center justify-between gap-2">
