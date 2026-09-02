@@ -68,6 +68,10 @@ interface StudentSessionState {
   loading: boolean;
   snapshot?: ProgressionSnapshot | null;
   phase?: import('@/lib/trainingPhase').TrainingPhase | null;
+  /** Identidade estável por exercício (key React + id do sortable). */
+  uids: string[];
+  orderDirty?: boolean;
+  savingOrder?: boolean;
 }
 
 export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentAId, planA }) => {
@@ -79,7 +83,9 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
   const [selectingStudentB, setSelectingStudentB] = useState(false);
   const [studentBQuery, setStudentBQuery] = useState('');
   const [exercisesList, setExercisesList] = useState<any[]>([]);
-  const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer } = useRestTimer();
+  const dndSensors = useExerciseDndSensors();
+  const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer, setTimerExerciseIndex } = useRestTimer();
+
   const [restSlot, setRestSlot] = useState<'A' | 'B' | null>(null);
   const startRestFor = (slot: 'A' | 'B') => (secs: number, exIdx: number) => {
     setRestSlot(slot);
