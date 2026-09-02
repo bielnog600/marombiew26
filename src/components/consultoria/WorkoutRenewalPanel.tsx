@@ -96,7 +96,24 @@ interface AnalysisRow {
   };
   alternatives_considered?: string[];
   rationale: string;
+  context_snapshot?: {
+    periodization?: {
+      model: string;
+      model_reason?: string;
+      block_type: string;
+      block_number: number;
+      block_total: number;
+      next_block_type: string;
+      planned_week: number;
+      next_week: number;
+      decision: string;
+      decision_reason: string;
+      review_required?: boolean;
+      anchors?: { keep?: string[]; progress?: string[]; rotate?: string[]; remove?: string[]; anchors?: string[] };
+    } | null;
+  } | null;
   created_at: string;
+
 }
 
 const statusMeta: Record<CycleStatus, { label: string; cls: string }> = {
