@@ -231,7 +231,11 @@ async function gatherContext(supabase: any, plan: any) {
       };
     }
 
-    // Aggregate per-exercise progression across the window (top 10 by volume of sets)
+  }
+
+  // Aggregate per-exercise progression across the window (top 10 by sets).
+  // Usado tanto no modo Low Cost quanto pela camada de periodização (anchors).
+  {
     const exAgg = new Map<string, { sets: number; loads: number[]; reps: number[] }>();
     for (const l of setLogs ?? []) {
       const k = l.exercise_name;
@@ -252,6 +256,7 @@ async function gatherContext(supabase: any, plan: any) {
       .sort((a, b) => b.sets - a.sets)
       .slice(0, 10);
   }
+
 
   // Análise por grupo muscular
   const muscleGroupStats = new Map<string, { sets: number; volume: number; loadTrends: number[] }>();
