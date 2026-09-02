@@ -845,34 +845,53 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                     <div className="flex justify-center py-12"><Loader2 className="animate-spin" /></div>
                   ) : (
                     <div className="space-y-3">
-                      {studentB.days[studentB.activeDayIdx].exercises.map((ex, i) => (
-                        <ExerciseLogCard
-                          key={i}
-                          exIdx={i}
-                          ex={ex}
-                          st={studentB.state[i]}
-                          exercisesList={exercisesList}
-                          studentId={studentB.studentId}
-                          onUpdateSet={(idx, sIdx, f, v) => updateSet('B', idx, sIdx, f, v)}
-                          onUpdateNotes={(idx, v) => updateNotes('B', idx, v)}
-                          onSaveExercise={(idx) => saveExerciseImpl('B', idx)}
-                          onStartRestTimer={startRestFor('B')}
-                          onExerciseNameChange={(name) => setStudentB(p => {
-                            if (!p) return null;
-                            const ns = { ...p.state, [i]: { ...p.state[i], exerciseName: name } };
-                            saveDraft(p.studentId, p.days[p.activeDayIdx].day, makeDaySignature(p.days[p.activeDayIdx]), ns);
-                            return { ...p, state: ns };
-                          })}
-                          onAddSet={(idx) => addSet('B', idx)}
-                          onRemoveSet={(idx, sIdx) => removeSet('B', idx, sIdx)}
-                          onRemoveExercise={(idx) => removeExercise('B', idx)}
-                          onUpdateMeta={(patch) => updateExerciseMeta('B', i, patch)}
-                          ExerciseNamePicker={ExerciseNamePicker}
-                          HistoryPopover={HistoryPopover}
-                          parsePauseSeconds={(p) => 60}
-                          progressionSnapshot={snapshotB}
-                        />
-                      ))}
+                      {studentB.orderDirty && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="w-full gap-2"
+                          disabled={studentB.savingOrder}
+                          onClick={() => saveOrder('B')}
+                        >
+                          {studentB.savingOrder ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                          Salvar nova sequência
+                        </Button>
+                      )}
+                      <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleReorderEnd('B')}>
+                        <SortableContext items={studentB.uids || []} strategy={verticalListSortingStrategy}>
+                          <div className="space-y-3">
+                            {studentB.days[studentB.activeDayIdx].exercises.map((ex, i) => (studentB.uids?.[i] ? (
+                              <SortableExerciseRow key={studentB.uids[i]} id={studentB.uids[i]} position={i + 1}>
+                                <ExerciseLogCard
+                                  exIdx={i}
+                                  ex={ex}
+                                  st={studentB.state[i]}
+                                  exercisesList={exercisesList}
+                                  studentId={studentB.studentId}
+                                  onUpdateSet={(idx, sIdx, f, v) => updateSet('B', idx, sIdx, f, v)}
+                                  onUpdateNotes={(idx, v) => updateNotes('B', idx, v)}
+                                  onSaveExercise={(idx) => saveExerciseImpl('B', idx)}
+                                  onStartRestTimer={startRestFor('B')}
+                                  onExerciseNameChange={(name) => setStudentB(p => {
+                                    if (!p) return null;
+                                    const ns = { ...p.state, [i]: { ...p.state[i], exerciseName: name } };
+                                    saveDraft(p.studentId, p.days[p.activeDayIdx].day, makeDaySignature(p.days[p.activeDayIdx]), ns);
+                                    return { ...p, state: ns };
+                                  })}
+                                  onAddSet={(idx) => addSet('B', idx)}
+                                  onRemoveSet={(idx, sIdx) => removeSet('B', idx, sIdx)}
+                                  onRemoveExercise={(idx) => removeExercise('B', idx)}
+                                  onUpdateMeta={(patch) => updateExerciseMeta('B', i, patch)}
+                                  ExerciseNamePicker={ExerciseNamePicker}
+                                  HistoryPopover={HistoryPopover}
+                                  parsePauseSeconds={(p) => 60}
+                                  progressionSnapshot={snapshotB}
+                                />
+                              </SortableExerciseRow>
+                            ) : null))}
+                          </div>
+                        </SortableContext>
+                      </DndContext>
                       <Button
                         type="button"
                         variant="outline"
@@ -883,6 +902,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                         Adicionar exercício
                       </Button>
                     </div>
+
                   )}
                 </div>
               ) : (
