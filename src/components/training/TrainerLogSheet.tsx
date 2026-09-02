@@ -716,7 +716,9 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       },
     };
     setCurrentExercises(newExercises);
+    setExerciseUids((prev) => [...prev, makeExerciseUid()]);
     setState(newState);
+
     saveDraft(studentId, day.day, daySignature, newState, newExercises);
   };
 
