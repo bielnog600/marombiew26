@@ -893,29 +893,62 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
               <Sparkles className="h-4 w-4" />
               Editar treino com IA
             </Button>
-            {currentExercises.map((ex, exIdx) => state[exIdx] ? (
-              <ExerciseLogCard
-                key={exIdx}
-                exIdx={exIdx}
-                ex={ex}
-                st={state[exIdx]}
-                exercisesList={exercisesList}
-                studentId={studentId}
-                onUpdateSet={updateSet}
-                onUpdateNotes={updateNotes}
-                onSaveExercise={saveExercise}
-                onStartRestTimer={setRestTimer}
-                onExerciseNameChange={(name) => updateExerciseName(exIdx, name)}
-                onAddSet={addSet}
-                onRemoveSet={removeSet}
-                onRemoveExercise={removeExercise}
-                onUpdateMeta={(patch) => updateExerciseMeta(exIdx, patch)}
-                ExerciseNamePicker={ExerciseNamePicker}
-                HistoryPopover={HistoryPopover}
-                parsePauseSeconds={parsePauseSeconds}
-                progressionSnapshot={snapshot}
-              />
-            ) : null)}
+            <div className="flex items-center justify-between gap-2 px-1">
+              <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                <ListOrdered className="h-3.5 w-3.5" />
+                Arraste para alterar a sequência
+              </p>
+              {orderDirty && (
+                <span className="text-[10px] font-bold uppercase bg-primary/15 text-primary border border-primary/30 rounded px-1.5 py-px">
+                  Sequência modificada
+                </span>
+              )}
+            </div>
+            {orderDirty && (
+              <Button
+                type="button"
+                className="w-full gap-2"
+                onClick={saveOrderToPlan}
+                disabled={savingOrder}
+              >
+                {savingOrder ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Salvar nova sequência
+              </Button>
+            )}
+            <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleReorderEnd}>
+              <SortableContext
+                items={currentExercises.map((_, i) => String(i))}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-3">
+                  {currentExercises.map((ex, exIdx) => state[exIdx] ? (
+                    <SortableExerciseRow key={`ex-${exIdx}`} id={String(exIdx)} position={exIdx + 1}>
+                      <ExerciseLogCard
+                        exIdx={exIdx}
+                        ex={ex}
+                        st={state[exIdx]}
+                        exercisesList={exercisesList}
+                        studentId={studentId}
+                        onUpdateSet={updateSet}
+                        onUpdateNotes={updateNotes}
+                        onSaveExercise={saveExercise}
+                        onStartRestTimer={setRestTimer}
+                        onExerciseNameChange={(name) => updateExerciseName(exIdx, name)}
+                        onAddSet={addSet}
+                        onRemoveSet={removeSet}
+                        onRemoveExercise={removeExercise}
+                        onUpdateMeta={(patch) => updateExerciseMeta(exIdx, patch)}
+                        ExerciseNamePicker={ExerciseNamePicker}
+                        HistoryPopover={HistoryPopover}
+                        parsePauseSeconds={parsePauseSeconds}
+                        progressionSnapshot={snapshot}
+                      />
+                    </SortableExerciseRow>
+                  ) : null)}
+                </div>
+              </SortableContext>
+            </DndContext>
+
             <Button
               type="button"
               variant="outline"
