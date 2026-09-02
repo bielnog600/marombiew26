@@ -249,6 +249,39 @@ export const HistoryPopover: React.FC<{
   );
 };
 
+export const SortableExerciseRow: React.FC<{
+  id: string;
+  position: number;
+  children: React.ReactNode;
+}> = ({ id, position, children }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+    zIndex: isDragging ? 30 : undefined,
+    position: 'relative',
+  };
+  return (
+    <div ref={setNodeRef} style={style} className="space-y-1">
+      <div className="flex items-center gap-1.5 px-1">
+        <button
+          type="button"
+          className="cursor-grab active:cursor-grabbing touch-none p-2 -ml-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+          {...attributes}
+          {...listeners}
+          aria-label="Arrastar para reordenar"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <span className="text-[10px] font-bold text-muted-foreground uppercase">#{position}</span>
+      </div>
+      {children}
+    </div>
+  );
+};
+
+
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
