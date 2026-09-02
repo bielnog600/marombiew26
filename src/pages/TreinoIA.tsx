@@ -33,6 +33,17 @@ import {
   type VariationIntensity,
 } from '@/lib/variationProfiles';
 import {
+  MODEL_DESCRIPTIONS,
+  MODEL_LABELS,
+  SELECTABLE_MODELS,
+  BLOCK_LABELS,
+  resolvePeriodization,
+  snapshotToPlanColumns,
+  weekNumberToPhase,
+  type PeriodizationSelection,
+  type PeriodizationSnapshot,
+} from '@/lib/periodization';
+import {
   normalizeSplitSlug,
   isRecommended,
   SPLIT_LABELS,
@@ -196,6 +207,9 @@ const TreinoIA = () => {
   const [marombiewEnabled, setMarombiewEnabled] = useState(false);
   const [configCollapsed, setConfigCollapsed] = useState(!!editPlanId);
   const [lastWorkoutPlan, setLastWorkoutPlan] = useState<any>(null);
+  // Periodização: escolha do professor + snapshot resolvido deterministicamente.
+  const [periodizationSelection, setPeriodizationSelection] = useState<PeriodizationSelection>('automatica');
+  const [periodizationSnapshot, setPeriodizationSnapshot] = useState<PeriodizationSnapshot | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const resultRef = useRef<HTMLDivElement>(null);
   // Painel de progresso compartilhado com a Dieta IA.
@@ -557,6 +571,27 @@ GERE TUDO DE UMA VEZ:
 4) Use técnicas avançadas conforme o nível
 5) Mensagens prontas para WhatsApp explicando o protocolo`;
 
+    // ---- PERIODIZAÇÃO: decisão determinística ANTES de chamar a IA.
+    const weekNumber = parseInt(week || '1', 10) || 1;
+    const snapshot = resolvePeriodization({
+      selection: periodizationSelection,
+      phase: weekNumberToPhase(weekNumber),
+      blockNumber: (lastWorkoutPlan?.block_number ?? 0) + 1,
+      context: {
+        objective: studentCtx?.objetivo ?? null,
+        level,
+        daysPerWeek: daysAvailableNum,
+        weeklyStimuliPerMuscle:
+          canonicalSplit === 'full_body' ? (daysAvailableNum ?? 3)
+          : canonicalSplit === 'upper_lower' || canonicalSplit === 'push_pull' ? Math.floor((daysAvailableNum ?? 4) / 2)
+          : (daysAvailableNum ?? 0) >= 5 ? 2 : 1,
+        completedPlans: lastWorkoutPlan ? (lastWorkoutPlan.version ?? 1) : 0,
+        priorityFocus: canonicalSplit === 'specialization' ? 'grupo prioritário' : null,
+        painFlags: hasDor || hasLesao,
+      },
+    });
+    setPeriodizationSnapshot(snapshot);
+
     try {
       const resp = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/trainer-agent`,
@@ -576,6 +611,8 @@ GERE TUDO DE UMA VEZ:
             split_slug: canonicalSplit,
             split_slug_legacy: split && split !== canonicalSplit ? split : null,
             days_available: daysAvailableNum,
+            periodization: snapshot,
+            phase: weekNumberToPhase(weekNumber),
           }),
         }
       );
@@ -645,7 +682,10 @@ GERE TUDO DE UMA VEZ:
 
       if (editPlanId) {
         if (!useMarkdownFallback && generatedJson) {
-          const r = await saveWorkoutPlanJSON(editPlanId, generatedJson, { titulo });
+          const r = await saveWorkoutPlanJSON(editPlanId, generatedJson, {
+            titulo,
+            periodization: periodizationSnapshot ? snapshotToPlanColumns(periodizationSnapshot) : null,
+          });
           if (r.success !== true) {
             toast.error('Erro ao salvar: ' + (r as { error: string }).error);
             return;
@@ -672,6 +712,9 @@ GERE TUDO DE UMA VEZ:
           // Inherit current phase from previous plan when available, else fallback inside repo.
           fase: lastWorkoutPlan?.fase ?? undefined,
           fase_inicio_data: lastWorkoutPlan?.fase_inicio_data ?? undefined,
+          periodization: periodizationSnapshot
+            ? snapshotToPlanColumns(periodizationSnapshot, lastWorkoutPlan?.block_start_date ?? null)
+            : null,
         });
         if (r.success !== true) {
           toast.error('Erro ao salvar: ' + (r as { error: string }).error);
@@ -936,6 +979,25 @@ GERE TUDO DE UMA VEZ:
                   </button>
                 ))}
               </div>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Modelo de periodização</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {(['automatica', ...SELECTABLE_MODELS] as PeriodizationSelection[]).map(m => (
+                  <button key={m} onClick={() => setPeriodizationSelection(m)}
+                    className={`rounded-xl border-2 p-3 text-left transition-all ${periodizationSelection === m ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
+                    <span className="font-semibold text-sm block">{MODEL_LABELS[m]}</span>
+                    <span className="text-xs text-muted-foreground">{MODEL_DESCRIPTIONS[m]}</span>
+                  </button>
+                ))}
+              </div>
+              {periodizationSnapshot && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Última decisão: <span className="text-primary font-semibold">{MODEL_LABELS[periodizationSnapshot.model]}</span>
+                  {' · '}{BLOCK_LABELS[periodizationSnapshot.block.blockType]} ({periodizationSnapshot.block.blockNumber}/{periodizationSnapshot.block.blockTotal})
+                  {' · '}Semana {periodizationSnapshot.week.weekNumber} — {periodizationSnapshot.reason}
+                </p>
+              )}
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-2">Equipamento disponível</p>
