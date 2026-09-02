@@ -750,7 +750,9 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       }
     });
     setCurrentExercises(newExercises);
+    setExerciseUids((prev) => buildExerciseUids(newExercises.length, prev));
     setState(newState);
+
     saveDraft(studentId, day.day, daySignature, newState, newExercises);
     toast.success('Alterações da IA aplicadas');
   };
