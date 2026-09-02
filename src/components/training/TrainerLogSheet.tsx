@@ -261,7 +261,16 @@ export const HistoryPopover: React.FC<{
   );
 };
 
+/** Sensores compartilhados de drag-and-drop (individual e Duo). */
+export const useExerciseDndSensors = () =>
+  useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
 export const SortableExerciseRow: React.FC<{
+
   id: string;
   position: number;
   children: React.ReactNode;
