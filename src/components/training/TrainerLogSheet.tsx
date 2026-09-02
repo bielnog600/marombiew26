@@ -576,6 +576,64 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     saveDraft(studentId, day.day, daySignature, newState, newExercises);
   };
 
+  // Reordenação por drag-and-drop: move exercício + estado (séries, notas, logs
+  // salvos) juntos, garantindo que nada seja perdido nem duplicado.
+  const handleReorderEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = parseInt(String(active.id), 10);
+    const newIndex = parseInt(String(over.id), 10);
+    if (Number.isNaN(oldIndex) || Number.isNaN(newIndex)) return;
+
+    const newExercises = arrayMove(currentExercises, oldIndex, newIndex);
+    if (newExercises.length !== currentExercises.length) return;
+    const orderedStates = currentExercises.map((_, i) => state[i]);
+    const movedStates = arrayMove(orderedStates, oldIndex, newIndex);
+    const newState: Record<number, ExerciseState> = {};
+    movedStates.forEach((st, i) => {
+      if (st) newState[i] = st;
+    });
+
+    setCurrentExercises(newExercises);
+    setState(newState);
+    setOrderDirty(true);
+    stopTimer();
+    saveDraft(studentId, day.day, daySignature, newState, newExercises);
+  };
+
+  const saveOrderToPlan = async () => {
+    if (!day) return;
+    if (!effectivePlanId) {
+      toast.error('Plano ativo não encontrado para salvar a sequência');
+      return;
+    }
+    setSavingOrder(true);
+    try {
+      const res = await persistSessionDayEditsToPlan({
+        planId: effectivePlanId,
+        dayName: day.day,
+        dayIndex: days.findIndex((d) => d.day === day.day),
+        exercises: currentExercises,
+        states: state,
+        fallbackDays: days,
+      });
+      if (res.success === false) {
+        toast.error('Não foi possível salvar a sequência: ' + res.error);
+      } else if (res.updated) {
+        setOrderDirty(false);
+        toast.success('Sequência salva no treino do aluno');
+      } else {
+        toast.error('Sequência não salva: ' + res.reason);
+      }
+    } catch (e: any) {
+      toast.error('Erro ao salvar sequência: ' + (e?.message || 'desconhecido'));
+    } finally {
+      setSavingOrder(false);
+    }
+  };
+
+
+
   const updateExerciseMeta = (
     exIdx: number,
     patch: Partial<Pick<ParsedExercise, 'pause' | 'variation' | 'reps' | 'rir' | 'series' | 'series2' | 'setScheme'>>,
