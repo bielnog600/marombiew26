@@ -42,6 +42,12 @@ import { applyActionsToDay } from './AiEditAllDaysDialog';
 import { normalizeWorkoutPlan, parsedDaysToWorkoutPlan, type WorkoutPlan } from '@/lib/workoutSchema';
 import { workoutPlanToMarkdown } from '@/lib/workoutMarkdownSerializer';
 import { persistSessionDayEditsToPlan } from '@/lib/sessionPlanPersistence';
+import {
+  buildExerciseUids,
+  makeExerciseUid,
+  reorderExercisesByUid,
+} from '@/lib/sessionExerciseOrder';
+
 
 import {
   AlertDialog,
