@@ -1,6 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { authorizePrivilegedRequest, unauthorizedResponse } from "../_shared/authorizePrivilegedRequest.ts";
+import {
+  resolveRenewalPeriodization,
+  buildRenewalPromptBlock,
+  checkRenewalContinuity,
+  snapshotToPlanColumns,
+  type RenewalPeriodization,
+} from "../_shared/renewalPeriodization.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -166,7 +173,7 @@ async function gatherContext(supabase: any, plan: any) {
   const avgDuration = durations.length 
     ? durations.reduce((a: number, b: number) => a + b, 0) / durations.length
     : null;
-  const hasLongSessions = durations.some(d => d > 75);
+  const hasLongSessions = durations.some((d: number) => d > 75);
 
   // Fatigue / monotony heuristics
   let fatigueSignal: "baixa" | "media" | "alta" = "baixa";
@@ -231,7 +238,11 @@ async function gatherContext(supabase: any, plan: any) {
       };
     }
 
-    // Aggregate per-exercise progression across the window (top 10 by volume of sets)
+  }
+
+  // Aggregate per-exercise progression across the window (top 10 by sets).
+  // Usado tanto no modo Low Cost quanto pela camada de periodização (anchors).
+  {
     const exAgg = new Map<string, { sets: number; loads: number[]; reps: number[] }>();
     for (const l of setLogs ?? []) {
       const k = l.exercise_name;
@@ -252,6 +263,7 @@ async function gatherContext(supabase: any, plan: any) {
       .sort((a, b) => b.sets - a.sets)
       .slice(0, 10);
   }
+
 
   // Análise por grupo muscular
   const muscleGroupStats = new Map<string, { sets: number; volume: number; loadTrends: number[] }>();
@@ -486,7 +498,12 @@ async function buildStudentContextForAgent(supabase: any, studentId: string) {
 /**
  * Calls the trainer-agent (SSE) and accumulates the final markdown output.
  */
-async function callTrainerAgent(prompt: string, studentContext: any): Promise<string> {
+async function callTrainerAgent(
+  prompt: string,
+  studentContext: any,
+  periodization?: unknown,
+  phase?: string | null,
+): Promise<string> {
   const url = `${SUPABASE_URL}/functions/v1/trainer-agent`;
   const resp = await fetch(url, {
     method: "POST",
@@ -497,6 +514,8 @@ async function callTrainerAgent(prompt: string, studentContext: any): Promise<st
     body: JSON.stringify({
       messages: [{ role: "user", content: prompt }],
       studentContext,
+      ...(periodization ? { periodization } : {}),
+      ...(phase ? { phase } : {}),
     }),
   });
 
@@ -582,6 +601,11 @@ async function generateDraft(supabase: any, planId: string, source: "manual" | "
   if (plan.is_draft) throw new Error("Source plan is already a draft");
   if (plan.tipo !== "treino") throw new Error("Not a workout plan");
 
+  // MODO MANUAL: nunca gerar automaticamente. O admin pode forçar (source manual).
+  if (source === "auto" && plan.renewal_mode === "manual") {
+    throw new Error("Plano em modo manual — geração automática desativada");
+  }
+
   const { data: existingDraft } = await supabase
     .from("ai_plans")
     .select("*")
@@ -612,6 +636,12 @@ async function generateDraft(supabase: any, planId: string, source: "manual" | "
   const lastSession = latestAnalysis?.context_snapshot?.last_session_summary ?? null;
   const recentStats = latestAnalysis?.context_snapshot?.recent_exercise_stats ?? [];
 
+  // ---- PERIODIZAÇÃO: decisão determinística ANTES de chamar a IA.
+  const analysisCtx = latestAnalysis?.context_snapshot ?? (await gatherContext(supabase, plan));
+  const periodization: RenewalPeriodization = resolveRenewalPeriodization(plan, analysisCtx);
+  const periodizationBlock = buildRenewalPromptBlock(periodization);
+
+
   const ctxBlock = latestAnalysis
     ? `\n\n=== ANÁLISE DE RENOVAÇÃO DA IA ===\nSugestão: ${latestAnalysis.suggested_action}\nAderência: ${latestAnalysis.adherence_score ?? "—"}\nFrequência semanal: ${latestAnalysis.session_frequency ?? "—"}\nProgressão de carga: ${latestAnalysis.load_progression ?? "—"}\nProgressão de reps: ${latestAnalysis.reps_progression ?? "—"}\nVolume: ${latestAnalysis.volume_trend ?? "—"}\nRPE médio: ${latestAnalysis.avg_rpe ?? "—"}\nFadiga: ${latestAnalysis.fatigue_signal ?? "—"}\nMonotonia: ${latestAnalysis.monotony_risk ?? "—"}\nJustificativa: ${latestAnalysis.rationale}\n=== FIM ANÁLISE ===\n`
     : "";
@@ -629,8 +659,9 @@ async function generateDraft(supabase: any, planId: string, source: "manual" | "
       `Respeite rigorosamente estas quantidades na tabela final.\n`
     : "";
 
-  const prompt = isLowCost
-    ? `Você está RENOVANDO o ciclo de treino deste aluno em MODO LOW COST (revisão automatizada a cada 30 dias).${ctxBlock}${lowCostBlock}${structureBlock}
+  const buildPrompt = (periodBlock: string) =>
+    isLowCost
+      ? `Você está RENOVANDO o ciclo de treino deste aluno em MODO LOW COST (revisão automatizada a cada 30 dias).${periodBlock}${ctxBlock}${lowCostBlock}${structureBlock}
 
 OBJETIVO DA RENOVAÇÃO LOW COST:
 - Manter CONTINUIDADE com o plano atual (mesma estrutura/divisão) e com o último desempenho real registrado.
@@ -645,37 +676,86 @@ ${previousExcerpt}
 ENTREGUE OBRIGATORIAMENTE:
 1) Tabela completa do treino com TODAS as colunas: TREINO DO DIA | EXERCÍCIO | SÉRIE | SÉRIE 2 | REPETIÇÕES | RIR | PAUSA | DESCRIÇÃO | VARIAÇÃO
 2) Divisão semanal idêntica à atual (a menos que haja motivo claro para mudar)
-3) Periodização contínua a partir da fase atual (${plan.fase ?? "fase atual"})
+3) Prescrição coerente com o bloco e a semana definidos na camada de periodização acima
 4) Notas curtas de progressão indicando, por exercício mantido, a nova carga sugerida com base na última carga real registrada`
-    : `Você está RENOVANDO o ciclo de treino de 45 dias deste aluno.${ctxBlock}${structureBlock}
+      : `Você está RENOVANDO o ciclo de treino deste aluno.${periodBlock}${ctxBlock}${structureBlock}
 
 OBJETIVO DA RENOVAÇÃO:
 - Considere a aderência, progressão e fadiga acima
-- Varie estímulos: troque exercícios estagnados, ajuste faixas de repetição e volume
-- NÃO repita exatamente os mesmos exercícios do plano anterior
+- Prescreva dentro da estratégia de periodização já decidida (volume, intensidade, RIR, faixas de reps)
+- Preserve as âncoras indicadas; rotacione apenas exercícios estagnados ou com dor/restrição
 - Mantenha o objetivo do aluno e respeite restrições/lesões
-- Se houver platô (load/volume estável), aumente intensidade ou troque variações
 
-TRECHO DO TREINO ATUAL (referência do que NÃO repetir 100%):
+TRECHO DO TREINO ATUAL (base de continuidade):
 ${previousExcerpt}
 
 ENTREGUE OBRIGATORIAMENTE:
 1) Tabela completa do treino com TODAS as colunas: TREINO DO DIA | EXERCÍCIO | SÉRIE | SÉRIE 2 | REPETIÇÕES | RIR | PAUSA | DESCRIÇÃO | VARIAÇÃO
 2) Divisão semanal clara
-3) Periodização da nova fase (semana 1 a 6)
+3) Prescrição coerente com o bloco/semana da periodização acima
 4) Notas de progressão e segurança`;
 
-  const draftContent = await callTrainerAgent(prompt, studentContext);
+  const technicalReason = periodization.anchors.remove.length > 0
+    ? `remoção por dor/restrição: ${periodization.anchors.remove.join(", ")}`
+    : null;
+
+  const phaseForAgent = `semana_${periodization.snapshot.week.weekNumber}`.replace("semana_4", "deload");
+
+  let draftContent = await callTrainerAgent(
+    buildPrompt(periodizationBlock),
+    studentContext,
+    periodization.snapshot,
+    phaseForAgent,
+  );
   if (!draftContent || draftContent.length < 200) {
     throw new Error("Conteúdo do rascunho insuficiente — tente novamente");
   }
 
+  // Validação determinística de continuidade (âncoras + similaridade + motivo).
+  let continuity = checkRenewalContinuity(periodization, draftContent, technicalReason);
+  if (!continuity.ok) {
+    console.log("renewal_continuity_retry", continuity.reason);
+    const retryContent = await callTrainerAgent(
+      buildPrompt(buildRenewalPromptBlock(periodization, continuity.reason)),
+      studentContext,
+      periodization.snapshot,
+      phaseForAgent,
+    );
+    if (retryContent && retryContent.length >= 200) {
+      const retryCheck = checkRenewalContinuity(periodization, retryContent, technicalReason);
+      if (retryCheck.ok || retryCheck.similarity > continuity.similarity) {
+        draftContent = retryContent;
+        continuity = retryCheck;
+      }
+    }
+  }
+  const reviewRequired = periodization.reviewRequired || !continuity.ok;
+
+
   // Snapshot current plan
   await snapshotPlan(supabase, plan, source === "manual" ? "manual" : "auto", `Snapshot antes do rascunho v${(plan.version ?? 1) + 1}`);
 
-  const reason =
-    latestAnalysis?.rationale?.slice(0, 500) ??
+  const baseReason =
+    latestAnalysis?.rationale?.slice(0, 400) ??
     (source === "manual" ? "Rascunho gerado manualmente pelo admin." : "Rascunho gerado automaticamente.");
+  const reason = `${baseReason} | Periodização: ${periodization.snapshot.model}, decisão ${periodization.nextStep.action}${reviewRequired ? " (REVIEW_REQUIRED)" : ""}`.slice(0, 500);
+
+  const periodColumns = snapshotToPlanColumns(periodization.snapshot);
+  periodColumns.periodization_snapshot = {
+    ...(periodization.snapshot as unknown as Record<string, unknown>),
+    resolver_decision: periodization.nextStep.action,
+    resolver_reason: periodization.nextStep.reason,
+    planned_week_before: periodization.plannedWeek,
+    anchors: periodization.anchors,
+    continuity: {
+      ok: continuity.ok,
+      similarity: Number(continuity.similarity.toFixed(2)),
+      anchors_retained: continuity.audit.anchorsRetained,
+      anchors_previous: continuity.audit.anchorsPrevious,
+      reason: continuity.reason,
+    },
+    review_required: reviewRequired,
+  };
 
   const { data: draft, error: draftErr } = await supabase
     .from("ai_plans")
@@ -694,10 +774,12 @@ ENTREGUE OBRIGATORIAMENTE:
       draft_source: source,
       draft_reason: reason,
       draft_analysis_id: latestAnalysis?.id ?? null,
+      ...periodColumns,
     })
     .select()
     .single();
   if (draftErr) throw draftErr;
+
 
   await supabase.from("ai_plans").update({ cycle_status: "rascunho_gerado" }).eq("id", plan.id);
 
@@ -711,7 +793,7 @@ ENTREGUE OBRIGATORIAMENTE:
     titulo: draft.titulo,
     conteudo: draftContent,
     fase: plan.fase,
-    snapshot_json: { draft_id: draft.id },
+    snapshot_json: { draft_id: draft.id, periodization: periodColumns.periodization_snapshot },
     reason_summary: reason,
   });
 
@@ -722,8 +804,23 @@ ENTREGUE OBRIGATORIAMENTE:
       .eq("id", latestAnalysis.id);
   }
 
-  return { draft, reused: false };
+  return {
+    draft,
+    reused: false,
+    periodization: {
+      model: periodization.snapshot.model,
+      block_type: periodization.snapshot.block.blockType,
+      block_number: periodization.snapshot.block.blockNumber,
+      week: periodization.snapshot.week.weekNumber,
+      decision: periodization.nextStep.action,
+      decision_reason: periodization.nextStep.reason,
+      anchors_retained: continuity.audit.anchorsRetained,
+      anchors_previous: continuity.audit.anchorsPrevious,
+      review_required: reviewRequired,
+    },
+  };
 }
+
 
 async function discardDraft(supabase: any, draftId: string) {
   const { data: draft } = await supabase.from("ai_plans").select("*").eq("id", draftId).maybeSingle();
@@ -754,6 +851,24 @@ async function analyzePlan(supabase: any, planId: string) {
 
   const ctx = await gatherContext(supabase, plan);
   const ai = await callAI(ctx, plan.conteudo ?? "");
+
+  // Decisão determinística da periodização (a IA não escolhe bloco/modelo).
+  const periodization = resolveRenewalPeriodization(plan, ctx);
+  const periodizationSummary = {
+    model: periodization.snapshot.model,
+    model_reason: periodization.snapshot.reason,
+    block_type: periodization.snapshot.block.blockType,
+    block_number: periodization.snapshot.block.blockNumber,
+    block_total: periodization.snapshot.block.blockTotal,
+    next_block_type: periodization.snapshot.block.nextBlockType,
+    planned_week: periodization.plannedWeek,
+    next_week: periodization.snapshot.week.weekNumber,
+    decision: periodization.nextStep.action,
+    decision_reason: periodization.nextStep.reason,
+    review_required: periodization.reviewRequired,
+    anchors: periodization.anchors,
+  };
+
 
   const { data: analysis, error: insErr } = await supabase
     .from("workout_renewal_analysis")
@@ -791,7 +906,7 @@ async function analyzePlan(supabase: any, planId: string) {
         fatigue_signal: ai.fatigue_signal,
         data_quality: ctx.data_quality,
       },
-      context_snapshot: { ...ctx, ai },
+      context_snapshot: { ...ctx, ai, periodization: periodizationSummary },
     })
     .select()
     .single();
@@ -803,7 +918,7 @@ async function analyzePlan(supabase: any, planId: string) {
     .update({ cycle_status: newStatus, last_analysis_at: new Date().toISOString() })
     .eq("id", plan.id);
 
-  return { analysis, plan_status: newStatus };
+  return { analysis, plan_status: newStatus, periodization: periodizationSummary };
 }
 
 serve(async (req) => {
@@ -890,6 +1005,18 @@ serve(async (req) => {
             draft_source: null,
             draft_reason: null,
             draft_analysis_id: null,
+            // Versionamento: metadados de periodização acompanham a publicação.
+            periodization_model: draft.periodization_model ?? null,
+            periodization_reason: draft.periodization_reason ?? null,
+            periodization_snapshot: draft.periodization_snapshot ?? null,
+            macrocycle_weeks: draft.macrocycle_weeks ?? null,
+            block_type: draft.block_type ?? null,
+            block_number: draft.block_number ?? null,
+            block_total: draft.block_total ?? null,
+            next_block_type: draft.next_block_type ?? null,
+            block_start_date: draft.block_start_date ?? null,
+            block_end_date: draft.block_end_date ?? null,
+
           })
           .eq("id", draft.parent_plan_id);
         await supabase.from("ai_plans").delete().eq("id", draft_id);
@@ -927,8 +1054,16 @@ serve(async (req) => {
         await supabase.from("ai_plans").update(updateData).eq("id", planId);
       }
       
-      const { draft, reused } = await generateDraft(supabase, planId, source);
-      return new Response(JSON.stringify({ ok: true, draft_id: draft.id, reused }), {
+      const result = await generateDraft(supabase, planId, source);
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          draft_id: result.draft.id,
+          reused: result.reused,
+          periodization: (result as any).periodization ?? null,
+        }),
+        {
+
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
