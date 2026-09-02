@@ -960,12 +960,13 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
             )}
             <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleReorderEnd}>
               <SortableContext
-                items={currentExercises.map((_, i) => String(i))}
+                items={exerciseUids}
                 strategy={verticalListSortingStrategy}
               >
                 <div className="space-y-3">
-                  {currentExercises.map((ex, exIdx) => state[exIdx] ? (
-                    <SortableExerciseRow key={`ex-${exIdx}`} id={String(exIdx)} position={exIdx + 1}>
+                  {currentExercises.map((ex, exIdx) => state[exIdx] && exerciseUids[exIdx] ? (
+                    <SortableExerciseRow key={exerciseUids[exIdx]} id={exerciseUids[exIdx]} position={exIdx + 1}>
+
                       <ExerciseLogCard
                         exIdx={exIdx}
                         ex={ex}
