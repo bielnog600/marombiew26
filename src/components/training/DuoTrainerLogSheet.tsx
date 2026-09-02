@@ -320,7 +320,18 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
         })
       );
 
-      setSt(prev => prev ? { ...prev, state: initial, loading: false } : null);
+      setSt(prev =>
+        prev
+          ? {
+              ...prev,
+              state: initial,
+              uids: buildExerciseUids(day.exercises.length),
+              orderDirty: false,
+              loading: false,
+            }
+          : null,
+      );
+
     };
 
     if (studentA?.loading) hydrate(studentA, setStudentA);
