@@ -659,8 +659,9 @@ async function generateDraft(supabase: any, planId: string, source: "manual" | "
       `Respeite rigorosamente estas quantidades na tabela final.\n`
     : "";
 
-  const prompt = isLowCost
-    ? `Você está RENOVANDO o ciclo de treino deste aluno em MODO LOW COST (revisão automatizada a cada 30 dias).${ctxBlock}${lowCostBlock}${structureBlock}
+  const buildPrompt = (periodBlock: string) =>
+    isLowCost
+      ? `Você está RENOVANDO o ciclo de treino deste aluno em MODO LOW COST (revisão automatizada a cada 30 dias).${periodBlock}${ctxBlock}${lowCostBlock}${structureBlock}
 
 OBJETIVO DA RENOVAÇÃO LOW COST:
 - Manter CONTINUIDADE com o plano atual (mesma estrutura/divisão) e com o último desempenho real registrado.
@@ -675,30 +676,61 @@ ${previousExcerpt}
 ENTREGUE OBRIGATORIAMENTE:
 1) Tabela completa do treino com TODAS as colunas: TREINO DO DIA | EXERCÍCIO | SÉRIE | SÉRIE 2 | REPETIÇÕES | RIR | PAUSA | DESCRIÇÃO | VARIAÇÃO
 2) Divisão semanal idêntica à atual (a menos que haja motivo claro para mudar)
-3) Periodização contínua a partir da fase atual (${plan.fase ?? "fase atual"})
+3) Prescrição coerente com o bloco e a semana definidos na camada de periodização acima
 4) Notas curtas de progressão indicando, por exercício mantido, a nova carga sugerida com base na última carga real registrada`
-    : `Você está RENOVANDO o ciclo de treino de 45 dias deste aluno.${ctxBlock}${structureBlock}
+      : `Você está RENOVANDO o ciclo de treino deste aluno.${periodBlock}${ctxBlock}${structureBlock}
 
 OBJETIVO DA RENOVAÇÃO:
 - Considere a aderência, progressão e fadiga acima
-- Varie estímulos: troque exercícios estagnados, ajuste faixas de repetição e volume
-- NÃO repita exatamente os mesmos exercícios do plano anterior
+- Prescreva dentro da estratégia de periodização já decidida (volume, intensidade, RIR, faixas de reps)
+- Preserve as âncoras indicadas; rotacione apenas exercícios estagnados ou com dor/restrição
 - Mantenha o objetivo do aluno e respeite restrições/lesões
-- Se houver platô (load/volume estável), aumente intensidade ou troque variações
 
-TRECHO DO TREINO ATUAL (referência do que NÃO repetir 100%):
+TRECHO DO TREINO ATUAL (base de continuidade):
 ${previousExcerpt}
 
 ENTREGUE OBRIGATORIAMENTE:
 1) Tabela completa do treino com TODAS as colunas: TREINO DO DIA | EXERCÍCIO | SÉRIE | SÉRIE 2 | REPETIÇÕES | RIR | PAUSA | DESCRIÇÃO | VARIAÇÃO
 2) Divisão semanal clara
-3) Periodização da nova fase (semana 1 a 6)
+3) Prescrição coerente com o bloco/semana da periodização acima
 4) Notas de progressão e segurança`;
 
-  const draftContent = await callTrainerAgent(prompt, studentContext);
+  const technicalReason = periodization.anchors.remove.length > 0
+    ? `remoção por dor/restrição: ${periodization.anchors.remove.join(", ")}`
+    : null;
+
+  const phaseForAgent = `semana_${periodization.snapshot.week.weekNumber}`.replace("semana_4", "deload");
+
+  let draftContent = await callTrainerAgent(
+    buildPrompt(periodizationBlock),
+    studentContext,
+    periodization.snapshot,
+    phaseForAgent,
+  );
   if (!draftContent || draftContent.length < 200) {
     throw new Error("Conteúdo do rascunho insuficiente — tente novamente");
   }
+
+  // Validação determinística de continuidade (âncoras + similaridade + motivo).
+  let continuity = checkRenewalContinuity(periodization, draftContent, technicalReason);
+  if (!continuity.ok) {
+    console.log("renewal_continuity_retry", continuity.reason);
+    const retryContent = await callTrainerAgent(
+      buildPrompt(buildRenewalPromptBlock(periodization, continuity.reason)),
+      studentContext,
+      periodization.snapshot,
+      phaseForAgent,
+    );
+    if (retryContent && retryContent.length >= 200) {
+      const retryCheck = checkRenewalContinuity(periodization, retryContent, technicalReason);
+      if (retryCheck.ok || retryCheck.similarity > continuity.similarity) {
+        draftContent = retryContent;
+        continuity = retryCheck;
+      }
+    }
+  }
+  const reviewRequired = periodization.reviewRequired || !continuity.ok;
+
 
   // Snapshot current plan
   await snapshotPlan(supabase, plan, source === "manual" ? "manual" : "auto", `Snapshot antes do rascunho v${(plan.version ?? 1) + 1}`);
