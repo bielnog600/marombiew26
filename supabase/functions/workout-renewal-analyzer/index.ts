@@ -906,7 +906,7 @@ async function analyzePlan(supabase: any, planId: string) {
         fatigue_signal: ai.fatigue_signal,
         data_quality: ctx.data_quality,
       },
-      context_snapshot: { ...ctx, ai },
+      context_snapshot: { ...ctx, ai, periodization: periodizationSummary },
     })
     .select()
     .single();
