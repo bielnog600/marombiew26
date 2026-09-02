@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
+import PeriodizationCard from '@/components/training/PeriodizationCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -287,7 +288,9 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
           const currentDays: ParsedTrainingDay[] = parseTrainingSections(currentMarkdown || '').flatMap(s => s.days || []);
 
           return (
-            <Card key={plan.id} className="glass-card">
+            <React.Fragment key={plan.id}>
+            <PeriodizationCard plan={plan} variant="admin" />
+            <Card className="glass-card">
               <CardContent className="p-4">
                 <div
                   className="flex items-center justify-between cursor-pointer"
@@ -529,6 +532,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                 )}
               </CardContent>
             </Card>
+            </React.Fragment>
           );
         })}
       </div>

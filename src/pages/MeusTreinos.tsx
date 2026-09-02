@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/AppLayout';
+import PeriodizationCard from '@/components/training/PeriodizationCard';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -118,7 +119,7 @@ const MeusTreinos = () => {
 
   const loadTraining = async () => {
     const { data } = await fetchWithCache(`plans:treino:all:${user!.id}`, async () => {
-      const { data } = await supabase.from('ai_plans').select('id, conteudo, conteudo_json, migration_status, fase, fase_inicio_data').eq('student_id', user!.id).eq('tipo', 'treino').order('created_at', { ascending: false });
+      const { data } = await supabase.from('ai_plans').select('id, conteudo, conteudo_json, migration_status, fase, fase_inicio_data, periodization_model, periodization_reason, block_type, block_number, block_total, next_block_type, periodization_snapshot').eq('student_id', user!.id).eq('tipo', 'treino').order('created_at', { ascending: false });
       return data;
     });
 
@@ -313,6 +314,11 @@ const MeusTreinos = () => {
             </p>
           </div>
         )}
+
+        <PeriodizationCard
+          plan={plans.find(p => p.fase === activePhase) ?? plans[0]}
+          variant="student"
+        />
 
         {trainingDays.length === 0 ? (
           <Card className="glass-card">

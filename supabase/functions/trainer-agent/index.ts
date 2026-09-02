@@ -1273,6 +1273,14 @@ REGRAS DO FLUXO
 2) Pergunte apenas o que faltou (uma por vez).
 3) Quando tiver tudo: resumo + tabela TREINO + resumo dieta + tabela DIETA + mensagens.`;
 
+import {
+  buildPeriodizationPromptBlock,
+  resolvePeriodization,
+  type PeriodizationSnapshot,
+  type PeriodizationSelection,
+  type WeekPhase,
+} from "../_shared/periodization.ts";
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -1288,6 +1296,11 @@ serve(async (req) => {
       split_slug_legacy,
       days_available,
       requested_strength_days,
+      // Camada de periodização — decisão determinística já resolvida pelo caller.
+      periodization,
+      periodizationSelection,
+      periodizationContext,
+      phase,
     } = await req.json();
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
@@ -1462,6 +1475,37 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
         typeof requested_strength_days === "number" ? requested_strength_days : null,
     });
     if (splitBlock) contextMessage += splitBlock;
+
+    // ---- PERIODIZAÇÃO: o snapshot chega pronto do caller (fonte canônica).
+    // Se não vier, resolvemos aqui com o MESMO resolver — nunca pedimos ao LLM
+    // para escolher o modelo.
+    let periodizationSnapshot: PeriodizationSnapshot | null = null;
+    try {
+      if (periodization && typeof periodization === "object" && periodization.week) {
+        periodizationSnapshot = periodization as PeriodizationSnapshot;
+      } else if (periodizationContext || periodizationSelection) {
+        periodizationSnapshot = resolvePeriodization({
+          selection: (periodizationSelection as PeriodizationSelection) ?? "automatica",
+          context: periodizationContext ?? {
+            level: studentContext?.nivel ?? null,
+            daysPerWeek: typeof days_available === "number" ? days_available : null,
+            objective: studentContext?.objetivo ?? null,
+          },
+          phase: ((phase as WeekPhase) ?? "semana_1"),
+        });
+      }
+    } catch (err) {
+      console.error("periodization_resolve_failed", err);
+      periodizationSnapshot = null;
+    }
+    if (periodizationSnapshot) {
+      contextMessage += buildPeriodizationPromptBlock(periodizationSnapshot);
+      console.log("periodization_applied", {
+        model: periodizationSnapshot.model,
+        block: periodizationSnapshot.block.blockType,
+        week: periodizationSnapshot.week.weekNumber,
+      });
+    }
 
     // ============================================================
     // STRUCTURED MODE — JSON-FIRST (workout schema v2)
