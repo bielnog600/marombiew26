@@ -852,6 +852,24 @@ async function analyzePlan(supabase: any, planId: string) {
   const ctx = await gatherContext(supabase, plan);
   const ai = await callAI(ctx, plan.conteudo ?? "");
 
+  // Decisão determinística da periodização (a IA não escolhe bloco/modelo).
+  const periodization = resolveRenewalPeriodization(plan, ctx);
+  const periodizationSummary = {
+    model: periodization.snapshot.model,
+    model_reason: periodization.snapshot.reason,
+    block_type: periodization.snapshot.block.blockType,
+    block_number: periodization.snapshot.block.blockNumber,
+    block_total: periodization.snapshot.block.blockTotal,
+    next_block_type: periodization.snapshot.block.nextBlockType,
+    planned_week: periodization.plannedWeek,
+    next_week: periodization.snapshot.week.weekNumber,
+    decision: periodization.nextStep.action,
+    decision_reason: periodization.nextStep.reason,
+    review_required: periodization.reviewRequired,
+    anchors: periodization.anchors,
+  };
+
+
   const { data: analysis, error: insErr } = await supabase
     .from("workout_renewal_analysis")
     .insert({
