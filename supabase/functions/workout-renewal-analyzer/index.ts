@@ -498,7 +498,12 @@ async function buildStudentContextForAgent(supabase: any, studentId: string) {
 /**
  * Calls the trainer-agent (SSE) and accumulates the final markdown output.
  */
-async function callTrainerAgent(prompt: string, studentContext: any): Promise<string> {
+async function callTrainerAgent(
+  prompt: string,
+  studentContext: any,
+  periodization?: unknown,
+  phase?: string | null,
+): Promise<string> {
   const url = `${SUPABASE_URL}/functions/v1/trainer-agent`;
   const resp = await fetch(url, {
     method: "POST",
@@ -509,6 +514,8 @@ async function callTrainerAgent(prompt: string, studentContext: any): Promise<st
     body: JSON.stringify({
       messages: [{ role: "user", content: prompt }],
       studentContext,
+      ...(periodization ? { periodization } : {}),
+      ...(phase ? { phase } : {}),
     }),
   });
 
