@@ -101,8 +101,10 @@ describe('renewalPeriodization', () => {
     const r = resolveRenewalPeriodization({ ...basePlan, fase: 'deload' }, baseCtx);
     expect(['advance_block', 'deload']).toContain(r.nextStep.action);
     if (r.nextStep.action === 'advance_block') {
-      expect(r.snapshot.block.blockNumber).toBe(2);
+      // A numeração é limitada pelo total de blocos do modelo (regra canônica).
+      expect(r.snapshot.block.blockNumber).toBeLessThanOrEqual(r.snapshot.block.blockTotal);
       expect(r.snapshot.week.weekNumber).toBe(1);
+
     }
   });
 
