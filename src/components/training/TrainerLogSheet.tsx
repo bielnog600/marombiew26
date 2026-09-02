@@ -522,7 +522,9 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
         })
       );
       setCurrentExercises(baseExercises);
+      setExerciseUids(buildExerciseUids(baseExercises.length));
       setOrderDirty(false);
+
       setState(initial);
       setLoading(false);
     })();
