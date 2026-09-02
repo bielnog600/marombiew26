@@ -25,6 +25,11 @@ export type SaveExtras = {
   fase?: string | null;
   fase_inicio_data?: string | null;
   titulo?: string;
+  /**
+   * Colunas de periodização já resolvidas (snapshotToPlanColumns).
+   * Aditivas: quando ausentes, o plano permanece "legacy".
+   */
+  periodization?: Record<string, unknown> | null;
 };
 
 export type SaveResult =
@@ -41,9 +46,11 @@ export type CreateResult =
  * Same protection for `fase_inicio_data` when undefined.
  */
 const sanitizeExtras = (extras: SaveExtras): Record<string, unknown> => {
-  const out: Record<string, unknown> = { ...extras };
+  const { periodization, ...rest } = extras;
+  const out: Record<string, unknown> = { ...rest };
   if (out.fase === null || out.fase === undefined) delete out.fase;
   if (out.fase_inicio_data === undefined) delete out.fase_inicio_data;
+  if (periodization) Object.assign(out, periodization);
   return out;
 };
 
@@ -98,6 +105,7 @@ export const createWorkoutPlanJSON = async (
       calculateCurrentPhase(extras.fase_inicio_data ?? null) ??
       getPhaseByMonthDay(),
     fase_inicio_data: extras.fase_inicio_data ?? new Date().toISOString().slice(0, 10),
+    ...(extras.periodization ?? {}),
   };
   const { data, error } = await supabase
     .from("ai_plans")
