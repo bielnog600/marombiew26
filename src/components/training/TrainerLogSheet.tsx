@@ -16,12 +16,12 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import {
-  arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
+
 import { CSS } from '@dnd-kit/utilities';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -42,6 +42,12 @@ import { applyActionsToDay } from './AiEditAllDaysDialog';
 import { normalizeWorkoutPlan, parsedDaysToWorkoutPlan, type WorkoutPlan } from '@/lib/workoutSchema';
 import { workoutPlanToMarkdown } from '@/lib/workoutMarkdownSerializer';
 import { persistSessionDayEditsToPlan } from '@/lib/sessionPlanPersistence';
+import {
+  buildExerciseUids,
+  makeExerciseUid,
+  reorderExercisesByUid,
+} from '@/lib/sessionExerciseOrder';
+
 
 import {
   AlertDialog,
@@ -176,6 +182,11 @@ export const HistoryPopover: React.FC<{
   const [rows, setRows] = useState<HistoryRow[] | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // O cache é por exercício: se o nome mudar (troca ou reordenação), descarta.
+  useEffect(() => {
+    setRows(null);
+  }, [exerciseName, studentId]);
+
   const load = async () => {
     if (rows) return;
     setLoading(true);
@@ -189,6 +200,7 @@ export const HistoryPopover: React.FC<{
     setRows((data as HistoryRow[]) || []);
     setLoading(false);
   };
+
 
   const groups: Record<string, HistoryRow[]> = {};
   (rows || []).forEach((r) => {
@@ -249,7 +261,16 @@ export const HistoryPopover: React.FC<{
   );
 };
 
+/** Sensores compartilhados de drag-and-drop (individual e Duo). */
+export const useExerciseDndSensors = () =>
+  useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
 export const SortableExerciseRow: React.FC<{
+
   id: string;
   position: number;
   children: React.ReactNode;
@@ -346,15 +367,15 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   }, [open, days, resolveInitialDayIdx]);
   const [exercisesList, setExercisesList] = useState<{ id: string; nome: string; grupo_muscular: string; imagem_url?: string | null }[]>([]);
   const [currentExercises, setCurrentExercises] = useState<ParsedExercise[]>([]);
+  // Identidade estável por exercício (key React + id do sortable)
+  const [exerciseUids, setExerciseUids] = useState<string[]>([]);
+
   const [aiOpen, setAiOpen] = useState(false);
   const [orderDirty, setOrderDirty] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
-  const dndSensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-  const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer } = useRestTimer();
+  const dndSensors = useExerciseDndSensors();
+
+  const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer, setTimerExerciseIndex } = useRestTimer();
   
   const student = active?.students.find(s => s.id === studentId);
   const effectivePhase = (student?.phase as any) || phase || null;
@@ -507,7 +528,9 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
         })
       );
       setCurrentExercises(baseExercises);
+      setExerciseUids(buildExerciseUids(baseExercises.length));
       setOrderDirty(false);
+
       setState(initial);
       setLoading(false);
     })();
@@ -573,34 +596,41 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       else if (i > exIdx) newState[i - 1] = state[i];
     });
     setCurrentExercises(newExercises);
+    setExerciseUids((prev) => prev.filter((_, i) => i !== exIdx));
     setState(newState);
     saveDraft(studentId, day.day, daySignature, newState, newExercises);
   };
 
-  // Reordenação por drag-and-drop: move exercício + estado (séries, notas, logs
-  // salvos) juntos, garantindo que nada seja perdido nem duplicado.
+  // Reordenação por drag-and-drop: exercício + estado (séries, cargas, notas,
+  // logs salvos) + identidade (uid) são movidos JUNTOS. Os dados seguem o
+  // exercício, nunca a posição.
   const handleReorderEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = parseInt(String(active.id), 10);
-    const newIndex = parseInt(String(over.id), 10);
-    if (Number.isNaN(oldIndex) || Number.isNaN(newIndex)) return;
+    const { active: dragged, over } = event;
+    if (!over || dragged.id === over.id) return;
 
-    const newExercises = arrayMove(currentExercises, oldIndex, newIndex);
-    if (newExercises.length !== currentExercises.length) return;
-    const orderedStates = currentExercises.map((_, i) => state[i]);
-    const movedStates = arrayMove(orderedStates, oldIndex, newIndex);
-    const newState: Record<number, ExerciseState> = {};
-    movedStates.forEach((st, i) => {
-      if (st) newState[i] = st;
-    });
+    const currentUid = restTimer ? exerciseUids[restTimer.exIdx] : null;
+    const res = reorderExercisesByUid(
+      currentExercises,
+      state,
+      exerciseUids,
+      String(dragged.id),
+      String(over.id),
+    );
+    if (!res) return;
 
-    setCurrentExercises(newExercises);
-    setState(newState);
+    setCurrentExercises(res.exercises);
+    setState(res.states);
+    setExerciseUids(res.uids);
     setOrderDirty(true);
-    stopTimer();
-    saveDraft(studentId, day.day, daySignature, newState, newExercises);
+    // Mantém o exercício atual (timer) apontando para a mesma identidade.
+    if (currentUid) {
+      const nextIdx = res.uids.indexOf(currentUid);
+      if (nextIdx >= 0) setTimerExerciseIndex(nextIdx);
+      else stopTimer();
+    }
+    saveDraft(studentId, day.day, daySignature, res.states, res.exercises);
   };
+
 
   const saveOrderToPlan = async () => {
     if (!day) return;
@@ -692,7 +722,9 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       },
     };
     setCurrentExercises(newExercises);
+    setExerciseUids((prev) => [...prev, makeExerciseUid()]);
     setState(newState);
+
     saveDraft(studentId, day.day, daySignature, newState, newExercises);
   };
 
@@ -724,7 +756,9 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       }
     });
     setCurrentExercises(newExercises);
+    setExerciseUids((prev) => buildExerciseUids(newExercises.length, prev));
     setState(newState);
+
     saveDraft(studentId, day.day, daySignature, newState, newExercises);
     toast.success('Alterações da IA aplicadas');
   };
@@ -932,12 +966,13 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
             )}
             <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleReorderEnd}>
               <SortableContext
-                items={currentExercises.map((_, i) => String(i))}
+                items={exerciseUids}
                 strategy={verticalListSortingStrategy}
               >
                 <div className="space-y-3">
-                  {currentExercises.map((ex, exIdx) => state[exIdx] ? (
-                    <SortableExerciseRow key={`ex-${exIdx}`} id={String(exIdx)} position={exIdx + 1}>
+                  {currentExercises.map((ex, exIdx) => state[exIdx] && exerciseUids[exIdx] ? (
+                    <SortableExerciseRow key={exerciseUids[exIdx]} id={exerciseUids[exIdx]} position={exIdx + 1}>
+
                       <ExerciseLogCard
                         exIdx={exIdx}
                         ex={ex}

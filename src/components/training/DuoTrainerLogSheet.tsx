@@ -2,7 +2,9 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Dumbbell, Check, Timer, X, Users, UserPlus, Play, Plus } from 'lucide-react';
+import { Loader2, Dumbbell, Check, Timer, X, Users, UserPlus, Play, Plus, Save, ListOrdered } from 'lucide-react';
+import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
@@ -11,7 +13,9 @@ import ExerciseLogCard from './ExerciseLogCard';
 import type { ParsedExercise } from '@/lib/trainingResultParser';
 import { 
   ExerciseNamePicker, 
-  HistoryPopover, 
+  HistoryPopover,
+  SortableExerciseRow,
+  useExerciseDndSensors,
 } from './TrainerLogSheet';
 import {
   normalizeExName, 
@@ -28,6 +32,12 @@ import { useSessionProgression } from '@/hooks/useSessionProgression';
 import { readProgressionSnapshot, type ProgressionSnapshot, getRecommendationFor } from '@/lib/sessionProgression';
 import { resolveCurrentTrainingPhase } from '@/lib/currentPhase';
 import { persistSessionDayEditsToPlan } from '@/lib/sessionPlanPersistence';
+import {
+  buildExerciseUids,
+  makeExerciseUid,
+  reorderExercisesByUid,
+} from '@/lib/sessionExerciseOrder';
+
 
 import {
   AlertDialog,
@@ -58,6 +68,10 @@ interface StudentSessionState {
   loading: boolean;
   snapshot?: ProgressionSnapshot | null;
   phase?: import('@/lib/trainingPhase').TrainingPhase | null;
+  /** Identidade estável por exercício (key React + id do sortable). */
+  uids: string[];
+  orderDirty?: boolean;
+  savingOrder?: boolean;
 }
 
 export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentAId, planA }) => {
@@ -69,7 +83,9 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
   const [selectingStudentB, setSelectingStudentB] = useState(false);
   const [studentBQuery, setStudentBQuery] = useState('');
   const [exercisesList, setExercisesList] = useState<any[]>([]);
-  const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer } = useRestTimer();
+  const dndSensors = useExerciseDndSensors();
+  const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer, setTimerExerciseIndex } = useRestTimer();
+
   const [restSlot, setRestSlot] = useState<'A' | 'B' | null>(null);
   const startRestFor = (slot: 'A' | 'B') => (secs: number, exIdx: number) => {
     setRestSlot(slot);
@@ -188,7 +204,9 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
           state: {},
           plan: planA,
           phase: resolvedPhase,
+          uids: buildExerciseUids(days[activeIdx]?.exercises.length || 0),
           loading: true
+
         });
       })();
     }
@@ -225,7 +243,9 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
       state: {},
       plan,
       phase: resolvedPhase,
+      uids: buildExerciseUids(days[activeIdx]?.exercises.length || 0),
       loading: true
+
     };
 
     if (slot === 'A') {
@@ -300,7 +320,18 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
         })
       );
 
-      setSt(prev => prev ? { ...prev, state: initial, loading: false } : null);
+      setSt(prev =>
+        prev
+          ? {
+              ...prev,
+              state: initial,
+              uids: buildExerciseUids(day.exercises.length),
+              orderDirty: false,
+              loading: false,
+            }
+          : null,
+      );
+
     };
 
     if (studentA?.loading) hydrate(studentA, setStudentA);
@@ -381,7 +412,13 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
         else if (i > exIdx) newState[i - 1] = prev.state[i];
       });
       const newDays = prev.days.map((d, i) => (i === prev.activeDayIdx ? { ...d, exercises: newExercises } : d));
-      const next = { ...prev, days: newDays, state: newState };
+      const next = {
+        ...prev,
+        days: newDays,
+        state: newState,
+        uids: (prev.uids || []).filter((_, i) => i !== exIdx),
+      };
+
       persistSlot(next);
       return next;
     });
@@ -443,11 +480,71 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
         },
       };
       const newDays = prev.days.map((d, i) => (i === prev.activeDayIdx ? { ...d, exercises: newExercises } : d));
-      const next = { ...prev, days: newDays, state: nextState };
+      const next = {
+        ...prev,
+        days: newDays,
+        state: nextState,
+        uids: [...(prev.uids || []), makeExerciseUid()],
+      };
       persistSlot(next);
       return next;
     });
   };
+
+  /**
+   * Reordena os exercícios do dia ativo de um aluno. Exercício + estado
+   * (séries, cargas, notas, séries salvas) + identidade (uid) são movidos
+   * JUNTOS — os dados seguem o exercício, nunca a posição.
+   */
+  const handleReorderEnd = (slot: 'A' | 'B') => (event: DragEndEvent) => {
+    const { active: dragged, over } = event;
+    if (!over || dragged.id === over.id) return;
+    mutateSlot(slot, (prev) => {
+      const day = prev.days[prev.activeDayIdx];
+      const timerUid = restTimer && restSlot === slot ? (prev.uids || [])[restTimer.exIdx] : null;
+      const res = reorderExercisesByUid(
+        day.exercises,
+        prev.state,
+        prev.uids || [],
+        String(dragged.id),
+        String(over.id),
+      );
+      if (!res) return prev;
+      if (timerUid) {
+        const nextIdx = res.uids.indexOf(timerUid);
+        if (nextIdx >= 0) setTimerExerciseIndex(nextIdx);
+        else stopTimer();
+      }
+      const newDays = prev.days.map((d, i) =>
+        i === prev.activeDayIdx ? { ...d, exercises: res.exercises } : d,
+      );
+      const next = { ...prev, days: newDays, state: res.states, uids: res.uids, orderDirty: true };
+      persistSlot(next);
+      return next;
+    });
+  };
+
+  /** Salva a nova sequência no plano ativo do aluno (somente o dia editado). */
+  const saveOrder = async (slot: 'A' | 'B') => {
+    const st = slot === 'A' ? studentA : studentB;
+    if (!st) return;
+    const day = st.days[st.activeDayIdx];
+    if (!day || !st.plan?.id) return;
+    mutateSlot(slot, (prev) => ({ ...prev, savingOrder: true }));
+    const res = await persistSessionDayEditsToPlan({
+      planId: st.plan.id,
+      dayName: day.day,
+      dayIndex: st.activeDayIdx,
+      exercises: day.exercises,
+      states: st.state,
+      fallbackDays: st.days,
+    });
+    mutateSlot(slot, (prev) => ({ ...prev, savingOrder: false, orderDirty: res.success ? false : prev.orderDirty }));
+    if (res.success) toast.success(`Nova sequência salva no treino de ${st.nome}`);
+    else toast.error('Não foi possível salvar a sequência');
+  };
+
+
 
   const saveExerciseImpl = async (slot: 'A' | 'B', exIdx: number) => {
     const st = slot === 'A' ? studentA : studentB;
@@ -649,34 +746,53 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                     <div className="flex justify-center py-12"><Loader2 className="animate-spin" /></div>
                   ) : (
                     <div className="space-y-3">
-                      {studentA.days[studentA.activeDayIdx].exercises.map((ex, i) => (
-                        <ExerciseLogCard
-                          key={i}
-                          exIdx={i}
-                          ex={ex}
-                          st={studentA.state[i]}
-                          exercisesList={exercisesList}
-                          studentId={studentA.studentId}
-                          onUpdateSet={(idx, sIdx, f, v) => updateSet('A', idx, sIdx, f, v)}
-                          onUpdateNotes={(idx, v) => updateNotes('A', idx, v)}
-                          onSaveExercise={(idx) => saveExerciseImpl('A', idx)}
-                          onStartRestTimer={startRestFor('A')}
-                          onExerciseNameChange={(name) => setStudentA(p => {
-                            if (!p) return null;
-                            const ns = { ...p.state, [i]: { ...p.state[i], exerciseName: name } };
-                            saveDraft(p.studentId, p.days[p.activeDayIdx].day, makeDaySignature(p.days[p.activeDayIdx]), ns);
-                            return { ...p, state: ns };
-                          })}
-                          onAddSet={(idx) => addSet('A', idx)}
-                          onRemoveSet={(idx, sIdx) => removeSet('A', idx, sIdx)}
-                          onRemoveExercise={(idx) => removeExercise('A', idx)}
-                          onUpdateMeta={(patch) => updateExerciseMeta('A', i, patch)}
-                          ExerciseNamePicker={ExerciseNamePicker}
-                          HistoryPopover={HistoryPopover}
-                          parsePauseSeconds={parsePauseSeconds}
-                          progressionSnapshot={snapshotA}
-                        />
-                      ))}
+                      {studentA.orderDirty && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="w-full gap-2"
+                          disabled={studentA.savingOrder}
+                          onClick={() => saveOrder('A')}
+                        >
+                          {studentA.savingOrder ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                          Salvar nova sequência
+                        </Button>
+                      )}
+                      <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleReorderEnd('A')}>
+                        <SortableContext items={studentA.uids || []} strategy={verticalListSortingStrategy}>
+                          <div className="space-y-3">
+                            {studentA.days[studentA.activeDayIdx].exercises.map((ex, i) => (studentA.uids?.[i] ? (
+                              <SortableExerciseRow key={studentA.uids[i]} id={studentA.uids[i]} position={i + 1}>
+                                <ExerciseLogCard
+                                  exIdx={i}
+                                  ex={ex}
+                                  st={studentA.state[i]}
+                                  exercisesList={exercisesList}
+                                  studentId={studentA.studentId}
+                                  onUpdateSet={(idx, sIdx, f, v) => updateSet('A', idx, sIdx, f, v)}
+                                  onUpdateNotes={(idx, v) => updateNotes('A', idx, v)}
+                                  onSaveExercise={(idx) => saveExerciseImpl('A', idx)}
+                                  onStartRestTimer={startRestFor('A')}
+                                  onExerciseNameChange={(name) => setStudentA(p => {
+                                    if (!p) return null;
+                                    const ns = { ...p.state, [i]: { ...p.state[i], exerciseName: name } };
+                                    saveDraft(p.studentId, p.days[p.activeDayIdx].day, makeDaySignature(p.days[p.activeDayIdx]), ns);
+                                    return { ...p, state: ns };
+                                  })}
+                                  onAddSet={(idx) => addSet('A', idx)}
+                                  onRemoveSet={(idx, sIdx) => removeSet('A', idx, sIdx)}
+                                  onRemoveExercise={(idx) => removeExercise('A', idx)}
+                                  onUpdateMeta={(patch) => updateExerciseMeta('A', i, patch)}
+                                  ExerciseNamePicker={ExerciseNamePicker}
+                                  HistoryPopover={HistoryPopover}
+                                  parsePauseSeconds={parsePauseSeconds}
+                                  progressionSnapshot={snapshotA}
+                                />
+                              </SortableExerciseRow>
+                            ) : null))}
+                          </div>
+                        </SortableContext>
+                      </DndContext>
                       <Button
                         type="button"
                         variant="outline"
@@ -687,6 +803,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                         Adicionar exercício
                       </Button>
                     </div>
+
                   )}
                 </div>
               ) : (
@@ -728,34 +845,53 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                     <div className="flex justify-center py-12"><Loader2 className="animate-spin" /></div>
                   ) : (
                     <div className="space-y-3">
-                      {studentB.days[studentB.activeDayIdx].exercises.map((ex, i) => (
-                        <ExerciseLogCard
-                          key={i}
-                          exIdx={i}
-                          ex={ex}
-                          st={studentB.state[i]}
-                          exercisesList={exercisesList}
-                          studentId={studentB.studentId}
-                          onUpdateSet={(idx, sIdx, f, v) => updateSet('B', idx, sIdx, f, v)}
-                          onUpdateNotes={(idx, v) => updateNotes('B', idx, v)}
-                          onSaveExercise={(idx) => saveExerciseImpl('B', idx)}
-                          onStartRestTimer={startRestFor('B')}
-                          onExerciseNameChange={(name) => setStudentB(p => {
-                            if (!p) return null;
-                            const ns = { ...p.state, [i]: { ...p.state[i], exerciseName: name } };
-                            saveDraft(p.studentId, p.days[p.activeDayIdx].day, makeDaySignature(p.days[p.activeDayIdx]), ns);
-                            return { ...p, state: ns };
-                          })}
-                          onAddSet={(idx) => addSet('B', idx)}
-                          onRemoveSet={(idx, sIdx) => removeSet('B', idx, sIdx)}
-                          onRemoveExercise={(idx) => removeExercise('B', idx)}
-                          onUpdateMeta={(patch) => updateExerciseMeta('B', i, patch)}
-                          ExerciseNamePicker={ExerciseNamePicker}
-                          HistoryPopover={HistoryPopover}
-                          parsePauseSeconds={(p) => 60}
-                          progressionSnapshot={snapshotB}
-                        />
-                      ))}
+                      {studentB.orderDirty && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="w-full gap-2"
+                          disabled={studentB.savingOrder}
+                          onClick={() => saveOrder('B')}
+                        >
+                          {studentB.savingOrder ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                          Salvar nova sequência
+                        </Button>
+                      )}
+                      <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleReorderEnd('B')}>
+                        <SortableContext items={studentB.uids || []} strategy={verticalListSortingStrategy}>
+                          <div className="space-y-3">
+                            {studentB.days[studentB.activeDayIdx].exercises.map((ex, i) => (studentB.uids?.[i] ? (
+                              <SortableExerciseRow key={studentB.uids[i]} id={studentB.uids[i]} position={i + 1}>
+                                <ExerciseLogCard
+                                  exIdx={i}
+                                  ex={ex}
+                                  st={studentB.state[i]}
+                                  exercisesList={exercisesList}
+                                  studentId={studentB.studentId}
+                                  onUpdateSet={(idx, sIdx, f, v) => updateSet('B', idx, sIdx, f, v)}
+                                  onUpdateNotes={(idx, v) => updateNotes('B', idx, v)}
+                                  onSaveExercise={(idx) => saveExerciseImpl('B', idx)}
+                                  onStartRestTimer={startRestFor('B')}
+                                  onExerciseNameChange={(name) => setStudentB(p => {
+                                    if (!p) return null;
+                                    const ns = { ...p.state, [i]: { ...p.state[i], exerciseName: name } };
+                                    saveDraft(p.studentId, p.days[p.activeDayIdx].day, makeDaySignature(p.days[p.activeDayIdx]), ns);
+                                    return { ...p, state: ns };
+                                  })}
+                                  onAddSet={(idx) => addSet('B', idx)}
+                                  onRemoveSet={(idx, sIdx) => removeSet('B', idx, sIdx)}
+                                  onRemoveExercise={(idx) => removeExercise('B', idx)}
+                                  onUpdateMeta={(patch) => updateExerciseMeta('B', i, patch)}
+                                  ExerciseNamePicker={ExerciseNamePicker}
+                                  HistoryPopover={HistoryPopover}
+                                  parsePauseSeconds={(p) => 60}
+                                  progressionSnapshot={snapshotB}
+                                />
+                              </SortableExerciseRow>
+                            ) : null))}
+                          </div>
+                        </SortableContext>
+                      </DndContext>
                       <Button
                         type="button"
                         variant="outline"
@@ -766,6 +902,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                         Adicionar exercício
                       </Button>
                     </div>
+
                   )}
                 </div>
               ) : (
