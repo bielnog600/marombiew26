@@ -2,7 +2,9 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Dumbbell, Check, Timer, X, Users, UserPlus, Play, Plus } from 'lucide-react';
+import { Loader2, Dumbbell, Check, Timer, X, Users, UserPlus, Play, Plus, Save, ListOrdered } from 'lucide-react';
+import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
@@ -11,7 +13,9 @@ import ExerciseLogCard from './ExerciseLogCard';
 import type { ParsedExercise } from '@/lib/trainingResultParser';
 import { 
   ExerciseNamePicker, 
-  HistoryPopover, 
+  HistoryPopover,
+  SortableExerciseRow,
+  useExerciseDndSensors,
 } from './TrainerLogSheet';
 import {
   normalizeExName, 
@@ -28,6 +32,12 @@ import { useSessionProgression } from '@/hooks/useSessionProgression';
 import { readProgressionSnapshot, type ProgressionSnapshot, getRecommendationFor } from '@/lib/sessionProgression';
 import { resolveCurrentTrainingPhase } from '@/lib/currentPhase';
 import { persistSessionDayEditsToPlan } from '@/lib/sessionPlanPersistence';
+import {
+  buildExerciseUids,
+  makeExerciseUid,
+  reorderExercisesByUid,
+} from '@/lib/sessionExerciseOrder';
+
 
 import {
   AlertDialog,
