@@ -176,6 +176,11 @@ export const HistoryPopover: React.FC<{
   const [rows, setRows] = useState<HistoryRow[] | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // O cache é por exercício: se o nome mudar (troca ou reordenação), descarta.
+  useEffect(() => {
+    setRows(null);
+  }, [exerciseName, studentId]);
+
   const load = async () => {
     if (rows) return;
     setLoading(true);
@@ -189,6 +194,7 @@ export const HistoryPopover: React.FC<{
     setRows((data as HistoryRow[]) || []);
     setLoading(false);
   };
+
 
   const groups: Record<string, HistoryRow[]> = {};
   (rows || []).forEach((r) => {
