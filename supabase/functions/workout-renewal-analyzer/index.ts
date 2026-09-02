@@ -1054,8 +1054,16 @@ serve(async (req) => {
         await supabase.from("ai_plans").update(updateData).eq("id", planId);
       }
       
-      const { draft, reused } = await generateDraft(supabase, planId, source);
-      return new Response(JSON.stringify({ ok: true, draft_id: draft.id, reused }), {
+      const result = await generateDraft(supabase, planId, source);
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          draft_id: result.draft.id,
+          reused: result.reused,
+          periodization: (result as any).periodization ?? null,
+        }),
+        {
+
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
