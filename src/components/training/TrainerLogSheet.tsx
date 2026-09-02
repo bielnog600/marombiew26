@@ -4,7 +4,25 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Save, History, Dumbbell, Check, ChevronDown, Pencil, Timer, X, Play, Plus, Sparkles } from 'lucide-react';
+import { Loader2, Save, History, Dumbbell, Check, ChevronDown, Pencil, Timer, X, Play, Plus, Sparkles, GripVertical, ListOrdered } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { supabase } from '@/integrations/supabase/client';
@@ -231,6 +249,39 @@ export const HistoryPopover: React.FC<{
   );
 };
 
+export const SortableExerciseRow: React.FC<{
+  id: string;
+  position: number;
+  children: React.ReactNode;
+}> = ({ id, position, children }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+    zIndex: isDragging ? 30 : undefined,
+    position: 'relative',
+  };
+  return (
+    <div ref={setNodeRef} style={style} className="space-y-1">
+      <div className="flex items-center gap-1.5 px-1">
+        <button
+          type="button"
+          className="cursor-grab active:cursor-grabbing touch-none p-2 -ml-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+          {...attributes}
+          {...listeners}
+          aria-label="Arrastar para reordenar"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <span className="text-[10px] font-bold text-muted-foreground uppercase">#{position}</span>
+      </div>
+      {children}
+    </div>
+  );
+};
+
+
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -296,6 +347,13 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   const [exercisesList, setExercisesList] = useState<{ id: string; nome: string; grupo_muscular: string; imagem_url?: string | null }[]>([]);
   const [currentExercises, setCurrentExercises] = useState<ParsedExercise[]>([]);
   const [aiOpen, setAiOpen] = useState(false);
+  const [orderDirty, setOrderDirty] = useState(false);
+  const [savingOrder, setSavingOrder] = useState(false);
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
   const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer } = useRestTimer();
   
   const student = active?.students.find(s => s.id === studentId);
@@ -449,6 +507,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
         })
       );
       setCurrentExercises(baseExercises);
+      setOrderDirty(false);
       setState(initial);
       setLoading(false);
     })();
@@ -517,6 +576,64 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     setState(newState);
     saveDraft(studentId, day.day, daySignature, newState, newExercises);
   };
+
+  // Reordenação por drag-and-drop: move exercício + estado (séries, notas, logs
+  // salvos) juntos, garantindo que nada seja perdido nem duplicado.
+  const handleReorderEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = parseInt(String(active.id), 10);
+    const newIndex = parseInt(String(over.id), 10);
+    if (Number.isNaN(oldIndex) || Number.isNaN(newIndex)) return;
+
+    const newExercises = arrayMove(currentExercises, oldIndex, newIndex);
+    if (newExercises.length !== currentExercises.length) return;
+    const orderedStates = currentExercises.map((_, i) => state[i]);
+    const movedStates = arrayMove(orderedStates, oldIndex, newIndex);
+    const newState: Record<number, ExerciseState> = {};
+    movedStates.forEach((st, i) => {
+      if (st) newState[i] = st;
+    });
+
+    setCurrentExercises(newExercises);
+    setState(newState);
+    setOrderDirty(true);
+    stopTimer();
+    saveDraft(studentId, day.day, daySignature, newState, newExercises);
+  };
+
+  const saveOrderToPlan = async () => {
+    if (!day) return;
+    if (!effectivePlanId) {
+      toast.error('Plano ativo não encontrado para salvar a sequência');
+      return;
+    }
+    setSavingOrder(true);
+    try {
+      const res = await persistSessionDayEditsToPlan({
+        planId: effectivePlanId,
+        dayName: day.day,
+        dayIndex: days.findIndex((d) => d.day === day.day),
+        exercises: currentExercises,
+        states: state,
+        fallbackDays: days,
+      });
+      if (res.success === false) {
+        toast.error('Não foi possível salvar a sequência: ' + res.error);
+      } else if (res.updated) {
+        setOrderDirty(false);
+        toast.success('Sequência salva no treino do aluno');
+      } else {
+        toast.error('Sequência não salva: ' + (res as { reason: string }).reason);
+      }
+    } catch (e: any) {
+      toast.error('Erro ao salvar sequência: ' + (e?.message || 'desconhecido'));
+    } finally {
+      setSavingOrder(false);
+    }
+  };
+
+
 
   const updateExerciseMeta = (
     exIdx: number,
@@ -704,7 +821,21 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   if (!day) return null;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet
+      open={open}
+      onOpenChange={(v) => {
+        if (!v && orderDirty) {
+          const keep = window.confirm(
+            'Você alterou a sequência do treino. Deseja salvar antes de sair?\n\nOK = Salvar · Cancelar = Descartar',
+          );
+          if (keep) {
+            void saveOrderToPlan();
+            return;
+          }
+        }
+        onOpenChange(v);
+      }}
+    >
       <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="flex items-center justify-between gap-2">
@@ -777,29 +908,62 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
               <Sparkles className="h-4 w-4" />
               Editar treino com IA
             </Button>
-            {currentExercises.map((ex, exIdx) => state[exIdx] ? (
-              <ExerciseLogCard
-                key={exIdx}
-                exIdx={exIdx}
-                ex={ex}
-                st={state[exIdx]}
-                exercisesList={exercisesList}
-                studentId={studentId}
-                onUpdateSet={updateSet}
-                onUpdateNotes={updateNotes}
-                onSaveExercise={saveExercise}
-                onStartRestTimer={setRestTimer}
-                onExerciseNameChange={(name) => updateExerciseName(exIdx, name)}
-                onAddSet={addSet}
-                onRemoveSet={removeSet}
-                onRemoveExercise={removeExercise}
-                onUpdateMeta={(patch) => updateExerciseMeta(exIdx, patch)}
-                ExerciseNamePicker={ExerciseNamePicker}
-                HistoryPopover={HistoryPopover}
-                parsePauseSeconds={parsePauseSeconds}
-                progressionSnapshot={snapshot}
-              />
-            ) : null)}
+            <div className="flex items-center justify-between gap-2 px-1">
+              <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                <ListOrdered className="h-3.5 w-3.5" />
+                Arraste para alterar a sequência
+              </p>
+              {orderDirty && (
+                <span className="text-[10px] font-bold uppercase bg-primary/15 text-primary border border-primary/30 rounded px-1.5 py-px">
+                  Sequência modificada
+                </span>
+              )}
+            </div>
+            {orderDirty && (
+              <Button
+                type="button"
+                className="w-full gap-2"
+                onClick={saveOrderToPlan}
+                disabled={savingOrder}
+              >
+                {savingOrder ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Salvar nova sequência
+              </Button>
+            )}
+            <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleReorderEnd}>
+              <SortableContext
+                items={currentExercises.map((_, i) => String(i))}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-3">
+                  {currentExercises.map((ex, exIdx) => state[exIdx] ? (
+                    <SortableExerciseRow key={`ex-${exIdx}`} id={String(exIdx)} position={exIdx + 1}>
+                      <ExerciseLogCard
+                        exIdx={exIdx}
+                        ex={ex}
+                        st={state[exIdx]}
+                        exercisesList={exercisesList}
+                        studentId={studentId}
+                        onUpdateSet={updateSet}
+                        onUpdateNotes={updateNotes}
+                        onSaveExercise={saveExercise}
+                        onStartRestTimer={setRestTimer}
+                        onExerciseNameChange={(name) => updateExerciseName(exIdx, name)}
+                        onAddSet={addSet}
+                        onRemoveSet={removeSet}
+                        onRemoveExercise={removeExercise}
+                        onUpdateMeta={(patch) => updateExerciseMeta(exIdx, patch)}
+                        ExerciseNamePicker={ExerciseNamePicker}
+                        HistoryPopover={HistoryPopover}
+                        parsePauseSeconds={parsePauseSeconds}
+                        progressionSnapshot={snapshot}
+                      />
+                    </SortableExerciseRow>
+                  ) : null)}
+                </div>
+              </SortableContext>
+            </DndContext>
+
             <Button
               type="button"
               variant="outline"
