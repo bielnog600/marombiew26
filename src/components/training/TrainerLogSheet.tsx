@@ -358,6 +358,9 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   }, [open, days, resolveInitialDayIdx]);
   const [exercisesList, setExercisesList] = useState<{ id: string; nome: string; grupo_muscular: string; imagem_url?: string | null }[]>([]);
   const [currentExercises, setCurrentExercises] = useState<ParsedExercise[]>([]);
+  // Identidade estável por exercício (key React + id do sortable)
+  const [exerciseUids, setExerciseUids] = useState<string[]>([]);
+
   const [aiOpen, setAiOpen] = useState(false);
   const [orderDirty, setOrderDirty] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
