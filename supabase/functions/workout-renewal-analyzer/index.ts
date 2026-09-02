@@ -1005,6 +1005,18 @@ serve(async (req) => {
             draft_source: null,
             draft_reason: null,
             draft_analysis_id: null,
+            // Versionamento: metadados de periodização acompanham a publicação.
+            periodization_model: draft.periodization_model ?? null,
+            periodization_reason: draft.periodization_reason ?? null,
+            periodization_snapshot: draft.periodization_snapshot ?? null,
+            macrocycle_weeks: draft.macrocycle_weeks ?? null,
+            block_type: draft.block_type ?? null,
+            block_number: draft.block_number ?? null,
+            block_total: draft.block_total ?? null,
+            next_block_type: draft.next_block_type ?? null,
+            block_start_date: draft.block_start_date ?? null,
+            block_end_date: draft.block_end_date ?? null,
+
           })
           .eq("id", draft.parent_plan_id);
         await supabase.from("ai_plans").delete().eq("id", draft_id);
