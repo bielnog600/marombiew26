@@ -412,7 +412,13 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
         else if (i > exIdx) newState[i - 1] = prev.state[i];
       });
       const newDays = prev.days.map((d, i) => (i === prev.activeDayIdx ? { ...d, exercises: newExercises } : d));
-      const next = { ...prev, days: newDays, state: newState };
+      const next = {
+        ...prev,
+        days: newDays,
+        state: newState,
+        uids: (prev.uids || []).filter((_, i) => i !== exIdx),
+      };
+
       persistSlot(next);
       return next;
     });
