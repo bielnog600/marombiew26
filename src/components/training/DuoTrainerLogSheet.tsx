@@ -204,7 +204,9 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
           state: {},
           plan: planA,
           phase: resolvedPhase,
+          uids: buildExerciseUids(days[activeIdx]?.exercises.length || 0),
           loading: true
+
         });
       })();
     }
