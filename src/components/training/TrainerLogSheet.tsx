@@ -590,34 +590,41 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       else if (i > exIdx) newState[i - 1] = state[i];
     });
     setCurrentExercises(newExercises);
+    setExerciseUids((prev) => prev.filter((_, i) => i !== exIdx));
     setState(newState);
     saveDraft(studentId, day.day, daySignature, newState, newExercises);
   };
 
-  // Reordenação por drag-and-drop: move exercício + estado (séries, notas, logs
-  // salvos) juntos, garantindo que nada seja perdido nem duplicado.
+  // Reordenação por drag-and-drop: exercício + estado (séries, cargas, notas,
+  // logs salvos) + identidade (uid) são movidos JUNTOS. Os dados seguem o
+  // exercício, nunca a posição.
   const handleReorderEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = parseInt(String(active.id), 10);
-    const newIndex = parseInt(String(over.id), 10);
-    if (Number.isNaN(oldIndex) || Number.isNaN(newIndex)) return;
+    const { active: dragged, over } = event;
+    if (!over || dragged.id === over.id) return;
 
-    const newExercises = arrayMove(currentExercises, oldIndex, newIndex);
-    if (newExercises.length !== currentExercises.length) return;
-    const orderedStates = currentExercises.map((_, i) => state[i]);
-    const movedStates = arrayMove(orderedStates, oldIndex, newIndex);
-    const newState: Record<number, ExerciseState> = {};
-    movedStates.forEach((st, i) => {
-      if (st) newState[i] = st;
-    });
+    const currentUid = restTimer ? exerciseUids[restTimer.exIdx] : null;
+    const res = reorderExercisesByUid(
+      currentExercises,
+      state,
+      exerciseUids,
+      String(dragged.id),
+      String(over.id),
+    );
+    if (!res) return;
 
-    setCurrentExercises(newExercises);
-    setState(newState);
+    setCurrentExercises(res.exercises);
+    setState(res.states);
+    setExerciseUids(res.uids);
     setOrderDirty(true);
-    stopTimer();
-    saveDraft(studentId, day.day, daySignature, newState, newExercises);
+    // Mantém o exercício atual (timer) apontando para a mesma identidade.
+    if (currentUid) {
+      const nextIdx = res.uids.indexOf(currentUid);
+      if (nextIdx >= 0) setTimerExerciseIndex(nextIdx);
+      else stopTimer();
+    }
+    saveDraft(studentId, day.day, daySignature, res.states, res.exercises);
   };
+
 
   const saveOrderToPlan = async () => {
     if (!day) return;
