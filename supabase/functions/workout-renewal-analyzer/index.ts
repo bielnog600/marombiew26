@@ -173,7 +173,7 @@ async function gatherContext(supabase: any, plan: any) {
   const avgDuration = durations.length 
     ? durations.reduce((a: number, b: number) => a + b, 0) / durations.length
     : null;
-  const hasLongSessions = durations.some(d => d > 75);
+  const hasLongSessions = durations.some((d: number) => d > 75);
 
   // Fatigue / monotony heuristics
   let fatigueSignal: "baixa" | "media" | "alta" = "baixa";
