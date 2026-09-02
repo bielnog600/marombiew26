@@ -918,7 +918,7 @@ async function analyzePlan(supabase: any, planId: string) {
     .update({ cycle_status: newStatus, last_analysis_at: new Date().toISOString() })
     .eq("id", plan.id);
 
-  return { analysis, plan_status: newStatus };
+  return { analysis, plan_status: newStatus, periodization: periodizationSummary };
 }
 
 serve(async (req) => {
