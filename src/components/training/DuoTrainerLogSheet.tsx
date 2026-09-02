@@ -243,7 +243,9 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
       state: {},
       plan,
       phase: resolvedPhase,
+      uids: buildExerciseUids(days[activeIdx]?.exercises.length || 0),
       loading: true
+
     };
 
     if (slot === 'A') {
