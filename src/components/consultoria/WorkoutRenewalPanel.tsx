@@ -748,10 +748,38 @@ const WorkoutRenewalPanel: React.FC = () => {
                               </div>
                             )}
 
+
+                            {analysis.context_snapshot?.periodization && (
+                              <div className="rounded-md bg-background/40 p-3 border border-border/50 space-y-1.5">
+                                <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-bold">Periodização (decisão determinística)</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  <Badge variant="outline" className="text-[10px] py-0">Modelo: {analysis.context_snapshot.periodization.model}</Badge>
+                                  <Badge variant="outline" className="text-[10px] py-0">
+                                    Bloco: {analysis.context_snapshot.periodization.block_type} ({analysis.context_snapshot.periodization.block_number}/{analysis.context_snapshot.periodization.block_total})
+                                  </Badge>
+                                  <Badge variant="outline" className="text-[10px] py-0">Semana: {analysis.context_snapshot.periodization.next_week}</Badge>
+                                  <Badge variant="outline" className="text-[10px] py-0">Decisão: {analysis.context_snapshot.periodization.decision}</Badge>
+                                  <Badge variant="outline" className="text-[10px] py-0">Próximo bloco: {analysis.context_snapshot.periodization.next_block_type}</Badge>
+                                  {analysis.context_snapshot.periodization.review_required && (
+                                    <Badge variant="outline" className="text-[10px] py-0 border-amber-500/40 text-amber-500">Requer revisão</Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-foreground/80 leading-snug">{analysis.context_snapshot.periodization.decision_reason}</p>
+                                {analysis.context_snapshot.periodization.anchors && (
+                                  <p className="text-[11px] text-muted-foreground leading-snug">
+                                    Âncoras: {analysis.context_snapshot.periodization.anchors.anchors?.length ?? 0} manter/progredir ·{' '}
+                                    {analysis.context_snapshot.periodization.anchors.rotate?.length ?? 0} rotacionáveis ·{' '}
+                                    {analysis.context_snapshot.periodization.anchors.remove?.length ?? 0} remover
+                                  </p>
+                                )}
+                              </div>
+                            )}
+
                             <div className="rounded-md bg-background/40 p-3 border border-border/50 space-y-2">
                               <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-bold">Diagnóstico & Sugestão</p>
                               <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">{analysis.rationale}</p>
                             </div>
+
                           </div>
                         ) : (
                           <div className="rounded-md bg-amber-500/5 border border-amber-500/20 p-3 flex items-start gap-2">
