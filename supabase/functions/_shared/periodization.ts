@@ -661,7 +661,7 @@ export const buildPeriodizationPromptBlock = (snap: PeriodizationSnapshot): stri
     `VOLUME ALVO: ${w.volumeTarget}`,
     `INTENSIDADE ALVO: ${w.intensityTarget}`,
     `RIR ALVO: ${w.effortTarget}`,
-    `FAIXAS DE REPETIÇÃO: ${w.repStrategy}`,
+    `FAIXAS DE REPETIÇÃO (tendência dos principais): ${w.repStrategy}`,
     `PREFERÊNCIA DE PROGRESSÃO: ${w.progressionPreference}`,
     `OBSERVAÇÃO DO MODELO: ${w.notes}`,
   ];
@@ -671,9 +671,9 @@ export const buildPeriodizationPromptBlock = (snap: PeriodizationSnapshot): stri
   }
 
   if (w.sessionProfiles.length > 0) {
-    lines.push('PERFIL OBRIGATÓRIO POR SESSÃO (ondulação real, não aleatória):');
+    lines.push('PERFIL POR SESSÃO (ondulação real, não aleatória) — a faixa abaixo é TENDÊNCIA DOS EXERCÍCIOS PRINCIPAIS, não faixa única do dia:');
     for (const p of w.sessionProfiles) {
-      lines.push(`  • Dia ${p.sessionIndex + 1}: perfil ${p.profile} — reps ${p.repRange}, RIR ${p.rir}`);
+      lines.push(`  • Dia ${p.sessionIndex + 1}: perfil ${p.profile} — reps dos principais ${p.repRange}, RIR ${p.rir}. Acessórios, pequenos grupos, panturrilha, core e mobilidade seguem as faixas da sua função.`);
     }
     lines.push('  Dois dias com o mesmo perfil e mesmas faixas NÃO são ondulação — diferencie seleção de exercícios, pausas e ênfase.');
   }

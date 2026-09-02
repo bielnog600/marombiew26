@@ -22,6 +22,10 @@ import { AI_MODELS, createRoutingMetadata, type AIAttemptMetadata } from "../_sh
 import { validateWorkoutRedundancy, enforceVariationIntegrity } from "../_shared/workoutRedundancy.ts";
 import { validateAndNormalizeVariations } from "../_shared/variationSelection.ts";
 import {
+  validateAndNormalizeRepRanges,
+  buildRepRangePromptBlock,
+} from "../_shared/repRangePolicy.ts";
+import {
   buildExactReferenceBlock,
   EXACT_REFERENCE_PRIORITY_BLOCK,
   evaluateReferenceCompliance,
@@ -556,6 +560,7 @@ async function generateStructuredWorkoutWithVariation(args: {
   catalog?: CatalogEntry[];
   reference?: ReferenceStructure;
   restrictionsText?: string;
+  sessionProfiles?: Array<{ sessionIndex: number; profile: string }>;
 }): Promise<Response> {
   let history: HistoryPlan[] = [];
   let historySummary = "";
@@ -602,6 +607,9 @@ async function generateStructuredWorkoutWithVariation(args: {
     const variationVerdicts = validateAndNormalizeVariations(clone, args.catalog ?? [], {
       restrictionsText: args.restrictionsText,
     });
+    // Faixas de repetição por exercício: o perfil da sessão é tendência dos
+    // principais, nunca faixa única para o dia inteiro.
+    const repRangeFixes = validateAndNormalizeRepRanges(clone, args.sessionProfiles ?? []);
     const redundancy = validateWorkoutRedundancy(clone);
 
     const similarity = computeWorkoutSimilarity(clone, historyJsons);
@@ -627,6 +635,7 @@ async function generateStructuredWorkoutWithVariation(args: {
       referenceCompliance,
       variationFixes,
       variationVerdicts,
+      repRangeFixes,
     };
   };
 
@@ -1498,6 +1507,7 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
       console.error("periodization_resolve_failed", err);
       periodizationSnapshot = null;
     }
+    contextMessage += buildRepRangePromptBlock();
     if (periodizationSnapshot) {
       contextMessage += buildPeriodizationPromptBlock(periodizationSnapshot);
       console.log("periodization_applied", {
@@ -1544,6 +1554,10 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
         studentId: typeof studentId === "string" && studentId.length > 0 ? studentId : undefined,
         intensity,
         catalog,
+        sessionProfiles: (periodizationSnapshot?.week?.sessionProfiles ?? []).map((p) => ({
+          sessionIndex: p.sessionIndex,
+          profile: p.profile,
+        })),
       });
     }
 

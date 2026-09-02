@@ -13,6 +13,14 @@ import { normalizeName } from "./planSimilarity.ts";
 import { getExerciseFunctionalProfile } from "./exerciseClassifier.ts";
 import { validateWorkoutRedundancy, isStrongFunctionalEquivalent } from "./workoutRedundancy.ts";
 import { canonicalAnchorName, isConditionalOnly, phraseMentionsAnchor } from "./trainerReferencePolicy.ts";
+import {
+  familyRole,
+  familyTier,
+  isUnilateralName,
+  stabilityProfile,
+  variationFamilyOf,
+} from "./variationFamilies.ts";
+
 
 export type CatalogEntryLike = { nome: string; grupo: string };
 
@@ -169,6 +177,17 @@ export function evaluateVariationCandidate(input: {
     return { valid: false, tier: null, reason: "semantic_mismatch" };
   }
 
+  // --- Núcleo funcional: mesma família / papel / ação articular.
+  const mainFamily = variationFamilyOf(exerciseName);
+  const candFamily = variationFamilyOf(candidate);
+  const mainRole = familyRole(mainFamily);
+  const candRole = familyRole(candFamily);
+  if (mainRole && candRole && mainRole !== candRole) {
+    // Isolador não substitui composto (e vice-versa); core/mobilidade/cardio
+    // nunca substituem trabalho de força.
+    return { valid: false, tier: null, reason: "semantic_mismatch" };
+  }
+
   const samePattern =
     !!mainProfile.pattern && !!candProfile.pattern && mainProfile.pattern === candProfile.pattern;
   const sameClass =
@@ -177,9 +196,26 @@ export function evaluateVariationCandidate(input: {
     mainProfile.exerciseClass === candProfile.exerciseClass;
   const sameGroup = !!mainEntry && !!candEntry && mainEntry.grupo === candEntry.grupo;
 
-  // Without any functional or muscular link the candidate is semantically distant.
-  if (!samePattern && !sameGroup) {
+  const famTier = familyTier(exerciseName, candidate);
+  if (famTier === "C") {
+    // Mesmo músculo com padrão/ação diferente nunca é substituto direto.
     return { valid: false, tier: null, reason: "semantic_mismatch" };
+  }
+
+  // Sem família conhecida dos dois lados, exigimos vínculo funcional real.
+  if (!famTier && (!samePattern || !sameClass)) {
+    return { valid: false, tier: null, reason: "semantic_mismatch" };
+  }
+
+  // Estabilidade: máquina estável → peso livre exige que não haja restrição.
+  const restrictions = (opts.restrictionsText ?? "").toLowerCase();
+  const stabilityRestricted = /estabilidad|equilibri|labirint|tontur/.test(restrictions);
+  if (
+    stabilityRestricted &&
+    stabilityProfile(exerciseName) === "stable" &&
+    stabilityProfile(candidate) === "free"
+  ) {
+    return { valid: false, tier: null, reason: "safety_conflict" };
   }
 
   // 6/7. Counterfactual validation: would swapping create redundancy?
@@ -196,14 +232,13 @@ export function evaluateVariationCandidate(input: {
     return { valid: false, tier: null, reason: "creates_redundancy" };
   }
 
-  const tier: VariationTier = samePattern && sameClass && sameGroup
-    ? "A"
-    : samePattern && (sameGroup || !mainEntry || !candEntry)
-    ? "B"
-    : "C";
+  let tier: VariationTier = famTier ?? (samePattern && sameClass && sameGroup ? "A" : "B");
+  // Lateralidade não é equivalência automática: rebaixa para contextual.
+  if (tier === "A" && isUnilateralName(exerciseName) !== isUnilateralName(candidate)) tier = "B";
 
   return { valid: true, tier, reason: null };
 }
+
 
 const TIER_RANK: Record<VariationTier, number> = { A: 0, B: 1, C: 2 };
 
