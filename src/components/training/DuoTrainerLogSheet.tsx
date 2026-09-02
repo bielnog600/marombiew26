@@ -480,11 +480,71 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
         },
       };
       const newDays = prev.days.map((d, i) => (i === prev.activeDayIdx ? { ...d, exercises: newExercises } : d));
-      const next = { ...prev, days: newDays, state: nextState };
+      const next = {
+        ...prev,
+        days: newDays,
+        state: nextState,
+        uids: [...(prev.uids || []), makeExerciseUid()],
+      };
       persistSlot(next);
       return next;
     });
   };
+
+  /**
+   * Reordena os exercícios do dia ativo de um aluno. Exercício + estado
+   * (séries, cargas, notas, séries salvas) + identidade (uid) são movidos
+   * JUNTOS — os dados seguem o exercício, nunca a posição.
+   */
+  const handleReorderEnd = (slot: 'A' | 'B') => (event: DragEndEvent) => {
+    const { active: dragged, over } = event;
+    if (!over || dragged.id === over.id) return;
+    mutateSlot(slot, (prev) => {
+      const day = prev.days[prev.activeDayIdx];
+      const timerUid = restTimer && restSlot === slot ? (prev.uids || [])[restTimer.exIdx] : null;
+      const res = reorderExercisesByUid(
+        day.exercises,
+        prev.state,
+        prev.uids || [],
+        String(dragged.id),
+        String(over.id),
+      );
+      if (!res) return prev;
+      if (timerUid) {
+        const nextIdx = res.uids.indexOf(timerUid);
+        if (nextIdx >= 0) setTimerExerciseIndex(nextIdx);
+        else stopTimer();
+      }
+      const newDays = prev.days.map((d, i) =>
+        i === prev.activeDayIdx ? { ...d, exercises: res.exercises } : d,
+      );
+      const next = { ...prev, days: newDays, state: res.states, uids: res.uids, orderDirty: true };
+      persistSlot(next);
+      return next;
+    });
+  };
+
+  /** Salva a nova sequência no plano ativo do aluno (somente o dia editado). */
+  const saveOrder = async (slot: 'A' | 'B') => {
+    const st = slot === 'A' ? studentA : studentB;
+    if (!st) return;
+    const day = st.days[st.activeDayIdx];
+    if (!day || !st.plan?.id) return;
+    mutateSlot(slot, (prev) => ({ ...prev, savingOrder: true }));
+    const res = await persistSessionDayEditsToPlan({
+      planId: st.plan.id,
+      dayName: day.day,
+      dayIndex: st.activeDayIdx,
+      exercises: day.exercises,
+      states: st.state,
+      fallbackDays: st.days,
+    });
+    mutateSlot(slot, (prev) => ({ ...prev, savingOrder: false, orderDirty: res.success ? false : prev.orderDirty }));
+    if (res.success) toast.success(`Nova sequência salva no treino de ${st.nome}`);
+    else toast.error('Não foi possível salvar a sequência');
+  };
+
+
 
   const saveExerciseImpl = async (slot: 'A' | 'B', exIdx: number) => {
     const st = slot === 'A' ? studentA : studentB;
