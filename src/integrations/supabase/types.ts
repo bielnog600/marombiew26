@@ -52,6 +52,11 @@ export type Database = {
       }
       ai_plans: {
         Row: {
+          block_end_date: string | null
+          block_number: number | null
+          block_start_date: string | null
+          block_total: number | null
+          block_type: string | null
           conteudo: string
           conteudo_json: Json | null
           created_at: string
@@ -72,12 +77,17 @@ export type Database = {
           low_cost_last_review_at: string | null
           low_cost_next_review_at: string | null
           low_cost_review_interval_days: number
+          macrocycle_weeks: number | null
           main_exercises_count: number | null
           migration_error: string | null
           migration_status: string | null
           mobility_count: number | null
+          next_block_type: string | null
           parent_plan_id: string | null
           pending_checkin: boolean | null
+          periodization_model: string | null
+          periodization_reason: string | null
+          periodization_snapshot: Json | null
           protocols: Json | null
           renewal_mode: string
           strategy_source: string | null
@@ -92,6 +102,11 @@ export type Database = {
           whatsapp_notified_count: number
         }
         Insert: {
+          block_end_date?: string | null
+          block_number?: number | null
+          block_start_date?: string | null
+          block_total?: number | null
+          block_type?: string | null
           conteudo?: string
           conteudo_json?: Json | null
           created_at?: string
@@ -112,12 +127,17 @@ export type Database = {
           low_cost_last_review_at?: string | null
           low_cost_next_review_at?: string | null
           low_cost_review_interval_days?: number
+          macrocycle_weeks?: number | null
           main_exercises_count?: number | null
           migration_error?: string | null
           migration_status?: string | null
           mobility_count?: number | null
+          next_block_type?: string | null
           parent_plan_id?: string | null
           pending_checkin?: boolean | null
+          periodization_model?: string | null
+          periodization_reason?: string | null
+          periodization_snapshot?: Json | null
           protocols?: Json | null
           renewal_mode?: string
           strategy_source?: string | null
@@ -132,6 +152,11 @@ export type Database = {
           whatsapp_notified_count?: number
         }
         Update: {
+          block_end_date?: string | null
+          block_number?: number | null
+          block_start_date?: string | null
+          block_total?: number | null
+          block_type?: string | null
           conteudo?: string
           conteudo_json?: Json | null
           created_at?: string
@@ -152,12 +177,17 @@ export type Database = {
           low_cost_last_review_at?: string | null
           low_cost_next_review_at?: string | null
           low_cost_review_interval_days?: number
+          macrocycle_weeks?: number | null
           main_exercises_count?: number | null
           migration_error?: string | null
           migration_status?: string | null
           mobility_count?: number | null
+          next_block_type?: string | null
           parent_plan_id?: string | null
           pending_checkin?: boolean | null
+          periodization_model?: string | null
+          periodization_reason?: string | null
+          periodization_snapshot?: Json | null
           protocols?: Json | null
           renewal_mode?: string
           strategy_source?: string | null
