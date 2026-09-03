@@ -148,9 +148,6 @@ const isCalibration = (ctx: VolumeAuditContext): boolean => {
   return ctx.weekNumber === 1;
 };
 
-/** Segunda variação da mesma família é aceitável quando há prioridade real. */
-const priorityHint = (ctx: VolumeAuditContext): string => clean(ctx.objective).toLowerCase();
-
 export function auditVolumeRedundancy(plan: any, ctx: VolumeAuditContext = {}): VolumeAuditResult {
   const reasons: AuditReason[] = [];
   const sessions: SessionVolume[] = [];
