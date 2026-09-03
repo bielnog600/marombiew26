@@ -204,6 +204,12 @@ const TreinoIA = () => {
   // Variability controls + feedback returned by the agent.
   const [variationIntensity, setVariationIntensity] = useState<VariationIntensity>(DEFAULT_INTENSITY);
   const [similarity, setSimilarity] = useState<SimilarityFeedback | null>(null);
+  const [qualityGate, setQualityGate] = useState<{
+    restrictionReview: boolean;
+    restrictionMissing: string[];
+    volumeStatus: 'PASS' | 'WARN' | 'FAIL';
+    volumeNotes: string[];
+  } | null>(null);
   const [marombiewEnabled, setMarombiewEnabled] = useState(false);
   const [configCollapsed, setConfigCollapsed] = useState(!!editPlanId);
   const [lastWorkoutPlan, setLastWorkoutPlan] = useState<any>(null);
@@ -643,6 +649,25 @@ GERE TUDO DE UMA VEZ:
       if (!json || !markdown) {
         throw new Error('Resposta da IA inválida (sem JSON estruturado).');
       }
+      const audit = payload?.volumeAudit;
+      const gate = payload?.restrictionGate;
+      const volumeNotes: string[] = Array.isArray(audit?.reasons)
+        ? audit.reasons.map((r: any) =>
+            r.exercises?.length
+              ? `${r.day}: ${r.exercises.join(', ')} (mesma família funcional)`
+              : `${r.day ?? 'Semana'}: ${r.observed ?? ''} — esperado ${r.expected ?? ''}`,
+          )
+        : [];
+      setQualityGate(
+        gate?.reviewRequired || (audit && audit.status !== 'PASS')
+          ? {
+              restrictionReview: !!gate?.reviewRequired,
+              restrictionMissing: Array.isArray(gate?.missingFields) ? gate.missingFields : [],
+              volumeStatus: audit?.status ?? 'PASS',
+              volumeNotes,
+            }
+          : null,
+      );
       setGeneratedJson(json);
       setResult(markdown);
       setMarkdownEdited(false);
@@ -1469,6 +1494,30 @@ GERE TUDO DE UMA VEZ:
                 </Button>
               </div>
             </div>
+            {qualityGate?.restrictionReview && (
+              <div className="rounded-xl border border-orange-500/40 bg-orange-500/10 px-3 py-2 text-xs text-orange-200">
+                <div className="font-semibold flex items-center gap-1">
+                  <AlertTriangle className="h-3.5 w-3.5" /> ATENÇÃO — lesão/restrição informada sem detalhes suficientes.
+                </div>
+                <div className="mt-1 opacity-90">
+                  Informe local, movimentos que causam dor e restrições conhecidas antes de aprovar.
+                  {qualityGate.restrictionMissing.length > 0 && (
+                    <> Faltando: {qualityGate.restrictionMissing.join('; ')}.</>
+                  )}
+                </div>
+                <div className="mt-1 opacity-80">O plano foi gerado em modo conservador genérico e permanece como rascunho para revisão.</div>
+              </div>
+            )}
+            {qualityGate && qualityGate.volumeStatus !== 'PASS' && (
+              <div className={`rounded-xl border px-3 py-2 text-xs ${qualityGate.volumeStatus === 'FAIL' ? 'border-red-500/40 bg-red-500/10 text-red-200' : 'border-yellow-500/40 bg-yellow-500/10 text-yellow-200'}`}>
+                <div className="font-semibold">
+                  {qualityGate.volumeStatus === 'FAIL' ? 'Volume/redundância acima do esperado' : 'Atenção ao volume e à redundância'}
+                </div>
+                <ul className="mt-1 list-disc pl-4 opacity-90">
+                  {qualityGate.volumeNotes.slice(0, 6).map((n, i) => <li key={i}>{n}</li>)}
+                </ul>
+              </div>
+            )}
             <TrainingResultCards markdown={result} editable={!!editPlanId} onMarkdownChange={setResult} />
             {similarity && similarity.historyCount > 0 && (() => {
               const fb = describeSimilarity(similarity);
