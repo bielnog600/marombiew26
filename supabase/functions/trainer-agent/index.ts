@@ -828,7 +828,10 @@ async function generateStructuredWorkoutWithVariation(args: {
     technicalFallbackUsed,
   });
 
-  if (needsRetry) {
+  const qualityRetryNeeded =
+    evaluation.volumeAudit.status === "FAIL" || !evaluation.restrictionInference.ok;
+
+  if (needsRetry || qualityRetryNeeded) {
     if (
       isSimilarityRetryAllowed(referenceMode) &&
       similarity.score > threshold &&
@@ -883,6 +886,17 @@ async function generateStructuredWorkoutWithVariation(args: {
       retryNotesArr.push(`🚨 EXERCÍCIOS FORA DO CATÁLOGO: ${evaluation.criticalCatalogMismatch.join(", ")}. Use SOMENTE exercícios existentes no catálogo fornecido.`);
     }
 
+    if (evaluation.volumeAudit.status === "FAIL") {
+      fallbackReason = fallbackReason || "excessive_volume_redundancy";
+      if (!fallbackReasons.includes("excessive_volume_redundancy")) fallbackReasons.push("excessive_volume_redundancy");
+      retryNotesArr.push(buildVolumeRetryInstruction(evaluation.volumeAudit));
+    }
+    if (!evaluation.restrictionInference.ok) {
+      fallbackReason = fallbackReason || "unfounded_injury_inference";
+      if (!fallbackReasons.includes("unfounded_injury_inference")) fallbackReasons.push("unfounded_injury_inference");
+      retryNotesArr.push(buildRestrictionRetryInstruction(evaluation.restrictionInference.violations));
+    }
+
     const retryNotes = retryNotesArr.join(" ");
     const retryBlock = workoutVariationPrompt(intensity, historySummary, retryNotes);
 
@@ -922,6 +936,19 @@ async function generateStructuredWorkoutWithVariation(args: {
         similarity = eval2.similarity;
         unmatchedExercises = eval2.unmatched;
         selectedModel = AI_MODELS.fallback;
+      } else if (
+        qualityRetryNeeded &&
+        secondCriticalValid &&
+        (eval2.volumeAudit.status !== "FAIL" || evaluation.volumeAudit.status === "FAIL") &&
+        (eval2.restrictionInference.ok || evaluation.restrictionInference.ok === false) &&
+        (eval2.volumeAudit.reasons.length <= evaluation.volumeAudit.reasons.length ||
+          eval2.restrictionInference.violations.length < evaluation.restrictionInference.violations.length)
+      ) {
+        evaluation = eval2;
+        finalPlan = eval2.clone;
+        similarity = eval2.similarity;
+        unmatchedExercises = eval2.unmatched;
+        selectedModel = AI_MODELS.fallback;
       } else if (shouldAcceptTrainerVariationCandidate({
         candidateCriticalValid: secondCriticalValid,
         candidateScore: eval2.similarity.score,
@@ -944,6 +971,8 @@ async function generateStructuredWorkoutWithVariation(args: {
     console.warn("trainer-agent: exercícios sem equivalente no banco:", unmatchedExercises.join(" | "));
   }
   const markdownFinal = workoutPlanToMarkdown(finalPlan);
+  const reviewRequiredByRestriction =
+    (args.restriction?.reviewRequired ?? false) || !evaluation.restrictionInference.ok;
 
   const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, selectedModel);
   console.log("[ai-routing]", {
@@ -969,6 +998,27 @@ async function generateStructuredWorkoutWithVariation(args: {
         worstOverlap: similarity.worstOverlap,
         historyCount: historyJsons.length,
       },
+      volumeAudit: {
+        status: evaluation.volumeAudit.status,
+        reasons: evaluation.volumeAudit.reasons,
+        weeklyWorkingSets: evaluation.volumeAudit.weeklyWorkingSets,
+        weeklyBucket: evaluation.volumeAudit.weeklyBucket,
+        weeklyFamilyBuckets: evaluation.volumeAudit.weeklyFamilyBuckets,
+        protectedAnchors: evaluation.volumeAudit.protectedAnchors,
+        sessions: evaluation.volumeAudit.sessions,
+      },
+      restrictionGate: {
+        status: args.restriction?.status ?? "none",
+        reviewRequired: reviewRequiredByRestriction,
+        reasonCode: args.restriction?.reasonCode ?? null,
+        missingFields: args.restriction?.missingFields ?? [],
+        knownAreas: args.restriction?.knownAreas ?? [],
+        inferenceViolations: evaluation.restrictionInference.violations,
+      },
+      draftReviewStatus: reviewRequiredByRestriction || evaluation.volumeAudit.status === "FAIL"
+        ? "REVIEW_REQUIRED"
+        : "OK",
+      autoPublishAllowed: !reviewRequiredByRestriction,
       aiRouting: routingMeta.routing,
       aiUsage: routingMeta.usage,
     }),
@@ -1575,9 +1625,18 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
         .filter((v) => typeof v === "string" && v.trim().length > 0)
         .join("\n");
 
+      const restriction = assessRestrictionDetail({
+        restricoes: studentContext?.restricoes ?? null,
+        lesoes: studentContext?.lesoes ?? null,
+        observacoes: studentContext?.observacoes ?? null,
+        anamnese: typeof studentContext?.anamnese === "string" ? studentContext.anamnese : null,
+        hasInjury: typeof studentContext?.has_injury === "boolean" ? studentContext.has_injury : null,
+      });
+      const restrictionBlock = buildRestrictionQualityPromptBlock(restriction);
+
       return await generateStructuredWorkoutWithVariation({
         apiKey: OPENAI_API_KEY,
-        systemPrompt: systemWithCatalog + contextMessage + exactReferenceBlock,
+        systemPrompt: systemWithCatalog + contextMessage + restrictionBlock + exactReferenceBlock,
         messages,
         reference,
         restrictionsText,
@@ -1588,6 +1647,16 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
           sessionIndex: p.sessionIndex,
           profile: p.profile,
         })),
+        restriction,
+        volumeContext: {
+          volumeTarget: (periodizationSnapshot?.week as any)?.volumeTarget
+            ?? (periodizationSnapshot?.block as any)?.volumeTarget
+            ?? null,
+          weekStrategy: (periodizationSnapshot?.week as any)?.strategy ?? null,
+          weekNumber: periodizationSnapshot?.week?.weekNumber ?? null,
+          objective: studentContext?.objetivo ?? null,
+          level: studentContext?.nivel ?? null,
+        },
       });
     }
 
