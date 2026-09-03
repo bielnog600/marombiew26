@@ -1649,10 +1649,8 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
         })),
         restriction,
         volumeContext: {
-          volumeTarget: (periodizationSnapshot?.week as any)?.volumeTarget
-            ?? (periodizationSnapshot?.block as any)?.volumeTarget
-            ?? null,
-          weekStrategy: (periodizationSnapshot?.week as any)?.strategy ?? null,
+          volumeTarget: periodizationSnapshot?.week?.volumeTarget ?? null,
+          weekStrategy: periodizationSnapshot?.week?.label ?? periodizationSnapshot?.week?.phase ?? null,
           weekNumber: periodizationSnapshot?.week?.weekNumber ?? null,
           objective: studentContext?.objetivo ?? null,
           level: studentContext?.nivel ?? null,
