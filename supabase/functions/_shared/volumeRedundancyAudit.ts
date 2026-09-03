@@ -215,14 +215,6 @@ export function auditVolumeRedundancy(plan: any, ctx: VolumeAuditContext = {}): 
           family: fam,
           exercises: distinct,
         });
-      } else if (distinct.length === 2 && !priorityHint(ctx)) {
-        reasons.push({
-          code: "REDUNDANT_FAMILY_PAIR",
-          severity: "WARN",
-          day: dayLabel,
-          family: fam,
-          exercises: distinct,
-        });
       } else if (distinct.length === 2) {
         reasons.push({
           code: "REDUNDANT_FAMILY_PAIR",
