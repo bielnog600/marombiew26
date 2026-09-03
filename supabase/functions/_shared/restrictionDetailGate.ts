@@ -330,7 +330,7 @@ export type MovementToken =
   | "hinge";
 
 const MOVEMENT_TERMS: Record<MovementToken, string[]> = {
-  deep_squat: ["agachar fundo", "agachar profundo", "agachamento profundo", "flexao profunda", "amplitude profunda", "profundidade total"],
+  deep_squat: ["agachar fundo", "agachar profund", "agachamento profund", "flexao profund", "amplitude profund", "profundidade total"],
   squat: ["agachar", "agachamento"],
   knee_flexion: ["flexao de joelho", "flexao do joelho", "flexionar o joelho"],
   knee_extension: ["extensao de joelho", "extensao do joelho", "extensao terminal", "cadeira extensora"],
@@ -523,7 +523,9 @@ export function detectUnsupportedClinicalInference(
 
     // 2. Limite de ROM inventado.
     const rom = text.match(ROM_CLAIM);
-    if (rom && evidence.romLimits.length === 0) {
+    const romIsDepthWording = !!rom && /profund/.test(rom[0]);
+    const depthSupported = evidence.provocativeMovements.includes("deep_squat");
+    if (rom && evidence.romLimits.length === 0 && !(romIsDepthWording && depthSupported)) {
       push("invented_rom_limit", where, original, rom[0]);
     }
 
