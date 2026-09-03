@@ -8,7 +8,7 @@
  * Determinístico, sem IA e sem alterar periodização/progressão.
  */
 
-export type RestrictionDetailStatus = "none" | "complete" | "incomplete" | "conflicting";
+export type RestrictionDetailStatus = "none" | "complete" | "partial" | "incomplete" | "conflicting";
 
 export type JointArea =
   | "joelho"
@@ -26,8 +26,9 @@ export interface RestrictionAssessment {
   knownAreas: JointArea[];
   missingFields: string[];
   reviewRequired: boolean;
-  reasonCode: "MISSING_INJURY_DETAILS" | null;
+  reasonCode: "MISSING_INJURY_DETAILS" | "MISSING_RESTRICTION_CONTEXT" | null;
   rawText: string;
+  evidence?: RestrictionEvidence;
 }
 
 const norm = (s: unknown): string =>
@@ -93,6 +94,11 @@ export interface RestrictionInput {
 }
 
 export function assessRestrictionDetail(input: RestrictionInput): RestrictionAssessment {
+  const base = assessRestrictionDetailBase(input);
+  return { ...base, evidence: extractRestrictionEvidence(input) };
+}
+
+function assessRestrictionDetailBase(input: RestrictionInput): RestrictionAssessment {
   const rawText = [input.restricoes, input.lesoes, input.observacoes, input.anamnese]
     .filter((v) => typeof v === "string" && v.trim().length > 0)
     .join("\n");
@@ -149,14 +155,15 @@ export function assessRestrictionDetail(input: RestrictionInput): RestrictionAss
   }
 
   if (knownAreas.length > 0 && !hasProvocative) {
-    // Local existe: adaptação específica é permitida, sem bloqueio de revisão.
+    // Local existe, mas SEM movimento provocativo: só adaptação conservadora
+    // genérica é permitida. Nunca inferir qual movimento provoca a dor.
     return {
-      status: "complete",
+      status: "partial",
       hasInjuryFlag: true,
       knownAreas,
       missingFields,
       reviewRequired: false,
-      reasonCode: null,
+      reasonCode: "MISSING_RESTRICTION_CONTEXT",
       rawText,
     };
   }
@@ -175,6 +182,21 @@ export function assessRestrictionDetail(input: RestrictionInput): RestrictionAss
 /** Bloco enviado ao trainer-agent. */
 export function buildRestrictionQualityPromptBlock(a: RestrictionAssessment): string {
   if (a.status === "none") return "";
+  if (a.status === "partial") {
+    return [
+      "",
+      "=== RESTRICTION DATA QUALITY ===",
+      "STATUS: PARTIAL",
+      `KNOWN: ${a.knownAreas.join(", ")}`,
+      "UNKNOWN: movimentos/posições que agravam o sintoma, limites de amplitude, limite numérico de dor.",
+      "RULE:",
+      "- É PROIBIDO afirmar qual movimento provoca a dor (ex.: 'evitar flexão profunda').",
+      "- É PROIBIDO criar exercício corretivo, terapêutico ou compensatório.",
+      "- É PROIBIDO inventar limite de amplitude ou escala numérica de dor.",
+      "- Use apenas orientação neutra: carga moderada, execução controlada, amplitude confortável, interromper se a dor aumentar.",
+      "",
+    ].join("\n");
+  }
   if (a.status === "complete") {
     return [
       "",
