@@ -209,6 +209,8 @@ const TreinoIA = () => {
     restrictionMissing: string[];
     volumeStatus: 'PASS' | 'WARN' | 'FAIL';
     volumeNotes: string[];
+    restrictionStatus?: string;
+    clinicalNotes: string[];
   } | null>(null);
   const [marombiewEnabled, setMarombiewEnabled] = useState(false);
   const [configCollapsed, setConfigCollapsed] = useState(!!editPlanId);
@@ -658,13 +660,21 @@ GERE TUDO DE UMA VEZ:
               : `${r.day ?? 'Semana'}: ${r.observed ?? ''} — esperado ${r.expected ?? ''}`,
           )
         : [];
+      const clinicalNotes: string[] = Array.isArray(gate?.clinicalViolations)
+        ? gate.clinicalViolations.map((v: any) => `${v.where}: "${v.evidence}" (${v.code})`)
+        : [];
       setQualityGate(
-        gate?.reviewRequired || (audit && audit.status !== 'PASS')
+        gate?.reviewRequired ||
+          gate?.status === 'partial' ||
+          clinicalNotes.length > 0 ||
+          (audit && audit.status !== 'PASS')
           ? {
               restrictionReview: !!gate?.reviewRequired,
               restrictionMissing: Array.isArray(gate?.missingFields) ? gate.missingFields : [],
               volumeStatus: audit?.status ?? 'PASS',
               volumeNotes,
+              restrictionStatus: typeof gate?.status === 'string' ? gate.status : undefined,
+              clinicalNotes,
             }
           : null,
       );
@@ -1506,6 +1516,24 @@ GERE TUDO DE UMA VEZ:
                   )}
                 </div>
                 <div className="mt-1 opacity-80">O plano foi gerado em modo conservador genérico e permanece como rascunho para revisão.</div>
+              </div>
+            )}
+            {qualityGate?.restrictionStatus === 'partial' && (
+              <div className="rounded-xl border border-orange-500/40 bg-orange-500/10 px-3 py-2 text-xs text-orange-200">
+                <div className="font-semibold flex items-center gap-1">
+                  <AlertTriangle className="h-3.5 w-3.5" /> ATENÇÃO — dor localizada informada, sem detalhes sobre o que agrava.
+                </div>
+                <div className="mt-1 opacity-90">
+                  Faltam os movimentos/posições que agravam o sintoma, limites de amplitude e limite de dor. O plano usa apenas orientação conservadora neutra.
+                </div>
+              </div>
+            )}
+            {qualityGate && qualityGate.clinicalNotes.length > 0 && (
+              <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                <div className="font-semibold">Inferência clínica sem suporte nos dados do aluno</div>
+                <ul className="mt-1 list-disc pl-4 opacity-90">
+                  {qualityGate.clinicalNotes.slice(0, 6).map((n, i) => <li key={i}>{n}</li>)}
+                </ul>
               </div>
             )}
             {qualityGate && qualityGate.volumeStatus !== 'PASS' && (

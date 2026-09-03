@@ -34,6 +34,11 @@ import {
   assessRestrictionDetail,
   buildRestrictionQualityPromptBlock,
   buildRestrictionRetryInstruction,
+  buildClinicalInferenceRetryInstruction,
+  buildEvidenceProvenanceBlock,
+  detectUnsupportedClinicalInference,
+  extractRestrictionEvidence,
+  type RestrictionEvidence,
   detectUnfoundedJointInference,
   type RestrictionAssessment,
 } from "../_shared/restrictionDetailGate.ts";
@@ -575,6 +580,7 @@ async function generateStructuredWorkoutWithVariation(args: {
   sessionProfiles?: Array<{ sessionIndex: number; profile: string }>;
   volumeContext?: VolumeAuditContext;
   restriction?: RestrictionAssessment;
+  restrictionEvidence?: RestrictionEvidence;
 }): Promise<Response> {
   let history: HistoryPlan[] = [];
   let historySummary = "";
@@ -634,6 +640,10 @@ async function generateStructuredWorkoutWithVariation(args: {
     const restrictionInference = args.restriction
       ? detectUnfoundedJointInference(clone, args.restriction)
       : { ok: true, violations: [] };
+    // Gate de evidência explícita: proíbe inferência clínica não suportada.
+    const clinicalInference = args.restrictionEvidence
+      ? detectUnsupportedClinicalInference(clone, args.restrictionEvidence)
+      : { ok: true, violations: [] as any[] };
 
     const similarity = computeWorkoutSimilarity(clone, historyJsons);
     const referenceCompliance =
@@ -661,6 +671,7 @@ async function generateStructuredWorkoutWithVariation(args: {
       repRangeFixes,
       volumeAudit,
       restrictionInference,
+      clinicalInference,
     };
   };
 
@@ -685,6 +696,7 @@ async function generateStructuredWorkoutWithVariation(args: {
             reasons: evalObj.volumeAudit.reasons,
           },
           restrictionViolations: evalObj.restrictionInference.violations,
+          clinicalInferenceViolations: evalObj.clinicalInference.violations,
         }
       : null;
     console.error("[trainer-agent] review_required", JSON.stringify({ reason, fallbackReasons, details }));
@@ -829,7 +841,9 @@ async function generateStructuredWorkoutWithVariation(args: {
   });
 
   const qualityRetryNeeded =
-    evaluation.volumeAudit.status === "FAIL" || !evaluation.restrictionInference.ok;
+    evaluation.volumeAudit.status === "FAIL" ||
+    !evaluation.restrictionInference.ok ||
+    !evaluation.clinicalInference.ok;
 
   if (needsRetry || qualityRetryNeeded) {
     if (
@@ -896,6 +910,11 @@ async function generateStructuredWorkoutWithVariation(args: {
       if (!fallbackReasons.includes("unfounded_injury_inference")) fallbackReasons.push("unfounded_injury_inference");
       retryNotesArr.push(buildRestrictionRetryInstruction(evaluation.restrictionInference.violations));
     }
+    if (!evaluation.clinicalInference.ok) {
+      fallbackReason = fallbackReason || "unsupported_clinical_inference";
+      if (!fallbackReasons.includes("unsupported_clinical_inference")) fallbackReasons.push("unsupported_clinical_inference");
+      retryNotesArr.push(buildClinicalInferenceRetryInstruction(evaluation.clinicalInference.violations));
+    }
 
     const retryNotes = retryNotesArr.join(" ");
     const retryBlock = workoutVariationPrompt(intensity, historySummary, retryNotes);
@@ -941,8 +960,10 @@ async function generateStructuredWorkoutWithVariation(args: {
         secondCriticalValid &&
         (eval2.volumeAudit.status !== "FAIL" || evaluation.volumeAudit.status === "FAIL") &&
         (eval2.restrictionInference.ok || evaluation.restrictionInference.ok === false) &&
+        (eval2.clinicalInference.violations.length <= evaluation.clinicalInference.violations.length) &&
         (eval2.volumeAudit.reasons.length <= evaluation.volumeAudit.reasons.length ||
-          eval2.restrictionInference.violations.length < evaluation.restrictionInference.violations.length)
+          eval2.restrictionInference.violations.length < evaluation.restrictionInference.violations.length ||
+          eval2.clinicalInference.violations.length < evaluation.clinicalInference.violations.length)
       ) {
         evaluation = eval2;
         finalPlan = eval2.clone;
@@ -972,7 +993,9 @@ async function generateStructuredWorkoutWithVariation(args: {
   }
   const markdownFinal = workoutPlanToMarkdown(finalPlan);
   const reviewRequiredByRestriction =
-    (args.restriction?.reviewRequired ?? false) || !evaluation.restrictionInference.ok;
+    (args.restriction?.reviewRequired ?? false) ||
+    !evaluation.restrictionInference.ok ||
+    !evaluation.clinicalInference.ok;
 
   const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, selectedModel);
   console.log("[ai-routing]", {
@@ -1014,6 +1037,17 @@ async function generateStructuredWorkoutWithVariation(args: {
         missingFields: args.restriction?.missingFields ?? [],
         knownAreas: args.restriction?.knownAreas ?? [],
         inferenceViolations: evaluation.restrictionInference.violations,
+        clinicalViolations: evaluation.clinicalInference.violations,
+        evidence: args.restrictionEvidence
+          ? {
+              bodyRegions: args.restrictionEvidence.bodyRegions,
+              provocativeMovements: args.restrictionEvidence.provocativeMovements,
+              romLimits: args.restrictionEvidence.romLimits,
+              painThreshold: args.restrictionEvidence.painThreshold,
+              correctiveAuthorized: args.restrictionEvidence.correctiveAuthorized,
+              stressFlag: args.restrictionEvidence.stressFlag,
+            }
+          : null,
       },
       draftReviewStatus: reviewRequiredByRestriction || evaluation.volumeAudit.status === "FAIL"
         ? "REVIEW_REQUIRED"
@@ -1632,7 +1666,15 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
         anamnese: typeof studentContext?.anamnese === "string" ? studentContext.anamnese : null,
         hasInjury: typeof studentContext?.has_injury === "boolean" ? studentContext.has_injury : null,
       });
-      const restrictionBlock = buildRestrictionQualityPromptBlock(restriction);
+      const restrictionEvidence = extractRestrictionEvidence({
+        restricoes: studentContext?.restricoes ?? null,
+        lesoes: studentContext?.lesoes ?? null,
+        observacoes: studentContext?.observacoes ?? null,
+        anamnese: typeof studentContext?.anamnese === "string" ? studentContext.anamnese : null,
+        estresse: typeof studentContext?.estresse === "string" ? studentContext.estresse : null,
+      });
+      const restrictionBlock =
+        buildRestrictionQualityPromptBlock(restriction) + buildEvidenceProvenanceBlock(restrictionEvidence);
 
       return await generateStructuredWorkoutWithVariation({
         apiKey: OPENAI_API_KEY,
@@ -1648,6 +1690,7 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
           profile: p.profile,
         })),
         restriction,
+        restrictionEvidence,
         volumeContext: {
           volumeTarget: periodizationSnapshot?.week?.volumeTarget ?? null,
           weekStrategy: periodizationSnapshot?.week?.label ?? periodizationSnapshot?.week?.phase ?? null,
