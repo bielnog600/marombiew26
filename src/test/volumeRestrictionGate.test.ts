@@ -165,3 +165,119 @@ describe('restrictionDetailGate', () => {
     expect(block).toContain('REVIEW_REQUIRED');
   });
 });
+
+import {
+  assessRestrictionDetail as assessGate,
+  extractRestrictionEvidence,
+  detectUnsupportedClinicalInference,
+  buildClinicalInferenceRetryInstruction,
+  buildEvidenceProvenanceBlock,
+} from '../../supabase/functions/_shared/restrictionDetailGate';
+
+const ev = (text: string) => extractRestrictionEvidence({ lesoes: text });
+const desc = (exercise: string, description: string) => ({ days: [{ day: 'A', exercises: [{ exercise, description }] }] });
+
+describe('evidence provenance gate', () => {
+  it('dor localizada sem movimento provocativo → status partial', () => {
+    const a = assessGate({ lesoes: 'dor no joelho direito' });
+    expect(a.status).toBe('partial');
+    expect(a.reasonCode).toBe('MISSING_RESTRICTION_CONTEXT');
+    expect(a.evidence?.provocativeMovements).toEqual([]);
+  });
+
+  it('Bianca A — não pode inventar flexão profunda', () => {
+    const e = ev('dor no joelho direito, dor torácica, stress alto');
+    const r = detectUnsupportedClinicalInference(desc('AGACHAMENTO LIVRE', 'evitar flexão profunda'), e);
+    expect(r.ok).toBe(false);
+    expect(r.violations.some((v) => v.code === 'unsupported_provocative_movement' || v.code === 'invented_rom_limit')).toBe(true);
+  });
+
+  it('Bianca A — estabilidade de joelho corretiva reprova', () => {
+    const e = ev('dor no joelho direito');
+    const r = detectUnsupportedClinicalInference(desc('ESTABILIDADE DE JOELHO', 'exercício corretivo'), e);
+    expect(r.violations.some((v) => v.code === 'unsupported_corrective_prescription')).toBe(true);
+  });
+
+  it('Bianca A — respiração nasal reprova', () => {
+    const e = ev('stress alto');
+    const r = detectUnsupportedClinicalInference(desc('LEG PRESS', 'respiração nasal sempre que possível'), e);
+    expect(r.violations.some((v) => v.code === 'unsupported_breathing_technique')).toBe(true);
+  });
+
+  it('Bianca A — cutoff numérico de dor reprova', () => {
+    const e = ev('dor no joelho direito');
+    const r = detectUnsupportedClinicalInference(desc('LEG PRESS', 'interromper se a dor passar de 3/10'), e);
+    expect(r.violations.some((v) => v.code === 'invented_pain_threshold')).toBe(true);
+  });
+
+  it('Bianca B — evidência explícita permite adaptação específica', () => {
+    const e = ev('dor no joelho direito ao agachar profundamente');
+    expect(e.provocativeMovements).toContain('deep_squat');
+    const r = detectUnsupportedClinicalInference(
+      desc('AGACHAMENTO LIVRE', 'evitar amplitude profunda que reproduza a dor'),
+      e,
+    );
+    expect(r.violations.some((v) => v.code === 'unsupported_provocative_movement')).toBe(false);
+  });
+
+  it('Bianca C — trabalho isométrico autorizado libera prescrição', () => {
+    const e = ev('dor no joelho direito. trabalho isométrico de joelho permitido e desejado');
+    expect(e.correctiveAuthorized).toBe(true);
+    const r = detectUnsupportedClinicalInference(desc('AGACHAMENTO ISOMETRIA', 'trabalho isométrico conforme orientação'), e);
+    expect(r.ok).toBe(true);
+  });
+
+  it('negação não vira movimento provocativo', () => {
+    const e = ev('não sente dor ao agachar');
+    expect(e.provocativeMovements).toEqual([]);
+  });
+
+  it('threshold cadastrado pelo professor é permitido', () => {
+    const e = extractRestrictionEvidence({ lesoes: 'dor no joelho', observacoes: 'limite máximo 3/10 de dor' });
+    expect(e.painThreshold).toBe(3);
+    const r = detectUnsupportedClinicalInference(desc('LEG PRESS', 'pare se ultrapassar 3/10'), e);
+    expect(r.violations.some((v) => v.code === 'invented_pain_threshold')).toBe(false);
+  });
+
+  it('ROM inventado reprova e ROM cadastrado passa', () => {
+    const fail = detectUnsupportedClinicalInference(desc('LEG PRESS', 'não ultrapassar 90 graus'), ev('dor no joelho'));
+    expect(fail.violations.some((v) => v.code === 'invented_rom_limit')).toBe(true);
+    const ok = detectUnsupportedClinicalInference(
+      desc('LEG PRESS', 'não ultrapassar 90 graus'),
+      extractRestrictionEvidence({ observacoes: 'flexão máxima de 90 graus orientada pelo fisioterapeuta' }),
+    );
+    expect(ok.violations.some((v) => v.code === 'invented_rom_limit')).toBe(false);
+  });
+
+  it('finalidade corretiva na descrição reprova, descrição mecânica passa', () => {
+    const e = ev('dor na região torácica');
+    const fail = detectUnsupportedClinicalInference(
+      desc('CRUCIFIXO INVERSO SENTADO', 'exercício compensatório para estabilização escapular'),
+      e,
+    );
+    expect(fail.ok).toBe(false);
+    const ok = detectUnsupportedClinicalInference(
+      desc('CRUCIFIXO INVERSO SENTADO', 'peito apoiado, trajetória controlada e carga moderada'),
+      e,
+    );
+    expect(ok.ok).toBe(true);
+  });
+
+  it('diagnóstico não informado é bloqueado', () => {
+    const r = detectUnsupportedClinicalInference(desc('LEG PRESS', 'adaptado para condromalácia'), ev('dor no joelho'));
+    expect(r.violations.some((v) => v.code === 'implicit_diagnosis')).toBe(true);
+  });
+
+  it('retry orienta remoção da inferência', () => {
+    const r = detectUnsupportedClinicalInference(desc('AGACHAMENTO', 'evitar flexão profunda'), ev('dor no joelho'));
+    const msg = buildClinicalInferenceRetryInstruction(r.violations);
+    expect(msg).toContain('RESTRICTION_INFERENCE_FAILED');
+    expect(msg).toContain('amplitude confortável');
+  });
+
+  it('bloco de evidência lista o que é conhecido', () => {
+    const block = buildEvidenceProvenanceBlock(ev('dor no joelho direito, stress alto'));
+    expect(block).toContain('EVIDÊNCIA EXPLÍCITA');
+    expect(block).toContain('MOVIMENTOS PROVOCATIVOS INFORMADOS: não informado');
+  });
+});
