@@ -26,6 +26,18 @@ import {
   buildRepRangePromptBlock,
 } from "../_shared/repRangePolicy.ts";
 import {
+  auditVolumeRedundancy,
+  buildVolumeRetryInstruction,
+  type VolumeAuditContext,
+} from "../_shared/volumeRedundancyAudit.ts";
+import {
+  assessRestrictionDetail,
+  buildRestrictionQualityPromptBlock,
+  buildRestrictionRetryInstruction,
+  detectUnfoundedJointInference,
+  type RestrictionAssessment,
+} from "../_shared/restrictionDetailGate.ts";
+import {
   buildExactReferenceBlock,
   EXACT_REFERENCE_PRIORITY_BLOCK,
   evaluateReferenceCompliance,
@@ -561,6 +573,8 @@ async function generateStructuredWorkoutWithVariation(args: {
   reference?: ReferenceStructure;
   restrictionsText?: string;
   sessionProfiles?: Array<{ sessionIndex: number; profile: string }>;
+  volumeContext?: VolumeAuditContext;
+  restriction?: RestrictionAssessment;
 }): Promise<Response> {
   let history: HistoryPlan[] = [];
   let historySummary = "";
@@ -611,6 +625,15 @@ async function generateStructuredWorkoutWithVariation(args: {
     // principais, nunca faixa única para o dia inteiro.
     const repRangeFixes = validateAndNormalizeRepRanges(clone, args.sessionProfiles ?? []);
     const redundancy = validateWorkoutRedundancy(clone);
+    // Auditoria determinística de volume/redundância (soma da sessão/semana).
+    const volumeAudit = auditVolumeRedundancy(clone, {
+      ...(args.volumeContext ?? {}),
+      sessionProfiles: args.sessionProfiles ?? [],
+    });
+    // Gate de lesão/restrição incompleta: proibido inferir articulação.
+    const restrictionInference = args.restriction
+      ? detectUnfoundedJointInference(clone, args.restriction)
+      : { ok: true, violations: [] };
 
     const similarity = computeWorkoutSimilarity(clone, historyJsons);
     const referenceCompliance =
@@ -636,6 +659,8 @@ async function generateStructuredWorkoutWithVariation(args: {
       variationFixes,
       variationVerdicts,
       repRangeFixes,
+      volumeAudit,
+      restrictionInference,
     };
   };
 
@@ -655,6 +680,11 @@ async function generateStructuredWorkoutWithVariation(args: {
           referenceMissingAnchors: evalObj.referenceCompliance?.missingAnchors ?? [],
           referenceUnexpectedSubstitutions: evalObj.referenceCompliance?.unexpectedSubstitutions ?? [],
           referenceOrderViolations: evalObj.referenceCompliance?.orderViolations ?? [],
+          volumeAudit: {
+            status: evalObj.volumeAudit.status,
+            reasons: evalObj.volumeAudit.reasons,
+          },
+          restrictionViolations: evalObj.restrictionInference.violations,
         }
       : null;
     console.error("[trainer-agent] review_required", JSON.stringify({ reason, fallbackReasons, details }));
