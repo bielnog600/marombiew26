@@ -738,12 +738,32 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
           <AiEditAllDaysDialog
             open={!!aiAllDaysOpen}
             onOpenChange={(v) => !v && setAiAllDaysOpen(null)}
-            allDays={parseTrainingSections(plans.find(p => p.id === aiAllDaysOpen)?.conteudo || '').flatMap(s => s.days || [])}
+            allDays={(() => {
+              const row = plans.find(p => p.id === aiAllDaysOpen);
+              const v2 = row ? getCurrentPlanV2(row) : null;
+              return v2
+                ? workoutPlanToParsedDays(v2)
+                : parseTrainingSections(row?.conteudo || '').flatMap(s => s.days || []);
+            })()}
             studentId={studentId}
             onApply={(updatedDays) => {
-              handleMarkdownChange(aiAllDaysOpen, rebuildTrainingMarkdown(plans.find(p => p.id === aiAllDaysOpen)?.conteudo || '', updatedDays));
+              const planId = aiAllDaysOpen;
+              const row = plans.find(p => p.id === planId);
+              const v2 = row ? getCurrentPlanV2(row) : null;
+              if (v2) {
+                // Edição assistida por IA sobre o JSON v2 (ids preservados).
+                let next = v2;
+                updatedDays.forEach((day, index) => {
+                  next = applyParsedDayToPlan(next, day, index);
+                });
+                markAiAssisted(planId);
+                handleWorkoutPlanChange(planId, next);
+              } else {
+                handleMarkdownChange(planId, rebuildTrainingMarkdown(row?.conteudo || '', updatedDays));
+              }
               setAiAllDaysOpen(null);
             }}
+
             mobilityCount={plans.find(p => p.id === aiAllDaysOpen)?.mobility_count}
             mainExercisesCount={plans.find(p => p.id === aiAllDaysOpen)?.main_exercises_count}
             onStructureChange={async (mobility, main) => {
