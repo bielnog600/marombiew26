@@ -1616,6 +1616,7 @@ GERE TUDO DE UMA VEZ:
               onMarkdownChange={(md) => { setResult(md); setMarkdownEdited(true); }}
               workoutPlan={generatedJson}
               onWorkoutPlanChange={handleWorkoutPlanChange}
+              onAiAssistedEdit={() => { aiAssistedRef.current = true; }}
             />
             {similarity && similarity.historyCount > 0 && (() => {
               const fb = describeSimilarity(similarity);
