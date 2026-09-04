@@ -14,7 +14,19 @@ import TrainingResultCards from '@/components/TrainingResultCards';
 import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { rebuildTrainingMarkdown } from '@/lib/trainingResultParser';
-import { saveWorkoutPlanFromMarkdown } from '@/lib/workoutPlanRepo';
+import { saveWorkoutPlanFromMarkdown, saveWorkoutPlanJSON } from '@/lib/workoutPlanRepo';
+import {
+  normalizeWorkoutPlan,
+  workoutPlanToParsedDays,
+  newId,
+  type WorkoutPlan,
+} from '@/lib/workoutSchema';
+import { workoutPlanToMarkdown } from '@/lib/workoutMarkdownSerializer';
+import { applyParsedDayToPlan } from '@/lib/workoutPlanEdit';
+import {
+  recordWorkoutPrescriptionEdit,
+  type PrescriptionContextInput,
+} from '@/lib/prescriptionEdits';
 import AiEditAllDaysDialog from '@/components/training/AiEditAllDaysDialog';
 import TemplatesDialog from '@/components/training/TemplatesDialog';
 import LoadIncrementsDialog from '@/components/training/LoadIncrementsDialog';
@@ -67,6 +79,54 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   const editedMarkdownsRef = useRef<Record<string, string>>({});
   const [starting, setStarting] = useState(false);
 
+  /**
+   * Etapa 2C — edição JSON-first na aba do aluno.
+   * `editedPlans` guarda o WorkoutPlan v2 em edição; `baselinePlansRef` guarda
+   * o ÚLTIMO estado persistido (BEFORE do diff), atualizado após cada save.
+   */
+  const [editedPlans, setEditedPlans] = useState<Record<string, WorkoutPlan>>({});
+  const baselinePlansRef = useRef<Record<string, WorkoutPlan>>({});
+  const aiAssistedRef = useRef<Record<string, boolean>>({});
+
+  const getBaselinePlan = (plan: any): WorkoutPlan | null => {
+    const cached = baselinePlansRef.current[plan.id];
+    if (cached) return cached;
+    const normalized = normalizeWorkoutPlan(plan?.conteudo_json);
+    if (normalized) baselinePlansRef.current[plan.id] = normalized;
+    return normalized;
+  };
+
+  /** Plano v2 atualmente exibido (editado se houver, senão o persistido). */
+  const getCurrentPlanV2 = (plan: any): WorkoutPlan | null =>
+    editedPlans[plan.id] ?? getBaselinePlan(plan);
+
+  const handleWorkoutPlanChange = (planId: string, next: WorkoutPlan) => {
+    setEditedPlans((prev) => ({ ...prev, [planId]: next }));
+  };
+
+  const markAiAssisted = (planId: string) => {
+    aiAssistedRef.current = { ...aiAssistedRef.current, [planId]: true };
+  };
+
+  /** Contexto congelado no save. Nada é inferido — sem evidência vira null. */
+  const buildEditContext = (plan: any): PrescriptionContextInput => ({
+    objective: null,
+    level: null,
+    daysPerWeek: null,
+    priorityMuscles: [],
+    periodization: {
+      model: plan?.periodization_model ?? null,
+      block_type: plan?.block_type ?? null,
+      block_number: plan?.block_number ?? null,
+      week: plan?.week_number ?? null,
+      volume_target: null,
+    },
+    restrictions: { status: null, explicit_restrictions: [], pain_flags: [] },
+    recovery: { recent_rpe: null, adherence: null, data_quality: null },
+    sessionContext: { day_id: null, day_name: null, session_role: 'unknown' },
+  });
+
+
   const [studentName, setStudentName] = useState<string>('');
   useEffect(() => {
     (async () => {
@@ -118,14 +178,21 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   };
 
   const getEffectivePlan = (plan: any) => {
+    const editedPlan = editedPlans[plan.id];
     const hasEditedMarkdown = Object.prototype.hasOwnProperty.call(editedMarkdownsRef.current, plan.id);
     return {
       ...plan,
-      conteudo: hasEditedMarkdown ? editedMarkdownsRef.current[plan.id] : plan.conteudo,
+      conteudo: editedPlan
+        ? workoutPlanToMarkdown(editedPlan)
+        : hasEditedMarkdown
+          ? editedMarkdownsRef.current[plan.id]
+          : plan.conteudo,
+      conteudo_json: editedPlan ?? plan.conteudo_json,
       fase: editedPhases[plan.id] ?? plan.fase,
       fase_inicio_data: editedStartDates[plan.id] ?? plan.fase_inicio_data,
     };
   };
+
 
   const handleDelete = async (planId: string) => {
     const { error } = await supabase.from('ai_plans').delete().eq('id', planId);
@@ -175,6 +242,9 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
       .eq('tipo', 'treino')
       .eq('is_draft', false)
       .order('created_at', { ascending: false });
+    // Recarregar do banco redefine os baselines (BEFORE) para o estado persistido.
+    baselinePlansRef.current = {};
+    setEditedPlans({});
     setPlans(data ?? []);
   };
 
@@ -192,10 +262,12 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   };
 
   const handleSave = async (planId: string) => {
+    const planRow = plans.find((p) => p.id === planId);
+    const jsonChanged = editedPlans[planId] !== undefined;
     const markdownChanged = editedMarkdowns[planId] !== undefined;
     const phaseChanged = editedPhases[planId] !== undefined;
     const startDateChanged = editedStartDates[planId] !== undefined;
-    if (!markdownChanged && !phaseChanged && !startDateChanged) return;
+    if (!jsonChanged && !markdownChanged && !phaseChanged && !startDateChanged) return;
 
     setSaving(planId);
 
@@ -206,9 +278,39 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
     try {
       let appliedUpdates: Record<string, any> = { ...extras };
 
-      if (markdownChanged) {
-        // Sync persistence: re-derives JSON from markdown and saves BOTH.
-        // If parsing fails we keep the previous conteudo_json untouched.
+      if (jsonChanged) {
+        // JSON-first: o WorkoutPlan v2 é a fonte de verdade; markdown é derivado.
+        const after = editedPlans[planId];
+        const before = baselinePlansRef.current[planId] ?? normalizeWorkoutPlan(planRow?.conteudo_json);
+        const result = await saveWorkoutPlanJSON(planId, after, extras);
+        if (result.success !== true) {
+          toast.error('Erro ao salvar: ' + (result as { error: string }).error);
+          setSaving(null);
+          return;
+        }
+        toast.success('Treino salvo com sucesso!');
+        appliedUpdates = {
+          ...appliedUpdates,
+          conteudo: result.markdown,
+          conteudo_json: result.json,
+          migration_status: 'completed',
+        };
+        // Captura SOMENTE após persistência bem-sucedida.
+        await recordWorkoutPrescriptionEdit({
+          before,
+          after: result.json,
+          studentId,
+          planId,
+          source: 'manual_plan_editor',
+          actionOrigin: aiAssistedRef.current[planId] ? 'ai_assisted' : 'manual',
+          planVersion: planRow?.version ?? null,
+          context: buildEditContext(planRow),
+        });
+        // Novo baseline: o próximo save compara contra o último estado salvo.
+        baselinePlansRef.current = { ...baselinePlansRef.current, [planId]: result.json };
+        aiAssistedRef.current = { ...aiAssistedRef.current, [planId]: false };
+      } else if (markdownChanged) {
+        // Legacy (sem JSON v2 confiável): ids são regenerados, então NÃO capturamos diff.
         const result = await saveWorkoutPlanFromMarkdown(planId, editedMarkdowns[planId], extras);
         if (!result.success) {
           // Markdown was saved, but JSON couldn't be regenerated.
@@ -226,8 +328,11 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
             conteudo_json: result.json,
             migration_status: 'completed',
           };
+          // Após conversão para v2, o novo JSON vira baseline das próximas edições.
+          baselinePlansRef.current = { ...baselinePlansRef.current, [planId]: result.json };
         }
       } else {
+        // Somente fase / data do ciclo: nenhuma alteração de prescrição, nenhum registro.
         const { error } = await supabase.from('ai_plans').update(extras).eq('id', planId);
         if (error) {
           toast.error('Erro ao salvar: ' + error.message);
@@ -241,9 +346,11 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
       const nextEditedRef = { ...editedMarkdownsRef.current };
       delete nextEditedRef[planId];
       editedMarkdownsRef.current = nextEditedRef;
+      setEditedPlans(prev => { const c = { ...prev }; delete c[planId]; return c; });
       setEditedMarkdowns(prev => { const c = { ...prev }; delete c[planId]; return c; });
       setEditedPhases(prev => { const c = { ...prev }; delete c[planId]; return c; });
       setEditedStartDates(prev => { const c = { ...prev }; delete c[planId]; return c; });
+
     } catch (e: any) {
       toast.error('Erro ao salvar: ' + (e?.message || e));
     } finally {
@@ -279,13 +386,22 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
           const isExpanded = expandedId === plan.id;
           const currentPhase = (editedPhases[plan.id] ?? plan.fase ?? 'semana_1') as TrainingPhase;
           const currentStartDate = editedStartDates[plan.id] ?? plan.fase_inicio_data ?? '';
+          const planV2 = getCurrentPlanV2(plan);
           const hasChanges =
+            editedPlans[plan.id] !== undefined ||
             editedMarkdowns[plan.id] !== undefined ||
             editedPhases[plan.id] !== undefined ||
             editedStartDates[plan.id] !== undefined;
-          const currentMarkdown = editedMarkdowns[plan.id] !== undefined ? editedMarkdowns[plan.id] : plan.conteudo;
+          const currentMarkdown = editedPlans[plan.id]
+            ? workoutPlanToMarkdown(editedPlans[plan.id])
+            : editedMarkdowns[plan.id] !== undefined
+              ? editedMarkdowns[plan.id]
+              : plan.conteudo;
 
-          const currentDays: ParsedTrainingDay[] = parseTrainingSections(currentMarkdown || '').flatMap(s => s.days || []);
+          const currentDays: ParsedTrainingDay[] = planV2
+            ? workoutPlanToParsedDays(planV2)
+            : parseTrainingSections(currentMarkdown || '').flatMap(s => s.days || []);
+
 
           return (
             <React.Fragment key={plan.id}>
@@ -504,6 +620,9 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                       markdown={currentMarkdown}
                       editable={true}
                       trainingOnly={true}
+                      workoutPlan={planV2}
+                      onWorkoutPlanChange={planV2 ? (next) => handleWorkoutPlanChange(plan.id, next) : undefined}
+                      onAiAssistedEdit={() => markAiAssisted(plan.id)}
                       onMarkdownChange={(newMd) => handleMarkdownChange(plan.id, newMd)}
                     />
 
@@ -517,6 +636,32 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                           const allDayNames = ['SEGUNDA-FEIRA','TERÇA-FEIRA','QUARTA-FEIRA','QUINTA-FEIRA','SEXTA-FEIRA','SÁBADO','DOMINGO'];
                           const usedDays = existingDays.map(d => normalizeDayName(d.day));
                           const nextDay = allDayNames.find(d => !usedDays.includes(normalizeDayName(d))) || `TREINO ${String.fromCharCode(65 + existingDays.length)}`;
+                          if (planV2) {
+                            handleWorkoutPlanChange(plan.id, {
+                              ...planV2,
+                              days: [
+                                ...planV2.days,
+                                {
+                                  id: newId('day'),
+                                  day: nextDay,
+                                  exercises: [{
+                                    id: newId('ex'),
+                                    exercise: 'Novo exercício',
+                                    series: '3',
+                                    series2: '',
+                                    reps: '8-12',
+                                    rir: '',
+                                    pause: '60s',
+                                    restSeconds: 60,
+                                    description: '',
+                                    variation: '',
+                                  }],
+                                },
+                              ],
+                            });
+                            toast.success(`${nextDay} adicionado.`);
+                            return;
+                          }
                           const updatedDays = [...existingDays, {
                             day: nextDay,
                             exercises: [{ exercise: 'Novo exercício', series: '3', series2: '', reps: '8-12', rir: '', pause: '60s', description: '', variation: '' }],
@@ -528,6 +673,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                         <Plus className="h-3.5 w-3.5" /> Adicionar dia
                       </Button>
                     </div>
+
                   </div>
                 )}
               </CardContent>
@@ -595,12 +741,32 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
           <AiEditAllDaysDialog
             open={!!aiAllDaysOpen}
             onOpenChange={(v) => !v && setAiAllDaysOpen(null)}
-            allDays={parseTrainingSections(plans.find(p => p.id === aiAllDaysOpen)?.conteudo || '').flatMap(s => s.days || [])}
+            allDays={(() => {
+              const row = plans.find(p => p.id === aiAllDaysOpen);
+              const v2 = row ? getCurrentPlanV2(row) : null;
+              return v2
+                ? workoutPlanToParsedDays(v2)
+                : parseTrainingSections(row?.conteudo || '').flatMap(s => s.days || []);
+            })()}
             studentId={studentId}
             onApply={(updatedDays) => {
-              handleMarkdownChange(aiAllDaysOpen, rebuildTrainingMarkdown(plans.find(p => p.id === aiAllDaysOpen)?.conteudo || '', updatedDays));
+              const planId = aiAllDaysOpen;
+              const row = plans.find(p => p.id === planId);
+              const v2 = row ? getCurrentPlanV2(row) : null;
+              if (v2) {
+                // Edição assistida por IA sobre o JSON v2 (ids preservados).
+                let next = v2;
+                updatedDays.forEach((day, index) => {
+                  next = applyParsedDayToPlan(next, day, index);
+                });
+                markAiAssisted(planId);
+                handleWorkoutPlanChange(planId, next);
+              } else {
+                handleMarkdownChange(planId, rebuildTrainingMarkdown(row?.conteudo || '', updatedDays));
+              }
               setAiAllDaysOpen(null);
             }}
+
             mobilityCount={plans.find(p => p.id === aiAllDaysOpen)?.mobility_count}
             mainExercisesCount={plans.find(p => p.id === aiAllDaysOpen)?.main_exercises_count}
             onStructureChange={async (mobility, main) => {
@@ -641,11 +807,18 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
               const { error } = await supabase.from('ai_plans').update(updates).eq('id', planId);
               if (error) throw error;
               setPlans(prev => prev.map(p => p.id === planId ? { ...p, ...updates } : p));
-              // clear any local edits so displayed content reflects the applied template
+              // Aplicar template NÃO é preferência do professor: nada é capturado.
+              // Apenas limpamos as edições locais e redefinimos o baseline.
               const nextRef = { ...editedMarkdownsRef.current };
               delete nextRef[planId];
               editedMarkdownsRef.current = nextRef;
               setEditedMarkdowns(prev => { const c = { ...prev }; delete c[planId]; return c; });
+              setEditedPlans(prev => { const c = { ...prev }; delete c[planId]; return c; });
+              const tplJson = normalizeWorkoutPlan(tpl.conteudo_json);
+              const nextBaselines = { ...baselinePlansRef.current };
+              if (tplJson) nextBaselines[planId] = tplJson; else delete nextBaselines[planId];
+              baselinePlansRef.current = nextBaselines;
+
             }}
           />
         )}
