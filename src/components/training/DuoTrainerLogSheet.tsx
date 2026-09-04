@@ -538,6 +538,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
       exercises: day.exercises,
       states: st.state,
       fallbackDays: st.days,
+      studentId: st.studentId,
     });
     mutateSlot(slot, (prev) => ({ ...prev, savingOrder: false, orderDirty: res.success ? false : prev.orderDirty }));
     if (res.success) toast.success(`Nova sequência salva no treino de ${st.nome}`);
@@ -632,6 +633,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                 exercises: day.exercises,
                 states: st.state,
                 fallbackDays: st.days,
+                studentId: st.studentId,
               });
               if (res.success === false) {
                 toast.error(`Edições de ${st.nome} não foram salvas no plano: ${res.error}`);

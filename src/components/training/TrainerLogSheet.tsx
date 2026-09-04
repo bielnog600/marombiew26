@@ -647,6 +647,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
         exercises: currentExercises,
         states: state,
         fallbackDays: days,
+        studentId,
       });
       if (res.success === false) {
         toast.error('Não foi possível salvar a sequência: ' + res.error);
@@ -825,6 +826,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
             exercises: currentExercises,
             states: state,
             fallbackDays: days,
+            studentId,
           });
           if (res.success === false) {
             toast.error('Treino finalizado, mas as edições não foram salvas no plano: ' + res.error);
