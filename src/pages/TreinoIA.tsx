@@ -710,6 +710,32 @@ GERE TUDO DE UMA VEZ:
   };
 
   /**
+   * Etapa 2B: contexto congelado no momento do save (nunca inferido depois).
+   */
+  const buildEditContext = (): PrescriptionContextInput => ({
+    objective: studentCtx?.objetivo ?? null,
+    level: level || null,
+    daysPerWeek: daysPerWeek || null,
+    priorityMuscles: [],
+    periodization: periodizationSnapshot
+      ? {
+          model: periodizationSnapshot.model,
+          block_type: periodizationSnapshot.block.blockType,
+          block_number: periodizationSnapshot.block.blockNumber,
+          week: periodizationSnapshot.week.weekNumber,
+          volume_target: null,
+        }
+      : null,
+    restrictions: {
+      status: qualityGate?.restrictionStatus ?? null,
+      explicit_restrictions: [studentCtx?.restricoes, studentCtx?.lesoes].filter(Boolean).map(String),
+      pain_flags: hasDor ? ['dor'] : [],
+    },
+    recovery: { recent_rpe: null, adherence: null, data_quality: null },
+    sessionContext: { day_id: null, day_name: null, session_role: 'unknown' },
+  });
+
+  /**
    * Edição JSON-first: o WorkoutPlan v2 é atualizado diretamente (preservando
    * ids) e o markdown exibido é apenas derivado dele. Assim `savePlan()` nunca
    * persiste um `conteudo_json` desatualizado.
@@ -719,6 +745,7 @@ GERE TUDO DE UMA VEZ:
     setResult(workoutPlanToMarkdown(plan));
     setMarkdownEdited(false);
   };
+
 
   const savePlan = async () => {
     if (!result) return;
