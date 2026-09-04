@@ -804,11 +804,18 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
               const { error } = await supabase.from('ai_plans').update(updates).eq('id', planId);
               if (error) throw error;
               setPlans(prev => prev.map(p => p.id === planId ? { ...p, ...updates } : p));
-              // clear any local edits so displayed content reflects the applied template
+              // Aplicar template NÃO é preferência do professor: nada é capturado.
+              // Apenas limpamos as edições locais e redefinimos o baseline.
               const nextRef = { ...editedMarkdownsRef.current };
               delete nextRef[planId];
               editedMarkdownsRef.current = nextRef;
               setEditedMarkdowns(prev => { const c = { ...prev }; delete c[planId]; return c; });
+              setEditedPlans(prev => { const c = { ...prev }; delete c[planId]; return c; });
+              const tplJson = normalizeWorkoutPlan(tpl.conteudo_json);
+              const nextBaselines = { ...baselinePlansRef.current };
+              if (tplJson) nextBaselines[planId] = tplJson; else delete nextBaselines[planId];
+              baselinePlansRef.current = nextBaselines;
+
             }}
           />
         )}
