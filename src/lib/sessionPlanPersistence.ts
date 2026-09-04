@@ -57,7 +57,12 @@ export interface PersistDayEditsInput {
   states?: Record<number, SessionExerciseState | undefined>;
   /** Dias originais do plano, usados para reconstruir o JSON quando não existir. */
   fallbackDays?: ParsedTrainingDay[];
+  /** Etapa 2B: quando informado, a edição manual é capturada após o save. */
+  studentId?: string | null;
+  /** Contexto adicional congelado no momento do save. */
+  editContext?: PrescriptionContextInput;
 }
+
 
 export type PersistDayEditsResult =
   | { success: true; updated: true }
