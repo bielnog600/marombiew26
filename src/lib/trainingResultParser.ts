@@ -1,4 +1,11 @@
 export interface ParsedExercise {
+  /**
+   * Identidade estável da prescrição (slot) quando o exercício veio de um
+   * WorkoutPlan v2. Ausente para dados vindos apenas de markdown (legacy).
+   */
+  id?: string;
+  /** ID do exercício no catálogo (`public.exercises.id`) quando conhecido. */
+  exerciseId?: string;
   exercise: string;
   series: string;
   series2: string;
@@ -15,9 +22,12 @@ export interface ParsedExercise {
 }
 
 export interface ParsedTrainingDay {
+  /** Identidade estável do dia quando veio de um WorkoutPlan v2. */
+  id?: string;
   day: string;
   exercises: ParsedExercise[];
 }
+
 
 export interface ParsedTrainingSection {
   type: 'training' | 'summary' | 'tip' | 'message' | 'text' | 'table';
