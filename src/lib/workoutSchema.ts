@@ -185,8 +185,11 @@ export const parsedDaysToWorkoutPlan = (
 /** Back-compat: project a v2 plan to the legacy ParsedTrainingDay[] shape. */
 export const workoutPlanToParsedDays = (plan: WorkoutPlan): ParsedTrainingDay[] =>
   plan.days.map((d): ParsedTrainingDay => ({
+    id: d.id,
     day: String(d.day),
     exercises: d.exercises.map((e): ParsedExercise => ({
+      id: e.id,
+      exerciseId: e.exerciseId || undefined,
       exercise: String(e.exercise),
       series: e.series || "",
       series2: e.series2 || "",
@@ -198,6 +201,7 @@ export const workoutPlanToParsedDays = (plan: WorkoutPlan): ParsedTrainingDay[] 
       setScheme: e.setScheme as ParsedExercise["setScheme"],
     })),
   }));
+
 
 /**
  * Best-effort normalization for plans that already live in `conteudo_json`
