@@ -14,7 +14,19 @@ import TrainingResultCards from '@/components/TrainingResultCards';
 import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { rebuildTrainingMarkdown } from '@/lib/trainingResultParser';
-import { saveWorkoutPlanFromMarkdown } from '@/lib/workoutPlanRepo';
+import { saveWorkoutPlanFromMarkdown, saveWorkoutPlanJSON } from '@/lib/workoutPlanRepo';
+import {
+  normalizeWorkoutPlan,
+  workoutPlanToParsedDays,
+  newId,
+  type WorkoutPlan,
+} from '@/lib/workoutSchema';
+import { workoutPlanToMarkdown } from '@/lib/workoutMarkdownSerializer';
+import { applyParsedDayToPlan } from '@/lib/workoutPlanEdit';
+import {
+  recordWorkoutPrescriptionEdit,
+  type PrescriptionContextInput,
+} from '@/lib/prescriptionEdits';
 import AiEditAllDaysDialog from '@/components/training/AiEditAllDaysDialog';
 import TemplatesDialog from '@/components/training/TemplatesDialog';
 import LoadIncrementsDialog from '@/components/training/LoadIncrementsDialog';
