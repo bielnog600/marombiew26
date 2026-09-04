@@ -700,6 +700,17 @@ GERE TUDO DE UMA VEZ:
     }
   };
 
+  /**
+   * Edição JSON-first: o WorkoutPlan v2 é atualizado diretamente (preservando
+   * ids) e o markdown exibido é apenas derivado dele. Assim `savePlan()` nunca
+   * persiste um `conteudo_json` desatualizado.
+   */
+  const handleWorkoutPlanChange = (plan: WorkoutPlan) => {
+    setGeneratedJson(plan);
+    setResult(workoutPlanToMarkdown(plan));
+    setMarkdownEdited(false);
+  };
+
   const savePlan = async () => {
     if (!result) return;
     setSaving(true);
@@ -1546,7 +1557,13 @@ GERE TUDO DE UMA VEZ:
                 </ul>
               </div>
             )}
-            <TrainingResultCards markdown={result} editable={!!editPlanId} onMarkdownChange={setResult} />
+            <TrainingResultCards
+              markdown={result}
+              editable={!!editPlanId}
+              onMarkdownChange={(md) => { setResult(md); setMarkdownEdited(true); }}
+              workoutPlan={generatedJson}
+              onWorkoutPlanChange={handleWorkoutPlanChange}
+            />
             {similarity && similarity.historyCount > 0 && (() => {
               const fb = describeSimilarity(similarity);
               const cls =
