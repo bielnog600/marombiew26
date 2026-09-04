@@ -22,6 +22,10 @@ import {
   saveWorkoutPlanFromMarkdown,
 } from '@/lib/workoutPlanRepo';
 import { normalizeWorkoutPlan, type WorkoutPlan } from '@/lib/workoutSchema';
+import {
+  recordWorkoutPrescriptionEdit,
+  type PrescriptionContextInput,
+} from '@/lib/prescriptionEdits';
 import { workoutPlanToMarkdown } from '@/lib/workoutMarkdownSerializer';
 import ReactMarkdown from 'react-markdown';
 import TrainingResultCards from '@/components/TrainingResultCards';
