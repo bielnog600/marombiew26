@@ -617,6 +617,9 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                       markdown={currentMarkdown}
                       editable={true}
                       trainingOnly={true}
+                      workoutPlan={planV2}
+                      onWorkoutPlanChange={planV2 ? (next) => handleWorkoutPlanChange(plan.id, next) : undefined}
+                      onAiAssistedEdit={() => markAiAssisted(plan.id)}
                       onMarkdownChange={(newMd) => handleMarkdownChange(plan.id, newMd)}
                     />
 
@@ -630,6 +633,32 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                           const allDayNames = ['SEGUNDA-FEIRA','TERÇA-FEIRA','QUARTA-FEIRA','QUINTA-FEIRA','SEXTA-FEIRA','SÁBADO','DOMINGO'];
                           const usedDays = existingDays.map(d => normalizeDayName(d.day));
                           const nextDay = allDayNames.find(d => !usedDays.includes(normalizeDayName(d))) || `TREINO ${String.fromCharCode(65 + existingDays.length)}`;
+                          if (planV2) {
+                            handleWorkoutPlanChange(plan.id, {
+                              ...planV2,
+                              days: [
+                                ...planV2.days,
+                                {
+                                  id: newId('day'),
+                                  day: nextDay,
+                                  exercises: [{
+                                    id: newId('ex'),
+                                    exercise: 'Novo exercício',
+                                    series: '3',
+                                    series2: '',
+                                    reps: '8-12',
+                                    rir: '',
+                                    pause: '60s',
+                                    restSeconds: 60,
+                                    description: '',
+                                    variation: '',
+                                  }],
+                                },
+                              ],
+                            });
+                            toast.success(`${nextDay} adicionado.`);
+                            return;
+                          }
                           const updatedDays = [...existingDays, {
                             day: nextDay,
                             exercises: [{ exercise: 'Novo exercício', series: '3', series2: '', reps: '8-12', rir: '', pause: '60s', description: '', variation: '' }],
@@ -641,6 +670,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
                         <Plus className="h-3.5 w-3.5" /> Adicionar dia
                       </Button>
                     </div>
+
                   </div>
                 )}
               </CardContent>
