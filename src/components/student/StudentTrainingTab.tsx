@@ -79,6 +79,54 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   const editedMarkdownsRef = useRef<Record<string, string>>({});
   const [starting, setStarting] = useState(false);
 
+  /**
+   * Etapa 2C — edição JSON-first na aba do aluno.
+   * `editedPlans` guarda o WorkoutPlan v2 em edição; `baselinePlansRef` guarda
+   * o ÚLTIMO estado persistido (BEFORE do diff), atualizado após cada save.
+   */
+  const [editedPlans, setEditedPlans] = useState<Record<string, WorkoutPlan>>({});
+  const baselinePlansRef = useRef<Record<string, WorkoutPlan>>({});
+  const aiAssistedRef = useRef<Record<string, boolean>>({});
+
+  const getBaselinePlan = (plan: any): WorkoutPlan | null => {
+    const cached = baselinePlansRef.current[plan.id];
+    if (cached) return cached;
+    const normalized = normalizeWorkoutPlan(plan?.conteudo_json);
+    if (normalized) baselinePlansRef.current[plan.id] = normalized;
+    return normalized;
+  };
+
+  /** Plano v2 atualmente exibido (editado se houver, senão o persistido). */
+  const getCurrentPlanV2 = (plan: any): WorkoutPlan | null =>
+    editedPlans[plan.id] ?? getBaselinePlan(plan);
+
+  const handleWorkoutPlanChange = (planId: string, next: WorkoutPlan) => {
+    setEditedPlans((prev) => ({ ...prev, [planId]: next }));
+  };
+
+  const markAiAssisted = (planId: string) => {
+    aiAssistedRef.current = { ...aiAssistedRef.current, [planId]: true };
+  };
+
+  /** Contexto congelado no save. Nada é inferido — sem evidência vira null. */
+  const buildEditContext = (plan: any): PrescriptionContextInput => ({
+    objective: null,
+    level: null,
+    daysPerWeek: null,
+    priorityMuscles: [],
+    periodization: {
+      model: plan?.periodization_model ?? null,
+      block_type: plan?.block_type ?? null,
+      block_number: plan?.block_number ?? null,
+      week: plan?.week_number ?? null,
+      volume_target: null,
+    },
+    restrictions: { status: null, explicit_restrictions: [], pain_flags: [] },
+    recovery: { recent_rpe: null, adherence: null, data_quality: null },
+    sessionContext: { day_id: null, day_name: null, session_role: 'unknown' },
+  });
+
+
   const [studentName, setStudentName] = useState<string>('');
   useEffect(() => {
     (async () => {
