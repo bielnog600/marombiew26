@@ -772,13 +772,30 @@ GERE TUDO DE UMA VEZ:
             toast.error('Erro ao salvar: ' + (r as { error: string }).error);
             return;
           }
+          // Etapa 2B: captura APÓS o save bem sucedido, comparando o plano
+          // persistido (ANTES) com o plano salvo agora (DEPOIS).
+          await recordWorkoutPrescriptionEdit({
+            before: savedPlanRef.current,
+            after: generatedJson,
+            studentId: studentId!,
+            planId: editPlanId,
+            source: 'manual_plan_editor',
+            actionOrigin: aiAssistedRef.current ? 'ai_assisted' : 'manual',
+            planVersion: editPlanVersionRef.current,
+            context: buildEditContext(),
+          });
+          savedPlanRef.current = generatedJson;
+          aiAssistedRef.current = false;
           toast.success('Treino atualizado!');
         } else {
+          // Save por markdown regenera ids: sem identidade estável, não há
+          // diff confiável — nenhuma edição é capturada nesse caminho.
           const r = await saveWorkoutPlanFromMarkdown(editPlanId, result, { titulo });
           if (!r.success) {
             toast.warning('Treino salvo, mas JSON não pôde ser regenerado. JSON anterior preservado.');
           } else {
             setGeneratedJson(r.json);
+            savedPlanRef.current = r.json;
             setMarkdownEdited(false);
             toast.success('Treino atualizado!');
           }
