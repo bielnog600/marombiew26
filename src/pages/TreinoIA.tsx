@@ -250,6 +250,10 @@ const TreinoIA = () => {
       // If the plan being edited has JSON v2, hydrate it so saves stay JSON-first.
       const json = data.conteudo_json ? normalizeWorkoutPlan(data.conteudo_json) : null;
       setGeneratedJson(json);
+      // Baseline "ANTES" congelado a partir do que está persistido no banco.
+      savedPlanRef.current = json;
+      editPlanVersionRef.current = typeof data.version === 'number' ? data.version : null;
+      aiAssistedRef.current = false;
       setMarkdownEdited(false);
     }
   };
