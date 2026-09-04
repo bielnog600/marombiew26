@@ -242,6 +242,9 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
       .eq('tipo', 'treino')
       .eq('is_draft', false)
       .order('created_at', { ascending: false });
+    // Recarregar do banco redefine os baselines (BEFORE) para o estado persistido.
+    baselinePlansRef.current = {};
+    setEditedPlans({});
     setPlans(data ?? []);
   };
 
