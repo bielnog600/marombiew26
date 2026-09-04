@@ -176,6 +176,8 @@ export const MAX_CONFIDENCE = 0.85;
 export const EVIDENCE_SATURATION_CASES = 5;
 /** Divisor do fator cross-student (alunos distintos). */
 export const CROSS_STUDENT_SATURATION = 3;
+/** Abaixo disso o padrão é sinalizado como inconsistente (individualização real). */
+export const INSUFFICIENT_CONSISTENCY_THRESHOLD = 0.7;
 
 // ---------------------------------------------------------------------------
 // Helpers determinísticos
@@ -847,7 +849,10 @@ export const buildProfessorPrescriptionProfile = (
   if (preferences.length > 0 && preferences.every((p) => p.confidence < 0.25)) {
     notes.push("insufficient_evidence");
   }
-  if (preferences.some((p) => p.consistency < 0.6)) notes.push("insufficient_consistency");
+  // Contradição real (o professor individualiza) é informação válida, não erro.
+  if (preferences.some((p) => p.consistency < INSUFFICIENT_CONSISTENCY_THRESHOLD)) {
+    notes.push("insufficient_consistency");
+  }
 
   return {
     professor_id: professorId,
