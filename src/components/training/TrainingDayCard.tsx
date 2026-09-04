@@ -9,6 +9,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { ParsedTrainingDay, ParsedExercise } from '@/lib/trainingResultParser';
+import { newId } from '@/lib/workoutSchema';
 import { supabase } from '@/integrations/supabase/client';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -121,6 +122,7 @@ interface TrainingDayCardProps {
 }
 
 interface ExerciseOption {
+  id?: string;
   nome: string;
   grupo_muscular: string;
   imagem_url?: string | null;
@@ -156,7 +158,7 @@ const ExerciseThumb: React.FC<{ name: string; catalog: ExerciseCatalogItem[]; si
 const ExerciseCombobox: React.FC<{
   value: string;
   options: ExerciseOption[];
-  onChange: (val: string) => void;
+  onChange: (val: string, option?: ExerciseOption) => void;
 }> = ({ value, options, onChange }) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -217,7 +219,7 @@ const ExerciseCombobox: React.FC<{
                   key={`${opt.grupo_muscular}__${opt.nome}`}
                   value={opt.nome}
                   onSelect={() => {
-                    onChange(opt.nome);
+                    onChange(opt.nome, opt);
                     setOpen(false);
                     setSearch("");
                   }}
@@ -248,6 +250,8 @@ const ExerciseCombobox: React.FC<{
 };
 
 const emptyExercise = (): ParsedExercise => ({
+  // Identidade estável já no momento da criação (novo slot de prescrição).
+  id: newId('ex'),
   exercise: '',
   series: '3',
   series2: '',
@@ -313,7 +317,7 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
       .then(({ data }) => {
         if (data) {
           setExerciseCatalog(data as any);
-          setExerciseOptions(data.map((d: any) => ({ nome: d.nome, grupo_muscular: d.grupo_muscular, imagem_url: d.imagem_url })));
+          setExerciseOptions(data.map((d: any) => ({ id: d.id, nome: d.nome, grupo_muscular: d.grupo_muscular, imagem_url: d.imagem_url })));
         }
       });
   }, [exerciseCatalog.length]);
@@ -326,6 +330,18 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
     });
   };
 
+  /**
+   * Substituição manual do exercício NO MESMO SLOT: preserva `id`, atualiza
+   * `exercise` e `exerciseId` (catálogo). Nunca herda o exerciseId anterior.
+   */
+  const handleExerciseChange = (exIndex: number, name: string, catalogId?: string) => {
+    setLocalExercises(prev => {
+      const copy = [...prev];
+      copy[exIndex] = { ...copy[exIndex], exercise: name, exerciseId: catalogId };
+      return copy;
+    });
+  };
+
   const addExercise = () => {
     setLocalExercises(prev => [...prev, emptyExercise()]);
   };
@@ -334,12 +350,20 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
     setLocalExercises(prev => prev.filter((_, i) => i !== exIndex));
   };
 
+  /**
+   * Identidade estável do slot: `exercise.id` quando o plano é v2. Para planos
+   * legacy (markdown) atribuímos um id local no início da edição, para que
+   * reorder/keys nunca dependam de índice.
+   */
+  const exerciseKey = (ex: ParsedExercise, exIndex: number) => ex.id || `legacy-${exIndex}`;
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     setLocalExercises(prev => {
-      const oldIndex = parseInt(String(active.id), 10);
-      const newIndex = parseInt(String(over.id), 10);
+      const oldIndex = prev.findIndex((ex, i) => exerciseKey(ex, i) === String(active.id));
+      const newIndex = prev.findIndex((ex, i) => exerciseKey(ex, i) === String(over.id));
+      if (oldIndex < 0 || newIndex < 0) return prev;
       return arrayMove(prev, oldIndex, newIndex);
     });
   };
@@ -369,7 +393,8 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
   };
 
   const startEditing = () => {
-    setLocalExercises(day.exercises);
+    // Garante identidade estável mesmo para planos legacy sem `id`.
+    setLocalExercises(day.exercises.map((ex) => (ex.id ? ex : { ...ex, id: newId('ex') })));
     setEditing(true);
   };
 
@@ -664,19 +689,19 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
           // ===== EDIT MODE: structured cards per exercise =====
           <div className="space-y-3 p-3">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={displayExercises.map((_, i) => String(i))} strategy={verticalListSortingStrategy}>
+              <SortableContext items={displayExercises.map((ex, i) => exerciseKey(ex, i))} strategy={verticalListSortingStrategy}>
                 {displayExercises.map((ex, exIndex) => {
                   const mode = detectMode(ex);
                   const [recReps, workReps] = splitComposed(ex.reps || '');
                   return (
-                    <SortableExerciseItem key={`edit-${day.day}-${exIndex}`} id={String(exIndex)} position={exIndex + 1} onRemove={() => removeExercise(exIndex)}>
+                    <SortableExerciseItem key={exerciseKey(ex, exIndex)} id={exerciseKey(ex, exIndex)} position={exIndex + 1} onRemove={() => removeExercise(exIndex)}>
                       <div className="flex flex-wrap items-center gap-2">
                         <ExerciseThumb name={ex.exercise} catalog={exerciseCatalog} />
                         <div className="flex-1 min-w-[180px]">
                           <ExerciseCombobox
                             value={ex.exercise}
                             options={exerciseOptions}
-                            onChange={(val) => handleFieldChange(exIndex, 'exercise', val)}
+                            onChange={(val, opt) => handleExerciseChange(exIndex, val, opt?.id)}
                           />
                         </div>
                         <Select value={mode} onValueChange={(v) => setMode(exIndex, v as StructureMode)}>

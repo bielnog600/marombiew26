@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import TrainingDayCard from '@/components/training/TrainingDayCard';
 import { parseTrainingSections, rebuildTrainingMarkdown, type ParsedTrainingDay } from '@/lib/trainingResultParser';
+import { workoutPlanToParsedDays, type WorkoutPlan } from '@/lib/workoutSchema';
+import { applyParsedDayToPlan } from '@/lib/workoutPlanEdit';
 
 interface TrainingResultCardsProps {
   markdown: string;
@@ -14,6 +16,13 @@ interface TrainingResultCardsProps {
   onMarkdownChange?: (newMarkdown: string) => void;
   /** Show only training tables (no summaries, tips, messages, text) */
   trainingOnly?: boolean;
+  /**
+   * Plano v2 (fonte de verdade). Quando presente, os dias vêm do JSON com
+   * identidade estável e as edições são aplicadas diretamente no JSON —
+   * o markdown nunca é usado como intermediário de edição.
+   */
+  workoutPlan?: WorkoutPlan | null;
+  onWorkoutPlanChange?: (plan: WorkoutPlan) => void;
 }
 
 const markdownTableClasses = 'prose prose-sm dark:prose-invert max-w-none [&_table]:text-xs [&_table]:w-full [&_th]:bg-muted [&_th]:p-1.5 [&_td]:p-1.5 [&_td]:border [&_th]:border [&_table]:block [&_table]:overflow-x-auto';
@@ -42,8 +51,27 @@ const CopyButton: React.FC<{ text: string; label?: string }> = ({ text, label })
   );
 };
 
-const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown, editable, onMarkdownChange, trainingOnly }) => {
-  const allSections = parseTrainingSections(markdown);
+const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({
+  markdown,
+  editable,
+  onMarkdownChange,
+  trainingOnly,
+  workoutPlan,
+  onWorkoutPlanChange,
+}) => {
+  const jsonFirst = !!workoutPlan && !!onWorkoutPlanChange;
+  const parsedSections = parseTrainingSections(markdown);
+  const allSections = jsonFirst
+    ? [
+        // Dias renderizados a partir do JSON v2 (com ids), não do markdown.
+        {
+          type: 'training' as const,
+          content: '',
+          days: workoutPlanToParsedDays(workoutPlan as WorkoutPlan),
+        },
+        ...parsedSections.filter((s) => s.type !== 'training'),
+      ]
+    : parsedSections;
   const sections = (trainingOnly || editable) ? allSections.filter(s => s.type === 'training') : allSections;
   const rendered: React.ReactNode[] = [];
   let messageGroup: string[] = [];
@@ -74,6 +102,11 @@ const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({ markdown, edi
   }, [uniqueDayList.join('|'), selectedDay]);
 
   const handleDayChange = (globalIndex: number, updatedDay: ParsedTrainingDay) => {
+    if (jsonFirst) {
+      // JSON-first: aplica a edição no plano v2 preservando day.id/exercise.id.
+      onWorkoutPlanChange!(applyParsedDayToPlan(workoutPlan as WorkoutPlan, updatedDay, globalIndex));
+      return;
+    }
     const newDays = [...allDays];
     newDays[globalIndex] = updatedDay;
     if (onMarkdownChange) {

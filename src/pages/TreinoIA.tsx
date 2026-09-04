@@ -22,6 +22,7 @@ import {
   saveWorkoutPlanFromMarkdown,
 } from '@/lib/workoutPlanRepo';
 import { normalizeWorkoutPlan, type WorkoutPlan } from '@/lib/workoutSchema';
+import { workoutPlanToMarkdown } from '@/lib/workoutMarkdownSerializer';
 import ReactMarkdown from 'react-markdown';
 import TrainingResultCards from '@/components/TrainingResultCards';
 import { GenerationProgress, useSimulatedProgress, useScrollToOnStart } from '@/components/GenerationProgress';
@@ -698,6 +699,17 @@ GERE TUDO DE UMA VEZ:
       setGenerating(false);
       setGenOutcome((prev) => prev ?? { status: 'success' });
     }
+  };
+
+  /**
+   * Edição JSON-first: o WorkoutPlan v2 é atualizado diretamente (preservando
+   * ids) e o markdown exibido é apenas derivado dele. Assim `savePlan()` nunca
+   * persiste um `conteudo_json` desatualizado.
+   */
+  const handleWorkoutPlanChange = (plan: WorkoutPlan) => {
+    setGeneratedJson(plan);
+    setResult(workoutPlanToMarkdown(plan));
+    setMarkdownEdited(false);
   };
 
   const savePlan = async () => {
@@ -1546,7 +1558,13 @@ GERE TUDO DE UMA VEZ:
                 </ul>
               </div>
             )}
-            <TrainingResultCards markdown={result} editable={!!editPlanId} onMarkdownChange={setResult} />
+            <TrainingResultCards
+              markdown={result}
+              editable={!!editPlanId}
+              onMarkdownChange={(md) => { setResult(md); setMarkdownEdited(true); }}
+              workoutPlan={generatedJson}
+              onWorkoutPlanChange={handleWorkoutPlanChange}
+            />
             {similarity && similarity.historyCount > 0 && (() => {
               const fb = describeSimilarity(similarity);
               const cls =

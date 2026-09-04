@@ -107,18 +107,24 @@ export const persistSessionDayEditsToPlan = async (
     const series2 = reconCount > 0 ? String(workCount) : ex.series2 || '';
     const name = (st?.exerciseName || ex.exercise || '').trim();
 
-    // Reaproveita metadados do exercício original quando o nome não mudou
+    // Identidade: casa pelo `id` do slot quando disponível (plano v2).
+    // Só cai para nome/índice em planos legacy sem id.
+    const byId = ex.id ? existingExercises.find((p) => p?.id === ex.id) : undefined;
     const prevEx =
-      existingExercises.find(
-        (p) => normalizeDayName(String(p?.exercise || '')) === normalizeDayName(name),
-      ) || existingExercises[i];
+      byId ||
+      (ex.id
+        ? undefined
+        : existingExercises.find(
+            (p) => normalizeDayName(String(p?.exercise || '')) === normalizeDayName(name),
+          ) || existingExercises[i]);
     const sameName =
       prevEx && normalizeDayName(String(prevEx.exercise || '')) === normalizeDayName(name);
 
     return {
-      id: prevEx?.id || newId('ex'),
+      // Substituição mantém o id do slot; muda só o exercício/exerciseId.
+      id: prevEx?.id || ex.id || newId('ex'),
       exercise: name,
-      exerciseId: sameName ? prevEx?.exerciseId : undefined,
+      exerciseId: ex.exerciseId ?? (sameName ? prevEx?.exerciseId : undefined),
       series,
       series2,
       reps: ex.reps || '',
