@@ -252,10 +252,12 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   };
 
   const handleSave = async (planId: string) => {
+    const planRow = plans.find((p) => p.id === planId);
+    const jsonChanged = editedPlans[planId] !== undefined;
     const markdownChanged = editedMarkdowns[planId] !== undefined;
     const phaseChanged = editedPhases[planId] !== undefined;
     const startDateChanged = editedStartDates[planId] !== undefined;
-    if (!markdownChanged && !phaseChanged && !startDateChanged) return;
+    if (!jsonChanged && !markdownChanged && !phaseChanged && !startDateChanged) return;
 
     setSaving(planId);
 
@@ -266,9 +268,39 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
     try {
       let appliedUpdates: Record<string, any> = { ...extras };
 
-      if (markdownChanged) {
-        // Sync persistence: re-derives JSON from markdown and saves BOTH.
-        // If parsing fails we keep the previous conteudo_json untouched.
+      if (jsonChanged) {
+        // JSON-first: o WorkoutPlan v2 é a fonte de verdade; markdown é derivado.
+        const after = editedPlans[planId];
+        const before = baselinePlansRef.current[planId] ?? normalizeWorkoutPlan(planRow?.conteudo_json);
+        const result = await saveWorkoutPlanJSON(planId, after, extras);
+        if (result.success !== true) {
+          toast.error('Erro ao salvar: ' + (result as { error: string }).error);
+          setSaving(null);
+          return;
+        }
+        toast.success('Treino salvo com sucesso!');
+        appliedUpdates = {
+          ...appliedUpdates,
+          conteudo: result.markdown,
+          conteudo_json: result.json,
+          migration_status: 'completed',
+        };
+        // Captura SOMENTE após persistência bem-sucedida.
+        await recordWorkoutPrescriptionEdit({
+          before,
+          after: result.json,
+          studentId,
+          planId,
+          source: 'manual_plan_editor',
+          actionOrigin: aiAssistedRef.current[planId] ? 'ai_assisted' : 'manual',
+          planVersion: planRow?.version ?? null,
+          context: buildEditContext(planRow),
+        });
+        // Novo baseline: o próximo save compara contra o último estado salvo.
+        baselinePlansRef.current = { ...baselinePlansRef.current, [planId]: result.json };
+        aiAssistedRef.current = { ...aiAssistedRef.current, [planId]: false };
+      } else if (markdownChanged) {
+        // Legacy (sem JSON v2 confiável): ids são regenerados, então NÃO capturamos diff.
         const result = await saveWorkoutPlanFromMarkdown(planId, editedMarkdowns[planId], extras);
         if (!result.success) {
           // Markdown was saved, but JSON couldn't be regenerated.
@@ -286,8 +318,11 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
             conteudo_json: result.json,
             migration_status: 'completed',
           };
+          // Após conversão para v2, o novo JSON vira baseline das próximas edições.
+          baselinePlansRef.current = { ...baselinePlansRef.current, [planId]: result.json };
         }
       } else {
+        // Somente fase / data do ciclo: nenhuma alteração de prescrição, nenhum registro.
         const { error } = await supabase.from('ai_plans').update(extras).eq('id', planId);
         if (error) {
           toast.error('Erro ao salvar: ' + error.message);
@@ -301,9 +336,11 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
       const nextEditedRef = { ...editedMarkdownsRef.current };
       delete nextEditedRef[planId];
       editedMarkdownsRef.current = nextEditedRef;
+      setEditedPlans(prev => { const c = { ...prev }; delete c[planId]; return c; });
       setEditedMarkdowns(prev => { const c = { ...prev }; delete c[planId]; return c; });
       setEditedPhases(prev => { const c = { ...prev }; delete c[planId]; return c; });
       setEditedStartDates(prev => { const c = { ...prev }; delete c[planId]; return c; });
+
     } catch (e: any) {
       toast.error('Erro ao salvar: ' + (e?.message || e));
     } finally {
