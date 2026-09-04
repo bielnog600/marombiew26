@@ -819,6 +819,8 @@ GERE TUDO DE UMA VEZ:
           toast.error('Erro ao salvar: ' + (r as { error: string }).error);
           return;
         }
+        savedPlanRef.current = generatedJson;
+        aiAssistedRef.current = false;
         if (lastWorkoutPlan?.id) {
           await supabase.from('ai_plans').update({ cycle_status: 'renovado' }).eq('id', lastWorkoutPlan.id);
         }
