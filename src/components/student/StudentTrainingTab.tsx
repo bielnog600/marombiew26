@@ -383,13 +383,22 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
           const isExpanded = expandedId === plan.id;
           const currentPhase = (editedPhases[plan.id] ?? plan.fase ?? 'semana_1') as TrainingPhase;
           const currentStartDate = editedStartDates[plan.id] ?? plan.fase_inicio_data ?? '';
+          const planV2 = getCurrentPlanV2(plan);
           const hasChanges =
+            editedPlans[plan.id] !== undefined ||
             editedMarkdowns[plan.id] !== undefined ||
             editedPhases[plan.id] !== undefined ||
             editedStartDates[plan.id] !== undefined;
-          const currentMarkdown = editedMarkdowns[plan.id] !== undefined ? editedMarkdowns[plan.id] : plan.conteudo;
+          const currentMarkdown = editedPlans[plan.id]
+            ? workoutPlanToMarkdown(editedPlans[plan.id])
+            : editedMarkdowns[plan.id] !== undefined
+              ? editedMarkdowns[plan.id]
+              : plan.conteudo;
 
-          const currentDays: ParsedTrainingDay[] = parseTrainingSections(currentMarkdown || '').flatMap(s => s.days || []);
+          const currentDays: ParsedTrainingDay[] = planV2
+            ? workoutPlanToParsedDays(planV2)
+            : parseTrainingSections(currentMarkdown || '').flatMap(s => s.days || []);
+
 
           return (
             <React.Fragment key={plan.id}>
