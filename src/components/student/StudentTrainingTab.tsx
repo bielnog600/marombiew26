@@ -178,14 +178,21 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   };
 
   const getEffectivePlan = (plan: any) => {
+    const editedPlan = editedPlans[plan.id];
     const hasEditedMarkdown = Object.prototype.hasOwnProperty.call(editedMarkdownsRef.current, plan.id);
     return {
       ...plan,
-      conteudo: hasEditedMarkdown ? editedMarkdownsRef.current[plan.id] : plan.conteudo,
+      conteudo: editedPlan
+        ? workoutPlanToMarkdown(editedPlan)
+        : hasEditedMarkdown
+          ? editedMarkdownsRef.current[plan.id]
+          : plan.conteudo,
+      conteudo_json: editedPlan ?? plan.conteudo_json,
       fase: editedPhases[plan.id] ?? plan.fase,
       fase_inicio_data: editedStartDates[plan.id] ?? plan.fase_inicio_data,
     };
   };
+
 
   const handleDelete = async (planId: string) => {
     const { error } = await supabase.from('ai_plans').delete().eq('id', planId);
