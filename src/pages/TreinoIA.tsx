@@ -219,6 +219,10 @@ const TreinoIA = () => {
   // Periodização: escolha do professor + snapshot resolvido deterministicamente.
   const [periodizationSelection, setPeriodizationSelection] = useState<PeriodizationSelection>('automatica');
   const [periodizationSnapshot, setPeriodizationSnapshot] = useState<PeriodizationSnapshot | null>(null);
+  // Etapa 2B: baseline do plano salvo (ANTES) para capturar a edição no save.
+  const savedPlanRef = useRef<WorkoutPlan | null>(null);
+  const editPlanVersionRef = useRef<number | null>(null);
+  const aiAssistedRef = useRef(false);
   const [currentStep, setCurrentStep] = useState(0);
   const resultRef = useRef<HTMLDivElement>(null);
   // Painel de progresso compartilhado com a Dieta IA.
