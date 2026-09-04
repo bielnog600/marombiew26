@@ -23,6 +23,8 @@ interface TrainingResultCardsProps {
    */
   workoutPlan?: WorkoutPlan | null;
   onWorkoutPlanChange?: (plan: WorkoutPlan) => void;
+  /** Sinaliza edição assistida por IA (para classificar a captura da edição). */
+  onAiAssistedEdit?: () => void;
 }
 
 const markdownTableClasses = 'prose prose-sm dark:prose-invert max-w-none [&_table]:text-xs [&_table]:w-full [&_th]:bg-muted [&_th]:p-1.5 [&_td]:p-1.5 [&_td]:border [&_th]:border [&_table]:block [&_table]:overflow-x-auto';
@@ -58,6 +60,7 @@ const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({
   trainingOnly,
   workoutPlan,
   onWorkoutPlanChange,
+  onAiAssistedEdit,
 }) => {
   const jsonFirst = !!workoutPlan && !!onWorkoutPlanChange;
   const parsedSections = parseTrainingSections(markdown);
@@ -183,6 +186,7 @@ const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({
                 onCopy={(text, label) => <CopyButton text={text} label={label} />}
                 editable={editable}
                 onDayChange={(updated) => handleDayChange(gi, updated)}
+                onAiAssistedEdit={onAiAssistedEdit}
               />
             );
           })}

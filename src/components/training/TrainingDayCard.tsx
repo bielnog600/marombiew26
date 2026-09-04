@@ -119,7 +119,10 @@ interface TrainingDayCardProps {
   onCopy: (text: string, label?: string) => React.ReactNode;
   editable?: boolean;
   onDayChange?: (updatedDay: ParsedTrainingDay) => void;
+  /** Sinaliza que a edição partiu do assistente de IA (classificação manual vs ai_assisted). */
+  onAiAssistedEdit?: () => void;
 }
+
 
 interface ExerciseOption {
   id?: string;
@@ -293,7 +296,7 @@ const SortableExerciseItem: React.FC<{ id: string; position: number; onRemove: (
   );
 };
 
-const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, editable, onDayChange }) => {
+const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, editable, onDayChange, onAiAssistedEdit }) => {
   const surface = DAY_SURFACES[index % DAY_SURFACES.length];
   const [editing, setEditing] = useState(false);
   const [localExercises, setLocalExercises] = useState<ParsedExercise[]>(day.exercises);
@@ -401,6 +404,7 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
   const displayExercises = editing ? localExercises : day.exercises;
 
   const applyAiActions = (actions: AiEditAction[]) => {
+    onAiAssistedEdit?.();
     setLocalExercises((prev) => {
       let list = [...prev];
       const norm = (s: string) =>

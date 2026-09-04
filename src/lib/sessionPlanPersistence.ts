@@ -7,6 +7,10 @@ import {
   type WorkoutPlan,
 } from '@/lib/workoutSchema';
 import { workoutPlanToMarkdown } from '@/lib/workoutMarkdownSerializer';
+import {
+  recordWorkoutPrescriptionEdit,
+  type PrescriptionContextInput,
+} from '@/lib/prescriptionEdits';
 
 /**
  * Persistência das edições feitas dentro do "Modo Treino" (admin) de volta ao
@@ -57,7 +61,12 @@ export interface PersistDayEditsInput {
   states?: Record<number, SessionExerciseState | undefined>;
   /** Dias originais do plano, usados para reconstruir o JSON quando não existir. */
   fallbackDays?: ParsedTrainingDay[];
+  /** Etapa 2B: quando informado, a edição manual é capturada após o save. */
+  studentId?: string | null;
+  /** Contexto adicional congelado no momento do save. */
+  editContext?: PrescriptionContextInput;
 }
+
 
 export type PersistDayEditsResult =
   | { success: true; updated: true }
@@ -67,7 +76,7 @@ export type PersistDayEditsResult =
 export const persistSessionDayEditsToPlan = async (
   input: PersistDayEditsInput,
 ): Promise<PersistDayEditsResult> => {
-  const { planId, dayName, dayIndex, exercises, states = {}, fallbackDays = [] } = input;
+  const { planId, dayName, dayIndex, exercises, states = {}, fallbackDays = [], studentId, editContext } = input;
   if (!planId) return { success: true, updated: false, reason: 'sem_plano' };
   if (!dayName) return { success: true, updated: false, reason: 'sem_dia' };
 
@@ -150,5 +159,26 @@ export const persistSessionDayEditsToPlan = async (
     .eq('id', planId);
 
   if (updErr) return { success: false, error: updErr.message };
+
+  // Etapa 2B: captura da edição manual feita no Modo Treino (após save OK).
+  if (studentId) {
+    await recordWorkoutPrescriptionEdit({
+      before: plan,
+      after: updatedPlan,
+      studentId,
+      planId,
+      source: 'manual_training_mode',
+      actionOrigin: 'manual',
+      context: {
+        ...(editContext || {}),
+        sessionContext: {
+          day_id: plan.days[dayIdx]?.id ?? null,
+          day_name: plan.days[dayIdx]?.day ?? dayName,
+          session_role: editContext?.sessionContext?.session_role ?? 'main',
+        },
+      },
+    });
+  }
+
   return { success: true, updated: true };
 };

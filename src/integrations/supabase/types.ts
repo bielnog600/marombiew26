@@ -2990,6 +2990,57 @@ export type Database = {
           },
         ]
       }
+      workout_prescription_edits: {
+        Row: {
+          action_origin: string
+          after_json: Json
+          before_json: Json
+          changes: Json
+          context_snapshot: Json
+          created_at: string
+          cycle_key: string | null
+          exclude_from_profile: boolean
+          id: string
+          plan_id: string
+          plan_version: number | null
+          professor_id: string
+          source: string
+          student_id: string
+        }
+        Insert: {
+          action_origin?: string
+          after_json: Json
+          before_json: Json
+          changes: Json
+          context_snapshot?: Json
+          created_at?: string
+          cycle_key?: string | null
+          exclude_from_profile?: boolean
+          id?: string
+          plan_id: string
+          plan_version?: number | null
+          professor_id: string
+          source: string
+          student_id: string
+        }
+        Update: {
+          action_origin?: string
+          after_json?: Json
+          before_json?: Json
+          changes?: Json
+          context_snapshot?: Json
+          created_at?: string
+          cycle_key?: string | null
+          exclude_from_profile?: boolean
+          id?: string
+          plan_id?: string
+          plan_version?: number | null
+          professor_id?: string
+          source?: string
+          student_id?: string
+        }
+        Relationships: []
+      }
       workout_renewal_analysis: {
         Row: {
           adherence_score: number | null

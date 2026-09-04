@@ -22,6 +22,10 @@ import {
   saveWorkoutPlanFromMarkdown,
 } from '@/lib/workoutPlanRepo';
 import { normalizeWorkoutPlan, type WorkoutPlan } from '@/lib/workoutSchema';
+import {
+  recordWorkoutPrescriptionEdit,
+  type PrescriptionContextInput,
+} from '@/lib/prescriptionEdits';
 import { workoutPlanToMarkdown } from '@/lib/workoutMarkdownSerializer';
 import ReactMarkdown from 'react-markdown';
 import TrainingResultCards from '@/components/TrainingResultCards';
@@ -219,6 +223,10 @@ const TreinoIA = () => {
   // Periodização: escolha do professor + snapshot resolvido deterministicamente.
   const [periodizationSelection, setPeriodizationSelection] = useState<PeriodizationSelection>('automatica');
   const [periodizationSnapshot, setPeriodizationSnapshot] = useState<PeriodizationSnapshot | null>(null);
+  // Etapa 2B: baseline do plano salvo (ANTES) para capturar a edição no save.
+  const savedPlanRef = useRef<WorkoutPlan | null>(null);
+  const editPlanVersionRef = useRef<number | null>(null);
+  const aiAssistedRef = useRef(false);
   const [currentStep, setCurrentStep] = useState(0);
   const resultRef = useRef<HTMLDivElement>(null);
   // Painel de progresso compartilhado com a Dieta IA.
@@ -246,6 +254,10 @@ const TreinoIA = () => {
       // If the plan being edited has JSON v2, hydrate it so saves stay JSON-first.
       const json = data.conteudo_json ? normalizeWorkoutPlan(data.conteudo_json) : null;
       setGeneratedJson(json);
+      // Baseline "ANTES" congelado a partir do que está persistido no banco.
+      savedPlanRef.current = json;
+      editPlanVersionRef.current = typeof data.version === 'number' ? data.version : null;
+      aiAssistedRef.current = false;
       setMarkdownEdited(false);
     }
   };
@@ -702,6 +714,32 @@ GERE TUDO DE UMA VEZ:
   };
 
   /**
+   * Etapa 2B: contexto congelado no momento do save (nunca inferido depois).
+   */
+  const buildEditContext = (): PrescriptionContextInput => ({
+    objective: studentCtx?.objetivo ?? null,
+    level: level || null,
+    daysPerWeek: daysPerWeek || null,
+    priorityMuscles: [],
+    periodization: periodizationSnapshot
+      ? {
+          model: periodizationSnapshot.model,
+          block_type: periodizationSnapshot.block.blockType,
+          block_number: periodizationSnapshot.block.blockNumber,
+          week: periodizationSnapshot.week.weekNumber,
+          volume_target: null,
+        }
+      : null,
+    restrictions: {
+      status: qualityGate?.restrictionStatus ?? null,
+      explicit_restrictions: [studentCtx?.restricoes, studentCtx?.lesoes].filter(Boolean).map(String),
+      pain_flags: hasDor ? ['dor'] : [],
+    },
+    recovery: { recent_rpe: null, adherence: null, data_quality: null },
+    sessionContext: { day_id: null, day_name: null, session_role: 'unknown' },
+  });
+
+  /**
    * Edição JSON-first: o WorkoutPlan v2 é atualizado diretamente (preservando
    * ids) e o markdown exibido é apenas derivado dele. Assim `savePlan()` nunca
    * persiste um `conteudo_json` desatualizado.
@@ -711,6 +749,7 @@ GERE TUDO DE UMA VEZ:
     setResult(workoutPlanToMarkdown(plan));
     setMarkdownEdited(false);
   };
+
 
   const savePlan = async () => {
     if (!result) return;
@@ -737,13 +776,30 @@ GERE TUDO DE UMA VEZ:
             toast.error('Erro ao salvar: ' + (r as { error: string }).error);
             return;
           }
+          // Etapa 2B: captura APÓS o save bem sucedido, comparando o plano
+          // persistido (ANTES) com o plano salvo agora (DEPOIS).
+          await recordWorkoutPrescriptionEdit({
+            before: savedPlanRef.current,
+            after: generatedJson,
+            studentId: studentId!,
+            planId: editPlanId,
+            source: 'manual_plan_editor',
+            actionOrigin: aiAssistedRef.current ? 'ai_assisted' : 'manual',
+            planVersion: editPlanVersionRef.current,
+            context: buildEditContext(),
+          });
+          savedPlanRef.current = generatedJson;
+          aiAssistedRef.current = false;
           toast.success('Treino atualizado!');
         } else {
+          // Save por markdown regenera ids: sem identidade estável, não há
+          // diff confiável — nenhuma edição é capturada nesse caminho.
           const r = await saveWorkoutPlanFromMarkdown(editPlanId, result, { titulo });
           if (!r.success) {
             toast.warning('Treino salvo, mas JSON não pôde ser regenerado. JSON anterior preservado.');
           } else {
             setGeneratedJson(r.json);
+            savedPlanRef.current = r.json;
             setMarkdownEdited(false);
             toast.success('Treino atualizado!');
           }
@@ -767,6 +823,8 @@ GERE TUDO DE UMA VEZ:
           toast.error('Erro ao salvar: ' + (r as { error: string }).error);
           return;
         }
+        savedPlanRef.current = generatedJson;
+        aiAssistedRef.current = false;
         if (lastWorkoutPlan?.id) {
           await supabase.from('ai_plans').update({ cycle_status: 'renovado' }).eq('id', lastWorkoutPlan.id);
         }
@@ -1564,6 +1622,7 @@ GERE TUDO DE UMA VEZ:
               onMarkdownChange={(md) => { setResult(md); setMarkdownEdited(true); }}
               workoutPlan={generatedJson}
               onWorkoutPlanChange={handleWorkoutPlanChange}
+              onAiAssistedEdit={() => { aiAssistedRef.current = true; }}
             />
             {similarity && similarity.historyCount > 0 && (() => {
               const fb = describeSimilarity(similarity);
