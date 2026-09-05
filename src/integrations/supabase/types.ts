@@ -2629,12 +2629,14 @@ export type Database = {
       }
       students_profile: {
         Row: {
+          access_status: string
           altura: number | null
           ativo: boolean
           created_at: string
           data_nascimento: string | null
           fotos: string[] | null
           id: string
+          last_active_at: string | null
           lesoes: string | null
           low_cost: boolean
           objetivo: string | null
@@ -2643,16 +2645,21 @@ export type Database = {
           raca: string | null
           restricoes: string | null
           sexo: string | null
+          suspended_at: string | null
+          suspended_by: string | null
+          suspension_reason: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          access_status?: string
           altura?: number | null
           ativo?: boolean
           created_at?: string
           data_nascimento?: string | null
           fotos?: string[] | null
           id?: string
+          last_active_at?: string | null
           lesoes?: string | null
           low_cost?: boolean
           objetivo?: string | null
@@ -2661,16 +2668,21 @@ export type Database = {
           raca?: string | null
           restricoes?: string | null
           sexo?: string | null
+          suspended_at?: string | null
+          suspended_by?: string | null
+          suspension_reason?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          access_status?: string
           altura?: number | null
           ativo?: boolean
           created_at?: string
           data_nascimento?: string | null
           fotos?: string[] | null
           id?: string
+          last_active_at?: string | null
           lesoes?: string | null
           low_cost?: boolean
           objetivo?: string | null
@@ -2679,6 +2691,9 @@ export type Database = {
           raca?: string | null
           restricoes?: string | null
           sexo?: string | null
+          suspended_at?: string | null
+          suspended_by?: string | null
+          suspension_reason?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -3354,6 +3369,38 @@ export type Database = {
         }
         Returns: boolean
       }
+      reactivate_student_access: {
+        Args: { _user_id: string }
+        Returns: {
+          access_status: string
+          altura: number | null
+          ativo: boolean
+          created_at: string
+          data_nascimento: string | null
+          fotos: string[] | null
+          id: string
+          last_active_at: string | null
+          lesoes: string | null
+          low_cost: boolean
+          objetivo: string | null
+          observacoes: string | null
+          presencial: boolean
+          raca: string | null
+          restricoes: string | null
+          sexo: string | null
+          suspended_at: string | null
+          suspended_by: string | null
+          suspension_reason: string | null
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "students_profile"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       reject_exercise_metadata_suggestion: {
         Args: { _reason: string; _suggestion_id: string }
         Returns: {
@@ -3387,6 +3434,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      run_inactivity_suspension: { Args: never; Returns: number }
       save_human_first_review: {
         Args: {
           _action: string
@@ -3414,6 +3462,47 @@ export type Database = {
           reviewed_at: string
           status: string
         }[]
+      }
+      student_access_heartbeat: {
+        Args: never
+        Returns: {
+          access_status: string
+          last_active_at: string
+          suspended_at: string
+          suspension_reason: string
+        }[]
+      }
+      suspend_student_access: {
+        Args: { _user_id: string }
+        Returns: {
+          access_status: string
+          altura: number | null
+          ativo: boolean
+          created_at: string
+          data_nascimento: string | null
+          fotos: string[] | null
+          id: string
+          last_active_at: string | null
+          lesoes: string | null
+          low_cost: boolean
+          objetivo: string | null
+          observacoes: string | null
+          presencial: boolean
+          raca: string | null
+          restricoes: string | null
+          sexo: string | null
+          suspended_at: string | null
+          suspended_by: string | null
+          suspension_reason: string | null
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "students_profile"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
     }
     Enums: {
