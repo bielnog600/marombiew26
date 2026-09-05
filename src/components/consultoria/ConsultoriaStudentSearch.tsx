@@ -308,7 +308,31 @@ const ConsultoriaStudentSearch: React.FC = () => {
           })}
         </div>
       )}
+
+      <AlertDialog open={!!confirmAction} onOpenChange={(o) => !o && setConfirmAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmAction?.type === 'suspend'
+                ? `Suspender acesso de ${confirmAction?.row.name}?`
+                : `Reativar acesso de ${confirmAction?.row.name}?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmAction?.type === 'suspend'
+                ? 'O aluno não poderá acessar o conteúdo do aplicativo até que a conta seja reativada. Nenhum treino, dieta, avaliação ou histórico será apagado.'
+                : 'O aluno voltará a acessar normalmente o MAROMBIEW.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction disabled={working} onClick={(e) => { e.preventDefault(); void applyAccessChange(); }}>
+              {confirmAction?.type === 'suspend' ? 'Suspender acesso' : 'Ativar conta'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+
   );
 };
 
