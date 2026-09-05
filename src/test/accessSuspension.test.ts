@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   INACTIVITY_SUSPENSION_DAYS,
   TRAINER_REACTIVATION_WHATSAPP,
@@ -108,5 +109,65 @@ describe('dias sem acesso (helper central)', () => {
     expect(formatLastAccessLabel(getInactiveDays(daysAgo(16), NOW))).toBe('há 16 dias');
     expect(formatLastAccessLabel(getInactiveDays(daysAgo(1), NOW))).toBe('há 1 dia');
     expect(formatLastAccessLabel(null)).toBe('ainda não acessou');
+  });
+});
+
+describe('unificação suspensão ↔ ativo (UI Consultoria)', () => {
+  const src = readFileSync('src/components/consultoria/ConsultoriaStudentSearch.tsx', 'utf8');
+
+  it('não existe mais botão separado de desativar/reativar aluno', () => {
+    expect(src).not.toContain('toggleAtivo');
+    expect(src).not.toContain('Desativar aluno');
+    expect(src).not.toContain('Reativar aluno');
+  });
+
+  it('só existem as ações Suspender acesso e Ativar conta', () => {
+    expect(src).toContain("'Ativar conta'");
+    expect(src).toContain("'Suspender acesso'");
+  });
+
+  it('filtro "Desativados" foi removido e "Suspensos" permanece', () => {
+    expect(src).not.toContain("label: 'Desativados'");
+    expect(src).toContain("label: 'Suspensos'");
+  });
+
+  it('badge principal usa somente ATIVO/SUSPENSO', () => {
+    expect(src).toContain("'SUSPENSO' : 'ATIVO'");
+    expect(src).not.toContain('DESATIVADO');
+  });
+
+  it('estado local sincroniza ativo com o access_status após a RPC', () => {
+    expect(src).toContain("ativo: type !== 'suspend',");
+  });
+
+  it('a transição continua vindo do backend (RPCs)', () => {
+    expect(src).toContain('suspend_student_access');
+    expect(src).toContain('reactivate_student_access');
+  });
+});
+
+describe('unificação suspensão ↔ ativo (backend)', () => {
+  const sql = readFileSync('supabase/migrations/20260905235906_unify_access_status_ativo.sql', 'utf8')
+    .replace(/\s+/g, ' ');
+
+  it('suspensão manual grava ativo = false', () => {
+    expect(sql).toMatch(/suspend_student_access[\s\S]*access_status = 'suspended', ativo = false/);
+  });
+
+  it('suspensão automática grava ativo = false', () => {
+    expect(sql).toMatch(/run_inactivity_suspension[\s\S]*access_status = 'suspended', ativo = false/);
+  });
+
+  it('reativação grava ativo = true e reinicia last_active_at', () => {
+    expect(sql).toMatch(/reactivate_student_access[\s\S]*access_status = 'active', ativo = true/);
+    expect(sql).toMatch(/reactivate_student_access[\s\S]*last_active_at = now\(\)/);
+  });
+
+  it('mantém a regra dos 15 dias', () => {
+    expect(sql).toContain("interval '15 days'");
+  });
+
+  it('backfill só toca em quem já está suspenso', () => {
+    expect(sql).toMatch(/UPDATE public\.students_profile SET ativo = false WHERE access_status = 'suspended' AND ativo IS DISTINCT FROM false/);
   });
 });
