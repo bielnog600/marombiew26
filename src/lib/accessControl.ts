@@ -44,11 +44,38 @@ export function isEligibleForInactivitySuspension(params: {
   return now.getTime() - last.getTime() > INACTIVITY_SUSPENSION_DAYS * DAY_MS;
 }
 
+/**
+ * Helper central: dias inteiros desde o último acesso.
+ * Retorna null se não houver last_active_at; nunca negativo.
+ */
+export function getInactiveDays(lastActiveAt: string | Date | null | undefined, now: Date = new Date()): number | null {
+  if (!lastActiveAt) return null;
+  const last = lastActiveAt instanceof Date ? lastActiveAt : new Date(lastActiveAt);
+  if (Number.isNaN(last.getTime())) return null;
+  const diff = now.getTime() - last.getTime();
+  if (diff <= 0) return 0;
+  return Math.floor(diff / DAY_MS);
+}
+
+/** "1 dia sem acesso" / "18 dias sem acesso". */
+export function formatInactiveDays(days: number | null): string | null {
+  if (days === null) return null;
+  return days === 1 ? '1 dia sem acesso' : `${days} dias sem acesso`;
+}
+
+/** "há 1 dia" / "há 18 dias" / "hoje". */
+export function formatLastAccessLabel(days: number | null): string {
+  if (days === null) return 'ainda não acessou';
+  if (days === 0) return 'hoje';
+  return days === 1 ? 'há 1 dia' : `há ${days} dias`;
+}
+
 export function suspensionReasonLabel(reason: SuspensionReason | null): string {
   if (reason === 'inactivity') return 'Inatividade';
   if (reason === 'manual') return 'Manual';
   return 'Não informado';
 }
+
 
 /** Link do WhatsApp para solicitar reativação. Nenhum dado sensível é incluído. */
 export function buildReactivationWhatsAppUrl(studentName?: string | null): string {
