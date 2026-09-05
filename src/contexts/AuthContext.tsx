@@ -1,6 +1,8 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
+import type { AccessStatus, SuspensionReason } from '@/lib/accessControl';
+import { LAST_ACTIVE_THROTTLE_MS } from '@/lib/accessControl';
 
 type UserRole = 'admin' | 'aluno';
 
@@ -9,6 +11,10 @@ interface AuthContextType {
   session: Session | null;
   role: UserRole | null;
   loading: boolean;
+  accessStatus: AccessStatus | null;
+  suspensionReason: SuspensionReason | null;
+  accessLoading: boolean;
+  refreshAccessStatus: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, nome: string, role?: UserRole) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -18,6 +24,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
 export const useAuth = () => useContext(AuthContext);
+
 
 // Cache role in localStorage to avoid refetching on every reload
 const ROLE_CACHE_KEY = 'marombiew_user_role';
