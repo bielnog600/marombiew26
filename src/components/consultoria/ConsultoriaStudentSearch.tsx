@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Ban, ShieldCheck } from 'lucide-react';
 import { format } from 'date-fns';
-import { type AccessStatus, type SuspensionReason, suspensionReasonLabel } from '@/lib/accessControl';
+import { type AccessStatus, type SuspensionReason, suspensionReasonLabel, getInactiveDays, formatLastAccessLabel } from '@/lib/accessControl';
 
 interface StudentRow {
   id: string;
@@ -254,11 +254,7 @@ const ConsultoriaStudentSearch: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-3 text-[10px] text-muted-foreground mt-0.5 flex-wrap">
                         <span className="flex items-center gap-1"><Activity className="h-2.5 w-2.5" />
-                          Último acesso: {r.lastActiveAt
-                            ? formatDistanceToNow(new Date(r.lastActiveAt), { locale: ptBR, addSuffix: true })
-                            : r.lastOpen
-                              ? formatDistanceToNow(new Date(r.lastOpen), { locale: ptBR, addSuffix: true })
-                              : 'ainda não acessou'}
+                          Último acesso: {formatLastAccessLabel(getInactiveDays(r.lastActiveAt ?? r.lastOpen ?? null))}
                         </span>
                         <span>{r.workouts30d} treinos/30d</span>
                         <span className={r.adherence >= 70 ? 'text-emerald-500' : r.adherence >= 40 ? 'text-orange-500' : 'text-destructive'}>{r.adherence}% aderência</span>
