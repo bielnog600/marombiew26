@@ -13,6 +13,7 @@ interface AuthContextType {
   loading: boolean;
   accessStatus: AccessStatus | null;
   suspensionReason: SuspensionReason | null;
+  lastActiveAt: string | null;
   accessLoading: boolean;
   refreshAccessStatus: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
@@ -81,6 +82,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [accessStatus, setAccessStatus] = useState<AccessStatus | null>(null);
   const [suspensionReason, setSuspensionReason] = useState<SuspensionReason | null>(null);
+  const [lastActiveAt, setLastActiveAt] = useState<string | null>(null);
   const [accessLoading, setAccessLoading] = useState(true);
   const intentionalSignOut = useRef(false);
   const isRefreshing = useRef(false);
@@ -241,6 +243,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user || role !== 'aluno') {
       setAccessStatus(role === 'admin' ? 'active' : null);
       setSuspensionReason(null);
+      setLastActiveAt(null);
       setAccessLoading(false);
       return;
     }
@@ -256,6 +259,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (row) {
         setAccessStatus((row.access_status as AccessStatus) ?? 'active');
         setSuspensionReason((row.suspension_reason as SuspensionReason) ?? null);
+        setLastActiveAt((row.last_active_at as string) ?? null);
         if (row.access_status === 'active') {
           try { localStorage.setItem(throttleKey, String(Date.now())); } catch {}
         }
@@ -263,6 +267,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Sem students_profile: não bloquear o app.
         setAccessStatus('active');
         setSuspensionReason(null);
+        setLastActiveAt(null);
       }
     } catch (err) {
       console.error('Erro ao verificar status de acesso:', err);
@@ -278,6 +283,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user) {
       setAccessStatus(null);
       setSuspensionReason(null);
+      setLastActiveAt(null);
       setAccessLoading(false);
       return;
     }
@@ -312,6 +318,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem(ROLE_CACHE_KEY);
     setAccessStatus(null);
     setSuspensionReason(null);
+    setLastActiveAt(null);
     // Use scope: 'local' to ensure signout only affects the current device
     await supabase.auth.signOut({ scope: 'local' });
   };
@@ -319,7 +326,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <AuthContext.Provider value={{
       user, session, role, loading,
-      accessStatus, suspensionReason, accessLoading,
+      accessStatus, suspensionReason, lastActiveAt, accessLoading,
       refreshAccessStatus: () => runHeartbeat(true),
       signIn, signUp, signOut,
       isAdmin: role === 'admin'

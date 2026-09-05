@@ -4,13 +4,19 @@ import { Card, CardContent } from '@/components/ui/card';
 import { LockKeyhole, MessageCircle, LogOut } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { buildReactivationWhatsAppUrl, type SuspensionReason } from '@/lib/accessControl';
+import {
+  buildReactivationWhatsAppUrl,
+  formatInactiveDays,
+  getInactiveDays,
+  type SuspensionReason,
+} from '@/lib/accessControl';
 
 interface Props {
   reason: SuspensionReason | null;
+  lastActiveAt?: string | null;
 }
 
-const SuspendedAccessPage: React.FC<Props> = ({ reason }) => {
+const SuspendedAccessPage: React.FC<Props> = ({ reason, lastActiveAt }) => {
   const { user, signOut } = useAuth();
   const [name, setName] = useState<string | null>(null);
 
@@ -28,16 +34,31 @@ const SuspendedAccessPage: React.FC<Props> = ({ reason }) => {
     return () => { active = false; };
   }, [user]);
 
+  const inactiveDays = getInactiveDays(lastActiveAt ?? null);
+  const inactiveLabel = formatInactiveDays(inactiveDays);
+  const dayWord = inactiveDays === 1 ? 'dia' : 'dias';
+
   const body = reason === 'inactivity'
-    ? [
-        'Identificamos um período prolongado de inatividade na sua conta.',
-        'Seu acesso ao MAROMBIEW foi temporariamente suspenso.',
-        'Solicite a reativação da sua conta ao seu treinador para voltar a acessar seus treinos, dieta e acompanhamento.',
-      ]
-    : [
-        'Seu acesso ao MAROMBIEW está temporariamente suspenso.',
-        'Entre em contato com o seu treinador para mais informações e solicitar a reativação da sua conta.',
-      ];
+    ? inactiveDays !== null
+      ? [
+          `Notamos que sua conta está há ${inactiveDays} ${dayWord} sem acesso.`,
+          'Seu acesso ao MAROMBIEW foi temporariamente suspenso devido ao período de inatividade.',
+          'Solicite a reativação para voltar a acessar seus treinos, dieta e acompanhamento.',
+        ]
+      : [
+          'Seu acesso foi temporariamente suspenso.',
+          'Solicite a reativação para voltar a acessar o MAROMBIEW.',
+        ]
+    : inactiveDays !== null
+      ? [
+          'Seu acesso ao MAROMBIEW está temporariamente suspenso.',
+          `Seu último acesso ao aplicativo foi há ${inactiveDays} ${dayWord}.`,
+          'Entre em contato com seu treinador para solicitar a reativação da sua conta.',
+        ]
+      : [
+          'Seu acesso ao MAROMBIEW está temporariamente suspenso.',
+          'Entre em contato com seu treinador para solicitar a reativação da sua conta.',
+        ];
 
   return (
     <main
@@ -56,6 +77,12 @@ const SuspendedAccessPage: React.FC<Props> = ({ reason }) => {
           <h1 className="text-xl font-bold text-foreground">
             Acesso temporariamente suspenso
           </h1>
+
+          {inactiveLabel && (
+            <div className="w-full rounded-xl border border-primary/30 bg-primary/10 px-4 py-3">
+              <p className="text-sm font-bold tracking-wide text-primary uppercase">{inactiveLabel}</p>
+            </div>
+          )}
 
           <div className="space-y-3">
             {body.map((p) => (

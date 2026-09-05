@@ -5,6 +5,9 @@ import {
   buildReactivationWhatsAppUrl,
   isEligibleForInactivitySuspension,
   suspensionReasonLabel,
+  getInactiveDays,
+  formatInactiveDays,
+  formatLastAccessLabel,
 } from '@/lib/accessControl';
 
 const NOW = new Date('2026-09-05T12:00:00Z');
@@ -76,5 +79,34 @@ describe('link do WhatsApp', () => {
     const url = buildReactivationWhatsAppUrl('João');
     expect(url).not.toMatch(/@/);
     expect(url).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}/);
+  });
+});
+
+describe('dias sem acesso (helper central)', () => {
+  it('null quando não há last_active_at', () => {
+    expect(getInactiveDays(null, NOW)).toBeNull();
+    expect(formatInactiveDays(null)).toBeNull();
+  });
+
+  it('nunca negativo', () => {
+    expect(getInactiveDays(new Date(NOW.getTime() + 5 * 86400000), NOW)).toBe(0);
+  });
+
+  it('16 dias', () => {
+    expect(formatInactiveDays(getInactiveDays(daysAgo(16), NOW))).toBe('16 dias sem acesso');
+  });
+
+  it('25 dias', () => {
+    expect(formatInactiveDays(getInactiveDays(daysAgo(25), NOW))).toBe('25 dias sem acesso');
+  });
+
+  it('singular em 1 dia', () => {
+    expect(formatInactiveDays(getInactiveDays(daysAgo(1), NOW))).toBe('1 dia sem acesso');
+  });
+
+  it('rótulo do admin usa o mesmo cálculo', () => {
+    expect(formatLastAccessLabel(getInactiveDays(daysAgo(16), NOW))).toBe('há 16 dias');
+    expect(formatLastAccessLabel(getInactiveDays(daysAgo(1), NOW))).toBe('há 1 dia');
+    expect(formatLastAccessLabel(null)).toBe('ainda não acessou');
   });
 });

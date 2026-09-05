@@ -9,7 +9,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole }) => {
-  const { user, role, loading, accessStatus, accessLoading, suspensionReason } = useAuth();
+  const { user, role, loading, accessStatus, accessLoading, suspensionReason, lastActiveAt } = useAuth();
 
   useEffect(() => {
     if (!loading) {
@@ -38,7 +38,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
   if (role === 'aluno') {
     if (accessLoading && accessStatus === null) return null;
     if (accessStatus === 'suspended') {
-      return <SuspendedAccessPage reason={suspensionReason} />;
+      return <SuspendedAccessPage reason={suspensionReason} lastActiveAt={lastActiveAt} />;
     }
   }
 
