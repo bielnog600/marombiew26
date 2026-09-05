@@ -79,6 +79,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [accessStatus, setAccessStatus] = useState<AccessStatus | null>(null);
+  const [suspensionReason, setSuspensionReason] = useState<SuspensionReason | null>(null);
+  const [accessLoading, setAccessLoading] = useState(true);
   const intentionalSignOut = useRef(false);
   const isRefreshing = useRef(false);
 
