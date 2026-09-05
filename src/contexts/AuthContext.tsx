@@ -231,6 +231,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  // ---- Access status (suspensão por inatividade / manual) ----
+  // Ordem: AUTH -> ROLE -> ACCESS STATUS. Suspenso nunca renova last_active_at
+  // (o heartbeat no banco é quem decide, e é ele que aplica a rede de proteção dos 15 dias).
+  const runHeartbeat = useCallback(async (force = false) => {
+    if (!user || role !== 'aluno') {
+      setAccessStatus(role === 'admin' ? 'active' : null);
+      setSuspensionReason(null);
+      setAccessLoading(false);
+      return;
+    }
+    const throttleKey = `marombiew_access_hb_${user.id}`;
+    const last = Number(localStorage.getItem(throttleKey) ?? 0);
+    const withinThrottle = !force && accessStatus === 'active' && Date.now() - last < LAST_ACTIVE_THROTTLE_MS;
+    if (withinThrottle) return;
+
+    try {
+      const { data, error } = await (supabase as any).rpc('student_access_heartbeat');
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      if (row) {
+        setAccessStatus((row.access_status as AccessStatus) ?? 'active');
+        setSuspensionReason((row.suspension_reason as SuspensionReason) ?? null);
+        if (row.access_status === 'active') {
+          try { localStorage.setItem(throttleKey, String(Date.now())); } catch {}
+        }
+      } else {
+        // Sem students_profile: não bloquear o app.
+        setAccessStatus('active');
+        setSuspensionReason(null);
+      }
+    } catch (err) {
+      console.error('Erro ao verificar status de acesso:', err);
+      // Offline / falha de rede: não bloquear indevidamente.
+      setAccessStatus(prev => prev ?? 'active');
+    } finally {
+      setAccessLoading(false);
+    }
+  }, [user, role, accessStatus]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user) {
+      setAccessStatus(null);
+      setSuspensionReason(null);
+      setAccessLoading(false);
+      return;
+    }
+    setAccessLoading(true);
+    void runHeartbeat(true);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void runHeartbeat();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, role, loading]);
+
   const signIn = async (email: string, password: string) => {
     intentionalSignOut.current = false;
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -250,6 +307,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     intentionalSignOut.current = true;
     cacheSession(null);
     localStorage.removeItem(ROLE_CACHE_KEY);
+    setAccessStatus(null);
+    setSuspensionReason(null);
     // Use scope: 'local' to ensure signout only affects the current device
     await supabase.auth.signOut({ scope: 'local' });
   };
@@ -257,10 +316,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <AuthContext.Provider value={{
       user, session, role, loading,
+      accessStatus, suspensionReason, accessLoading,
+      refreshAccessStatus: () => runHeartbeat(true),
       signIn, signUp, signOut,
       isAdmin: role === 'admin'
     }}>
       {children}
     </AuthContext.Provider>
+
   );
 };
