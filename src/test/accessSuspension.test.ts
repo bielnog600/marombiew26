@@ -147,7 +147,7 @@ describe('unificação suspensão ↔ ativo (UI Consultoria)', () => {
 });
 
 describe('unificação suspensão ↔ ativo (backend)', () => {
-  const sql = readFileSync('supabase/migrations/20260905235906_unify_access_status_ativo.sql', 'utf8')
+  const sql = readFileSync('supabase/migrations/20260905235833_9747adfa-a68a-48ea-8249-38db1265b97e.sql', 'utf8')
     .replace(/\s+/g, ' ');
 
   it('suspensão manual grava ativo = false', () => {
