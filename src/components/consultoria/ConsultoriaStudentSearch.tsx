@@ -238,19 +238,37 @@ const ConsultoriaStudentSearch: React.FC = () => {
                     >
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-medium truncate">{r.name}</p>
+                        <Badge
+                          variant="outline"
+                          className={`text-[9px] ${r.accessStatus === 'suspended'
+                            ? 'bg-destructive/15 text-destructive border-destructive/30'
+                            : 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30'}`}
+                        >
+                          {r.accessStatus === 'suspended' ? 'SUSPENSO' : 'ATIVO'}
+                        </Badge>
                         <Badge variant="outline" className={`text-[9px] ${riskColor}`}>
                           <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
                           {r.risk}
                         </Badge>
                         {!r.hasPlan && <Badge variant="outline" className="text-[9px] bg-orange-500/10 text-orange-500 border-orange-500/30">Sem plano</Badge>}
                       </div>
-                      <div className="flex items-center gap-3 text-[10px] text-muted-foreground mt-0.5">
+                      <div className="flex items-center gap-3 text-[10px] text-muted-foreground mt-0.5 flex-wrap">
                         <span className="flex items-center gap-1"><Activity className="h-2.5 w-2.5" />
-                          {r.lastOpen ? formatDistanceToNow(new Date(r.lastOpen), { locale: ptBR, addSuffix: true }) : 'nunca abriu'}
+                          Último acesso: {r.lastActiveAt
+                            ? formatDistanceToNow(new Date(r.lastActiveAt), { locale: ptBR, addSuffix: true })
+                            : r.lastOpen
+                              ? formatDistanceToNow(new Date(r.lastOpen), { locale: ptBR, addSuffix: true })
+                              : 'ainda não acessou'}
                         </span>
                         <span>{r.workouts30d} treinos/30d</span>
                         <span className={r.adherence >= 70 ? 'text-emerald-500' : r.adherence >= 40 ? 'text-orange-500' : 'text-destructive'}>{r.adherence}% aderência</span>
                       </div>
+                      {r.accessStatus === 'suspended' && (
+                        <div className="text-[10px] text-destructive mt-0.5">
+                          Motivo: {suspensionReasonLabel(r.suspensionReason)}
+                          {r.suspendedAt && ` · Suspenso em ${format(new Date(r.suspendedAt), 'dd/MM/yyyy')}`}
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <SendNotificationDialog
@@ -258,6 +276,17 @@ const ConsultoriaStudentSearch: React.FC = () => {
                         studentName={r.name}
                         trigger={<Button variant="ghost" size="icon" className="h-8 w-8" title="Enviar notificação"><Send className="h-3.5 w-3.5" /></Button>}
                       />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setConfirmAction({ row: r, type: r.accessStatus === 'suspended' ? 'reactivate' : 'suspend' })}
+                        title={r.accessStatus === 'suspended' ? 'Ativar conta' : 'Suspender acesso'}
+                      >
+                        {r.accessStatus === 'suspended'
+                          ? <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                          : <Ban className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />}
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -271,6 +300,7 @@ const ConsultoriaStudentSearch: React.FC = () => {
                         <ChevronRight className="h-4 w-4" />
                       </Button>
                     </div>
+
                   </div>
                 </CardContent>
               </Card>
