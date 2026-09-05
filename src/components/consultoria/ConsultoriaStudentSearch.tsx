@@ -11,6 +11,13 @@ import { differenceInDays, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import SendNotificationDialog from './SendNotificationDialog';
 import { toast } from 'sonner';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Ban, ShieldCheck } from 'lucide-react';
+import { format } from 'date-fns';
+import { type AccessStatus, type SuspensionReason, suspensionReasonLabel } from '@/lib/accessControl';
 
 interface StudentRow {
   id: string;
@@ -24,9 +31,13 @@ interface StudentRow {
   risk: 'baixo' | 'medio' | 'alto';
   hasPlan: boolean;
   ativo: boolean;
+  accessStatus: AccessStatus;
+  suspensionReason: SuspensionReason | null;
+  suspendedAt: string | null;
+  lastActiveAt: string | null;
 }
 
-type FilterKey = 'todos' | 'risco_alto' | 'sem_plano' | 'baixa_aderencia' | 'ativos' | 'desativados';
+type FilterKey = 'todos' | 'risco_alto' | 'sem_plano' | 'baixa_aderencia' | 'ativos' | 'desativados' | 'suspensos';
 
 const ConsultoriaStudentSearch: React.FC = () => {
   const navigate = useNavigate();
@@ -35,6 +46,8 @@ const ConsultoriaStudentSearch: React.FC = () => {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterKey>('todos');
   const [sortOrder, setSortOrder] = useState<'name' | 'last_access'>('name');
+  const [confirmAction, setConfirmAction] = useState<{ row: StudentRow; type: 'suspend' | 'reactivate' } | null>(null);
+  const [working, setWorking] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -51,7 +64,7 @@ const ConsultoriaStudentSearch: React.FC = () => {
         supabase.from('student_events').select('student_id, created_at').eq('event_type', 'app_opened').in('student_id', ids).order('created_at', { ascending: false }),
         supabase.from('workout_sessions').select('student_id, completed_at, status').in('student_id', ids).gte('completed_at', sinceIso).eq('status', 'completed'),
         supabase.from('ai_plans').select('student_id').in('student_id', ids),
-        supabase.from('students_profile').select('user_id, ativo').in('user_id', ids),
+        supabase.from('students_profile').select('user_id, ativo, access_status, suspension_reason, suspended_at, last_active_at').in('user_id', ids),
       ]);
 
       const lastOpenMap = new Map<string, string>();
@@ -62,7 +75,11 @@ const ConsultoriaStudentSearch: React.FC = () => {
       for (const s of (sessionsRes.data ?? [])) workoutsMap.set(s.student_id, (workoutsMap.get(s.student_id) ?? 0) + 1);
       const planSet = new Set((plansRes.data ?? []).map(p => p.student_id));
       const activeMap = new Map<string, boolean>();
-      for (const a of (activeRes.data ?? [])) activeMap.set(a.user_id, a.ativo !== false);
+      const accessMap = new Map<string, any>();
+      for (const a of ((activeRes.data ?? []) as any[])) {
+        activeMap.set(a.user_id, a.ativo !== false);
+        accessMap.set(a.user_id, a);
+      }
 
       const list: StudentRow[] = (profilesRes.data ?? []).map(p => {
         const lastOpen = lastOpenMap.get(p.user_id) ?? null;
@@ -74,6 +91,10 @@ const ConsultoriaStudentSearch: React.FC = () => {
           id: p.user_id, name: p.nome || 'Sem nome', email: p.email, phone: p.telefone,
           lastOpen, daysSinceOpen, workouts30d, adherence, risk, hasPlan: planSet.has(p.user_id),
           ativo: activeMap.get(p.user_id) ?? true,
+          accessStatus: (accessMap.get(p.user_id)?.access_status as AccessStatus) ?? 'active',
+          suspensionReason: (accessMap.get(p.user_id)?.suspension_reason as SuspensionReason) ?? null,
+          suspendedAt: accessMap.get(p.user_id)?.suspended_at ?? null,
+          lastActiveAt: accessMap.get(p.user_id)?.last_active_at ?? null,
         };
       });
 
@@ -88,13 +109,14 @@ const ConsultoriaStudentSearch: React.FC = () => {
       .filter(r => {
         if (q && !r.name.toLowerCase().includes(q) && !r.email.toLowerCase().includes(q)) return false;
         // Filtros que NÃO são "desativados" só consideram alunos ativos
-        if (filter !== 'desativados' && !r.ativo) return false;
+        if (filter !== 'desativados' && filter !== 'suspensos' && !r.ativo) return false;
         switch (filter) {
           case 'risco_alto': return r.risk === 'alto';
           case 'sem_plano': return !r.hasPlan;
           case 'baixa_aderencia': return r.adherence < 40;
           case 'ativos': return r.risk === 'baixo';
           case 'desativados': return !r.ativo;
+          case 'suspensos': return r.accessStatus === 'suspended';
           default: return true;
         }
       })
@@ -114,6 +136,7 @@ const ConsultoriaStudentSearch: React.FC = () => {
     { value: 'risco_alto', label: 'Risco abandono', count: rows.filter(r => r.ativo && r.risk === 'alto').length },
     { value: 'baixa_aderencia', label: 'Baixa aderência', count: rows.filter(r => r.ativo && r.adherence < 40).length },
     { value: 'sem_plano', label: 'Sem plano', count: rows.filter(r => r.ativo && !r.hasPlan).length },
+    { value: 'suspensos', label: 'Suspensos', count: rows.filter(r => r.accessStatus === 'suspended').length },
     { value: 'desativados', label: 'Desativados', count: rows.filter(r => !r.ativo).length },
   ];
 
@@ -129,6 +152,28 @@ const ConsultoriaStudentSearch: React.FC = () => {
     }
     setRows(prev => prev.map(r => r.id === id ? { ...r, ativo: newAtivo } : r));
     toast.success(newAtivo ? 'Aluno reativado — alertas voltam a aparecer' : 'Aluno desativado — alertas serão ocultados');
+  };
+
+  const applyAccessChange = async () => {
+    if (!confirmAction) return;
+    const { row, type } = confirmAction;
+    setWorking(true);
+    const rpc = type === 'suspend' ? 'suspend_student_access' : 'reactivate_student_access';
+    const { error } = await (supabase as any).rpc(rpc, { _user_id: row.id });
+    setWorking(false);
+    if (error) {
+      toast.error(type === 'suspend' ? 'Não foi possível suspender o acesso.' : 'Não foi possível reativar a conta.');
+      return;
+    }
+    setRows(prev => prev.map(r => r.id === row.id ? {
+      ...r,
+      accessStatus: type === 'suspend' ? 'suspended' : 'active',
+      suspensionReason: type === 'suspend' ? 'manual' : null,
+      suspendedAt: type === 'suspend' ? new Date().toISOString() : null,
+      lastActiveAt: type === 'suspend' ? r.lastActiveAt : new Date().toISOString(),
+    } : r));
+    toast.success(type === 'suspend' ? 'Acesso do aluno suspenso.' : 'Conta reativada com sucesso.');
+    setConfirmAction(null);
   };
 
   return (
