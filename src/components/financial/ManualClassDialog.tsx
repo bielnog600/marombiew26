@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ClassPackage, registerManualClass, refundClassCredit } from '@/hooks/useFinancial';
-import { formatMoney } from '@/lib/financial';
+import { formatMoney, localDateTimeToUtcIso, nowInOperationalTimezone } from '@/lib/financial';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
@@ -23,7 +23,7 @@ const ManualClassDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, stu
   const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [packageId, setPackageId] = useState('');
-  const [occurredAt, setOccurredAt] = useState(() => new Date().toISOString().slice(0, 16));
+  const [occurredAt, setOccurredAt] = useState(() => nowInOperationalTimezone());
   const [reason, setReason] = useState('');
 
   const eligible = mode === 'register'
@@ -33,7 +33,7 @@ const ManualClassDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, stu
   useEffect(() => {
     if (open) {
       setPackageId(eligible[0]?.id || '');
-      setOccurredAt(new Date().toISOString().slice(0, 16));
+      setOccurredAt(nowInOperationalTimezone());
       setReason('');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -48,7 +48,7 @@ const ManualClassDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, stu
           student_id: studentId,
           package_id: packageId,
           created_by: user!.id,
-          occurred_at: new Date(occurredAt).toISOString(),
+          occurred_at: localDateTimeToUtcIso(occurredAt),
           reason: reason || 'Aula registada manualmente',
         });
         toast.success('Aula registada');
@@ -57,7 +57,7 @@ const ManualClassDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, stu
           student_id: studentId,
           package_id: packageId,
           created_by: user!.id,
-          occurred_at: new Date(occurredAt).toISOString(),
+          occurred_at: localDateTimeToUtcIso(occurredAt),
           reason: reason || 'Estorno de aula',
         });
         toast.success('Aula estornada');
