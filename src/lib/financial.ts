@@ -240,15 +240,17 @@ export function packageReceivedInMonth(
 }
 
 /**
- * Vigência de um pacote num mês civil: sobreposição de intervalos.
+ * Vigência HISTÓRICA de um pacote num mês civil: sobreposição de intervalos.
  * Pacote sem `expiry_date` é considerado vigente de `start_date` em diante.
- * Pacotes cancelados nunca são relevantes.
+ *
+ * O estado ATUAL (incl. `cancelado`) não é usado aqui: um pacote cancelado hoje
+ * não deixa de ter existido em meses passados. Para decisões operacionais do
+ * momento use `packageIsOperationalInMonth`.
  */
 export function packageIsRelevantInMonth(
   pkg: { status: string; start_date?: string | null; expiry_date?: string | null },
   key: string,
 ): boolean {
-  if (pkg.status === 'cancelado') return false;
   const { start, end } = monthRange(key);
   const startDate = (pkg.start_date || '').slice(0, 10);
   if (startDate && startDate > end) return false;
@@ -256,6 +258,40 @@ export function packageIsRelevantInMonth(
   if (expiry && expiry < start) return false;
   return true;
 }
+
+/** Pacote operacionalmente ativo: vigente no mês E com estado atual `ativo`. */
+export function packageIsOperationalInMonth(
+  pkg: { status: string; start_date?: string | null; expiry_date?: string | null },
+  key: string,
+): boolean {
+  return pkg.status === 'ativo' && packageIsRelevantInMonth(pkg, key);
+}
+
+/**
+ * Um lançamento aparece na lista do mês pela primeira referência disponível:
+ * reference_month → due_date → paid_at (se pago) → created_at (fallback).
+ */
+export function paymentVisibleInMonth(
+  payment: {
+    reference_month?: string | null;
+    due_date?: string | null;
+    status?: string;
+    paid_at?: string | null;
+    created_at?: string | null;
+  },
+  key: string,
+): boolean {
+  const { start, end } = monthRange(key);
+  const inMonth = (value?: string | null) => {
+    const d = (value || '').slice(0, 10);
+    return !!d && d >= start && d <= end;
+  };
+  if (payment.reference_month) return payment.reference_month.slice(0, 7) === key;
+  if (payment.due_date) return inMonth(payment.due_date);
+  if (payment.status === 'pago' && payment.paid_at) return inMonth(payment.paid_at);
+  return inMonth(payment.created_at);
+}
+
 
 /* ------------------------------------------------------------------ *
  * Timezone
