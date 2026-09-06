@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   formatMoney, normalizeCurrency, monthKey, monthRange, monthLabel, isValidMonthKey,
   recentMonthKeys, effectivePaymentStatus, daysUntilDue, isDueSoon,
@@ -318,5 +319,44 @@ describe('primeira cobrança do plano recorrente', () => {
   });
   it('end_date noutro mês não altera o vencimento', () => {
     expect(planDueDateForMonth({ due_day: 10, start_date: '2026-01-01', end_date: '2027-03-05' }, '2026-12')).toBe('2026-12-10');
+  });
+});
+
+describe('UX de créditos (fonte da UI)', () => {
+  const tab = readFileSync('src/components/financial/StudentFinancialTab.tsx', 'utf8');
+  const adjust = readFileSync('src/components/financial/AdjustCreditsDialog.tsx', 'utf8');
+  const hook = readFileSync('src/hooks/useFinancial.ts', 'utf8');
+
+  it('botão +Aula não existe mais', () => {
+    expect(tab).not.toMatch(/<Plus className="h-3 w-3 mr-1" \/> Aula/);
+  });
+  it('botão -Aula não existe mais', () => {
+    expect(tab).not.toMatch(/Minus/);
+  });
+  it('Registar aula continua existindo', () => {
+    expect(tab).toContain('Registar aula');
+  });
+  it('Estornar continua existindo', () => {
+    expect(tab).toContain('Estornar');
+  });
+  it('Ajustar saldo é ação secundária com dialog próprio', () => {
+    expect(tab).toContain('Ajustar saldo');
+    expect(tab).toContain('AdjustCreditsDialog');
+  });
+  it('ajustar saldo exige motivo e regista manual_adjustment', () => {
+    expect(adjust).toContain('O motivo é obrigatório');
+    expect(adjust).toContain("action_type: 'manual_adjustment'");
+  });
+  it('saldo não pode ficar negativo (bloqueio no helper)', () => {
+    expect(hook).toContain('Saldo insuficiente');
+    expect(hook).toContain('não pode ficar negativo');
+  });
+});
+
+describe('pertença ao mês', () => {
+  it('usa reference_month quando existe, senão due_date', () => {
+    expect(paymentBelongsToMonth({ reference_month: '2026-08', due_date: '2026-09-01' }, '2026-08')).toBe(true);
+    expect(paymentBelongsToMonth({ reference_month: null, due_date: '2026-08-31' }, '2026-08')).toBe(true);
+    expect(paymentBelongsToMonth({ reference_month: null, due_date: null }, '2026-08')).toBe(false);
   });
 });
