@@ -2,6 +2,11 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { startOfMonth, endOfMonth, format, subDays, addDays } from 'date-fns';
+import {
+  Currency, MoneyByCurrency, emptyMoney, addMoney, effectivePaymentStatus,
+  monthKey, monthRange, normalizeCurrency, packageCountsAsOwnRevenue,
+  packageIsEnding, packageCanBeDeleted, isDueSoon, formatMoney,
+} from '@/lib/financial';
 
 export type Payment = {
   id: string;
@@ -17,6 +22,8 @@ export type Payment = {
   due_date: string | null;
   notes: string;
   receipt_url: string | null;
+  billing_plan_id: string | null;
+  reference_month: string | null;
   created_at: string;
   updated_at: string;
   student_name?: string;
@@ -40,6 +47,26 @@ export type ClassPackage = {
   payment_status: string;
   status: string;
   notes: string;
+  currency: string;
+  created_at: string;
+  updated_at: string;
+  student_name?: string;
+};
+
+export type StudentBillingPlan = {
+  id: string;
+  student_id: string;
+  admin_id: string;
+  service_type: string;
+  description: string;
+  amount: number;
+  currency: string;
+  billing_frequency: string;
+  due_day: number;
+  start_date: string;
+  end_date: string | null;
+  status: string;
+  notes: string;
   created_at: string;
   updated_at: string;
   student_name?: string;
@@ -55,6 +82,7 @@ export type ClassCreditLog = {
   reason: string;
   balance_before: number;
   balance_after: number;
+  occurred_at: string;
   created_at: string;
   created_by: string;
 };
@@ -182,22 +210,53 @@ export function useClassPackages(studentId?: string) {
   return { packages, loading, refetch: fetchPackages };
 }
 
-export function useFinancialSummary() {
-  const [summary, setSummary] = useState({
-    receivedThisMonth: 0,
-    toReceive: 0,
-    overdue: 0,
+export type FinancialSummary = {
+  monthKey: string;
+  received: MoneyByCurrency;
+  toReceive: MoneyByCurrency;
+  overdue: MoneyByCurrency;
+  expectedTotal: MoneyByCurrency;
+  dueSoon: MoneyByCurrency;
+  remainingClasses: number;
+  classesThisMonth: number;
+  packagesEnding: number;
+  studentsOverdue: number;
+  totalClassesSold: number;
+  totalClassesUsed: number;
+  activePackagesCount: number;
+  exhaustedPackages: number;
+  recurringActive: number;
+  recurringExpected: MoneyByCurrency;
+};
+
+function emptySummary(key: string): FinancialSummary {
+  return {
+    monthKey: key,
+    received: emptyMoney(),
+    toReceive: emptyMoney(),
+    overdue: emptyMoney(),
+    expectedTotal: emptyMoney(),
+    dueSoon: emptyMoney(),
     remainingClasses: 0,
     classesThisMonth: 0,
     packagesEnding: 0,
     studentsOverdue: 0,
-    expectedTotal: 0,
     totalClassesSold: 0,
     totalClassesUsed: 0,
-    avgPricePerClass: 0,
     activePackagesCount: 0,
     exhaustedPackages: 0,
-  });
+    recurringActive: 0,
+    recurringExpected: emptyMoney(),
+  };
+}
+
+/**
+ * Resumo financeiro do mês selecionado.
+ * Nunca converte moedas: cada moeda é somada separadamente.
+ */
+export function useFinancialSummary(selectedMonth?: string) {
+  const key = selectedMonth || monthKey(new Date());
+  const [summary, setSummary] = useState<FinancialSummary>(() => emptySummary(key));
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
@@ -205,80 +264,145 @@ export function useFinancialSummary() {
     if (!user) return;
     setLoading(true);
     try {
-      const now = new Date();
-      const monthStart = startOfMonth(now).toISOString();
-      const monthEnd = endOfMonth(now).toISOString();
+      const today = new Date();
+      const { start, end } = monthRange(key);
 
-      const { data: allPayments } = await supabase.from('payments').select('*');
-      const { data: allPackages } = await supabase.from('class_packages').select('*');
+      const [{ data: allPayments }, { data: allPackages }, { data: allPlans }, { data: creditsThisMonth }] = await Promise.all([
+        supabase.from('payments').select('*'),
+        supabase.from('class_packages').select('*'),
+        (supabase as any).from('student_billing_plans').select('*'),
+        supabase
+          .from('class_credits_log')
+          .select('quantity, action_type, occurred_at')
+          .eq('action_type', 'use_credit')
+          .gte('occurred_at', `${start}T00:00:00.000Z`)
+          .lte('occurred_at', `${end}T23:59:59.999Z`),
+      ]);
 
-      const payments = allPayments || [];
-      const packages = allPackages || [];
+      const payments = (allPayments || []) as any[];
+      const packages = (allPackages || []) as any[];
+      const plans = (allPlans || []) as any[];
 
-      const receivedThisMonth = payments
-        .filter(p => p.status === 'pago' && p.paid_at && p.paid_at >= monthStart && p.paid_at <= monthEnd)
-        .reduce((sum, p) => sum + Number(p.amount), 0);
+      const next = emptySummary(key);
 
-      const pkgReceivedThisMonth = packages
-        .filter((p: any) => p.payment_status === 'pago' && p.payment_date && p.payment_date >= monthStart.slice(0, 10) && p.payment_date <= monthEnd.slice(0, 10))
-        .reduce((sum: number, p: any) => sum + Number(p.total_amount), 0);
-      const totalReceivedThisMonth = receivedThisMonth + pkgReceivedThisMonth;
+      for (const p of payments) {
+        const status = effectivePaymentStatus(p, today);
+        const paidDay = (p.paid_at || '').slice(0, 10);
+        if (status === 'pago' && paidDay >= start && paidDay <= end) {
+          addMoney(next.received, p.amount, p.currency);
+        }
+        if (status === 'pendente') {
+          addMoney(next.toReceive, p.amount, p.currency);
+          if (isDueSoon(p.due_date, today)) addMoney(next.dueSoon, p.amount, p.currency);
+        }
+        if (status === 'vencido') addMoney(next.overdue, p.amount, p.currency);
+      }
 
-      const toReceive = payments.filter(p => p.status === 'pendente').reduce((sum, p) => sum + Number(p.amount), 0)
-        + packages.filter((p: any) => p.payment_status === 'pendente').reduce((sum: number, p: any) => sum + Number(p.total_amount), 0);
-
-      const overdue = payments.filter(p => p.status === 'vencido').reduce((sum, p) => sum + Number(p.amount), 0)
-        + packages.filter((p: any) => p.payment_status === 'vencido').reduce((sum: number, p: any) => sum + Number(p.total_amount), 0);
+      // Pacotes ligados a um pagamento já foram contados acima.
+      for (const pkg of packages) {
+        if (packageCountsAsOwnRevenue(pkg)) {
+          const payDay = (pkg.payment_date || '').slice(0, 10);
+          if (pkg.payment_status === 'pago' && payDay >= start && payDay <= end) {
+            addMoney(next.received, pkg.total_amount, pkg.currency);
+          }
+          if (pkg.payment_status === 'pendente') addMoney(next.toReceive, pkg.total_amount, pkg.currency);
+          if (pkg.payment_status === 'vencido') addMoney(next.overdue, pkg.total_amount, pkg.currency);
+        }
+      }
 
       const activePackages = packages.filter(p => p.status === 'ativo');
-      const remainingClasses = activePackages.reduce((sum, p) => sum + p.remaining_classes, 0);
-      const totalClassesSold = packages.filter((p: any) => p.payment_status === 'pago').reduce((sum: number, p: any) => sum + p.total_classes, 0);
-      const totalClassesUsed = packages.reduce((sum: number, p: any) => sum + p.used_classes, 0);
-      const totalPaidAmount = packages.filter((p: any) => p.payment_status === 'pago').reduce((sum: number, p: any) => sum + Number(p.total_amount), 0);
-      const avgPricePerClass = totalClassesSold > 0 ? totalPaidAmount / totalClassesSold : 0;
-      const exhaustedPackages = packages.filter(p => p.status === 'esgotado').length;
+      next.remainingClasses = activePackages.reduce((s, p) => s + p.remaining_classes, 0);
+      next.activePackagesCount = activePackages.length;
+      next.exhaustedPackages = packages.filter(p => p.status === 'esgotado').length;
+      next.packagesEnding = packages.filter(packageIsEnding).length;
+      next.totalClassesSold = packages.filter(p => p.payment_status === 'pago').reduce((s, p) => s + p.total_classes, 0);
+      next.totalClassesUsed = packages.reduce((s, p) => s + p.used_classes, 0);
+      next.classesThisMonth = (creditsThisMonth || []).reduce((s: number, c: any) => s + c.quantity, 0);
 
-      // Classes done this month via credits log
-      const { data: creditsThisMonth } = await supabase
-        .from('class_credits_log')
-        .select('quantity')
-        .eq('action_type', 'use_credit')
-        .gte('created_at', monthStart)
-        .lte('created_at', monthEnd);
+      const overdueStudents = new Set(
+        payments.filter(p => effectivePaymentStatus(p, today) === 'vencido').map(p => p.student_id),
+      );
+      packages.filter(p => packageCountsAsOwnRevenue(p) && p.payment_status === 'vencido').forEach(p => overdueStudents.add(p.student_id));
+      next.studentsOverdue = overdueStudents.size;
 
-      const classesThisMonth = (creditsThisMonth || []).reduce((sum, c) => sum + c.quantity, 0);
+      const activePlans = plans.filter(p => p.status === 'active');
+      next.recurringActive = activePlans.length;
+      activePlans.forEach(p => addMoney(next.recurringExpected, p.amount, p.currency));
 
-      const packagesEnding = activePackages.filter(p => p.remaining_classes <= 2).length;
+      for (const c of Object.keys(next.expectedTotal) as Currency[]) {
+        next.expectedTotal[c] = next.received[c] + next.toReceive[c] + next.overdue[c];
+      }
 
-      const overdueStudentIds = new Set(payments.filter(p => p.status === 'vencido').map(p => p.student_id));
-
-      const expectedTotal = totalReceivedThisMonth + toReceive;
-
-      setSummary({
-        receivedThisMonth: totalReceivedThisMonth,
-        toReceive,
-        overdue,
-        remainingClasses,
-        classesThisMonth,
-        packagesEnding,
-        studentsOverdue: overdueStudentIds.size,
-        expectedTotal,
-        totalClassesSold,
-        totalClassesUsed,
-        avgPricePerClass,
-        activePackagesCount: activePackages.length,
-        exhaustedPackages,
-      });
+      setSummary(next);
     } catch (err) {
       console.error('Error fetching financial summary:', err);
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, key]);
 
   useEffect(() => { fetch(); }, [fetch]);
 
   return { summary, loading, refetch: fetch };
+}
+
+export function useBillingPlans(studentId?: string) {
+  const [plans, setPlans] = useState<StudentBillingPlan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+
+  const fetchPlans = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      let query = (supabase as any)
+        .from('student_billing_plans')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (studentId) query = query.eq('student_id', studentId);
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const sIds = [...new Set((data || []).map((p: any) => p.student_id))] as string[];
+      const nameMap: Record<string, string> = {};
+      if (sIds.length > 0) {
+        const { data: profiles } = await supabase.from('profiles').select('user_id, nome').in('user_id', sIds);
+        profiles?.forEach(p => { nameMap[p.user_id] = p.nome; });
+      }
+      setPlans((data || []).map((p: any) => ({ ...p, student_name: nameMap[p.student_id] || 'Aluno' })));
+    } catch (err) {
+      console.error('Error fetching billing plans:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [user, studentId]);
+
+  useEffect(() => { fetchPlans(); }, [fetchPlans]);
+
+  return { plans, loading, refetch: fetchPlans };
+}
+
+export async function createBillingPlan(data: Partial<StudentBillingPlan> & { student_id: string; admin_id: string }) {
+  const { data: result, error } = await (supabase as any).from('student_billing_plans').insert(data).select().single();
+  if (error) throw error;
+  return result as StudentBillingPlan;
+}
+
+export async function updateBillingPlan(id: string, updates: Partial<StudentBillingPlan>) {
+  const { error } = await (supabase as any).from('student_billing_plans').update(updates).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteBillingPlan(id: string) {
+  const { error } = await (supabase as any).from('student_billing_plans').delete().eq('id', id);
+  if (error) throw error;
+}
+
+/** Gera as mensalidades do mês (idempotente) e marca pendências vencidas. */
+export async function generateRecurringCharges(referenceMonth: string): Promise<number> {
+  const { data, error } = await (supabase as any).rpc('generate_recurring_charges', { _reference_month: referenceMonth });
+  if (error) throw error;
+  return Number(data ?? 0);
 }
 
 export async function createPayment(data: {
@@ -294,6 +418,8 @@ export async function createPayment(data: {
   due_date?: string | null;
   notes?: string;
   receipt_url?: string | null;
+  billing_plan_id?: string | null;
+  reference_month?: string | null;
 }) {
   const { data: result, error } = await supabase
     .from('payments')
@@ -322,6 +448,7 @@ export async function createClassPackage(data: {
   payment_date?: string;
   payment_method?: string;
   payment_status?: string;
+  currency?: string;
 }) {
   const payload = {
     ...data,
@@ -343,7 +470,7 @@ export async function createClassPackage(data: {
       package_id: (result as any).id,
       action_type: 'package_created',
       quantity: data.total_classes,
-      reason: `Pacote criado: ${data.package_name} — ${data.total_classes} aulas — €${data.total_amount}`,
+      reason: `Pacote criado: ${data.package_name} — ${data.total_classes} aulas — ${formatMoney(data.total_amount, data.currency)}`,
       balance_before: 0,
       balance_after: data.total_classes,
       created_by: data.admin_id,
@@ -362,10 +489,29 @@ export async function createClassPackage(data: {
    if (error) throw error;
  }
  
+ /**
+  * Apagar um pacote só é permitido enquanto nenhuma aula tiver sido consumida.
+  * Com consumo, o histórico é preservado e o pacote deve ser cancelado.
+  */
  export async function deleteClassPackage(id: string) {
-   // Delete associated credit logs first to avoid foreign key issues if any (though usually not restricted)
+   const { data: pkg, error: readError } = await supabase
+     .from('class_packages')
+     .select('used_classes')
+     .eq('id', id)
+     .single();
+   if (readError) throw readError;
+   if (!pkg) throw new Error('Pacote não encontrado');
+   if (!packageCanBeDeleted(pkg as any)) {
+     throw new Error('Este pacote já tem aulas realizadas. Cancele o pacote em vez de apagar, para preservar o histórico.');
+   }
    await supabase.from('class_credits_log').delete().eq('package_id', id);
    const { error } = await supabase.from('class_packages').delete().eq('id', id);
+   if (error) throw error;
+ }
+
+ /** Cancela um pacote preservando o histórico de créditos. */
+ export async function cancelClassPackage(id: string) {
+   const { error } = await supabase.from('class_packages').update({ status: 'cancelado' } as any).eq('id', id);
    if (error) throw error;
  }
 
@@ -377,6 +523,8 @@ export async function deductClassCredit(params: {
   created_by: string;
   action_type?: string;
   quantity?: number;
+  /** Data real em que a aula aconteceu (default: agora). */
+  occurred_at?: string;
 }) {
   const { data: pkg } = await supabase
     .from('class_packages')
@@ -412,6 +560,7 @@ export async function deductClassCredit(params: {
     reason: params.reason,
     balance_before: balanceBefore,
     balance_after: balanceAfter,
+    occurred_at: params.occurred_at || new Date().toISOString(),
     created_by: params.created_by,
   } as any);
 
@@ -435,4 +584,41 @@ export async function getStudentActivePackage(studentId: string): Promise<ClassP
     .order('created_at', { ascending: false })
     .limit(1);
   return (data && data.length > 0) ? data[0] as ClassPackage : null;
+}
+/** Regista uma aula realizada fora da agenda, com a data real do atendimento. */
+export async function registerManualClass(params: {
+  student_id: string;
+  package_id: string;
+  created_by: string;
+  occurred_at: string;
+  reason?: string;
+}) {
+  await deductClassCredit({
+    student_id: params.student_id,
+    package_id: params.package_id,
+    created_by: params.created_by,
+    action_type: 'use_credit',
+    quantity: 1,
+    occurred_at: params.occurred_at,
+    reason: params.reason || 'Aula registada manualmente',
+  });
+}
+
+/** Devolve uma aula ao saldo do pacote (estorno), preservando o histórico. */
+export async function refundClassCredit(params: {
+  student_id: string;
+  package_id: string;
+  created_by: string;
+  reason?: string;
+  occurred_at?: string;
+}) {
+  await deductClassCredit({
+    student_id: params.student_id,
+    package_id: params.package_id,
+    created_by: params.created_by,
+    action_type: 'refund_credit',
+    quantity: 1,
+    occurred_at: params.occurred_at,
+    reason: params.reason || 'Estorno de aula',
+  });
 }

@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
  import { createClassPackage, updateClassPackage, deleteClassPackage, ClassPackage, PAYMENT_METHOD_LABELS } from '@/hooks/useFinancial';
+import { CURRENCY_LABELS, CURRENCY_SYMBOLS, SUPPORTED_CURRENCIES, normalizeCurrency } from '@/lib/financial';
 import { toast } from 'sonner';
 
 type Props = {
@@ -32,6 +33,7 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
     payment_date: new Date().toISOString().slice(0, 10),
     payment_method: 'mbway',
     payment_status: 'pago',
+    currency: 'EUR',
   });
    const [saving, setSaving] = useState(false);
    const [deleting, setDeleting] = useState(false);
@@ -60,6 +62,7 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
         payment_date: pkg.payment_date || new Date().toISOString().slice(0, 10),
         payment_method: pkg.payment_method || 'outro',
         payment_status: pkg.payment_status || 'pago',
+        currency: normalizeCurrency(pkg.currency),
       });
     } else {
       setForm(f => ({ ...f, student_id: preselectedStudentId || f.student_id }));
@@ -83,6 +86,7 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
           notes: form.notes,
           payment_method: form.payment_method,
           payment_status: form.payment_status,
+          currency: form.currency,
         } as any);
         toast.success('Pacote atualizado');
       } else {
@@ -98,6 +102,7 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
           payment_date: form.payment_date,
           payment_method: form.payment_method,
           payment_status: form.payment_status,
+          currency: form.currency,
         });
         toast.success('Pacote criado');
       }
@@ -112,6 +117,10 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
  
    const handleDelete = async () => {
      if (!pkg) return;
+     if ((pkg.used_classes ?? 0) > 0) {
+       toast.error('Este pacote já tem aulas realizadas. Cancele o pacote em vez de apagar, para preservar o histórico.');
+       return;
+     }
      if (!confirm('Tem certeza que deseja apagar este pacote? Isso também removerá o histórico de créditos associado.')) return;
      
      setDeleting(true);
@@ -147,19 +156,28 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
             <Label>Nome do Pacote</Label>
             <Input value={form.package_name} onChange={e => setForm(f => ({ ...f, package_name: e.target.value }))} placeholder="Ex: 8 aulas presenciais" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <Label>Total de Aulas</Label>
               <Input type="number" value={form.total_classes} onChange={e => setForm(f => ({ ...f, total_classes: e.target.value }))} disabled={!!pkg} />
             </div>
             <div>
-              <Label>Valor Total (€)</Label>
+              <Label>Valor Total</Label>
               <Input type="number" step="0.01" value={form.total_amount} onChange={e => setForm(f => ({ ...f, total_amount: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Moeda</Label>
+              <Select value={form.currency} onValueChange={v => setForm(f => ({ ...f, currency: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {SUPPORTED_CURRENCIES.map(c => <SelectItem key={c} value={c}>{CURRENCY_LABELS[c]}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div>
             <Label>Valor por Aula</Label>
-            <Input value={`€${pricePerClass}`} disabled className="bg-muted" />
+            <Input value={`${CURRENCY_SYMBOLS[normalizeCurrency(form.currency)]}${pricePerClass}`} disabled className="bg-muted" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

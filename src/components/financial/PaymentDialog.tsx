@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
  import { createPayment, updatePayment, deletePayment, PAYMENT_TYPE_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_STATUS_LABELS, Payment } from '@/hooks/useFinancial';
+import { CURRENCY_LABELS, SUPPORTED_CURRENCIES, formatMoney } from '@/lib/financial';
 import { toast } from 'sonner';
 
 type Props = {
@@ -161,7 +162,12 @@ const PaymentDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, payment
             </div>
             <div>
               <Label>Moeda</Label>
-              <Input value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))} />
+              <Select value={form.currency} onValueChange={v => setForm(f => ({ ...f, currency: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {SUPPORTED_CURRENCIES.map(c => <SelectItem key={c} value={c}>{CURRENCY_LABELS[c]}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div>
@@ -188,6 +194,11 @@ const PaymentDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, payment
               <Label>Data Pagamento</Label>
               <Input type="datetime-local" value={form.paid_at} onChange={e => setForm(f => ({ ...f, paid_at: e.target.value }))} />
             </div>
+          )}
+          {payment?.billing_plan_id && (
+            <p className="text-xs text-muted-foreground">
+              Cobrança gerada por plano recorrente{payment.reference_month ? ` — mês de referência ${payment.reference_month}` : ''}.
+            </p>
           )}
           <div>
             <Label>Observações</Label>
