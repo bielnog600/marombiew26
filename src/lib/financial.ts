@@ -307,3 +307,119 @@ export function monthUtcRangeForTimezone(
   };
 }
 
+
+/* ------------------------------------------------------------------ *
+ * Resumo mensal (puro)
+ * ------------------------------------------------------------------ */
+
+export type MonthlyPaymentLike = {
+  student_id: string;
+  amount: number | string;
+  currency?: string | null;
+  status: string;
+  paid_at?: string | null;
+  due_date?: string | null;
+  reference_month?: string | null;
+};
+
+export type MonthlyPackageLike = {
+  student_id: string;
+  total_amount: number | string;
+  currency?: string | null;
+  payment_id?: string | null;
+  payment_status: string;
+  payment_date?: string | null;
+};
+
+export type MonthlyTotals = {
+  received: MoneyByCurrency;
+  toReceive: MoneyByCurrency;
+  overdue: MoneyByCurrency;
+  dueSoon: MoneyByCurrency;
+  expectedTotal: MoneyByCurrency;
+  studentsOverdue: number;
+};
+
+/**
+ * Resumo isolado ao mês selecionado.
+ *
+ * - Recebido: pago com `paid_at` dentro do mês (pagamentos) ou `payment_date`
+ *   dentro do mês (pacotes sem `payment_id`).
+ * - A receber / Vencidos / Vence em 7 dias / Alunos em atraso: apenas cobranças
+ *   que pertencem ao mês (reference_month, ou due_date/payment_date no mês).
+ * - Total previsto = recebido + a receber + vencidos do próprio mês.
+ */
+export function summarizeMonth(
+  payments: MonthlyPaymentLike[],
+  packages: MonthlyPackageLike[],
+  key: string,
+  today: Date = new Date(),
+): MonthlyTotals {
+  const totals: MonthlyTotals = {
+    received: emptyMoney(),
+    toReceive: emptyMoney(),
+    overdue: emptyMoney(),
+    dueSoon: emptyMoney(),
+    expectedTotal: emptyMoney(),
+    studentsOverdue: 0,
+  };
+  const overdueStudents = new Set<string>();
+  const { start, end } = monthRange(key);
+
+  for (const p of payments) {
+    if (paymentReceivedInMonth(p, key)) addMoney(totals.received, p.amount, p.currency);
+    if (!paymentBelongsToMonth(p, key)) continue;
+    const status = effectivePaymentStatus(p, today);
+    if (status === 'pendente') {
+      addMoney(totals.toReceive, p.amount, p.currency);
+      if (isDueSoon(p.due_date, today)) addMoney(totals.dueSoon, p.amount, p.currency);
+    } else if (status === 'vencido') {
+      addMoney(totals.overdue, p.amount, p.currency);
+      overdueStudents.add(p.student_id);
+    }
+  }
+
+  for (const pkg of packages) {
+    if (!packageCountsAsOwnRevenue(pkg)) continue; // já contado pelo pagamento
+    if (packageReceivedInMonth(pkg, key)) addMoney(totals.received, pkg.total_amount, pkg.currency);
+    const day = (pkg.payment_date || '').slice(0, 10);
+    if (!day || day < start || day > end) continue;
+    if (pkg.payment_status === 'pendente') {
+      addMoney(totals.toReceive, pkg.total_amount, pkg.currency);
+      if (isDueSoon(day, today)) addMoney(totals.dueSoon, pkg.total_amount, pkg.currency);
+    } else if (pkg.payment_status === 'vencido') {
+      addMoney(totals.overdue, pkg.total_amount, pkg.currency);
+      overdueStudents.add(pkg.student_id);
+    }
+  }
+
+  for (const c of SUPPORTED_CURRENCIES) {
+    totals.expectedTotal[c] = totals.received[c] + totals.toReceive[c] + totals.overdue[c];
+  }
+  totals.studentsOverdue = overdueStudents.size;
+  return totals;
+}
+
+/** Recebido por aluno no mês: pagamentos pagos + pacotes pagos sem `payment_id`. */
+export function receivedByStudentInMonth(
+  payments: (MonthlyPaymentLike & { student_name?: string })[],
+  packages: (MonthlyPackageLike & { student_name?: string })[],
+  key: string,
+): { name: string; currency: Currency; amount: number }[] {
+  const acc = new Map<string, { name: string; currency: Currency; amount: number }>();
+  const add = (name: string, currency: string | null | undefined, amount: number | string) => {
+    const c = normalizeCurrency(currency);
+    const k = `${name}|${c}`;
+    const prev = acc.get(k);
+    const n = Number(amount ?? 0);
+    if (prev) prev.amount += Number.isFinite(n) ? n : 0;
+    else acc.set(k, { name, currency: c, amount: Number.isFinite(n) ? n : 0 });
+  };
+  for (const p of payments) {
+    if (paymentReceivedInMonth(p, key)) add(p.student_name || 'Desconhecido', p.currency, p.amount);
+  }
+  for (const pkg of packages) {
+    if (packageReceivedInMonth(pkg, key)) add(pkg.student_name || 'Desconhecido', pkg.currency, pkg.total_amount);
+  }
+  return [...acc.values()].sort((a, b) => b.amount - a.amount);
+}
