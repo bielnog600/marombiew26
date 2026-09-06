@@ -5,10 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
  import { createClassPackage, updateClassPackage, deleteClassPackage, ClassPackage, PAYMENT_METHOD_LABELS } from '@/hooks/useFinancial';
 import { CURRENCY_LABELS, CURRENCY_SYMBOLS, SUPPORTED_CURRENCIES, normalizeCurrency } from '@/lib/financial';
+import StudentPicker from './StudentPicker';
 import { toast } from 'sonner';
 
 type Props = {
@@ -21,7 +21,6 @@ type Props = {
 
 const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, preselectedStudentId }) => {
   const { user } = useAuth();
-  const [students, setStudents] = useState<{ user_id: string; nome: string }[]>([]);
   const [form, setForm] = useState({
     student_id: preselectedStudentId || '',
     package_name: '',
@@ -44,10 +43,6 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
     if (classes > 0 && total > 0) return (total / classes).toFixed(2);
     return '0.00';
   }, [form.total_amount, form.total_classes]);
-
-  useEffect(() => {
-    supabase.from('profiles').select('user_id, nome').then(({ data }) => setStudents(data || []));
-  }, []);
 
   useEffect(() => {
     if (pkg) {
@@ -145,12 +140,7 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
         <div className="space-y-4">
           <div>
             <Label>Aluno</Label>
-            <Select value={form.student_id} onValueChange={v => setForm(f => ({ ...f, student_id: v }))} disabled={!!pkg}>
-              <SelectTrigger><SelectValue placeholder="Selecionar aluno" /></SelectTrigger>
-              <SelectContent>
-                {students.map(s => <SelectItem key={s.user_id} value={s.user_id}>{s.nome}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <StudentPicker value={form.student_id} onChange={v => setForm(f => ({ ...f, student_id: v }))} disabled={!!pkg} />
           </div>
           <div>
             <Label>Nome do Pacote</Label>
