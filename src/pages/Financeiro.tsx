@@ -21,7 +21,7 @@ import {
   formatMoney, formatMoneyByCurrency, effectivePaymentStatus, monthKey, monthLabel,
   recentMonthKeys, monthRange, isDueSoon, daysUntilDue,
   BILLING_SERVICE_LABELS, BILLING_PLAN_STATUS_LABELS, BILLING_PLAN_STATUS_COLORS,
-  planIsDueInMonth, planDueDateForMonth, packageIsRelevantInMonth,
+  planIsDueInMonth, planDueDateForMonth, packageIsRelevantInMonth, paymentVisibleInMonth,
   receivedByStudentInMonth, formatNextClassLabel,
 } from '@/lib/financial';
 import {
@@ -71,15 +71,11 @@ const Financeiro: React.FC = () => {
 
   const range = useMemo(() => monthRange(selectedMonth), [selectedMonth]);
 
-  /** Pagamentos do mês: pagos no mês OU com vencimento no mês OU criados no mês. */
-  const monthPayments = useMemo(() => payments.filter(p => {
-    const paid = (p.paid_at || '').slice(0, 10);
-    const due = (p.due_date || '').slice(0, 10);
-    const created = (p.created_at || '').slice(0, 10);
-    return (paid >= range.start && paid <= range.end)
-      || (due >= range.start && due <= range.end)
-      || (created >= range.start && created <= range.end);
-  }), [payments, range]);
+  /** Pagamentos do mês: reference_month → due_date → paid_at → created_at (fallback). */
+  const monthPayments = useMemo(
+    () => payments.filter(p => paymentVisibleInMonth(p as any, selectedMonth)),
+    [payments, selectedMonth],
+  );
 
   const monthPackages = useMemo(
     () => packages.filter(pkg => packageIsRelevantInMonth(pkg, selectedMonth)),
@@ -170,7 +166,7 @@ const Financeiro: React.FC = () => {
               <SummaryCard icon={TrendingUp} label="Total previsto" value={formatMoneyByCurrency(summary.expectedTotal)} color="bg-blue-500/20 text-blue-400" />
               <SummaryCard icon={Repeat} label="Planos recorrentes" value={String(summary.recurringActive)} sub={`${formatMoneyByCurrency(summary.recurringExpected)}/mês`} color="bg-purple-500/20 text-purple-300" />
               <SummaryCard icon={Check} label="Aulas realizadas no mês" value={String(summary.classesThisMonth)} sub={`${summary.totalClassesUsed} no total`} />
-              <SummaryCard icon={CalendarDays} label="Aulas restantes" value={String(summary.remainingClasses)} color="bg-blue-500/20 text-blue-400" />
+              <SummaryCard icon={CalendarDays} label="Aulas restantes" value={summary.balanceIsCurrent ? String(summary.remainingClasses) : '—'} sub={summary.balanceIsCurrent ? undefined : 'Saldo histórico não disponível'} color="bg-blue-500/20 text-blue-400" />
               <SummaryCard icon={Package} label="Pacotes ativos" value={String(summary.activePackagesCount)} sub={`${summary.packagesEnding} a acabar`} color="bg-green-500/20 text-green-400" />
               <SummaryCard icon={CalendarDays} label="Aulas vendidas" value={String(summary.totalClassesSold)} />
               <SummaryCard icon={Package} label="Pacotes esgotados" value={String(summary.exhaustedPackages)} color="bg-red-500/20 text-red-400" />
