@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, ChevronRight, AlertTriangle, Activity, Send, UserX, UserCheck, ArrowUpDown } from 'lucide-react';
+import { Search, ChevronRight, AlertTriangle, Activity, Send, ArrowUpDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { differenceInDays, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -37,7 +37,7 @@ interface StudentRow {
   lastActiveAt: string | null;
 }
 
-type FilterKey = 'todos' | 'risco_alto' | 'sem_plano' | 'baixa_aderencia' | 'ativos' | 'desativados' | 'suspensos';
+type FilterKey = 'todos' | 'risco_alto' | 'sem_plano' | 'baixa_aderencia' | 'ativos' | 'suspensos';
 
 const ConsultoriaStudentSearch: React.FC = () => {
   const navigate = useNavigate();
@@ -108,14 +108,13 @@ const ConsultoriaStudentSearch: React.FC = () => {
     return rows
       .filter(r => {
         if (q && !r.name.toLowerCase().includes(q) && !r.email.toLowerCase().includes(q)) return false;
-        // Filtros que NÃO são "desativados" só consideram alunos ativos
-        if (filter !== 'desativados' && filter !== 'suspensos' && !r.ativo) return false;
+        // Exceto no filtro "Suspensos", só consideramos alunos operacionalmente ativos
+        if (filter !== 'suspensos' && !r.ativo) return false;
         switch (filter) {
           case 'risco_alto': return r.risk === 'alto';
           case 'sem_plano': return !r.hasPlan;
           case 'baixa_aderencia': return r.adherence < 40;
           case 'ativos': return r.risk === 'baixo';
-          case 'desativados': return !r.ativo;
           case 'suspensos': return r.accessStatus === 'suspended';
           default: return true;
         }
@@ -137,22 +136,7 @@ const ConsultoriaStudentSearch: React.FC = () => {
     { value: 'baixa_aderencia', label: 'Baixa aderência', count: rows.filter(r => r.ativo && r.adherence < 40).length },
     { value: 'sem_plano', label: 'Sem plano', count: rows.filter(r => r.ativo && !r.hasPlan).length },
     { value: 'suspensos', label: 'Suspensos', count: rows.filter(r => r.accessStatus === 'suspended').length },
-    { value: 'desativados', label: 'Desativados', count: rows.filter(r => !r.ativo).length },
   ];
-
-  const toggleAtivo = async (id: string, currentAtivo: boolean) => {
-    const newAtivo = !currentAtivo;
-    const { error } = await supabase
-      .from('students_profile')
-      .update({ ativo: newAtivo })
-      .eq('user_id', id);
-    if (error) {
-      toast.error('Erro ao atualizar status do aluno');
-      return;
-    }
-    setRows(prev => prev.map(r => r.id === id ? { ...r, ativo: newAtivo } : r));
-    toast.success(newAtivo ? 'Aluno reativado — alertas voltam a aparecer' : 'Aluno desativado — alertas serão ocultados');
-  };
 
   const applyAccessChange = async () => {
     if (!confirmAction) return;
@@ -168,11 +152,12 @@ const ConsultoriaStudentSearch: React.FC = () => {
     setRows(prev => prev.map(r => r.id === row.id ? {
       ...r,
       accessStatus: type === 'suspend' ? 'suspended' : 'active',
+      ativo: type !== 'suspend',
       suspensionReason: type === 'suspend' ? 'manual' : null,
       suspendedAt: type === 'suspend' ? new Date().toISOString() : null,
       lastActiveAt: type === 'suspend' ? r.lastActiveAt : new Date().toISOString(),
     } : r));
-    toast.success(type === 'suspend' ? 'Acesso do aluno suspenso.' : 'Conta reativada com sucesso.');
+    toast.success(type === 'suspend' ? 'Acesso suspenso — o aluno também sai dos alertas.' : 'Conta reativada — o aluno volta aos alertas.');
     setConfirmAction(null);
   };
 
@@ -283,15 +268,6 @@ const ConsultoriaStudentSearch: React.FC = () => {
                           ? <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
                           : <Ban className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />}
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => toggleAtivo(r.id, r.ativo)}
-                        title={r.ativo ? 'Desativar aluno (oculta alertas)' : 'Reativar aluno'}
-                      >
-                        {r.ativo ? <UserX className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" /> : <UserCheck className="h-3.5 w-3.5 text-emerald-500" />}
-                      </Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate(`/alunos/${r.id}?tab=comportamento`)}>
                         <ChevronRight className="h-4 w-4" />
                       </Button>
@@ -315,8 +291,8 @@ const ConsultoriaStudentSearch: React.FC = () => {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmAction?.type === 'suspend'
-                ? 'O aluno não poderá acessar o conteúdo do aplicativo até que a conta seja reativada. Nenhum treino, dieta, avaliação ou histórico será apagado.'
-                : 'O aluno voltará a acessar normalmente o MAROMBIEW.'}
+                ? 'O aluno não poderá acessar o conteúdo do aplicativo até que a conta seja reativada. Ele também deixará de aparecer nos alertas e acompanhamentos operacionais enquanto estiver suspenso. Nenhum treino, dieta, avaliação ou histórico será apagado.'
+                : 'O aluno voltará a acessar normalmente o MAROMBIEW e será reativado nos alertas e acompanhamentos da Consultoria.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
