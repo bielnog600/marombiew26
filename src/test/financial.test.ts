@@ -10,6 +10,7 @@ import {
   paymentBelongsToMonth, paymentVisibleInMonth, packageIsOperationalInMonth,
   planIsRelevantInMonth, planIsOperationalInMonth,
 } from '@/lib/financial';
+import { mapCreditLogError } from '@/hooks/useFinancial';
 
 describe('moeda', () => {
   it('formata euro e real com o símbolo correto', () => {
