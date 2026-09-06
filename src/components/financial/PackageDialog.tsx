@@ -22,7 +22,6 @@ type Props = {
 
 const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, preselectedStudentId }) => {
   const { user } = useAuth();
-  const [students, setStudents] = useState<{ user_id: string; nome: string }[]>([]);
   const [form, setForm] = useState({
     student_id: preselectedStudentId || '',
     package_name: '',
@@ -45,10 +44,6 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
     if (classes > 0 && total > 0) return (total / classes).toFixed(2);
     return '0.00';
   }, [form.total_amount, form.total_classes]);
-
-  useEffect(() => {
-    supabase.from('profiles').select('user_id, nome').then(({ data }) => setStudents(data || []));
-  }, []);
 
   useEffect(() => {
     if (pkg) {
