@@ -250,8 +250,9 @@ describe('vigência de pacote por mês', () => {
     expect(packageIsRelevantInMonth(aberto, '2027-05')).toBe(true);
     expect(packageIsRelevantInMonth(aberto, '2026-07')).toBe(false);
   });
-  it('pacote cancelado nunca é relevante', () => {
-    expect(packageIsRelevantInMonth({ ...pkg, status: 'cancelado' }, '2026-08')).toBe(false);
+  it('pacote cancelado continua relevante no histórico, mas não é operacional', () => {
+    expect(packageIsRelevantInMonth({ ...pkg, status: 'cancelado' }, '2026-08')).toBe(true);
+    expect(packageIsOperationalInMonth({ ...pkg, status: 'cancelado' }, '2026-08')).toBe(false);
   });
 });
 
