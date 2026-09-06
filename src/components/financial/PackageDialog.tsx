@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
  import { createClassPackage, updateClassPackage, deleteClassPackage, ClassPackage, PAYMENT_METHOD_LABELS } from '@/hooks/useFinancial';
 import { CURRENCY_LABELS, CURRENCY_SYMBOLS, SUPPORTED_CURRENCIES, normalizeCurrency } from '@/lib/financial';
+import StudentPicker from './StudentPicker';
 import { toast } from 'sonner';
 
 type Props = {
@@ -145,12 +146,7 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
         <div className="space-y-4">
           <div>
             <Label>Aluno</Label>
-            <Select value={form.student_id} onValueChange={v => setForm(f => ({ ...f, student_id: v }))} disabled={!!pkg}>
-              <SelectTrigger><SelectValue placeholder="Selecionar aluno" /></SelectTrigger>
-              <SelectContent>
-                {students.map(s => <SelectItem key={s.user_id} value={s.user_id}>{s.nome}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <StudentPicker value={form.student_id} onChange={v => setForm(f => ({ ...f, student_id: v }))} disabled={!!pkg} />
           </div>
           <div>
             <Label>Nome do Pacote</Label>

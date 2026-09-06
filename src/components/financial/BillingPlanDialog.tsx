@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { createBillingPlan, updateBillingPlan, deleteBillingPlan, StudentBillingPlan } from '@/hooks/useFinancial';
 import { BILLING_SERVICE_LABELS, BILLING_PLAN_STATUS_LABELS, CURRENCY_LABELS, SUPPORTED_CURRENCIES } from '@/lib/financial';
+import StudentPicker from './StudentPicker';
 import { toast } from 'sonner';
 
 type Props = {
@@ -34,14 +35,9 @@ const emptyForm = {
 
 const BillingPlanDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, plan, preselectedStudentId }) => {
   const { user } = useAuth();
-  const [students, setStudents] = useState<{ user_id: string; nome: string }[]>([]);
   const [form, setForm] = useState({ ...emptyForm, student_id: preselectedStudentId || '' });
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-
-  useEffect(() => {
-    supabase.from('profiles').select('user_id, nome').order('nome').then(({ data }) => setStudents(data || []));
-  }, []);
 
   useEffect(() => {
     if (plan) {
@@ -121,12 +117,7 @@ const BillingPlanDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pla
         <div className="space-y-4">
           <div>
             <Label>Aluno</Label>
-            <Select value={form.student_id} onValueChange={v => setForm(f => ({ ...f, student_id: v }))} disabled={!!plan}>
-              <SelectTrigger><SelectValue placeholder="Selecionar aluno" /></SelectTrigger>
-              <SelectContent>
-                {students.map(s => <SelectItem key={s.user_id} value={s.user_id}>{s.nome}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <StudentPicker value={form.student_id} onChange={v => setForm(f => ({ ...f, student_id: v }))} disabled={!!plan} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

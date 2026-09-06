@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
  import { createPayment, updatePayment, deletePayment, PAYMENT_TYPE_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_STATUS_LABELS, Payment } from '@/hooks/useFinancial';
 import { CURRENCY_LABELS, SUPPORTED_CURRENCIES, formatMoney } from '@/lib/financial';
+import StudentPicker from './StudentPicker';
 import { toast } from 'sonner';
 
 type Props = {
@@ -21,7 +22,6 @@ type Props = {
 
 const PaymentDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, payment, preselectedStudentId }) => {
   const { user } = useAuth();
-  const [students, setStudents] = useState<{ user_id: string; nome: string }[]>([]);
   const [form, setForm] = useState({
     student_id: preselectedStudentId || '',
     type: 'outro' as string,
@@ -36,10 +36,6 @@ const PaymentDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, payment
   });
    const [saving, setSaving] = useState(false);
    const [deleting, setDeleting] = useState(false);
-
-  useEffect(() => {
-    supabase.from('profiles').select('user_id, nome').then(({ data }) => setStudents(data || []));
-  }, []);
 
   useEffect(() => {
     if (payment) {
@@ -128,12 +124,7 @@ const PaymentDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, payment
         <div className="space-y-4">
           <div>
             <Label>Aluno</Label>
-            <Select value={form.student_id} onValueChange={v => setForm(f => ({ ...f, student_id: v }))}>
-              <SelectTrigger><SelectValue placeholder="Selecionar aluno" /></SelectTrigger>
-              <SelectContent>
-                {students.map(s => <SelectItem key={s.user_id} value={s.user_id}>{s.nome}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <StudentPicker value={form.student_id} onChange={v => setForm(f => ({ ...f, student_id: v }))} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
