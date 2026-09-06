@@ -265,7 +265,9 @@ export function useFinancialSummary(selectedMonth?: string) {
     setLoading(true);
     try {
       const today = new Date();
-      const { start, end } = monthRange(key);
+      const currentKey = monthKey(today);
+      const isCurrentMonth = key === currentKey;
+      const { startUtc, endExclusiveUtc } = monthUtcRangeForTimezone(key);
 
       const [{ data: allPayments }, { data: allPackages }, { data: allPlans }, { data: creditsThisMonth }] = await Promise.all([
         supabase.from('payments').select('*'),
@@ -275,8 +277,8 @@ export function useFinancialSummary(selectedMonth?: string) {
           .from('class_credits_log')
           .select('quantity, action_type, occurred_at')
           .eq('action_type', 'use_credit')
-          .gte('occurred_at', `${start}T00:00:00.000Z`)
-          .lte('occurred_at', `${end}T23:59:59.999Z`),
+          .gte('occurred_at', startUtc)
+          .lt('occurred_at', endExclusiveUtc),
       ]);
 
       const payments = (allPayments || []) as any[];
@@ -285,53 +287,33 @@ export function useFinancialSummary(selectedMonth?: string) {
 
       const next = emptySummary(key);
 
-      for (const p of payments) {
-        const status = effectivePaymentStatus(p, today);
-        const paidDay = (p.paid_at || '').slice(0, 10);
-        if (status === 'pago' && paidDay >= start && paidDay <= end) {
-          addMoney(next.received, p.amount, p.currency);
-        }
-        if (status === 'pendente') {
-          addMoney(next.toReceive, p.amount, p.currency);
-          if (isDueSoon(p.due_date, today)) addMoney(next.dueSoon, p.amount, p.currency);
-        }
-        if (status === 'vencido') addMoney(next.overdue, p.amount, p.currency);
-      }
+      const totals = summarizeMonth(payments, packages, key, today);
+      next.received = totals.received;
+      next.toReceive = totals.toReceive;
+      next.overdue = totals.overdue;
+      next.dueSoon = totals.dueSoon;
+      next.expectedTotal = totals.expectedTotal;
+      next.studentsOverdue = totals.studentsOverdue;
 
-      // Pacotes ligados a um pagamento já foram contados acima.
-      for (const pkg of packages) {
-        if (packageCountsAsOwnRevenue(pkg)) {
-          const payDay = (pkg.payment_date || '').slice(0, 10);
-          if (pkg.payment_status === 'pago' && payDay >= start && payDay <= end) {
-            addMoney(next.received, pkg.total_amount, pkg.currency);
-          }
-          if (pkg.payment_status === 'pendente') addMoney(next.toReceive, pkg.total_amount, pkg.currency);
-          if (pkg.payment_status === 'vencido') addMoney(next.overdue, pkg.total_amount, pkg.currency);
-        }
-      }
-
-      const activePackages = packages.filter(p => p.status === 'ativo');
-      next.remainingClasses = activePackages.reduce((s, p) => s + p.remaining_classes, 0);
-      next.activePackagesCount = activePackages.length;
-      next.exhaustedPackages = packages.filter(p => p.status === 'esgotado').length;
-      next.packagesEnding = packages.filter(packageIsEnding).length;
-      next.totalClassesSold = packages.filter(p => p.payment_status === 'pago').reduce((s, p) => s + p.total_classes, 0);
-      next.totalClassesUsed = packages.reduce((s, p) => s + p.used_classes, 0);
+      // Pacotes vigentes no mês (sobreposição de datas), sem inventar saldo histórico.
+      const relevantPackages = packages.filter(p => packageIsRelevantInMonth(p, key));
+      next.activePackagesCount = isCurrentMonth
+        ? packages.filter(p => p.status === 'ativo').length
+        : relevantPackages.length;
+      next.balanceIsCurrent = isCurrentMonth;
+      next.remainingClasses = isCurrentMonth
+        ? packages.filter(p => p.status === 'ativo').reduce((s, p) => s + p.remaining_classes, 0)
+        : 0;
+      next.packagesEnding = isCurrentMonth ? packages.filter(packageIsEnding).length : 0;
+      next.exhaustedPackages = isCurrentMonth ? packages.filter(p => p.status === 'esgotado').length : 0;
+      next.totalClassesSold = relevantPackages.filter(p => p.payment_status === 'pago').reduce((s, p) => s + p.total_classes, 0);
+      next.totalClassesUsed = relevantPackages.reduce((s, p) => s + p.used_classes, 0);
       next.classesThisMonth = (creditsThisMonth || []).reduce((s: number, c: any) => s + c.quantity, 0);
-
-      const overdueStudents = new Set(
-        payments.filter(p => effectivePaymentStatus(p, today) === 'vencido').map(p => p.student_id),
-      );
-      packages.filter(p => packageCountsAsOwnRevenue(p) && p.payment_status === 'vencido').forEach(p => overdueStudents.add(p.student_id));
-      next.studentsOverdue = overdueStudents.size;
 
       const activePlans = plans.filter(p => p.status === 'active');
       next.recurringActive = activePlans.length;
       activePlans.forEach(p => addMoney(next.recurringExpected, p.amount, p.currency));
 
-      for (const c of Object.keys(next.expectedTotal) as Currency[]) {
-        next.expectedTotal[c] = next.received[c] + next.toReceive[c] + next.overdue[c];
-      }
 
       setSummary(next);
     } catch (err) {
