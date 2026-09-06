@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
  import { createClassPackage, updateClassPackage, deleteClassPackage, ClassPackage, PAYMENT_METHOD_LABELS } from '@/hooks/useFinancial';
-import { CURRENCY_LABELS, CURRENCY_SYMBOLS, SUPPORTED_CURRENCIES, normalizeCurrency } from '@/lib/financial';
+import { CURRENCY_LABELS, CURRENCY_SYMBOLS, SUPPORTED_CURRENCIES, normalizeCurrency, nextPackageStartDate, packageDatesWarning } from '@/lib/financial';
 import StudentPicker from './StudentPicker';
 import { toast } from 'sonner';
 
@@ -34,6 +34,7 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
     payment_status: 'pago',
     currency: 'EUR',
   });
+   const [startTouched, setStartTouched] = useState(false);
    const [saving, setSaving] = useState(false);
    const [deleting, setDeleting] = useState(false);
 
@@ -43,6 +44,11 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
     if (classes > 0 && total > 0) return (total / classes).toFixed(2);
     return '0.00';
   }, [form.total_amount, form.total_classes]);
+
+  const datesWarning = useMemo(
+    () => packageDatesWarning(form.payment_date, form.start_date),
+    [form.payment_date, form.start_date],
+  );
 
   useEffect(() => {
     if (pkg) {
@@ -59,7 +65,9 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
         payment_status: pkg.payment_status || 'pago',
         currency: normalizeCurrency(pkg.currency),
       });
+      setStartTouched(true);
     } else {
+      setStartTouched(false);
       setForm(f => ({ ...f, student_id: preselectedStudentId || f.student_id }));
     }
   }, [pkg, preselectedStudentId]);
@@ -169,16 +177,38 @@ const PackageDialog: React.FC<Props> = ({ open, onOpenChange, onSuccess, pkg, pr
             <Label>Valor por Aula</Label>
             <Input value={`${CURRENCY_SYMBOLS[normalizeCurrency(form.currency)]}${pricePerClass}`} disabled className="bg-muted" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div>
-              <Label>Data de Pagamento</Label>
-              <Input type="date" value={form.payment_date} onChange={e => setForm(f => ({ ...f, payment_date: e.target.value }))} />
+              <Label>Data do Pagamento</Label>
+              <Input
+                type="date"
+                value={form.payment_date}
+                onChange={e => setForm(f => ({
+                  ...f,
+                  payment_date: e.target.value,
+                  start_date: nextPackageStartDate(e.target.value, f.start_date, startTouched || !!pkg),
+                }))}
+              />
             </div>
             <div>
-              <Label>Validade</Label>
+              <Label>Início da Vigência</Label>
+              <Input
+                type="date"
+                value={form.start_date}
+                onChange={e => { setStartTouched(true); setForm(f => ({ ...f, start_date: e.target.value })); }}
+              />
+            </div>
+            <div>
+              <Label>Fim da Vigência</Label>
               <Input type="date" value={form.expiry_date} onChange={e => setForm(f => ({ ...f, expiry_date: e.target.value }))} />
             </div>
           </div>
+          {datesWarning && (
+            <p className="text-xs text-yellow-400">{datesWarning}</p>
+          )}
+          <p className="text-[11px] text-muted-foreground">
+            As aulas só consomem crédito deste pacote se ocorrerem dentro da vigência.
+          </p>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Método de Pagamento</Label>
