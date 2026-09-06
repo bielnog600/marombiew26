@@ -454,3 +454,13 @@ export function formatNextClassLabel(iso: string, timeZone: string = OPERATIONAL
   }).formatToParts(d)) parts[p.type] = p.value;
   return `${parts.day}/${parts.month} às ${parts.hour}:${parts.minute}`;
 }
+
+/** "YYYY-MM-DDTHH:mm" agora, no timezone operacional (para inputs datetime-local). */
+export function nowInOperationalTimezone(now: Date = new Date(), timeZone: string = OPERATIONAL_TIMEZONE): string {
+  const parts: Record<string, string> = {};
+  for (const p of new Intl.DateTimeFormat('en-CA', {
+    timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(now)) parts[p.type] = p.value;
+  return `${parts.year}-${parts.month}-${parts.day}T${String(Number(parts.hour) % 24).padStart(2, '0')}:${parts.minute}`;
+}

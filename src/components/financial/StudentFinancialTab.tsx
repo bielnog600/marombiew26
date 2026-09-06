@@ -20,13 +20,11 @@ import ManualClassDialog from '@/components/financial/ManualClassDialog';
 import AdjustCreditsDialog from '@/components/financial/AdjustCreditsDialog';
 import { Plus, Package, Check, RefreshCw, AlertTriangle, Repeat, CalendarPlus, Undo2, SlidersHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAuth } from '@/contexts/AuthContext';
 import { ClassCreditLog } from '@/hooks/useFinancial';
 
 type Props = { studentId: string; studentName: string };
 
 const StudentFinancialTab: React.FC<Props> = ({ studentId, studentName }) => {
-  const { user } = useAuth();
   const today = new Date();
   const { payments, loading: pLoading, refetch: refetchP } = usePayments(studentId);
   const { packages, loading: pkgLoading, refetch: refetchPkg } = useClassPackages(studentId);
