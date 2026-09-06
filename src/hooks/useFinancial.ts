@@ -5,7 +5,7 @@ import { startOfMonth, endOfMonth, format, subDays, addDays } from 'date-fns';
 import {
   MoneyByCurrency, emptyMoney, addMoney,
   monthKey, packageIsEnding, packageCanBeDeleted, formatMoney,
-  summarizeMonth, packageIsRelevantInMonth, monthUtcRangeForTimezone, planIsDueInMonth,
+  summarizeMonth, packageIsRelevantInMonth, monthUtcRangeForTimezone, planIsRelevantInMonth, planIsOperationalInMonth,
   NEXT_CLASS_EXCLUDED_STATUSES,
 } from '@/lib/financial';
 
@@ -314,8 +314,11 @@ export function useFinancialSummary(selectedMonth?: string) {
       next.totalClassesUsed = relevantPackages.reduce((s, p) => s + p.used_classes, 0);
       next.classesThisMonth = (creditsThisMonth || []).reduce((s: number, c: any) => s + c.quantity, 0);
 
-      // Planos recorrentes vigentes no mês selecionado (regra canónica partilhada).
-      const activePlans = plans.filter(p => planIsDueInMonth(p as any, key));
+      // Mês atual: planos operacionalmente ativos. Mês histórico: planos vigentes
+      // por datas (o estado atual `ended`/`paused` não apaga o passado).
+      const activePlans = plans.filter(p => isCurrentMonth
+        ? planIsOperationalInMonth(p as any, key)
+        : planIsRelevantInMonth(p as any, key));
       next.recurringActive = activePlans.length;
       activePlans.forEach(p => addMoney(next.recurringExpected, p.amount, p.currency));
 

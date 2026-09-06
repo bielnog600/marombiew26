@@ -158,16 +158,40 @@ export const BILLING_PLAN_STATUS_COLORS: Record<string, string> = {
   ended: 'bg-muted text-muted-foreground border-muted',
 };
 
-/** Um plano está vigente no mês indicado? (mesma regra usada no servidor) */
+/**
+ * Vigência HISTÓRICA de um plano: sobreposição de datas com o mês indicado.
+ * O estado atual (`ended`/`paused`) nunca apaga o passado — não existe histórico
+ * fiável de quando o plano terminou ou foi pausado.
+ */
+export function planIsRelevantInMonth(
+  plan: { billing_frequency: string; start_date: string; end_date?: string | null },
+  key: string,
+): boolean {
+  if (plan.billing_frequency !== 'monthly') return false;
+  const { start, end } = monthRange(key);
+  if ((plan.start_date || '').slice(0, 10) > end) return false;
+  const endDate = (plan.end_date || '').slice(0, 10);
+  if (endDate && endDate < start) return false;
+  return true;
+}
+
+/** Plano operacionalmente ativo: vigente no mês E com estado atual `active`. */
+export function planIsOperationalInMonth(
+  plan: { status: string; billing_frequency: string; start_date: string; end_date?: string | null },
+  key: string,
+): boolean {
+  return plan.status === 'active' && planIsRelevantInMonth(plan, key);
+}
+
+/**
+ * Um plano gera cobrança no mês indicado? (mesma regra usada no servidor)
+ * Continua a exigir `status === 'active'`: histórico nunca gera cobrança nova.
+ */
 export function planIsDueInMonth(
   plan: { status: string; billing_frequency: string; start_date: string; end_date?: string | null },
   key: string,
 ): boolean {
-  if (plan.status !== 'active' || plan.billing_frequency !== 'monthly') return false;
-  const { start, end } = monthRange(key);
-  if (plan.start_date > end) return false;
-  if (plan.end_date && plan.end_date < start) return false;
-  return true;
+  return planIsOperationalInMonth(plan, key);
 }
 
 /**
