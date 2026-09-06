@@ -505,6 +505,20 @@ export async function createClassPackage(data: {
    if (error) throw error;
  }
 
+/** Mensagem segura quando o banco bloqueia um débito duplicado da mesma aula. */
+export const DUPLICATE_CREDIT_MESSAGE = 'Esta aula já foi descontada deste aluno.';
+
+/** Traduz erros do log de créditos: unique violation (23505) vira mensagem amigável. */
+export function mapCreditLogError(error: { code?: string | null; message?: string | null } | null | undefined): string {
+  const code = error?.code ?? '';
+  const message = error?.message ?? '';
+  if (code === '23505' || /duplicate key|unique_event_student_use_credit/i.test(message)) {
+    return DUPLICATE_CREDIT_MESSAGE;
+  }
+  return message || 'Não foi possível registar o consumo de aula.';
+}
+
+
 export async function deductClassCredit(params: {
   student_id: string;
   package_id: string;
