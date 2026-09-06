@@ -147,10 +147,20 @@ export interface ExerciseProfileRepair {
   next: string | null;
 }
 
+export interface ExerciseProfileOpportunity {
+  day: string;
+  exercise: string;
+  articulatedCandidate: string;
+  applied: boolean;
+  reason: string;
+}
+
 export interface ExerciseProfileAudit {
   profile: ExerciseProfile;
   violations: ExerciseProfileViolation[];
   repairs: ExerciseProfileRepair[];
+  /** Somente para articulated_plus_basic: oportunidades detectadas nos principais. */
+  opportunities?: ExerciseProfileOpportunity[];
   status: ExerciseProfileAuditStatus;
 }
 

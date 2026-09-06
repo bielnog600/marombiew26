@@ -27,7 +27,7 @@ import {
 } from "./exerciseEquipmentProfile.ts";
 
 
-export type CatalogEntryLike = { nome: string; grupo: string };
+export type CatalogEntryLike = { nome: string; grupo: string; equipment_type?: string | null };
 
 export type VariationTier = "A" | "B" | "C";
 
@@ -185,7 +185,10 @@ export function evaluateVariationCandidate(input: {
   }
 
   // Perfil de equipamento: hard gate somente no perfil BASIC.
-  if (opts.exerciseProfile && !isExerciseAllowedByProfile(candidate, opts.exerciseProfile)) {
+  if (
+    opts.exerciseProfile &&
+    !isExerciseAllowedByProfile(candidate, opts.exerciseProfile, candEntry ?? null)
+  ) {
     return { valid: false, tier: null, reason: "profile_conflict" };
   }
 
