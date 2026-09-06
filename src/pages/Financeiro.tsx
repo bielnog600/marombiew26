@@ -19,7 +19,7 @@ import PackageDialog from '@/components/financial/PackageDialog';
 import BillingPlanDialog from '@/components/financial/BillingPlanDialog';
 import {
   formatMoney, formatMoneyByCurrency, effectivePaymentStatus, monthKey, monthLabel,
-  recentMonthKeys, monthRange, isDueSoon, daysUntilDue,
+  recentMonthKeys, isDueSoon, daysUntilDue,
   BILLING_SERVICE_LABELS, BILLING_PLAN_STATUS_LABELS, BILLING_PLAN_STATUS_COLORS,
   planIsDueInMonth, planDueDateForMonth, packageIsRelevantInMonth, paymentVisibleInMonth,
   receivedByStudentInMonth, formatNextClassLabel,
@@ -68,8 +68,6 @@ const Financeiro: React.FC = () => {
   const [generating, setGenerating] = useState(false);
 
   const refetchAll = () => { refetchSummary(); refetchPayments(); refetchPackages(); refetchPlans(); };
-
-  const range = useMemo(() => monthRange(selectedMonth), [selectedMonth]);
 
   /** Pagamentos do mês: reference_month → due_date → paid_at → created_at (fallback). */
   const monthPayments = useMemo(

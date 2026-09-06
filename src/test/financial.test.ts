@@ -360,3 +360,79 @@ describe('pertença ao mês', () => {
     expect(paymentBelongsToMonth({ reference_month: null, due_date: null }, '2026-08')).toBe(false);
   });
 });
+
+describe('correção final do financeiro — 4 ajustes', () => {
+  const CANCELLED = { status: 'cancelado', start_date: '2026-08-18', expiry_date: '2026-09-17', remaining_classes: 2, used_classes: 3 };
+
+  it('pacote cancelado continua relevante em agosto', () => {
+    expect(packageIsRelevantInMonth(CANCELLED, '2026-08')).toBe(true);
+  });
+
+  it('pacote cancelado continua relevante em setembro', () => {
+    expect(packageIsRelevantInMonth(CANCELLED, '2026-09')).toBe(true);
+  });
+
+  it('pacote cancelado não é relevante em outubro', () => {
+    expect(packageIsRelevantInMonth(CANCELLED, '2026-10')).toBe(false);
+  });
+
+  it('pacote cancelado não é operacional no mês vigente', () => {
+    expect(packageIsOperationalInMonth(CANCELLED, '2026-09')).toBe(false);
+    expect(packageIsOperationalInMonth({ ...CANCELLED, status: 'ativo' }, '2026-09')).toBe(true);
+  });
+
+  it('pacote cancelado não entra em pacotes a acabar', () => {
+    expect(packageIsEnding(CANCELLED)).toBe(false);
+  });
+
+  it('planIsDueInMonth: plano que começa em outubro não conta em agosto/setembro', () => {
+    const plan = { status: 'active', billing_frequency: 'monthly', start_date: '2026-10-01', end_date: null };
+    expect(planIsDueInMonth(plan, '2026-08')).toBe(false);
+    expect(planIsDueInMonth(plan, '2026-09')).toBe(false);
+    expect(planIsDueInMonth(plan, '2026-10')).toBe(true);
+  });
+
+  it('planIsDueInMonth: plano terminado em agosto não conta em setembro', () => {
+    const plan = { status: 'active', billing_frequency: 'monthly', start_date: '2026-01-01', end_date: '2026-08-31' };
+    expect(planIsDueInMonth(plan, '2026-08')).toBe(true);
+    expect(planIsDueInMonth(plan, '2026-09')).toBe(false);
+  });
+
+  it('planIsDueInMonth: plano pausado nunca conta', () => {
+    expect(planIsDueInMonth({ status: 'paused', billing_frequency: 'monthly', start_date: '2026-01-01', end_date: null }, '2026-09')).toBe(false);
+  });
+
+  it('recurringExpected separa EUR e BRL por vigência', () => {
+    const plans = [
+      { status: 'active', billing_frequency: 'monthly', start_date: '2026-01-01', end_date: null, amount: 70, currency: 'EUR' },
+      { status: 'active', billing_frequency: 'monthly', start_date: '2026-10-01', end_date: null, amount: 250, currency: 'BRL' },
+    ];
+    const sum = (key: string) => plans.filter(p => planIsDueInMonth(p, key)).reduce((acc, p) => addMoney(acc, p.amount, p.currency), emptyMoney());
+    expect(sum('2026-09')).toEqual({ EUR: 70, BRL: 0 });
+    expect(sum('2026-10')).toEqual({ EUR: 70, BRL: 250 });
+  });
+
+  it('paymentVisibleInMonth: reference_month tem prioridade sobre created_at e due_date', () => {
+    const p = { reference_month: '2026-09', due_date: '2026-08-10', created_at: '2026-08-28T10:00:00Z', status: 'pendente' };
+    expect(paymentVisibleInMonth(p, '2026-08')).toBe(false);
+    expect(paymentVisibleInMonth(p, '2026-09')).toBe(true);
+  });
+
+  it('paymentVisibleInMonth: due_date tem prioridade sobre created_at', () => {
+    const p = { reference_month: null, due_date: '2026-09-10', created_at: '2026-08-25T10:00:00Z', status: 'pendente' };
+    expect(paymentVisibleInMonth(p, '2026-08')).toBe(false);
+    expect(paymentVisibleInMonth(p, '2026-09')).toBe(true);
+  });
+
+  it('paymentVisibleInMonth: pago sem referência nem vencimento usa paid_at', () => {
+    const p = { reference_month: null, due_date: null, status: 'pago', paid_at: '2026-08-18T09:00:00Z', created_at: '2026-07-01T09:00:00Z' };
+    expect(paymentVisibleInMonth(p, '2026-08')).toBe(true);
+    expect(paymentVisibleInMonth(p, '2026-07')).toBe(false);
+  });
+
+  it('paymentVisibleInMonth: sem qualquer referência usa created_at como fallback', () => {
+    const p = { reference_month: null, due_date: null, status: 'pendente', paid_at: null, created_at: '2026-08-20T09:00:00Z' };
+    expect(paymentVisibleInMonth(p, '2026-08')).toBe(true);
+    expect(paymentVisibleInMonth(p, '2026-09')).toBe(false);
+  });
+});
