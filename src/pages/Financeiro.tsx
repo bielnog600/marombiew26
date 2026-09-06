@@ -373,7 +373,7 @@ const Financeiro: React.FC = () => {
                   <div><span className="text-muted-foreground">Total previsto:</span> <span className="font-medium">{formatMoneyByCurrency(summary.expectedTotal)}</span></div>
                   <div><span className="text-muted-foreground">Aulas realizadas no mês:</span> <span className="font-medium">{summary.classesThisMonth}</span></div>
                   <div><span className="text-muted-foreground">Aulas restantes:</span> <span className="font-medium">{summary.balanceIsCurrent ? summary.remainingClasses : '—'}</span></div>
-                  <div><span className="text-muted-foreground">Pacotes ativos:</span> <span className="font-medium">{summary.activePackagesCount}</span></div>
+                  <div><span className="text-muted-foreground">{summary.balanceIsCurrent ? 'Pacotes ativos:' : 'Pacotes vigentes no mês:'}</span> <span className="font-medium">{summary.activePackagesCount}</span></div>
                   <div><span className="text-muted-foreground">Alunos em atraso:</span> <span className="font-medium text-red-400">{summary.studentsOverdue}</span></div>
                 </div>
                 {!summary.balanceIsCurrent && (
