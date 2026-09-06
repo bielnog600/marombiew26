@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
  import { createClassPackage, updateClassPackage, deleteClassPackage, ClassPackage, PAYMENT_METHOD_LABELS } from '@/hooks/useFinancial';
 import { CURRENCY_LABELS, CURRENCY_SYMBOLS, SUPPORTED_CURRENCIES, normalizeCurrency } from '@/lib/financial';

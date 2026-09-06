@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { createBillingPlan, updateBillingPlan, deleteBillingPlan, StudentBillingPlan } from '@/hooks/useFinancial';
 import { BILLING_SERVICE_LABELS, BILLING_PLAN_STATUS_LABELS, CURRENCY_LABELS, SUPPORTED_CURRENCIES } from '@/lib/financial';
