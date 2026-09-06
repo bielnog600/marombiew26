@@ -21,7 +21,6 @@ import {
   variationFamilyOf,
 } from "./variationFamilies.ts";
 import {
-  classifyExerciseEquipmentStyle,
   equipmentStylePreferenceScore,
   isExerciseAllowedByProfile,
   type ExerciseProfile,
