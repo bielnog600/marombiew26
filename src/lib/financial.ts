@@ -170,10 +170,140 @@ export function planIsDueInMonth(
   return true;
 }
 
-/** Data de vencimento do plano no mês indicado, limitada ao último dia do mês. */
-export function planDueDateForMonth(plan: { due_day: number }, key: string): string {
+/**
+ * Vencimento do plano no mês indicado.
+ *
+ * Regra determinística (idêntica no servidor, em generate_recurring_charges):
+ * 1. candidato = dia `due_day` do mês, limitado ao último dia do mês;
+ * 2. no primeiro mês, nunca antes de `start_date` → usa `start_date`;
+ * 3. se o plano termina dentro do mês, nunca depois de `end_date` → usa `end_date`.
+ */
+export function planDueDateForMonth(
+  plan: { due_day: number; start_date?: string | null; end_date?: string | null },
+  key: string,
+): string {
   const { start, end } = monthRange(key);
-  const day = Math.min(Math.max(Math.trunc(plan.due_day) || 1, 1), 28);
+  const day = Math.min(Math.max(Math.trunc(plan.due_day) || 1, 1), 31);
   const candidate = `${start.slice(0, 8)}${String(day).padStart(2, '0')}`;
-  return candidate > end ? end : candidate;
+  let due = candidate > end ? end : candidate;
+  const startDate = (plan.start_date || '').slice(0, 10);
+  if (startDate && startDate >= start && startDate <= end && due < startDate) due = startDate;
+  const endDate = (plan.end_date || '').slice(0, 10);
+  if (endDate && endDate >= start && endDate <= end && due > endDate) due = endDate;
+  return due;
 }
+
+/* ------------------------------------------------------------------ *
+ * Isolamento mensal
+ * ------------------------------------------------------------------ */
+
+/**
+ * Uma cobrança pertence ao mês selecionado quando:
+ * - tem `reference_month` igual ao mês; ou
+ * - na ausência de `reference_month`, o `due_date` cai dentro do mês.
+ * Cobranças sem referência temporal fiável nunca entram no resumo mensal.
+ */
+export function paymentBelongsToMonth(
+  payment: { reference_month?: string | null; due_date?: string | null },
+  key: string,
+): boolean {
+  if (payment.reference_month) return payment.reference_month.slice(0, 7) === key;
+  const due = (payment.due_date || '').slice(0, 10);
+  if (!due) return false;
+  const { start, end } = monthRange(key);
+  return due >= start && due <= end;
+}
+
+/** Um recebimento entra na receita do mês em que foi efetivamente pago. */
+export function paymentReceivedInMonth(
+  payment: { status: string; paid_at?: string | null },
+  key: string,
+): boolean {
+  if (payment.status !== 'pago') return false;
+  const paid = (payment.paid_at || '').slice(0, 10);
+  if (!paid) return false;
+  const { start, end } = monthRange(key);
+  return paid >= start && paid <= end;
+}
+
+/** Um pacote sem pagamento associado entra na receita do mês do `payment_date`. */
+export function packageReceivedInMonth(
+  pkg: { payment_id?: string | null; payment_status: string; payment_date?: string | null },
+  key: string,
+): boolean {
+  if (!packageCountsAsOwnRevenue(pkg)) return false;
+  if (pkg.payment_status !== 'pago') return false;
+  const day = (pkg.payment_date || '').slice(0, 10);
+  if (!day) return false;
+  const { start, end } = monthRange(key);
+  return day >= start && day <= end;
+}
+
+/**
+ * Vigência de um pacote num mês civil: sobreposição de intervalos.
+ * Pacote sem `expiry_date` é considerado vigente de `start_date` em diante.
+ * Pacotes cancelados nunca são relevantes.
+ */
+export function packageIsRelevantInMonth(
+  pkg: { status: string; start_date?: string | null; expiry_date?: string | null },
+  key: string,
+): boolean {
+  if (pkg.status === 'cancelado') return false;
+  const { start, end } = monthRange(key);
+  const startDate = (pkg.start_date || '').slice(0, 10);
+  if (startDate && startDate > end) return false;
+  const expiry = (pkg.expiry_date || '').slice(0, 10);
+  if (expiry && expiry < start) return false;
+  return true;
+}
+
+/* ------------------------------------------------------------------ *
+ * Timezone
+ * ------------------------------------------------------------------ */
+
+/** Timezone operacional do admin. */
+export const OPERATIONAL_TIMEZONE = 'Europe/Lisbon';
+
+function timezoneOffsetMinutes(utcDate: Date, timeZone: string): number {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+  const parts: Record<string, string> = {};
+  for (const p of dtf.formatToParts(utcDate)) parts[p.type] = p.value;
+  const asUtc = Date.UTC(
+    Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+    Number(parts.hour) % 24, Number(parts.minute), Number(parts.second),
+  );
+  return (asUtc - utcDate.getTime()) / 60000;
+}
+
+/** Converte um instante local (YYYY-MM-DDTHH:mm[:ss]) do timezone indicado em UTC. */
+export function localDateTimeToUtcIso(local: string, timeZone: string = OPERATIONAL_TIMEZONE): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/.exec(local);
+  if (!m) throw new Error('Data/hora inválida');
+  const naive = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6] || 0));
+  // Duas passagens resolvem as transições de horário de verão.
+  let guess = naive - timezoneOffsetMinutes(new Date(naive), timeZone) * 60000;
+  guess = naive - timezoneOffsetMinutes(new Date(guess), timeZone) * 60000;
+  return new Date(guess).toISOString();
+}
+
+/**
+ * Intervalo UTC [startUtc, endExclusiveUtc) correspondente ao mês civil local.
+ * Resolve corretamente o horário de verão.
+ */
+export function monthUtcRangeForTimezone(
+  key: string,
+  timeZone: string = OPERATIONAL_TIMEZONE,
+): { startUtc: string; endExclusiveUtc: string } {
+  if (!isValidMonthKey(key)) throw new Error('Mês de referência inválido');
+  const [y, m] = key.split('-').map(Number);
+  const nextKey = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+  return {
+    startUtc: localDateTimeToUtcIso(`${key}-01T00:00:00`, timeZone),
+    endExclusiveUtc: localDateTimeToUtcIso(`${nextKey}-01T00:00:00`, timeZone),
+  };
+}
+
