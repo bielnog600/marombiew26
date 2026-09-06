@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, ShieldCheck, AlertTriangle, CheckCircle2, RefreshCw, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -17,41 +19,56 @@ interface Props {
 }
 
 const STATUS_LABEL: Record<ReconciliationStatus, string> = {
-  ok: 'OK',
-  auto_fixed: 'Corrigido',
-  no_package: 'Sem pacote',
+  ok: 'Já conciliada',
+  ready_to_fix: 'Pronto para conciliar',
+  fixed: 'Conciliada',
+  no_valid_package: 'Sem pacote válido na data',
   multiple_packages: 'Múltiplos pacotes',
-  zero_balance: 'Saldo zerado',
-  expired_package: 'Pacote vencido',
+  zero_balance: 'Saldo insuficiente',
   no_students: 'Sem aluno',
   error: 'Erro',
 };
 
 const STATUS_COLOR: Record<ReconciliationStatus, string> = {
   ok: 'bg-green-500/20 text-green-300 border-green-500/30',
-  auto_fixed: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-  no_package: 'bg-red-500/20 text-red-300 border-red-500/30',
+  ready_to_fix: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+  fixed: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+  no_valid_package: 'bg-red-500/20 text-red-300 border-red-500/30',
   multiple_packages: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
   zero_balance: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
-  expired_package: 'bg-red-500/20 text-red-300 border-red-500/30',
   no_students: 'bg-muted text-muted-foreground border-muted',
   error: 'bg-red-500/20 text-red-300 border-red-500/30',
 };
+
+function firstDayOfMonth(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 export default function AgendaReconciliationDialog({ open, onOpenChange, onApplied }: Props) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [fromDate, setFromDate] = useState(firstDayOfMonth());
+  const [toDate, setToDate] = useState(todayStr());
   const [result, setResult] = useState<ReconciliationResult | null>(null);
 
   const run = async (dryRun: boolean) => {
     if (!user) return;
     if (dryRun) setLoading(true); else setApplying(true);
     try {
-      const r = await reconcileAgendaPackages({ adminId: user.id, dryRun });
+      const r = await reconcileAgendaPackages({
+        adminId: user.id,
+        fromDate: new Date(`${fromDate}T00:00:00`),
+        toDate: new Date(`${toDate}T23:59:59`),
+        dryRun,
+      });
       setResult(r);
       if (!dryRun) {
-        if (r.fixed > 0) toast.success(`${r.fixed} correção(ões) automática(s) aplicadas`);
+        if (r.fixed > 0) toast.success(`${r.fixed} aula(s) conciliada(s)`);
         if (r.pending > 0) toast.warning(`${r.pending} caso(s) precisam de revisão manual`);
         if (r.fixed === 0 && r.pending === 0) toast.success('Nenhuma inconsistência encontrada');
         onApplied?.();
@@ -65,8 +82,10 @@ export default function AgendaReconciliationDialog({ open, onOpenChange, onAppli
     }
   };
 
-  const pendingItems = (result?.items || []).filter(i => i.status !== 'ok' && i.status !== 'auto_fixed');
-  const fixedItems = (result?.items || []).filter(i => i.status === 'auto_fixed');
+  const pendingItems = (result?.items || []).filter(
+    i => i.status !== 'ok' && i.status !== 'ready_to_fix' && i.status !== 'fixed'
+  );
+  const doneItems = (result?.items || []).filter(i => i.status === 'ready_to_fix' || i.status === 'fixed');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -79,18 +98,29 @@ export default function AgendaReconciliationDialog({ open, onOpenChange, onAppli
 
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Verifica aulas realizadas (ou faltas sem aviso) dos últimos 60 dias e confirma
-            se houve débito de crédito no pacote do aluno. Quando houver apenas <b>um pacote
-            ativo válido com saldo</b>, a correção é aplicada automaticamente.
+            Verifica aulas realizadas (ou faltas sem aviso) no período escolhido e confirma
+            se houve débito de crédito. O crédito só é debitado de um pacote que estava
+            <b> vigente na data da aula</b>, e o consumo fica registado com a data real da aula.
           </p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Data inicial</Label>
+              <Input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setResult(null); }} />
+            </div>
+            <div>
+              <Label className="text-xs">Data final</Label>
+              <Input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setResult(null); }} />
+            </div>
+          </div>
 
           {!result && (
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => run(true)} disabled={loading} className="gap-2">
+              <Button onClick={() => run(true)} disabled={loading} className="gap-2">
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 Apenas verificar
               </Button>
-              <Button onClick={() => run(false)} disabled={applying} className="gap-2">
+              <Button variant="outline" onClick={() => run(false)} disabled={applying} className="gap-2">
                 {applying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
                 Verificar e corrigir
               </Button>
@@ -101,9 +131,9 @@ export default function AgendaReconciliationDialog({ open, onOpenChange, onAppli
             <>
               <div className="grid grid-cols-4 gap-2">
                 <Stat label="Verificadas" value={result.scanned} />
-                <Stat label="OK" value={result.ok} tone="ok" />
-                <Stat label="Corrigidas" value={result.fixed} tone="fixed" />
-                <Stat label="Pendentes" value={result.pending} tone="pending" />
+                <Stat label="Já conciliadas" value={result.ok} tone="ok" />
+                <Stat label={result.fixed > 0 ? 'Conciliadas' : 'Prontas'} value={result.fixed > 0 ? result.fixed : result.ready} tone="fixed" />
+                <Stat label="Precisam revisão" value={result.pending} tone="pending" />
               </div>
 
               <ScrollArea className="h-[40vh] rounded-md border border-border/50 p-2">
@@ -114,7 +144,7 @@ export default function AgendaReconciliationDialog({ open, onOpenChange, onAppli
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {fixedItems.map((it, i) => (
+                    {doneItems.map((it, i) => (
                       <ItemRow key={`f-${i}`} item={it} />
                     ))}
                     {pendingItems.map((it, i) => (
@@ -125,9 +155,15 @@ export default function AgendaReconciliationDialog({ open, onOpenChange, onAppli
               </ScrollArea>
 
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => { setResult(null); run(false); }} disabled={applying} className="gap-2">
-                  {applying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                  Rodar novamente e corrigir
+                {result.ready > 0 && (
+                  <Button onClick={() => { setResult(null); run(false); }} disabled={applying} className="gap-2">
+                    {applying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                    Aplicar {result.ready} conciliação(ões)
+                  </Button>
+                )}
+                <Button variant="outline" onClick={() => run(true)} disabled={loading} className="gap-2">
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  Verificar novamente
                 </Button>
                 <Button variant="ghost" onClick={() => setResult(null)}>Limpar</Button>
               </div>
@@ -158,7 +194,7 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: 'ok
 }
 
 function ItemRow({ item }: { item: ReconciliationItem }) {
-  const isPending = item.status !== 'ok' && item.status !== 'auto_fixed';
+  const isPending = item.status !== 'ok' && item.status !== 'ready_to_fix' && item.status !== 'fixed';
   return (
     <div className="flex items-start gap-2 rounded-md border border-border/40 bg-secondary/30 p-2">
       {isPending
@@ -172,8 +208,16 @@ function ItemRow({ item }: { item: ReconciliationItem }) {
           </Badge>
         </div>
         <p className="text-xs text-muted-foreground">
-          {format(new Date(item.eventStart), "dd/MM 'às' HH:mm", { locale: ptBR })} — {item.eventTitle}
+          {format(new Date(item.eventStart), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })} — {item.eventTitle}
         </p>
+        {item.packageName && (
+          <p className="text-[11px] text-muted-foreground">
+            Pacote: {item.packageName} · Vigência: {(item.packageStart || '').slice(0, 10)} → {(item.packageExpiry || '').slice(0, 10) || 'sem validade'}
+            {typeof item.balanceBefore === 'number' && (
+              <> · Saldo: {item.balanceBefore}{typeof item.balanceAfter === 'number' ? ` → ${item.balanceAfter}` : ''}</>
+            )}
+          </p>
+        )}
         <p className="text-xs text-foreground/80 mt-0.5">{item.message}</p>
       </div>
     </div>
