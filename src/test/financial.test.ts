@@ -510,3 +510,32 @@ describe('planos recorrentes — vigência histórica vs. operação atual', () 
     expect(src).toContain("summary.balanceIsCurrent ? 'Pacotes ativos' : 'Pacotes vigentes no mês'");
   });
 });
+
+describe('proteção contra débito duplicado (class_credits_log)', () => {
+  const hook = readFileSync('src/hooks/useFinancial.ts', 'utf8');
+
+  it('erro 23505 vira mensagem segura', () => {
+    expect(mapCreditLogError({ code: '23505', message: 'duplicate key value' })).toBe(
+      'Esta aula já foi descontada deste aluno.',
+    );
+  });
+  it('mensagem do índice único também é reconhecida', () => {
+    expect(
+      mapCreditLogError({ message: 'class_credits_log_unique_event_student_use_credit' }),
+    ).toBe('Esta aula já foi descontada deste aluno.');
+  });
+  it('outros erros mantêm a mensagem original', () => {
+    expect(mapCreditLogError({ code: '42501', message: 'permission denied' })).toBe('permission denied');
+  });
+  it('erro sem mensagem tem fallback', () => {
+    expect(mapCreditLogError({})).toBe('Não foi possível registar o consumo de aula.');
+  });
+  it('insert do log é verificado antes de atualizar o pacote', () => {
+    const insertIdx = hook.indexOf("from('class_credits_log').insert");
+    const throwIdx = hook.indexOf('throw new Error(mapCreditLogError(logError))');
+    const updateIdx = hook.indexOf("from('class_packages').update(pkgUpdate)");
+    expect(insertIdx).toBeGreaterThan(-1);
+    expect(throwIdx).toBeGreaterThan(insertIdx);
+    expect(updateIdx).toBeGreaterThan(throwIdx);
+  });
+});
