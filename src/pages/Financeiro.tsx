@@ -12,6 +12,7 @@ import {
   PAYMENT_TYPE_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS,
   PAYMENT_METHOD_LABELS, PACKAGE_STATUS_LABELS, PACKAGE_STATUS_COLORS,
   Payment, ClassPackage, StudentBillingPlan, updatePayment, generateRecurringCharges,
+  useNextClasses,
 } from '@/hooks/useFinancial';
 import PaymentDialog from '@/components/financial/PaymentDialog';
 import PackageDialog from '@/components/financial/PackageDialog';
@@ -20,11 +21,12 @@ import {
   formatMoney, formatMoneyByCurrency, effectivePaymentStatus, monthKey, monthLabel,
   recentMonthKeys, monthRange, isDueSoon, daysUntilDue,
   BILLING_SERVICE_LABELS, BILLING_PLAN_STATUS_LABELS, BILLING_PLAN_STATUS_COLORS,
-  planIsDueInMonth, planDueDateForMonth,
+  planIsDueInMonth, planDueDateForMonth, packageIsRelevantInMonth,
+  receivedByStudentInMonth, formatNextClassLabel,
 } from '@/lib/financial';
 import {
   Plus, DollarSign, Clock, AlertTriangle, Users, CalendarDays,
-  Package, TrendingUp, Search, Check, MessageCircle, RefreshCw, Copy, Repeat,
+  Package, TrendingUp, Search, Check, MessageCircle, RefreshCw, Copy, Repeat, CalendarClock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -78,6 +80,22 @@ const Financeiro: React.FC = () => {
       || (due >= range.start && due <= range.end)
       || (created >= range.start && created <= range.end);
   }), [payments, range]);
+
+  const monthPackages = useMemo(
+    () => packages.filter(pkg => packageIsRelevantInMonth(pkg, selectedMonth)),
+    [packages, selectedMonth],
+  );
+
+  const nextClassStudentIds = useMemo(
+    () => monthPackages.filter(p => p.status === 'ativo' && p.remaining_classes > 0).map(p => p.student_id),
+    [monthPackages],
+  );
+  const nextClasses = useNextClasses(nextClassStudentIds);
+
+  const receivedByStudent = useMemo(
+    () => receivedByStudentInMonth(payments as any, packages as any, selectedMonth),
+    [payments, packages, selectedMonth],
+  );
 
   const filteredPayments = useMemo(() => {
     let result = monthPayments;
@@ -300,10 +318,10 @@ const Financeiro: React.FC = () => {
 
           {/* REMAINING CLASSES TAB */}
           <TabsContent value="aulas" className="space-y-2">
-            {packagesLoading ? <Skeleton className="h-40" /> : packages.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">Nenhum pacote encontrado</p>
+            {packagesLoading ? <Skeleton className="h-40" /> : monthPackages.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">Nenhum pacote vigente em {monthLabel(selectedMonth)}</p>
             ) : (
-              [...packages].sort((a, b) => {
+              [...monthPackages].sort((a, b) => {
                 const order: Record<string, number> = { ativo: 0, esgotado: 1, expirado: 2, pausado: 3, cancelado: 4, renovado: 5 };
                 return (order[a.status] ?? 9) - (order[b.status] ?? 9) || a.remaining_classes - b.remaining_classes;
               }).map(pkg => (
@@ -322,6 +340,14 @@ const Financeiro: React.FC = () => {
                         <p className="text-xs text-muted-foreground">
                           {pkg.used_classes}/{pkg.total_classes} realizadas • {formatMoney(pkg.total_amount, pkg.currency)} • {formatMoney(pkg.price_per_class, pkg.currency)}/aula
                         </p>
+                        {pkg.status === 'ativo' && pkg.remaining_classes > 0 && (
+                          <p className={`text-xs mt-1 flex items-center gap-1 ${nextClasses[pkg.student_id] ? 'text-muted-foreground' : 'text-orange-400'}`}>
+                            <CalendarClock className="h-3 w-3" />
+                            {nextClasses[pkg.student_id]
+                              ? `Próxima aula: ${formatNextClassLabel(nextClasses[pkg.student_id])}`
+                              : 'Próxima aula: não agendada'}
+                          </p>
+                        )}
                       </div>
                       <div className="text-right shrink-0">
                         <p className={`text-2xl font-bold ${pkg.remaining_classes === 0 ? 'text-red-400' : pkg.remaining_classes <= 2 ? 'text-orange-400' : 'text-green-400'}`}>
@@ -352,31 +378,25 @@ const Financeiro: React.FC = () => {
                   <div><span className="text-muted-foreground">Vencido:</span> <span className="font-medium text-red-400">{formatMoneyByCurrency(summary.overdue)}</span></div>
                   <div><span className="text-muted-foreground">Total previsto:</span> <span className="font-medium">{formatMoneyByCurrency(summary.expectedTotal)}</span></div>
                   <div><span className="text-muted-foreground">Aulas realizadas no mês:</span> <span className="font-medium">{summary.classesThisMonth}</span></div>
-                  <div><span className="text-muted-foreground">Aulas restantes:</span> <span className="font-medium">{summary.remainingClasses}</span></div>
+                  <div><span className="text-muted-foreground">Aulas restantes:</span> <span className="font-medium">{summary.balanceIsCurrent ? summary.remainingClasses : '—'}</span></div>
                   <div><span className="text-muted-foreground">Pacotes ativos:</span> <span className="font-medium">{summary.activePackagesCount}</span></div>
                   <div><span className="text-muted-foreground">Alunos em atraso:</span> <span className="font-medium text-red-400">{summary.studentsOverdue}</span></div>
                 </div>
+                {!summary.balanceIsCurrent && (
+                  <p className="text-xs text-muted-foreground">
+                    O saldo de aulas é sempre o saldo atual: não existe registo histórico de saldo, por isso não é mostrado em meses passados.
+                  </p>
+                )}
 
                 <h4 className="font-semibold mt-4">Recebido por Aluno no mês</h4>
                 <div className="space-y-1">
-                  {Object.entries(
-                    monthPayments
-                      .filter(p => p.status === 'pago' && (p.paid_at || '').slice(0, 10) >= range.start && (p.paid_at || '').slice(0, 10) <= range.end)
-                      .reduce((acc, p) => {
-                        const k = `${p.student_name || 'Desconhecido'}|${p.currency}`;
-                        acc[k] = (acc[k] || 0) + Number(p.amount);
-                        return acc;
-                      }, {} as Record<string, number>),
-                  ).sort(([, a], [, b]) => b - a).map(([k, amount]) => {
-                    const [name, currency] = k.split('|');
-                    return (
-                      <div key={k} className="flex justify-between text-sm">
-                        <span>{name}</span>
-                        <span className="font-medium">{formatMoney(amount, currency)}</span>
-                      </div>
-                    );
-                  })}
-                  {monthPayments.filter(p => p.status === 'pago').length === 0 && (
+                  {receivedByStudent.map(r => (
+                    <div key={`${r.name}|${r.currency}`} className="flex justify-between text-sm">
+                      <span>{r.name}</span>
+                      <span className="font-medium">{formatMoney(r.amount, r.currency)}</span>
+                    </div>
+                  ))}
+                  {receivedByStudent.length === 0 && (
                     <p className="text-sm text-muted-foreground">Nenhum recebimento neste mês.</p>
                   )}
                 </div>
