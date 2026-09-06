@@ -6,7 +6,7 @@ import {
   usePayments, useClassPackages, useBillingPlans,
   PAYMENT_TYPE_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS,
   PAYMENT_METHOD_LABELS, PACKAGE_STATUS_LABELS, PACKAGE_STATUS_COLORS,
-  Payment, ClassPackage, StudentBillingPlan, updatePayment, deductClassCredit,
+  Payment, ClassPackage, StudentBillingPlan, updatePayment,
 } from '@/hooks/useFinancial';
 import {
   formatMoney, effectivePaymentStatus, isDueSoon,
@@ -17,7 +17,8 @@ import PaymentDialog from '@/components/financial/PaymentDialog';
 import PackageDialog from '@/components/financial/PackageDialog';
 import BillingPlanDialog from '@/components/financial/BillingPlanDialog';
 import ManualClassDialog from '@/components/financial/ManualClassDialog';
-import { Plus, Package, Check, Minus, RefreshCw, AlertTriangle, Repeat, CalendarPlus, Undo2 } from 'lucide-react';
+import AdjustCreditsDialog from '@/components/financial/AdjustCreditsDialog';
+import { Plus, Package, Check, RefreshCw, AlertTriangle, Repeat, CalendarPlus, Undo2, SlidersHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { ClassCreditLog } from '@/hooks/useFinancial';
@@ -35,6 +36,7 @@ const StudentFinancialTab: React.FC<Props> = ({ studentId, studentName }) => {
   const [showPackageDialog, setShowPackageDialog] = useState(false);
   const [showPlanDialog, setShowPlanDialog] = useState(false);
   const [manualMode, setManualMode] = useState<'register' | 'refund' | null>(null);
+  const [showAdjustDialog, setShowAdjustDialog] = useState(false);
   const [editPayment, setEditPayment] = useState<Payment | null>(null);
   const [editPlan, setEditPlan] = useState<StudentBillingPlan | null>(null);
 
@@ -57,20 +59,6 @@ const StudentFinancialTab: React.FC<Props> = ({ studentId, studentName }) => {
   const handleMarkPaid = async (p: Payment) => {
     await updatePayment(p.id, { status: 'pago', paid_at: new Date().toISOString() } as any);
     toast.success('Marcado como pago');
-    refetchAll();
-  };
-
-  const handleAdjustCredits = async (pkg: ClassPackage, delta: number) => {
-    const reason = delta > 0 ? 'Ajuste manual: adição' : 'Ajuste manual: remoção';
-    await deductClassCredit({
-      student_id: studentId,
-      package_id: pkg.id,
-      reason,
-      created_by: user!.id,
-      action_type: 'manual_adjustment',
-      quantity: delta,
-    });
-    toast.success(`Saldo ajustado em ${delta > 0 ? '+' : ''}${delta}`);
     refetchAll();
   };
 
@@ -121,11 +109,8 @@ const StudentFinancialTab: React.FC<Props> = ({ studentId, studentName }) => {
               <Button size="sm" variant="outline" onClick={() => setManualMode('refund')}>
                 <Undo2 className="h-3 w-3 mr-1" /> Estornar
               </Button>
-              <Button size="sm" variant="outline" onClick={() => handleAdjustCredits(activePackage, 1)}>
-                <Plus className="h-3 w-3 mr-1" /> Aula
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => handleAdjustCredits(activePackage, -1)}>
-                <Minus className="h-3 w-3 mr-1" /> Aula
+              <Button size="sm" variant="ghost" onClick={() => setShowAdjustDialog(true)}>
+                <SlidersHorizontal className="h-3 w-3 mr-1" /> Ajustar saldo
               </Button>
               <Button size="sm" variant="outline" onClick={() => { setShowPackageDialog(true); }}>
                 <RefreshCw className="h-3 w-3 mr-1" /> Renovar
@@ -240,6 +225,13 @@ const StudentFinancialTab: React.FC<Props> = ({ studentId, studentName }) => {
       <PaymentDialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog} onSuccess={refetchAll} payment={editPayment} preselectedStudentId={studentId} />
       <PackageDialog open={showPackageDialog} onOpenChange={setShowPackageDialog} onSuccess={refetchAll} preselectedStudentId={studentId} />
       <BillingPlanDialog open={showPlanDialog} onOpenChange={setShowPlanDialog} onSuccess={refetchAll} plan={editPlan} preselectedStudentId={studentId} />
+      <AdjustCreditsDialog
+        open={showAdjustDialog}
+        onOpenChange={setShowAdjustDialog}
+        onSuccess={refetchAll}
+        studentId={studentId}
+        packages={packages}
+      />
       <ManualClassDialog
         open={manualMode !== null}
         onOpenChange={(v) => { if (!v) setManualMode(null); }}
