@@ -6,6 +6,7 @@ import {
   MoneyByCurrency, emptyMoney, addMoney,
   monthKey, packageIsEnding, packageCanBeDeleted, formatMoney,
   summarizeMonth, packageIsRelevantInMonth, monthUtcRangeForTimezone,
+  NEXT_CLASS_EXCLUDED_STATUSES,
 } from '@/lib/financial';
 
 export type Payment = {
@@ -612,4 +613,49 @@ export async function refundClassCredit(params: {
     occurred_at: params.occurred_at,
     reason: params.reason || 'Estorno de aula',
   });
+}
+
+/**
+ * Próxima aula agendada por aluno (Agenda), para os alunos indicados.
+ * Apenas informa: nunca cria eventos.
+ */
+export function useNextClasses(studentIds: string[]) {
+  const [nextByStudent, setNextByStudent] = useState<Record<string, string>>({});
+  const { user } = useAuth();
+  const idsKey = [...new Set(studentIds)].sort().join(',');
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      const ids = idsKey ? idsKey.split(',') : [];
+      if (!user || ids.length === 0) { setNextByStudent({}); return; }
+      const nowIso = new Date().toISOString();
+      const { data: links } = await supabase
+        .from('calendar_event_students')
+        .select('event_id, student_id')
+        .in('student_id', ids);
+      const eventIds = [...new Set((links || []).map((l: any) => l.event_id))];
+      if (eventIds.length === 0) { if (!cancelled) setNextByStudent({}); return; }
+      const { data: events } = await supabase
+        .from('calendar_events')
+        .select('id, start_datetime, status')
+        .in('id', eventIds)
+        .gt('start_datetime', nowIso)
+        .not('status', 'in', `(${NEXT_CLASS_EXCLUDED_STATUSES.join(',')})`)
+        .order('start_datetime', { ascending: true });
+      const byEvent = new Map((events || []).map((e: any) => [e.id, e]));
+      const map: Record<string, string> = {};
+      for (const l of (links || []) as any[]) {
+        const ev = byEvent.get(l.event_id);
+        if (!ev) continue;
+        const current = map[l.student_id];
+        if (!current || ev.start_datetime < current) map[l.student_id] = ev.start_datetime;
+      }
+      if (!cancelled) setNextByStudent(map);
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [user, idsKey]);
+
+  return nextByStudent;
 }

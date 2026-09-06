@@ -423,3 +423,34 @@ export function receivedByStudentInMonth(
   }
   return [...acc.values()].sort((a, b) => b.amount - a.amount);
 }
+
+/* ------------------------------------------------------------------ *
+ * Próxima aula agendada
+ * ------------------------------------------------------------------ */
+
+/** Estados da agenda que NÃO contam como aula futura. */
+export const NEXT_CLASS_EXCLUDED_STATUSES = [
+  'cancelado', 'reagendado', 'concluido', 'falta', 'falta_justificada',
+] as const;
+
+export type ScheduledEventLike = { start_datetime: string; status: string };
+
+/** Devolve o próximo evento futuro válido (mais próximo), ou null. */
+export function pickNextClass<T extends ScheduledEventLike>(events: T[], now: Date = new Date()): T | null {
+  const ts = now.getTime();
+  const valid = events
+    .filter(e => !(NEXT_CLASS_EXCLUDED_STATUSES as readonly string[]).includes(e.status))
+    .filter(e => new Date(e.start_datetime).getTime() > ts)
+    .sort((a, b) => new Date(a.start_datetime).getTime() - new Date(b.start_datetime).getTime());
+  return valid[0] || null;
+}
+
+/** Rótulo curto "10/09 às 18:00" no timezone operacional. */
+export function formatNextClassLabel(iso: string, timeZone: string = OPERATIONAL_TIMEZONE): string {
+  const d = new Date(iso);
+  const parts: Record<string, string> = {};
+  for (const p of new Intl.DateTimeFormat('pt-PT', {
+    timeZone, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(d)) parts[p.type] = p.value;
+  return `${parts.day}/${parts.month} às ${parts.hour}:${parts.minute}`;
+}
