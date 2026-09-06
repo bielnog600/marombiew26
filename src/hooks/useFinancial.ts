@@ -3,9 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { startOfMonth, endOfMonth, format, subDays, addDays } from 'date-fns';
 import {
-  Currency, MoneyByCurrency, emptyMoney, addMoney, effectivePaymentStatus,
-  monthKey, monthRange, normalizeCurrency, packageCountsAsOwnRevenue,
-  packageIsEnding, packageCanBeDeleted, isDueSoon, formatMoney,
+  MoneyByCurrency, emptyMoney, addMoney,
+  monthKey, packageIsEnding, packageCanBeDeleted, formatMoney,
+  summarizeMonth, packageIsRelevantInMonth, monthUtcRangeForTimezone,
 } from '@/lib/financial';
 
 export type Payment = {
@@ -227,6 +227,8 @@ export type FinancialSummary = {
   exhaustedPackages: number;
   recurringActive: number;
   recurringExpected: MoneyByCurrency;
+  /** Saldo de aulas é sempre o saldo ATUAL: só é fiável no mês corrente. */
+  balanceIsCurrent: boolean;
 };
 
 function emptySummary(key: string): FinancialSummary {
@@ -247,6 +249,7 @@ function emptySummary(key: string): FinancialSummary {
     exhaustedPackages: 0,
     recurringActive: 0,
     recurringExpected: emptyMoney(),
+    balanceIsCurrent: true,
   };
 }
 
@@ -522,12 +525,18 @@ export async function deductClassCredit(params: {
   let usedDelta = 0;
 
   if (actionType === 'use_credit') {
-    balanceAfter = Math.max(0, balanceBefore - qty);
+    if (balanceBefore - qty < 0) {
+      throw new Error('Saldo insuficiente: o pacote não tem aulas disponíveis.');
+    }
+    balanceAfter = balanceBefore - qty;
     usedDelta = qty;
   } else if (actionType === 'add_credit' || actionType === 'refund_credit' || actionType === 'class_refunded') {
     balanceAfter = balanceBefore + qty;
     usedDelta = -qty;
   } else if (actionType === 'manual_adjustment') {
+    if (balanceBefore + qty < 0) {
+      throw new Error('Ajuste inválido: o saldo do pacote não pode ficar negativo.');
+    }
     balanceAfter = balanceBefore + qty; // qty can be negative
     usedDelta = -qty;
   }
