@@ -20,6 +20,12 @@ import {
   stabilityProfile,
   variationFamilyOf,
 } from "./variationFamilies.ts";
+import {
+  classifyExerciseEquipmentStyle,
+  equipmentStylePreferenceScore,
+  isExerciseAllowedByProfile,
+  type ExerciseProfile,
+} from "./exerciseEquipmentProfile.ts";
 
 
 export type CatalogEntryLike = { nome: string; grupo: string };
@@ -34,6 +40,7 @@ export type VariationReason =
   | "creates_redundancy"
   | "safety_conflict"
   | "equipment_unavailable"
+  | "profile_conflict"
   | null;
 
 export interface VariationVerdict {
@@ -61,6 +68,11 @@ export interface VariationOptions {
    * data really exists — when omitted, equipment is used for ranking only.
    */
   availableEquipment?: string[];
+  /**
+   * Preferência de estilo de equipamento (basic / articulated_plus_basic /
+   * mixed). Hard gate apenas para `basic`; nos demais casos é só ranking.
+   */
+  exerciseProfile?: ExerciseProfile;
 }
 
 const clean = (s: unknown): string => String(s ?? "").trim();
@@ -173,6 +185,11 @@ export function evaluateVariationCandidate(input: {
     return { valid: false, tier: null, reason: "equipment_unavailable" };
   }
 
+  // Perfil de equipamento: hard gate somente no perfil BASIC.
+  if (opts.exerciseProfile && !isExerciseAllowedByProfile(candidate, opts.exerciseProfile)) {
+    return { valid: false, tier: null, reason: "profile_conflict" };
+  }
+
   if (!classCompatible(mainProfile.exerciseClass, candProfile.exerciseClass)) {
     return { valid: false, tier: null, reason: "semantic_mismatch" };
   }
@@ -267,6 +284,7 @@ function intraTierScore(input: {
   candidate: string;
   catalog: CatalogEntryLike[];
   used: boolean;
+  profile?: ExerciseProfile;
 }): number {
   const { exerciseName, candidate, catalog, used } = input;
   const main = getExerciseFunctionalProfile(exerciseName);
@@ -282,6 +300,14 @@ function intraTierScore(input: {
   if (isUnilateral(exerciseName) === isUnilateral(candidate)) score += 2;
   // Nominal family overlap (e.g. "LEG PRESS 45 ART" -> "LEG PRESS") as a weak,
   // deterministic tie-breaker between otherwise equivalent candidates.
+  // Preferência de estilo de equipamento: desempate DENTRO do mesmo tier.
+  if (input.profile) {
+    score += equipmentStylePreferenceScore({
+      mainName: exerciseName,
+      candidate,
+      profile: input.profile,
+    });
+  }
   score += nameOverlap(exerciseName, candidate) * 3;
   if (!used) score += 1;
   return score;
@@ -315,7 +341,13 @@ export function selectVariation(input: {
     const cand = {
       name: entry.nome,
       tier: verdict.tier,
-      score: intraTierScore({ exerciseName, candidate: entry.nome, catalog, used }),
+      score: intraTierScore({
+        exerciseName,
+        candidate: entry.nome,
+        catalog,
+        used,
+        profile: input.options?.exerciseProfile,
+      }),
     };
     if (!best) { best = cand; continue; }
     // Tier is the primary biomechanical criterion; `used` is only a tie-breaker.
