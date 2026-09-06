@@ -7,7 +7,7 @@ import {
   packageIsEnding, packageCanBeDeleted, planIsDueInMonth, planDueDateForMonth,
   summarizeMonth, receivedByStudentInMonth, packageIsRelevantInMonth,
   pickNextClass, formatNextClassLabel, monthUtcRangeForTimezone, localDateTimeToUtcIso,
-  paymentBelongsToMonth,
+  paymentBelongsToMonth, paymentVisibleInMonth, packageIsOperationalInMonth,
 } from '@/lib/financial';
 
 describe('moeda', () => {
