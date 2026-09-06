@@ -303,7 +303,7 @@ export default function AgendaEventDetailSheet({ event, open, onClose, onRefresh
                 {recon.map(r => {
                   const tone =
                     r.status === 'ok' ? 'text-green-400'
-                    : r.status === 'auto_fixed' ? 'text-amber-400'
+                    : r.status === 'ready_to_fix' ? 'text-amber-400'
                     : 'text-red-400';
                   return (
                     <div key={r.studentId} className="text-xs">

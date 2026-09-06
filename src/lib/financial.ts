@@ -524,3 +524,34 @@ export function nowInOperationalTimezone(now: Date = new Date(), timeZone: strin
   }).formatToParts(now)) parts[p.type] = p.value;
   return `${parts.year}-${parts.month}-${parts.day}T${String(Number(parts.hour) % 24).padStart(2, '0')}:${parts.minute}`;
 }
+
+/* ------------------------------------------------------------------ *
+ * Pacotes: datas de pagamento vs. vigência
+ * ------------------------------------------------------------------ */
+
+/**
+ * Novo pacote: o início da vigência acompanha a data de pagamento enquanto o
+ * professor não o editar manualmente. Depois de editado, nunca é sobrescrito.
+ */
+export function nextPackageStartDate(
+  paymentDate: string,
+  currentStart: string,
+  startTouched: boolean,
+): string {
+  if (startTouched) return currentStart;
+  return paymentDate || currentStart;
+}
+
+/** Aviso leve quando o pagamento é anterior ao início da vigência. */
+export function packageDatesWarning(
+  paymentDate: string | null | undefined,
+  startDate: string | null | undefined,
+): string | null {
+  const pay = (paymentDate || '').slice(0, 10);
+  const start = (startDate || '').slice(0, 10);
+  if (!pay || !start) return null;
+  if (pay < start) {
+    return 'O pagamento foi registado antes do início da vigência. Confirme se as datas estão corretas.';
+  }
+  return null;
+}
