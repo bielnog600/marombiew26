@@ -546,8 +546,8 @@ export async function deductClassCredit(params: {
     usedDelta = -qty;
   }
 
-  // Insert log
-  await supabase.from('class_credits_log').insert({
+  // Insert log — se falhar (ex.: débito duplicado), NUNCA atualizar o pacote.
+  const { error: logError } = await supabase.from('class_credits_log').insert({
     student_id: params.student_id,
     package_id: params.package_id,
     calendar_event_id: params.calendar_event_id || null,
@@ -559,6 +559,11 @@ export async function deductClassCredit(params: {
     occurred_at: params.occurred_at || new Date().toISOString(),
     created_by: params.created_by,
   } as any);
+  if (logError) {
+    throw new Error(mapCreditLogError(logError));
+  }
+
+
 
   // Update package
   const pkgUpdate: any = {
