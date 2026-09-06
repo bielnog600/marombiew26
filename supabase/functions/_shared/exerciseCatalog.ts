@@ -12,6 +12,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 export interface CatalogEntry {
   nome: string;
   grupo: string;
+  /** Metadata opcional (pode ser null no banco). Fallback = nome canônico. */
+  equipment_type?: string | null;
 }
 
 export async function loadExerciseCatalog(): Promise<CatalogEntry[]> {
@@ -25,7 +27,7 @@ export async function loadExerciseCatalog(): Promise<CatalogEntry[]> {
     const supabase = createClient(url, key);
     const { data, error } = await supabase
       .from("exercises")
-      .select("nome, grupo_muscular")
+      .select("nome, grupo_muscular, equipment_type")
       .order("grupo_muscular", { ascending: true })
       .order("nome", { ascending: true });
     if (error) {
@@ -37,6 +39,7 @@ export async function loadExerciseCatalog(): Promise<CatalogEntry[]> {
       .map((r: any) => ({
         nome: String(r.nome ?? "").trim(),
         grupo: String(r.grupo_muscular ?? "OUTROS").trim() || "OUTROS",
+        equipment_type: r.equipment_type ?? null,
       }))
       .filter((e) => e.nome.length > 0);
   } catch (e) {
