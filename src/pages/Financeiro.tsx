@@ -162,10 +162,10 @@ const Financeiro: React.FC = () => {
               <SummaryCard icon={Clock} label="A receber" value={formatMoneyByCurrency(summary.toReceive)} sub={`${formatMoneyByCurrency(summary.dueSoon)} vence em 7 dias`} color="bg-yellow-500/20 text-yellow-400" />
               <SummaryCard icon={AlertTriangle} label="Vencidos" value={formatMoneyByCurrency(summary.overdue)} color="bg-red-500/20 text-red-400" />
               <SummaryCard icon={TrendingUp} label="Total previsto" value={formatMoneyByCurrency(summary.expectedTotal)} color="bg-blue-500/20 text-blue-400" />
-              <SummaryCard icon={Repeat} label="Planos recorrentes" value={String(summary.recurringActive)} sub={`${formatMoneyByCurrency(summary.recurringExpected)}/mês`} color="bg-purple-500/20 text-purple-300" />
+              <SummaryCard icon={Repeat} label="Planos recorrentes" value={String(summary.recurringActive)} sub={`${formatMoneyByCurrency(summary.recurringExpected)}/mês · ${summary.balanceIsCurrent ? 'ativos no mês' : 'vigentes no período'}`} color="bg-purple-500/20 text-purple-300" />
               <SummaryCard icon={Check} label="Aulas realizadas no mês" value={String(summary.classesThisMonth)} sub={`${summary.totalClassesUsed} no total`} />
               <SummaryCard icon={CalendarDays} label="Aulas restantes" value={summary.balanceIsCurrent ? String(summary.remainingClasses) : '—'} sub={summary.balanceIsCurrent ? undefined : 'Saldo histórico não disponível'} color="bg-blue-500/20 text-blue-400" />
-              <SummaryCard icon={Package} label="Pacotes ativos" value={String(summary.activePackagesCount)} sub={`${summary.packagesEnding} a acabar`} color="bg-green-500/20 text-green-400" />
+              <SummaryCard icon={Package} label={summary.balanceIsCurrent ? 'Pacotes ativos' : 'Pacotes vigentes no mês'} value={String(summary.activePackagesCount)} sub={`${summary.packagesEnding} a acabar`} color="bg-green-500/20 text-green-400" />
               <SummaryCard icon={CalendarDays} label="Aulas vendidas" value={String(summary.totalClassesSold)} />
               <SummaryCard icon={Package} label="Pacotes esgotados" value={String(summary.exhaustedPackages)} color="bg-red-500/20 text-red-400" />
               <SummaryCard icon={Users} label="Alunos em atraso" value={String(summary.studentsOverdue)} color="bg-red-500/20 text-red-300" />
@@ -373,7 +373,7 @@ const Financeiro: React.FC = () => {
                   <div><span className="text-muted-foreground">Total previsto:</span> <span className="font-medium">{formatMoneyByCurrency(summary.expectedTotal)}</span></div>
                   <div><span className="text-muted-foreground">Aulas realizadas no mês:</span> <span className="font-medium">{summary.classesThisMonth}</span></div>
                   <div><span className="text-muted-foreground">Aulas restantes:</span> <span className="font-medium">{summary.balanceIsCurrent ? summary.remainingClasses : '—'}</span></div>
-                  <div><span className="text-muted-foreground">Pacotes ativos:</span> <span className="font-medium">{summary.activePackagesCount}</span></div>
+                  <div><span className="text-muted-foreground">{summary.balanceIsCurrent ? 'Pacotes ativos:' : 'Pacotes vigentes no mês:'}</span> <span className="font-medium">{summary.activePackagesCount}</span></div>
                   <div><span className="text-muted-foreground">Alunos em atraso:</span> <span className="font-medium text-red-400">{summary.studentsOverdue}</span></div>
                 </div>
                 {!summary.balanceIsCurrent && (

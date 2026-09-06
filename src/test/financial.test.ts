@@ -8,6 +8,7 @@ import {
   summarizeMonth, receivedByStudentInMonth, packageIsRelevantInMonth,
   pickNextClass, formatNextClassLabel, monthUtcRangeForTimezone, localDateTimeToUtcIso,
   paymentBelongsToMonth, paymentVisibleInMonth, packageIsOperationalInMonth,
+  planIsRelevantInMonth, planIsOperationalInMonth,
 } from '@/lib/financial';
 
 describe('moeda', () => {
@@ -435,5 +436,77 @@ describe('correção final do financeiro — 4 ajustes', () => {
     const p = { reference_month: null, due_date: null, status: 'pendente', paid_at: null, created_at: '2026-08-20T09:00:00Z' };
     expect(paymentVisibleInMonth(p, '2026-08')).toBe(true);
     expect(paymentVisibleInMonth(p, '2026-09')).toBe(false);
+  });
+});
+
+describe('planos recorrentes — vigência histórica vs. operação atual', () => {
+  const ended = { status: 'ended', billing_frequency: 'monthly', start_date: '2026-08-01', end_date: '2026-09-30', amount: 70, currency: 'EUR' };
+
+  it('plano encerrado hoje continua vigente em agosto e setembro', () => {
+    expect(planIsRelevantInMonth(ended, '2026-08')).toBe(true);
+    expect(planIsRelevantInMonth(ended, '2026-09')).toBe(true);
+  });
+
+  it('plano encerrado não é vigente em outubro', () => {
+    expect(planIsRelevantInMonth(ended, '2026-10')).toBe(false);
+  });
+
+  it('plano encerrado nunca é operacional', () => {
+    expect(planIsOperationalInMonth(ended, '2026-08')).toBe(false);
+  });
+
+  it('plano vigente e active é relevante e operacional', () => {
+    const plan = { status: 'active', billing_frequency: 'monthly', start_date: '2026-01-01', end_date: null };
+    expect(planIsRelevantInMonth(plan, '2026-09')).toBe(true);
+    expect(planIsOperationalInMonth(plan, '2026-09')).toBe(true);
+  });
+
+  it('plano active com início futuro não é relevante nem operacional', () => {
+    const plan = { status: 'active', billing_frequency: 'monthly', start_date: '2026-11-01', end_date: null };
+    expect(planIsRelevantInMonth(plan, '2026-09')).toBe(false);
+    expect(planIsOperationalInMonth(plan, '2026-09')).toBe(false);
+  });
+
+  it('plano pausado é relevante no histórico mas não operacional', () => {
+    const plan = { status: 'paused', billing_frequency: 'monthly', start_date: '2026-06-01', end_date: null };
+    expect(planIsRelevantInMonth(plan, '2026-08')).toBe(true);
+    expect(planIsOperationalInMonth(plan, '2026-08')).toBe(false);
+  });
+
+  it('resumo histórico: plano encerrado conta em agosto, não em outubro', () => {
+    const relevant = (key: string) => [ended].filter(p => planIsRelevantInMonth(p, key));
+    expect(relevant('2026-08').length).toBe(1);
+    const money = relevant('2026-08').reduce((acc, p) => addMoney(acc, p.amount, p.currency), emptyMoney());
+    expect(money).toEqual({ EUR: 70, BRL: 0 });
+    expect(relevant('2026-10').length).toBe(0);
+  });
+
+  it('resumo do mês atual só conta planos active', () => {
+    const plans = [
+      { status: 'active', billing_frequency: 'monthly', start_date: '2026-01-01', end_date: null },
+      { status: 'ended', billing_frequency: 'monthly', start_date: '2026-01-01', end_date: null },
+      { status: 'paused', billing_frequency: 'monthly', start_date: '2026-01-01', end_date: null },
+    ];
+    expect(plans.filter(p => planIsOperationalInMonth(p, '2026-09')).length).toBe(1);
+  });
+
+  it('histórico mantém EUR e BRL separados', () => {
+    const plans = [
+      ended,
+      { status: 'ended', billing_frequency: 'monthly', start_date: '2026-08-01', end_date: '2026-09-30', amount: 250, currency: 'BRL' },
+    ];
+    const money = plans.filter(p => planIsRelevantInMonth(p, '2026-08'))
+      .reduce((acc, p) => addMoney(acc, p.amount, p.currency), emptyMoney());
+    expect(money).toEqual({ EUR: 70, BRL: 250 });
+  });
+
+  it('geração de cobrança (planIsDueInMonth) continua exigindo status active', () => {
+    expect(planIsDueInMonth(ended, '2026-08')).toBe(false);
+    expect(planIsDueInMonth({ ...ended, status: 'active' }, '2026-08')).toBe(true);
+  });
+
+  it('labels de pacotes seguem balanceIsCurrent', () => {
+    const src = readFileSync('src/pages/Financeiro.tsx', 'utf-8');
+    expect(src).toContain("summary.balanceIsCurrent ? 'Pacotes ativos' : 'Pacotes vigentes no mês'");
   });
 });
