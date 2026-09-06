@@ -22,6 +22,12 @@ import { AI_MODELS, createRoutingMetadata, type AIAttemptMetadata } from "../_sh
 import { validateWorkoutRedundancy, enforceVariationIntegrity } from "../_shared/workoutRedundancy.ts";
 import { validateAndNormalizeVariations } from "../_shared/variationSelection.ts";
 import {
+  buildExerciseProfilePromptBlock,
+  normalizeExerciseProfile,
+  type ExerciseProfile,
+} from "../_shared/exerciseEquipmentProfile.ts";
+import { enforceExerciseProfile } from "../_shared/exerciseProfileEnforcement.ts";
+import {
   validateAndNormalizeRepRanges,
   buildRepRangePromptBlock,
 } from "../_shared/repRangePolicy.ts";
@@ -581,6 +587,7 @@ async function generateStructuredWorkoutWithVariation(args: {
   volumeContext?: VolumeAuditContext;
   restriction?: RestrictionAssessment;
   restrictionEvidence?: RestrictionEvidence;
+  exerciseProfile?: ExerciseProfile;
 }): Promise<Response> {
   let history: HistoryPlan[] = [];
   let historySummary = "";
@@ -624,8 +631,14 @@ async function generateStructuredWorkoutWithVariation(args: {
     const variationFixes = enforceVariationIntegrity(clone, args.catalog ?? []);
     // Deterministic semantics for the VARIATION column (functional substitute,
     // counterfactual redundancy check). Never a fallback trigger.
+    // Perfil de equipamento (basic = hard gate determinístico nos principais).
+    const exerciseProfile = args.exerciseProfile ?? "mixed";
+    const exerciseProfileAudit = enforceExerciseProfile(clone, exerciseProfile, args.catalog ?? [], {
+      restrictionsText: args.restrictionsText,
+    });
     const variationVerdicts = validateAndNormalizeVariations(clone, args.catalog ?? [], {
       restrictionsText: args.restrictionsText,
+      exerciseProfile,
     });
     // Faixas de repetição por exercício: o perfil da sessão é tendência dos
     // principais, nunca faixa única para o dia inteiro.
@@ -668,6 +681,7 @@ async function generateStructuredWorkoutWithVariation(args: {
       referenceCompliance,
       variationFixes,
       variationVerdicts,
+      exerciseProfileAudit,
       repRangeFixes,
       volumeAudit,
       restrictionInference,
@@ -1049,6 +1063,7 @@ async function generateStructuredWorkoutWithVariation(args: {
             }
           : null,
       },
+      exerciseProfileAudit: evaluation.exerciseProfileAudit,
       draftReviewStatus: reviewRequiredByRestriction || evaluation.volumeAudit.status === "FAIL"
         ? "REVIEW_REQUIRED"
         : "OK",
@@ -1424,7 +1439,9 @@ serve(async (req) => {
       periodizationSelection,
       periodizationContext,
       phase,
+      exercise_profile,
     } = await req.json();
+    const exerciseProfile = normalizeExerciseProfile(exercise_profile);
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
@@ -1678,7 +1695,12 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
 
       return await generateStructuredWorkoutWithVariation({
         apiKey: OPENAI_API_KEY,
-        systemPrompt: systemWithCatalog + contextMessage + restrictionBlock + exactReferenceBlock,
+        systemPrompt:
+          systemWithCatalog +
+          contextMessage +
+          restrictionBlock +
+          buildExerciseProfilePromptBlock(exerciseProfile) +
+          exactReferenceBlock,
         messages,
         reference,
         restrictionsText,
@@ -1691,6 +1713,7 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
         })),
         restriction,
         restrictionEvidence,
+        exerciseProfile,
         volumeContext: {
           volumeTarget: periodizationSnapshot?.week?.volumeTarget ?? null,
           weekStrategy: periodizationSnapshot?.week?.label ?? periodizationSnapshot?.week?.phase ?? null,
