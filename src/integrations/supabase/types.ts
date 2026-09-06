@@ -622,6 +622,7 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          occurred_at: string
           package_id: string
           quantity: number
           reason: string | null
@@ -635,6 +636,7 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
+          occurred_at?: string
           package_id: string
           quantity?: number
           reason?: string | null
@@ -648,6 +650,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
+          occurred_at?: string
           package_id?: string
           quantity?: number
           reason?: string | null
@@ -667,6 +670,7 @@ export type Database = {
         Row: {
           admin_id: string
           created_at: string
+          currency: string
           expiry_date: string | null
           id: string
           notes: string | null
@@ -688,6 +692,7 @@ export type Database = {
         Insert: {
           admin_id: string
           created_at?: string
+          currency?: string
           expiry_date?: string | null
           id?: string
           notes?: string | null
@@ -709,6 +714,7 @@ export type Database = {
         Update: {
           admin_id?: string
           created_at?: string
+          currency?: string
           expiry_date?: string | null
           id?: string
           notes?: string | null
@@ -1913,6 +1919,7 @@ export type Database = {
         Row: {
           admin_id: string
           amount: number
+          billing_plan_id: string | null
           created_at: string
           currency: string
           description: string | null
@@ -1922,6 +1929,7 @@ export type Database = {
           paid_at: string | null
           payment_method: Database["public"]["Enums"]["payment_method"]
           receipt_url: string | null
+          reference_month: string | null
           status: Database["public"]["Enums"]["payment_status"]
           student_id: string
           type: Database["public"]["Enums"]["payment_type"]
@@ -1930,6 +1938,7 @@ export type Database = {
         Insert: {
           admin_id: string
           amount?: number
+          billing_plan_id?: string | null
           created_at?: string
           currency?: string
           description?: string | null
@@ -1939,6 +1948,7 @@ export type Database = {
           paid_at?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"]
           receipt_url?: string | null
+          reference_month?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           student_id: string
           type?: Database["public"]["Enums"]["payment_type"]
@@ -1947,6 +1957,7 @@ export type Database = {
         Update: {
           admin_id?: string
           amount?: number
+          billing_plan_id?: string | null
           created_at?: string
           currency?: string
           description?: string | null
@@ -1956,12 +1967,21 @@ export type Database = {
           paid_at?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"]
           receipt_url?: string | null
+          reference_month?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           student_id?: string
           type?: Database["public"]["Enums"]["payment_type"]
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "payments_billing_plan_id_fkey"
+            columns: ["billing_plan_id"]
+            isOneToOne: false
+            referencedRelation: "student_billing_plans"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       performance_tests: {
         Row: {
@@ -2482,6 +2502,60 @@ export type Database = {
           meta?: Json
           student_id?: string | null
           title?: string | null
+        }
+        Relationships: []
+      }
+      student_billing_plans: {
+        Row: {
+          admin_id: string
+          amount: number
+          billing_frequency: string
+          created_at: string
+          currency: string
+          description: string
+          due_day: number
+          end_date: string | null
+          id: string
+          notes: string
+          service_type: string
+          start_date: string
+          status: string
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          admin_id: string
+          amount?: number
+          billing_frequency?: string
+          created_at?: string
+          currency?: string
+          description?: string
+          due_day?: number
+          end_date?: string | null
+          id?: string
+          notes?: string
+          service_type?: string
+          start_date?: string
+          status?: string
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          admin_id?: string
+          amount?: number
+          billing_frequency?: string
+          created_at?: string
+          currency?: string
+          description?: string
+          due_day?: number
+          end_date?: string | null
+          id?: string
+          notes?: string
+          service_type?: string
+          start_date?: string
+          status?: string
+          student_id?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -3361,6 +3435,10 @@ export type Database = {
       evaluate_metadata_completeness: {
         Args: { _exercise_id: string }
         Returns: Json
+      }
+      generate_recurring_charges: {
+        Args: { _reference_month: string }
+        Returns: number
       }
       has_role: {
         Args: {
