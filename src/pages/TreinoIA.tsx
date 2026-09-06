@@ -125,6 +125,14 @@ const EQUIPMENT = [
    { id: 'escada', label: 'Escada', category: 'Cardio' },
  ];
  
+ const EXERCISE_PROFILES = [
+   { value: 'basic', label: 'Básico / Tradicional', desc: 'Prioriza equipamentos tradicionais, polias, pesos livres e máquinas convencionais. Não utiliza máquinas articuladas.' },
+   { value: 'articulated_plus_basic', label: 'Articulados + Básicos', desc: 'Prioriza máquinas articuladas quando existir uma opção funcional equivalente, mantendo exercícios tradicionais como alternativas.' },
+   { value: 'mixed', label: 'Misto / Sem preferência', desc: 'Permite todos os exercícios disponíveis sem priorizar articulados ou tradicionais.' },
+ ] as const;
+
+ type ExerciseProfileValue = typeof EXERCISE_PROFILES[number]['value'];
+
  const MACHINE_CATEGORIES = Array.from(new Set(AVAILABLE_MACHINES.map(m => m.category)));
 
 const FORBIDDEN_PATTERNS = [
@@ -167,6 +175,7 @@ const TreinoIA = () => {
    const [equipment, setEquipment] = useState('');
    const [selectedMachines, setSelectedMachines] = useState<string[]>([]);
    const [showEquipmentModal, setShowEquipmentModal] = useState(false);
+   const [exerciseProfile, setExerciseProfile] = useState<ExerciseProfileValue>('mixed');
    const [notes, setNotes] = useState('');
   const [treinoReferencia, setTreinoReferencia] = useState('');
   // Custom split: muscle groups per day (optional)
@@ -422,6 +431,7 @@ const TreinoIA = () => {
       const names = selectedMachines.map(id => AVAILABLE_MACHINES.find(m => m.id === id)?.label).filter(Boolean);
       lines.push(`   Máquinas disponíveis: ${names.join(', ')}`);
     }
+    lines.push(`   Perfil de exercícios: ${EXERCISE_PROFILES.find(p => p.value === exerciseProfile)?.label || '—'}`);
 
     lines.push('');
     lines.push('4) Restrições estruturadas:');
@@ -634,6 +644,7 @@ GERE TUDO DE UMA VEZ:
             days_available: daysAvailableNum,
             periodization: snapshot,
             phase: weekNumberToPhase(weekNumber),
+            exercise_profile: exerciseProfile,
           }),
         }
       );
@@ -1142,6 +1153,24 @@ GERE TUDO DE UMA VEZ:
                    {selectedMachines.length > 0 ? 'Editar equipamentos selecionados' : 'Selecionar equipamentos disponíveis'}
                  </Button>
                )}
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Perfil dos exercícios</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {EXERCISE_PROFILES.map(p => (
+                  <button
+                    key={p.value}
+                    onClick={() => setExerciseProfile(p.value)}
+                    className={`rounded-xl border-2 p-3 text-left transition-all ${exerciseProfile === p.value ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}
+                  >
+                    <span className="font-semibold text-sm block">{p.label}</span>
+                    <span className="text-xs text-muted-foreground">{p.desc}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Define o estilo de equipamento priorizado dentro do que está disponível. A lista de equipamentos disponíveis continua sendo o limite absoluto.
+              </p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-2">Observações adicionais (opcional)</p>
