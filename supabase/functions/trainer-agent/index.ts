@@ -638,7 +638,9 @@ async function generateStructuredWorkoutWithVariation(args: {
       restrictionsText: args.restrictionsText,
       availableEquipment: args.availableEquipment,
       referenceMode,
-      protectedAnchors: args.reference?.anchors ?? [],
+      protectedAnchors: (args.reference?.days ?? []).flatMap((d) =>
+        (d.exercises ?? []).map((e) => e.name),
+      ),
     });
     const variationVerdicts = validateAndNormalizeVariations(clone, args.catalog ?? [], {
       restrictionsText: args.restrictionsText,
