@@ -1013,6 +1013,17 @@ async function generateStructuredWorkoutWithVariation(args: {
     console.warn("trainer-agent: exercícios sem equivalente no banco:", unmatchedExercises.join(" | "));
   }
   const markdownFinal = workoutPlanToMarkdown(finalPlan);
+  // Verificação FINAL do perfil — depois de TODAS as mutações do pipeline.
+  const finalExerciseProfile = args.exerciseProfile ?? "mixed";
+  const finalExerciseProfileAudit = verifyExerciseProfileFinal(
+    finalPlan,
+    finalExerciseProfile,
+    evaluation.exerciseProfileAudit,
+    args.catalog ?? [],
+  );
+  const reviewRequiredByProfile =
+    finalExerciseProfile === "basic" && finalExerciseProfileAudit.status === "REVIEW_REQUIRED";
+
   const reviewRequiredByRestriction =
     (args.restriction?.reviewRequired ?? false) ||
     !evaluation.restrictionInference.ok ||
@@ -1070,11 +1081,14 @@ async function generateStructuredWorkoutWithVariation(args: {
             }
           : null,
       },
-      exerciseProfileAudit: evaluation.exerciseProfileAudit,
-      draftReviewStatus: reviewRequiredByRestriction || evaluation.volumeAudit.status === "FAIL"
-        ? "REVIEW_REQUIRED"
-        : "OK",
-      autoPublishAllowed: !reviewRequiredByRestriction,
+      exerciseProfileAudit: finalExerciseProfileAudit,
+      draftReviewStatus:
+        reviewRequiredByRestriction ||
+        reviewRequiredByProfile ||
+        evaluation.volumeAudit.status === "FAIL"
+          ? "REVIEW_REQUIRED"
+          : "OK",
+      autoPublishAllowed: !reviewRequiredByRestriction && !reviewRequiredByProfile,
       aiRouting: routingMeta.routing,
       aiUsage: routingMeta.usage,
     }),
