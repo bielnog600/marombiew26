@@ -26,7 +26,7 @@ import {
   normalizeExerciseProfile,
   type ExerciseProfile,
 } from "../_shared/exerciseEquipmentProfile.ts";
-import { enforceExerciseProfile } from "../_shared/exerciseProfileEnforcement.ts";
+import { enforceExerciseProfile, verifyExerciseProfileFinal } from "../_shared/exerciseProfileEnforcement.ts";
 import {
   validateAndNormalizeRepRanges,
   buildRepRangePromptBlock,
@@ -588,6 +588,7 @@ async function generateStructuredWorkoutWithVariation(args: {
   restriction?: RestrictionAssessment;
   restrictionEvidence?: RestrictionEvidence;
   exerciseProfile?: ExerciseProfile;
+  availableEquipment?: string[];
 }): Promise<Response> {
   let history: HistoryPlan[] = [];
   let historySummary = "";
@@ -635,9 +636,13 @@ async function generateStructuredWorkoutWithVariation(args: {
     const exerciseProfile = args.exerciseProfile ?? "mixed";
     const exerciseProfileAudit = enforceExerciseProfile(clone, exerciseProfile, args.catalog ?? [], {
       restrictionsText: args.restrictionsText,
+      availableEquipment: args.availableEquipment,
+      referenceMode,
+      protectedAnchors: args.reference?.anchors ?? [],
     });
     const variationVerdicts = validateAndNormalizeVariations(clone, args.catalog ?? [], {
       restrictionsText: args.restrictionsText,
+      availableEquipment: args.availableEquipment,
       exerciseProfile,
     });
     // Faixas de repetição por exercício: o perfil da sessão é tendência dos
