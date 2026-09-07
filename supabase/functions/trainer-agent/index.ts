@@ -26,6 +26,7 @@ import {
   normalizeExerciseProfile,
   type ExerciseProfile,
 } from "../_shared/exerciseEquipmentProfile.ts";
+import { mapMachineIdsToEquipmentCapabilities } from "../_shared/equipmentAvailability.ts";
 import { enforceExerciseProfile, verifyExerciseProfileFinal } from "../_shared/exerciseProfileEnforcement.ts";
 import {
   validateAndNormalizeRepRanges,
@@ -1461,8 +1462,11 @@ serve(async (req) => {
       periodizationContext,
       phase,
       exercise_profile,
+      available_equipment,
     } = await req.json();
     const exerciseProfile = normalizeExerciseProfile(exercise_profile);
+    // Disponibilidade real de equipamento: hard gate determinístico (nunca fuzzy).
+    const availableEquipment = mapMachineIdsToEquipmentCapabilities(available_equipment);
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
@@ -1735,6 +1739,7 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
         restriction,
         restrictionEvidence,
         exerciseProfile,
+        availableEquipment: availableEquipment.length > 0 ? availableEquipment : undefined,
         volumeContext: {
           volumeTarget: periodizationSnapshot?.week?.volumeTarget ?? null,
           weekStrategy: periodizationSnapshot?.week?.label ?? periodizationSnapshot?.week?.phase ?? null,
