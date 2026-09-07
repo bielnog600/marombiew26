@@ -133,6 +133,14 @@ const EQUIPMENT = [
 
  type ExerciseProfileValue = typeof EXERCISE_PROFILES[number]['value'];
 
+ interface ExerciseProfileAuditState {
+   profile: ExerciseProfileValue;
+   status: 'PASS' | 'REPAIRED' | 'REVIEW_REQUIRED';
+   violations: Array<{ day: string; where: 'main' | 'variation'; exercise: string; offending: string }>;
+   repairs: Array<{ day: string; where: 'main' | 'variation'; previous: string; next: string | null }>;
+   opportunities?: Array<{ day: string; exercise: string; articulatedCandidate: string; applied: boolean; reason: string }>;
+ }
+
  const MACHINE_CATEGORIES = Array.from(new Set(AVAILABLE_MACHINES.map(m => m.category)));
 
 const FORBIDDEN_PATTERNS = [
@@ -218,6 +226,7 @@ const TreinoIA = () => {
   // Variability controls + feedback returned by the agent.
   const [variationIntensity, setVariationIntensity] = useState<VariationIntensity>(DEFAULT_INTENSITY);
   const [similarity, setSimilarity] = useState<SimilarityFeedback | null>(null);
+  const [profileAudit, setProfileAudit] = useState<ExerciseProfileAuditState | null>(null);
   const [qualityGate, setQualityGate] = useState<{
     restrictionReview: boolean;
     restrictionMissing: string[];
@@ -497,6 +506,7 @@ const TreinoIA = () => {
     setGenOutcome(null);
     setResult('');
     setGeneratedJson(null);
+    setProfileAudit(null);
     setMarkdownEdited(false);
 
     const selectedLevel = LEVELS.find(l => l.value === level);
@@ -645,6 +655,8 @@ GERE TUDO DE UMA VEZ:
             periodization: snapshot,
             phase: weekNumberToPhase(weekNumber),
             exercise_profile: exerciseProfile,
+            available_equipment:
+              equipment === 'limitado' || equipment === 'casa' ? selectedMachines : [],
           }),
         }
       );
@@ -699,6 +711,18 @@ GERE TUDO DE UMA VEZ:
               volumeNotes,
               restrictionStatus: typeof gate?.status === 'string' ? gate.status : undefined,
               clinicalNotes,
+            }
+          : null,
+      );
+      const profAudit = payload?.exerciseProfileAudit;
+      setProfileAudit(
+        profAudit && profAudit.status && profAudit.status !== 'PASS'
+          ? {
+              profile: profAudit.profile,
+              status: profAudit.status,
+              violations: Array.isArray(profAudit.violations) ? profAudit.violations : [],
+              repairs: Array.isArray(profAudit.repairs) ? profAudit.repairs : [],
+              opportunities: Array.isArray(profAudit.opportunities) ? profAudit.opportunities : [],
             }
           : null,
       );
@@ -1633,6 +1657,36 @@ GERE TUDO DE UMA VEZ:
                 <ul className="mt-1 list-disc pl-4 opacity-90">
                   {qualityGate.clinicalNotes.slice(0, 6).map((n, i) => <li key={i}>{n}</li>)}
                 </ul>
+              </div>
+            )}
+            {profileAudit?.status === 'REVIEW_REQUIRED' && (
+              <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                <div className="font-semibold flex items-center gap-1">
+                  <AlertTriangle className="h-3.5 w-3.5" /> Perfil de exercícios requer revisão
+                </div>
+                <div className="mt-1 opacity-90">
+                  O perfil Básico/Tradicional não permite máquinas articuladas e não foi encontrada uma substituição funcional segura para todos os exercícios.
+                </div>
+                {profileAudit.violations.length > 0 && (
+                  <ul className="mt-1 list-disc pl-4 opacity-90">
+                    {profileAudit.violations.slice(0, 6).map((v, i) => (
+                      <li key={i}>{v.day}: {v.offending}</li>
+                    ))}
+                  </ul>
+                )}
+                <div className="mt-1 opacity-80">O plano permanece como rascunho para revisão manual.</div>
+              </div>
+            )}
+            {profileAudit?.status === 'REPAIRED' && (
+              <div className="rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-200">
+                <div className="font-semibold">Perfil de exercícios ajustado automaticamente</div>
+                {profileAudit.repairs.length > 0 && (
+                  <ul className="mt-1 list-disc pl-4 opacity-90">
+                    {profileAudit.repairs.slice(0, 6).map((r, i) => (
+                      <li key={i}>{r.day}: {r.previous} → {r.next ?? 'sem variação'}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
             {qualityGate && qualityGate.volumeStatus !== 'PASS' && (
