@@ -26,7 +26,8 @@ import {
   normalizeExerciseProfile,
   type ExerciseProfile,
 } from "../_shared/exerciseEquipmentProfile.ts";
-import { enforceExerciseProfile } from "../_shared/exerciseProfileEnforcement.ts";
+import { mapMachineIdsToEquipmentCapabilities } from "../_shared/equipmentAvailability.ts";
+import { enforceExerciseProfile, verifyExerciseProfileFinal } from "../_shared/exerciseProfileEnforcement.ts";
 import {
   validateAndNormalizeRepRanges,
   buildRepRangePromptBlock,
@@ -588,6 +589,7 @@ async function generateStructuredWorkoutWithVariation(args: {
   restriction?: RestrictionAssessment;
   restrictionEvidence?: RestrictionEvidence;
   exerciseProfile?: ExerciseProfile;
+  availableEquipment?: string[];
 }): Promise<Response> {
   let history: HistoryPlan[] = [];
   let historySummary = "";
@@ -635,9 +637,15 @@ async function generateStructuredWorkoutWithVariation(args: {
     const exerciseProfile = args.exerciseProfile ?? "mixed";
     const exerciseProfileAudit = enforceExerciseProfile(clone, exerciseProfile, args.catalog ?? [], {
       restrictionsText: args.restrictionsText,
+      availableEquipment: args.availableEquipment,
+      referenceMode,
+      protectedAnchors: (args.reference?.days ?? []).flatMap((d) =>
+        (d.exercises ?? []).map((e) => e.name),
+      ),
     });
     const variationVerdicts = validateAndNormalizeVariations(clone, args.catalog ?? [], {
       restrictionsText: args.restrictionsText,
+      availableEquipment: args.availableEquipment,
       exerciseProfile,
     });
     // Faixas de repetição por exercício: o perfil da sessão é tendência dos
@@ -1006,6 +1014,17 @@ async function generateStructuredWorkoutWithVariation(args: {
     console.warn("trainer-agent: exercícios sem equivalente no banco:", unmatchedExercises.join(" | "));
   }
   const markdownFinal = workoutPlanToMarkdown(finalPlan);
+  // Verificação FINAL do perfil — depois de TODAS as mutações do pipeline.
+  const finalExerciseProfile = args.exerciseProfile ?? "mixed";
+  const finalExerciseProfileAudit = verifyExerciseProfileFinal(
+    finalPlan,
+    finalExerciseProfile,
+    evaluation.exerciseProfileAudit,
+    args.catalog ?? [],
+  );
+  const reviewRequiredByProfile =
+    finalExerciseProfile === "basic" && finalExerciseProfileAudit.status === "REVIEW_REQUIRED";
+
   const reviewRequiredByRestriction =
     (args.restriction?.reviewRequired ?? false) ||
     !evaluation.restrictionInference.ok ||
@@ -1063,11 +1082,14 @@ async function generateStructuredWorkoutWithVariation(args: {
             }
           : null,
       },
-      exerciseProfileAudit: evaluation.exerciseProfileAudit,
-      draftReviewStatus: reviewRequiredByRestriction || evaluation.volumeAudit.status === "FAIL"
-        ? "REVIEW_REQUIRED"
-        : "OK",
-      autoPublishAllowed: !reviewRequiredByRestriction,
+      exerciseProfileAudit: finalExerciseProfileAudit,
+      draftReviewStatus:
+        reviewRequiredByRestriction ||
+        reviewRequiredByProfile ||
+        evaluation.volumeAudit.status === "FAIL"
+          ? "REVIEW_REQUIRED"
+          : "OK",
+      autoPublishAllowed: !reviewRequiredByRestriction && !reviewRequiredByProfile,
       aiRouting: routingMeta.routing,
       aiUsage: routingMeta.usage,
     }),
@@ -1440,8 +1462,11 @@ serve(async (req) => {
       periodizationContext,
       phase,
       exercise_profile,
+      available_equipment,
     } = await req.json();
     const exerciseProfile = normalizeExerciseProfile(exercise_profile);
+    // Disponibilidade real de equipamento: hard gate determinístico (nunca fuzzy).
+    const availableEquipment = mapMachineIdsToEquipmentCapabilities(available_equipment);
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
@@ -1714,6 +1739,7 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
         restriction,
         restrictionEvidence,
         exerciseProfile,
+        availableEquipment: availableEquipment.length > 0 ? availableEquipment : undefined,
         volumeContext: {
           volumeTarget: periodizationSnapshot?.week?.volumeTarget ?? null,
           weekStrategy: periodizationSnapshot?.week?.label ?? periodizationSnapshot?.week?.phase ?? null,

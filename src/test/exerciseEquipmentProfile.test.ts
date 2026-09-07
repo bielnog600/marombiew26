@@ -190,3 +190,147 @@ describe('articulated_plus_basic — preferência na VARIAÇÃO', () => {
     expect(verdict.valid).toBe(false);
   });
 });
+
+// ============ HARDENING ============
+import { readFileSync } from 'node:fs';
+import {
+  verifyExerciseProfileFinal,
+  countArticulated,
+  applyArticulatedPreference,
+} from '../../supabase/functions/_shared/exerciseProfileEnforcement';
+import { mapMachineIdsToEquipmentCapabilities } from '../../supabase/functions/_shared/equipmentAvailability';
+import { emptyExerciseProfileAudit } from '../../supabase/functions/_shared/exerciseEquipmentProfile';
+
+describe('hardening — garantia final do perfil BASIC', () => {
+  it('A) principal articulado sem substituto seguro → REVIEW_REQUIRED e bloqueio', () => {
+    const plan = { days: [dayWith('REMADA NEUTRA ART.')] };
+    const audit = enforceExerciseProfile(plan, 'basic', [{ nome: 'REMADA NEUTRA ART.', grupo: 'COSTAS' }], {});
+    const finalAudit = verifyExerciseProfileFinal(plan, 'basic', audit, []);
+    expect(finalAudit.status).toBe('REVIEW_REQUIRED');
+    const reviewRequiredByProfile = finalAudit.status === 'REVIEW_REQUIRED';
+    expect(reviewRequiredByProfile).toBe(true);
+    expect(!reviewRequiredByProfile).toBe(false); // autoPublishAllowed
+  });
+
+  it('B) após repair, countArticulated do plano final é 0', () => {
+    const plan = { days: [dayWith('REMADA NEUTRA ART.', 'PUXADA ALTA ART.')] };
+    const audit = enforceExerciseProfile(plan, 'basic', CATALOG, {});
+    expect(audit.status).toBe('REPAIRED');
+    expect(countArticulated(plan, CATALOG)).toBe(0);
+    expect(verifyExerciseProfileFinal(plan, 'basic', audit, CATALOG).status).toBe('REPAIRED');
+  });
+
+  it('C) variação articulada sobrevivente é detectada pelo gate final', () => {
+    const plan = { days: [dayWith('PUXADA ALTA ABERTA', 'PUXADA ALTA ART.')] };
+    const passAudit = emptyExerciseProfileAudit('basic');
+    const finalAudit = verifyExerciseProfileFinal(plan, 'basic', passAudit, CATALOG);
+    expect(finalAudit.status).toBe('REVIEW_REQUIRED');
+    expect(finalAudit.violations.some((v) => v.offending === 'PUXADA ALTA ART.')).toBe(true);
+  });
+
+  it('gate final não interfere em mixed/articulated_plus_basic', () => {
+    const plan = { days: [dayWith('REMADA NEUTRA ART.')] };
+    expect(verifyExerciseProfileFinal(plan, 'mixed', emptyExerciseProfileAudit('mixed'), CATALOG).status).toBe('PASS');
+  });
+});
+
+describe('hardening — articulated_plus_basic nos exercícios principais', () => {
+  it('D) principal básico com candidato articulado Tier A seguro é atualizado', () => {
+    const plan = { days: [dayWith('PUXADA ALTA ABERTA')] };
+    const audit = applyArticulatedPreference(plan, CATALOG, { referenceMode: 'free' });
+    expect(plan.days[0].exercises[0].exercise).toBe('PUXADA ALTA ART.');
+    expect(audit.status).toBe('REPAIRED');
+    expect(audit.opportunities?.[0]?.applied).toBe(true);
+  });
+
+  it('E) referência exata nunca é trocada só pelo perfil', () => {
+    const plan = { days: [dayWith('PUXADA ALTA ABERTA')] };
+    const audit = applyArticulatedPreference(plan, CATALOG, { referenceMode: 'exact' });
+    expect(plan.days[0].exercises[0].exercise).toBe('PUXADA ALTA ABERTA');
+    expect(audit.status).toBe('PASS');
+    expect(audit.opportunities?.[0]?.reason).toBe('reference_exact');
+  });
+
+  it('E2) âncora protegida também preserva o exercício', () => {
+    const plan = { days: [dayWith('PUXADA ALTA ABERTA')] };
+    const audit = applyArticulatedPreference(plan, CATALOG, {
+      referenceMode: 'free',
+      protectedAnchors: ['PUXADA ALTA ABERTA'],
+    });
+    expect(plan.days[0].exercises[0].exercise).toBe('PUXADA ALTA ABERTA');
+    expect(audit.opportunities?.[0]?.reason).toBe('protected_anchor');
+  });
+
+  it('F) sem articulado equivalente o básico é mantido, sem revisão', () => {
+    const catalog = [
+      { nome: 'PUXADA ALTA ABERTA', grupo: 'COSTAS' },
+      { nome: 'PUXADA ALTA TRIÂNGULO', grupo: 'COSTAS' },
+    ];
+    const plan = { days: [dayWith('PUXADA ALTA ABERTA')] };
+    const audit = applyArticulatedPreference(plan, catalog, { referenceMode: 'free' });
+    expect(plan.days[0].exercises[0].exercise).toBe('PUXADA ALTA ABERTA');
+    expect(audit.status).toBe('PASS');
+  });
+
+  it('G) equipamento disponível limita o repair (só halteres/barras)', () => {
+    const plan = { days: [dayWith('PUXADA ALTA ABERTA')] };
+    const audit = applyArticulatedPreference(plan, CATALOG, {
+      referenceMode: 'free',
+      availableEquipment: mapMachineIdsToEquipmentCapabilities(['halteres', 'barras_anilhas']),
+    });
+    expect(plan.days[0].exercises[0].exercise).toBe('PUXADA ALTA ABERTA');
+    expect(audit.repairs.length).toBe(0);
+  });
+});
+
+describe('hardening — metadata do catálogo', () => {
+  it('H) REMADA MÁQUINA com equipment_type null → basic', () => {
+    const catalog = [{ nome: 'REMADA MÁQUINA', grupo: 'COSTAS', equipment_type: null }];
+    const plan = { days: [dayWith('REMADA MÁQUINA')] };
+    expect(countArticulated(plan, catalog)).toBe(0);
+    expect(enforceExerciseProfile(plan, 'basic', catalog, {}).status).toBe('PASS');
+  });
+
+  it('I) REMADA MÁQUINA com equipment_type="articulada" → articulated', () => {
+    const catalog = [{ nome: 'REMADA MÁQUINA', grupo: 'COSTAS', equipment_type: 'articulada' }];
+    const plan = { days: [dayWith('REMADA MÁQUINA')] };
+    expect(countArticulated(plan, catalog)).toBe(1);
+    expect(enforceExerciseProfile(plan, 'basic', catalog, {}).status).toBe('REVIEW_REQUIRED');
+  });
+});
+
+describe('hardening — disponibilidade de equipamento', () => {
+  it('mapeia IDs da UI para capacidades canônicas', () => {
+    expect(mapMachineIdsToEquipmentCapabilities(['halteres', 'barras_anilhas']).sort()).toEqual(
+      ['barbell', 'bodyweight', 'dumbbell'],
+    );
+    expect(mapMachineIdsToEquipmentCapabilities(['leg_press']).sort()).toEqual(['bodyweight', 'machine']);
+    expect(mapMachineIdsToEquipmentCapabilities([])).toEqual([]);
+    expect(mapMachineIdsToEquipmentCapabilities(['esteira'])).toEqual([]);
+    expect(mapMachineIdsToEquipmentCapabilities(undefined)).toEqual([]);
+  });
+});
+
+describe('hardening — J) gate no trainer-agent e envio do frontend', () => {
+  const agent = readFileSync('supabase/functions/trainer-agent/index.ts', 'utf8');
+  const page = readFileSync('src/pages/TreinoIA.tsx', 'utf8');
+
+  it('perfil REVIEW_REQUIRED entra no draftReviewStatus e bloqueia auto publish', () => {
+    expect(agent).toContain('const reviewRequiredByProfile =');
+    expect(agent).toContain('finalExerciseProfileAudit = verifyExerciseProfileFinal(');
+    expect(agent).toMatch(/draftReviewStatus:[\s\S]{0,200}reviewRequiredByProfile/);
+    expect(agent).toContain('autoPublishAllowed: !reviewRequiredByRestriction && !reviewRequiredByProfile');
+  });
+
+  it('payload devolve o audit final e o frontend consome', () => {
+    expect(agent).toContain('exerciseProfileAudit: finalExerciseProfileAudit');
+    expect(page).toContain('payload?.exerciseProfileAudit');
+    expect(page).toContain('Perfil de exercícios requer revisão');
+    expect(page).toContain('Perfil de exercícios ajustado automaticamente');
+  });
+
+  it('frontend envia a lista de equipamentos disponíveis', () => {
+    expect(page).toContain('available_equipment:');
+    expect(agent).toContain('mapMachineIdsToEquipmentCapabilities(available_equipment)');
+  });
+});
