@@ -23,7 +23,7 @@ import {
   type CarouselTextPosition,
   type CarouselDualLayout,
 } from '@/lib/carouselRenderer';
-import { saveSocialPost, uploadSocialFile } from '@/lib/socialPosts';
+import { saveSocialPost, updateSocialPost, uploadSocialFile } from '@/lib/socialPosts';
 
 interface ExerciseRow { id: string; nome: string; imagem_url: string | null; video_embed: string | null }
 
@@ -81,6 +81,8 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
   const [videoDurationSec, setVideoDurationSec] = useState(6);
   const [exercises, setExercises] = useState<ExerciseRow[]>([]);
   const [busy, setBusy] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftPostId, setDraftPostId] = useState<string | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const logoRef = useRef<HTMLImageElement | null>(null);
@@ -378,22 +380,103 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
     return { blob, ext };
   };
 
+  type GeneratedSlide = { blob: Blob; ext: 'png' | 'mp4' | 'webm'; isVideo: boolean };
+
+  const projectMeta = (status: 'rascunho' | 'finalizado', generatedSlides: number) => ({
+    status,
+    projectType: 'carousel',
+    settings: {
+      theme: themeKey,
+      style: slideStyle,
+      footer,
+      videoDurationSec,
+    },
+    slides: slides.map((item, index) => ({
+      order: index + 1,
+      id: item.id,
+      title: item.title,
+      text: item.text,
+      mediaKind: item.mediaKind,
+      exerciseId: item.exerciseId ?? null,
+      uploadName: item.uploadName ?? null,
+      mediaKindB: item.mediaKindB,
+      exerciseIdB: item.exerciseIdB ?? null,
+      uploadNameB: item.uploadNameB ?? null,
+      dualLayout: item.dualLayout,
+      textPosition: item.textPosition,
+    })),
+    generation: {
+      generatedSlides,
+      generatedAt: new Date().toISOString(),
+    },
+  });
+
+  const renderAllSlides = async (): Promise<GeneratedSlide[]> => {
+    const generated: GeneratedSlide[] = [];
+    for (let i = 0; i < slides.length; i += 1) {
+      const video = slideHasVideo(slides[i])
+        ? await renderSlideVideoBlob(slides[i], i, videoDurationSec * 1000)
+        : null;
+      const blob = video?.blob ?? (await renderSlideBlob(slides[i], i));
+      if (blob) generated.push({ blob, ext: video?.ext ?? 'png', isVideo: !!video });
+    }
+    if (!generated.length) throw new Error('Nenhum slide gerado.');
+    return generated;
+  };
+
+  const persistGeneratedDraft = async (generated: GeneratedSlide[]) => {
+    setSavingDraft(true);
+    try {
+      const paths: string[] = [];
+      let coverPath: string | null = null;
+      for (const item of generated) {
+        const path = await uploadSocialFile(item.blob, item.ext, 'carousels');
+        paths.push(path);
+        if (!coverPath && !item.isVideo) coverPath = path;
+      }
+
+      const title = postTitle || slides[0]?.title || 'Carrossel';
+      const meta = projectMeta('rascunho', generated.length);
+      if (draftPostId) {
+        await updateSocialPost(draftPostId, {
+          title,
+          filePaths: paths,
+          coverPath: coverPath ?? paths[0],
+          meta,
+        });
+        return draftPostId;
+      }
+
+      const postId = await saveSocialPost({
+        kind: 'carousel',
+        title,
+        filePaths: paths,
+        coverPath: coverPath ?? paths[0],
+        meta,
+      });
+      setDraftPostId(postId);
+      return postId;
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
   const downloadAll = async () => {
     setBusy(true);
     try {
-      for (let i = 0; i < slides.length; i += 1) {
-        const video = slideHasVideo(slides[i]) ? await renderSlideVideoBlob(slides[i], i, videoDurationSec * 1000) : null;
-        const blob = video?.blob ?? (await renderSlideBlob(slides[i], i));
-        if (!blob) continue;
-        const ext = video?.ext ?? 'png';
-        const url = URL.createObjectURL(blob);
+      const generated = await renderAllSlides();
+      await persistGeneratedDraft(generated);
+
+      generated.forEach((item, index) => {
+        const url = URL.createObjectURL(item.blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `carrossel-${(postTitle || 'post').toLowerCase().replace(/\s+/g, '-')}-${i + 1}.${ext}`;
+        a.download = `carrossel-${(postTitle || 'post').toLowerCase().replace(/\s+/g, '-')}-${index + 1}.${item.ext}`;
         a.click();
         window.setTimeout(() => URL.revokeObjectURL(url), 4000);
-      }
-      toast.success('Slides baixados (vídeos em mp4/webm).');
+      });
+      toast.success('Carrossel salvo como rascunho e slides baixados.');
+      onSaved?.();
     } catch (e: any) {
       toast.error(e?.message ?? 'Falha ao gerar slides.');
     } finally {
@@ -404,25 +487,13 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
   const saveToLibrary = async () => {
     setBusy(true);
     try {
-      const paths: string[] = [];
-      let coverPath: string | undefined;
-      for (let i = 0; i < slides.length; i += 1) {
-        const video = slideHasVideo(slides[i]) ? await renderSlideVideoBlob(slides[i], i, videoDurationSec * 1000) : null;
-        const blob = video?.blob ?? (await renderSlideBlob(slides[i], i));
-        if (!blob) continue;
-        const path = await uploadSocialFile(blob, video?.ext ?? 'png', 'carousels');
-        paths.push(path);
-        if (!coverPath && !video) coverPath = path;
-      }
-      if (!paths.length) throw new Error('Nenhum slide gerado.');
-      await saveSocialPost({
-        kind: 'carousel',
+      const generated = await renderAllSlides();
+      const postId = await persistGeneratedDraft(generated);
+      await updateSocialPost(postId, {
         title: postTitle || slides[0]?.title || 'Carrossel',
-        filePaths: paths,
-        coverPath: coverPath ?? paths[0],
-        meta: { theme: themeKey, style: slideStyle, slides: paths.length },
+        meta: projectMeta('finalizado', generated.length),
       });
-      toast.success('Carrossel salvo na galeria.');
+      toast.success('Rascunho finalizado e salvo na galeria.');
       onSaved?.();
     } catch (e: any) {
       toast.error(e?.message ?? 'Falha ao salvar carrossel.');
@@ -664,12 +735,13 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
             )}
 
             <div className="flex flex-wrap gap-2">
-              <Button onClick={downloadAll} disabled={busy}>
-                {busy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
-                Baixar slides (.png)
+              <Button onClick={downloadAll} disabled={busy || savingDraft}>
+                {busy || savingDraft ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
+                {savingDraft ? 'Salvando rascunho...' : 'Baixar slides'}
               </Button>
-              <Button variant="outline" onClick={saveToLibrary} disabled={busy}>
-                <Save className="h-4 w-4 mr-1" /> Salvar na galeria
+              <Button variant="outline" onClick={saveToLibrary} disabled={busy || savingDraft}>
+                {busy || savingDraft ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+                {draftPostId ? 'Finalizar na galeria' : 'Salvar na galeria'}
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">

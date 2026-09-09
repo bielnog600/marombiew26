@@ -103,10 +103,15 @@ const SocialGallery: React.FC<Props> = ({ refreshKey = 0 }) => {
                       {new Date(p.created_at).toLocaleString('pt-BR')}
                     </p>
                   </div>
-                  <Badge variant="outline" className="shrink-0 gap-1 text-[10px]">
-                    {p.kind === 'reel' ? <Film className="h-3 w-3" /> : <Images className="h-3 w-3" />}
-                    {p.kind === 'reel' ? 'Reels' : `Carrossel (${p.file_paths.length})`}
-                  </Badge>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <Badge variant="outline" className="gap-1 text-[10px]">
+                      {p.kind === 'reel' ? <Film className="h-3 w-3" /> : <Images className="h-3 w-3" />}
+                      {p.kind === 'reel' ? 'Reels' : `Carrossel (${p.file_paths.length})`}
+                    </Badge>
+                    {p.meta.status === 'rascunho' && (
+                      <Badge className="bg-primary/15 text-primary hover:bg-primary/15 text-[10px]">Rascunho</Badge>
+                    )}
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={() => setOpen(p)}>

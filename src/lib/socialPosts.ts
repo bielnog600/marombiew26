@@ -57,6 +57,8 @@ export const saveSocialPost = async (input: {
 export const updateSocialPost = async (postId: string, input: {
   title?: string | null;
   studentId?: string | null;
+  filePaths?: string[];
+  coverPath?: string | null;
   meta?: Record<string, unknown>;
 }) => {
   const { error } = await supabase
@@ -64,6 +66,8 @@ export const updateSocialPost = async (postId: string, input: {
     .update({
       ...(input.title !== undefined ? { title: input.title } : {}),
       ...(input.studentId !== undefined ? { student_id: input.studentId } : {}),
+      ...(input.filePaths !== undefined ? { file_paths: input.filePaths } : {}),
+      ...(input.coverPath !== undefined ? { cover_path: input.coverPath } : {}),
       ...(input.meta !== undefined ? { meta: input.meta } : {}),
     } as never)
     .eq('id', postId);
