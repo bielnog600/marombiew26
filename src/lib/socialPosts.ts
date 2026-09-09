@@ -37,15 +37,36 @@ export const saveSocialPost = async (input: {
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth.user?.id;
   if (!userId) throw new Error('Sessão expirada.');
-  const { error } = await supabase.from('social_media_posts' as never).insert({
-    created_by: userId,
-    kind: input.kind,
-    title: input.title ?? null,
-    student_id: input.studentId ?? null,
-    file_paths: input.filePaths,
-    cover_path: input.coverPath ?? null,
-    meta: input.meta ?? {},
-  } as never);
+  const { data, error } = await supabase
+    .from('social_media_posts' as never)
+    .insert({
+      created_by: userId,
+      kind: input.kind,
+      title: input.title ?? null,
+      student_id: input.studentId ?? null,
+      file_paths: input.filePaths,
+      cover_path: input.coverPath ?? null,
+      meta: input.meta ?? {},
+    } as never)
+    .select('id')
+    .single();
+  if (error) throw error;
+  return (data as { id: string }).id;
+};
+
+export const updateSocialPost = async (postId: string, input: {
+  title?: string | null;
+  studentId?: string | null;
+  meta?: Record<string, unknown>;
+}) => {
+  const { error } = await supabase
+    .from('social_media_posts' as never)
+    .update({
+      ...(input.title !== undefined ? { title: input.title } : {}),
+      ...(input.studentId !== undefined ? { student_id: input.studentId } : {}),
+      ...(input.meta !== undefined ? { meta: input.meta } : {}),
+    } as never)
+    .eq('id', postId);
   if (error) throw error;
 };
 

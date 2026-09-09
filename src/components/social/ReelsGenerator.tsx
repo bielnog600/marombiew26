@@ -18,7 +18,7 @@ import {
   REEL_W, REEL_H, REEL_THEMES, drawReelFrame, pickRecorderMime,
   type ReelExerciseItem,
 } from '@/lib/reelsRenderer';
-import { saveSocialPost, uploadSocialFile } from '@/lib/socialPosts';
+import { saveSocialPost, updateSocialPost, uploadSocialFile } from '@/lib/socialPosts';
 
 const extractStreamVideoId = (embed?: string | null): string | null => {
   if (!embed) return null;
@@ -93,6 +93,8 @@ const ReelsGenerator: React.FC<Props> = ({ onSaved }) => {
   const [outputExt, setOutputExt] = useState<'mp4' | 'webm'>('webm');
   const [bgName, setBgName] = useState<string>('');
   const [savingLibrary, setSavingLibrary] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftPostId, setDraftPostId] = useState<string | null>(null);
   const [lightPreview, setLightPreview] = useState(true);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -107,6 +109,7 @@ const ReelsGenerator: React.FC<Props> = ({ onSaved }) => {
   const startRef = useRef<number>(performance.now());
   const lastFrameRef = useRef<number>(0);
   const outputBlobRef = useRef<Blob | null>(null);
+  const generatedCtaRef = useRef<string>('');
 
   const theme = REEL_THEMES[themeKey] ?? REEL_THEMES.ouro;
 
@@ -341,6 +344,7 @@ const ReelsGenerator: React.FC<Props> = ({ onSaved }) => {
 
     const nextCta = cta || pickRandomCta();
     if (!cta) setCta(nextCta);
+    generatedCtaRef.current = nextCta;
 
     if (outputUrl) URL.revokeObjectURL(outputUrl);
     setOutputUrl(null);
@@ -357,7 +361,8 @@ const ReelsGenerator: React.FC<Props> = ({ onSaved }) => {
       setOutputUrl(URL.createObjectURL(blob));
       setRecording(false);
       setProgress(100);
-      toast.success('Vídeo gerado! Toque em Baixar.');
+      toast.success('Vídeo gerado! Salvando como rascunho...');
+      void saveGeneratedDraft(blob, type.includes('mp4') ? 'mp4' : 'webm');
     };
     recorderRef.current = recorder;
     startRef.current = performance.now();
@@ -373,21 +378,84 @@ const ReelsGenerator: React.FC<Props> = ({ onSaved }) => {
     if (recorderRef.current && recorderRef.current.state !== 'inactive') recorderRef.current.stop();
   };
 
-  const saveToLibrary = async () => {
-    const blob = outputBlobRef.current;
-    if (!blob) return;
-    setSavingLibrary(true);
+  const projectMeta = (status: 'rascunho' | 'finalizado') => ({
+    status,
+    projectType: 'reels',
+    source: {
+      studentId: studentId || null,
+      planId: planId || null,
+      planTitle: plans.find((plan) => plan.id === planId)?.titulo ?? null,
+      dayIndex,
+      dayName,
+      exercises: chosen.map((exercise) => ({
+        name: exercise.exercise,
+        detail: detailFor(exercise),
+        pause: exercise.pause ?? null,
+      })),
+    },
+    settings: {
+      theme: themeKey,
+      secondsPerPage,
+      footer,
+      customTitle: customTitle || null,
+      cta: generatedCtaRef.current || cta || null,
+      backgroundName: bgName || null,
+      lightPreview,
+    },
+    generation: {
+      duration: totalDuration,
+      pages: pages.length,
+      extension: outputExt,
+      generatedAt: new Date().toISOString(),
+    },
+  });
+
+  const saveGeneratedDraft = async (blob: Blob, ext: 'mp4' | 'webm') => {
+    setSavingDraft(true);
     try {
-      const path = await uploadSocialFile(blob, outputExt, 'reels');
-      await saveSocialPost({
+      const path = await uploadSocialFile(blob, ext, 'reels');
+      const postId = await saveSocialPost({
         kind: 'reel',
         title,
         studentId: studentId || null,
         filePaths: [path],
         coverPath: null,
-        meta: { theme: themeKey, duration: totalDuration, pages: pages.length },
+        meta: projectMeta('rascunho'),
       });
-      toast.success('Reels salvo na galeria.');
+      setDraftPostId(postId);
+      toast.success('Reels salvo como rascunho.');
+      onSaved?.();
+    } catch {
+      toast.error('O vídeo foi gerado, mas não foi possível salvar o rascunho.');
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  const saveToLibrary = async () => {
+    const blob = outputBlobRef.current;
+    if (!blob) return;
+    setSavingLibrary(true);
+    try {
+      if (draftPostId) {
+        await updateSocialPost(draftPostId, {
+          title,
+          studentId: studentId || null,
+          meta: projectMeta('finalizado'),
+        });
+        toast.success('Rascunho finalizado e salvo na galeria.');
+      } else {
+        const path = await uploadSocialFile(blob, outputExt, 'reels');
+        await saveSocialPost({
+          kind: 'reel',
+          title,
+          studentId: studentId || null,
+          filePaths: [path],
+          coverPath: null,
+          meta: projectMeta('finalizado'),
+        });
+        toast.success('Reels salvo na galeria.');
+      }
       onSaved?.();
     } catch (e: any) {
       toast.error(e?.message ?? 'Falha ao salvar na galeria.');
@@ -558,9 +626,9 @@ const ReelsGenerator: React.FC<Props> = ({ onSaved }) => {
                       <Download className="h-4 w-4 mr-1" /> Baixar .{outputExt}
                     </a>
                   </Button>
-                  <Button variant="outline" onClick={saveToLibrary} disabled={savingLibrary}>
-                    {savingLibrary ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
-                    Salvar na galeria
+                  <Button variant="outline" onClick={saveToLibrary} disabled={savingLibrary || savingDraft}>
+                    {savingLibrary || savingDraft ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+                    {savingDraft ? 'Salvando rascunho...' : draftPostId ? 'Finalizar na galeria' : 'Salvar na galeria'}
                   </Button>
                 </>
               )}
