@@ -5,8 +5,9 @@ export const SLIDE_W = 1080;
 export const SLIDE_H = 1350;
 
 export type CarouselTextPosition = 'below' | 'above' | 'overlay';
-export type CarouselStyle = 'classic' | 'full' | 'minimal' | 'split' | 'poster' | 'frame' | 'stack';
+export type CarouselStyle = 'classic' | 'full' | 'minimal' | 'split' | 'poster' | 'frame' | 'stack' | 'single-premium' | 'dual-premium';
 export type CarouselDualLayout = 'vertical' | 'horizontal';
+export type CarouselDualMode = 'angles' | 'conjugated' | 'before-after' | 'execution-detail' | 'technical-comparison' | 'upper-lower' | 'evolution' | 'custom';
 
 export const CAROUSEL_STYLES: { value: CarouselStyle; label: string }[] = [
   { value: 'classic', label: 'Clássico (mídia em card)' },
@@ -16,6 +17,19 @@ export const CAROUSEL_STYLES: { value: CarouselStyle; label: string }[] = [
   { value: 'poster', label: 'Poster (título gigante à esquerda)' },
   { value: 'frame', label: 'Moldura (borda destacada)' },
   { value: 'stack', label: 'Revista (faixa lateral + mídia grande)' },
+  { value: 'single-premium', label: 'Premium 1 mídia' },
+  { value: 'dual-premium', label: 'Premium 2 mídias' },
+];
+
+export const CAROUSEL_DUAL_MODES: { value: CarouselDualMode; label: string; labels: [string, string] }[] = [
+  { value: 'angles', label: 'Ângulos', labels: ['ÂNGULO 1', 'ÂNGULO 2'] },
+  { value: 'conjugated', label: 'Exercícios conjugados', labels: ['EXERCÍCIO 1', 'EXERCÍCIO 2'] },
+  { value: 'before-after', label: 'Antes e depois', labels: ['ANTES', 'DEPOIS'] },
+  { value: 'execution-detail', label: 'Execução + detalhe', labels: ['EXECUÇÃO', 'DETALHE'] },
+  { value: 'technical-comparison', label: 'Comparação técnica', labels: ['ERRADO', 'CORRETO'] },
+  { value: 'upper-lower', label: 'Superior vs inferior', labels: ['PARTE 1', 'PARTE 2'] },
+  { value: 'evolution', label: 'Resultado / evolução', labels: ['INÍCIO', 'EVOLUÇÃO'] },
+  { value: 'custom', label: 'Livre / personalizado', labels: ['MÍDIA 1', 'MÍDIA 2'] },
 ];
 
 export const CAROUSEL_TEXT_POSITIONS: { value: CarouselTextPosition; label: string }[] = [
@@ -43,6 +57,7 @@ export interface CarouselSlideDraw {
   total: number;
   textPosition?: CarouselTextPosition;
   style?: CarouselStyle;
+  mediaLabels?: [string, string];
 }
 
 const roundRectPath = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
@@ -120,6 +135,152 @@ const paintMedia = (
   }
 };
 
+const drawPremiumTitle = (ctx: CanvasRenderingContext2D, title: string, y: number) => {
+  ctx.textAlign = 'center';
+  ctx.font = '900 76px Inter, system-ui, sans-serif';
+  const lines = wrapLines(ctx, (title || 'SEU PRÓXIMO RESULTADO').toUpperCase(), SLIDE_W - 136, 3);
+  lines.forEach((line, lineIndex) => {
+    const words = line.split(' ');
+    const accentWord = words.pop() || '';
+    const whiteText = words.join(' ');
+    const accentWidth = ctx.measureText(accentWord).width;
+    const gap = whiteText ? 18 : 0;
+    const whiteWidth = whiteText ? ctx.measureText(whiteText).width : 0;
+    const startX = (SLIDE_W - whiteWidth - accentWidth - gap) / 2;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#f7f7f5';
+    if (whiteText) ctx.fillText(whiteText, startX, y + lineIndex * 84);
+    ctx.fillStyle = '#ffcb1f';
+    ctx.fillText(accentWord, startX + whiteWidth + gap, y + lineIndex * 84);
+  });
+  return lines.length;
+};
+
+const drawPremiumFooter = (ctx: CanvasRenderingContext2D, footer: string | undefined, index: number, total: number) => {
+  const y = SLIDE_H - 56;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,203,31,0.38)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(58, SLIDE_H - 112);
+  ctx.lineTo(SLIDE_W - 58, SLIDE_H - 112);
+  ctx.stroke();
+  ctx.font = '800 25px Inter, system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.textAlign = 'left';
+  ctx.fillText((footer || '@marombiew').toUpperCase(), 58, y);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffcb1f';
+  ctx.fillText(`${String(index + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}`, SLIDE_W / 2, y);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.fillText('ARRASTE →', SLIDE_W - 58, y);
+  ctx.restore();
+};
+
+const drawPremiumSlide = (ctx: CanvasRenderingContext2D, opts: CarouselSlideDraw, medias: Media[]) => {
+  const { logo, title, text, footer, index, total } = opts;
+  const isDual = opts.style === 'dual-premium' || medias.length > 1;
+  const labels = opts.mediaLabels ?? ['MÍDIA 1', 'MÍDIA 2'];
+  const bg = ctx.createLinearGradient(0, 0, SLIDE_W, SLIDE_H);
+  bg.addColorStop(0, '#10131b');
+  bg.addColorStop(0.52, '#080a0f');
+  bg.addColorStop(1, '#151007');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, SLIDE_W, SLIDE_H);
+
+  ctx.save();
+  const glow = ctx.createRadialGradient(SLIDE_W * 0.75, 130, 10, SLIDE_W * 0.75, 130, 620);
+  glow.addColorStop(0, 'rgba(255,203,31,0.14)');
+  glow.addColorStop(1, 'rgba(255,203,31,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, SLIDE_W, SLIDE_H);
+  ctx.strokeStyle = 'rgba(255,255,255,0.035)';
+  ctx.lineWidth = 2;
+  for (let x = -SLIDE_H; x < SLIDE_W; x += 110) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x + SLIDE_H, SLIDE_H);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = '#ffcb1f';
+  ctx.lineWidth = 3;
+  ctx.globalAlpha = 0.9;
+  ctx.beginPath();
+  ctx.moveTo(64, 74); ctx.lineTo(294, 74);
+  ctx.moveTo(SLIDE_W - 294, 74); ctx.lineTo(SLIDE_W - 64, 74);
+  ctx.stroke();
+  ctx.restore();
+
+  let cursorY = 54;
+  if (logo?.naturalWidth) {
+    const logoW = 252;
+    const logoH = (logo.naturalHeight / logo.naturalWidth) * logoW;
+    ctx.drawImage(logo, (SLIDE_W - logoW) / 2, cursorY, logoW, logoH);
+    cursorY += logoH + 54;
+  } else {
+    cursorY += 72;
+  }
+
+  const titleLineCount = drawPremiumTitle(ctx, title, cursorY + 62);
+  cursorY += titleLineCount * 84 + 20;
+  if (text) {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(232,234,238,0.78)';
+    ctx.font = '600 31px Inter, system-ui, sans-serif';
+    const lines = wrapLines(ctx, text, SLIDE_W - 180, 2);
+    lines.forEach((line, lineIndex) => ctx.fillText(line, SLIDE_W / 2, cursorY + 34 + lineIndex * 42));
+    cursorY += lines.length * 42 + 28;
+  }
+
+  const mediaTop = cursorY + 18;
+  const mediaBottom = SLIDE_H - 142;
+  const mediaHeight = Math.max(250, mediaBottom - mediaTop);
+  const margin = 58;
+  const rects = isDual
+    ? mediaRects(2, 'horizontal', margin, mediaTop, SLIDE_W - margin * 2, mediaHeight)
+    : [{ x: margin, y: mediaTop, w: SLIDE_W - margin * 2, h: mediaHeight }];
+
+  rects.forEach((rect, mediaIndex) => {
+    const item = medias[mediaIndex];
+    ctx.save();
+    ctx.shadowColor = 'rgba(255,203,31,0.32)';
+    ctx.shadowBlur = isDual ? 26 : 34;
+    ctx.fillStyle = 'rgba(255,203,31,0.1)';
+    roundRectPath(ctx, rect.x, rect.y, rect.w, rect.h, 30);
+    ctx.fill();
+    ctx.restore();
+    if (item) paintMedia(ctx, { accent: '#ffcb1f' } as ReelTheme, item, rect.x, rect.y, rect.w, rect.h, 30, true);
+    else {
+      ctx.save();
+      roundRectPath(ctx, rect.x, rect.y, rect.w, rect.h, 30);
+      ctx.fillStyle = 'rgba(255,255,255,0.045)';
+      ctx.fill();
+      ctx.restore();
+    }
+    if (isDual) {
+      ctx.save();
+      ctx.font = '800 18px Inter, system-ui, sans-serif';
+      const label = labels[mediaIndex] || `MÍDIA ${mediaIndex + 1}`;
+      const labelWidth = ctx.measureText(label).width + 38;
+      roundRectPath(ctx, rect.x + 16, rect.y + 16, labelWidth, 38, 19);
+      ctx.fillStyle = 'rgba(8,10,15,0.82)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,203,31,0.72)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = '#ffcb1f';
+      ctx.textAlign = 'left';
+      ctx.fillText(label, rect.x + 35, rect.y + 42);
+      ctx.restore();
+    }
+  });
+  drawPremiumFooter(ctx, footer, index, total);
+};
+
 const mediaRects = (
   count: number,
   layout: CarouselDualLayout,
@@ -143,6 +304,11 @@ export const drawCarouselSlide = (ctx: CanvasRenderingContext2D, opts: CarouselS
   const medias = [media, mediaB].filter(Boolean) as Media[];
   const W = SLIDE_W;
   const H = SLIDE_H;
+
+  if (style === 'single-premium' || style === 'dual-premium') {
+    drawPremiumSlide(ctx, opts, medias);
+    return;
+  }
 
   const grad = ctx.createLinearGradient(0, 0, W, H);
   grad.addColorStop(0, theme.bg1);
