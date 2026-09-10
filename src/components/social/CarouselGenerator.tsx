@@ -75,7 +75,7 @@ const CarouselGenerator: React.FC<Props> = ({ onSaved }) => {
   const [slides, setSlides] = useState<Slide[]>([emptySlide(0), emptySlide(1), emptySlide(2)]);
   const [current, setCurrent] = useState(0);
   const [themeKey, setThemeKey] = useState<string>('ouro');
-  const [slideStyle, setSlideStyle] = useState<CarouselStyle>('classic');
+  const [slideStyle, setSlideStyle] = useState<CarouselStyle>('premium');
   const [footer, setFooter] = useState('@marombiew');
   const [postTitle, setPostTitle] = useState('');
   const [videoDurationSec, setVideoDurationSec] = useState(6);

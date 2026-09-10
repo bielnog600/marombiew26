@@ -5,20 +5,30 @@ export const SLIDE_W = 1080;
 export const SLIDE_H = 1350;
 
 export type CarouselTextPosition = 'below' | 'above' | 'overlay';
-export type CarouselStyle = 'classic' | 'full' | 'minimal' | 'split' | 'poster' | 'frame' | 'stack' | 'single-premium' | 'dual-premium';
+// Os identificadores legados continuam aceitos para manter a renderização de carrosséis já salvos.
+export type CarouselStyle =
+  | 'premium'
+  | 'premium_dual'
+  | 'editorial'
+  | 'impact_full'
+  | 'classic'
+  | 'full'
+  | 'minimal'
+  | 'split'
+  | 'poster'
+  | 'frame'
+  | 'stack'
+  | 'single-premium'
+  | 'dual-premium';
 export type CarouselDualLayout = 'vertical' | 'horizontal';
 export type CarouselDualMode = 'angles' | 'conjugated' | 'before-after' | 'execution-detail' | 'technical-comparison' | 'upper-lower' | 'evolution' | 'custom';
 
+// Modelos oficiais disponíveis para novos carrosséis.
 export const CAROUSEL_STYLES: { value: CarouselStyle; label: string }[] = [
-  { value: 'classic', label: 'Clássico (mídia em card)' },
-  { value: 'full', label: 'Full bleed (mídia de fundo)' },
-  { value: 'minimal', label: 'Minimalista (limpo)' },
-  { value: 'split', label: 'Split (bloco de cor no texto)' },
-  { value: 'poster', label: 'Poster (título gigante à esquerda)' },
-  { value: 'frame', label: 'Moldura (borda destacada)' },
-  { value: 'stack', label: 'Revista (faixa lateral + mídia grande)' },
-  { value: 'single-premium', label: 'Premium 1 mídia' },
-  { value: 'dual-premium', label: 'Premium 2 mídias' },
+  { value: 'premium', label: 'Premium' },
+  { value: 'premium_dual', label: 'Premium Dual' },
+  { value: 'editorial', label: 'Editorial Clean' },
+  { value: 'impact_full', label: 'Impact Full' },
 ];
 
 export const CAROUSEL_DUAL_MODES: { value: CarouselDualMode; label: string; labels: [string, string] }[] = [
@@ -298,7 +308,17 @@ const mediaRects = (
 
 export const drawCarouselSlide = (ctx: CanvasRenderingContext2D, opts: CarouselSlideDraw) => {
   const { theme, logo, title, text, media, mediaB, footer, index, total } = opts;
-  const style: CarouselStyle = opts.style ?? 'classic';
+  const selectedStyle: CarouselStyle = opts.style ?? 'premium';
+  // Normaliza os nomes oficiais para os renderizadores correspondentes, sem invalidar estilos legados.
+  const style: CarouselStyle = selectedStyle === 'premium'
+    ? 'single-premium'
+    : selectedStyle === 'premium_dual'
+      ? 'dual-premium'
+      : selectedStyle === 'editorial'
+        ? 'minimal'
+        : selectedStyle === 'impact_full'
+          ? 'full'
+          : selectedStyle;
   const textPosition: CarouselTextPosition = opts.textPosition ?? 'below';
   const dualLayout: CarouselDualLayout = opts.dualLayout ?? 'vertical';
   const medias = [media, mediaB].filter(Boolean) as Media[];
