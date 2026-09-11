@@ -360,6 +360,74 @@ export type Database = {
         }
         Relationships: []
       }
+      assessment_bodycomp_analysis: {
+        Row: {
+          assessment_id: string
+          compatibility: string | null
+          created_at: string
+          femur_breadth_cm: number | null
+          humerus_breadth_cm: number | null
+          id: string
+          measurement_quality: Json | null
+          population_context: string | null
+          previous_protocol: string | null
+          protocol_changed: boolean
+          protocol_comparison: Json | null
+          recommended_protocol: string | null
+          selected_manually: boolean
+          selected_protocol: string | null
+          skinfold_sums: Json | null
+          somatotype: Json | null
+          training_profile: string | null
+        }
+        Insert: {
+          assessment_id: string
+          compatibility?: string | null
+          created_at?: string
+          femur_breadth_cm?: number | null
+          humerus_breadth_cm?: number | null
+          id?: string
+          measurement_quality?: Json | null
+          population_context?: string | null
+          previous_protocol?: string | null
+          protocol_changed?: boolean
+          protocol_comparison?: Json | null
+          recommended_protocol?: string | null
+          selected_manually?: boolean
+          selected_protocol?: string | null
+          skinfold_sums?: Json | null
+          somatotype?: Json | null
+          training_profile?: string | null
+        }
+        Update: {
+          assessment_id?: string
+          compatibility?: string | null
+          created_at?: string
+          femur_breadth_cm?: number | null
+          humerus_breadth_cm?: number | null
+          id?: string
+          measurement_quality?: Json | null
+          population_context?: string | null
+          previous_protocol?: string | null
+          protocol_changed?: boolean
+          protocol_comparison?: Json | null
+          recommended_protocol?: string | null
+          selected_manually?: boolean
+          selected_protocol?: string | null
+          skinfold_sums?: Json | null
+          somatotype?: Json | null
+          training_profile?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_bodycomp_analysis_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: true
+            referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       assessment_photos: {
         Row: {
           assessment_id: string
@@ -2416,6 +2484,53 @@ export type Database = {
           },
         ]
       }
+      skinfold_measurements: {
+        Row: {
+          assessment_id: string
+          created_at: string
+          id: string
+          measurement_1: number | null
+          measurement_2: number | null
+          measurement_3: number | null
+          quality_status: string | null
+          site: string
+          used_value: number | null
+          variation_percent: number | null
+        }
+        Insert: {
+          assessment_id: string
+          created_at?: string
+          id?: string
+          measurement_1?: number | null
+          measurement_2?: number | null
+          measurement_3?: number | null
+          quality_status?: string | null
+          site: string
+          used_value?: number | null
+          variation_percent?: number | null
+        }
+        Update: {
+          assessment_id?: string
+          created_at?: string
+          id?: string
+          measurement_1?: number | null
+          measurement_2?: number | null
+          measurement_3?: number | null
+          quality_status?: string | null
+          site?: string
+          used_value?: number | null
+          variation_percent?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "skinfold_measurements_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: false
+            referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       skinfolds: {
         Row: {
           abdominal: number | null
@@ -2429,6 +2544,7 @@ export type Database = {
           peitoral: number | null
           subescapular: number | null
           suprailiaca: number | null
+          supraspinale: number | null
           triceps: number | null
         }
         Insert: {
@@ -2443,6 +2559,7 @@ export type Database = {
           peitoral?: number | null
           subescapular?: number | null
           suprailiaca?: number | null
+          supraspinale?: number | null
           triceps?: number | null
         }
         Update: {
@@ -2457,6 +2574,7 @@ export type Database = {
           peitoral?: number | null
           subescapular?: number | null
           suprailiaca?: number | null
+          supraspinale?: number | null
           triceps?: number | null
         }
         Relationships: [
