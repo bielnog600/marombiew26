@@ -199,6 +199,7 @@ const Relatorio = () => {
     scores: RegionScore[]; 
     title: string;
   } | null>(null);
+  const [bodycomp, setBodycomp] = useState<any>(null);
 
   useEffect(() => {
     if (id) loadReport();
@@ -210,13 +211,14 @@ const Relatorio = () => {
 
     if (!a) return;
 
-    const [anthroR, sfR, compR, vR, pR, anR] = await Promise.all([
+    const [anthroR, sfR, compR, vR, pR, anR, bcR] = await Promise.all([
       supabase.from('anthropometrics').select('*').eq('assessment_id', id).maybeSingle(),
       supabase.from('skinfolds').select('*').eq('assessment_id', id).maybeSingle(),
       supabase.from('composition').select('*').eq('assessment_id', id).maybeSingle(),
       supabase.from('vitals').select('*').eq('assessment_id', id).maybeSingle(),
       supabase.from('performance_tests').select('*').eq('assessment_id', id).maybeSingle(),
       supabase.from('anamnese').select('*').eq('assessment_id', id).maybeSingle(),
+      supabase.from('assessment_bodycomp_analysis').select('*').eq('assessment_id', id).maybeSingle(),
     ]);
 
     setAnthro(anthroR.data);
@@ -225,6 +227,7 @@ const Relatorio = () => {
     setVitals(vR.data);
     setPerf(pR.data);
     setAnamnese(anR.data);
+    setBodycomp(bcR.data);
 
     const { data: prof } = await supabase.from('profiles').select('*').eq('user_id', a.student_id).maybeSingle();
     setProfile(prof);
@@ -440,38 +443,69 @@ const Relatorio = () => {
 
           {/* Dobras */}
           <Card className="glass-card">
-            <CardHeader><CardTitle className="text-base">Dobras Cutâneas ({skinfolds?.metodo?.replace(/_/g, ' ') || '-'})</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">Dobras Cutâneas</CardTitle></CardHeader>
             <CardContent>
               <DataRow label="Tríceps" value={skinfolds?.triceps} unit="mm" />
               <DataRow label="Subescapular" value={skinfolds?.subescapular} unit="mm" />
               <DataRow label="Suprailíaca" value={skinfolds?.suprailiaca} unit="mm" />
+              <DataRow label="Supraespinal" value={skinfolds?.supraspinale} unit="mm" />
               <DataRow label="Abdominal" value={skinfolds?.abdominal} unit="mm" />
               <DataRow label="Peitoral" value={skinfolds?.peitoral} unit="mm" />
               <DataRow label="Axilar Média" value={skinfolds?.axilar_media} unit="mm" />
               <DataRow label="Coxa" value={skinfolds?.coxa} unit="mm" />
+              <DataRow label="Bíceps" value={skinfolds?.biceps} unit="mm" />
+              <DataRow label="Panturrilha Medial" value={skinfolds?.panturrilha_medial} unit="mm" />
+              {bodycomp?.skinfold_sums?.sum_all_measured != null && (
+                <DataRow label="Soma das dobras" value={bodycomp.skinfold_sums.sum_all_measured} unit="mm" />
+              )}
             </CardContent>
           </Card>
 
-          {/* Composição */}
+          {/* Protocolo utilizado */}
           <Card className="glass-card">
-            <CardHeader><CardTitle className="text-base">Composição Corporal</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">Protocolo Utilizado</CardTitle></CardHeader>
             <CardContent>
-              {(() => {
-                const sexo = studentProfile?.sexo;
-                const idealFat = sexo === 'feminino' ? 20 : 15;
-                const idealFatWeight = anthro?.peso && idealFat ? (anthro.peso * idealFat / 100).toFixed(1) : null;
-                return (
-                  <>
-                    <DataRow label="% Gordura" value={comp?.percentual_gordura} unit="%" />
-                    <DataRow label="% Gordura Ideal" value={idealFat} unit={`% (${sexo === 'feminino' ? 'feminino' : 'masculino'})`} />
-                    <DataRow label="Massa Magra" value={comp?.massa_magra} unit="kg" />
-                    <DataRow label="Massa Gorda" value={comp?.massa_gorda} unit="kg" />
-                    <DataRow label="Peso de Gordura Ideal" value={idealFatWeight} unit="kg" />
-                  </>
-                );
-              })()}
+              <DataRow
+                label="Protocolo"
+                value={protocolLabel(bodycomp?.selected_protocol ?? skinfolds?.metodo)}
+                unit=""
+              />
+              {bodycomp?.compatibility && (
+                <DataRow label="Compatibilidade" value={COMPATIBILITY_LABEL[bodycomp.compatibility as Compatibility] ?? bodycomp.compatibility} unit="" />
+              )}
+              {bodycomp?.skinfold_sums?.sum_protocol != null && (
+                <DataRow label="Soma de dobras do protocolo" value={bodycomp.skinfold_sums.sum_protocol} unit="mm" />
+              )}
+              {bodycomp?.protocol_changed && (
+                <p className="text-[11px] text-yellow-500 mt-2">
+                  Protocolo diferente da avaliação anterior — a comparação direta do percentual perde precisão.
+                </p>
+              )}
+              <p className="text-[11px] text-muted-foreground mt-2">
+                O percentual de gordura é uma estimativa antropométrica dependente da equação utilizada.
+              </p>
             </CardContent>
           </Card>
+
+          {/* Somatotipo */}
+          {bodycomp?.somatotype && (
+            <Card className="glass-card">
+              <CardHeader><CardTitle className="text-base">Somatotipo Heath-Carter</CardTitle></CardHeader>
+              <CardContent>
+                <p className="text-lg font-bold text-primary mb-2">
+                  {Number(bodycomp.somatotype.endomorfia).toFixed(1).replace('.', ',')} –{' '}
+                  {Number(bodycomp.somatotype.mesomorfia).toFixed(1).replace('.', ',')} –{' '}
+                  {Number(bodycomp.somatotype.ectomorfia).toFixed(1).replace('.', ',')}
+                </p>
+                <DataRow label="Endomorfia" value={bodycomp.somatotype.endomorfia} unit="" />
+                <DataRow label="Mesomorfia" value={bodycomp.somatotype.mesomorfia} unit="" />
+                <DataRow label="Ectomorfia" value={bodycomp.somatotype.ectomorfia} unit="" />
+                {bodycomp.somatotype.dominance && (
+                  <p className="text-xs text-muted-foreground mt-2">Predominância: {bodycomp.somatotype.dominance}</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Testes */}
           {perf && (perf.pushup || perf.plank || perf.cooper_12min || perf.salto_vertical || perf.agachamento_score) && (
