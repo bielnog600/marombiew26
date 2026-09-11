@@ -486,7 +486,7 @@ export const generatePDF = async (data: ReportData, lang: PdfLang = 'pt') => {
       [t.endomorphy, endo],
       [t.mesomorphy, meso],
       [t.ectomorphy, ecto],
-      [t.dominance, s.dominance ?? null],
+      [t.dominance, formatSomatotypeDominance(s.dominanceKey ?? null, lang === 'en' ? 'en' : 'pt', s.dominance ?? null)],
     ]);
     if (somaRows.length > 0) {
       sectionTitle(t.somatotype);
