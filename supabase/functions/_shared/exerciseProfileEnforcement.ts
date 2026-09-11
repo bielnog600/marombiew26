@@ -184,6 +184,13 @@ export function applyArticulatedPreference(
   );
   const exactReference = options.referenceMode === "exact";
 
+  // Disponibilidade de equipamento (prioridade 3) vem ANTES da preferência de
+  // perfil (prioridade 6): exercício articulado exige estação de musculação.
+  const availability = Array.isArray(options.availableEquipment)
+    ? options.availableEquipment.map((e) => String(e).toLowerCase())
+    : [];
+  if (availability.length > 0 && !availability.includes("machine")) return audit;
+
   const articulatedCatalog = catalog.filter((c) => styleOf(catalog, c.nome) === "articulated");
   if (articulatedCatalog.length === 0) return audit;
 
