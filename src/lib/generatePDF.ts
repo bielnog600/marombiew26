@@ -5,6 +5,7 @@ import { type PdfLang, getTranslations } from './pdfTranslations';
 import { getCanvasFitSize, loadImageForCanvas } from './canvasImage';
 import { canvasToSafeDataUrl, renderPostureAnalysisCanvas } from './postureCanvas';
 import { protocolLabel } from './protocolRecommendation';
+import { formatSomatotypeDominance } from './somatotype';
 
 interface ReportData {
   profile: { nome: string; email?: string; telefone?: string } | null;
