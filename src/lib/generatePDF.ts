@@ -17,6 +17,7 @@ interface ReportData {
   postureScan?: any;
   studentProfile?: any;
   hrZones?: any;
+  bodycomp?: any;
 }
 
 const BRAND = {
@@ -171,7 +172,7 @@ const filterRows = (rows: [string, string | null][]): [string, string][] =>
 export const generatePDF = async (data: ReportData, lang: PdfLang = 'pt') => {
   const t = getTranslations(lang);
   const dateFmt = lang === 'pt' ? 'pt-BR' : 'en-US';
-  const { profile, assessment, anthro, comp, skinfolds, vitals, perf, anamnese, postureScan, studentProfile, hrZones } = data;
+  const { profile, assessment, anthro, comp, skinfolds, vitals, perf, anamnese, postureScan, studentProfile, hrZones, bodycomp } = data;
   const doc = new jsPDF('p', 'mm', 'a4');
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
