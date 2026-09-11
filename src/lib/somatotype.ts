@@ -150,9 +150,23 @@ export function calcSomatotype(input: SomatotypeInput): SomatotypeResult {
   ];
   const max = Math.max(endomorfia, mesomorfia, ectomorfia);
   const tops = comps.filter(([, v]) => v === max).map(([k]) => k);
-  const dominance = tops.length === 1 ? `${tops[0]} predominante` : `${tops.join(' e ')} equilibradas`;
+  const dominanceKey: SomatotypeDominance =
+    tops.length === 3
+      ? 'balanced'
+      : tops.length === 2
+        ? (tops.includes('Endomorfia') && tops.includes('Mesomorfia')
+            ? 'endomorphy_mesomorphy'
+            : tops.includes('Endomorfia')
+              ? 'endomorphy_ectomorphy'
+              : 'mesomorphy_ectomorphy')
+        : tops[0] === 'Endomorfia'
+          ? 'endomorphy'
+          : tops[0] === 'Mesomorfia'
+            ? 'mesomorphy'
+            : 'ectomorphy';
+  const dominance = formatSomatotypeDominance(dominanceKey, 'pt');
 
-  return { available: true, missing: [], endomorfia, mesomorfia, ectomorfia, dominance };
+  return { available: true, missing: [], endomorfia, mesomorfia, ectomorfia, dominance, dominanceKey };
 }
 
 /** Converte leitura do paquímetro para centímetros. */
