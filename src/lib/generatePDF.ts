@@ -328,16 +328,10 @@ export const generatePDF = async (data: ReportData, lang: PdfLang = 'pt') => {
   // COMPOSIÇÃO CORPORAL + PIE CHART
   // ══════════════════════════════════════════════
   if (comp && (hasValue(comp.percentual_gordura) || hasValue(comp.massa_magra) || hasValue(comp.massa_gorda))) {
-    const sexo = studentProfile?.sexo;
-    const idealFat = sexo === 'feminino' ? 20 : 15;
-    const idealFatWeight = anthro?.peso ? (anthro.peso * idealFat / 100).toFixed(1) : null;
-    const genderLabel = sexo === 'feminino' ? t.female : t.male;
     const compRows = filterRows([
       [t.fatPct, fmt(comp.percentual_gordura, '%')],
-      [t.idealFatPct, `${idealFat}% (${genderLabel})`],
       [t.leanMass, fmt(comp.massa_magra, ' kg')],
       [t.fatMass, fmt(comp.massa_gorda, ' kg')],
-      [t.idealFatWeight, idealFatWeight ? `${idealFatWeight} kg` : null],
     ]);
     sectionTitle(t.bodyComposition);
     kvTable(compRows);
