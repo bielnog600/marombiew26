@@ -14,13 +14,82 @@ export interface SomatotypeInput {
   femurCm?: number | null;
 }
 
+export type SomatotypeDominance =
+  | 'endomorphy'
+  | 'mesomorphy'
+  | 'ectomorphy'
+  | 'endomorphy_mesomorphy'
+  | 'endomorphy_ectomorphy'
+  | 'mesomorphy_ectomorphy'
+  | 'balanced';
+
 export interface SomatotypeResult {
   available: boolean;
   missing: string[];
   endomorfia: number | null;
   mesomorfia: number | null;
   ectomorfia: number | null;
+  /** Texto legado em português (mantido por compatibilidade). */
   dominance: string | null;
+  /** Valor estruturado, independente de idioma (fonte preferida). */
+  dominanceKey: SomatotypeDominance | null;
+}
+
+const DOMINANCE_LABELS: Record<'pt' | 'en', Record<SomatotypeDominance, string>> = {
+  pt: {
+    endomorphy: 'Endomorfia predominante',
+    mesomorphy: 'Mesomorfia predominante',
+    ectomorphy: 'Ectomorfia predominante',
+    endomorphy_mesomorphy: 'Endomorfia e Mesomorfia equilibradas',
+    endomorphy_ectomorphy: 'Endomorfia e Ectomorfia equilibradas',
+    mesomorphy_ectomorphy: 'Mesomorfia e Ectomorfia equilibradas',
+    balanced: 'Componentes equilibrados',
+  },
+  en: {
+    endomorphy: 'Endomorphy dominant',
+    mesomorphy: 'Mesomorphy dominant',
+    ectomorphy: 'Ectomorphy dominant',
+    endomorphy_mesomorphy: 'Endomorphy and Mesomorphy balanced',
+    endomorphy_ectomorphy: 'Endomorphy and Ectomorphy balanced',
+    mesomorphy_ectomorphy: 'Mesomorphy and Ectomorphy balanced',
+    balanced: 'Balanced components',
+  },
+};
+
+/** Converte texto legado em português para a chave estruturada. */
+export function legacyDominanceToKey(text?: string | null): SomatotypeDominance | null {
+  if (!text) return null;
+  const v = text.toLowerCase();
+  const endo = v.includes('endomorf');
+  const meso = v.includes('mesomorf');
+  const ecto = v.includes('ectomorf');
+  const count = [endo, meso, ecto].filter(Boolean).length;
+  if (count === 3) return 'balanced';
+  if (count === 2) {
+    if (endo && meso) return 'endomorphy_mesomorphy';
+    if (endo && ecto) return 'endomorphy_ectomorphy';
+    return 'mesomorphy_ectomorphy';
+  }
+  if (count === 1) {
+    if (endo) return 'endomorphy';
+    if (meso) return 'mesomorphy';
+    return 'ectomorphy';
+  }
+  if (v.includes('equilibrad') || v.includes('balanced')) return 'balanced';
+  return null;
+}
+
+/** Texto traduzido da predominância; aceita chave ou texto legado. */
+export function formatSomatotypeDominance(
+  key?: SomatotypeDominance | string | null,
+  lang: 'pt' | 'en' = 'pt',
+  legacy?: string | null,
+): string | null {
+  const map = DOMINANCE_LABELS[lang];
+  if (key && key in map) return map[key as SomatotypeDominance];
+  const fromLegacy = legacyDominanceToKey(legacy ?? (typeof key === 'string' ? key : null));
+  if (fromLegacy) return map[fromLegacy];
+  return legacy ?? (typeof key === 'string' ? key : null);
 }
 
 const ok = (v: number | null | undefined): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0;
