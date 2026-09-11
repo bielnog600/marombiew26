@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Shapes } from 'lucide-react';
-import type { SomatotypeResult } from '@/lib/somatotype';
+import { formatSomatotypeDominance, type SomatotypeResult } from '@/lib/somatotype';
 
 const fmt = (n: number | null) => (n == null ? '—' : n.toFixed(1).replace('.', ','));
 
@@ -25,7 +25,7 @@ const SomatotypeCard: React.FC<{ somatotype: SomatotypeResult; compact?: boolean
           <span className="font-bold">{fmt(somatotype.ectomorfia)}</span>
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">Predominância: {somatotype.dominance}</p>
+      <p className="text-xs text-muted-foreground">Predominância: {formatSomatotypeDominance(somatotype.dominanceKey, 'pt', somatotype.dominance)}</p>
     </div>
   ) : (
     <div className="space-y-1">

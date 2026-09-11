@@ -544,7 +544,7 @@ const NovaAvaliacao = () => {
           protocol: selectedProtocol,
         },
         somatotype: somatotype.available
-          ? { endomorfia: somatotype.endomorfia, mesomorfia: somatotype.mesomorfia, ectomorfia: somatotype.ectomorfia, dominance: somatotype.dominance }
+          ? { endomorfia: somatotype.endomorfia, mesomorfia: somatotype.mesomorfia, ectomorfia: somatotype.ectomorfia, dominance: somatotype.dominance, dominanceKey: somatotype.dominanceKey }
           : null,
       };
 

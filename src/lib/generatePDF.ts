@@ -5,6 +5,7 @@ import { type PdfLang, getTranslations } from './pdfTranslations';
 import { getCanvasFitSize, loadImageForCanvas } from './canvasImage';
 import { canvasToSafeDataUrl, renderPostureAnalysisCanvas } from './postureCanvas';
 import { protocolLabel } from './protocolRecommendation';
+import { formatSomatotypeDominance } from './somatotype';
 
 interface ReportData {
   profile: { nome: string; email?: string; telefone?: string } | null;
@@ -486,7 +487,7 @@ export const generatePDF = async (data: ReportData, lang: PdfLang = 'pt') => {
       [t.endomorphy, endo],
       [t.mesomorphy, meso],
       [t.ectomorphy, ecto],
-      [t.dominance, s.dominance ?? null],
+      [t.dominance, formatSomatotypeDominance(s.dominanceKey ?? null, lang === 'en' ? 'en' : 'pt', s.dominance ?? null)],
     ]);
     if (somaRows.length > 0) {
       sectionTitle(t.somatotype);
