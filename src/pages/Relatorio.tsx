@@ -512,7 +512,7 @@ const Relatorio = () => {
                 <DataRow label="Mesomorfia" value={bodycomp.somatotype.mesomorfia} unit="" />
                 <DataRow label="Ectomorfia" value={bodycomp.somatotype.ectomorfia} unit="" />
                 {bodycomp.somatotype.dominance && (
-                  <p className="text-xs text-muted-foreground mt-2">Predominância: {bodycomp.somatotype.dominance}</p>
+                  <p className="text-xs text-muted-foreground mt-2">Predominância: {formatSomatotypeDominance(bodycomp.somatotype.dominanceKey ?? null, 'pt', bodycomp.somatotype.dominance)}</p>
                 )}
               </CardContent>
             </Card>
