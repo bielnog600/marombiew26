@@ -13,6 +13,7 @@ import { analyzePostureConditions, type PoseKeypoint, type RegionScore, type Pos
 import { renderPostureAnalysisDataUrl } from '@/lib/postureCanvas';
 import { SignedImage } from '@/components/SignedImage';
 import { protocolLabel, COMPATIBILITY_LABEL, type Compatibility } from '@/lib/protocolRecommendation';
+import { formatSomatotypeDominance } from '@/lib/somatotype';
 
 
 const statusColor = (status: string) =>
