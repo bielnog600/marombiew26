@@ -311,7 +311,7 @@ const Relatorio = () => {
             <Button variant="outline" disabled={exporting} onClick={async () => {
               setExporting(true);
               try {
-                await generatePDF({ profile, assessment, anthro, comp, skinfolds, vitals, perf, anamnese, postureScan, studentProfile, hrZones }, 'pt');
+                await generatePDF({ profile, assessment, anthro, comp, skinfolds, vitals, perf, anamnese, postureScan, studentProfile, hrZones, bodycomp }, 'pt');
               } catch (err) { console.error(err); }
               finally { setExporting(false); }
             }}>
@@ -321,7 +321,7 @@ const Relatorio = () => {
             <Button variant="outline" disabled={exporting} onClick={async () => {
               setExporting(true);
               try {
-                await generatePDF({ profile, assessment, anthro, comp, skinfolds, vitals, perf, anamnese, postureScan, studentProfile, hrZones }, 'en');
+                await generatePDF({ profile, assessment, anthro, comp, skinfolds, vitals, perf, anamnese, postureScan, studentProfile, hrZones, bodycomp }, 'en');
               } catch (err) { console.error(err); }
               finally { setExporting(false); }
             }}>
@@ -466,20 +466,9 @@ const Relatorio = () => {
           <Card className="glass-card">
             <CardHeader><CardTitle className="text-base">Composição Corporal</CardTitle></CardHeader>
             <CardContent>
-              {(() => {
-                const sexo = studentProfile?.sexo;
-                const idealFat = sexo === 'feminino' ? 20 : 15;
-                const idealFatWeight = anthro?.peso && idealFat ? (anthro.peso * idealFat / 100).toFixed(1) : null;
-                return (
-                  <>
-                    <DataRow label="% Gordura" value={comp?.percentual_gordura} unit="%" />
-                    <DataRow label="% Gordura Ideal" value={idealFat} unit={`% (${sexo === 'feminino' ? 'feminino' : 'masculino'})`} />
-                    <DataRow label="Massa Magra" value={comp?.massa_magra} unit="kg" />
-                    <DataRow label="Massa Gorda" value={comp?.massa_gorda} unit="kg" />
-                    <DataRow label="Peso de Gordura Ideal" value={idealFatWeight} unit="kg" />
-                  </>
-                );
-              })()}
+              <DataRow label="% Gordura" value={comp?.percentual_gordura} unit="%" />
+              <DataRow label="Massa Magra" value={comp?.massa_magra} unit="kg" />
+              <DataRow label="Massa Gorda" value={comp?.massa_gorda} unit="kg" />
             </CardContent>
           </Card>
 

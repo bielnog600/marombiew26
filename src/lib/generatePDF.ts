@@ -4,6 +4,7 @@ import logoUrl from '@/assets/logo_marombiew.png';
 import { type PdfLang, getTranslations } from './pdfTranslations';
 import { getCanvasFitSize, loadImageForCanvas } from './canvasImage';
 import { canvasToSafeDataUrl, renderPostureAnalysisCanvas } from './postureCanvas';
+import { protocolLabel } from './protocolRecommendation';
 
 interface ReportData {
   profile: { nome: string; email?: string; telefone?: string } | null;
