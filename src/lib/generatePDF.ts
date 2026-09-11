@@ -4,6 +4,7 @@ import logoUrl from '@/assets/logo_marombiew.png';
 import { type PdfLang, getTranslations } from './pdfTranslations';
 import { getCanvasFitSize, loadImageForCanvas } from './canvasImage';
 import { canvasToSafeDataUrl, renderPostureAnalysisCanvas } from './postureCanvas';
+import { protocolLabel } from './protocolRecommendation';
 
 interface ReportData {
   profile: { nome: string; email?: string; telefone?: string } | null;
@@ -17,6 +18,7 @@ interface ReportData {
   postureScan?: any;
   studentProfile?: any;
   hrZones?: any;
+  bodycomp?: any;
 }
 
 const BRAND = {
@@ -171,7 +173,7 @@ const filterRows = (rows: [string, string | null][]): [string, string][] =>
 export const generatePDF = async (data: ReportData, lang: PdfLang = 'pt') => {
   const t = getTranslations(lang);
   const dateFmt = lang === 'pt' ? 'pt-BR' : 'en-US';
-  const { profile, assessment, anthro, comp, skinfolds, vitals, perf, anamnese, postureScan, studentProfile, hrZones } = data;
+  const { profile, assessment, anthro, comp, skinfolds, vitals, perf, anamnese, postureScan, studentProfile, hrZones, bodycomp } = data;
   const doc = new jsPDF('p', 'mm', 'a4');
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
@@ -327,16 +329,10 @@ export const generatePDF = async (data: ReportData, lang: PdfLang = 'pt') => {
   // COMPOSIÇÃO CORPORAL + PIE CHART
   // ══════════════════════════════════════════════
   if (comp && (hasValue(comp.percentual_gordura) || hasValue(comp.massa_magra) || hasValue(comp.massa_gorda))) {
-    const sexo = studentProfile?.sexo;
-    const idealFat = sexo === 'feminino' ? 20 : 15;
-    const idealFatWeight = anthro?.peso ? (anthro.peso * idealFat / 100).toFixed(1) : null;
-    const genderLabel = sexo === 'feminino' ? t.female : t.male;
     const compRows = filterRows([
       [t.fatPct, fmt(comp.percentual_gordura, '%')],
-      [t.idealFatPct, `${idealFat}% (${genderLabel})`],
       [t.leanMass, fmt(comp.massa_magra, ' kg')],
       [t.fatMass, fmt(comp.massa_gorda, ' kg')],
-      [t.idealFatWeight, idealFatWeight ? `${idealFatWeight} kg` : null],
     ]);
     sectionTitle(t.bodyComposition);
     kvTable(compRows);
@@ -413,25 +409,97 @@ export const generatePDF = async (data: ReportData, lang: PdfLang = 'pt') => {
   }
 
   // ══════════════════════════════════════════════
+  // PROTOCOLO UTILIZADO
+  // ══════════════════════════════════════════════
+  const protocolId = bodycomp?.selected_protocol ?? skinfolds?.metodo ?? null;
+  if (protocolId || bodycomp?.compatibility) {
+    const compatMap: Record<string, string> = {
+      high: t.compatHigh,
+      moderate: t.compatModerate,
+      low: t.compatLow,
+      not_recommended: t.compatNotRecommended,
+    };
+    const protocolRows = filterRows([
+      [t.protocol, protocolId ? protocolLabel(protocolId) : null],
+      [t.compatibility, bodycomp?.compatibility ? (compatMap[bodycomp.compatibility] ?? String(bodycomp.compatibility)) : null],
+      [t.protocolSkinfoldSum, bodycomp?.skinfold_sums?.sum_protocol != null ? `${bodycomp.skinfold_sums.sum_protocol} mm` : null],
+    ]);
+    if (protocolRows.length > 0) {
+      sectionTitle(t.protocolUsed);
+      kvTable(protocolRows);
+      if (bodycomp?.protocol_changed) {
+        const warnLines = doc.splitTextToSize(t.protocolChangedWarning, contentW - 8);
+        const boxH = warnLines.length * 4.2 + 6;
+        checkPage(boxH + 4);
+        doc.setFillColor(255, 248, 219);
+        doc.setDrawColor(...BRAND.gold);
+        doc.setLineWidth(0.3);
+        doc.rect(margin, y, contentW, boxH, 'FD');
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...BRAND.dark);
+        doc.text(warnLines, margin + 4, y + 5);
+        y += boxH + 4;
+      }
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(...BRAND.gray);
+      const noteLines = doc.splitTextToSize(t.anthropometricEstimateNote, contentW);
+      checkPage(noteLines.length * 4 + 4);
+      doc.text(noteLines, margin, y);
+      y += noteLines.length * 4 + 4;
+      doc.setFont('helvetica', 'normal');
+    }
+  }
+
+  // ══════════════════════════════════════════════
   // DOBRAS CUTÂNEAS
   // ══════════════════════════════════════════════
   const dobrasRows = filterRows([
     [t.triceps, fmt(skinfolds?.triceps, ' mm')],
     [t.subscapular, fmt(skinfolds?.subescapular, ' mm')],
     [t.suprailiac, fmt(skinfolds?.suprailiaca, ' mm')],
+    [t.supraspinale, fmt(skinfolds?.supraspinale, ' mm')],
     [t.abdominal, fmt(skinfolds?.abdominal, ' mm')],
     [t.pectoral, fmt(skinfolds?.peitoral, ' mm')],
     [t.midAxillary, fmt(skinfolds?.axilar_media, ' mm')],
     [t.thigh, fmt(skinfolds?.coxa, ' mm')],
+    [t.biceps, fmt(skinfolds?.biceps, ' mm')],
+    [t.medialCalf, fmt(skinfolds?.panturrilha_medial, ' mm')],
+    [t.skinfoldTotal, bodycomp?.skinfold_sums?.sum_all_measured != null ? `${bodycomp.skinfold_sums.sum_all_measured} mm` : null],
   ]);
   if (dobrasRows.length > 0) {
     sectionTitle(t.skinfolds);
-    if (skinfolds?.metodo) {
-      doc.setFontSize(8);
-      doc.setTextColor(...BRAND.gray);
-      doc.text(`${t.method}: ${skinfolds.metodo.replace(/_/g, ' ')}`, margin, y - 4);
-    }
     kvTable(dobrasRows);
+  }
+
+  // ══════════════════════════════════════════════
+  // SOMATOTIPO HEATH-CARTER
+  // ══════════════════════════════════════════════
+  if (bodycomp?.somatotype) {
+    const s = bodycomp.somatotype;
+    const num = (v: any) => (v == null || Number.isNaN(Number(v)) ? null : Number(v).toFixed(1));
+    const endo = num(s.endomorfia ?? s.endomorphy);
+    const meso = num(s.mesomorfia ?? s.mesomorphy);
+    const ecto = num(s.ectomorfia ?? s.ectomorphy);
+    const somaRows = filterRows([
+      [t.endomorphy, endo],
+      [t.mesomorphy, meso],
+      [t.ectomorphy, ecto],
+      [t.dominance, s.dominance ?? null],
+    ]);
+    if (somaRows.length > 0) {
+      sectionTitle(t.somatotype);
+      if (endo && meso && ecto) {
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...BRAND.dark);
+        doc.text(`${endo} – ${meso} – ${ecto}`, margin, y);
+        y += 7;
+        doc.setFont('helvetica', 'normal');
+      }
+      kvTable(somaRows);
+    }
   }
 
   // ══════════════════════════════════════════════
