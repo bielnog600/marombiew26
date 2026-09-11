@@ -12,6 +12,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { analyzePostureConditions, type PoseKeypoint, type RegionScore, type PostureCondition, type PostureAngles } from '@/lib/postureUtils';
 import { renderPostureAnalysisDataUrl } from '@/lib/postureCanvas';
 import { SignedImage } from '@/components/SignedImage';
+import { protocolLabel, COMPATIBILITY_LABEL, type Compatibility } from '@/lib/protocolRecommendation';
 
 
 const statusColor = (status: string) =>
