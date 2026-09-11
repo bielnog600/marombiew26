@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { evaluateFold, median, variationPercent } from '@/lib/measurementQuality';
-import { calcSomatotype, caliperToCm } from '@/lib/somatotype';
+import { calcSomatotype, caliperToCm, formatSomatotypeDominance, legacyDominanceToKey } from '@/lib/somatotype';
 import { recommendProtocol, evaluateProtocolCompatibility } from '@/lib/protocolRecommendation';
 import { calcProtocol } from '@/lib/skinfoldProtocols';
 
@@ -109,5 +109,22 @@ describe('somatotipo Heath-Carter', () => {
   it('converte paquímetro de mm para cm', () => {
     expect(caliperToCm(68.5, 'mm')).toBeCloseTo(6.85, 2);
     expect(caliperToCm(6.85, 'cm')).toBeCloseTo(6.85, 2);
+  });
+});
+
+describe('predominância do somatotipo', () => {
+  it('traduz chave estruturada em PT e EN', () => {
+    expect(formatSomatotypeDominance('mesomorphy', 'pt')).toBe('Mesomorfia predominante');
+    expect(formatSomatotypeDominance('mesomorphy', 'en')).toBe('Mesomorphy dominant');
+    expect(formatSomatotypeDominance('endomorphy_mesomorphy', 'en')).toBe('Endomorphy and Mesomorphy balanced');
+  });
+
+  it('converte texto legado em português para EN', () => {
+    expect(legacyDominanceToKey('Mesomorfia predominante')).toBe('mesomorphy');
+    expect(formatSomatotypeDominance(null, 'en', 'Mesomorfia predominante')).toBe('Mesomorphy dominant');
+  });
+
+  it('não quebra sem dados', () => {
+    expect(formatSomatotypeDominance(null, 'en', null)).toBeNull();
   });
 });
