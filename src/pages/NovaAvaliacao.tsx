@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,15 +14,28 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { ArrowLeft, ArrowRight, Save, Loader2, CalendarIcon, Camera, X, Upload } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Save, Loader2, CalendarIcon, Camera, X, Upload, Check, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { calcAuto, calcProtocol, PROTOCOLS, type ProtocolId, type SkinfoldKey } from '@/lib/skinfoldProtocols';
+import {
+  PROTOCOLS, sumOfFolds, resolveSex,
+  type ProtocolId, type SkinfoldKey, type CalcProtocolId,
+} from '@/lib/skinfoldProtocols';
+import { evaluateFold, qualityStatusLabel, type FoldQuality } from '@/lib/measurementQuality';
+import {
+  recommendProtocol, isCalcProtocol, COMPATIBILITY_LABEL,
+  POPULATION_CONTEXTS, TRAINING_PROFILES,
+  type PopulationContext, type TrainingProfile,
+} from '@/lib/protocolRecommendation';
+import { calcSomatotype, caliperToCm, isPlausibleBreadth } from '@/lib/somatotype';
+import ProtocolAnalysisCard from '@/components/assessment/ProtocolAnalysisCard';
+import SomatotypeCard from '@/components/assessment/SomatotypeCard';
 
 const steps = [
   'Anamnese',
   'Sinais Vitais',
   'Antropometria',
   'Dobras Cutâneas',
+  'Estrutura Óssea',
   'Testes Físicos',
   'Fotos',
   'Resumo',
@@ -33,6 +45,7 @@ const skinfoldFieldLabels: Record<string, string> = {
   triceps: 'Tríceps',
   subescapular: 'Subescapular',
   suprailiaca: 'Suprailíaca',
+  supraspinale: 'Supraespinal',
   abdominal: 'Abdominal',
   peitoral: 'Peitoral',
   axilar_media: 'Axilar Média',
@@ -41,7 +54,16 @@ const skinfoldFieldLabels: Record<string, string> = {
   panturrilha_medial: 'Panturrilha Medial',
 };
 
-const skinfoldFields = ['triceps', 'subescapular', 'suprailiaca', 'abdominal', 'peitoral', 'axilar_media', 'coxa', 'biceps', 'panturrilha_medial'] as const;
+const skinfoldFields = [
+  'triceps', 'subescapular', 'suprailiaca', 'supraspinale', 'abdominal',
+  'peitoral', 'axilar_media', 'coxa', 'biceps', 'panturrilha_medial',
+] as const satisfies readonly SkinfoldKey[];
+
+const emptyFolds = (): Record<string, string> => {
+  const o: Record<string, string> = {};
+  skinfoldFields.forEach((s) => { o[`${s}_1`] = ''; o[`${s}_2`] = ''; o[`${s}_3`] = ''; });
+  return o;
+};
 
 const classifyIMC = (imc: number): { label: string; color: string } => {
   if (imc < 18.5) return { label: 'Abaixo do peso', color: 'text-yellow-500' };
@@ -57,6 +79,12 @@ const classifyRCQ = (rcq: number): { label: string; color: string } => {
   if (rcq < 0.86) return { label: 'Risco moderado', color: 'text-yellow-500' };
   if (rcq < 0.95) return { label: 'Risco alto', color: 'text-orange-500' };
   return { label: 'Risco muito alto', color: 'text-destructive' };
+};
+
+const toNum = (s: string | null | undefined): number | null => {
+  if (s == null || s === '') return null;
+  const n = parseFloat(String(s).replace(',', '.'));
+  return Number.isFinite(n) && n > 0 ? n : null;
 };
 
 const InputField = ({ label, value, onChange, unit, type = 'text', placeholder = '' }: any) => (
@@ -115,7 +143,6 @@ const NovaAvaliacao = () => {
   const [studentSex, setStudentSex] = useState<string | null>(null);
   const [studentBirthDate, setStudentBirthDate] = useState<Date | null>(null);
   const [photos, setPhotos] = useState<{ tipo: string; file: File; preview: string }[]>([]);
-  const [uploadingPhotos, setUploadingPhotos] = useState(false);
 
   const photoTypes = [
     { value: 'frente', label: 'Frente' },
@@ -139,7 +166,6 @@ const NovaAvaliacao = () => {
       if (data.data_nascimento) {
         setStudentBirthDate(new Date(`${data.data_nascimento}T00:00:00`));
       }
-      // Auto-fill height from profile if not editing and field is empty
       if (!editId && data.altura) {
         setAnthro(prev => prev.altura ? prev : { ...prev, altura: String(data.altura) });
       }
@@ -164,27 +190,18 @@ const NovaAvaliacao = () => {
     biceps_contraido_direito: '', biceps_contraido_esquerdo: '', ombro: '',
   });
 
-  const [skinfolds, setSkinfolds] = useState({
-    metodo: 'auto' as ProtocolId,
-    triceps_1: '', triceps_2: '',
-    subescapular_1: '', subescapular_2: '',
-    suprailiaca_1: '', suprailiaca_2: '',
-    abdominal_1: '', abdominal_2: '',
-    peitoral_1: '', peitoral_2: '',
-    axilar_media_1: '', axilar_media_2: '',
-    coxa_1: '', coxa_2: '',
-    biceps_1: '', biceps_2: '',
-    panturrilha_medial_1: '', panturrilha_medial_2: '',
-  });
+  // Dobras: até 3 aferições por local
+  const [folds, setFolds] = useState<Record<string, string>>(emptyFolds);
+  const [metodo, setMetodo] = useState<ProtocolId>('auto');
+  const [selectedManually, setSelectedManually] = useState(false);
 
-  const avgSk = (key: string): string => {
-    const v1 = parseFloat((skinfolds as any)[`${key}_1`]);
-    const v2 = parseFloat((skinfolds as any)[`${key}_2`]);
-    if (!isNaN(v1) && !isNaN(v2) && v1 > 0 && v2 > 0) return ((v1 + v2) / 2).toFixed(1);
-    if (!isNaN(v1) && v1 > 0) return v1.toString();
-    if (!isNaN(v2) && v2 > 0) return v2.toString();
-    return '';
-  };
+  // Contexto da avaliação
+  const [populationContext, setPopulationContext] = useState<PopulationContext>('nao_informado');
+  const [trainingProfile, setTrainingProfile] = useState<TrainingProfile>('nao_informado');
+
+  // Estrutura óssea (paquímetro)
+  const [caliperUnit, setCaliperUnit] = useState<'mm' | 'cm'>('mm');
+  const [breadths, setBreadths] = useState({ umero: '', femur: '' });
 
   const [performance, setPerformance] = useState({
     pushup: '', plank: '', cooper_12min: '', salto_vertical: '',
@@ -198,6 +215,7 @@ const NovaAvaliacao = () => {
   const [previousAnthro, setPreviousAnthro] = useState<Record<string, number | null> | null>(null);
   const [previousSkinfolds, setPreviousSkinfolds] = useState<Record<string, number | null> | null>(null);
   const [previousAssessmentDate, setPreviousAssessmentDate] = useState<Date | null>(null);
+  const [previousProtocol, setPreviousProtocol] = useState<CalcProtocolId | null>(null);
 
   useEffect(() => {
     if (!studentId) return;
@@ -215,16 +233,20 @@ const NovaAvaliacao = () => {
         setPreviousAnthro(null);
         setPreviousSkinfolds(null);
         setPreviousAssessmentDate(null);
+        setPreviousProtocol(null);
         return;
       }
       setPreviousAssessmentDate(new Date(prev.created_at));
 
-      const [aRes, sRes] = await Promise.all([
+      const [aRes, sRes, anRes] = await Promise.all([
         supabase.from('anthropometrics').select('*').eq('assessment_id', prev.id).maybeSingle(),
         supabase.from('skinfolds').select('*').eq('assessment_id', prev.id).maybeSingle(),
+        supabase.from('assessment_bodycomp_analysis').select('selected_protocol').eq('assessment_id', prev.id).maybeSingle(),
       ]);
       setPreviousAnthro((aRes.data as any) ?? null);
       setPreviousSkinfolds((sRes.data as any) ?? null);
+      const prot = (anRes.data as any)?.selected_protocol ?? (sRes.data as any)?.metodo ?? null;
+      setPreviousProtocol(isCalcProtocol(prot) ? prot : null);
     };
     loadPrevious();
   }, [studentId, editId]);
@@ -236,13 +258,15 @@ const NovaAvaliacao = () => {
     const loadExisting = async () => {
       setLoading(true);
       try {
-        const [aRes, vRes, anthRes, skRes, perfRes, assessRes] = await Promise.all([
+        const [aRes, vRes, anthRes, skRes, perfRes, assessRes, measRes, analysisRes] = await Promise.all([
           supabase.from('anamnese').select('*').eq('assessment_id', editId).maybeSingle(),
           supabase.from('vitals').select('*').eq('assessment_id', editId).maybeSingle(),
           supabase.from('anthropometrics').select('*').eq('assessment_id', editId).maybeSingle(),
           supabase.from('skinfolds').select('*').eq('assessment_id', editId).maybeSingle(),
           supabase.from('performance_tests').select('*').eq('assessment_id', editId).maybeSingle(),
           supabase.from('assessments').select('notas_gerais, created_at').eq('id', editId).maybeSingle(),
+          supabase.from('skinfold_measurements').select('*').eq('assessment_id', editId),
+          supabase.from('assessment_bodycomp_analysis').select('*').eq('assessment_id', editId).maybeSingle(),
         ]);
 
         if (aRes.data) {
@@ -276,21 +300,35 @@ const NovaAvaliacao = () => {
             ombro: str(d.ombro),
           });
         }
+
+        const next = emptyFolds();
         if (skRes.data) {
-          const d = skRes.data;
-          setSkinfolds({
-            metodo: ((d.metodo as ProtocolId) || 'auto'),
-            triceps_1: str(d.triceps), triceps_2: '',
-            subescapular_1: str(d.subescapular), subescapular_2: '',
-            suprailiaca_1: str(d.suprailiaca), suprailiaca_2: '',
-            abdominal_1: str(d.abdominal), abdominal_2: '',
-            peitoral_1: str(d.peitoral), peitoral_2: '',
-            axilar_media_1: str(d.axilar_media), axilar_media_2: '',
-            coxa_1: str(d.coxa), coxa_2: '',
-            biceps_1: str((d as any).biceps), biceps_2: '',
-            panturrilha_medial_1: str((d as any).panturrilha_medial), panturrilha_medial_2: '',
+          const d: any = skRes.data;
+          skinfoldFields.forEach((k) => { next[`${k}_1`] = str(d[k]); });
+          setMetodo(((d.metodo as ProtocolId) || 'auto'));
+        }
+        // Aferições detalhadas sobrescrevem o valor consolidado, quando existirem
+        (measRes.data ?? []).forEach((m: any) => {
+          if (!skinfoldFields.includes(m.site)) return;
+          next[`${m.site}_1`] = str(m.measurement_1);
+          next[`${m.site}_2`] = str(m.measurement_2);
+          next[`${m.site}_3`] = str(m.measurement_3);
+        });
+        setFolds(next);
+
+        if (analysisRes.data) {
+          const a: any = analysisRes.data;
+          setPopulationContext((a.population_context as PopulationContext) ?? 'nao_informado');
+          setTrainingProfile((a.training_profile as TrainingProfile) ?? 'nao_informado');
+          setSelectedManually(!!a.selected_manually);
+          if (a.selected_manually && isCalcProtocol(a.selected_protocol)) setMetodo(a.selected_protocol);
+          setCaliperUnit('cm');
+          setBreadths({
+            umero: a.humerus_breadth_cm != null ? String(a.humerus_breadth_cm) : '',
+            femur: a.femur_breadth_cm != null ? String(a.femur_breadth_cm) : '',
           });
         }
+
         if (perfRes.data) {
           const d = perfRes.data;
           setPerformance({
@@ -316,54 +354,100 @@ const NovaAvaliacao = () => {
     loadExisting();
   }, [editId]);
 
-  // Cálculos
+  // ---------- Cálculos ----------
+  const ageYears = useMemo(() => {
+    if (!studentBirthDate) return null;
+    const ref = dataAvaliacao || new Date();
+    let age = ref.getFullYear() - studentBirthDate.getFullYear();
+    const monthDiff = ref.getMonth() - studentBirthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && ref.getDate() < studentBirthDate.getDate())) age--;
+    return age > 0 ? age : null;
+  }, [studentBirthDate, dataAvaliacao]);
+
+  const foldQuality = useMemo(() => {
+    const q: Partial<Record<SkinfoldKey, FoldQuality>> = {};
+    skinfoldFields.forEach((s) => {
+      q[s] = evaluateFold(folds[`${s}_1`], folds[`${s}_2`], folds[`${s}_3`]);
+    });
+    return q;
+  }, [folds]);
+
+  const usedValues = useMemo(() => {
+    const v: Partial<Record<SkinfoldKey, number>> = {};
+    skinfoldFields.forEach((s) => {
+      const q = foldQuality[s];
+      if (q?.usable && q.usedValue != null) v[s] = q.usedValue;
+    });
+    return v;
+  }, [foldQuality]);
+
+  const recommendation = useMemo(() => recommendProtocol({
+    sex: studentSex,
+    ageYears,
+    values: usedValues,
+    quality: foldQuality,
+    populationContext,
+    trainingProfile,
+    previousProtocol,
+  }), [studentSex, ageYears, usedValues, foldQuality, populationContext, trainingProfile, previousProtocol]);
+
+  const selectedProtocol: CalcProtocolId | null = useMemo(() => {
+    if (metodo === 'manual') return null;
+    if (metodo === 'auto') return recommendation.recommended?.protocol ?? null;
+    return isCalcProtocol(metodo) ? metodo : null;
+  }, [metodo, recommendation]);
+
+  const selectedEvaluation = useMemo(
+    () => recommendation.evaluations.find((e) => e.protocol === selectedProtocol) ?? null,
+    [recommendation, selectedProtocol],
+  );
+
+  const bodyFat = selectedEvaluation?.bodyFat ?? null;
+
+  const totalSum = useMemo(() => sumOfFolds(usedValues), [usedValues]);
+
+  const breadthCm = useMemo(() => {
+    const u = toNum(breadths.umero);
+    const f = toNum(breadths.femur);
+    return {
+      umero: u != null ? Number(caliperToCm(u, caliperUnit).toFixed(2)) : null,
+      femur: f != null ? Number(caliperToCm(f, caliperUnit).toFixed(2)) : null,
+    };
+  }, [breadths, caliperUnit]);
+
+  const somatotype = useMemo(() => calcSomatotype({
+    alturaCm: toNum(anthro.altura),
+    pesoKg: toNum(anthro.peso),
+    tricepsMm: usedValues.triceps ?? null,
+    subescapularMm: usedValues.subescapular ?? null,
+    supraspinaleMm: usedValues.supraspinale ?? null,
+    panturrilhaMedialMm: usedValues.panturrilha_medial ?? null,
+    bracoContraidoCm: toNum(anthro.biceps_contraido_direito),
+    panturrilhaPerimetroCm: toNum(anthro.panturrilha_direita),
+    umeroCm: breadthCm.umero,
+    femurCm: breadthCm.femur,
+  }), [anthro, usedValues, breadthCm]);
+
   const calcIMC = () => {
-    const p = parseFloat(anthro.peso);
-    const h = parseFloat(anthro.altura) / 100;
-    if (p > 0 && h > 0) return (p / (h * h)).toFixed(1);
+    const p = toNum(anthro.peso);
+    const h = toNum(anthro.altura);
+    if (p && h) return (p / ((h / 100) * (h / 100))).toFixed(1);
     return '-';
   };
 
   const calcRCQ = () => {
-    const c = parseFloat(anthro.cintura);
-    const q = parseFloat(anthro.quadril);
-    if (c > 0 && q > 0) return (c / q).toFixed(3);
+    const c = toNum(anthro.cintura);
+    const q = toNum(anthro.quadril);
+    if (c && q) return (c / q).toFixed(3);
     return '-';
   };
 
-  // Body fat calculation — uses skinfoldProtocols lib (supports auto-pick + 6 protocols).
-  const computeBodyFat = (): { bf: number | null; protocol: ProtocolId; reason?: string } => {
-    if (skinfolds.metodo === 'manual') return { bf: null, protocol: 'manual' };
-    const calcAge = (): number | null => {
-      if (!studentBirthDate) return null;
-      let age = (dataAvaliacao || new Date()).getFullYear() - studentBirthDate.getFullYear();
-      const ref = dataAvaliacao || new Date();
-      const monthDiff = ref.getMonth() - studentBirthDate.getMonth();
-      if (monthDiff < 0 || (monthDiff === 0 && ref.getDate() < studentBirthDate.getDate())) age--;
-      return age > 0 ? age : null;
-    };
-    const parseNum = (s: string) => {
-      const n = parseFloat((s || '').replace(',', '.'));
-      return isNaN(n) ? undefined : n;
-    };
-    const values: Partial<Record<SkinfoldKey, number>> = {};
-    for (const k of skinfoldFields) {
-      const v = parseNum(avgSk(k));
-      if (v != null) (values as any)[k] = v;
-    }
-    const input = { sex: studentSex, ageYears: calcAge(), values };
-    if (skinfolds.metodo === 'auto') {
-      const r = calcAuto(input);
-      return { bf: r.bodyFat, protocol: r.autoPicked, reason: r.reason };
-    }
-    const r = calcProtocol(skinfolds.metodo as any, input);
-    return { bf: r.bodyFat, protocol: skinfolds.metodo, reason: r.reason };
-  };
+  const massaGorda = bodyFat != null && toNum(anthro.peso)
+    ? Number(((toNum(anthro.peso) as number) * bodyFat / 100).toFixed(1)) : null;
+  const massaMagra = bodyFat != null && toNum(anthro.peso)
+    ? Number(((toNum(anthro.peso) as number) * (1 - bodyFat / 100)).toFixed(1)) : null;
 
-  const calcGordura = () => {
-    const r = computeBodyFat();
-    return r.bf != null ? r.bf.toFixed(1) : '-';
-  };
+  const pendingThird = skinfoldFields.filter((s) => foldQuality[s]?.status === 'needs_third');
 
   const handleSave = async () => {
     if (!studentId || !user) return;
@@ -372,12 +456,10 @@ const NovaAvaliacao = () => {
     try {
       const imc = calcIMC();
       const rcq = calcRCQ();
-      const gordura = calcGordura();
 
       let aid: string;
 
       if (editId) {
-        // Update existing assessment
         const { error: aErr } = await supabase
           .from('assessments')
           .update({ notas_gerais: notasGerais, created_at: dataAvaliacao.toISOString() })
@@ -385,7 +467,6 @@ const NovaAvaliacao = () => {
         if (aErr) throw aErr;
         aid = editId;
 
-        // Delete existing sub-table data then re-insert
         await Promise.all([
           supabase.from('anamnese').delete().eq('assessment_id', aid),
           supabase.from('vitals').delete().eq('assessment_id', aid),
@@ -393,9 +474,10 @@ const NovaAvaliacao = () => {
           supabase.from('skinfolds').delete().eq('assessment_id', aid),
           supabase.from('composition').delete().eq('assessment_id', aid),
           supabase.from('performance_tests').delete().eq('assessment_id', aid),
+          supabase.from('skinfold_measurements').delete().eq('assessment_id', aid),
+          supabase.from('assessment_bodycomp_analysis').delete().eq('assessment_id', aid),
         ]);
       } else {
-        // Create new assessment
         const { data: assessment, error: aErr } = await supabase
           .from('assessments')
           .insert({ student_id: studentId, avaliador_id: user.id, notas_gerais: notasGerais, created_at: dataAvaliacao.toISOString() } as any)
@@ -405,7 +487,67 @@ const NovaAvaliacao = () => {
         aid = assessment.id;
       }
 
-      // Insert sub-tables
+      const skinfoldRow: Record<string, unknown> = {
+        assessment_id: aid,
+        metodo: selectedProtocol ?? (metodo === 'manual' ? 'manual' : 'auto'),
+      };
+      skinfoldFields.forEach((k) => { skinfoldRow[k] = foldQuality[k]?.usedValue ?? null; });
+
+      const measurementRows = skinfoldFields
+        .filter((k) => (foldQuality[k]?.measurements.length ?? 0) > 0)
+        .map((k) => {
+          const q = foldQuality[k] as FoldQuality;
+          return {
+            assessment_id: aid,
+            site: k,
+            measurement_1: toNum(folds[`${k}_1`]),
+            measurement_2: toNum(folds[`${k}_2`]),
+            measurement_3: toNum(folds[`${k}_3`]),
+            used_value: q.usedValue,
+            variation_percent: q.variationPercent,
+            quality_status: q.status,
+          };
+        });
+
+      const analysisRow = {
+        assessment_id: aid,
+        recommended_protocol: recommendation.recommended?.protocol ?? null,
+        selected_protocol: selectedProtocol ?? (metodo === 'manual' ? 'manual' : null),
+        previous_protocol: previousProtocol,
+        protocol_changed: !!(previousProtocol && selectedProtocol && selectedProtocol !== previousProtocol),
+        selected_manually: selectedManually || metodo !== 'auto',
+        compatibility: selectedEvaluation?.compatibility ?? null,
+        population_context: populationContext,
+        training_profile: trainingProfile,
+        humerus_breadth_cm: breadthCm.umero,
+        femur_breadth_cm: breadthCm.femur,
+        protocol_comparison: recommendation.evaluations.map((e) => ({
+          protocol: e.protocol,
+          eligible: e.eligible,
+          compatibility: e.compatibility,
+          body_fat: e.bodyFat,
+          sum: e.sum,
+          reasons: e.reasons,
+          warnings: e.warnings,
+        })),
+        measurement_quality: skinfoldFields.reduce((acc, k) => {
+          const q = foldQuality[k];
+          if (q && q.measurements.length > 0) {
+            acc[k] = { status: q.status, variation_percent: q.variationPercent, used_value: q.usedValue };
+          }
+          return acc;
+        }, {} as Record<string, unknown>),
+        skinfold_sums: {
+          sum_all_measured: totalSum.sum,
+          sites: totalSum.sites,
+          sum_protocol: selectedEvaluation?.sum ?? null,
+          protocol: selectedProtocol,
+        },
+        somatotype: somatotype.available
+          ? { endomorfia: somatotype.endomorfia, mesomorfia: somatotype.mesomorfia, ectomorfia: somatotype.ectomorfia, dominance: somatotype.dominance }
+          : null,
+      };
+
       await Promise.all([
         supabase.from('anamnese').insert({ assessment_id: aid, ...anamnese }),
         supabase.from('vitals').insert({
@@ -418,50 +560,33 @@ const NovaAvaliacao = () => {
         }),
         supabase.from('anthropometrics').insert({
           assessment_id: aid,
-          peso: anthro.peso ? parseFloat(anthro.peso) : null,
-          altura: anthro.altura ? parseFloat(anthro.altura) : null,
+          peso: toNum(anthro.peso),
+          altura: toNum(anthro.altura),
           imc: imc !== '-' ? parseFloat(imc) : null,
-          cintura: anthro.cintura ? parseFloat(anthro.cintura) : null,
-          quadril: anthro.quadril ? parseFloat(anthro.quadril) : null,
+          cintura: toNum(anthro.cintura),
+          quadril: toNum(anthro.quadril),
           rcq: rcq !== '-' ? parseFloat(rcq) : null,
-          pescoco: anthro.pescoco ? parseFloat(anthro.pescoco) : null,
-          braco_direito: anthro.braco_direito ? parseFloat(anthro.braco_direito) : null,
-          braco_esquerdo: anthro.braco_esquerdo ? parseFloat(anthro.braco_esquerdo) : null,
-          antebraco: anthro.antebraco ? parseFloat(anthro.antebraco) : null,
-          antebraco_esquerdo: anthro.antebraco_esquerdo ? parseFloat(anthro.antebraco_esquerdo) : null,
-          ombro: anthro.ombro ? parseFloat(anthro.ombro) : null,
-          torax: anthro.torax ? parseFloat(anthro.torax) : null,
-          abdomen: anthro.abdomen ? parseFloat(anthro.abdomen) : null,
-          coxa_direita: anthro.coxa_direita ? parseFloat(anthro.coxa_direita) : null,
-          coxa_esquerda: anthro.coxa_esquerda ? parseFloat(anthro.coxa_esquerda) : null,
-          panturrilha_direita: anthro.panturrilha_direita ? parseFloat(anthro.panturrilha_direita) : null,
-          panturrilha_esquerda: anthro.panturrilha_esquerda ? parseFloat(anthro.panturrilha_esquerda) : null,
-          biceps_contraido_direito: anthro.biceps_contraido_direito ? parseFloat(anthro.biceps_contraido_direito) : null,
-          biceps_contraido_esquerdo: anthro.biceps_contraido_esquerdo ? parseFloat(anthro.biceps_contraido_esquerdo) : null,
+          pescoco: toNum(anthro.pescoco),
+          braco_direito: toNum(anthro.braco_direito),
+          braco_esquerdo: toNum(anthro.braco_esquerdo),
+          antebraco: toNum(anthro.antebraco),
+          antebraco_esquerdo: toNum(anthro.antebraco_esquerdo),
+          ombro: toNum(anthro.ombro),
+          torax: toNum(anthro.torax),
+          abdomen: toNum(anthro.abdomen),
+          coxa_direita: toNum(anthro.coxa_direita),
+          coxa_esquerda: toNum(anthro.coxa_esquerda),
+          panturrilha_direita: toNum(anthro.panturrilha_direita),
+          panturrilha_esquerda: toNum(anthro.panturrilha_esquerda),
+          biceps_contraido_direito: toNum(anthro.biceps_contraido_direito),
+          biceps_contraido_esquerdo: toNum(anthro.biceps_contraido_esquerdo),
         } as any),
-        supabase.from('skinfolds').insert({
-          assessment_id: aid,
-          metodo: (() => {
-            // Persist the actually-used protocol (resolve "auto").
-            if (skinfolds.metodo !== 'auto') return skinfolds.metodo;
-            const r = computeBodyFat();
-            return r.protocol === 'manual' ? 'auto' : r.protocol;
-          })(),
-          triceps: avgSk('triceps') ? parseFloat(avgSk('triceps')) : null,
-          subescapular: avgSk('subescapular') ? parseFloat(avgSk('subescapular')) : null,
-          suprailiaca: avgSk('suprailiaca') ? parseFloat(avgSk('suprailiaca')) : null,
-          abdominal: avgSk('abdominal') ? parseFloat(avgSk('abdominal')) : null,
-          peitoral: avgSk('peitoral') ? parseFloat(avgSk('peitoral')) : null,
-          axilar_media: avgSk('axilar_media') ? parseFloat(avgSk('axilar_media')) : null,
-          coxa: avgSk('coxa') ? parseFloat(avgSk('coxa')) : null,
-          biceps: avgSk('biceps') ? parseFloat(avgSk('biceps')) : null,
-          panturrilha_medial: avgSk('panturrilha_medial') ? parseFloat(avgSk('panturrilha_medial')) : null,
-        } as any),
+        supabase.from('skinfolds').insert(skinfoldRow as any),
         supabase.from('composition').insert({
           assessment_id: aid,
-          percentual_gordura: gordura !== '-' ? parseFloat(gordura) : null,
-          massa_magra: gordura !== '-' && anthro.peso ? parseFloat((parseFloat(anthro.peso) * (1 - parseFloat(gordura) / 100)).toFixed(1)) : null,
-          massa_gorda: gordura !== '-' && anthro.peso ? parseFloat((parseFloat(anthro.peso) * parseFloat(gordura) / 100).toFixed(1)) : null,
+          percentual_gordura: bodyFat,
+          massa_magra: massaMagra,
+          massa_gorda: massaGorda,
         } as any),
         supabase.from('performance_tests').insert({
           assessment_id: aid,
@@ -475,27 +600,29 @@ const NovaAvaliacao = () => {
           mobilidade_tornozelo: performance.mobilidade_tornozelo,
           observacoes: performance.observacoes,
         }),
+        measurementRows.length > 0
+          ? supabase.from('skinfold_measurements').insert(measurementRows as any)
+          : Promise.resolve({ error: null } as any),
+        supabase.from('assessment_bodycomp_analysis').insert(analysisRow as any),
       ]);
 
-      // Upload photos
       if (photos.length > 0) {
-        // Delete existing photos if editing
         if (editId) {
           await supabase.from('assessment_photos').delete().eq('assessment_id', aid);
         }
-        
+
         for (const photo of photos) {
           const ext = photo.file.name.split('.').pop() || 'jpg';
           const path = `${studentId}/${aid}/${photo.tipo}.${ext}`;
           const { error: uploadErr } = await supabase.storage
             .from('assessment-photos')
             .upload(path, photo.file, { upsert: true });
-          
+
           if (!uploadErr) {
             const { data: urlData } = supabase.storage
               .from('assessment-photos')
               .getPublicUrl(path);
-            
+
             await supabase.from('assessment_photos').insert({
               assessment_id: aid,
               url: urlData.publicUrl,
@@ -523,6 +650,9 @@ const NovaAvaliacao = () => {
       </AppLayout>
     );
   }
+
+  const umeroPlausible = breadthCm.umero == null || isPlausibleBreadth('umero', breadthCm.umero);
+  const femurPlausible = breadthCm.femur == null || isPlausibleBreadth('femur', breadthCm.femur);
 
   return (
     <AppLayout title={editId ? 'Editar Avaliação' : 'Nova Avaliação'}>
@@ -553,7 +683,6 @@ const NovaAvaliacao = () => {
             </PopoverContent>
           </Popover>
         </div>
-
 
         {/* Stepper */}
         <div className="flex items-center gap-1 overflow-x-auto pb-2">
@@ -594,6 +723,27 @@ const NovaAvaliacao = () => {
                 <div className="flex items-center gap-3">
                   <Switch checked={anamnese.tabagismo} onCheckedChange={(v) => setAnamnese({ ...anamnese, tabagismo: v })} />
                   <Label>Tabagismo</Label>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Perfil de treinamento</Label>
+                  <Select value={trainingProfile} onValueChange={(v) => setTrainingProfile(v as TrainingProfile)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {TRAINING_PROFILES.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Contexto populacional / região de referência (opcional)</Label>
+                  <Select value={populationContext} onValueChange={(v) => setPopulationContext(v as PopulationContext)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {POPULATION_CONTEXTS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-muted-foreground">
+                    Usado apenas como contexto de evidência das equações. Não define raça/etnia nem escolhe protocolo sozinho.
+                  </p>
                 </div>
               </div>
             )}
@@ -716,79 +866,70 @@ const NovaAvaliacao = () => {
 
             {currentStep === 3 && (
               <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Método de Cálculo</Label>
-                  <Select value={skinfolds.metodo} onValueChange={(v) => setSkinfolds({ ...skinfolds, metodo: v as ProtocolId })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="auto">⚡ Automático (recomendado p/ aluno)</SelectItem>
-                      <SelectItem value="jackson_pollock_3">Jackson & Pollock 3 Dobras</SelectItem>
-                      <SelectItem value="jackson_pollock_7">Jackson & Pollock 7 Dobras</SelectItem>
-                      <SelectItem value="guedes_3">Guedes 3 Dobras (BR)</SelectItem>
-                      <SelectItem value="petroski_4">Petroski 4 Dobras (BR)</SelectItem>
-                      <SelectItem value="faulkner_4">Faulkner 4 Dobras</SelectItem>
-                      <SelectItem value="durnin_4">Durnin & Womersley 4 Dobras</SelectItem>
-                      <SelectItem value="manual">Manual</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {skinfolds.metodo !== 'manual' && skinfolds.metodo !== 'auto' && (
-                    <p className="text-[11px] text-muted-foreground">
-                      {PROTOCOLS[skinfolds.metodo as Exclude<ProtocolId,'auto'|'manual'>]?.description}
-                    </p>
-                  )}
-                  {skinfolds.metodo === 'auto' && (
-                    <p className="text-[11px] text-muted-foreground">
-                      A IA escolhe o protocolo ideal com base em sexo, idade e dobras preenchidas.
-                    </p>
-                  )}
-                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Realize duas aferições por dobra. Se a variação passar de 5%, uma terceira aferição é solicitada e a
+                  mediana passa a ser o valor utilizado. Sexo: {studentSex || 'não informado'} • Idade: {ageYears ?? 'não informada'}
+                </p>
+
                 <div className="space-y-3">
-                  <div className="hidden md:grid md:grid-cols-[160px_1fr_1fr_90px] gap-2 px-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <div className="hidden md:grid md:grid-cols-[150px_1fr_1fr_1fr_110px] gap-2 px-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                     <span>Dobra</span>
                     <span>Med. 1 (mm)</span>
                     <span>Med. 2 (mm)</span>
-                    <span className="text-center">Média</span>
+                    <span>Med. 3 (mm)</span>
+                    <span className="text-center">Utilizado</span>
                   </div>
 
                   {skinfoldFields.map((key) => {
-                    const avg = avgSk(key);
+                    const q = foldQuality[key] as FoldQuality;
                     const prevValue = (previousSkinfolds as any)?.[key] ?? null;
+                    const showThird = q.needsThird || !!folds[`${key}_3`];
 
                     return (
                       <div key={key} className="rounded-lg border border-border/60 p-3">
-                        <div className="grid grid-cols-1 md:grid-cols-[160px_1fr_1fr_90px] gap-3 items-end">
+                        <div className="grid grid-cols-1 md:grid-cols-[150px_1fr_1fr_1fr_110px] gap-3 items-end">
                           <div className="text-sm font-medium text-foreground">{skinfoldFieldLabels[key]}</div>
 
                           <InputField
-                            label="Med. 1"
-                            value={(skinfolds as any)[`${key}_1`]}
-                            onChange={(e: any) => setSkinfolds({ ...skinfolds, [`${key}_1`]: e.target.value })}
-                            unit="mm"
-                            type="number"
+                            label="Med. 1" unit="mm" type="number"
+                            value={folds[`${key}_1`]}
+                            onChange={(e: any) => setFolds({ ...folds, [`${key}_1`]: e.target.value })}
                           />
-
                           <InputField
-                            label="Med. 2"
-                            value={(skinfolds as any)[`${key}_2`]}
-                            onChange={(e: any) => setSkinfolds({ ...skinfolds, [`${key}_2`]: e.target.value })}
-                            unit="mm"
-                            type="number"
+                            label="Med. 2" unit="mm" type="number"
+                            value={folds[`${key}_2`]}
+                            onChange={(e: any) => setFolds({ ...folds, [`${key}_2`]: e.target.value })}
                           />
+                          {showThird ? (
+                            <InputField
+                              label="Med. 3" unit="mm" type="number"
+                              value={folds[`${key}_3`]}
+                              onChange={(e: any) => setFolds({ ...folds, [`${key}_3`]: e.target.value })}
+                            />
+                          ) : <div className="hidden md:block" />}
 
                           <div className="pb-1 text-center min-w-[60px]">
-                            <span className="text-[10px] text-muted-foreground block">Média</span>
-                            <span className="font-bold text-sm text-primary">{avg || '-'}</span>
+                            <span className="text-[10px] text-muted-foreground block">Utilizado</span>
+                            <span className="font-bold text-sm text-primary">
+                              {q.usedValue != null ? q.usedValue.toFixed(1).replace('.', ',') : '-'}
+                            </span>
                           </div>
                         </div>
+
+                        {q.measurements.length > 0 && (
+                          <p className={`mt-2 text-[11px] flex items-center gap-1.5 ${q.status === 'needs_third' ? 'text-yellow-500' : 'text-muted-foreground'}`}>
+                            {q.status === 'needs_third'
+                              ? <AlertTriangle className="h-3 w-3" />
+                              : <Check className="h-3 w-3 text-primary" />}
+                            {q.variationPercent != null && <>Diferença: {q.variationPercent.toFixed(1).replace('.', ',')}% • </>}
+                            {qualityStatusLabel(q.status)}
+                          </p>
+                        )}
+
                         {prevValue !== null && prevValue !== undefined && (
                           <button
                             type="button"
-                            onClick={() =>
-                              setSkinfolds({
-                                ...skinfolds,
-                                [`${key}_1`]: String(prevValue),
-                              })
-                            }
+                            onClick={() => setFolds({ ...folds, [`${key}_1`]: String(prevValue) })}
                             className="mt-2 text-[10px] text-muted-foreground/80 hover:text-primary transition-colors text-left"
                             title="Clique para preencher Med. 1 com o valor anterior"
                           >
@@ -799,41 +940,89 @@ const NovaAvaliacao = () => {
                     );
                   })}
                 </div>
-                {previousAssessmentDate && (
-                  <p className="text-[11px] text-muted-foreground">
-                    Comparando dobras com avaliação de {format(previousAssessmentDate, "dd/MM/yyyy")}
+
+                {pendingThird.length > 0 && (
+                  <p className="text-[11px] text-yellow-500">
+                    Qualidade da aferição insuficiente em: {pendingThird.map((k) => skinfoldFieldLabels[k]).join(', ')}.
+                    Realize a terceira aferição.
                   </p>
                 )}
+
                 <div className="p-3 rounded-lg bg-secondary/50 space-y-1">
                   <div>
-                    <span className="text-xs text-muted-foreground">% Gordura Estimado: </span>
-                    <span className="font-bold text-primary">{calcGordura()}%</span>
+                    <span className="text-xs text-muted-foreground">Soma das dobras medidas: </span>
+                    <span className="font-bold text-primary">
+                      {totalSum.sum != null ? `${totalSum.sum.toFixed(1).replace('.', ',')} mm` : '—'}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground"> ({totalSum.sites.length} locais)</span>
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Método usado: <span className="font-medium text-foreground">{(() => {
-                      const r = computeBodyFat();
-                      if (r.protocol === 'manual') return 'Manual';
-                      const meta = (PROTOCOLS as any)[r.protocol];
-                      const base = meta?.short || r.protocol;
-                      return skinfolds.metodo === 'auto' ? `${base} (auto)` : base;
-                    })()}</span> • Sexo: {studentSex || 'não informado'} • Idade: {studentBirthDate ? (() => {
-                      let age = dataAvaliacao.getFullYear() - studentBirthDate.getFullYear();
-                      const monthDiff = dataAvaliacao.getMonth() - studentBirthDate.getMonth();
-                      if (monthDiff < 0 || (monthDiff === 0 && dataAvaliacao.getDate() < studentBirthDate.getDate())) age--;
-                      return age;
-                    })() : 'não informada'}
-                  </p>
-                  {(() => {
-                    const r = computeBodyFat();
-                    return r.bf == null && r.reason ? (
-                      <p className="text-[11px] text-yellow-500">{r.reason}</p>
-                    ) : null;
-                  })()}
+                  {selectedEvaluation?.sum != null && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Σ do protocolo selecionado: {selectedEvaluation.sum.toFixed(1).replace('.', ',')} mm
+                    </p>
+                  )}
                 </div>
+
+                <ProtocolAnalysisCard
+                  recommendation={recommendation}
+                  selected={metodo}
+                  selectedEvaluation={selectedEvaluation}
+                  previousProtocol={previousProtocol}
+                  onSelect={(value, manual) => { setMetodo(value); setSelectedManually(manual); }}
+                />
               </div>
             )}
 
             {currentStep === 4 && (
+              <div className="space-y-4">
+                <p className="text-[11px] text-muted-foreground">
+                  Medidas de diâmetro ósseo com paquímetro. Não entram no cálculo de % de gordura — são usadas no
+                  somatotipo Heath-Carter.
+                </p>
+
+                <div className="space-y-1 max-w-[220px]">
+                  <Label className="text-xs text-muted-foreground">Unidade do paquímetro</Label>
+                  <Select value={caliperUnit} onValueChange={(v) => setCaliperUnit(v as 'mm' | 'cm')}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="mm">mm</SelectItem>
+                      <SelectItem value="cm">cm</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <InputField
+                      label="Diâmetro biepicondilar do úmero" unit={caliperUnit} type="number"
+                      value={breadths.umero}
+                      onChange={(e: any) => setBreadths({ ...breadths, umero: e.target.value })}
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Distância entre os epicôndilos medial e lateral do úmero.
+                      {breadthCm.umero != null && ` Armazenado: ${breadthCm.umero.toFixed(2).replace('.', ',')} cm.`}
+                    </p>
+                    {!umeroPlausible && <p className="text-[11px] text-yellow-500">Valor fora da faixa plausível (4,5–9 cm). Confira a unidade.</p>}
+                  </div>
+                  <div>
+                    <InputField
+                      label="Diâmetro biepicondilar do fêmur" unit={caliperUnit} type="number"
+                      value={breadths.femur}
+                      onChange={(e: any) => setBreadths({ ...breadths, femur: e.target.value })}
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Distância entre os epicôndilos medial e lateral do fêmur.
+                      {breadthCm.femur != null && ` Armazenado: ${breadthCm.femur.toFixed(2).replace('.', ',')} cm.`}
+                    </p>
+                    {!femurPlausible && <p className="text-[11px] text-yellow-500">Valor fora da faixa plausível (6–12 cm). Confira a unidade.</p>}
+                  </div>
+                </div>
+
+                <SomatotypeCard somatotype={somatotype} />
+              </div>
+            )}
+
+            {currentStep === 5 && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <InputField label="Flexões (repetições)" value={performance.pushup} onChange={(e: any) => setPerformance({ ...performance, pushup: e.target.value })} type="number" />
                 <InputField label="Prancha (segundos)" value={performance.plank} onChange={(e: any) => setPerformance({ ...performance, plank: e.target.value })} unit="seg" type="number" />
@@ -849,7 +1038,7 @@ const NovaAvaliacao = () => {
               </div>
             )}
 
-            {currentStep === 5 && (
+            {currentStep === 6 && (
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
                   Adicione fotos do aluno para comparação antes/depois nos relatórios.
@@ -927,34 +1116,87 @@ const NovaAvaliacao = () => {
               </div>
             )}
 
-            {currentStep === 6 && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                  <div className="p-3 rounded-lg bg-secondary/50">
-                    <span className="text-muted-foreground block text-xs">Peso</span>
-                    <span className="font-bold">{anthro.peso || '-'} kg</span>
+            {currentStep === 7 && (
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-foreground">Análise física integrada</h3>
+
+                  <div className="rounded-lg border border-border/60 p-3 space-y-2">
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">1. Composição corporal</span>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                      <div className="p-2 rounded-lg bg-secondary/50">
+                        <span className="block text-[10px] text-muted-foreground">Protocolo</span>
+                        <span className="font-bold">{selectedProtocol ? PROTOCOLS[selectedProtocol].label : (metodo === 'manual' ? 'Manual' : '—')}</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-secondary/50">
+                        <span className="block text-[10px] text-muted-foreground">% Gordura (estimativa)</span>
+                        <span className="font-bold text-primary">{bodyFat != null ? `${bodyFat.toFixed(1).replace('.', ',')}%` : '—'}</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-secondary/50">
+                        <span className="block text-[10px] text-muted-foreground">Compatibilidade</span>
+                        <span className="font-bold">{selectedEvaluation ? COMPATIBILITY_LABEL[selectedEvaluation.compatibility] : '—'}</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-secondary/50">
+                        <span className="block text-[10px] text-muted-foreground">Massa gorda</span>
+                        <span className="font-bold">{massaGorda != null ? `${massaGorda} kg` : '—'}</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-secondary/50">
+                        <span className="block text-[10px] text-muted-foreground">Massa livre de gordura</span>
+                        <span className="font-bold">{massaMagra != null ? `${massaMagra} kg` : '—'}</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-secondary/50">
+                        <span className="block text-[10px] text-muted-foreground">Soma das dobras</span>
+                        <span className="font-bold">{totalSum.sum != null ? `${totalSum.sum.toFixed(1).replace('.', ',')} mm` : '—'}</span>
+                      </div>
+                    </div>
+                    {previousProtocol && selectedProtocol && previousProtocol !== selectedProtocol && (
+                      <p className="text-[11px] text-yellow-500">Protocolo diferente da avaliação anterior.</p>
+                    )}
                   </div>
-                  <div className="p-3 rounded-lg bg-secondary/50">
-                    <span className="text-muted-foreground block text-xs">IMC</span>
-                    <span className="font-bold">{calcIMC()}</span>
+
+                  <div className="rounded-lg border border-border/60 p-3 space-y-2">
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">2. Perfil antropométrico</span>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                      <div className="p-2 rounded-lg bg-secondary/50">
+                        <span className="block text-[10px] text-muted-foreground">Peso</span>
+                        <span className="font-bold">{anthro.peso || '-'} kg</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-secondary/50">
+                        <span className="block text-[10px] text-muted-foreground">Altura</span>
+                        <span className="font-bold">{anthro.altura || '-'} cm</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-secondary/50">
+                        <span className="block text-[10px] text-muted-foreground">IMC</span>
+                        <span className="font-bold">{calcIMC()}</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-secondary/50">
+                        <span className="block text-[10px] text-muted-foreground">Cintura</span>
+                        <span className="font-bold">{anthro.cintura || '-'} cm</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-secondary/50">
+                        <span className="block text-[10px] text-muted-foreground">Quadril</span>
+                        <span className="font-bold">{anthro.quadril || '-'} cm</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-secondary/50">
+                        <span className="block text-[10px] text-muted-foreground">RCQ</span>
+                        <span className="font-bold">{calcRCQ()}</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-secondary/50">
+                        <span className="block text-[10px] text-muted-foreground">Úmero / Fêmur</span>
+                        <span className="font-bold">
+                          {breadthCm.umero != null ? `${breadthCm.umero.toFixed(2).replace('.', ',')}` : '—'} /{' '}
+                          {breadthCm.femur != null ? `${breadthCm.femur.toFixed(2).replace('.', ',')}` : '—'} cm
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="p-3 rounded-lg bg-secondary/50">
-                    <span className="text-muted-foreground block text-xs">% Gordura</span>
-                    <span className="font-bold text-primary">{calcGordura()}%</span>
-                  </div>
-                  <div className="p-3 rounded-lg bg-secondary/50">
-                    <span className="text-muted-foreground block text-xs">Cintura</span>
-                    <span className="font-bold">{anthro.cintura || '-'} cm</span>
-                  </div>
-                  <div className="p-3 rounded-lg bg-secondary/50">
-                    <span className="text-muted-foreground block text-xs">Quadril</span>
-                    <span className="font-bold">{anthro.quadril || '-'} cm</span>
-                  </div>
-                  <div className="p-3 rounded-lg bg-secondary/50">
-                    <span className="text-muted-foreground block text-xs">RCQ</span>
-                    <span className="font-bold">{calcRCQ()}</span>
+
+                  <div className="rounded-lg border border-border/60 p-3 space-y-2">
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">3. Somatotipo</span>
+                    <SomatotypeCard somatotype={somatotype} compact />
                   </div>
                 </div>
+
                 <TextareaField label="Notas Gerais" value={notasGerais} onChange={(e: any) => setNotasGerais(e.target.value)} />
               </div>
             )}
