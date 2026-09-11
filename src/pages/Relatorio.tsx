@@ -461,6 +461,27 @@ const Relatorio = () => {
             </CardContent>
           </Card>
 
+          {/* Composição */}
+          <Card className="glass-card">
+            <CardHeader><CardTitle className="text-base">Composição Corporal</CardTitle></CardHeader>
+            <CardContent>
+              {(() => {
+                const sexo = studentProfile?.sexo;
+                const idealFat = sexo === 'feminino' ? 20 : 15;
+                const idealFatWeight = anthro?.peso && idealFat ? (anthro.peso * idealFat / 100).toFixed(1) : null;
+                return (
+                  <>
+                    <DataRow label="% Gordura" value={comp?.percentual_gordura} unit="%" />
+                    <DataRow label="% Gordura Ideal" value={idealFat} unit={`% (${sexo === 'feminino' ? 'feminino' : 'masculino'})`} />
+                    <DataRow label="Massa Magra" value={comp?.massa_magra} unit="kg" />
+                    <DataRow label="Massa Gorda" value={comp?.massa_gorda} unit="kg" />
+                    <DataRow label="Peso de Gordura Ideal" value={idealFatWeight} unit="kg" />
+                  </>
+                );
+              })()}
+            </CardContent>
+          </Card>
+
           {/* Protocolo utilizado */}
           <Card className="glass-card">
             <CardHeader><CardTitle className="text-base">Protocolo Utilizado</CardTitle></CardHeader>
