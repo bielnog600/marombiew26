@@ -111,7 +111,7 @@ const REQUIRED: { key: keyof SomatotypeInput; label: string }[] = [
 export function calcSomatotype(input: SomatotypeInput): SomatotypeResult {
   const missing = REQUIRED.filter((f) => !ok(input[f.key] as number | null)).map((f) => f.label);
   if (missing.length > 0) {
-    return { available: false, missing, endomorfia: null, mesomorfia: null, ectomorfia: null, dominance: null };
+    return { available: false, missing, endomorfia: null, mesomorfia: null, ectomorfia: null, dominance: null, dominanceKey: null };
   }
 
   const altura = input.alturaCm as number;
