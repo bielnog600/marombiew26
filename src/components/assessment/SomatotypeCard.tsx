@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Shapes } from 'lucide-react';
-import type { SomatotypeResult } from '@/lib/somatotype';
+import { formatSomatotypeDominance, type SomatotypeResult } from '@/lib/somatotype';
 
 const fmt = (n: number | null) => (n == null ? '—' : n.toFixed(1).replace('.', ','));
 
