@@ -11,7 +11,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
  * bloqueada/app minimizado não são garantidos no Safari iOS.
  */
 export function useRestTimer() {
-  const [restTimer, setRestTimer] = useState<{ total: number; remaining: number; exIdx: number; startTime: number } | null>(null);
+  const [restTimer, setRestTimer] = useState<{ total: number; remaining: number; exIdx: number; startTime: number; endTime: number } | null>(null);
   const intervalRef = useRef<number | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const scheduledNodesRef = useRef<{ osc: OscillatorNode; gain: GainNode }[]>([]);
@@ -66,11 +66,13 @@ export function useRestTimer() {
   }, [clearScheduledBeeps, getAudioCtx, scheduleBeep]);
 
   const startTimer = useCallback((seconds: number, exIdx: number) => {
+    const now = Date.now();
     setRestTimer({
       total: seconds,
       remaining: seconds,
       exIdx,
-      startTime: Date.now()
+      startTime: now,
+      endTime: now + seconds * 1000,
     });
     scheduleCountdownBeeps(seconds);
   }, [scheduleCountdownBeeps]);
@@ -86,12 +88,14 @@ export function useRestTimer() {
       const newTotal = prev.total + (seconds > 0 ? seconds : 0);
       const newRemaining = Math.max(0, prev.remaining + seconds);
       const elapsedSoFar = (newTotal - newRemaining) * 1000;
+      const endTime = Date.now() + newRemaining * 1000;
       scheduleCountdownBeeps(newRemaining);
       return {
         ...prev,
         total: newTotal,
         remaining: newRemaining,
-        startTime: Date.now() - elapsedSoFar
+        startTime: Date.now() - elapsedSoFar,
+        endTime
       };
     });
   }, [scheduleCountdownBeeps]);
@@ -103,8 +107,7 @@ export function useRestTimer() {
     }
 
     const tick = () => {
-      const elapsed = Math.floor((Date.now() - restTimer.startTime) / 1000);
-      const remaining = restTimer.total - elapsed;
+      const remaining = Math.ceil((restTimer.endTime - Date.now()) / 1000);
       setRestTimer(prev => {
         if (!prev || prev.remaining === remaining) return prev;
         return { ...prev, remaining };
@@ -122,15 +125,20 @@ export function useRestTimer() {
   }, [restTimer?.startTime, restTimer?.total]);
 
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && restTimer) {
-        const elapsed = Math.floor((Date.now() - restTimer.startTime) / 1000);
-        const remaining = Math.max(0, restTimer.total - elapsed);
+    const syncAfterBackground = () => {
+      if (restTimer) {
+        const remaining = Math.ceil((restTimer.endTime - Date.now()) / 1000);
         setRestTimer(prev => prev ? { ...prev, remaining } : null);
       }
     };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('visibilitychange', syncAfterBackground);
+    window.addEventListener('pageshow', syncAfterBackground);
+    window.addEventListener('focus', syncAfterBackground);
+    return () => {
+      document.removeEventListener('visibilitychange', syncAfterBackground);
+      window.removeEventListener('pageshow', syncAfterBackground);
+      window.removeEventListener('focus', syncAfterBackground);
+    };
   }, [restTimer]);
 
   useEffect(() => {
