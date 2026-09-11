@@ -25,7 +25,7 @@ const SomatotypeCard: React.FC<{ somatotype: SomatotypeResult; compact?: boolean
           <span className="font-bold">{fmt(somatotype.ectomorfia)}</span>
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">Predominância: {somatotype.dominance}</p>
+      <p className="text-xs text-muted-foreground">Predominância: {formatSomatotypeDominance(somatotype.dominanceKey, 'pt', somatotype.dominance)}</p>
     </div>
   ) : (
     <div className="space-y-1">
