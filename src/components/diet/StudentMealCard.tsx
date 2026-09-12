@@ -273,6 +273,26 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
       </div>
 
       <AddFoodDialog open={addOpen} onOpenChange={setAddOpen} onAdd={handleAdd} />
+
+      {subIndex !== null && foods[subIndex] && (
+        <FoodSubstitutionDialog
+          open
+          onOpenChange={(o) => !o && setSubIndex(null)}
+          originalFood={foods[subIndex]}
+          mealTotals={{
+            kcal: foods.reduce((s, f) => s + parseNum(f.kcal), 0),
+            p: foods.reduce((s, f) => s + parseNum(f.p), 0),
+            c: foods.reduce((s, f) => s + parseNum(f.c), 0),
+            g: foods.reduce((s, f) => s + parseNum(f.g), 0),
+          }}
+          onSubstitute={(newFood) => {
+            const idx = subIndex;
+            setSubIndex(null);
+            onFoodsChange(foods.map((f, i) => (i === idx ? newFood : f)));
+            toast.success('Alimento substituído — refeições futuras reajustadas');
+          }}
+        />
+      )}
     </>
   );
 };
