@@ -6,12 +6,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/i18n';
 import { translatePlanMarkdown } from '@/lib/planTranslation';
-import { UtensilsCrossed, Droplets, Plus, Minus, Target, ArrowLeft } from 'lucide-react';
+import { UtensilsCrossed, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { parseSections, type ParsedSection } from '@/lib/dietResultParser';
 import { parseTrainingSections } from '@/lib/trainingResultParser';
 import { extractTargetsFromSections } from '@/lib/dietTargets';
-import MealCard from '@/components/diet/MealCard';
+import StudentMealCard from '@/components/diet/StudentMealCard';
+import DailyCaloriesCard from '@/components/diet/DailyCaloriesCard';
+import HydrationCard from '@/components/diet/HydrationCard';
 import {
   rebalanceFutureMeals,
   resolveMealStates,
@@ -345,7 +347,7 @@ const MinhasDietas = () => {
     return trainingDayIndices.includes(activeGroupIndex);
   }, [trainingDayIndices, activeGroupIndex, usesMealOptions]);
 
-  const { tracking, addWater, removeWater, toggleMeal, waterCurrentMl, waterTargetMl, waterGoalGlasses } = useDailyTracking({ isTrainingDay: isSelectedDayTraining });
+  const { tracking, addWaterMl, removeWater, toggleMeal, waterCurrentMl, waterTargetMl } = useDailyTracking({ isTrainingDay: isSelectedDayTraining });
 
   // Per-day target / adjustment from protocols.weekly_energy_schedule.
   // When present, the student sees the actual daily meta (not the flat sum
