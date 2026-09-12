@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import AddFoodDialog from './AddFoodDialog';
+import FoodSubstitutionDialog from './FoodSubstitutionDialog';
 
 const parseNum = (v?: string) => {
   if (!v) return 0;
