@@ -659,128 +659,65 @@ const MinhasDietas = () => {
           </div>
         )}
 
-        {/* Daily summary - TOP */}
-        {displaySummary && (
-          <div className="rounded-xl border border-border/50 bg-secondary/20 p-3 space-y-3">
-            <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-primary" />
-              <p className="text-xs font-semibold text-foreground">{summaryTitle}</p>
-            </div>
-            <div className="grid grid-cols-4 gap-2">
-              <div className="rounded-lg bg-background/70 p-2 text-center">
-                <p className="text-sm font-bold text-primary">{formatValue(displaySummary.calories, ' kcal')}</p>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Calorias</p>
-              </div>
-              <div className="rounded-lg bg-background/70 p-2 text-center">
-                <p className="text-sm font-bold text-chart-2">{formatValue(displaySummary.protein, 'g')}</p>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Proteína</p>
-              </div>
-              <div className="rounded-lg bg-background/70 p-2 text-center">
-                <p className="text-sm font-bold text-chart-3">{formatValue(displaySummary.carbs, 'g')}</p>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Carbo</p>
-              </div>
-              <div className="rounded-lg bg-background/70 p-2 text-center">
-                <p className="text-sm font-bold text-chart-5">{formatValue(displaySummary.fats, 'g')}</p>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Gordura</p>
-              </div>
-            </div>
-            {hasStudentEdits && (
-              <div className="rounded-lg border border-primary/30 bg-primary/5 p-2 space-y-1">
-                <p className="text-[11px] text-foreground">
-                  Meta prescrita do dia:{' '}
-                  <strong>{formatValue(dailyTarget.kcal, ' kcal')}</strong> · P {formatValue(dailyTarget.p, 'g')} · C{' '}
-                  {formatValue(dailyTarget.c, 'g')} · G {formatValue(dailyTarget.g, 'g')}
-                </p>
-                <p className="text-[10px] text-muted-foreground">
-                  {Math.abs(rebalance.residual.kcal) <= 50
-                    ? 'Ajuste estimado dentro da tolerância — refeições futuras rebalanceadas automaticamente.'
-                    : `Diferença atual: ${rebalance.residual.kcal > 0 ? '+' : ''}${Math.round(-rebalance.residual.kcal)} kcal em relação à meta.`}
-                </p>
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={resetDayEdits}
-                  className="w-full text-xs font-semibold"
-                >
-                  Ajustar Dieta
-                </Button>
-              </div>
-            )}
+        {/* Calorias do dia */}
+        <DailyCaloriesCard
+          consumed={consumed.kcal}
+          target={displaySummary.calories}
+          protein={{ current: consumed.p, target: displaySummary.protein }}
+          carbs={{ current: consumed.c, target: displaySummary.carbs }}
+          fats={{ current: consumed.g, target: displaySummary.fats }}
+        />
+
+        {hasStudentEdits && (
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-1">
+            <p className="text-[11px] text-foreground">
+              Meta prescrita do dia:{' '}
+              <strong>{formatValue(dailyTarget.kcal, ' kcal')}</strong> · P {formatValue(dailyTarget.p, 'g')} · C{' '}
+              {formatValue(dailyTarget.c, 'g')} · G {formatValue(dailyTarget.g, 'g')}
+            </p>
+            <p className="text-[10px] text-muted-foreground">
+              {Math.abs(rebalance.residual.kcal) <= 50
+                ? 'Ajuste estimado dentro da tolerância — refeições futuras rebalanceadas automaticamente.'
+                : `Diferença atual: ${rebalance.residual.kcal > 0 ? '+' : ''}${Math.round(-rebalance.residual.kcal)} kcal em relação à meta.`}
+            </p>
+            <Button variant="default" size="sm" onClick={resetDayEdits} className="w-full text-xs font-semibold">
+              Ajustar Dieta
+            </Button>
           </div>
         )}
 
+        {/* Hidratação */}
+        <HydrationCard
+          currentMl={waterMl}
+          targetMl={waterGoalMl}
+          onAdd={addWaterMl}
+          onRemove={removeWater}
+        />
 
-        {/* Water counter - TOP */}
-        <div className="rounded-xl border border-border/50 bg-secondary/30 p-3 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Droplets className="h-5 w-5 text-chart-2" />
-              <div>
-                <p className="text-xs font-medium text-foreground">Quantidade de água</p>
-                <p className="text-[10px] text-muted-foreground">{waterMl}ml / {waterGoalMl}ml</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={removeWater}
-                className="h-7 w-7 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Minus className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={addWater}
-                className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-primary-foreground hover:opacity-90 transition-opacity"
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-          <Progress value={waterProgress} className="h-2 bg-background/70" />
-          <div className="flex gap-1">
-            {Array.from({ length: waterGoalGlasses }).map((_, i) => (
-              <div
-                key={i}
-                className={`h-2 flex-1 rounded-full transition-colors ${i < tracking.water_glasses ? 'bg-chart-2' : 'bg-border'}`}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Meals */}
+        {/* Refeições */}
         {currentMeals.length > 0 && (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {currentMeals.map((meal, i) => {
               const mealKey = activeGroupIndex * 1000 + i;
               const done = tracking.meals_completed.includes(mealKey);
-              const state = mealStates[i];
-              const badgeLabel =
-                state === 'completed' ? 'Concluída' : state === 'current' ? 'Editada' : 'Ajustável';
-              const badgeClass =
-                state === 'completed'
-                  ? 'bg-green-500/15 text-green-500'
-                  : state === 'current'
-                    ? 'bg-primary/15 text-primary'
-                    : 'bg-secondary text-muted-foreground';
               return (
-                <div key={`day-${activeGroupIndex}-${meal.name}-${meal.time || 'sem-hora'}-${i}`}>
-                  <MealCard
-                    meal={meal}
-                    index={i}
-                    onCopy={() => null}
-                    isCompleted={done}
-                    onToggleComplete={() => toggleMeal(mealKey)}
-                    hideSubstitutions
-                    editable
-                    statusBadge={
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${badgeClass}`}>
-                        {badgeLabel}
-                      </span>
-                    }
-                    onFoodsChange={(foods) => persistFoodsChange(activeGroupIndex, i, foods)}
-                  />
-                </div>
+                <StudentMealCard
+                  key={`day-${activeGroupIndex}-${meal.name}-${meal.time || 'sem-hora'}-${i}`}
+                  meal={meal}
+                  expanded={expandedMeal === i}
+                  isCurrent={currentMealIndex === i}
+                  onToggleExpand={() => {
+                    setExpandedTouched(true);
+                    setExpandedMeal((prev) => (prev === i ? null : i));
+                  }}
+                  isCompleted={done}
+                  onToggleComplete={() => toggleMeal(mealKey)}
+                  onFoodsChange={(foods) => persistFoodsChange(activeGroupIndex, i, foods)}
+                  moveTargets={currentMeals
+                    .map((m, mi) => ({ index: mi, name: m.time ? `${m.time} · ${m.name}` : m.name }))
+                    .filter((t) => t.index !== i)}
+                  onMoveFood={(food, targetIndex) => handleMoveFood(i, food, targetIndex)}
+                />
               );
             })}
           </div>
