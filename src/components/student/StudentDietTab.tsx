@@ -474,7 +474,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
       <div className="space-y-3">
         {plans.map(plan => {
           const isExpanded = expandedId === plan.id;
-          const hasChanges = editedMeals[plan.id] !== undefined || editedDays[plan.id] !== undefined || editedPlans[plan.id] !== undefined || (aiNotes[plan.id]?.length || 0) > 0;
+          const hasChanges = editedMeals[plan.id] !== undefined || editedDays[plan.id] !== undefined || editedPlans[plan.id] !== undefined || editedSchedules[plan.id] !== undefined || (aiNotes[plan.id]?.length || 0) > 0;
           const isEditing = editingId === plan.id;
           const cleanedMarkdown = stripDietPreamble(plan.conteudo);
 
@@ -710,7 +710,8 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         onAiNotes={(notes) => setAiNotes(prev => ({ ...prev, [plan.id]: [...(prev[plan.id] || []), ...notes] }))}
                         currentPlan={editedPlans[plan.id] ?? parseDietPlanLoose(plan.conteudo_json)}
                         onPlanChange={(p) => handlePlanChange(plan.id, p)}
-                        weeklySchedule={(plan as any).protocols?.weekly_energy_schedule ?? null}
+                        weeklySchedule={editedSchedules[plan.id] ?? (plan as any).protocols?.weekly_energy_schedule ?? null}
+                        onScheduleChange={(s) => handleScheduleChange(plan.id, s)}
                       />
                     ) : (
                       <DietResultCards markdown={cleanedMarkdown} />
