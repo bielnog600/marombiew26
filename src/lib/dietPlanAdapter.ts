@@ -98,6 +98,41 @@ export const parsedMealsToDietPlan = (
   };
 };
 
+/**
+ * ParsedMeal[] per day -> canonical DietPlan with EVERY day.
+ *
+ * Used by the admin editor/save path: the days shown on screen are the source
+ * of truth, so the canonical JSON must contain exactly those days (not just a
+ * single "Padrão" day). Metadata from the previous plan is preserved.
+ */
+export const parsedDaysToDietPlan = (
+  days: { label: string; meals: ParsedMeal[] }[],
+  targets: DietTargets,
+  base?: DietPlan | null,
+): DietPlan => {
+  const planDays: DietDay[] = days.map((day, dayIdx) => {
+    const single = parsedMealsToDietPlan(day.meals, targets);
+    const prevDay = base?.days?.[dayIdx];
+    return {
+      ...(prevDay ?? {}),
+      label: day.label || prevDay?.label || `Dia ${dayIdx + 1}`,
+      meals: single.days[0].meals,
+      totals: single.days[0].totals,
+    } as DietDay;
+  });
+
+  return {
+    ...(base ?? {}),
+    meta: {
+      ...(base?.meta ?? {}),
+      version: base?.meta?.version ?? DIET_PLAN_SCHEMA_VERSION,
+      generatedAt: new Date().toISOString(),
+    },
+    targets,
+    days: planDays.length > 0 ? planDays : parsedMealsToDietPlan([], targets).days,
+  } as DietPlan;
+};
+
 /** Markdown legado -> DietPlan (best-effort, single day). */
 export const markdownToDietPlan = (
   markdown: string,
