@@ -627,7 +627,6 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
       density: MacroDensity,
    ) => {
      if (!Number.isFinite(newQty) || newQty <= 0) return;
-     let next: ParsedMeal[] = [];
      updateMeals((prev) => {
        const updated = [...prev];
        const meal = { ...updated[mealIdx] };
@@ -641,11 +640,9 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
        foods[foodIdx] = food;
        meal.foods = foods;
        updated[mealIdx] = meal;
-       next = updated;
        return updated;
      });
-     syncCanonicalPlan(next);
-   }, [updateMeals, syncCanonicalPlan]);
+   }, [updateMeals]);
 
   if (days.length === 0) {
     return (
