@@ -54,6 +54,7 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
 }) => {
   const [adjustMode, setAdjustMode] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [subIndex, setSubIndex] = useState<number | null>(null);
   const [draftQty, setDraftQty] = useState<Record<number, string>>({});
 
   const foods = meal.foods ?? [];
