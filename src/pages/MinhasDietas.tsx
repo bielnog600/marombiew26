@@ -497,7 +497,67 @@ const MinhasDietas = () => {
   // diverge (ex: meta 1455 kcal mas alimentos somam 1830 kcal). The student
   // must see what they will actually eat, matching what the admin sees.
   const displaySummary = { calories: totalKcal, protein: totalP, carbs: totalC, fats: totalG };
-  const summaryTitle = usesMealOptions ? 'Totais da opção selecionada' : 'Totais do dia';
+
+  // Consumo real do dia: soma apenas das refeições registradas pelo aluno.
+  const consumed = useMemo(() => {
+    const acc = { kcal: 0, p: 0, c: 0, g: 0 };
+    currentMeals.forEach((m, i) => {
+      if (!tracking.meals_completed.includes(activeGroupIndex * 1000 + i)) return;
+      (m.foods ?? []).forEach((f: any) => {
+        acc.kcal += parseNum(f.kcal);
+        acc.p += parseNum(f.p);
+        acc.c += parseNum(f.c);
+        acc.g += parseNum(f.g);
+      });
+    });
+    return acc;
+  }, [currentMeals, tracking.meals_completed, activeGroupIndex]);
+
+  // Refeição sugerida pelo horário atual (última cujo horário já passou).
+  const currentMealIndex = useMemo(() => {
+    if (currentMeals.length === 0) return -1;
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    let best = -1;
+    currentMeals.forEach((m, i) => {
+      const match = String(m.time ?? '').match(/(\d{1,2})[:h](\d{2})/);
+      if (!match) return;
+      const min = Number(match[1]) * 60 + Number(match[2]);
+      if (min <= nowMin) best = i;
+    });
+    if (best === -1) {
+      const firstFuture = currentMeals.findIndex((m) => /(\d{1,2})[:h](\d{2})/.test(String(m.time ?? '')));
+      return firstFuture >= 0 ? firstFuture : 0;
+    }
+    return best;
+  }, [currentMeals]);
+
+  const [expandedMeal, setExpandedMeal] = useState<number | null>(null);
+  const [expandedTouched, setExpandedTouched] = useState(false);
+
+  // Ao carregar a tela / trocar de dia, a refeição do momento abre sozinha.
+  useEffect(() => {
+    setExpandedMeal(currentMealIndex >= 0 ? currentMealIndex : null);
+    setExpandedTouched(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeGroupIndex]);
+
+  useEffect(() => {
+    if (expandedTouched) return;
+    setExpandedMeal(currentMealIndex >= 0 ? currentMealIndex : null);
+  }, [currentMealIndex, expandedTouched]);
+
+  const handleMoveFood = useCallback(
+    (sourceIndex: number, food: any, targetIndex: number) => {
+      const sourceFoods = (currentMeals[sourceIndex]?.foods ?? []).filter((f: any) => f !== food);
+      const targetFoods = [...(currentMeals[targetIndex]?.foods ?? []), food];
+      persistFoodsChange(activeGroupIndex, sourceIndex, sourceFoods);
+      persistFoodsChange(activeGroupIndex, targetIndex, targetFoods);
+      setExpandedMeal(targetIndex);
+      setExpandedTouched(true);
+    },
+    [currentMeals, persistFoodsChange, activeGroupIndex],
+  );
 
   const waterMl = waterCurrentMl;
   const waterGoalMl = waterTargetMl;
