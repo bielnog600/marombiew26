@@ -193,19 +193,31 @@ const extractCarbCycleFromMarkdown = (
   return { lowCarbDays: low, highCarbDays: high };
 };
 
-/** Extract every meal section as an editable day. */
-const extractDays = (markdown: string): { label: string; meals: ParsedMeal[] }[] => {
+export interface EditableDay { label: string; meals: ParsedMeal[] }
+
+/**
+ * Extract every meal section as an editable day.
+ *
+ * `materialized` tells whether the per-day structure already exists in the
+ * saved diet (multiple tables / carb cycle). When it is `false` we are
+ * expanding a single menu into 7 weekdays for the FIRST time — only in that
+ * case may the per-day energy schedule rescale portions.
+ */
+const extractDaysWithMeta = (markdown: string): { days: EditableDay[]; materialized: boolean } => {
   const sections = parseSections(markdown);
   const mealSections = sections.filter((s) => s.type === 'meal' && s.meals && s.meals.length > 0);
-  if (mealSections.length === 0) return [];
+  if (mealSections.length === 0) return { days: [], materialized: true };
 
   // If multiple sections already exist (carb cycling, options, weekday plan),
-  // honor them as-is.
+  // honor them as-is — they are already persisted per day.
   if (mealSections.length > 1) {
-    return mealSections.map((s, i) => ({
-      label: (s.title || '').trim() || WEEKDAY_LABELS[i] || `Dia ${i + 1}`,
-      meals: [...(s.meals || [])],
-    }));
+    return {
+      days: mealSections.map((s, i) => ({
+        label: (s.title || '').trim() || WEEKDAY_LABELS[i] || `Dia ${i + 1}`,
+        meals: [...(s.meals || [])],
+      })),
+      materialized: true,
+    };
   }
 
   // Single meal block → expand to 7 weekdays (deep copy each) so admin can
@@ -217,16 +229,39 @@ const extractDays = (markdown: string): { label: string; meals: ParsedMeal[] }[]
   // 7 identical days even though the plan is supposed to cycle).
   const cc = extractCarbCycleFromMarkdown(markdown);
   if (cc) {
-    return buildCarbCycleDays(base, cc);
+    return { days: buildCarbCycleDays(base, cc), materialized: true };
   }
 
-  return WEEKDAY_LABELS.map((label) => ({
-    label,
-    meals: base.map((m) => ({
-      ...m,
-      foods: m.foods.map((f) => ({ ...f })),
+  return {
+    days: WEEKDAY_LABELS.map((label) => ({
+      label,
+      meals: base.map((m) => ({
+        ...m,
+        foods: m.foods.map((f) => ({ ...f })),
+      })),
     })),
-  }));
+    materialized: false,
+  };
+};
+
+/**
+ * Scale each day's meals to its per-day target from the Weekly Energy
+ * Schedule. Used ONLY on the first materialization of the weekly structure.
+ */
+const applyPerDayScaling = (
+  base: EditableDay[],
+  schedule: WeeklyEnergySchedule | null,
+  planTargetKcal: number,
+): EditableDay[] => {
+  if (!schedule?.days || base.length === 0) return base;
+  return base.map((d, i) => {
+    const dayTarget = scheduleDayTarget(schedule, i, planTargetKcal);
+    if (!dayTarget || dayTarget <= 0) return d;
+    const currentTotal = computeDayTotals(d.meals).kcal;
+    if (currentTotal <= 0) return d;
+    if (Math.abs(currentTotal - dayTarget) / dayTarget < 0.01) return d;
+    return { ...d, meals: scaleMealsToTarget(d.meals, dayTarget) };
+  });
 };
 
 /**
@@ -243,98 +278,93 @@ const extractMeals = (markdown: string): ParsedMeal[] => {
   return [...(mealSections[0].meals || [])];
 };
 
-const WEEKDAY_KEYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'] as const;
+const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange, studentId, onAiNotes, currentPlan, onPlanChange, onDaysChange, weeklySchedule, onScheduleChange }) => {
+  const planTargetKcal = Math.round(Number(currentPlan?.targets?.kcal) || 0);
 
-const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange, studentId, onAiNotes, currentPlan, onPlanChange, onDaysChange, weeklySchedule }) => {
-  const planTargetKcalMemo = Math.round(Number(currentPlan?.targets?.kcal) || 0);
-  /**
-   * Compute the per-day target (kcal) from the Weekly Energy Schedule for a
-   * given weekday index. Falls back to base_daily_kcal + adjustment when the
-   * absolute target is missing.
-   */
-  const computeDayTargetFor = useCallback((idx: number): number | null => {
-    if (!weeklySchedule?.days) return null;
-    const key = WEEKDAY_KEYS[idx];
-    if (!key) return null;
-    const d = weeklySchedule.days[key];
-    if (!d) return null;
-    if (typeof d.target_kcal === 'number' && d.target_kcal > 0) return Math.round(d.target_kcal);
-    if (typeof d.fixed_kcal === 'number' && d.fixed_kcal > 0) return Math.round(d.fixed_kcal);
-    const base = Number(weeklySchedule.base_daily_kcal) || planTargetKcalMemo;
-    if (base > 0) return Math.round(base + (Number(d.adjustment_kcal) || 0));
-    return null;
-  }, [weeklySchedule, planTargetKcalMemo]);
+  // Local copy of the weekly energy schedule so a manual "Meta diária" edit
+  // is reflected immediately and propagated to the parent for persistence.
+  const [schedule, setSchedule] = useState<WeeklyEnergySchedule | null>(weeklySchedule ?? null);
+  useEffect(() => { setSchedule(weeklySchedule ?? null); }, [weeklySchedule]);
 
-  /**
-   * Scale each day's meals (foods qty, kcal, P/C/G) to its per-day target
-   * from the Weekly Energy Schedule. This keeps the admin editor consistent
-   * with the student view, which already scales foods proportionally when
-   * the daily target differs from the base.
-   */
-  const applyPerDayScaling = useCallback((base: { label: string; meals: ParsedMeal[] }[]) => {
-    if (!weeklySchedule?.days || base.length === 0) return base;
-    return base.map((d, i) => {
-      const dayTarget = computeDayTargetFor(i);
-      if (!dayTarget || dayTarget <= 0) return d;
-      const currentTotal = computeDayTotals(d.meals).kcal;
-      if (currentTotal <= 0) return d;
-      if (Math.abs(currentTotal - dayTarget) / dayTarget < 0.01) return d;
-      return { ...d, meals: scaleMealsToTarget(d.meals, dayTarget) };
-    });
-  }, [weeklySchedule, computeDayTargetFor]);
+  const initialDays = useMemo(() => {
+    const { days: extracted, materialized } = extractDaysWithMeta(markdown);
+    return materialized ? extracted : applyPerDayScaling(extracted, weeklySchedule ?? null, planTargetKcal);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markdown]);
 
-  const initialDays = useMemo(
-    () => applyPerDayScaling(extractDays(markdown)),
-    [markdown, applyPerDayScaling],
-  );
-  const [days, setDays] = useState<{ label: string; meals: ParsedMeal[] }[]>(initialDays);
+  const [days, setDays] = useState<EditableDay[]>(initialDays);
   const [activeDayIdx, setActiveDayIdx] = useState(0);
   const activeDayIdxRef = useRef(0);
+  const daysRef = useRef<EditableDay[]>(initialDays);
+  const dirtyRef = useRef(false);
+  const syncRef = useRef<(next: EditableDay[]) => void>(() => {});
   const onMealsChangeRef = useRef(onMealsChange);
   const onDaysChangeRef = useRef(onDaysChange);
   useEffect(() => { activeDayIdxRef.current = activeDayIdx; }, [activeDayIdx]);
+  useEffect(() => { daysRef.current = days; }, [days]);
   useEffect(() => {
     onMealsChangeRef.current = onMealsChange;
     onDaysChangeRef.current = onDaysChange;
   }, [onMealsChange, onDaysChange]);
+
   const meals = days[activeDayIdx]?.meals ?? [];
-  const setMeals = useCallback((updater: React.SetStateAction<ParsedMeal[]>) => {
-    setDays((prev) => {
-      const idx = activeDayIdxRef.current;
-      const next = [...prev];
-      const current = next[idx]?.meals ?? [];
-      const newMeals = typeof updater === 'function' ? (updater as (m: ParsedMeal[]) => ParsedMeal[])(current) : updater;
-      if (next[idx]) next[idx] = { ...next[idx], meals: newMeals };
-      return next;
-    });
+
+  /**
+   * Single atomic mutation point: updates local state, notifies the parent
+   * (markdown side) and rebuilds the canonical JSON — always together, so
+   * `conteudo` and `conteudo_json` can never diverge.
+   */
+  const commitDays = useCallback((next: EditableDay[]) => {
+    dirtyRef.current = true;
+    daysRef.current = next;
+    setDays(next);
+    onMealsChangeRef.current(next[0]?.meals ?? []);
+    onDaysChangeRef.current?.(next);
+    syncRef.current(next);
   }, []);
-  // Meta calórica ancorada: prioriza o alvo definido pela IA (targets.kcal do
-  // plano canônico) — que representa a meta do aluno (TMB/GET). Só cai pro
-  // total do dia atual quando o plano não tem targets (planos legados
-  // markdown-only). Isso garante que ao editar alimentos e reduzir kcal, o
-  // banner "Faltam X kcal" apareça em vez de reancorar silenciosamente.
-  const planTargetKcal = Math.round(Number(currentPlan?.targets?.kcal) || 0);
-  // Per-day target from Weekly Energy Schedule (when present). Falls back
-  // to the plan-wide target (currentPlan.targets.kcal) or the day's totals.
-  const dayTargetFromSchedule = useMemo(() => {
-    if (!weeklySchedule?.days) return null;
-    const key = WEEKDAY_KEYS[activeDayIdx];
-    if (!key) return null;
-    const d = weeklySchedule.days[key];
-    if (!d) return null;
-    if (typeof d.target_kcal === 'number' && d.target_kcal > 0) return Math.round(d.target_kcal);
-    if (typeof d.fixed_kcal === 'number' && d.fixed_kcal > 0) return Math.round(d.fixed_kcal);
-    const base = Number(weeklySchedule.base_daily_kcal) || planTargetKcal;
-    if (base > 0) return Math.round(base + (Number(d.adjustment_kcal) || 0));
-    return null;
-  }, [weeklySchedule, activeDayIdx, planTargetKcal]);
-  const [target, setTarget] = useState<number>(() =>
-    dayTargetFromSchedule ?? (planTargetKcal > 0 ? planTargetKcal : Math.round(computeDayTotals(initialDays[0]?.meals ?? []).kcal)),
-  );
-  // Sync target with schedule per active day.
+
+  const setMeals = useCallback((updater: React.SetStateAction<ParsedMeal[]>) => {
+    const prev = daysRef.current;
+    const idx = activeDayIdxRef.current;
+    const current = prev[idx]?.meals ?? [];
+    const newMeals = typeof updater === 'function' ? (updater as (m: ParsedMeal[]) => ParsedMeal[])(current) : updater;
+    commitDays(prev.map((d, i) => (i === idx ? { ...d, meals: newMeals } : d)));
+  }, [commitDays]);
+
+  // Current day total — used only as last-resort anchor for legacy plans.
+  const activeTotalRef = useRef(0);
   useEffect(() => {
-    if (dayTargetFromSchedule != null) setTarget(dayTargetFromSchedule);
-  }, [dayTargetFromSchedule]);
+    activeTotalRef.current = Math.round(computeDayTotals(days[activeDayIdx]?.meals ?? []).kcal);
+  });
+
+  const [target, setTargetState] = useState<number>(() =>
+    resolveDayTarget({
+      schedule: weeklySchedule ?? null,
+      dayIndex: 0,
+      planTargetKcal,
+      currentTotalKcal: Math.round(computeDayTotals(initialDays[0]?.meals ?? []).kcal),
+    }),
+  );
+
+  // Single source of truth for the displayed daily goal.
+  useEffect(() => {
+    setTargetState(resolveDayTarget({
+      schedule,
+      dayIndex: activeDayIdx,
+      planTargetKcal,
+      currentTotalKcal: activeTotalRef.current,
+    }));
+  }, [schedule, activeDayIdx, planTargetKcal, markdown]);
+
+  const handleTargetChange = useCallback((value: number) => {
+    setTargetState(value);
+    if (!Number.isFinite(value) || value <= 0) return;
+    const nextSchedule = applyDayTargetToSchedule(schedule, activeDayIdx, value);
+    if (!nextSchedule) return;
+    dirtyRef.current = true;
+    setSchedule(nextSchedule);
+    onScheduleChange?.(nextSchedule);
+  }, [schedule, activeDayIdx, onScheduleChange]);
   const [subTarget, setSubTarget] = useState<{ mealIdx: number; foodIdx: number } | null>(null);
   const [addingForMeal, setAddingForMeal] = useState<number | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
@@ -449,35 +479,16 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
     return mergeDensity(getIndexedDensity(foodName, planDensityIndex), getFoodDbDensity(foodName));
   }, [getFoodDbDensity, getIndexedDensity, planDensityIndex]);
 
-  // Reset when source markdown changes — mantém a meta ancorada no plano.
+  // Reset only when the source markdown actually changes (plan reloaded).
+  const markdownRef = useRef(markdown);
   useEffect(() => {
-    const fresh = applyPerDayScaling(extractDays(markdown));
-    setDays(fresh);
+    if (markdownRef.current === markdown) return;
+    markdownRef.current = markdown;
+    dirtyRef.current = false;
+    daysRef.current = initialDays;
+    setDays(initialDays);
     setActiveDayIdx(0);
-    if (planTargetKcal > 0) {
-      setTarget(planTargetKcal);
-    } else {
-      setTarget(Math.round(computeDayTotals(fresh[0]?.meals ?? []).kcal));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markdown, applyPerDayScaling]);
-
-  // Notify parent — keep legacy single-day callback for fallback paths and
-  // emit full per-day structure when supported.
-  useEffect(() => {
-    onMealsChangeRef.current(days[0]?.meals ?? []);
-    if (onDaysChangeRef.current) onDaysChangeRef.current(days);
-  }, [days]);
-
-  // Quando trocar de dia: se o plano tem meta oficial, mantém a meta fixa
-  // (não reancorar por dia esconderia déficit em edições). Só reancoramos
-  // por dia em planos legados sem targets — comum em ciclo de carboidratos
-  // markdown-only, onde cada dia tem kcal próprio.
-  useEffect(() => {
-    if (planTargetKcal > 0) return;
-    setTarget(Math.round(computeDayTotals(days[activeDayIdx]?.meals ?? []).kcal));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeDayIdx]);
+  }, [markdown, initialDays]);
 
   const hasMultipleDays = days.length > 1;
   const usesOptions = useMemo(
@@ -486,21 +497,18 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
   );
 
   const renameActiveDay = useCallback((newLabel: string) => {
-    setDays((prev) => prev.map((d, i) => i === activeDayIdx ? { ...d, label: newLabel } : d));
-  }, [activeDayIdx]);
+    commitDays(daysRef.current.map((d, i) => i === activeDayIdx ? { ...d, label: newLabel } : d));
+  }, [activeDayIdx, commitDays]);
 
   const copyActiveDayTo = useCallback((targetIdx: number) => {
-    setDays((prev) => {
-      if (!prev[activeDayIdx] || !prev[targetIdx]) return prev;
-      const sourceMeals = prev[activeDayIdx].meals.map((m) => ({
-        ...m, foods: m.foods.map((f) => ({ ...f })),
-      }));
-      const next = [...prev];
-      next[targetIdx] = { ...next[targetIdx], meals: sourceMeals };
-      return next;
-    });
-    toast.success(`Copiado para ${days[targetIdx]?.label || 'dia'}`);
-  }, [activeDayIdx, days]);
+    const prev = daysRef.current;
+    if (!prev[activeDayIdx] || !prev[targetIdx]) return;
+    const sourceMeals = prev[activeDayIdx].meals.map((m) => ({
+      ...m, foods: m.foods.map((f) => ({ ...f })),
+    }));
+    commitDays(prev.map((d, i) => (i === targetIdx ? { ...d, meals: sourceMeals } : d)));
+    toast.success(`Copiado para ${prev[targetIdx]?.label || 'dia'}. Clique em Salvar.`);
+  }, [activeDayIdx, commitDays]);
 
   const totals = useMemo(() => computeDayTotals(meals), [meals]);
   const diff = totals.kcal - target;
@@ -548,18 +556,12 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
    * handler would serialize that stale plan, silently dropping the new
    * food / removal / portion change.
    */
-  const syncCanonicalPlan = useCallback((nextMeals: ParsedMeal[]) => {
+  const syncCanonicalFromDays = useCallback((nextDays: EditableDay[]) => {
     if (!currentPlan || !onPlanChange) return;
     try {
       const baseTargets = currentPlan.targets;
-      const rebuilt = parsedMealsToDietPlan(nextMeals, baseTargets, {
-        ...currentPlan.meta,
-        generatedAt: new Date().toISOString(),
-      });
-      const nextPlan = finalizeDietPlan(
-        { ...rebuilt, trainingContext: currentPlan.trainingContext, tips: currentPlan.tips, notes: currentPlan.notes },
-        baseTargets,
-      );
+      const rebuilt = parsedDaysToDietPlan(nextDays, baseTargets, currentPlan);
+      const nextPlan = finalizeDietPlan(rebuilt, baseTargets);
       onPlanChange(nextPlan);
       const prevStatus = currentPlan.validation?.status;
       const newStatus = nextPlan.validation?.status;
@@ -573,69 +575,41 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
     }
   }, [currentPlan, onPlanChange]);
 
+  useEffect(() => { syncRef.current = syncCanonicalFromDays; }, [syncCanonicalFromDays]);
+
   const removeFood = (mealIdx: number, foodIdx: number) => {
-    let next: ParsedMeal[] = [];
-    updateMeals((prev) => {
-      next = prev.map((m, mi) => mi !== mealIdx ? m : { ...m, foods: m.foods.filter((_, fi) => fi !== foodIdx) });
-      return next;
-    });
-    syncCanonicalPlan(next);
+    updateMeals((prev) => prev.map((m, mi) => mi !== mealIdx ? m : { ...m, foods: m.foods.filter((_, fi) => fi !== foodIdx) }));
   };
 
   const handleSubstitute = (newFood: ParsedFood) => {
     if (!subTarget) return;
     const { mealIdx, foodIdx } = subTarget;
-    let nextMeals: ParsedMeal[] = [];
-    updateMeals((prev) => {
-      nextMeals = prev.map((m, mi) => mi !== mealIdx ? m : {
-        ...m,
-        foods: m.foods.map((f, fi) => fi === foodIdx ? { ...newFood, sub: f.sub } : f),
-      });
-      return nextMeals;
-    });
-    // Revalidate against the canonical plan + targets when available.
-    if (currentPlan && onPlanChange) {
-      try {
-        const baseTargets = currentPlan.targets;
-        const rebuilt = parsedMealsToDietPlan(nextMeals, baseTargets, {
-          ...currentPlan.meta,
-          generatedAt: new Date().toISOString(),
-        });
-        // Preserve trainingContext, tips, notes
-        const nextPlan = finalizeDietPlan(
-          { ...rebuilt, trainingContext: currentPlan.trainingContext, tips: currentPlan.tips, notes: currentPlan.notes },
-          baseTargets,
-        );
-        onPlanChange(nextPlan);
-        const prevStatus = currentPlan.validation?.status;
-        const newStatus = nextPlan.validation?.status;
-        if (newStatus === 'invalid' && prevStatus !== 'invalid') {
-          toast.warning('A troca tirou o plano da meta. Ajuste porções.');
-        } else if (newStatus === 'warning' && prevStatus === 'ok') {
-          toast('Troca aplicada com aviso de validação.', { icon: '⚠️' });
-        }
-      } catch (e) {
-        console.warn('post-sub validation failed', e);
-      }
-    }
+    updateMeals((prev) => prev.map((m, mi) => mi !== mealIdx ? m : {
+      ...m,
+      foods: m.foods.map((f, fi) => fi === foodIdx ? { ...newFood, sub: f.sub } : f),
+    }));
     setSubTarget(null);
   };
 
   const handleAddFood = (mealIdx: number, food: ParsedFood) => {
-    let next: ParsedMeal[] = [];
-    updateMeals((prev) => {
-      next = prev.map((m, mi) => mi !== mealIdx ? m : { ...m, foods: [...m.foods, food] });
-      return next;
-    });
-    syncCanonicalPlan(next);
+    updateMeals((prev) => prev.map((m, mi) => mi !== mealIdx ? m : { ...m, foods: [...m.foods, food] }));
     setAddingForMeal(null);
     toast.success(`${food.food} adicionado`);
   };
 
-   const handleAdjustPortions = useCallback(() => {
-     setMeals((prev) => scaleMealsToTarget(prev, target));
-     toast.success(`Porções ajustadas para ${target} kcal`);
-   }, [target]);
+  /**
+   * Atomic: rescales the ACTIVE day only and propagates markdown + canonical
+   * JSON in the same step, so the change survives the save.
+   */
+  const handleAdjustPortions = useCallback(() => {
+    const prev = daysRef.current;
+    const idx = activeDayIdxRef.current;
+    const current = prev[idx]?.meals ?? [];
+    if (current.length === 0 || target <= 0) return;
+    const scaled = scaleMealsToTarget(current, target);
+    commitDays(prev.map((d, i) => (i === idx ? { ...d, meals: scaled } : d)));
+    toast.success(`Porções ajustadas para ${target} kcal. Clique em Salvar.`);
+  }, [target, commitDays]);
 
    /**
      * Apply a new portion using a stable per-gram density baseline. Fields that
@@ -760,7 +734,7 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
               <Input
                 type="number"
                 value={target}
-                onChange={(e) => setTarget(Number(e.target.value) || 0)}
+                onChange={(e) => handleTargetChange(Number(e.target.value) || 0)}
                 className="h-8 w-24 text-xs"
               />
               <span className="text-xs text-muted-foreground">kcal</span>
@@ -929,9 +903,8 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
           if (daysFromAi && daysFromAi.length > 1) {
             // Carb cycle expanded into 7 weekday variants — replace the
             // editor's per-day state so each weekday shows its own carbs.
-            setDays(daysFromAi);
             setActiveDayIdx(0);
-            if (onDaysChange) onDaysChange(daysFromAi);
+            commitDays(daysFromAi);
           } else {
             setMeals(newMeals);
           }
