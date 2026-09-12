@@ -44,6 +44,23 @@ export function useDailyTracking(opts?: { isTrainingDay?: boolean }) {
   const [weeklyWorkouts, setWeeklyWorkouts] = useState(0);
   const [weightKg, setWeightKg] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  // Sub-copo (0–249 ml) registrado localmente para permitir incrementos de 100 ml
+  // sem alterar a unidade persistida (copos de 250 ml).
+  const extraKey = user ? `water-extra-${user.id}-${todayStr()}` : '';
+  const [extraMl, setExtraMl] = useState(0);
+
+  useEffect(() => {
+    if (!extraKey) return;
+    try {
+      const raw = localStorage.getItem(extraKey);
+      setExtraMl(raw ? Math.max(0, Math.min(WATER_STEP_ML - 1, Number(raw) || 0)) : 0);
+    } catch { /* ignore */ }
+  }, [extraKey]);
+
+  const persistExtra = useCallback((ml: number) => {
+    setExtraMl(ml);
+    try { if (extraKey) localStorage.setItem(extraKey, String(ml)); } catch { /* ignore */ }
+  }, [extraKey]);
 
   const load = useCallback(async () => {
     if (!user) return;
