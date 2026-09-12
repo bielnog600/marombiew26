@@ -12,7 +12,8 @@ import DietPlanEditor from '@/components/diet/DietPlanEditor';
 import AiEditDietDialog from '@/components/diet/AiEditDietDialog';
 import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
 import { replaceMealTableInMarkdown, replaceMealTablesPerDayInMarkdown, scaleMealsToMacroTargets, computeDayTotals, dietPlanToMarkdown } from '@/lib/dietMarkdownSerializer';
-import { parsedMealsToDietPlan } from '@/lib/dietPlanAdapter';
+import { parsedMealsToDietPlan, parsedDaysToDietPlan } from '@/lib/dietPlanAdapter';
+import type { WeeklyEnergySchedule } from '@/lib/dietDayTargets';
 import { finalizeDietPlan } from '@/lib/dietValidation';
 import type { ParsedMeal } from '@/lib/dietResultParser';
 import { parseSections } from '@/lib/dietResultParser';
@@ -148,6 +149,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   const [editedDays, setEditedDays] = useState<Record<string, { label: string; meals: ParsedMeal[] }[]>>({});
   const [aiNotes, setAiNotes] = useState<Record<string, string[]>>({});
   const [editedPlans, setEditedPlans] = useState<Record<string, DietPlan>>({});
+  const [editedSchedules, setEditedSchedules] = useState<Record<string, WeeklyEnergySchedule>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [macroModalPlanId, setMacroModalPlanId] = useState<string | null>(null);
