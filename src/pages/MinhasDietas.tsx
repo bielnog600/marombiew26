@@ -7,7 +7,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/i18n';
 import { translatePlanMarkdown } from '@/lib/planTranslation';
 import { UtensilsCrossed } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { parseSections, type ParsedSection } from '@/lib/dietResultParser';
 import { parseTrainingSections } from '@/lib/trainingResultParser';
 import StudentMealCard from '@/components/diet/StudentMealCard';
@@ -105,7 +104,6 @@ const extractLooseMarkdownTable = (raw: string): { headers: string[]; rows: stri
 const MinhasDietas = () => {
   const { user } = useAuth();
   const { language } = useLanguage();
-  const navigate = useNavigate();
   const [sections, setSections] = useState<ParsedSection[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGroupIndex, setSelectedGroupIndex] = useState(0);
