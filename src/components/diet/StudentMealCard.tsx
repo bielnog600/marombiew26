@@ -171,7 +171,25 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                     key={`${meal.name}-${food.food}-${foodIndex}`}
                     className="flex items-start gap-2 border-b border-border/30 px-3 py-2.5 last:border-0"
                   >
-                    <div className="min-w-0 flex-1">
+                    <div
+                      role={adjustMode ? undefined : 'button'}
+                      tabIndex={adjustMode ? undefined : 0}
+                      onClick={adjustMode ? undefined : () => setSubIndex(foodIndex)}
+                      onKeyDown={
+                        adjustMode
+                          ? undefined
+                          : (e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                setSubIndex(foodIndex);
+                              }
+                            }
+                      }
+                      aria-label={adjustMode ? undefined : `Substituir ${food.food}`}
+                      className={`min-w-0 flex-1 rounded-lg transition-colors ${
+                        adjustMode ? '' : 'cursor-pointer active:bg-primary/5'
+                      }`}
+                    >
                       <p className="truncate text-sm font-medium text-foreground">{food.food}</p>
                       <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px]">
                         {adjustMode ? (
