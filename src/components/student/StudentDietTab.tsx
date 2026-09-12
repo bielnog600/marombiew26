@@ -336,20 +336,45 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     setEditedPlans(prev => ({ ...prev, [planId]: plan }));
   };
 
+  const handleScheduleChange = (planId: string, schedule: WeeklyEnergySchedule) => {
+    setEditedSchedules(prev => ({ ...prev, [planId]: schedule }));
+  };
+
+  /**
+   * Atomic save. The days currently shown in the editor are the source of
+   * truth: the canonical JSON is rebuilt from them and the markdown is
+   * derived from that same JSON, so `conteudo` and `conteudo_json` can never
+   * disagree (which previously made saved portions "come back" on reload).
+   */
   const handleSave = async (planId: string) => {
     const meals = editedMeals[planId];
     const daysEdit = editedDays[planId];
     const updatedPlan = editedPlans[planId];
-    if (!meals && !updatedPlan && !daysEdit) return;
+    const scheduleEdit = editedSchedules[planId];
+    if (!meals && !updatedPlan && !daysEdit && !scheduleEdit) return;
     const plan = plans.find(p => p.id === planId);
     if (!plan) return;
-    // When we have a canonical updated plan, derive markdown from it so the
-    // two representations stay in sync; otherwise patch the table only.
-    let newContent = updatedPlan
-      ? dietPlanToMarkdown(updatedPlan)
-      : (daysEdit && daysEdit.length > 1
-          ? replaceMealTablesPerDayInMarkdown(plan.conteudo, daysEdit)
-          : replaceMealTableInMarkdown(plan.conteudo, (daysEdit?.[0]?.meals ?? meals)!));
+
+    const basePlan: DietPlan | null = updatedPlan ?? parseDietPlanLoose(plan.conteudo_json);
+    const latestDays = (daysEdit && daysEdit.length > 0)
+      ? daysEdit
+      : (meals && meals.length > 0 ? [{ label: 'Padrão', meals }] : null);
+
+    let finalPlan: DietPlan | null = null;
+    if (latestDays) {
+      const firstTotals = computeDayTotals(latestDays[0].meals);
+      const targets = basePlan?.targets ?? {
+        kcal: Math.round(firstTotals.kcal),
+        p: Math.round(firstTotals.p),
+        c: Math.round(firstTotals.c),
+        g: Math.round(firstTotals.g),
+      };
+      finalPlan = finalizeDietPlan(parsedDaysToDietPlan(latestDays, targets, basePlan), targets);
+    } else {
+      finalPlan = basePlan;
+    }
+
+    let newContent = finalPlan ? dietPlanToMarkdown(finalPlan) : plan.conteudo;
     const notes = aiNotes[planId];
     if (notes && notes.length) {
       newContent = `${newContent.trimEnd()}\n\n## 📝 Observações da IA\n\n${notes.join('\n\n')}\n`;
@@ -357,23 +382,33 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
 
     setSaving(planId);
     const updatePayload: Record<string, unknown> = { conteudo: newContent };
-    if (updatedPlan) {
-      updatePayload.conteudo_json = updatedPlan as any;
+    if (finalPlan) {
+      updatePayload.conteudo_json = finalPlan as any;
       updatePayload.migration_status = 'completed';
     }
-    const { error } = await supabase
+    if (scheduleEdit) {
+      updatePayload.protocols = {
+        ...((plan as any).protocols ?? {}),
+        weekly_energy_schedule: scheduleEdit,
+      };
+    }
+
+    const { data: savedRow, error } = await supabase
       .from('ai_plans')
       .update(updatePayload)
-      .eq('id', planId);
+      .eq('id', planId)
+      .select('*')
+      .single();
 
-    if (error) {
-      toast.error('Erro ao salvar: ' + error.message);
+    if (error || !savedRow) {
+      toast.error('Erro ao salvar: ' + (error?.message || 'falha ao gravar'));
     } else {
       toast.success('Dieta salva com sucesso!');
-      setPlans(prev => prev.map(p => p.id === planId ? { ...p, conteudo: newContent, conteudo_json: updatedPlan ?? p.conteudo_json, whatsapp_notified_at: null } : p));
+      setPlans(prev => prev.map(p => p.id === planId ? savedRow : p));
       setEditedMeals(prev => { const c = { ...prev }; delete c[planId]; return c; });
       setEditedDays(prev => { const c = { ...prev }; delete c[planId]; return c; });
       setEditedPlans(prev => { const c = { ...prev }; delete c[planId]; return c; });
+      setEditedSchedules(prev => { const c = { ...prev }; delete c[planId]; return c; });
       setAiNotes(prev => { const c = { ...prev }; delete c[planId]; return c; });
       setEditingId(null);
     }
