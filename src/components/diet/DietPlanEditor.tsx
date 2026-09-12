@@ -14,7 +14,13 @@ import { parseSections, type ParsedFood, type ParsedMeal } from '@/lib/dietResul
 import FoodSubstitutionDialog from './FoodSubstitutionDialog';
 import AiEditDietDialog from './AiEditDietDialog';
 import type { DietPlan } from '@/lib/dietSchema';
-import { parsedMealsToDietPlan } from '@/lib/dietPlanAdapter';
+import { parsedDaysToDietPlan } from '@/lib/dietPlanAdapter';
+import {
+  resolveDayTarget,
+  scheduleDayTarget,
+  applyDayTargetToSchedule,
+  type WeeklyEnergySchedule,
+} from '@/lib/dietDayTargets';
 import { finalizeDietPlan } from '@/lib/dietValidation';
 import DietValidationBadge from './DietValidationBadge';
 import TrainingContextSummary from './TrainingContextSummary';
@@ -40,10 +46,9 @@ interface DietPlanEditorProps {
    * present, the "Meta diária" banner reflects the per-day target instead
    * of a single plan-wide target.
    */
-  weeklySchedule?: {
-    base_daily_kcal?: number;
-    days?: Record<string, { target_kcal?: number; adjustment_kcal?: number; fixed_kcal?: number | null }>;
-  } | null;
+  weeklySchedule?: WeeklyEnergySchedule | null;
+  /** Notified when the admin edits the daily goal of a specific weekday. */
+  onScheduleChange?: (schedule: WeeklyEnergySchedule) => void;
 }
 
 const num = (v?: string) => {
