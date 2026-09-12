@@ -201,3 +201,19 @@
   pointer-events: none !important;
 }
 
+
+@layer utilities {
+  /* Barras de progresso do plano alimentar: brilho discreto e animado */
+  @keyframes diet-bar-shine {
+    0% { transform: translateX(-120%); }
+    100% { transform: translateX(320%); }
+  }
+  .diet-bar-shine::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    background: linear-gradient(90deg, transparent, hsl(0 0% 100% / 0.35), transparent);
+    animation: diet-bar-shine 2.8s ease-in-out infinite;
+  }
+}
