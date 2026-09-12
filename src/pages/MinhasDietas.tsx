@@ -583,17 +583,8 @@ const MinhasDietas = () => {
   return (
     <AppLayout title="Plano Alimentar">
       <div className="space-y-4 animate-fade-in">
-        {/* Back + Protocolos */}
-        <div className="flex items-center justify-between gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground -ml-2"
-            onClick={() => navigate('/minha-area')}
-          >
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Voltar
-          </Button>
+        {/* Protocolos */}
+        <div className="flex items-center justify-end gap-2">
           {protocolKeys.length > 0 && (
             <Button
               variant="outline"
