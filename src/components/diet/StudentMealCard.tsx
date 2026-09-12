@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import AddFoodDialog from './AddFoodDialog';
+import FoodSubstitutionDialog from './FoodSubstitutionDialog';
 
 const parseNum = (v?: string) => {
   if (!v) return 0;
@@ -53,6 +54,7 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
 }) => {
   const [adjustMode, setAdjustMode] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [subIndex, setSubIndex] = useState<number | null>(null);
   const [draftQty, setDraftQty] = useState<Record<number, string>>({});
 
   const foods = meal.foods ?? [];
@@ -169,7 +171,25 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                     key={`${meal.name}-${food.food}-${foodIndex}`}
                     className="flex items-start gap-2 border-b border-border/30 px-3 py-2.5 last:border-0"
                   >
-                    <div className="min-w-0 flex-1">
+                    <div
+                      role={adjustMode ? undefined : 'button'}
+                      tabIndex={adjustMode ? undefined : 0}
+                      onClick={adjustMode ? undefined : () => setSubIndex(foodIndex)}
+                      onKeyDown={
+                        adjustMode
+                          ? undefined
+                          : (e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                setSubIndex(foodIndex);
+                              }
+                            }
+                      }
+                      aria-label={adjustMode ? undefined : `Substituir ${food.food}`}
+                      className={`min-w-0 flex-1 rounded-lg transition-colors ${
+                        adjustMode ? '' : 'cursor-pointer active:bg-primary/5'
+                      }`}
+                    >
                       <p className="truncate text-sm font-medium text-foreground">{food.food}</p>
                       <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px]">
                         {adjustMode ? (
@@ -253,6 +273,26 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
       </div>
 
       <AddFoodDialog open={addOpen} onOpenChange={setAddOpen} onAdd={handleAdd} />
+
+      {subIndex !== null && foods[subIndex] && (
+        <FoodSubstitutionDialog
+          open
+          onOpenChange={(o) => !o && setSubIndex(null)}
+          originalFood={foods[subIndex]}
+          mealTotals={{
+            kcal: foods.reduce((s, f) => s + parseNum(f.kcal), 0),
+            p: foods.reduce((s, f) => s + parseNum(f.p), 0),
+            c: foods.reduce((s, f) => s + parseNum(f.c), 0),
+            g: foods.reduce((s, f) => s + parseNum(f.g), 0),
+          }}
+          onSubstitute={(newFood) => {
+            const idx = subIndex;
+            setSubIndex(null);
+            onFoodsChange(foods.map((f, i) => (i === idx ? newFood : f)));
+            toast.success('Alimento substituído — refeições futuras reajustadas');
+          }}
+        />
+      )}
     </>
   );
 };

@@ -6,8 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/i18n';
 import { translatePlanMarkdown } from '@/lib/planTranslation';
-import { UtensilsCrossed, ArrowLeft } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { UtensilsCrossed } from 'lucide-react';
 import { parseSections, type ParsedSection } from '@/lib/dietResultParser';
 import { parseTrainingSections } from '@/lib/trainingResultParser';
 import StudentMealCard from '@/components/diet/StudentMealCard';
@@ -105,7 +104,6 @@ const extractLooseMarkdownTable = (raw: string): { headers: string[]; rows: stri
 const MinhasDietas = () => {
   const { user } = useAuth();
   const { language } = useLanguage();
-  const navigate = useNavigate();
   const [sections, setSections] = useState<ParsedSection[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGroupIndex, setSelectedGroupIndex] = useState(0);
@@ -583,17 +581,8 @@ const MinhasDietas = () => {
   return (
     <AppLayout title="Plano Alimentar">
       <div className="space-y-4 animate-fade-in">
-        {/* Back + Protocolos */}
-        <div className="flex items-center justify-between gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground -ml-2"
-            onClick={() => navigate('/minha-area')}
-          >
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Voltar
-          </Button>
+        {/* Protocolos */}
+        <div className="flex items-center justify-end gap-2">
           {protocolKeys.length > 0 && (
             <Button
               variant="outline"
