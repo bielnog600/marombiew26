@@ -44,6 +44,23 @@ export function useDailyTracking(opts?: { isTrainingDay?: boolean }) {
   const [weeklyWorkouts, setWeeklyWorkouts] = useState(0);
   const [weightKg, setWeightKg] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  // Sub-copo (0–249 ml) registrado localmente para permitir incrementos de 100 ml
+  // sem alterar a unidade persistida (copos de 250 ml).
+  const extraKey = user ? `water-extra-${user.id}-${todayStr()}` : '';
+  const [extraMl, setExtraMl] = useState(0);
+
+  useEffect(() => {
+    if (!extraKey) return;
+    try {
+      const raw = localStorage.getItem(extraKey);
+      setExtraMl(raw ? Math.max(0, Math.min(WATER_STEP_ML - 1, Number(raw) || 0)) : 0);
+    } catch { /* ignore */ }
+  }, [extraKey]);
+
+  const persistExtra = useCallback((ml: number) => {
+    setExtraMl(ml);
+    try { if (extraKey) localStorage.setItem(extraKey, String(ml)); } catch { /* ignore */ }
+  }, [extraKey]);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -146,6 +163,23 @@ export function useDailyTracking(opts?: { isTrainingDay?: boolean }) {
     upsert({ water_glasses: Math.max(tracking.water_glasses - 1, 0) });
   }, [upsert, tracking.water_glasses]);
 
+  /** Adiciona (ou remove, com valor negativo) uma quantidade livre de água em ml. */
+  const addWaterMl = useCallback((ml: number) => {
+    const totalMl = Math.max(0, tracking.water_glasses * WATER_STEP_ML + extraMl + ml);
+    const glasses = Math.min(Math.floor(totalMl / WATER_STEP_ML), 40);
+    const rest = totalMl - glasses * WATER_STEP_ML;
+    persistExtra(rest);
+    if (glasses !== tracking.water_glasses) {
+      upsert({ water_glasses: glasses });
+      if (ml > 0) {
+        trackEvent('water_logged', { glasses });
+        if (glasses >= waterGoalGlasses && tracking.water_glasses < waterGoalGlasses) {
+          trackEvent('water_goal_hit', { glasses, goal: waterGoalGlasses });
+        }
+      }
+    }
+  }, [tracking.water_glasses, extraMl, persistExtra, upsert, trackEvent, waterGoalGlasses]);
+
   const toggleMeal = useCallback((mealIndex: number) => {
     const current = tracking.meals_completed;
     const isAdding = !current.includes(mealIndex);
@@ -165,10 +199,11 @@ export function useDailyTracking(opts?: { isTrainingDay?: boolean }) {
     loading,
     weeklyWorkouts,
     waterGoalGlasses,
-    waterCurrentMl: tracking.water_glasses * WATER_STEP_ML,
+    waterCurrentMl: tracking.water_glasses * WATER_STEP_ML + extraMl,
     waterTargetMl: waterGoalGlasses * WATER_STEP_ML,
     waterStepMl: WATER_STEP_ML,
     addWater,
+    addWaterMl,
     removeWater,
     toggleMeal,
     completeWorkout,
