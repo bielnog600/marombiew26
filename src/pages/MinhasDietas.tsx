@@ -10,24 +10,18 @@ import { UtensilsCrossed, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { parseSections, type ParsedSection } from '@/lib/dietResultParser';
 import { parseTrainingSections } from '@/lib/trainingResultParser';
-import { extractTargetsFromSections } from '@/lib/dietTargets';
 import StudentMealCard from '@/components/diet/StudentMealCard';
 import DailyCaloriesCard from '@/components/diet/DailyCaloriesCard';
 import HydrationCard from '@/components/diet/HydrationCard';
 import {
   rebalanceFutureMeals,
-  resolveMealStates,
   sumMealMacros,
   type Macros,
 } from '@/lib/dailyDietRebalance';
 
-import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { fetchWithCache } from '@/lib/offlineCache';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import ProtocolsDialog from '@/components/diet/ProtocolsDialog';
 import { protocolsToKeys, type SavedProtocols, type ProtocolKey } from '@/lib/dietProtocols';
 import { ListChecks } from 'lucide-react';
@@ -460,16 +454,6 @@ const MinhasDietas = () => {
 
   const currentMeals = hasStudentEdits ? rebalance.meals : prescribedMeals;
 
-  const mealStates = useMemo(
-    () =>
-      resolveMealStates(
-        currentMeals.length,
-        completedIndexes,
-        hasStudentEdits ? (editedMealByGroup[activeGroupIndex] ?? -1) : -1,
-      ),
-    [currentMeals.length, completedIndexes, editedMealByGroup, activeGroupIndex, hasStudentEdits],
-  );
-
   const resetDayEdits = useCallback(() => {
     setSubstitutions((prev) => {
       const next = { ...prev };
@@ -563,7 +547,6 @@ const MinhasDietas = () => {
 
   const waterMl = waterCurrentMl;
   const waterGoalMl = waterTargetMl;
-  const waterProgress = waterTargetMl > 0 ? (waterCurrentMl / waterTargetMl) * 100 : 0;
 
   if (loading) {
     return (
