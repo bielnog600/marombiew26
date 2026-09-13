@@ -297,6 +297,22 @@ export const useStudentsWeeklySummary = () => {
         if (!lastCheckinByStudent.has(ch.student_id)) lastCheckinByStudent.set(ch.student_id, ch);
       }
 
+      // 8. vídeos de execução marcados como "refazer" (evidência real de técnica)
+      const { data: redoVideos } = await supabase
+        .from('exercise_execution_videos')
+        .select('student_id, exercise_name, admin_note, created_at, status')
+        .in('student_id', ids)
+        .eq('status', 'needs_redo')
+        .order('created_at', { ascending: false });
+      const videosByStudent = new Map<string, VideoNeedsRedo[]>();
+      for (const v of redoVideos ?? []) {
+        const list = videosByStudent.get(v.student_id) ?? [];
+        if (!list.some((x) => x.exerciseName.toLowerCase() === v.exercise_name.toLowerCase())) {
+          list.push({ exerciseName: v.exercise_name, note: (v as any).admin_note ?? null });
+        }
+        videosByStudent.set(v.student_id, list);
+      }
+
       const result: StudentWeeklySummary[] = [];
       for (const p of profiles ?? []) {
         const plan = latestPlan.get(p.user_id) ?? null;
