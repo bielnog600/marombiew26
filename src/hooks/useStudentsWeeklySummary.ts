@@ -12,6 +12,11 @@ import {
   type RawSession,
 } from '@/lib/weeklyTraining';
 import type { TrainingPhase } from '@/lib/trainingPhase';
+import {
+  buildQuantitativeProgressionRecommendation,
+  type QuantitativeRecommendation,
+} from '@/lib/quantitativeProgression';
+import type { VideoNeedsRedo } from '@/lib/weeklyCoachingFocus';
 
 export type AttentionKind =
   | 'regressao'
@@ -59,6 +64,12 @@ export interface StudentWeeklySummary {
   priority: number; // menor = mais urgente
   actionLabel: string;
   active: boolean;
+  /** Recomendações quantitativas determinísticas por exercício (kg/reps reais). */
+  quantitative: QuantitativeRecommendation[];
+  /** Vídeos de execução marcados pelo treinador como "refazer". */
+  videosNeedsRedo: VideoNeedsRedo[];
+  /** Fase ativa da semana (deload bloqueia sobrecarga). */
+  activePhase: TrainingPhase | null;
 }
 
 
