@@ -245,14 +245,39 @@ export const buildWeeklyFocus = (input: BuildFocusInput): FocusItem[] => {
 
 const firstName = (full: string) => (full || 'aluno').trim().split(/\s+/)[0];
 
+/** Só estas ações viram linha individual na mensagem. */
+const ACTIONABLE: Exclude<CoachingActionType, 'dismissed'>[] = [
+  'reduce_load', 'request_video', 'increase_load', 'increase_reps', 'amplitude', 'technique',
+];
+
+const MSG_PRIORITY: Record<string, number> = {
+  reduce_load: 0,
+  request_video: 1,
+  increase_load: 2,
+  increase_reps: 3,
+  technique: 4,
+  amplitude: 4,
+};
+
+const MAX_LINES = 5;
+const NO_DATA_NOTE = 'Vai registrando carga e reps no app para eu conseguir acompanhar melhor os próximos treinos.';
+
+/** Separa orientações acionáveis (máx. 5, priorizadas) de exercícios sem registro. */
+export const splitFocusForMessage = (items: FocusItem[]) => {
+  const actionable = items
+    .filter((i) => ACTIONABLE.includes(i.actionType))
+    .sort((a, b) => (MSG_PRIORITY[a.actionType] ?? 9) - (MSG_PRIORITY[b.actionType] ?? 9))
+    .slice(0, MAX_LINES);
+  const hasMissingData = items.some((i) => i.actionType === 'review');
+  return { actionable, hasMissingData };
+};
+
 const textLine = (i: FocusItem): string => {
   switch (i.actionType) {
     case 'increase_load':
       return `• ${i.exerciseName}: tenta ${i.loadText ?? 'subir um pouco a carga'} mantendo boa execução.`;
     case 'increase_reps':
       return `• ${i.exerciseName}: mantém ${i.loadText ?? 'a carga'} e busca ${i.repsText ?? 'mais repetições'}.`;
-    case 'maintain':
-      return `• ${i.exerciseName}: mantém ${i.loadText ?? 'a carga'} e foca na execução.`;
     case 'reduce_load':
       return `• ${i.exerciseName}: reduz um pouco a carga e recupera a execução.`;
     case 'amplitude':
@@ -260,25 +285,38 @@ const textLine = (i: FocusItem): string => {
     case 'technique':
       return `• ${i.exerciseName}: foca em execução controlada.`;
     case 'request_video':
+    default:
       return i.videoNote
         ? `• ${i.exerciseName}: me manda outro vídeo. Quero conferir principalmente ${i.videoNote.toLowerCase()}`
         : `• ${i.exerciseName}: me manda um vídeo de uma das séries para eu conferir sua execução.`;
-    case 'review':
-    default:
-      return `• ${i.exerciseName}: registra carga e reps no app para eu acompanhar.`;
   }
 };
 
+const NO_ACTION_MESSAGE = (name: string) => [
+  `Oi ${name}! 💪`,
+  'Essa semana quero acompanhar um pouco melhor seus treinos.',
+  '',
+  'Quando fizer os exercícios, tenta registrar carga e repetições no app, principalmente nas séries de trabalho. Assim consigo identificar onde podemos aumentar carga ou reps.',
+  '',
+  'Se tiver algum exercício com dificuldade na execução, me manda um vídeo que eu confiro. 👊',
+].join('\n');
+
 export const buildFocusTextMessage = (studentName: string, items: FocusItem[]): string => {
   const name = firstName(studentName);
-  if (items.length === 0) return `Oi ${name}! 💪 Essa semana seguimos com o mesmo plano. Vai registrando as cargas e reps no app.`;
+  const { actionable, hasMissingData } = splitFocusForMessage(items);
+
+  if (actionable.length === 0) {
+    if (hasMissingData || items.length === 0) return NO_ACTION_MESSAGE(name);
+    return `Oi ${name}! 💪 Essa semana seguimos com o mesmo plano. Mantém a execução e vai registrando as cargas e reps no app.`;
+  }
+
   return [
     `Oi ${name}! 💪`,
     'Para os treinos desta semana:',
     '',
-    ...items.map(textLine),
+    ...actionable.map(textLine),
     '',
-    'Vai registrando as cargas e reps no app para eu acompanhar.',
+    hasMissingData ? NO_DATA_NOTE : 'Depois me conta como foi.',
   ].join('\n');
 };
 
@@ -288,8 +326,6 @@ const spokenLine = (i: FocusItem): string => {
       return `no ${i.exerciseName} quero que você tente ${i.loadText ?? 'subir um pouco a carga'}`;
     case 'increase_reps':
       return `no ${i.exerciseName} mantém ${i.loadText ?? 'a carga'} e busca ${i.repsText ?? 'mais repetições'}`;
-    case 'maintain':
-      return `no ${i.exerciseName} mantém a carga e caprichar na execução`;
     case 'reduce_load':
       return `no ${i.exerciseName} baixa um pouco a carga para recuperar a execução`;
     case 'amplitude':
@@ -297,23 +333,27 @@ const spokenLine = (i: FocusItem): string => {
     case 'technique':
       return `no ${i.exerciseName} foca no controle do movimento`;
     case 'request_video':
+    default:
       return i.videoNote
         ? `me manda outro vídeo do ${i.exerciseName}, quero conferir ${i.videoNote.toLowerCase()}`
         : `me manda um vídeo do ${i.exerciseName} para eu conferir sua execução`;
-    case 'review':
-    default:
-      return `no ${i.exerciseName} registra a carga e as reps no app`;
   }
 };
 
 export const buildFocusAudioScript = (studentName: string, items: FocusItem[]): string => {
   const name = firstName(studentName);
-  if (items.length === 0) {
-    return `${name}, essa semana seguimos com o mesmo plano. Mantém a execução e vai registrando tudo no app. Depois me conta como foi.`;
+  const { actionable, hasMissingData } = splitFocusForMessage(items);
+
+  if (actionable.length === 0) {
+    return `${name}, essa semana quero acompanhar melhor seus treinos. Vai registrando carga e repetições no app, principalmente nas séries de trabalho, e se tiver dificuldade na execução de algum exercício me manda um vídeo que eu confiro.`;
   }
-  const body = items.map(spokenLine);
+
+  const body = actionable.map(spokenLine);
   const joined = body.length === 1
     ? body[0]
     : `${body.slice(0, -1).join(', ')} e ${body[body.length - 1]}`;
-  return `${name}, para essa semana ${joined}. Depois me conta como foi.`;
+  const tail = hasMissingData
+    ? ' E vai registrando carga e reps no app para eu conseguir acompanhar melhor.'
+    : ' Depois me conta como foi.';
+  return `${name}, para essa semana ${joined}.${tail}`;
 };
