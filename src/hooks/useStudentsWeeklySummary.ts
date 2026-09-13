@@ -12,6 +12,11 @@ import {
   type RawSession,
 } from '@/lib/weeklyTraining';
 import type { TrainingPhase } from '@/lib/trainingPhase';
+import {
+  buildQuantitativeProgressionRecommendation,
+  type QuantitativeRecommendation,
+} from '@/lib/quantitativeProgression';
+import type { VideoNeedsRedo } from '@/lib/weeklyCoachingFocus';
 
 export type AttentionKind =
   | 'regressao'
@@ -59,6 +64,12 @@ export interface StudentWeeklySummary {
   priority: number; // menor = mais urgente
   actionLabel: string;
   active: boolean;
+  /** Recomendações quantitativas determinísticas por exercício (kg/reps reais). */
+  quantitative: QuantitativeRecommendation[];
+  /** Vídeos de execução marcados pelo treinador como "refazer". */
+  videosNeedsRedo: VideoNeedsRedo[];
+  /** Fase ativa da semana (deload bloqueia sobrecarga). */
+  activePhase: TrainingPhase | null;
 }
 
 
@@ -286,6 +297,22 @@ export const useStudentsWeeklySummary = () => {
         if (!lastCheckinByStudent.has(ch.student_id)) lastCheckinByStudent.set(ch.student_id, ch);
       }
 
+      // 8. vídeos de execução marcados como "refazer" (evidência real de técnica)
+      const { data: redoVideos } = await supabase
+        .from('exercise_execution_videos')
+        .select('student_id, exercise_name, admin_note, created_at, status')
+        .in('student_id', ids)
+        .eq('status', 'needs_redo')
+        .order('created_at', { ascending: false });
+      const videosByStudent = new Map<string, VideoNeedsRedo[]>();
+      for (const v of redoVideos ?? []) {
+        const list = videosByStudent.get(v.student_id) ?? [];
+        if (!list.some((x) => x.exerciseName.toLowerCase() === v.exercise_name.toLowerCase())) {
+          list.push({ exerciseName: v.exercise_name, note: (v as any).admin_note ?? null });
+        }
+        videosByStudent.set(v.student_id, list);
+      }
+
       const result: StudentWeeklySummary[] = [];
       for (const p of profiles ?? []) {
         const plan = latestPlan.get(p.user_id) ?? null;
@@ -317,6 +344,25 @@ export const useStudentsWeeklySummary = () => {
           adherence = report.adherence;
           progression = report.progression;
           resolution = report.resolution;
+        }
+
+        // Recomendação quantitativa (kg/reps reais) por exercício avaliado.
+        const activePhase = (resolution?.activePhase ?? null) as TrainingPhase | null;
+        const quantitative: QuantitativeRecommendation[] = [];
+        for (const perf of progression?.performances ?? []) {
+          if (perf.status === 'missing' || perf.status === 'insufficient_data') continue;
+          const history = allLogs.filter(
+            (l) => (l.exercise_name || '').toLowerCase() === perf.exerciseName.toLowerCase(),
+          );
+          if (history.length === 0) continue;
+          try {
+            quantitative.push(buildQuantitativeProgressionRecommendation({
+              performance: perf,
+              recentLogs: history as any,
+              historyLogs: history as any,
+              activePhase: activePhase ?? undefined,
+            } as any));
+          } catch { /* motor conservador: ignora exercício sem base */ }
         }
 
         const isPresencial = presencialMap.get(p.user_id) ?? false;
@@ -370,6 +416,9 @@ export const useStudentsWeeklySummary = () => {
           priority: cFinal.priority,
           actionLabel: cFinal.action,
           active: studentProfileStatus.get(p.user_id) ?? false,
+          quantitative,
+          videosNeedsRedo: videosByStudent.get(p.user_id) ?? [],
+          activePhase,
         });
 
       }

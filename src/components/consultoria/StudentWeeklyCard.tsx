@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,18 +7,20 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useNavigate } from 'react-router-dom';
 import {
-  ExternalLink, MessageSquare, Copy, TrendingUp, TrendingDown, AlertTriangle,
-  Check, RotateCcw, Mic, ChevronDown, Sparkles, UtensilsCrossed, Droplets, UserMinus,
+  ExternalLink, Check, RotateCcw, ChevronDown, Target, UtensilsCrossed, Droplets, UserMinus,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { buildWhatsAppUrl } from '@/hooks/useNotifications';
 import { ADHERENCE_SHORT_LABEL, ADHERENCE_BADGE_CLASS } from '@/lib/weeklyAdherence';
-import { formatDelta } from '@/lib/weeklyProgression';
-import { buildNextSessionGuidance } from '@/lib/nextSessionGuidance';
 import type { StudentWeeklySummary, AttentionKind } from '@/hooks/useStudentsWeeklySummary';
 import {
   bucketFor, type SnoozeOption, type StudentFollowup,
 } from '@/hooks/useStudentFollowups';
+import {
+  buildWeeklyFocus, type CoachingActionType, type CoachingStatus,
+  type FocusItem, type ManualCoachingAction,
+} from '@/lib/weeklyCoachingFocus';
+import WeeklyFocusList from '@/components/consultoria/WeeklyFocusList';
+import PrepareMessageDialog from '@/components/consultoria/PrepareMessageDialog';
 
 const ATTENTION_BADGE: Record<AttentionKind, { label: string; cls: string }> = {
   regressao: { label: 'Regressão', cls: 'bg-destructive/15 text-destructive border-destructive/30' },
@@ -41,96 +43,44 @@ const formatSnoozeDate = (iso: string) => {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 };
 
-const buildAudioSummary = (s: StudentWeeklySummary): string => {
-  const a = s.adherence;
-  const p = s.progression;
-  const d = s.diet;
-  const lines: string[] = [];
-  if (a) {
-    lines.push(`• Fez ${a.sessionsExecuted} de ${a.sessionsPlanned || '?'} treinos na semana`);
-    if (a.setsTotal > 0) lines.push(`• ${a.setsWithLoad} de ${a.setsTotal} séries com carga registrada`);
-  } else {
-    lines.push('• Sem plano de treino ativo');
-  }
-  if (p?.improved?.length) lines.push(`• Evoluiu em: ${p.improved.map(formatDelta).join(' • ')}`);
-  if (p?.regressed?.length) lines.push(`• Caiu em: ${p.regressed.map(formatDelta).join(' • ')}`);
-  if (p?.missing?.length) lines.push(`• Sem registro em: ${p.missing.join(', ')}`);
-  if (d.hasDietPlan) {
-    lines.push(`• Refeições marcadas em ${d.daysWithMeals}/7 dias (${d.totalMealsMarked} refeições)`);
-    lines.push(`• Água: média de ${d.avgWaterGlasses} copos/dia${d.daysBelowWaterGoal > 0 ? ` (${d.daysBelowWaterGoal} dia(s) abaixo de 6)` : ''}`);
-  }
-  if (d.lastCheckin) {
-    const c = d.lastCheckin;
-    const bits = [
-      c.facilidade ? `ingestão: ${c.facilidade}` : null,
-      c.fome ? `fome: ${c.fome}` : null,
-      c.saciedade ? `saciedade: ${c.saciedade}` : null,
-      c.digestao ? `digestão: ${c.digestao}` : null,
-      c.adesao ? `adesão: ${c.adesao}` : null,
-    ].filter(Boolean).join(' • ');
-    if (bits) lines.push(`• Último check-in de dieta — ${bits}`);
-  }
-  lines.push(`• Decisão: ${s.actionLabel}`);
-  return lines.join('\n');
-};
-
-const buildWhatsAppMessage = (s: StudentWeeklySummary): string => {
-  const firstName = (s.studentName ?? 'aluno').split(' ')[0];
-  return `Oi ${firstName}! 💪 Resumo rápido da sua semana:\n\n${buildAudioSummary(s)}`;
-};
-
 interface Props {
   summary: StudentWeeklySummary;
   followup?: StudentFollowup;
   onMarkDone: (studentId: string, snooze: SnoozeOption) => Promise<unknown>;
   onReopen: (studentId: string) => Promise<unknown>;
   onArchive?: (studentId: string) => Promise<unknown> | void;
+  /** Ações manuais de coaching da semana atual (persistidas). */
+  coachingActions?: ManualCoachingAction[];
+  onSetAction?: (studentId: string, exerciseName: string, action: CoachingActionType, planId: string | null) => void;
+  onSetStatus?: (studentId: string, exerciseName: string, status: CoachingStatus, fallback: CoachingActionType, planId: string | null) => void;
+  onMarkSent?: (studentId: string, entries: { exerciseName: string; actionType: CoachingActionType }[], planId: string | null) => void;
 }
 
-const StudentWeeklyCard: React.FC<Props> = ({ summary, followup, onMarkDone, onReopen, onArchive }) => {
+const StudentWeeklyCard: React.FC<Props> = ({
+  summary, followup, onMarkDone, onReopen, onArchive,
+  coachingActions, onSetAction, onSetStatus, onMarkSent,
+}) => {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const att = ATTENTION_BADGE[summary.attention];
   const a = summary.adherence;
-  const p = summary.progression;
   const d = summary.diet;
   const bucket = bucketFor(followup);
 
-  const statusKey = followup
-    ? followup.status
-    : (summary.attention === 'ok' ? 'novo' : 'novo');
+  const statusKey = followup ? followup.status : 'novo';
   const status = STATUS_BADGE[statusKey] ?? STATUS_BADGE.novo;
 
   const sessionsLine = a
     ? `${a.sessionsExecuted}/${a.sessionsPlanned || '?'} treinos${a.setsTotal > 0 ? ` • ${a.setsWithLoad}/${a.setsTotal} séries c/ carga` : ''}`
     : 'Sem plano de treino ativo';
 
-  const audioSummary = buildAudioSummary(summary);
-  const nextGuidance = buildNextSessionGuidance(summary);
-  const whatsappUrl = summary.studentPhone
-    ? buildWhatsAppUrl(
-        summary.studentPhone,
-        `${buildWhatsAppMessage(summary)}\n\n👉 Próxima sessão: ${nextGuidance}`,
-      )
-    : null;
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(`${audioSummary}\n\nOrientação da próxima sessão:\n${nextGuidance}`);
-      toast({ title: 'Resumo copiado', description: 'Cole onde quiser ou use como base para o áudio.' });
-    } catch {
-      toast({ title: 'Não foi possível copiar', variant: 'destructive' });
-    }
-  };
-
-  const handleCopyGuidance = async () => {
-    try {
-      await navigator.clipboard.writeText(nextGuidance);
-      toast({ title: 'Orientação copiada', description: 'Pronta para enviar como áudio no WhatsApp.' });
-    } catch {
-      toast({ title: 'Não foi possível copiar', variant: 'destructive' });
-    }
-  };
+  const focusItems: FocusItem[] = useMemo(() => buildWeeklyFocus({
+    performances: summary.progression?.performances ?? [],
+    quantitative: summary.quantitative ?? [],
+    videosNeedsRedo: summary.videosNeedsRedo ?? [],
+    manualActions: coachingActions ?? [],
+    deload: summary.activePhase === 'deload',
+  }), [summary.progression, summary.quantitative, summary.videosNeedsRedo, summary.activePhase, coachingActions]);
 
   const handleMark = async (opt: SnoozeOption) => {
     setBusy(true);
@@ -199,196 +149,69 @@ const StudentWeeklyCard: React.FC<Props> = ({ summary, followup, onMarkDone, onR
           </div>
         </div>
 
-        {/* Progress lines */}
-        {p && (p.improved.length > 0 || p.regressed.length > 0 || p.missing.length > 0) && (
-          <div className="space-y-1.5 text-xs">
-            {p.improved.length > 0 && (
-              <div className="flex items-start gap-1.5">
-                <TrendingUp className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                <p className="text-foreground/90 leading-tight">
-                  <span className="text-emerald-500 font-medium">Evoluiu: </span>
-                  {p.improved.map(formatDelta).join(' • ')}
-                </p>
-              </div>
-            )}
-            {p.regressed.length > 0 && (
-              <div className="flex items-start gap-1.5">
-                <TrendingDown className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
-                <p className="text-foreground/90 leading-tight">
-                  <span className="text-destructive font-medium">Caiu: </span>
-                  {p.regressed.map(formatDelta).join(' • ')}
-                </p>
-              </div>
-            )}
-            {p.missing.length > 0 && (
-              <div className="flex items-start gap-1.5">
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
-                <p className="text-muted-foreground leading-tight">
-                  <span className="text-amber-500 font-medium">Sem registro: </span>
-                  {p.missing.join(', ')}
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Dieta & Hidratação */}
-        {(d.hasDietPlan || d.lastCheckin) && (
-          <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-2 space-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <UtensilsCrossed className="h-3 w-3 text-emerald-500" />
-              <p className="text-[10px] uppercase tracking-wide text-emerald-500 font-semibold">
-                Dieta & hidratação
-              </p>
-            </div>
-
-            {d.hasDietPlan && (
-              <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-                <div className="flex items-center gap-1.5">
-                  <UtensilsCrossed className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-foreground/90">
-                    {d.daysWithMeals}/7 dias
-                    <span className="text-muted-foreground"> ({d.totalMealsMarked} ref.)</span>
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Droplets className={`h-3 w-3 ${d.avgWaterGlasses < 6 ? 'text-amber-500' : 'text-sky-500'}`} />
-                  <span className="text-foreground/90">
-                    {d.avgWaterGlasses} copos/dia
-                    {d.daysBelowWaterGoal > 0 && (
-                      <span className="text-amber-500"> · {d.daysBelowWaterGoal} dia(s) &lt;6</span>
-                    )}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {d.lastCheckin && (
-              <div className="flex flex-wrap gap-1 pt-0.5">
-                {d.lastCheckin.facilidade && (
-                  <Badge
-                    variant="outline"
-                    className={`text-[10px] ${
-                      d.lastCheckin.facilidade === 'dificil'
-                        ? 'bg-destructive/15 text-destructive border-destructive/30'
-                        : d.lastCheckin.facilidade === 'media'
-                        ? 'bg-amber-500/15 text-amber-500 border-amber-500/30'
-                        : 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30'
-                    }`}
-                  >
-                    Ingestão: {d.lastCheckin.facilidade}
-                  </Badge>
-                )}
-                {d.lastCheckin.fome && (
-                  <Badge variant="outline" className="text-[10px]">Fome: {d.lastCheckin.fome}</Badge>
-                )}
-                {d.lastCheckin.saciedade && (
-                  <Badge variant="outline" className="text-[10px]">Saciedade: {d.lastCheckin.saciedade}</Badge>
-                )}
-                {d.lastCheckin.digestao && (
-                  <Badge variant="outline" className="text-[10px]">Digestão: {d.lastCheckin.digestao}</Badge>
-                )}
-                {d.lastCheckin.energia && (
-                  <Badge variant="outline" className="text-[10px]">Energia: {d.lastCheckin.energia}</Badge>
-                )}
-                {d.lastCheckin.adesao && (
-                  <Badge variant="outline" className="text-[10px]">Adesão: {d.lastCheckin.adesao}</Badge>
-                )}
-              </div>
-            )}
-            {d.lastCheckin?.observacoes && (
-              <p className="text-[11px] text-foreground/80 italic leading-tight">
-                “{d.lastCheckin.observacoes}”
-              </p>
-            )}
-            {!d.lastCheckin && d.hasDietPlan && (
-              <p className="text-[10px] text-muted-foreground italic">
-                Sem check-in de dieta respondido ainda.
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Action sugerida */}
-        <div className="rounded-md border border-primary/20 bg-primary/5 px-2 py-1.5 text-xs text-foreground/90">
-          <span className="text-primary font-medium">Ação: </span>
-          {summary.actionLabel}
-        </div>
-
-        {/* Resumo para áudio */}
-        <div className="rounded-md border border-border bg-secondary/30 p-2 space-y-1">
-          <div className="flex items-center gap-1.5">
-            <Mic className="h-3 w-3 text-primary" />
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
-              Resumo para áudio
-            </p>
-          </div>
-          <pre className="text-xs text-foreground/90 leading-snug whitespace-pre-wrap font-sans">
-{audioSummary}
-          </pre>
-        </div>
-
-        {/* Orientação da próxima sessão */}
-        <div className="rounded-md border border-primary/30 bg-primary/10 p-2 space-y-1">
+        {/* Foco desta semana */}
+        <div className="rounded-md border border-primary/20 bg-primary/5 p-2 space-y-1.5">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5">
-              <Sparkles className="h-3 w-3 text-primary" />
-              <p className="text-[10px] uppercase tracking-wide text-primary font-medium">
-                Orientação da próxima sessão
+              <Target className="h-3 w-3 text-primary" />
+              <p className="text-[10px] uppercase tracking-wide text-primary font-semibold">
+                Foco desta semana
               </p>
             </div>
-            <button
-              onClick={handleCopyGuidance}
-              className="text-[10px] text-primary hover:underline flex items-center gap-1"
-            >
-              <Copy className="h-3 w-3" /> Copiar
-            </button>
+            <span className="text-[10px] text-muted-foreground">
+              {focusItems.length} orientaç{focusItems.length === 1 ? 'ão' : 'ões'}
+            </span>
           </div>
-          <p className="text-xs text-foreground/90 leading-snug whitespace-pre-wrap">
-            {nextGuidance}
-          </p>
+          <WeeklyFocusList
+            items={focusItems}
+            onSetAction={(ex, action) => onSetAction?.(summary.studentId, ex, action, summary.planId)}
+            onSetStatus={(ex, st, fallback) => onSetStatus?.(summary.studentId, ex, st, fallback, summary.planId)}
+          />
         </div>
 
-        {/* Status follow-up info */}
+        {/* Dieta & hidratação (resumo curto) */}
+        {d.hasDietPlan && (
+          <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <UtensilsCrossed className="h-3 w-3 text-emerald-500" />
+              {d.daysWithMeals}/7 dias ({d.totalMealsMarked} ref.)
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Droplets className={`h-3 w-3 ${d.avgWaterGlasses < 6 ? 'text-amber-500' : 'text-sky-500'}`} />
+              {d.avgWaterGlasses} copos/dia
+            </span>
+          </div>
+        )}
+
+        {/* Status follow-up */}
         {followup && bucket === 'espera' && followup.snoozed_until && (
-          <p className="text-[10px] text-amber-500">
-            ⏰ Volta em {formatSnoozeDate(followup.snoozed_until)}
-          </p>
+          <p className="text-[10px] text-amber-500">⏰ Volta em {formatSnoozeDate(followup.snoozed_until)}</p>
         )}
         {followup && bucket === 'falados' && followup.last_contacted_at && (
-          <p className="text-[10px] text-emerald-500">
-            ✓ Falado hoje
-          </p>
+          <p className="text-[10px] text-emerald-500">✓ Falado hoje</p>
         )}
 
         {/* Buttons */}
         <div className="flex flex-wrap gap-1.5">
+          <PrepareMessageDialog
+            studentName={summary.studentName}
+            studentPhone={summary.studentPhone}
+            items={focusItems}
+            onSent={(selected) => onMarkSent?.(
+              summary.studentId,
+              selected.map((i) => ({ exerciseName: i.exerciseName, actionType: i.actionType })),
+              summary.planId,
+            )}
+          />
           <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => navigate(`/alunos/${summary.studentId}`)}>
             <ExternalLink className="h-3 w-3 mr-1" />
             Ver aluno
-          </Button>
-          {whatsappUrl ? (
-            <Button size="sm" variant="outline" className="h-7 text-xs text-green-600 border-green-500/30 hover:bg-green-500/10" asChild>
-              <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
-                <MessageSquare className="h-3 w-3 mr-1" />
-                WhatsApp
-              </a>
-            </Button>
-          ) : (
-            <Button size="sm" variant="outline" className="h-7 text-xs opacity-60" disabled>
-              <MessageSquare className="h-3 w-3 mr-1" />
-              Sem telefone
-            </Button>
-          )}
-          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={handleCopy}>
-            <Copy className="h-3 w-3 mr-1" />
-            Copiar resumo
           </Button>
 
           {bucket === 'hoje' ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="sm" className="h-7 text-xs" disabled={busy}>
+                <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy}>
                   <Check className="h-3 w-3 mr-1" />
                   Marcar como feito
                   <ChevronDown className="h-3 w-3 ml-1" />

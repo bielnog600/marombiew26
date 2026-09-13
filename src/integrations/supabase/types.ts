@@ -3034,6 +3034,51 @@ export type Database = {
         }
         Relationships: []
       }
+      weekly_training_coaching_actions: {
+        Row: {
+          action_type: string
+          admin_id: string
+          completed_at: string | null
+          created_at: string
+          exercise_name: string
+          id: string
+          message: string | null
+          plan_id: string | null
+          status: string
+          student_id: string
+          updated_at: string
+          week_start: string
+        }
+        Insert: {
+          action_type: string
+          admin_id: string
+          completed_at?: string | null
+          created_at?: string
+          exercise_name: string
+          id?: string
+          message?: string | null
+          plan_id?: string | null
+          status?: string
+          student_id: string
+          updated_at?: string
+          week_start: string
+        }
+        Update: {
+          action_type?: string
+          admin_id?: string
+          completed_at?: string | null
+          created_at?: string
+          exercise_name?: string
+          id?: string
+          message?: string | null
+          plan_id?: string | null
+          status?: string
+          student_id?: string
+          updated_at?: string
+          week_start?: string
+        }
+        Relationships: []
+      }
       weight_logs: {
         Row: {
           created_at: string
