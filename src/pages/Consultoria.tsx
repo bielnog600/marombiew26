@@ -35,6 +35,7 @@ import { useBehavioralAlerts } from '@/hooks/useBehavioralAlerts';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useStudentFollowups, bucketFor } from '@/hooks/useStudentFollowups';
 import { useWeeklyProgressionReview } from '@/hooks/useWeeklyProgressionReview';
+import { useWeeklyCoachingActions } from '@/hooks/useWeeklyCoachingActions';
 import { useInactiveStudents } from '@/hooks/useInactiveStudents';
 
 // Components
@@ -88,6 +89,12 @@ const Consultoria: React.FC = () => {
   const { followups, loading: followupsLoading, reload: reloadFollowups, markAsDone, reopen, archive } = useStudentFollowups();
   const { data: progressionReviews, isLoading: progressionLoading, refetch: reloadProgression } = useWeeklyProgressionReview();
   const { students: inactiveStudents, loading: inactiveLoading, reload: reloadInactive } = useInactiveStudents(3);
+  const {
+    actions: coachingActions,
+    setAction: setCoachingAction,
+    setStatus: setCoachingStatus,
+    markManySent: markCoachingSent,
+  } = useWeeklyCoachingActions();
 
   const loadPlans = async () => {
     setLoadingPlans(true);
@@ -341,6 +348,10 @@ const Consultoria: React.FC = () => {
                           onMarkDone={markAsDone}
                           onReopen={reopen}
                           onArchive={archive}
+                          coachingActions={coachingActions.get(s.studentId)}
+                          onSetAction={setCoachingAction}
+                          onSetStatus={setCoachingStatus}
+                          onMarkSent={markCoachingSent}
                         />
                       ))}
                     </div>
