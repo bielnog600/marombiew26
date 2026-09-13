@@ -346,6 +346,25 @@ export const useStudentsWeeklySummary = () => {
           resolution = report.resolution;
         }
 
+        // Recomendação quantitativa (kg/reps reais) por exercício avaliado.
+        const activePhase = (resolution?.activePhase ?? null) as TrainingPhase | null;
+        const quantitative: QuantitativeRecommendation[] = [];
+        for (const perf of progression?.performances ?? []) {
+          if (perf.status === 'missing' || perf.status === 'insufficient_data') continue;
+          const history = allLogs.filter(
+            (l) => (l.exercise_name || '').toLowerCase() === perf.exerciseName.toLowerCase(),
+          );
+          if (history.length === 0) continue;
+          try {
+            quantitative.push(buildQuantitativeProgressionRecommendation({
+              performance: perf,
+              recentLogs: history as any,
+              historyLogs: history as any,
+              activePhase: activePhase ?? undefined,
+            } as any));
+          } catch { /* motor conservador: ignora exercício sem base */ }
+        }
+
         const isPresencial = presencialMap.get(p.user_id) ?? false;
         const cFinal = classify(adherence, progression, isPresencial);
 
