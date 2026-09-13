@@ -15,6 +15,13 @@
       "when": 1789332880412,
       "tag": "0001_create_weekly_training_coaching_actions",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789332990971,
+      "tag": "0002_fix_coaching_actions_unique_index",
+      "breakpoints": true
     }
   ]
 }
