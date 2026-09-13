@@ -80,8 +80,11 @@ const wrapLines = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number
   return lines;
 };
 
+export type ReelStyle = 'premium' | 'classic';
+
 export interface DrawReelFrameOptions {
   theme: ReelTheme;
+  style?: ReelStyle;
   logo?: HTMLImageElement | null;
   title: string;
   cta?: string;
@@ -93,7 +96,7 @@ export interface DrawReelFrameOptions {
   time: number; // segundos, para animações sutis
 }
 
-export const drawReelFrame = (ctx: CanvasRenderingContext2D, opts: DrawReelFrameOptions) => {
+export const drawClassicReelFrame = (ctx: CanvasRenderingContext2D, opts: DrawReelFrameOptions) => {
   const { theme, logo, title, cta, footer, items, background, pageLabel, time } = opts;
   const startIndex = opts.startIndex ?? 0;
   const W = REEL_W;
@@ -274,6 +277,277 @@ export const drawReelFrame = (ctx: CanvasRenderingContext2D, opts: DrawReelFrame
     ctx.fillText(footer.toUpperCase(), W / 2, H - 56);
   }
   ctx.restore();
+};
+
+const premiumRoundRect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
+  const radius = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + w, y, x + w, y + h, radius);
+  ctx.arcTo(x + w, y + h, x, y + h, radius);
+  ctx.arcTo(x, y + h, x, y, radius);
+  ctx.arcTo(x, y, x + w, y, radius);
+  ctx.closePath();
+};
+
+const premiumWrap = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines: number) => {
+  const words = text.split(/\\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (!current || ctx.measureText(candidate).width <= maxWidth) current = candidate;
+    else {
+      lines.push(current);
+      current = word;
+      if (lines.length === maxLines - 1) break;
+    }
+  }
+  if (current && lines.length < maxLines) lines.push(current);
+  return lines;
+};
+
+const getPremiumReelRects = (count: number, x: number, y: number, w: number, h: number) => {
+  const gap = 28;
+  if (count <= 1) return [{ x, y: y + 30, w, h: Math.min(h - 60, 690) }];
+  if (count === 2) {
+    const cardW = (w - gap) / 2;
+    return [{ x, y: y + 70, w: cardW, h: Math.min(h - 140, 760) }, { x: x + cardW + gap, y: y + 70, w: cardW, h: Math.min(h - 140, 760) }];
+  }
+  const cardW = (w - gap) / 2;
+  const cardH = (h - gap) / 2;
+  if (count === 3) return [
+    { x, y, w: cardW, h: cardH },
+    { x: x + cardW + gap, y, w: cardW, h: cardH },
+    { x: x + (w - cardW) / 2, y: y + cardH + gap, w: cardW, h: cardH },
+  ];
+  return Array.from({ length: 4 }, (_, index) => ({
+    x: x + (index % 2) * (cardW + gap),
+    y: y + Math.floor(index / 2) * (cardH + gap),
+    w: cardW,
+    h: cardH,
+  }));
+};
+
+const drawPremiumTitle = (ctx: CanvasRenderingContext2D, title: string, theme: ReelTheme, y: number) => {
+  ctx.font = '900 78px Inter, system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  const lines = premiumWrap(ctx, title.toUpperCase(), REEL_W - 140, 2);
+  lines.forEach((line, index) => {
+    const words = line.split(' ');
+    const highlight = words.pop() ?? '';
+    const base = words.join(' ');
+    const baseWidth = ctx.measureText(base).width;
+    const highlightWidth = ctx.measureText(highlight).width;
+    const start = (REEL_W - baseWidth - highlightWidth - (base ? 18 : 0)) / 2;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = theme.text;
+    if (base) ctx.fillText(base, start, y + index * 86);
+    ctx.fillStyle = theme.accent;
+    ctx.fillText(highlight, start + baseWidth + (base ? 18 : 0), y + index * 86);
+  });
+  return lines.length;
+};
+
+const drawPremiumReelFrame = (ctx: CanvasRenderingContext2D, opts: DrawReelFrameOptions) => {
+  const { theme, logo, title, cta, footer, items, background, time } = opts;
+  const startIndex = opts.startIndex ?? 0;
+  const pageLabel = opts.pageLabel;
+  const pageCount = pageLabel?.match(/\\d+/g)?.map(Number) ?? [];
+  const page = pageCount[0] ?? 1;
+  const totalPages = pageCount[1] ?? 1;
+  const W = REEL_W;
+  const H = REEL_H;
+
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, theme.bg1);
+  bg.addColorStop(0.55, '#080a0f');
+  bg.addColorStop(1, theme.bg2);
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  const glow = ctx.createRadialGradient(W * 0.78, 170, 0, W * 0.78, 170, 620);
+  glow.addColorStop(0, `${theme.accent}22`);
+  glow.addColorStop(1, `${theme.accent}00`);
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(255,255,255,0.025)';
+  ctx.lineWidth = 2;
+  for (let x = -H; x < W; x += 140) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x + H, H);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  if (background) {
+    drawCover(ctx, background, 0, 0, W, H);
+    const scrim = ctx.createLinearGradient(0, 0, 0, H);
+    scrim.addColorStop(0, 'rgba(5,7,10,0.58)');
+    scrim.addColorStop(0.5, 'rgba(5,7,10,0.38)');
+    scrim.addColorStop(1, 'rgba(5,7,10,0.68)');
+    ctx.fillStyle = scrim;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  const topY = 88;
+  const lineY = 132;
+  ctx.strokeStyle = theme.accent;
+  ctx.globalAlpha = 0.78;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(72, lineY);
+  ctx.lineTo(330, lineY);
+  ctx.moveTo(W - 330, lineY);
+  ctx.lineTo(W - 72, lineY);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  let cursorY = topY;
+  if (logo?.naturalWidth) {
+    const logoW = 250;
+    const logoH = (logo.naturalHeight / logo.naturalWidth) * logoW;
+    ctx.drawImage(logo, (W - logoW) / 2, cursorY, logoW, logoH);
+    cursorY += logoH + 62;
+  }
+
+  const titleLines = drawPremiumTitle(ctx, title || 'TREINO', theme, cursorY + 76);
+  cursorY += titleLines * 86 + 42;
+
+  if (cta) {
+    ctx.save();
+    ctx.font = '800 30px Inter, system-ui, sans-serif';
+    const label = cta.toUpperCase();
+    const pillW = Math.min(W - 180, ctx.measureText(label).width + 68);
+    const pillH = 58;
+    const px = (W - pillW) / 2;
+    const py = cursorY;
+    const pulse = 0.18 + Math.sin(time * 2.4) * 0.04;
+    ctx.shadowColor = theme.accent;
+    ctx.shadowBlur = 12 + pulse * 10;
+    premiumRoundRect(ctx, px, py, pillW, pillH, 29);
+    ctx.fillStyle = 'rgba(8,10,15,0.76)';
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = theme.accent;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = theme.accent;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, W / 2, py + pillH / 2 + 1);
+    ctx.restore();
+    cursorY += pillH + 38;
+  }
+
+  const gridTop = Math.max(cursorY + 28, 535);
+  const gridBottom = H - 205;
+  const rects = getPremiumReelRects(Math.min(items.length, 4), 62, gridTop, W - 124, gridBottom - gridTop);
+  items.slice(0, 4).forEach((item, index) => {
+    const rect = rects[index];
+    if (!rect) return;
+    const entry = Math.min(1, Math.max(0, (time % 5) / 0.35 - index * 0.06));
+    const offsetY = (1 - entry) * 12;
+    const x = rect.x;
+    const y = rect.y + offsetY;
+    ctx.save();
+    ctx.shadowColor = `${theme.accent}35`;
+    ctx.shadowBlur = 18 + Math.sin(time * 2 + index) * 3;
+    premiumRoundRect(ctx, x, y, rect.w, rect.h, 32);
+    ctx.fillStyle = 'rgba(255,255,255,0.045)';
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    premiumRoundRect(ctx, x, y, rect.w, rect.h, 32);
+    ctx.clip();
+    if (item.media) drawCover(ctx, item.media, x, y, rect.w, rect.h);
+    else {
+      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      ctx.fillRect(x, y, rect.w, rect.h);
+      ctx.fillStyle = theme.accent;
+      ctx.font = '900 56px Inter, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('✦', x + rect.w / 2, y + rect.h / 2);
+    }
+    const shade = ctx.createLinearGradient(0, y + rect.h * 0.38, 0, y + rect.h);
+    shade.addColorStop(0, 'rgba(0,0,0,0)');
+    shade.addColorStop(1, 'rgba(0,0,0,0.9)');
+    ctx.fillStyle = shade;
+    ctx.fillRect(x, y, rect.w, rect.h);
+    ctx.restore();
+
+    ctx.save();
+    premiumRoundRect(ctx, x + 2, y + 2, rect.w - 4, rect.h - 4, 30);
+    ctx.strokeStyle = theme.accent;
+    ctx.globalAlpha = 0.78;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    const badgeW = 68;
+    const badgeH = 48;
+    premiumRoundRect(ctx, x + 18, y + 18, badgeW, badgeH, 18);
+    ctx.fillStyle = 'rgba(8,10,15,0.84)';
+    ctx.fill();
+    ctx.strokeStyle = theme.accent;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = theme.accent;
+    ctx.font = '900 25px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(startIndex + index + 1).padStart(2, '0'), x + 52, y + 42);
+    ctx.restore();
+
+    ctx.save();
+    ctx.textAlign = 'left';
+    ctx.fillStyle = theme.text;
+    ctx.font = '900 30px Inter, system-ui, sans-serif';
+    const nameLines = premiumWrap(ctx, item.name.toUpperCase(), rect.w - 44, 2);
+    const detailSpace = item.sub ? 72 : 42;
+    let textY = y + rect.h - detailSpace - (nameLines.length - 1) * 34 - 28;
+    nameLines.forEach((line) => { ctx.fillText(line, x + 22, textY); textY += 34; });
+    ctx.fillStyle = theme.accent;
+    ctx.font = '900 29px Inter, system-ui, sans-serif';
+    ctx.fillText(item.detail, x + 22, textY + 8);
+    if (item.sub) {
+      ctx.fillStyle = 'rgba(255,255,255,0.72)';
+      ctx.font = '700 22px Inter, system-ui, sans-serif';
+      ctx.fillText(item.sub, x + 22, textY + 40);
+    }
+    ctx.restore();
+  });
+
+  ctx.save();
+  ctx.strokeStyle = `${theme.accent}80`;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(62, H - 132);
+  ctx.lineTo(W - 62, H - 132);
+  ctx.stroke();
+  ctx.font = '800 24px Inter, system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.82)';
+  ctx.textAlign = 'left';
+  ctx.fillText((footer || '@marombiew').toUpperCase(), 62, H - 82);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = theme.accent;
+  ctx.fillText(`${String(page).padStart(2, '0')} / ${String(totalPages).padStart(2, '0')}`, W / 2, H - 82);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = 'rgba(255,255,255,0.72)';
+  ctx.fillText('TREINE • EVOLUA', W - 62, H - 82);
+  ctx.restore();
+};
+
+export const drawReelFrame = (ctx: CanvasRenderingContext2D, opts: DrawReelFrameOptions) => {
+  if ((opts.style ?? 'classic') === 'premium') {
+    drawPremiumReelFrame(ctx, opts);
+    return;
+  }
+  drawClassicReelFrame(ctx, opts);
 };
 
 export const pickRecorderMime = () => {

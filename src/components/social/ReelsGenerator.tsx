@@ -16,7 +16,7 @@ import type { ParsedExercise, ParsedTrainingDay } from '@/lib/trainingResultPars
 import { buildSetPlan } from '@/components/training/TrainerLogSheetUtils';
 import {
   REEL_W, REEL_H, REEL_THEMES, drawReelFrame, pickRecorderMime,
-  type ReelExerciseItem,
+  type ReelExerciseItem, type ReelStyle,
 } from '@/lib/reelsRenderer';
 import { saveSocialPost, updateSocialPost, uploadSocialFile } from '@/lib/socialPosts';
 
@@ -81,6 +81,7 @@ const ReelsGenerator: React.FC<Props> = ({ onSaved }) => {
   const [selected, setSelected] = useState<Record<number, boolean>>({});
   const [dbExercises, setDbExercises] = useState<MatchableExercise[]>([]);
   const [themeKey, setThemeKey] = useState<keyof typeof REEL_THEMES | string>('ouro');
+  const [reelStyle, setReelStyle] = useState<ReelStyle>('premium');
   const [secondsPerPage, setSecondsPerPage] = useState(5);
   const [secondsPerPageInput, setSecondsPerPageInput] = useState('5');
   const [footer, setFooter] = useState('@marombiew');
@@ -291,6 +292,7 @@ const ReelsGenerator: React.FC<Props> = ({ onSaved }) => {
 
       drawReelFrame(ctx, {
         theme,
+        style: reelStyle,
         logo: logoRef.current,
         title,
         cta,
@@ -305,7 +307,7 @@ const ReelsGenerator: React.FC<Props> = ({ onSaved }) => {
     };
     rafRef.current = requestAnimationFrame(loop);
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [pages, secondsPerPage, theme, title, cta, footer, recording, totalDuration, mediaFor, lightPreview]);
+  }, [pages, secondsPerPage, theme, reelStyle, title, cta, footer, recording, totalDuration, mediaFor, lightPreview]);
 
   const handleBackgroundFile = (file?: File | null) => {
     if (!file) return;
@@ -395,6 +397,7 @@ const ReelsGenerator: React.FC<Props> = ({ onSaved }) => {
     },
     settings: {
       theme: themeKey,
+      reelStyle,
       secondsPerPage,
       footer,
       customTitle: customTitle || null,
@@ -507,6 +510,16 @@ const ReelsGenerator: React.FC<Props> = ({ onSaved }) => {
                     {days.map((d, i) => (
                       <SelectItem key={`${d.day}-${i}`} value={String(i)}>{d.day}</SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Modelo do Reels</Label>
+                <Select value={reelStyle} onValueChange={(value) => setReelStyle(value as ReelStyle)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="premium">Premium</SelectItem>
+                    <SelectItem value="classic">Clássico</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
