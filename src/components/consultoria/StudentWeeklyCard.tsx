@@ -21,6 +21,7 @@ import {
 } from '@/lib/weeklyCoachingFocus';
 import WeeklyFocusList from '@/components/consultoria/WeeklyFocusList';
 import PrepareMessageDialog from '@/components/consultoria/PrepareMessageDialog';
+import WorkoutTrackingDialog from '@/components/consultoria/WorkoutTrackingDialog';
 
 const ATTENTION_BADGE: Record<AttentionKind, { label: string; cls: string }> = {
   regressao: { label: 'Regressão', cls: 'bg-destructive/15 text-destructive border-destructive/30' },
@@ -202,6 +203,12 @@ const StudentWeeklyCard: React.FC<Props> = ({
               selected.map((i) => ({ exerciseName: i.exerciseName, actionType: i.actionType })),
               summary.planId,
             )}
+          />
+          <WorkoutTrackingDialog
+            studentId={summary.studentId}
+            studentName={summary.studentName}
+            studentPhone={summary.studentPhone}
+            planContent={summary.planContent}
           />
           <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => navigate(`/alunos/${summary.studentId}`)}>
             <ExternalLink className="h-3 w-3 mr-1" />
