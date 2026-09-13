@@ -416,6 +416,9 @@ export const useStudentsWeeklySummary = () => {
           priority: cFinal.priority,
           actionLabel: cFinal.action,
           active: studentProfileStatus.get(p.user_id) ?? false,
+          quantitative,
+          videosNeedsRedo: videosByStudent.get(p.user_id) ?? [],
+          activePhase,
         });
 
       }
