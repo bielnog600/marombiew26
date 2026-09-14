@@ -402,8 +402,9 @@ Quando solicitado, incluir:
 HORMÔNIOS
 ========================================
 
-Se usa hormônios/TRT: proteína faixa superior, carbs mais elevados (melhor particionamento), suporta déficit mais agressivo.
-Se natural: faixas conservadoras para preservar massa magra.
+Hormônios, TRT, medicamentos e termogênicos são APENAS contexto clínico.
+Nunca altere TMB, GET, calorias ou macros por causa deles.
+Use exclusivamente os targets fornecidos pelo app.
 
 {{FOOD_DATABASE}}
 
