@@ -389,7 +389,8 @@ export const buildCarbDayTypeTargets = ({
       [fixedClosing]: { ...macroConfig[fixedClosing], locked: false },
       [otherMacro]: {
         ...macroConfig[otherMacro],
-        grams: macroConfig[otherMacro].grams ?? otherResolved,
+        // A resolução canônica da Fase 2 vence o valor cru do macroConfig.
+        grams: otherResolved ?? macroConfig[otherMacro].grams,
         locked: true,
       },
     };

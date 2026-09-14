@@ -209,11 +209,19 @@ function buildLayeredInstructions(dietConfig: any, trainingContext: any): string
       lines.push("REGRA CRÍTICA: gere um objeto em days[] para CADA weekday acima, com o campo \"weekday\" preenchido, e o day.totals de cada dia deve bater com a meta DAQUELE dia (±50 kcal, ±10g P, ±15g C, ±8g G). NÃO use a meta base global em todos os dias. O servidor valida dia a dia e rejeita divergências.");
     }
     lines.push("REGRAS OBRIGATÓRIAS para a seção 'Ajustes por dia':");
-    lines.push("  1. Respeite EXATAMENTE a meta calórica final de cada dia acima.");
-    lines.push("  2. A variação entre dias deve ocorrer preferencialmente via CARBOIDRATOS.");
-    lines.push("  3. A PROTEÍNA deve permanecer estável em todos os dias (mesma g total).");
-    lines.push("  4. A GORDURA pode variar levemente, mas nunca abaixo de 0,6 g/kg de peso corporal.");
-    lines.push("  5. Produza um plano base único + uma seção 'Ajustes por dia' listando, para cada dia com meta diferente da base, as trocas ou porções ajustadas para bater a meta.");
+    if (hasDailyMacros) {
+      // Com metas diárias, P/C/G de cada dia são autoridade: nenhuma regra
+      // genérica de estabilidade pode contradizer os valores enviados.
+      lines.push("  1. Respeite EXATAMENTE kcal, P, C e G enviados para CADA weekday.");
+      lines.push("  2. NÃO aplique regras genéricas de estabilidade de proteína ou gordura: qualquer macro pode variar entre os dias se as metas enviadas variarem.");
+      lines.push("  3. Produza um plano base único + uma seção 'Ajustes por dia' com as trocas/porções necessárias para bater a meta de cada dia.");
+    } else {
+      lines.push("  1. Respeite EXATAMENTE a meta calórica final de cada dia acima.");
+      lines.push("  2. A variação entre dias deve ocorrer preferencialmente via CARBOIDRATOS.");
+      lines.push("  3. A PROTEÍNA deve permanecer estável em todos os dias (mesma g total).");
+      lines.push("  4. A GORDURA pode variar levemente, mas nunca abaixo de 0,6 g/kg de peso corporal.");
+      lines.push("  5. Produza um plano base único + uma seção 'Ajustes por dia' listando, para cada dia com meta diferente da base, as trocas ou porções ajustadas para bater a meta.");
+    }
     lines.push("");
     lines.push("FORMATO OBRIGATÓRIO — CAMPO RAIZ \"dailyAdjustments\" NO JSON DE SAÍDA:");
     lines.push("Inclua um campo raiz OBRIGATÓRIO \"dailyAdjustments\" com EXATAMENTE 7 chaves (seg, ter, qua, qui, sex, sab, dom).");
@@ -310,15 +318,16 @@ const SYSTEM_PROMPT_TEMPLATE = `Você é um nutricionista esportivo com mais de 
 REGRA NÚMERO 1 — PRECISÃO CALÓRICA
 ========================================
 
-SE os dados do aluno incluírem uma seção "RECOMENDAÇÃO CALCULADA", você DEVE:
-1) Usar os valores de TMB, GET e Calorias Alvo EXATAMENTE como informados
+SEMPRE que o app fornecer targets determinísticos — globais (TMB/GET/calorias alvo/macros) OU
+diários (metas por weekday) — independentemente do nome da seção, você DEVE:
+1) Usar TMB, GET e calorias alvo EXATAMENTE como informados
 2) Usar os gramas de Proteína, Carboidrato e Gordura EXATAMENTE como informados
-3) NÃO recalcular TMB por conta própria — os valores já foram calculados com a fórmula mais adequada
-4) Ao somar os alimentos da tabela, o TOTAL DIÁRIO deve bater com as calorias alvo (tolerância máxima de ±50 kcal)
+3) NÃO recalcular TMB/GET nem escolher outra fórmula — a fórmula já foi definida pelo app
+4) Ao somar os alimentos, o total de cada dia deve bater com a meta DAQUELE dia (±50 kcal)
 5) Cada refeição deve ser calculada proporcionalmente para que a soma feche no total
 6) JAMAIS gere valores diferentes entre regenerações — use sempre os valores fornecidos como âncora fixa
 
-SE NÃO houver recomendação calculada, use as fórmulas abaixo:
+SOMENTE se nenhum target determinístico for fornecido, use as fórmulas abaixo:
 
 ========================================
 FÓRMULAS DE TMB (TAXA METABÓLICA BASAL)
@@ -393,8 +402,9 @@ Quando solicitado, incluir:
 HORMÔNIOS
 ========================================
 
-Se usa hormônios/TRT: proteína faixa superior, carbs mais elevados (melhor particionamento), suporta déficit mais agressivo.
-Se natural: faixas conservadoras para preservar massa magra.
+Hormônios, TRT, medicamentos e termogênicos são APENAS contexto clínico.
+Nunca altere TMB, GET, calorias ou macros por causa deles.
+Use exclusivamente os targets fornecidos pelo app.
 
 {{FOOD_DATABASE}}
 
@@ -1093,10 +1103,26 @@ serve(async (req) => {
 
       const initialAdjValidation = validateAdjustments(candidatePlan);
 
+      // Fase 3: metas diárias determinísticas viram gate crítico, para que a
+      // candidata de segurança possa corrigir um LOW/HIGH trocado.
+      const checkDayTargets = (plan: any) => validateDayTargets(plan, schedule);
+      const initialDayTargets = checkDayTargets(candidatePlan);
+      if (scheduleHasDailyMacroTargets(schedule)) {
+        console.log("[diet-agent] day_targets_validation", {
+          model: selectedModel,
+          ok: initialDayTargets.ok,
+          checked: initialDayTargets.checkedDays,
+          missing: initialDayTargets.missingDays,
+          duplicate: initialDayTargets.duplicateDays,
+          issues: initialDayTargets.issues.map((i) => ({ weekday: i.weekday, reasons: i.reasons })),
+        });
+      }
+
       // A Terra candidate produced by a technical fallback must be CRITICALLY valid.
       if (technicalFallbackUsed) {
         const validity = evaluateDietCandidateValidity({
           nutritionOk: nutrition.ok,
+          dayTargetsOk: initialDayTargets.ok,
           dailyAdjustmentsOk: initialAdjValidation.ok,
         });
         if (!validity.criticalValid) {
@@ -1128,6 +1154,7 @@ serve(async (req) => {
         quantityOnlyRatio: qOnly,
         primarySourceRepeatRatio,
         nutritionOk: nutrition.ok,
+        dayTargetsOk: initialDayTargets.ok,
         dailyAdjustmentsOk: initialAdjValidation.ok,
         technicalFallbackUsed,
         referenceDietProvided,
@@ -1147,6 +1174,10 @@ serve(async (req) => {
         if (!initialAdjValidation.ok) { 
           fallbackReason = fallbackReason || "daily_adjustments_invalid"; 
           fallbackReasons.push("daily_adjustments_invalid"); 
+        }
+        if (!initialDayTargets.ok) {
+          fallbackReason = fallbackReason || "day_targets_invalid";
+          fallbackReasons.push("day_targets_invalid");
         }
         if (variationRetryAllowed && historyJsons.length > 0) {
           if (similarity.score > threshold) { 
@@ -1249,7 +1280,7 @@ serve(async (req) => {
         emit({ phase: "fallback_review", reasons: fallbackReasons });
         const second = await fallbackCandidatePromise;
 
-        const criticalRetry = !nutrition.ok || !initialAdjValidation.ok;
+        const criticalRetry = !nutrition.ok || !initialAdjValidation.ok || !initialDayTargets.ok;
         const reviewRequired = (reason: string) => {
           fallbackReasons.push(reason);
           const meta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, null);
@@ -1280,6 +1311,7 @@ serve(async (req) => {
           const validity2 = evaluateDietCandidateValidity({
             nutritionOk: nut2.ok,
             dailyAdjustmentsOk: initialAdjValidation2.ok,
+            dayTargetsOk: checkDayTargets(second.plan).ok,
           });
           const criticalValid = validity2.criticalValid;
 

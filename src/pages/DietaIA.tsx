@@ -2127,10 +2127,10 @@ ${studentCtx.questionario_dieta ? `
 
 IMPORTANTE: Considere os sintomas e feedback do aluno ao montar a dieta. Se há fraqueza/baixa energia, priorize mais calorias ou distribuição melhor. Se há insônia, evite estimulantes à noite. Se reduziu peso, pode estar em déficit excessivo.
 ` : ''}
-1) Tabela comparativa de TMB por todas as fórmulas
-2) Escolha da fórmula mais adequada e justificativa
-3) Cálculo do GET e Consumo Energético
-4) Distribuição de macronutrientes (proteína, carboidrato, gordura)
+1) Utilize a TMB e o GET fornecidos pelo app apenas como referência
+2) NÃO recalcule a TMB/GET nem escolha outra fórmula — a fórmula já foi definida pelo app
+3) Monte o plano exatamente conforme os targets fornecidos${carbCycling.enabled ? ' para CADA dia (bloco METAS DIÁRIAS OBRIGATÓRIAS)' : ''}
+4) Apresente a distribuição de macronutrientes usando os gramas fornecidos
 5) EXATAMENTE 1 cardápio completo em tabela com: Refeição | Horário | Alimento | Quantidade (g) | Kcal | P | C | G | Substituição.
 6) Total de cada refeição e do dia
 7) Timing nutricional (pré-treino, intra-treino, pós-treino) baseado no horário de treino informado

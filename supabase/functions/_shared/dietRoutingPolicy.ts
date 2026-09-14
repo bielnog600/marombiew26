@@ -20,6 +20,8 @@ export type DietCandidateSignals = {
   primarySourceRepeatRatio: number;
   nutritionOk: boolean;
   dailyAdjustmentsOk: boolean;
+  /** Phase 3: per-weekday deterministic targets. Defaults to true (no cycle). */
+  dayTargetsOk?: boolean;
   /** True when the candidate already came from a Terra technical fallback. */
   technicalFallbackUsed: boolean;
   /**
@@ -52,23 +54,28 @@ export function needsDietVariationRetry(s: DietCandidateSignals): boolean {
 export type DietCandidateValidity = {
   nutritionValid: boolean;
   dailyAdjustmentsValid: boolean;
+  dayTargetsValid: boolean;
   criticalValid: boolean;
-  reason: "nutrition_invalid" | "daily_adjustments_invalid" | null;
+  reason: "nutrition_invalid" | "daily_adjustments_invalid" | "day_targets_invalid" | null;
 };
 
 export function evaluateDietCandidateValidity(
-  input: { nutritionOk: boolean; dailyAdjustmentsOk: boolean },
+  input: { nutritionOk: boolean; dailyAdjustmentsOk: boolean; dayTargetsOk?: boolean },
 ): DietCandidateValidity {
   const nutritionValid = input.nutritionOk;
   const dailyAdjustmentsValid = input.dailyAdjustmentsOk;
-  const criticalValid = nutritionValid && dailyAdjustmentsValid;
+  const dayTargetsValid = input.dayTargetsOk !== false;
+  const criticalValid = nutritionValid && dailyAdjustmentsValid && dayTargetsValid;
   return {
     nutritionValid,
     dailyAdjustmentsValid,
+    dayTargetsValid,
     criticalValid,
     reason: criticalValid
       ? null
-      : (!nutritionValid ? "nutrition_invalid" : "daily_adjustments_invalid"),
+      : (!nutritionValid
+          ? "nutrition_invalid"
+          : (!dailyAdjustmentsValid ? "daily_adjustments_invalid" : "day_targets_invalid")),
   };
 }
 
@@ -78,6 +85,7 @@ export function shouldRetryDietCandidate(s: DietCandidateSignals): boolean {
   const { criticalValid } = evaluateDietCandidateValidity({
     nutritionOk: s.nutritionOk,
     dailyAdjustmentsOk: s.dailyAdjustmentsOk,
+    dayTargetsOk: s.dayTargetsOk,
   });
   return !criticalValid || needsDietVariationRetry(s);
 }

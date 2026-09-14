@@ -8,6 +8,7 @@
  *  J      semana 6/7 não apresenta médias parciais como oficiais.
  */
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   defaultCarbCyclingConfig,
   buildCarbDayTypeTargets,
@@ -230,5 +231,112 @@ describe('Fase 3 — ciclo desligado e média incompleta', () => {
     expect(avg.days).toBe(6);
     expect(avg.complete).toBe(false);
     expect(avg.incompleteMessage).toBe('Configuração semanal incompleta — 6 de 7 dias válidos.');
+  });
+});
+
+/* ===================== Micro-hardening final da Fase 3 ===================== */
+
+import { evaluateDietCandidateValidity } from '../../supabase/functions/_shared/dietRoutingPolicy';
+
+describe('Fase 3 — micro-hardening', () => {
+  const fullSchedule = {
+    base_daily_kcal: 2315,
+    days: Object.fromEntries(
+      ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'].map((wd) => [
+        wd,
+        { target_kcal: 2315, protein_g: 196, carbs_g: 223, fat_g: 71 },
+      ]),
+    ),
+  };
+  const goodDay = (weekday: string) => ({
+    weekday,
+    totals: { kcal: 2315, p: 196, c: 223, g: 71 },
+  });
+
+  it('A. plano com 6 de 7 weekdays é rejeitado com missingDays', () => {
+    const plan = { days: ['seg', 'ter', 'qua', 'qui', 'sex', 'sab'].map(goodDay) };
+    const r = validateDayTargets(plan, fullSchedule);
+    expect(r.ok).toBe(false);
+    expect(r.missingDays).toEqual(['dom']);
+  });
+
+  it('B. weekday duplicado é rejeitado', () => {
+    const plan = {
+      days: ['seg', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'].map(goodDay),
+    };
+    const r = validateDayTargets(plan, fullSchedule);
+    expect(r.ok).toBe(false);
+    expect(r.duplicateDays).toContain('seg');
+    expect(r.missingDays).toContain('dom');
+  });
+
+  const zeroSchedule = {
+    days: { seg: { target_kcal: 1500, protein_g: 250, carbs_g: 0, fat_g: 56 } },
+  };
+
+  it('C. target C=0 com 100 g devolvidos é rejeitado', () => {
+    const r = validateDayTargets(
+      { days: [{ weekday: 'seg', totals: { kcal: 1500, p: 250, c: 100, g: 56 } }] },
+      zeroSchedule,
+    );
+    expect(r.ok).toBe(false);
+    expect(r.issues[0].reasons.join(' ')).toContain('C +100g');
+  });
+
+  it('D. target C=0 com 0 g devolvidos é aceito', () => {
+    const r = validateDayTargets(
+      { days: [{ weekday: 'seg', totals: { kcal: 1500, p: 250, c: 0, g: 56 } }] },
+      zeroSchedule,
+    );
+    expect(r.ok).toBe(true);
+  });
+
+  it('E. no fixed mode o valor canônico vence o valor cru do macroConfig', () => {
+    const cfg = macros();
+    cfg.protein = { perKg: null, grams: 180, basis: 'body_weight', locked: true };
+    const out = buildCarbDayTypeTargets({
+      mode: 'fixed_calories',
+      carbCycling: cycle({ mode: 'fixed_calories', fixedClosingMacro: 'fat' }),
+      macroConfig: cfg,
+      body,
+      baseKcal: BASE_KCAL,
+      baseResolvedMacros: { p: 210, c: 227, g: 71 },
+    });
+    expect(out.low.target!.p).toBe(210);
+  });
+
+  it('H. gate crítico considera as metas diárias (candidata pode ser substituída)', () => {
+    const primary = evaluateDietCandidateValidity({
+      nutritionOk: true,
+      dailyAdjustmentsOk: true,
+      dayTargetsOk: false,
+    });
+    expect(primary.criticalValid).toBe(false);
+    expect(primary.reason).toBe('day_targets_invalid');
+    const backup = evaluateDietCandidateValidity({
+      nutritionOk: true,
+      dailyAdjustmentsOk: true,
+      dayTargetsOk: true,
+    });
+    expect(backup.criticalValid).toBe(true);
+  });
+});
+
+describe('Fase 3 — prompts do diet-agent', () => {
+  const src = readFileSync('supabase/functions/diet-agent/index.ts', 'utf8');
+
+  it('F. regra genérica de proteína constante só existe sem metas diárias', () => {
+    const idx = src.indexOf('A PROTEÍNA deve permanecer estável');
+    expect(idx).toBeGreaterThan(-1);
+    // O bloco genérico fica no ramo "else" (sem macros diários).
+    const before = src.slice(Math.max(0, idx - 600), idx);
+    expect(before).toContain('} else {');
+    expect(src).toContain('NÃO aplique regras genéricas de estabilidade');
+  });
+
+  it('G. hormônios são apenas contexto clínico', () => {
+    expect(src).not.toContain('proteína faixa superior, carbs mais elevados');
+    expect(src).toContain('Nunca altere TMB, GET, calorias ou macros por causa deles');
+    expect(src).not.toContain('SE os dados do aluno incluírem uma seção "RECOMENDAÇÃO CALCULADA"');
   });
 });
