@@ -1175,6 +1175,10 @@ serve(async (req) => {
           fallbackReason = fallbackReason || "daily_adjustments_invalid"; 
           fallbackReasons.push("daily_adjustments_invalid"); 
         }
+        if (!initialDayTargets.ok) {
+          fallbackReason = fallbackReason || "day_targets_invalid";
+          fallbackReasons.push("day_targets_invalid");
+        }
         if (variationRetryAllowed && historyJsons.length > 0) {
           if (similarity.score > threshold) { 
             fallbackReason = fallbackReason || "high_similarity"; 
