@@ -92,7 +92,12 @@ import {
   type CarbCyclingConfig,
   type CarbDayType,
 } from '@/lib/carbCycling';
-import { WEEKDAY_KEYS, resolveDayTarget } from '@/lib/dietDayTargets';
+import { WEEKDAY_KEYS, resolveDayTarget, type WeekdayKey } from '@/lib/dietDayTargets';
+import {
+  validateDietDaysMacros,
+  formatDayTargetLine,
+  type DietDaysMacroValidationReport,
+} from '@/lib/dietDayValidation';
 import type { ParsedMeal } from '@/lib/dietResultParser';
 import { Percent } from 'lucide-react';
 
@@ -433,6 +438,8 @@ const DietaIA = () => {
 
   const [result, setResult] = useState('');
   const [macroReport, setMacroReport] = useState<DietMacroValidationReport | null>(null);
+  /** Fase 3: com carb cycling ativo, cada dia é validado contra a SUA meta. */
+  const [dayMacroReport, setDayMacroReport] = useState<DietDaysMacroValidationReport | null>(null);
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
   // Fase 2 (QA): salvar como rascunho por padrão. UI expõe botões separados.
