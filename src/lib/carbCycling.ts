@@ -35,6 +35,10 @@ const LABEL: Record<"low" | "normal" | "high", string> = {
 };
 
 /**
+ * @deprecated NÃO usar para novas dietas. Fonte oficial = API da Fase 3
+ * (`buildCarbDayTypeTargets` / `buildWeeklyCarbTargets` / `resolveDayTarget`).
+ * Mantido apenas por compatibilidade com dados antigos.
+ *
  * Allocate carb bias across the week:
  *  - training days  → HIGH (carbs +30%)
  *  - off days       → LOW (carbs -35%)
