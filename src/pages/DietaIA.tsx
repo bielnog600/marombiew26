@@ -581,6 +581,50 @@ const DietaIA = () => {
     return issues;
   }, [automaticBaseKcal.missing, baseKcal, baseKcalMode]);
 
+  // ── Fase 2: estado canônico dos macros ──────────────────────────────
+  const macroBody = useMemo(() => ({
+    weightKg: parsePositiveNumber(studentCtx?.peso) ?? 0,
+    leanMassKg: parsePositiveNumber(studentCtx?.massa_magra),
+  }), [studentCtx?.peso, studentCtx?.massa_magra]);
+
+  // Preset inicial coerente com fase/estratégia — nunca sobrescreve edição manual.
+  useEffect(() => {
+    if (macroConfigTouched || !macroBody.weightKg) return;
+    const preset = calculateMacroTargets({
+      calories: baseKcal.base_daily_kcal ?? 2000,
+      weight: macroBody.weightKg,
+      strategyValue: strategy,
+      phaseValue: phase,
+      hormoneUse: false,
+    });
+    setMacroConfig((prev) => ({
+      ...prev,
+      protein: setMacroPerKg({ ...prev.protein, locked: true }, preset.proteinPerKg, macroBody),
+      fat: setMacroPerKg({ ...prev.fat, locked: true }, preset.fatPerKg, macroBody),
+      carbs: { ...prev.carbs, perKg: null, grams: null, locked: false },
+    }));
+  }, [macroConfigTouched, macroBody, strategy, phase, baseKcal.base_daily_kcal]);
+
+  const macroResolution = useMemo(() => resolveMacroConfig({
+    kcalTarget: baseKcal.base_daily_kcal ?? 0,
+    config: macroConfig,
+    body: macroBody,
+    closingMacro,
+  }), [baseKcal.base_daily_kcal, macroConfig, macroBody, closingMacro]);
+
+  /** Única autoridade dos alvos usados na geração da dieta. */
+  const canonicalTargets = useMemo(() => ({
+    kcal: baseKcal.base_daily_kcal ?? 0,
+    p: Math.round(macroResolution.grams?.protein ?? 0),
+    c: Math.round(macroResolution.grams?.carbs ?? 0),
+    g: Math.round(macroResolution.grams?.fat ?? 0),
+  }), [baseKcal.base_daily_kcal, macroResolution]);
+
+  const handleMacroConfigChange = useCallback((next: MacroConfig) => {
+    setMacroConfigTouched(true);
+    setMacroConfig(next);
+  }, []);
+
   const weeklySchedule = useMemo<WeeklyEnergySchedule | null>(() => {
     if (baseKcal.base_daily_kcal == null || baseKcalIssues.length > 0) return null;
     const draft = buildDefaultSchedule({
@@ -1483,7 +1527,7 @@ const DietaIA = () => {
     }
   };
 
-  const canGenerate = Boolean(activityLevel && strategy && mealCount && phase && weeklySchedule && baseKcalIssues.length === 0);
+  const canGenerate = Boolean(activityLevel && strategy && mealCount && phase && weeklySchedule && baseKcalIssues.length === 0 && macroResolution.status === 'ok');
 
   const streamDietAgent = async (
     messages: { role: 'user' | 'assistant'; content: string }[],
