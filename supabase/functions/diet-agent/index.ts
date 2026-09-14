@@ -117,28 +117,13 @@ async function consumeStructuredChatStream(
 
 
 
-async function loadFoodDatabase(): Promise<string> {
+/** Fase 4: catálogo com IDs reais, UMA única leitura por geração. */
+async function loadCatalogOnce(): Promise<FoodCatalog> {
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
-
-  const { data: foods, error } = await supabase
-    .from("foods")
-    .select("name, calories, protein, carbs, fats, portion, portion_size")
-    .order("name");
-
-  if (error || !foods || foods.length === 0) {
-    console.error("Error loading foods:", error);
-    return "BANCO DE ALIMENTOS: Nenhum alimento cadastrado.";
-  }
-
-  const lines: string[] = [];
-  for (const f of foods) {
-    lines.push(`${f.name}: ${f.calories}kcal | P:${f.protein} C:${f.carbs} G:${f.fats} (por ${f.portion_size}${f.portion})`);
-  }
-
-  return `\n========================================\nBANCO DE ALIMENTOS (do sistema)\n========================================\n\nALIMENTOS:\n${lines.join("\n")}\n`;
+  return await loadFoodCatalog(supabase);
 }
 
 function buildLayeredInstructions(dietConfig: any, trainingContext: any): string {
