@@ -435,3 +435,41 @@ export const compareSnapshotToFood = (
   }
   return { diverged: fields.length > 0, snapshot, current, fields };
 };
+
+/* -------------------------------------------------------------------------- */
+/* Adapter DB → FoodRecord (Fase 4)                                           */
+/* -------------------------------------------------------------------------- */
+
+/** Versão do contrato de alimentos (foodId + qtyGrams). */
+export const FOOD_CONTRACT_VERSION = '1.0';
+
+export interface FoodRow {
+  id: string;
+  name: string;
+  portion?: string | null;
+  portion_size?: number | null;
+  calories?: number | null;
+  protein?: number | null;
+  carbs?: number | null;
+  fats?: number | null;
+  brand?: string | null;
+  source?: string | null;
+  barcode?: string | null;
+  source_food_id?: string | null;
+}
+
+/** Mapeia a linha do banco (snake_case) para o registro usado pelo motor. */
+export const foodRecordFromRow = (row: FoodRow): FoodRecord => ({
+  id: row.id,
+  name: row.name,
+  portion: row.portion ?? null,
+  portion_size: row.portion_size ?? 100,
+  calories: numberOr0(row.calories),
+  protein: numberOr0(row.protein),
+  carbs: numberOr0(row.carbs),
+  fats: numberOr0(row.fats),
+  brand: row.brand ?? null,
+  source: row.source ?? null,
+  barcode: row.barcode ?? null,
+  sourceFoodId: row.source_food_id ?? null,
+});
