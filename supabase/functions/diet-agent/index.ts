@@ -1322,6 +1322,17 @@ serve(async (req) => {
             "Respeite EXATAMENTE o shape JSON solicitado para dailyAdjustments (7 dias, target_kcal correto, instructions coerentes)."
           );
         }
+        if (!foodContract.valid) {
+          retryParts.unshift(
+            "🚨 CONTRATO DE ALIMENTOS INVÁLIDO. Todo item precisa de um \"foodId\" copiado LITERALMENTE do FOOD CATALOG desta requisição.",
+            ...(foodContract.invalidFoodIds.length
+              ? [`• IDs inexistentes no catálogo: ${foodContract.invalidFoodIds.slice(0, 10).join(", ")}.`]
+              : []),
+            ...(foodContract.missingFoodIds.length
+              ? [`• Itens sem foodId (não autorizados): ${foodContract.missingFoodIds.slice(0, 10).join(", ")}. Escolha alimentos equivalentes que existam no catálogo.`]
+              : []),
+          );
+        }
         const forceMenuVariation =
           !referenceDietProvided &&
           (intent === "regenerate" ||
