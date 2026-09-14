@@ -24,6 +24,7 @@ interface FoodForm {
   brand?: string | null;
   source?: string | null;
   barcode?: string | null;
+  source_food_id?: string | null;
 }
 
 const emptyForm: FoodForm = {
@@ -37,6 +38,7 @@ const emptyForm: FoodForm = {
   brand: '',
   source: '',
   barcode: '',
+  source_food_id: '',
 };
 
 const Alimentos: React.FC = () => {
@@ -75,6 +77,7 @@ const Alimentos: React.FC = () => {
         brand: trim(input.brand),
         source: trim(input.source),
         barcode: trim(input.barcode),
+        source_food_id: trim(input.source_food_id),
       };
       if (food.id) {
         const { error } = await supabase.from('foods').update(food).eq('id', food.id);
@@ -206,6 +209,7 @@ const Alimentos: React.FC = () => {
       brand: (food as any).brand ?? '',
       source: (food as any).source ?? '',
       barcode: (food as any).barcode ?? '',
+      source_food_id: (food as any).source_food_id ?? '',
     });
     setDialogOpen(true);
   };
@@ -433,6 +437,10 @@ const Alimentos: React.FC = () => {
               <div className="space-y-2">
                 <Label htmlFor="barcode">Código de barras (opcional)</Label>
                 <Input id="barcode" value={form.barcode ?? ''} onChange={(e) => updateField('barcode', e.target.value)} placeholder="EAN" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="source_food_id">ID na fonte (opcional)</Label>
+                <Input id="source_food_id" value={form.source_food_id ?? ''} onChange={(e) => updateField('source_food_id', e.target.value)} placeholder="Ex: 123456" />
               </div>
             </div>
 
