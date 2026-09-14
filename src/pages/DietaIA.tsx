@@ -3476,7 +3476,42 @@ ${generated}`;
                 </Button>
               </div>
             </div>
-            {macroReport && (
+            {dayMacroReport && (
+              <Card className={`border ${dayMacroReport.valid ? 'border-green-500/30 bg-green-500/5' : 'border-yellow-500/40 bg-yellow-500/5'}`}>
+                <CardContent className="space-y-2 p-4 text-xs">
+                  <div className="flex items-center gap-2">
+                    {dayMacroReport.valid
+                      ? <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                      : <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0" />}
+                    <span className="font-bold text-sm">
+                      {dayMacroReport.valid ? 'Todos os dias dentro da meta' : 'Há dias fora da meta'}
+                    </span>
+                  </div>
+                  {WEEKDAY_KEYS.map((wd) => {
+                    const d = dayMacroReport.days[wd];
+                    if (!d) return null;
+                    return (
+                      <div key={wd} className="rounded-lg border border-border bg-background/60 p-2">
+                        <p className="font-semibold">
+                          {wd.toUpperCase()} · {(d.type ?? '').toUpperCase()}
+                        </p>
+                        <p className="text-muted-foreground">Meta: <strong className="text-foreground">{formatDayTargetLine(d.target)}</strong></p>
+                        <p className="text-muted-foreground">Base: <strong className="text-foreground">{formatDayTargetLine(d.generated)}</strong></p>
+                        <p className={d.valid ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}>
+                          {d.valid ? '✓ dentro da meta' : d.reasons.join(' ')}
+                        </p>
+                      </div>
+                    );
+                  })}
+                  {dayMacroReport.missingDays.length > 0 && (
+                    <p className="text-yellow-600 dark:text-yellow-400">
+                      Dias sem cardápio correspondente: {dayMacroReport.missingDays.map((w) => w.toUpperCase()).join(', ')}.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {macroReport && !dayMacroReport && (
               <Card className={`border ${macroReport.valid ? 'border-green-500/30 bg-green-500/5' : 'border-yellow-500/40 bg-yellow-500/5'}`}>
                 <CardContent className="space-y-3 p-4 text-xs">
                   <div className="flex items-center gap-2">
