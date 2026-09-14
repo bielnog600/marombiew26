@@ -1755,6 +1755,9 @@ const DietaIA = () => {
         // Dieta modelo colada: o plano deve repetir os alimentos de referência,
         // então os filtros de variação/repetição não podem bloquear a geração.
         referenceDietProvided: Boolean(modelDiet.trim()),
+        // Target determinístico do app: única autoridade de meta no servidor.
+        canonicalTargets: { kcal: targets.kcal, p: targets.p, c: targets.c, g: targets.g },
+        allowedUnresolvedFoods,
       }),
     });
 
