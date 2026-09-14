@@ -1838,6 +1838,8 @@ export type Database = {
       }
       foods: {
         Row: {
+          barcode: string | null
+          brand: string | null
           calories: number
           carbs: number
           created_at: string
@@ -1847,8 +1849,12 @@ export type Database = {
           portion: string
           portion_size: number
           protein: number
+          source: string | null
+          source_food_id: string | null
         }
         Insert: {
+          barcode?: string | null
+          brand?: string | null
           calories?: number
           carbs?: number
           created_at?: string
@@ -1858,8 +1864,12 @@ export type Database = {
           portion?: string
           portion_size?: number
           protein?: number
+          source?: string | null
+          source_food_id?: string | null
         }
         Update: {
+          barcode?: string | null
+          brand?: string | null
           calories?: number
           carbs?: number
           created_at?: string
@@ -1869,6 +1879,8 @@ export type Database = {
           portion?: string
           portion_size?: number
           protein?: number
+          source?: string | null
+          source_food_id?: string | null
         }
         Relationships: []
       }
