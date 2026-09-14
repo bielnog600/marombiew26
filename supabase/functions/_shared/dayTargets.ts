@@ -128,6 +128,10 @@ export function validateDayTargets(plan: any, schedule: any): DayTargetValidatio
     if (reasons.length > 0) issues.push({ weekday: wd, target, generated, reasons });
   }
 
-  const ok = issues.length === 0 && missingDays.length === 0 && duplicateDays.length === 0;
+  const ok =
+    issues.length === 0 &&
+    missingDays.length === 0 &&
+    duplicateDays.length === 0 &&
+    invalidDays.length === 0;
   return { ok, checkedDays, issues, missingDays, duplicateDays, invalidDays };
 }
