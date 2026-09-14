@@ -52,11 +52,51 @@ function nameTokens(raw: string): string[] {
     .filter((t) => t && !PREP_TOKENS.has(t));
 }
 
+/**
+ * Fase 4: quando o plano já foi hidratado pela base (itens carregam
+ * `resolutionStatus`), a única fonte de "alimento novo" é o status
+ * `unresolved` — nunca heurística de nome.
+ */
+function hasResolutionStatus(plan: DietPlan): boolean {
+  for (const day of plan.days ?? []) {
+    for (const meal of day.meals ?? []) {
+      for (const item of meal.items ?? []) {
+        if ((item as any).resolutionStatus) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function detectFromResolutionStatus(plan: DietPlan): NewFoodCandidate[] {
+  const seen = new Map<string, NewFoodCandidate>();
+  for (const day of plan.days ?? []) {
+    for (const meal of day.meals ?? []) {
+      for (const item of meal.items ?? []) {
+        if ((item as any).resolutionStatus !== 'unresolved') continue;
+        const raw = (item.name || '').trim();
+        const norm = normalizeFoodName(raw);
+        if (!norm || norm.length < 2 || STOPWORDS.has(norm) || seen.has(norm)) continue;
+        seen.set(norm, {
+          name: raw,
+          qtyGrams: item.qtyGrams,
+          kcal: Number(item.macros?.kcal) || 0,
+          protein: Number(item.macros?.p) || 0,
+          carbs: Number(item.macros?.c) || 0,
+          fats: Number(item.macros?.g) || 0,
+        });
+      }
+    }
+  }
+  return Array.from(seen.values());
+}
+
 export function detectNewFoodsFromPlan(
   plan: DietPlan | null | undefined,
   existingFoodNames: string[]
 ): NewFoodCandidate[] {
   if (!plan?.days) return [];
+  if (hasResolutionStatus(plan)) return detectFromResolutionStatus(plan);
   const existingSet = new Set(existingFoodNames.map(normalizeFoodName).filter(Boolean));
   // Token-set representation of existing DB names (ignoring prep tokens).
   // Allows "arroz basmati" (DB) to match "arroz basmati cozido" (candidate).

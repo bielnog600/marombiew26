@@ -20,6 +20,10 @@ interface FoodForm {
   protein: number;
   carbs: number;
   fats: number;
+  /** Identidade opcional — produtos de marca não se fundem com genéricos. */
+  brand?: string | null;
+  source?: string | null;
+  barcode?: string | null;
 }
 
 const emptyForm: FoodForm = {
@@ -30,6 +34,9 @@ const emptyForm: FoodForm = {
   protein: 0,
   carbs: 0,
   fats: 0,
+  brand: '',
+  source: '',
+  barcode: '',
 };
 
 const Alimentos: React.FC = () => {
@@ -58,7 +65,17 @@ const Alimentos: React.FC = () => {
   });
 
   const upsertMutation = useMutation({
-    mutationFn: async (food: FoodForm & { id?: string }) => {
+    mutationFn: async (input: FoodForm & { id?: string }) => {
+      const trim = (v?: string | null) => {
+        const s = (v ?? '').trim();
+        return s.length > 0 ? s : null;
+      };
+      const food = {
+        ...input,
+        brand: trim(input.brand),
+        source: trim(input.source),
+        barcode: trim(input.barcode),
+      };
       if (food.id) {
         const { error } = await supabase.from('foods').update(food).eq('id', food.id);
         if (error) throw error;
@@ -186,6 +203,9 @@ const Alimentos: React.FC = () => {
       protein: food.protein,
       carbs: food.carbs,
       fats: food.fats,
+      brand: (food as any).brand ?? '',
+      source: (food as any).source ?? '',
+      barcode: (food as any).barcode ?? '',
     });
     setDialogOpen(true);
   };
@@ -400,6 +420,22 @@ const Alimentos: React.FC = () => {
                 <Input id="portion" value={form.portion} onChange={(e) => updateField('portion', e.target.value)} placeholder="gramas" />
               </div>
             </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="brand">Marca (opcional)</Label>
+                <Input id="brand" value={form.brand ?? ''} onChange={(e) => updateField('brand', e.target.value)} placeholder="Ex: Continente" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="source">Fonte (opcional)</Label>
+                <Input id="source" value={form.source ?? ''} onChange={(e) => updateField('source', e.target.value)} placeholder="Ex: rótulo, TACO" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="barcode">Código de barras (opcional)</Label>
+                <Input id="barcode" value={form.barcode ?? ''} onChange={(e) => updateField('barcode', e.target.value)} placeholder="EAN" />
+              </div>
+            </div>
+
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">

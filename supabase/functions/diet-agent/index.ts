@@ -45,6 +45,15 @@ import {
 } from "../_shared/dietRoutingPolicy.ts";
 import { sanitizeStructuredPrompt } from "../_shared/structuredPromptSanitizer.ts";
 import { scheduleHasDailyMacroTargets, validateDayTargets } from "../_shared/dayTargets.ts";
+import {
+  formatFoodCatalogPrompt,
+  loadFoodCatalog,
+  resolveAllowedUnresolvedNames,
+  type FoodCatalog,
+} from "../_shared/foodCatalog.ts";
+import { validateFoodContract } from "../_shared/foodContract.ts";
+import { hydrateDietPlanFromFoods } from "../_shared/dietHydration.ts";
+import { FOOD_CONTRACT_VERSION } from "../_shared/nutritionCore.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -117,28 +126,13 @@ async function consumeStructuredChatStream(
 
 
 
-async function loadFoodDatabase(): Promise<string> {
+/** Fase 4: catálogo com IDs reais, UMA única leitura por geração. */
+async function loadCatalogOnce(): Promise<FoodCatalog> {
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
-
-  const { data: foods, error } = await supabase
-    .from("foods")
-    .select("name, calories, protein, carbs, fats, portion, portion_size")
-    .order("name");
-
-  if (error || !foods || foods.length === 0) {
-    console.error("Error loading foods:", error);
-    return "BANCO DE ALIMENTOS: Nenhum alimento cadastrado.";
-  }
-
-  const lines: string[] = [];
-  for (const f of foods) {
-    lines.push(`${f.name}: ${f.calories}kcal | P:${f.protein} C:${f.carbs} G:${f.fats} (por ${f.portion_size}${f.portion})`);
-  }
-
-  return `\n========================================\nBANCO DE ALIMENTOS (do sistema)\n========================================\n\nALIMENTOS:\n${lines.join("\n")}\n`;
+  return await loadFoodCatalog(supabase);
 }
 
 function buildLayeredInstructions(dietConfig: any, trainingContext: any): string {
@@ -232,7 +226,7 @@ function buildLayeredInstructions(dietConfig: any, trainingContext: any): string
     lines.push('    "estimated_adjustment_kcal": <int, com sinal>, // estimativa real das trocas propostas');
     lines.push('    "status": "base" | "adjusted",              // "base" quando requested_adjustment_kcal = 0');
     lines.push('    "instructions": [                            // vazio para dias base');
-    lines.push('      { "action": "add" | "remove", "food_name": "<nome do banco>", "quantity": <int>, "unit": "g", "estimated_kcal": <int> }');
+    lines.push('      { "action": "add" | "remove", "food_id": "<UUID do FOOD CATALOG>", "food_name": "<nome do catálogo>", "quantity": <int>, "unit": "g", "estimated_kcal": <int> }');
     lines.push('    ],');
     lines.push('    "summary": "<frase curta descrevendo a mudança em relação ao plano base>"');
     lines.push('  }');
@@ -241,6 +235,7 @@ function buildLayeredInstructions(dietConfig: any, trainingContext: any): string
     lines.push('  - Ajuste positivo (dia com mais kcal): usar SOMENTE action = "add" nas instruções.');
     lines.push('  - Ajuste negativo (dia com menos kcal): usar SOMENTE action = "remove" nas instruções.');
     lines.push('  - unit deve ser "g" (gramas) sempre que possível.');
+    lines.push('  - "food_id" é OBRIGATÓRIO e deve existir no FOOD CATALOG; o nome é apenas leitura humana.');
     lines.push('  - Não invente propriedades adicionais. O servidor normaliza e valida antes de aceitar a resposta.');
     lines.push('  - Este campo NÃO substitui days[]. É complementar.');
   }
@@ -284,28 +279,29 @@ Responda APENAS com um objeto JSON válido (sem markdown, sem texto antes ou dep
           "order": 0,
           "items": [
             {
-              "name": "Aveia em flocos",
-              "qtyGrams": 60,
-              "portionLabel": "60 g",
-              "substitution": "Tapioca 50g",
-              "macros": { "kcal": 220, "p": 8, "c": 38, "g": 4 }
+              "foodId": "<UUID EXATO copiado do FOOD CATALOG>",
+              "foodName": "Aveia em flocos",
+              "qtyGrams": 60
             }
-          ],
-          "totals": { "kcal": 220, "p": 8, "c": 38, "g": 4 }
+          ]
         }
-      ],
-      "totals": { "kcal": 0, "p": 0, "c": 0, "g": 0 }
+      ]
     }
   ],
   "tips": ["string"]
 
 }
 
-REGRAS:
-- Calcule totals.kcal de cada item via kcal_base * qty / porção_base; macros idem.
-- meal.totals = soma dos items; day.totals = soma dos meals.
-- SEM metas diárias (bloco "METAS NUTRICIONAIS POR DIA" ausente): o somatório de day.totals deve bater com targets.kcal/p/c/g (tolerância: ±50 kcal e ±10g por macro).
-- COM metas diárias: cada day.totals deve bater com a meta do SEU weekday declarada naquele bloco — NÃO com o objeto global "targets".
+REGRAS — CONTRATO DE ALIMENTOS (Fase 4):
+- Cada item DEVE conter "foodId" com um UUID que exista LITERALMENTE no FOOD CATALOG desta requisição.
+- É PROIBIDO inventar, adaptar ou reutilizar UUIDs de outra requisição, e proibido omitir o foodId.
+- "foodName" é apenas leitura humana: se divergir do foodId, o ID vence.
+- NÃO devolva "macros" por item, nem "totals" de refeição ou de dia. O servidor calcula
+  tudo pela base de alimentos; qualquer macro/total que você enviar será IGNORADO.
+- Use as quantidades (qtyGrams) para fechar a meta do dia: o servidor recalcula pela base
+  e reprova o plano se o resultado sair da tolerância (±50 kcal, ±10 P, ±15 C, ±8 G).
+- Alimento fora do catálogo só é aceito quando estiver na lista "ALIMENTOS SEM CADASTRO AUTORIZADOS";
+  nesse caso use "foodId": null e o nome exato autorizado.
 - Se estratégia = "carb_cycle", gere múltiplos days com carbBias variando (low/normal/high).
 - Caso contrário, gere 1 day único com label "Padrão" (vale para todos os dias da semana).
 - NÃO inclua nada além do JSON.
@@ -539,6 +535,7 @@ serve(async (req) => {
       intent: rawIntent,
       referenceDietProvided: rawReferenceDietProvided,
       progressStream: rawProgressStream,
+      allowedUnresolvedFoodNames: rawAllowedUnresolvedFoodNames,
     } = await req.json();
     const referenceDietProvided = Boolean(rawReferenceDietProvided);
     const wantsProgressStream = Boolean(rawProgressStream);
@@ -546,7 +543,16 @@ serve(async (req) => {
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
-    const foodDatabase = await loadFoodDatabase();
+    // Fase 4: uma única leitura do catálogo com IDs reais por requisição.
+    const foodCatalog = await loadCatalogOnce();
+    const allowedUnresolvedNames = resolveAllowedUnresolvedNames(
+      Array.isArray(rawAllowedUnresolvedFoodNames) ? rawAllowedUnresolvedFoodNames : [],
+      foodCatalog,
+    );
+    const unresolvedBlock = allowedUnresolvedNames.length
+      ? `\nALIMENTOS SEM CADASTRO AUTORIZADOS (use "foodId": null e o nome exato):\n${allowedUnresolvedNames.map((n) => `- ${n}`).join("\n")}\n`
+      : "";
+    const foodDatabase = formatFoodCatalogPrompt(foodCatalog) + unresolvedBlock;
     const SYSTEM_PROMPT = SYSTEM_PROMPT_TEMPLATE.replace("{{FOOD_DATABASE}}", foodDatabase);
 
     let contextMessage = "";
@@ -1084,6 +1090,28 @@ serve(async (req) => {
         candidatePlan = first.plan;
       }
 
+      // === Fase 4: contrato de alimentos + hidratação pela base ===
+      // A IA só entrega foodId + qtyGrams. Aqui validamos os IDs e reconstruímos
+      // nome, macros e totais a partir da tabela `foods`. Qualquer valor
+      // nutricional devolvido pelo modelo é descartado ANTES de qualquer validação.
+      const prepareCandidate = (rawPlan: any) => {
+        const contract = validateFoodContract(rawPlan, foodCatalog, allowedUnresolvedNames);
+        const hydrated = hydrateDietPlanFromFoods(rawPlan, foodCatalog, "strict_id");
+        return { plan: hydrated.plan, contract, unresolvedItems: hydrated.unresolvedItems };
+      };
+
+      let prepared = prepareCandidate(candidatePlan);
+      candidatePlan = prepared.plan;
+      let foodContract = prepared.contract;
+      let unresolvedItems = prepared.unresolvedItems;
+      console.log("[diet-agent] food_contract", {
+        model: selectedModel,
+        ok: foodContract.valid,
+        invalidFoodIds: foodContract.invalidFoodIds.length,
+        missingFoodIds: foodContract.missingFoodIds.length,
+        unresolvedAllowed: foodContract.unresolvedAllowed.length,
+      });
+
       const historyJsons = history
         .map((h) => h.conteudo_json)
         .filter((j) => j && typeof j === "object") as any[];
@@ -1142,6 +1170,7 @@ serve(async (req) => {
       // A Terra candidate produced by a technical fallback must be CRITICALLY valid.
       if (technicalFallbackUsed) {
         const validity = evaluateDietCandidateValidity({
+          foodContractOk: foodContract.valid,
           nutritionOk: nutrition.ok,
           dayTargetsOk: initialDayTargets.ok,
           dailyAdjustmentsOk: initialAdjValidation.ok,
@@ -1176,6 +1205,7 @@ serve(async (req) => {
         primarySourceRepeatRatio,
         nutritionOk: nutrition.ok,
         dayTargetsOk: initialDayTargets.ok,
+        foodContractOk: foodContract.valid,
         dailyAdjustmentsOk: initialAdjValidation.ok,
         technicalFallbackUsed,
         referenceDietProvided,
@@ -1188,6 +1218,10 @@ serve(async (req) => {
 
 
       if (needsRetry) {
+        if (!foodContract.valid) {
+          fallbackReason = "food_contract_invalid";
+          fallbackReasons.push("food_contract_invalid");
+        }
         if (!nutrition.ok) { 
           fallbackReason = "nutrition_invalid"; 
           fallbackReasons.push("nutrition_invalid"); 
@@ -1289,6 +1323,17 @@ serve(async (req) => {
             "Respeite EXATAMENTE o shape JSON solicitado para dailyAdjustments (7 dias, target_kcal correto, instructions coerentes)."
           );
         }
+        if (!foodContract.valid) {
+          retryParts.unshift(
+            "🚨 CONTRATO DE ALIMENTOS INVÁLIDO. Todo item precisa de um \"foodId\" copiado LITERALMENTE do FOOD CATALOG desta requisição.",
+            ...(foodContract.invalidFoodIds.length
+              ? [`• IDs inexistentes no catálogo: ${foodContract.invalidFoodIds.slice(0, 10).join(", ")}.`]
+              : []),
+            ...(foodContract.missingFoodIds.length
+              ? [`• Itens sem foodId (não autorizados): ${foodContract.missingFoodIds.slice(0, 10).join(", ")}. Escolha alimentos equivalentes que existam no catálogo.`]
+              : []),
+          );
+        }
         const forceMenuVariation =
           !referenceDietProvided &&
           (intent === "regenerate" ||
@@ -1301,7 +1346,8 @@ serve(async (req) => {
         emit({ phase: "fallback_review", reasons: fallbackReasons });
         const second = await fallbackCandidatePromise;
 
-        const criticalRetry = !nutrition.ok || !initialAdjValidation.ok || !initialDayTargets.ok;
+        const criticalRetry =
+          !foodContract.valid || !nutrition.ok || !initialAdjValidation.ok || !initialDayTargets.ok;
         const reviewRequired = (reason: string) => {
           fallbackReasons.push(reason);
           const meta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, null);
@@ -1318,8 +1364,10 @@ serve(async (req) => {
         };
 
         if (second.ok) {
-          const sim2 = computeDietSimilarity(second.plan, historyJsons);
-          const nut2 = validateDietNutrition(second.plan);
+          const prepared2 = prepareCandidate(second.plan);
+          const secondPlan = prepared2.plan;
+          const sim2 = computeDietSimilarity(secondPlan, historyJsons);
+          const nut2 = validateDietNutrition(secondPlan);
           console.log("[diet-agent] nutrition_validation", {
             model: AI_MODELS.fallback,
             ok: nut2.ok,
@@ -1327,12 +1375,13 @@ serve(async (req) => {
             totalProteinG: Math.round(nut2.totalProteinG),
             totalKcal: Math.round(nut2.totalKcal),
           });
-          const initialAdjValidation2 = validateAdjustments(second.plan);
+          const initialAdjValidation2 = validateAdjustments(secondPlan);
 
           const validity2 = evaluateDietCandidateValidity({
+            foodContractOk: prepared2.contract.valid,
             nutritionOk: nut2.ok,
             dailyAdjustmentsOk: initialAdjValidation2.ok,
-            dayTargetsOk: checkDayTargets(second.plan).ok,
+            dayTargetsOk: checkDayTargets(secondPlan).ok,
           });
           const criticalValid = validity2.criticalValid;
 
@@ -1341,7 +1390,9 @@ serve(async (req) => {
             if (!criticalValid) {
               return reviewRequired(validity2.reason as string);
             }
-            finalPlan = second.plan;
+            finalPlan = secondPlan;
+            foodContract = prepared2.contract;
+            unresolvedItems = prepared2.unresolvedItems;
             similarity = sim2;
             nutrition = nut2;
             selectedModel = AI_MODELS.fallback;
@@ -1362,7 +1413,9 @@ serve(async (req) => {
               escapedPortionOnly: escapedPortion,
               reducedPrimarySourceRepeat: reducedPrimary,
             })) {
-              finalPlan = second.plan;
+              finalPlan = secondPlan;
+              foodContract = prepared2.contract;
+              unresolvedItems = prepared2.unresolvedItems;
               similarity = sim2;
               nutrition = nut2;
               selectedModel = AI_MODELS.fallback;
@@ -1382,7 +1435,11 @@ serve(async (req) => {
           }
         } else {
           if (criticalRetry) {
-            return reviewRequired(!nutrition.ok ? "nutrition_invalid" : "daily_adjustments_invalid");
+            return reviewRequired(
+              !foodContract.valid
+                ? "food_contract_invalid"
+                : (!nutrition.ok ? "nutrition_invalid" : "daily_adjustments_invalid"),
+            );
           }
           warning = isPortionOnly ? "quantity_only" : "high_similarity";
         }
@@ -1544,6 +1601,12 @@ serve(async (req) => {
             issues: nutrition.issues,
             totalProteinG: Math.round(nutrition.totalProteinG),
             totalKcal: Math.round(nutrition.totalKcal),
+          },
+          foodContract: {
+            ok: foodContract.valid,
+            version: FOOD_CONTRACT_VERSION,
+            unresolvedItems,
+            unresolvedAllowed: foodContract.unresolvedAllowed,
           },
           aiRouting: routingMeta.routing,
           aiUsage: routingMeta.usage,

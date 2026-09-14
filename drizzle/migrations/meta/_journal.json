@@ -22,6 +22,13 @@
       "when": 1789332990971,
       "tag": "0002_fix_coaching_actions_unique_index",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789427373046,
+      "tag": "0003_foods_identity_metadata",
+      "breakpoints": true
     }
   ]
 }

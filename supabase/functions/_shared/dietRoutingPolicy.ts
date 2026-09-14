@@ -22,6 +22,8 @@ export type DietCandidateSignals = {
   dailyAdjustmentsOk: boolean;
   /** Phase 3: per-weekday deterministic targets. Defaults to true (no cycle). */
   dayTargetsOk?: boolean;
+  /** Phase 4: every foodId returned by the model exists in the catalog. */
+  foodContractOk?: boolean;
   /** True when the candidate already came from a Terra technical fallback. */
   technicalFallbackUsed: boolean;
   /**
@@ -55,27 +57,43 @@ export type DietCandidateValidity = {
   nutritionValid: boolean;
   dailyAdjustmentsValid: boolean;
   dayTargetsValid: boolean;
+  foodContractValid: boolean;
   criticalValid: boolean;
-  reason: "nutrition_invalid" | "daily_adjustments_invalid" | "day_targets_invalid" | null;
+  reason:
+    | "food_contract_invalid"
+    | "nutrition_invalid"
+    | "daily_adjustments_invalid"
+    | "day_targets_invalid"
+    | null;
 };
 
 export function evaluateDietCandidateValidity(
-  input: { nutritionOk: boolean; dailyAdjustmentsOk: boolean; dayTargetsOk?: boolean },
+  input: {
+    nutritionOk: boolean;
+    dailyAdjustmentsOk: boolean;
+    dayTargetsOk?: boolean;
+    foodContractOk?: boolean;
+  },
 ): DietCandidateValidity {
   const nutritionValid = input.nutritionOk;
   const dailyAdjustmentsValid = input.dailyAdjustmentsOk;
   const dayTargetsValid = input.dayTargetsOk !== false;
-  const criticalValid = nutritionValid && dailyAdjustmentsValid && dayTargetsValid;
+  const foodContractValid = input.foodContractOk !== false;
+  const criticalValid =
+    foodContractValid && nutritionValid && dailyAdjustmentsValid && dayTargetsValid;
   return {
     nutritionValid,
     dailyAdjustmentsValid,
     dayTargetsValid,
+    foodContractValid,
     criticalValid,
     reason: criticalValid
       ? null
-      : (!nutritionValid
-          ? "nutrition_invalid"
-          : (!dailyAdjustmentsValid ? "daily_adjustments_invalid" : "day_targets_invalid")),
+      : (!foodContractValid
+          ? "food_contract_invalid"
+          : (!nutritionValid
+              ? "nutrition_invalid"
+              : (!dailyAdjustmentsValid ? "daily_adjustments_invalid" : "day_targets_invalid"))),
   };
 }
 
@@ -86,6 +104,7 @@ export function shouldRetryDietCandidate(s: DietCandidateSignals): boolean {
     nutritionOk: s.nutritionOk,
     dailyAdjustmentsOk: s.dailyAdjustmentsOk,
     dayTargetsOk: s.dayTargetsOk,
+    foodContractOk: s.foodContractOk,
   });
   return !criticalValid || needsDietVariationRetry(s);
 }
