@@ -24,6 +24,8 @@ export type DietCandidateSignals = {
   dayTargetsOk?: boolean;
   /** Phase 4: every foodId returned by the model exists in the catalog. */
   foodContractOk?: boolean;
+  /** Phase 4 hardening: hydrated totals match the app's global target. */
+  foodTargetsOk?: boolean;
   /** True when the candidate already came from a Terra technical fallback. */
   technicalFallbackUsed: boolean;
   /**
