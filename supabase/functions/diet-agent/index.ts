@@ -225,7 +225,7 @@ function buildLayeredInstructions(dietConfig: any, trainingContext: any): string
     lines.push('    "estimated_adjustment_kcal": <int, com sinal>, // estimativa real das trocas propostas');
     lines.push('    "status": "base" | "adjusted",              // "base" quando requested_adjustment_kcal = 0');
     lines.push('    "instructions": [                            // vazio para dias base');
-    lines.push('      { "action": "add" | "remove", "food_name": "<nome do banco>", "quantity": <int>, "unit": "g", "estimated_kcal": <int> }');
+    lines.push('      { "action": "add" | "remove", "food_id": "<UUID do FOOD CATALOG>", "food_name": "<nome do catálogo>", "quantity": <int>, "unit": "g", "estimated_kcal": <int> }');
     lines.push('    ],');
     lines.push('    "summary": "<frase curta descrevendo a mudança em relação ao plano base>"');
     lines.push('  }');
