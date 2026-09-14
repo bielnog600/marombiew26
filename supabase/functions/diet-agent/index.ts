@@ -51,8 +51,12 @@ import {
   resolveAllowedUnresolvedNames,
   type FoodCatalog,
 } from "../_shared/foodCatalog.ts";
-import { validateFoodContract } from "../_shared/foodContract.ts";
+import { validateFoodContract, normalizeAllowedUnresolved } from "../_shared/foodContract.ts";
 import { hydrateDietPlanFromFoods } from "../_shared/dietHydration.ts";
+import {
+  validateGlobalDietTarget,
+  type GlobalDietTarget,
+} from "../_shared/globalDietTarget.ts";
 import { FOOD_CONTRACT_VERSION } from "../_shared/nutritionCore.ts";
 
 const corsHeaders = {
