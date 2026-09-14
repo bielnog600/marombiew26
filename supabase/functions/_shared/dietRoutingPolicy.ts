@@ -20,6 +20,8 @@ export type DietCandidateSignals = {
   primarySourceRepeatRatio: number;
   nutritionOk: boolean;
   dailyAdjustmentsOk: boolean;
+  /** Phase 3: per-weekday deterministic targets. Defaults to true (no cycle). */
+  dayTargetsOk?: boolean;
   /** True when the candidate already came from a Terra technical fallback. */
   technicalFallbackUsed: boolean;
   /**
