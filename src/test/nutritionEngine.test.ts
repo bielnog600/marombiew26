@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildFoodIndex,
   computeItemMacros,
+  computeMealTotals,
   computeDayTotals,
   compareSnapshotToFood,
   makeNutritionSnapshot,
@@ -319,20 +320,16 @@ describe('Hardening — fórmula energética', () => {
 
 describe('Hardening — correções finais', () => {
   it('unresolvedNames devolve o nome do item realmente não resolvido', () => {
-    const index = buildFoodIndex([
-      { id: 'f1', nome: 'Arroz', porcao_g: 100, calorias: 130, proteina: 2.7, carboidrato: 28, gordura: 0.3 },
-      { id: 'f2', nome: 'Frango', porcao_g: 100, calorias: 165, proteina: 31, carboidrato: 0, gordura: 3.6 },
-    ] as never);
     const meal = computeMealTotals(
       [
-        { foodId: 'f1', name: 'Arroz', qtyGrams: 100 },
+        { foodId: rice.id, name: 'Arroz Branco Cozido', qtyGrams: 100 },
         { foodId: null, name: 'Alimento X', qtyGrams: 50 },
-        { foodId: 'f2', name: 'Frango', qtyGrams: 150 },
+        { foodId: chicken.id, name: 'Frango Grelhado', qtyGrams: 150 },
       ] as never,
       index,
     );
     expect(meal.unresolvedNames).toEqual(['Alimento X']);
-    expect(meal.unresolvedNames).not.toContain('Arroz');
+    expect(meal.unresolvedNames).not.toContain('Arroz Branco Cozido');
   });
 
   it('massa magra recente → Cunningham automática', () => {
