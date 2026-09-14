@@ -76,7 +76,7 @@ export function hydrateDietPlanFromFoods(
 
         const food = computed.food;
         item.foodId = food?.id ?? null;
-        item.name = food?.name ?? fallbackName || "Alimento não identificado";
+        item.name = food?.name ?? (fallbackName || "Alimento não identificado");
         delete item.foodName;
         item.qtyGrams = computed.qtyGrams;
         if (!item.portionLabel) item.portionLabel = `${Math.round(computed.qtyGrams)} g`;
