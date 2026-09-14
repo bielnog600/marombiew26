@@ -181,7 +181,9 @@ describe('Fase 4 — hardening', () => {
   it('Q: plano hidratado passa no schema Zod', () => {
     const { plan } = hydrate(planWith([{ foodId: ID_FRANGO, qtyGrams: 120 }]));
     plan.targets = { kcal: 198, p: 37, c: 0, g: 4 };
-    expect(parseDietPlanStrict(plan).success).toBe(true);
+    const parsed = parseDietPlanStrict(plan);
+    if (!parsed.success) console.log(JSON.stringify((parsed as any).error.issues, null, 1), JSON.stringify(plan, null, 1));
+    expect(parsed.success).toBe(true);
   });
 
   it('R: nutritionSnapshotVersion só aparece com snapshot real', () => {
