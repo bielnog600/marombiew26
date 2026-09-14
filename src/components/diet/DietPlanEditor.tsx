@@ -348,7 +348,7 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
       dayIndex: 0,
       planTargetKcal,
       currentTotalKcal: Math.round(computeDayTotals(initialDays[0]?.meals ?? []).kcal),
-    }),
+    }).kcal,
   );
 
   // Single source of truth for the displayed daily goal.
@@ -358,7 +358,7 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
       dayIndex: activeDayIdx,
       planTargetKcal,
       currentTotalKcal: activeTotalRef.current,
-    }));
+    }).kcal);
   }, [schedule, activeDayIdx, planTargetKcal, markdown]);
 
   const handleTargetChange = useCallback((value: number) => {
