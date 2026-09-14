@@ -215,8 +215,9 @@ export const computeItemMacros = (
   item: EngineItem,
   index: FoodIndex,
   mode: PlanMode = 'draft',
+  policy: ResolutionPolicy = 'legacy',
 ): ItemComputation => {
-  const resolved = resolveFoodForItem(item, index, mode);
+  const resolved = resolveFoodForItem(item, index, mode, policy);
   const qtyGrams = Math.max(0, numberOr0(item.qtyGrams));
 
   if (resolved.status === 'snapshot' && resolved.snapshot) {
