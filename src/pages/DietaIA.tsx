@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -70,6 +70,16 @@ import DietDraftComparisonDialog from '@/components/consultoria/DietDraftCompari
 import { formatDietMacroLine, validateDietMacros, type DietMacroTargets, type DietMacroValidationReport, type FoodMacroRecord } from '@/lib/dietMacroValidation';
 import { parseSections } from '@/lib/dietResultParser';
 import { scaleMealsToTarget, scaleMealsToMacroTargets, replaceMealTableInMarkdown } from '@/lib/dietMarkdownSerializer';
+import { selectEnergyFormula, ENERGY_FORMULA_LABEL, type EnergyFormula, type EnergyFormulaResult } from '@/lib/energyFormula';
+import {
+  defaultMacroConfig,
+  resolveMacroConfig,
+  setMacroPerKg,
+  type MacroConfig,
+  type MacroKey,
+} from '@/lib/macroConfig';
+import EnergyCalculationPanel from '@/components/diet/EnergyCalculationPanel';
+import MacroConfigPanel from '@/components/diet/MacroConfigPanel';
 import type { ParsedMeal } from '@/lib/dietResultParser';
 import { Percent } from 'lucide-react';
 
@@ -245,7 +255,8 @@ const calculateMacroTargets = ({
   const proteinMax = isDeficit ? 2.6 : isMaintenance ? 2.2 : 2.4;
   const fatPerKg = isDeficit ? 0.8 : 0.9;
 
-  if (hormoneUse) proteinPerKg = Math.min(proteinPerKg + 0.2, proteinMax);
+  // Hormônios/medicamentos são contexto clínico e NÃO alteram macros (Fase 2).
+  void hormoneUse;
   proteinPerKg = Math.min(proteinPerKg, proteinMax);
 
   // g/kg overrides (Phase 2): apply when caller provided them and they are sensible.
@@ -430,9 +441,11 @@ const DietaIA = () => {
   const [lastIntent, setLastIntent] = useState<DietIntent>('new');
   // Viability score computed after structured generation.
   const [viability, setViability] = useState<{ score: number; breakdown: ViabilityBreakdown; notes: string[] } | null>(null);
-  // Phase 2: g/kg overrides (optional). When null, defaults from phase/strategy are used.
-  const [proteinPerKgOverride, setProteinPerKgOverride] = useState<string>('');
-  const [fatPerKgOverride, setFatPerKgOverride] = useState<string>('');
+  // Fase 2: estado canônico da configuração de macros + fórmula energética.
+  const [manualFormula, setManualFormula] = useState<EnergyFormula | null>(null);
+  const [macroConfig, setMacroConfig] = useState<MacroConfig>(() => defaultMacroConfig());
+  const [macroConfigTouched, setMacroConfigTouched] = useState(false);
+  const [closingMacro, setClosingMacro] = useState<MacroKey | null>(null);
   // Phase 2: enable structured carb cycling alongside the protocol checkbox.
 
   // ─── Weekly Energy Schedule (MVP) ────────────────────────────
@@ -459,6 +472,24 @@ const DietaIA = () => {
   const [dailyAdjustments, setDailyAdjustments] = useState<DailyAdjustments | null>(null);
   // Post-generation warnings for per-day targets outside tolerance (±10% ou ±50 kcal máx).
   const [scheduleWarnings, setScheduleWarnings] = useState<string[]>([]);
+
+  // ── Fase 2: seleção determinística da fórmula energética ────────────
+  const energySelection = useMemo<EnergyFormulaResult | null>(() => {
+    const weight = parsePositiveNumber(studentCtx?.peso);
+    const height = parsePositiveNumber(studentCtx?.altura);
+    const age = calculateAge(studentCtx?.data_nascimento);
+    const sex = normalizeSex(studentCtx?.sexo);
+    if (!weight || !height || !age) return null;
+    return selectEnergyFormula({
+      sex: sex === 'masculino' ? 'male' : sex === 'feminino' ? 'female' : null,
+      weightKg: weight,
+      heightCm: height,
+      ageYears: age,
+      bodyFatPct: parsePositiveNumber(studentCtx?.percentual_gordura),
+      leanMass: { kg: parsePositiveNumber(studentCtx?.massa_magra), source: 'Composição corporal mais recente' },
+      manualFormula,
+    });
+  }, [studentCtx?.peso, studentCtx?.altura, studentCtx?.data_nascimento, studentCtx?.sexo, studentCtx?.percentual_gordura, studentCtx?.massa_magra, manualFormula]);
 
   const automaticBaseKcal = useMemo<BaseKcalState>(() => {
     const missing: string[] = [];
@@ -489,29 +520,14 @@ const DietaIA = () => {
       };
     }
 
-    const isMale = sex === 'masculino';
-    const harrisBenedict = isMale
-      ? 66.47 + 13.75 * weight + 5.003 * height - 6.755 * age
-      : 655.1 + 9.563 * weight + 1.85 * height - 4.676 * age;
-    const mifflin = isMale
-      ? 10 * weight + 6.25 * height - 5 * age + 5
-      : 10 * weight + 6.25 * height - 5 * age - 161;
-    const cunningham = leanMass ? 500 + 22 * leanMass : null;
-
-    let bmr: number;
-    let formula: string;
-    if (bodyFat !== null && bodyFat < (isMale ? 15 : 22) && leanMass && cunningham) {
-      bmr = cunningham;
-      formula = 'Cunningham (atleta, baixo %G)';
-    } else if (bodyFat !== null && bodyFat > (isMale ? 25 : 32)) {
-      bmr = mifflin;
-      formula = 'Mifflin (sobrepeso/obeso)';
-    } else {
-      bmr = harrisBenedict;
-      formula = 'Harris-Benedict (eutrófico)';
+    // Fonte única: energyFormula.selectEnergyFormula (sem duplicar contas aqui).
+    void bodyFat;
+    void leanMass;
+    if (!energySelection) {
+      return { source: 'automatic', base_daily_kcal: null, calculation: emptyCalculationSnapshot(), missing: ['dados corporais'] };
     }
-
-    const roundedBmr = Math.round(bmr);
+    const formula = ENERGY_FORMULA_LABEL[energySelection.formula];
+    const roundedBmr = Math.round(energySelection.bmr);
     const tdee = Math.round(roundedBmr * activityFactor);
     const strategyPercent = selectedStrategy.pct;
     const base = Math.round(tdee * (1 + strategyPercent / 100));
@@ -528,7 +544,7 @@ const DietaIA = () => {
       },
       missing: [],
     };
-  }, [studentCtx?.peso, studentCtx?.altura, studentCtx?.data_nascimento, studentCtx?.sexo, studentCtx?.percentual_gordura, studentCtx?.massa_magra, activityLevel, phase, strategy]);
+  }, [studentCtx?.peso, studentCtx?.altura, studentCtx?.data_nascimento, studentCtx?.sexo, studentCtx?.percentual_gordura, studentCtx?.massa_magra, activityLevel, phase, strategy, energySelection]);
 
   const manualBaseKcal = useMemo<number | null>(() => {
     const parsed = parsePositiveNumber(manualBaseKcalInput);
@@ -564,6 +580,50 @@ const DietaIA = () => {
     }
     return issues;
   }, [automaticBaseKcal.missing, baseKcal, baseKcalMode]);
+
+  // ── Fase 2: estado canônico dos macros ──────────────────────────────
+  const macroBody = useMemo(() => ({
+    weightKg: parsePositiveNumber(studentCtx?.peso) ?? 0,
+    leanMassKg: parsePositiveNumber(studentCtx?.massa_magra),
+  }), [studentCtx?.peso, studentCtx?.massa_magra]);
+
+  // Preset inicial coerente com fase/estratégia — nunca sobrescreve edição manual.
+  useEffect(() => {
+    if (macroConfigTouched || !macroBody.weightKg) return;
+    const preset = calculateMacroTargets({
+      calories: baseKcal.base_daily_kcal ?? 2000,
+      weight: macroBody.weightKg,
+      strategyValue: strategy,
+      phaseValue: phase,
+      hormoneUse: false,
+    });
+    setMacroConfig((prev) => ({
+      ...prev,
+      protein: setMacroPerKg({ ...prev.protein, locked: true }, preset.proteinPerKg, macroBody),
+      fat: setMacroPerKg({ ...prev.fat, locked: true }, preset.fatPerKg, macroBody),
+      carbs: { ...prev.carbs, perKg: null, grams: null, locked: false },
+    }));
+  }, [macroConfigTouched, macroBody, strategy, phase, baseKcal.base_daily_kcal]);
+
+  const macroResolution = useMemo(() => resolveMacroConfig({
+    kcalTarget: baseKcal.base_daily_kcal ?? 0,
+    config: macroConfig,
+    body: macroBody,
+    closingMacro,
+  }), [baseKcal.base_daily_kcal, macroConfig, macroBody, closingMacro]);
+
+  /** Única autoridade dos alvos usados na geração da dieta. */
+  const canonicalTargets = useMemo(() => ({
+    kcal: baseKcal.base_daily_kcal ?? 0,
+    p: Math.round(macroResolution.grams?.protein ?? 0),
+    c: Math.round(macroResolution.grams?.carbs ?? 0),
+    g: Math.round(macroResolution.grams?.fat ?? 0),
+  }), [baseKcal.base_daily_kcal, macroResolution]);
+
+  const handleMacroConfigChange = useCallback((next: MacroConfig) => {
+    setMacroConfigTouched(true);
+    setMacroConfig(next);
+  }, []);
 
   const weeklySchedule = useMemo<WeeklyEnergySchedule | null>(() => {
     if (baseKcal.base_daily_kcal == null || baseKcalIssues.length > 0) return null;
@@ -1467,7 +1527,7 @@ const DietaIA = () => {
     }
   };
 
-  const canGenerate = Boolean(activityLevel && strategy && mealCount && phase && weeklySchedule && baseKcalIssues.length === 0);
+  const canGenerate = Boolean(activityLevel && strategy && mealCount && phase && weeklySchedule && baseKcalIssues.length === 0 && macroResolution.status === 'ok');
 
   const streamDietAgent = async (
     messages: { role: 'user' | 'assistant'; content: string }[],
@@ -1841,15 +1901,14 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
     const currentBmr = baseKcal.calculation.bmr;
     const currentFormula = baseKcal.calculation.formula;
     const peso = parsePositiveNumber(studentCtx.peso) ?? 70;
-    const macros = calculateMacroTargets({
-      calories: currentCalories,
-      weight: peso,
-      strategyValue: strategy,
-      phaseValue: phase,
-      hormoneUse: hasHormoneUse(usesHormones),
-      proteinPerKgOverride: proteinPerKgOverride ? Number(proteinPerKgOverride.replace(',', '.')) : null,
-      fatPerKgOverride: fatPerKgOverride ? Number(fatPerKgOverride.replace(',', '.')) : null,
-    });
+    // Fase 2: os macros vêm EXCLUSIVAMENTE da configuração exibida na tela.
+    const macros = {
+      proteinGrams: canonicalTargets.p,
+      carbGrams: canonicalTargets.c,
+      fatGrams: canonicalTargets.g,
+      proteinPerKg: Math.round((canonicalTargets.p / peso) * 100) / 100,
+      fatPerKg: Math.round((canonicalTargets.g / peso) * 100) / 100,
+    };
     currentTargets = {
       calories: currentCalories,
       protein: macros.proteinGrams,
@@ -2480,7 +2539,7 @@ ${generated}`;
             <CardContent className="p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <Zap className="h-5 w-5 text-primary" />
-                <h3 className="font-bold text-sm">Recomendação da IA (baseada na avaliação completa)</h3>
+                <h3 className="font-bold text-sm">Referência energética (cálculo determinístico)</h3>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
                 <div className="bg-background rounded-lg p-2 text-center border border-border">
@@ -2871,45 +2930,22 @@ ${generated}`;
                 </div>
               </div>
 
-              {automaticBaseKcal.missing.length > 0 ? (
-                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
-                  <p className="text-xs font-medium text-amber-700">Não foi possível calcular automaticamente. Dados ausentes:</p>
-                  <ul className="list-disc pl-5 text-[11px] text-amber-700">
-                    {automaticBaseKcal.missing.map((item) => <li key={item}>{item}.</li>)}
-                  </ul>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                  <div className="rounded-lg border border-border bg-background p-2">
-                    <span className="text-muted-foreground block">Fórmula</span>
-                    <span className="font-medium">{automaticBaseKcal.calculation.formula}</span>
-                  </div>
-                  <div className="rounded-lg border border-border bg-background p-2">
-                    <span className="text-muted-foreground block">TMB</span>
-                    <span className="font-medium">{automaticBaseKcal.calculation.bmr?.toLocaleString('pt-BR')} kcal</span>
-                  </div>
-                  <div className="rounded-lg border border-border bg-background p-2">
-                    <span className="text-muted-foreground block">Nível de atividade</span>
-                    <span className="font-medium">
-                      {ACTIVITY_LEVELS.find(a => a.value === activityLevel)?.label ?? '—'}
-                      {' · '}
-                      Fator {(automaticBaseKcal.calculation.activity_factor ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 3 })}
-                    </span>
-                  </div>
-                  <div className="rounded-lg border border-border bg-background p-2">
-                    <span className="text-muted-foreground block">GET</span>
-                    <span className="font-medium">{automaticBaseKcal.calculation.tdee?.toLocaleString('pt-BR')} kcal</span>
-                  </div>
-                  <div className="rounded-lg border border-border bg-background p-2">
-                    <span className="text-muted-foreground block">Ajuste da estratégia</span>
-                    <span className="font-medium">{(automaticBaseKcal.calculation.strategy_percent ?? 0) > 0 ? '+' : ''}{automaticBaseKcal.calculation.strategy_percent}%</span>
-                  </div>
-                  <div className="rounded-lg border border-border bg-background p-2">
-                    <span className="text-muted-foreground block">Meta base</span>
-                    <span className="font-medium">{automaticBaseKcal.base_daily_kcal?.toLocaleString('pt-BR')} kcal</span>
-                  </div>
-                </div>
-              )}
+              <EnergyCalculationPanel
+                selection={energySelection}
+                tdee={automaticBaseKcal.calculation.tdee}
+                targetKcal={baseKcal.base_daily_kcal}
+                activityFactor={parsePositiveNumber(activityLevel)}
+                activityLabel={ACTIVITY_LEVELS.find(a => a.value === activityLevel)?.label ?? null}
+                strategyPercent={automaticBaseKcal.calculation.strategy_percent}
+                weightKg={parsePositiveNumber(studentCtx?.peso)}
+                heightCm={parsePositiveNumber(studentCtx?.altura)}
+                ageYears={calculateAge(studentCtx?.data_nascimento)}
+                bodyFatPct={parsePositiveNumber(studentCtx?.percentual_gordura)}
+                leanMassKg={parsePositiveNumber(studentCtx?.massa_magra)}
+                leanMassInfo={studentCtx?.massa_magra ? 'Composição corporal mais recente' : null}
+                missing={automaticBaseKcal.missing}
+                onSelectFormula={setManualFormula}
+              />
 
               {baseKcalMode === 'manual' && (
                 <label className="block">
@@ -2956,43 +2992,15 @@ ${generated}`;
               })}
             </div>
 
-            {/* Macros por g/kg (override opcional) — mantém comportamento, agora em "Ajustes Finos" */}
-            <div className="rounded-xl border border-border bg-secondary/30 p-3 space-y-2">
-              <p className="text-xs font-semibold">Macros por g/kg (opcional)</p>
-              <p className="text-[10px] text-muted-foreground">
-                Deixe em branco para usar os valores automáticos por fase/estratégia. Preencha para
-                sobrescrever apenas proteína e/ou gordura — carboidrato é recalculado para fechar a meta calórica.
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="block">
-                  <span className="text-[10px] text-muted-foreground">Proteína (g/kg)</span>
-                  <input
-                    inputMode="decimal"
-                    value={proteinPerKgOverride}
-                    onChange={(e) => setProteinPerKgOverride(e.target.value)}
-                    placeholder="ex: 2.2"
-                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-[10px] text-muted-foreground">Gordura (g/kg)</span>
-                  <input
-                    inputMode="decimal"
-                    value={fatPerKgOverride}
-                    onChange={(e) => setFatPerKgOverride(e.target.value)}
-                    placeholder="ex: 0.8"
-                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
-                  />
-                </label>
-              </div>
-              {(proteinPerKgOverride || fatPerKgOverride) && studentCtx?.peso && (
-                <p className="text-[10px] text-primary">
-                  Override ativo: P {proteinPerKgOverride || '—'} g/kg, G {fatPerKgOverride || '—'} g/kg
-                  {' '}({Math.round((Number(proteinPerKgOverride.replace(',', '.')) || 0) * Number(studentCtx.peso)) || '—'}g P,
-                  {' '}{Math.round((Number(fatPerKgOverride.replace(',', '.')) || 0) * Number(studentCtx.peso)) || '—'}g G).
-                </p>
-              )}
-            </div>
+            <MacroConfigPanel
+              config={macroConfig}
+              body={macroBody}
+              resolution={macroResolution}
+              closingMacro={closingMacro}
+              targetKcal={baseKcal.base_daily_kcal}
+              onChange={handleMacroConfigChange}
+              onClosingMacroChange={(macro) => { setMacroConfigTouched(true); setClosingMacro(macro); }}
+            />
           </CardContent>
         </Card>
               )}
