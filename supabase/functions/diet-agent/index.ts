@@ -536,6 +536,8 @@ serve(async (req) => {
       referenceDietProvided: rawReferenceDietProvided,
       progressStream: rawProgressStream,
       allowedUnresolvedFoodNames: rawAllowedUnresolvedFoodNames,
+      allowedUnresolvedFoods: rawAllowedUnresolvedFoods,
+      canonicalTargets: rawCanonicalTargets,
     } = await req.json();
     const referenceDietProvided = Boolean(rawReferenceDietProvided);
     const wantsProgressStream = Boolean(rawProgressStream);
