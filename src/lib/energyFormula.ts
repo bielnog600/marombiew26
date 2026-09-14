@@ -43,6 +43,11 @@ export interface EnergyFormulaResult {
   alternatives: Partial<Record<EnergyFormula, number>>;
   /** Avisos de qualidade/antiguidade — nunca bloqueiam. */
   warnings: string[];
+  /**
+   * true quando não há dados suficientes para uma fórmula válida
+   * (sexo ausente e sem massa magra utilizável). `bmr` não deve ser usado.
+   */
+  insufficientData: boolean;
   leanMassUsable: boolean;
   manual: boolean;
 }
@@ -101,7 +106,9 @@ export const selectEnergyFormula = (input: EnergyFormulaInput): EnergyFormulaRes
   const warnings: string[] = [];
 
   if (sex === null) {
-    warnings.push('Sexo biológico não informado — usando a equação neutra de Mifflin sem ajuste de sexo.');
+    warnings.push(
+      'Sexo biológico não informado — Mifflin e Harris-Benedict dependem do sexo e não podem ser aplicadas.',
+    );
   }
 
   const leanKg = finite(input.leanMass?.kg ?? null);
@@ -127,10 +134,13 @@ export const selectEnergyFormula = (input: EnergyFormulaInput): EnergyFormulaRes
     warnings.push('Massa magra sem data de avaliação registrada.');
   }
 
-  const alternatives: Partial<Record<EnergyFormula, number>> = {
-    mifflin: Math.round(mifflinStJeor(sex, weightKg, heightCm, ageYears)),
-    harris_benedict: Math.round(harrisBenedict(sex, weightKg, heightCm, ageYears)),
-  };
+  // Sem sexo informado NÃO usamos equações dependentes de sexo (nada de assumir
+  // masculino silenciosamente); restam apenas as baseadas em massa magra.
+  const alternatives: Partial<Record<EnergyFormula, number>> = {};
+  if (sex !== null) {
+    alternatives.mifflin = Math.round(mifflinStJeor(sex, weightKg, heightCm, ageYears));
+    alternatives.harris_benedict = Math.round(harrisBenedict(sex, weightKg, heightCm, ageYears));
+  }
   if (leanUsable && leanKg !== null) {
     alternatives.cunningham = Math.round(cunningham(leanKg));
     alternatives.katch_mcardle = Math.round(katchMcArdle(leanKg));
@@ -151,6 +161,7 @@ export const selectEnergyFormula = (input: EnergyFormulaInput): EnergyFormulaRes
         reason: 'Fórmula escolhida manualmente pelo treinador.',
         alternatives,
         warnings,
+        insufficientData: false,
         leanMassUsable: leanUsable,
         manual: true,
       };
@@ -167,17 +178,33 @@ export const selectEnergyFormula = (input: EnergyFormulaInput): EnergyFormulaRes
         : 'Massa magra disponível na avaliação mais recente.',
       alternatives,
       warnings,
+      insufficientData: false,
       leanMassUsable: true,
+      manual: false,
+    };
+  }
+
+  if (alternatives.mifflin == null) {
+    return {
+      formula: 'mifflin',
+      bmr: 0,
+      reason:
+        'Dados insuficientes: sem sexo biológico e sem massa magra utilizável não existe fórmula aplicável.',
+      alternatives,
+      warnings,
+      insufficientData: true,
+      leanMassUsable: false,
       manual: false,
     };
   }
 
   return {
     formula: 'mifflin',
-    bmr: alternatives.mifflin as number,
+    bmr: alternatives.mifflin,
     reason: 'Sem massa magra utilizável — usando Mifflin-St Jeor com peso, altura e idade.',
     alternatives,
     warnings,
+    insufficientData: false,
     leanMassUsable: false,
     manual: false,
   };
