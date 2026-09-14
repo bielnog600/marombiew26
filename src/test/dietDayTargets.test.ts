@@ -14,23 +14,23 @@ const schedule = {
 
 describe('resolveDayTarget', () => {
   it('usa base + ajuste do cronograma (segunda)', () => {
-    expect(resolveDayTarget({ schedule, dayIndex: 0, planTargetKcal: 2660 })).toBe(2577);
+    expect(resolveDayTarget({ schedule, dayIndex: 0, planTargetKcal: 2660 }).kcal).toBe(2577);
   });
 
   it('prioriza target_kcal persistido', () => {
-    expect(resolveDayTarget({ schedule, dayIndex: 1, planTargetKcal: 2660 })).toBe(2700);
+    expect(resolveDayTarget({ schedule, dayIndex: 1, planTargetKcal: 2660 }).kcal).toBe(2700);
   });
 
   it('prioriza fixed_kcal sobre target_kcal', () => {
-    expect(resolveDayTarget({ schedule, dayIndex: 2, planTargetKcal: 2660 })).toBe(2400);
+    expect(resolveDayTarget({ schedule, dayIndex: 2, planTargetKcal: 2660 }).kcal).toBe(2400);
   });
 
   it('cai para a meta do plano quando o dia não está no cronograma', () => {
-    expect(resolveDayTarget({ schedule, dayIndex: 4, planTargetKcal: 2660 })).toBe(2660);
+    expect(resolveDayTarget({ schedule, dayIndex: 4, planTargetKcal: 2660 }).kcal).toBe(2660);
   });
 
   it('cai para o total atual em planos legados sem meta', () => {
-    expect(resolveDayTarget({ dayIndex: 0, planTargetKcal: 0, currentTotalKcal: 1980 })).toBe(1980);
+    expect(resolveDayTarget({ dayIndex: 0, planTargetKcal: 0, currentTotalKcal: 1980 }).kcal).toBe(1980);
   });
 
   it('sem cronograma retorna null em scheduleDayTarget', () => {
