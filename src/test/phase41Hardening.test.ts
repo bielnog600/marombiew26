@@ -33,6 +33,7 @@ const authorized = [{ name: 'Pão da padaria', source: 'model_diet' as const }];
 
 const rawPlan = (weekday = 'seg') => ({
   version: 1,
+  targets: { kcal: 295, p: 34, c: 28, g: 4 },
   days: [
     {
       weekday,
