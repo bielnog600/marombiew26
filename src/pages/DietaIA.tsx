@@ -3454,12 +3454,23 @@ ${generated}`;
                 </div>
               );
             })()}
+            {structuredPlan && (
+              <UnresolvedFoodsPanel
+                plan={structuredPlan}
+                onChange={(p) => setStructuredPlan(p)}
+              />
+            )}
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-lg flex items-center gap-2">
                 <UtensilsCrossed className="h-5 w-5 text-primary" />
                 Plano Alimentar
-                {structuredPlan?.validation && (
+                {structuredPlan?.validation && !hasUnresolvedItems && (
                   <DietValidationBadge report={structuredPlan.validation} className="ml-2" />
+                )}
+                {hasUnresolvedItems && (
+                  <Badge variant="outline" className="ml-2 border-amber-500/50 text-amber-400 text-[10px]">
+                    NÃO VALIDADO
+                  </Badge>
                 )}
               </h3>
               <div className="flex gap-2 flex-wrap">
