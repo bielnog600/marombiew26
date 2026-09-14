@@ -1226,6 +1226,7 @@ serve(async (req) => {
           nutritionOk: nutrition.ok,
           dayTargetsOk: initialDayTargets.ok,
           dailyAdjustmentsOk: initialAdjValidation.ok,
+          foodTargetsOk: globalTargetReport.ok,
         });
         if (!validity.criticalValid) {
           const reason = validity.reason as string;
