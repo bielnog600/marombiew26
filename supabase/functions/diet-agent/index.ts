@@ -45,6 +45,14 @@ import {
 } from "../_shared/dietRoutingPolicy.ts";
 import { sanitizeStructuredPrompt } from "../_shared/structuredPromptSanitizer.ts";
 import { scheduleHasDailyMacroTargets, validateDayTargets } from "../_shared/dayTargets.ts";
+import {
+  formatFoodCatalogPrompt,
+  loadFoodCatalog,
+  resolveAllowedUnresolvedNames,
+  type FoodCatalog,
+} from "../_shared/foodCatalog.ts";
+import { validateFoodContract } from "../_shared/foodContract.ts";
+import { hydrateDietPlanFromFoods } from "../_shared/dietHydration.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
