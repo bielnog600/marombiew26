@@ -83,6 +83,9 @@ const macro = (v: unknown): number => {
  * THE single source of truth for a day's goal: {kcal, p, c, g}.
  * Consumers that only need calories read `.kcal` (or use resolveDayKcal).
  */
+const defined = (v: number | null | undefined): boolean =>
+  v != null && Number.isFinite(v);
+
 export const resolveDayTarget = ({
   schedule,
   dayIndex,
@@ -96,9 +99,10 @@ export const resolveDayTarget = ({
   if (explicitKcal) {
     return {
       kcal: explicitKcal,
-      p: macro(dayTarget?.p) || macro(planTargetMacros?.p),
-      c: macro(dayTarget?.c) || macro(planTargetMacros?.c),
-      g: macro(dayTarget?.g) || macro(planTargetMacros?.g),
+      // Zero é valor válido: só cai no target geral quando é null/undefined.
+      p: defined(dayTarget?.p) ? macro(dayTarget?.p) : macro(planTargetMacros?.p),
+      c: defined(dayTarget?.c) ? macro(dayTarget?.c) : macro(planTargetMacros?.c),
+      g: defined(dayTarget?.g) ? macro(dayTarget?.g) : macro(planTargetMacros?.g),
     };
   }
   const fromSchedule = scheduleDayTarget(schedule, dayIndex, planTargetKcal);

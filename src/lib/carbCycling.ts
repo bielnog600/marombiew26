@@ -143,6 +143,8 @@ export function summarizeCyclePlanShort(plan: CarbCyclePlan): string {
 import {
   MACRO_KCAL_PER_G,
   gramsFromPerKg,
+  perKgFromGrams,
+  basisWeight,
   resolveMacroConfig,
   closingMacroWarning,
   type BodyBasis,
@@ -180,6 +182,8 @@ export interface CarbCyclingConfig {
   assignments: Record<WeekdayKey, CarbDayType>;
   /** Dias em que o treinador escolheu manualmente — sugestão não sobrescreve. */
   manual: Record<WeekdayKey, boolean>;
+  /** Modo `fixed_calories`: macro que fecha as calorias nos dias do ciclo. */
+  fixedClosingMacro: MacroKey | null;
 }
 
 export const defaultCarbCyclingConfig = (): CarbCyclingConfig => ({
@@ -195,6 +199,7 @@ export const defaultCarbCyclingConfig = (): CarbCyclingConfig => ({
     sex: 'medium', sab: 'low', dom: 'low',
   },
   manual: { seg: false, ter: false, qua: false, qui: false, sex: false, sab: false, dom: false },
+  fixedClosingMacro: null,
 });
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -207,6 +212,38 @@ export const carbGramsForType = (
   if (type.carbGrams != null && Number.isFinite(type.carbGrams)) return round1(type.carbGrams);
   if (type.carbsPerKg == null) return null;
   return gramsFromPerKg(type.carbsPerKg, type.carbBasis, body);
+};
+
+/** Edição bidirecional do carboidrato do tipo — reutiliza os helpers da Fase 2. */
+export const setCarbTypePerKg = (
+  type: CarbDayTypeConfig,
+  perKg: number | null,
+  body: BodyBasis,
+): CarbDayTypeConfig =>
+  perKg == null
+    ? { ...type, carbsPerKg: null, carbGrams: null }
+    : { ...type, carbsPerKg: perKg, carbGrams: gramsFromPerKg(perKg, type.carbBasis, body) };
+
+export const setCarbTypeGrams = (
+  type: CarbDayTypeConfig,
+  grams: number | null,
+  body: BodyBasis,
+): CarbDayTypeConfig =>
+  grams == null
+    ? { ...type, carbsPerKg: null, carbGrams: null }
+    : { ...type, carbGrams: grams, carbsPerKg: perKgFromGrams(grams, type.carbBasis, body) };
+
+/** Troca de base: mantém o g/kg quando ele é a origem, senão recalcula o g/kg. */
+export const setCarbTypeBasis = (
+  type: CarbDayTypeConfig,
+  basis: MacroBasis,
+  body: BodyBasis,
+): CarbDayTypeConfig => {
+  const next = { ...type, carbBasis: basis };
+  if (!basisWeight(basis, body)) return next;
+  if (type.carbsPerKg != null) return setCarbTypePerKg(next, type.carbsPerKg, body);
+  if (type.carbGrams != null) return setCarbTypeGrams(next, type.carbGrams, body);
+  return next;
 };
 
 export interface CarbDayTypeResult {
@@ -300,6 +337,15 @@ export const buildCarbDayTypeTargets = ({
     }
 
     // fixed_calories — reaproveita integralmente as travas de macroConfig.
+    const fixedClosing = carbCycling.fixedClosingMacro ?? null;
+    if (!fixedClosing) {
+      out[type] = {
+        ...base,
+        status: 'needs_closing_macro',
+        message: 'Escolha qual macro deve fechar as calorias nos dias do ciclo.',
+      };
+      continue;
+    }
     const kcalTarget = cfg.targetKcal && cfg.targetKcal > 0 ? cfg.targetKcal : baseKcal;
     const config: MacroConfig = {
       ...macroConfig,
@@ -311,7 +357,7 @@ export const buildCarbDayTypeTargets = ({
         locked: true,
       },
     };
-    const resolution = resolveMacroConfig({ kcalTarget, config, body, closingMacro });
+    const resolution = resolveMacroConfig({ kcalTarget, config, body, closingMacro: fixedClosing });
     out[type] = {
       ...base,
       status: resolution.status,
@@ -352,8 +398,11 @@ export const buildWeeklyCarbTargets = (
 
 export interface WeeklyAverage {
   days: number;
+  /** Só é média semanal oficial quando os 7 dias possuem target válido. */
+  complete: boolean;
   average: DayTarget;
   weeklyKcal: number;
+  incompleteMessage: string | null;
 }
 
 export const calculateWeeklyAverage = (
@@ -366,8 +415,13 @@ export const calculateWeeklyAverage = (
     { kcal: 0, p: 0, c: 0, g: 0 },
   );
   const n = values.length;
+  const complete = n === WEEKDAY_KEYS.length;
   return {
     days: n,
+    complete,
+    incompleteMessage: complete
+      ? null
+      : `Configuração semanal incompleta — ${n} de ${WEEKDAY_KEYS.length} dias válidos.`,
     average: {
       kcal: Math.round(sum.kcal / n),
       p: Math.round(sum.p / n),
@@ -392,7 +446,7 @@ export const compareWeeklyAverageToBase = (
   baseKcal: number | null,
   tolerancePct = 10,
 ): BaseComparison | null => {
-  if (!average || !baseKcal || baseKcal <= 0) return null;
+  if (!average || !average.complete || !baseKcal || baseKcal <= 0) return null;
   const diffPerDay = Math.round(average.average.kcal - baseKcal);
   const diffWeek = Math.round(diffPerDay * 7);
   const overTolerance = Math.abs(diffPerDay) > (baseKcal * tolerancePct) / 100;
@@ -417,9 +471,32 @@ export const suggestCarbDayTypeForWorkout = (
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
-  if (!text.trim()) return 'low';
+  // Sem informação suficiente → MEDIUM (preset neutro), nunca LOW por omissão.
+  if (!text.trim()) return 'medium';
   if (/descanso|rest|folga|off/.test(text)) return 'low';
   if (/perna|lower|quadr|gl[uú]teo|posterior|full ?body|corpo inteiro/.test(text)) return 'high';
-  if (/cardio|caminhada|aer[oó]bic|mobilidade|core|abd/.test(text)) return 'low';
+  if (/cardio|caminhada|aer[oó]bic/.test(text)) return 'low';
   return 'medium';
+};
+
+/** Validação da semana: com o ciclo ativo, os 7 dias precisam de target válido. */
+export const isCarbCyclingValid = (
+  config: CarbCyclingConfig,
+  typeTargets: Record<CarbDayType, CarbDayTypeResult>,
+  weekly: Partial<Record<WeekdayKey, WeeklyCarbDayTarget>>,
+): { valid: boolean; reason: string | null } => {
+  if (!config.enabled) return { valid: true, reason: null };
+  for (const wd of WEEKDAY_KEYS) {
+    const type = config.assignments[wd];
+    const result = typeTargets[type];
+    if (!weekly[wd] || !result || result.status !== 'ok' || !result.target) {
+      return {
+        valid: false,
+        reason:
+          result?.message ??
+          `Carb cycling incompleto: o dia ${wd.toUpperCase()} (${CARB_DAY_TYPE_LABEL[type]}) não tem meta válida.`,
+      };
+    }
+  }
+  return { valid: true, reason: null };
 };

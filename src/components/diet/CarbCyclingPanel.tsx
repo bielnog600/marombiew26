@@ -7,11 +7,14 @@ import {
   type CarbCyclingMode,
   type CarbDayType,
   type CarbDayTypeResult,
+  setCarbTypePerKg,
+  setCarbTypeGrams,
+  setCarbTypeBasis,
   type WeeklyAverage,
   type BaseComparison,
 } from '@/lib/carbCycling';
 import { WEEKDAY_KEYS, type WeekdayKey } from '@/lib/dietDayTargets';
-import { MACRO_BASIS_LABEL, type MacroBasis } from '@/lib/macroConfig';
+import { MACRO_BASIS_LABEL, type MacroBasis, type MacroKey, type BodyBasis } from '@/lib/macroConfig';
 
 const WEEKDAY_LABEL: Record<WeekdayKey, string> = {
   seg: 'Seg', ter: 'Ter', qua: 'Qua', qui: 'Qui', sex: 'Sex', sab: 'Sáb', dom: 'Dom',
@@ -24,6 +27,7 @@ interface CarbCyclingPanelProps {
   comparison: BaseComparison | null;
   /** Nome do treino e sugestão inicial por dia (apenas informativo). */
   dayInfo: Partial<Record<WeekdayKey, { workoutLabel: string | null; suggestion: CarbDayType }>>;
+  body: BodyBasis;
   onChange: (next: CarbCyclingConfig) => void;
 }
 
@@ -36,12 +40,16 @@ export const CarbCyclingPanel = ({
   weeklyAverage,
   comparison,
   dayInfo,
+  body,
   onChange,
 }: CarbCyclingPanelProps) => {
   const setMode = (mode: CarbCyclingMode) => onChange({ ...config, mode });
 
   const updateType = (type: CarbDayType, patch: Partial<CarbCyclingConfig['types'][CarbDayType]>) =>
     onChange({ ...config, types: { ...config.types, [type]: { ...config.types[type], ...patch } } });
+
+  const replaceType = (type: CarbDayType, next: CarbCyclingConfig['types'][CarbDayType]) =>
+    onChange({ ...config, types: { ...config.types, [type]: next } });
 
   return (
     <div className="rounded-xl border border-border bg-secondary/30 p-3 space-y-3">
@@ -84,6 +92,33 @@ export const CarbCyclingPanel = ({
             ))}
           </div>
 
+          {config.mode === 'fixed_calories' && (
+            <div className="rounded-lg border border-border bg-background p-2">
+              <p className="text-[10px] text-muted-foreground">Macro que fecha as calorias</p>
+              <div className="mt-1 flex gap-2">
+                {(['protein', 'fat', 'carbs'] as MacroKey[]).map((macro) => (
+                  <button
+                    key={macro}
+                    type="button"
+                    onClick={() => onChange({ ...config, fixedClosingMacro: macro })}
+                    className={`rounded-md border px-2 py-1 text-[11px] ${
+                      config.fixedClosingMacro === macro
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border text-muted-foreground'
+                    }`}
+                  >
+                    {macro === 'protein' ? 'Proteína' : macro === 'fat' ? 'Gordura' : 'Carboidrato'}
+                  </button>
+                ))}
+              </div>
+              {!config.fixedClosingMacro && (
+                <p className="mt-1 text-[10px] text-amber-600">
+                  Escolha qual macro deve fechar as calorias nos dias do ciclo.
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="grid gap-2 sm:grid-cols-3">
             {CARB_DAY_TYPES.map((type) => {
               const cfg = config.types[type];
@@ -97,7 +132,7 @@ export const CarbCyclingPanel = ({
                       <DecimalInput
                         ariaLabel={`Carboidrato ${CARB_DAY_TYPE_LABEL[type]} g/kg`}
                         value={cfg.carbsPerKg}
-                        onCommit={(v) => updateType(type, { carbsPerKg: v, carbGrams: null })}
+                        onCommit={(v) => replaceType(type, setCarbTypePerKg(cfg, v, body))}
                       />
                     </label>
                     <label className="block">
@@ -105,7 +140,7 @@ export const CarbCyclingPanel = ({
                       <DecimalInput
                         ariaLabel={`Carboidrato ${CARB_DAY_TYPE_LABEL[type]} gramas`}
                         value={cfg.carbGrams ?? result?.target?.c ?? null}
-                        onCommit={(v) => updateType(type, { carbGrams: v, carbsPerKg: null })}
+                        onCommit={(v) => replaceType(type, setCarbTypeGrams(cfg, v, body))}
                       />
                     </label>
                   </div>
@@ -114,11 +149,14 @@ export const CarbCyclingPanel = ({
                     <select
                       aria-label={`Base do carboidrato ${CARB_DAY_TYPE_LABEL[type]}`}
                       value={cfg.carbBasis}
-                      onChange={(e) => updateType(type, { carbBasis: e.target.value as MacroBasis })}
+                      onChange={(e) => replaceType(type, setCarbTypeBasis(cfg, e.target.value as MacroBasis, body))}
                       className="w-full rounded-md border border-border bg-secondary px-2 py-1 text-xs"
                     >
                       <option value="body_weight">{MACRO_BASIS_LABEL.body_weight}</option>
-                      <option value="lean_mass">{MACRO_BASIS_LABEL.lean_mass}</option>
+                      <option value="lean_mass" disabled={!body.leanMassKg}>
+                        {MACRO_BASIS_LABEL.lean_mass}
+                        {body.leanMassKg ? '' : ' (indisponível)'}
+                      </option>
                     </select>
                   </label>
                   {config.mode === 'fixed_calories' && (
@@ -181,10 +219,17 @@ export const CarbCyclingPanel = ({
 
           {weeklyAverage && (
             <div className="rounded-lg border border-border bg-background p-2 text-[11px] text-muted-foreground">
-              <p className="text-[10px] font-semibold uppercase">Média semanal</p>
+              <p className="text-[10px] font-semibold uppercase">
+                {weeklyAverage.complete ? 'Média semanal' : 'Semana incompleta'}
+              </p>
+              {!weeklyAverage.complete && (
+                <p className="text-amber-600">{weeklyAverage.incompleteMessage}</p>
+              )}
               <p>
-                <strong className="text-foreground">{num(weeklyAverage.average.kcal)} kcal/dia</strong>
-                {' · '}{num(weeklyAverage.weeklyKcal)} kcal/semana
+                <strong className="text-foreground">
+                  {weeklyAverage.complete ? `${num(weeklyAverage.average.kcal)} kcal/dia` : '—'}
+                </strong>
+                {weeklyAverage.complete ? ` · ${num(weeklyAverage.weeklyKcal)} kcal/semana` : ''}
               </p>
               <p>
                 P: {num(weeklyAverage.average.p)} g · C: {num(weeklyAverage.average.c)} g · G:{' '}
