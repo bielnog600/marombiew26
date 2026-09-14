@@ -1122,6 +1122,7 @@ serve(async (req) => {
       if (technicalFallbackUsed) {
         const validity = evaluateDietCandidateValidity({
           nutritionOk: nutrition.ok,
+          dayTargetsOk: initialDayTargets.ok,
           dailyAdjustmentsOk: initialAdjValidation.ok,
         });
         if (!validity.criticalValid) {
@@ -1153,6 +1154,7 @@ serve(async (req) => {
         quantityOnlyRatio: qOnly,
         primarySourceRepeatRatio,
         nutritionOk: nutrition.ok,
+        dayTargetsOk: initialDayTargets.ok,
         dailyAdjustmentsOk: initialAdjValidation.ok,
         technicalFallbackUsed,
         referenceDietProvided,
@@ -1274,7 +1276,7 @@ serve(async (req) => {
         emit({ phase: "fallback_review", reasons: fallbackReasons });
         const second = await fallbackCandidatePromise;
 
-        const criticalRetry = !nutrition.ok || !initialAdjValidation.ok;
+        const criticalRetry = !nutrition.ok || !initialAdjValidation.ok || !initialDayTargets.ok;
         const reviewRequired = (reason: string) => {
           fallbackReasons.push(reason);
           const meta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, null);
@@ -1305,6 +1307,7 @@ serve(async (req) => {
           const validity2 = evaluateDietCandidateValidity({
             nutritionOk: nut2.ok,
             dailyAdjustmentsOk: initialAdjValidation2.ok,
+            dayTargetsOk: checkDayTargets(second.plan).ok,
           });
           const criticalValid = validity2.criticalValid;
 
