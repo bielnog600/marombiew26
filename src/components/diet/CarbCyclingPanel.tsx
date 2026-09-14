@@ -12,9 +12,10 @@ import {
   setCarbTypeBasis,
   type WeeklyAverage,
   type BaseComparison,
+  FIXED_CLOSING_MACRO_OPTIONS,
 } from '@/lib/carbCycling';
 import { WEEKDAY_KEYS, type WeekdayKey } from '@/lib/dietDayTargets';
-import { MACRO_BASIS_LABEL, type MacroBasis, type MacroKey, type BodyBasis } from '@/lib/macroConfig';
+import { MACRO_BASIS_LABEL, type MacroBasis, type BodyBasis } from '@/lib/macroConfig';
 
 const WEEKDAY_LABEL: Record<WeekdayKey, string> = {
   seg: 'Seg', ter: 'Ter', qua: 'Qua', qui: 'Qui', sex: 'Sex', sab: 'Sáb', dom: 'Dom',
