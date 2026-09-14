@@ -55,52 +55,35 @@ const parseQuantityGrams = (qty?: string) => {
   return firstNumber ? Number(firstNumber[0]) || 0 : 0;
 };
 
-const normalizeFoodName = (value: string) =>
-  value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\([^)]*\)/g, ' ')
-    .replace(/\b(cozid[oa]|grelhad[oa]|assad[oa]|cru[ao]|refogad[oa]|integral|branc[oa])\b/g, ' ')
-    .replace(/[^a-z0-9\s]/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-
-const findFoodRecord = (foodName: string, foods: FoodMacroRecord[]) => {
-  const normalized = normalizeFoodName(foodName);
-  if (!normalized) return null;
-
-  const exact = foods.find((food) => normalizeFoodName(food.name) === normalized);
-  if (exact) return exact;
-
-  return foods.find((food) => {
-    const dbName = normalizeFoodName(food.name);
-    return dbName && (normalized.includes(dbName) || dbName.includes(normalized));
-  }) || null;
-};
-
-const calculateFoodMacros = (food: ParsedFood, foods: FoodMacroRecord[]): DietMacroTotals & { matched: boolean } => {
-  const record = findFoodRecord(food.food, foods);
+/**
+ * O cálculo é delegado ao nutritionEngine: a base `foods` é a autoridade e a
+ * correspondência é exata pelo nome normalizado (sem fuzzy match silencioso).
+ */
+const calculateFoodMacros = (
+  food: ParsedFood,
+  index: FoodIndex,
+): DietMacroTotals & { matched: boolean } => {
   const grams = parseQuantityGrams(food.qty);
-
-  if (record && grams > 0) {
-    const base = record.portion_size || 100;
-    const scale = grams / base;
-    return {
-      calories: record.calories * scale,
-      protein: record.protein * scale,
-      carbs: record.carbs * scale,
-      fats: record.fats * scale,
-      matched: true,
-    };
-  }
-
+  const computed = computeItemMacros(
+    {
+      name: food.food,
+      qtyGrams: grams,
+      macros: {
+        kcal: parseNumber(food.kcal),
+        p: parseNumber(food.p),
+        c: parseNumber(food.c),
+        g: parseNumber(food.g),
+      },
+    },
+    index,
+  );
+  const validated = computed.validated && grams > 0;
   return {
-    calories: parseNumber(food.kcal),
-    protein: parseNumber(food.p),
-    carbs: parseNumber(food.c),
-    fats: parseNumber(food.g),
-    matched: false,
+    calories: computed.macros.kcal,
+    protein: computed.macros.p,
+    carbs: computed.macros.c,
+    fats: computed.macros.g,
+    matched: validated,
   };
 };
 
@@ -126,20 +109,31 @@ export const validateDietMacros = (
   const sections = parseSections(markdown);
   const meals = sections.flatMap((section) => (section.type === 'meal' ? section.meals || [] : []));
   const unmatched = new Set<string>();
+  const index = buildFoodIndex(
+    (foods ?? []).map((f, i) => ({
+      id: (f as { id?: string }).id ?? `food-${i}`,
+      name: f.name,
+      portion_size: f.portion_size ?? 100,
+      calories: f.calories,
+      protein: f.protein,
+      carbs: f.carbs,
+      fats: f.fats,
+    })),
+  );
 
+  // Soma em precisão integral — nunca somando valores já arredondados.
   let generated: DietMacroTotals = { calories: 0, protein: 0, carbs: 0, fats: 0 };
   const mealTotals = meals.map((meal: ParsedMeal) => {
     let mealTotal: DietMacroTotals = { calories: 0, protein: 0, carbs: 0, fats: 0 };
 
     for (const food of meal.foods) {
-      const macros = calculateFoodMacros(food, foods);
+      const macros = calculateFoodMacros(food, index);
       if (!macros.matched) unmatched.add(food.food);
       mealTotal = addTotals(mealTotal, macros);
     }
 
-    mealTotal = roundTotals(mealTotal);
     generated = addTotals(generated, mealTotal);
-    return { meal: meal.name, ...mealTotal };
+    return { meal: meal.name, ...roundTotals(mealTotal) };
   });
 
   generated = roundTotals(generated);
