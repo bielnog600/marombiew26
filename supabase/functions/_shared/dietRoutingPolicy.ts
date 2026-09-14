@@ -22,6 +22,8 @@ export type DietCandidateSignals = {
   dailyAdjustmentsOk: boolean;
   /** Phase 3: per-weekday deterministic targets. Defaults to true (no cycle). */
   dayTargetsOk?: boolean;
+  /** Phase 4: every foodId returned by the model exists in the catalog. */
+  foodContractOk?: boolean;
   /** True when the candidate already came from a Terra technical fallback. */
   technicalFallbackUsed: boolean;
   /**
