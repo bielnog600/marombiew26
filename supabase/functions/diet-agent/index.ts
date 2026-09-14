@@ -52,6 +52,7 @@ import {
   type FoodCatalog,
 } from "../_shared/foodCatalog.ts";
 import { validateFoodContract } from "../_shared/foodContract.ts";
+import { FOOD_CONTRACT_VERSION } from "../_shared/nutritionCore.ts";
 import { hydrateDietPlanFromFoods } from "../_shared/dietHydration.ts";
 
 const corsHeaders = {
