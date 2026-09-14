@@ -3082,12 +3082,30 @@ ${generated}`;
                 </ul>
                 <p className="mt-2 text-[11px] text-amber-700">Volte para “Ajustes Finos do Protocolo” e defina uma meta manual.</p>
               </div>
+            ) : carbCycling.enabled ? (
+              <div className="rounded-lg border border-border bg-secondary/30 p-3 space-y-1">
+                <p className="text-xs font-semibold">Metas controladas pelo Carb Cycling.</p>
+                {WEEKDAY_KEYS.map((wd) => {
+                  const d = weeklyCarbTargets[wd];
+                  return (
+                    <p key={wd} className="text-[11px] text-muted-foreground">
+                      {WEEKDAY_LABELS[wd as EnergyWeekday]} · {d ? `${d.type.toUpperCase()} · ${d.kcal} kcal · P ${d.p}g · C ${d.c}g · G ${d.g}g` : 'sem meta válida'}
+                    </p>
+                  );
+                })}
+                <p className="text-[10px] text-muted-foreground">
+                  Ajustes por dia ficam desativados aqui para não somar duas vezes as mesmas calorias.
+                </p>
+              </div>
             ) : (
               <WeeklyEnergyScheduleStep
                 schedule={weeklySchedule}
                 onChange={handleScheduleChange}
                 noActiveWorkout={noActiveWorkout}
               />
+            )}
+            {!carbCyclingValidity.valid && carbCyclingValidity.reason && (
+              <p className="text-[11px] text-amber-600">{carbCyclingValidity.reason}</p>
             )}
             {scheduleWarnings.length > 0 && (
               <div className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 space-y-1">
