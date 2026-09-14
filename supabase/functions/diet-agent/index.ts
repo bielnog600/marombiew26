@@ -534,6 +534,7 @@ serve(async (req) => {
       intent: rawIntent,
       referenceDietProvided: rawReferenceDietProvided,
       progressStream: rawProgressStream,
+      allowedUnresolvedFoodNames: rawAllowedUnresolvedFoodNames,
     } = await req.json();
     const referenceDietProvided = Boolean(rawReferenceDietProvided);
     const wantsProgressStream = Boolean(rawProgressStream);
@@ -543,7 +544,14 @@ serve(async (req) => {
 
     // Fase 4: uma única leitura do catálogo com IDs reais por requisição.
     const foodCatalog = await loadCatalogOnce();
-    const foodDatabase = formatFoodCatalogPrompt(foodCatalog);
+    const allowedUnresolvedNames = resolveAllowedUnresolvedNames(
+      Array.isArray(rawAllowedUnresolvedFoodNames) ? rawAllowedUnresolvedFoodNames : [],
+      foodCatalog,
+    );
+    const unresolvedBlock = allowedUnresolvedNames.length
+      ? `\nALIMENTOS SEM CADASTRO AUTORIZADOS (use "foodId": null e o nome exato):\n${allowedUnresolvedNames.map((n) => `- ${n}`).join("\n")}\n`
+      : "";
+    const foodDatabase = formatFoodCatalogPrompt(foodCatalog) + unresolvedBlock;
     const SYSTEM_PROMPT = SYSTEM_PROMPT_TEMPLATE.replace("{{FOOD_DATABASE}}", foodDatabase);
 
     let contextMessage = "";
