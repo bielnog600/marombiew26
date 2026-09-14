@@ -23,6 +23,9 @@ export interface UnresolvedItemRef {
   meal: string;
   name: string;
   ambiguous: boolean;
+  reason: "no_food_id" | "ambiguous_name" | "not_found";
+  /** Preenchido quando o alimento foi autorizado antes da geração. */
+  authorizationSource?: string;
 }
 
 export interface HydrationResult {
