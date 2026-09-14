@@ -1,54 +1,58 @@
-# Camada de Periodização — Plano de Implementação
+# Geração e edição de dietas — macros confiáveis e controle do treinador
 
-## Auditoria (o que já existe e será reutilizado)
+Objetivo: a tabela `foods` passa a ser a única autoridade nutricional. A IA monta a estrutura (alimentos + quantidade), o app calcula tudo, ajusta porções de forma determinística e só libera a publicação quando os números fecham.
 
-- `ai_plans` já tem `fase` (semana_1/2/3/deload), `fase_inicio_data`, `cycle_days` (45 = ciclo inteiro), `version`, `parent_plan_id`, `protocols` (jsonb), `renewal_mode`, `cycle_status`, `is_draft`.
-- `src/lib/trainingPhase.ts` + `src/lib/currentPhase.ts` já são a fonte única da fase semanal → viram **week strategy** dentro do modelo maior (nada é removido).
-- `weekContext.ts` / `weeklyTraining.ts` / `weeklyProgression.ts` / `quantitativeProgression.ts` já resolvem janela, aderência, performance e progressão determinística → serão consumidos pelo resolver, sem duplicar matemática.
-- `workout-renewal-analyzer` já decide renovação por ciclo → recebe a decisão do resolver.
-- `trainer-agent` já recebe contexto estruturado (nível, dias, split, equipamento, restrições, referência) → ganha bloco de periodização.
-- `TreinoIA.tsx` já tem seletores (nível, dias, split, semana) → ganha o seletor de periodização no mesmo padrão.
+## Fase 1 — Motor único de nutrição
 
-Sem arquitetura paralela: a periodização é uma camada acima das fases já existentes.
+Novo módulo central (`src/lib/nutritionEngine.ts`) que passa a ser o único lugar que calcula:
+- macros de um alimento (`qtyGrams / portion_size` × valores da base)
+- total da refeição, total do dia, diferença para a meta
+- classificação automática do papel do alimento: proteína, carboidrato, gordura, misto ou pouco calórico
 
-## Etapas
+Tudo que hoje calcula por conta própria (validação, cards, editor, PDF) passa a chamar esse motor. O validador atual baseado no texto da IA é substituído: a checagem final sempre usa `foods` + gramas.
 
-**B — Schema (backward-compatible)**
-Migration aditiva em `ai_plans`, tudo nullable com fallback `legacy`:
-`periodization_model`, `periodization_reason`, `macrocycle_weeks`, `block_type`, `block_number`, `block_total`, `block_start_date`, `block_end_date`, `week_number`, `week_strategy`, `volume_target` (low/moderate/moderate_high/high), `load_intensity_target`, `effort_target` (RIR), `rep_strategy`, `next_block_type`.
-Enums em TS (não no banco) para evoluir sem migration: modelos `automatica | linear | ondulatoria | blocos | concorrente` + preparados `linear_reversa | trifasica` (não selecionáveis nesta versão). Planos antigos → `legacy` resolvido como linear equivalente.
+## Fase 2 — Calorias e macros configuráveis
 
-**C — Periodization Resolver (`src/lib/periodization.ts`, determinístico)**
-- `selectModel(ctx)`: heurística com candidatos elegíveis + motivo textual (iniciante/2–4 dias → linear; intermediário-avançado com múltiplos estímulos → ondulatória; objetivo por fases → blocos; musculação + cardio/corrida → concorrente). A IA só escolhe dentro dos elegíveis.
-- `resolveWeekStrategy(model, weekNumber, blockType)`: mapeia S1/S2/S3/S4 para volume/intensidade/RIR/faixa de reps por modelo.
-- `resolveNextStep(state, adherence, performance, feedback)`: `continue_block | advance_block | deload | repeat_week | review_required`. Nunca avança só por tempo; dados insuficientes → regra temporal conservadora ou review.
-- Espelhado em `supabase/functions/_shared/periodization.ts` (mesma lógica para o agente).
+Nova área de configuração antes da geração:
+- fórmula de gasto energético escolhida por regras (peso, altura, idade, %gordura, massa magra, atividade, rotina de treino), com Cunningham permitido sempre que a massa magra for confiável — sem corte rígido de %gordura
+- medicamentos/hormônios entram como contexto, nunca alteram o gasto estimado
+- exibição clara de Fórmula, TMB, GET e Meta calórica
+- Proteína / Gordura / Carboidrato com campo g/kg e campo em gramas ligados nos dois sentidos, base selecionável (peso corporal ou massa magra)
+- cadeado por macro: os travados são fixos, o livre fecha a conta. Combinação impossível mostra erro explícito ("ultrapassa a meta em 250 kcal"), nunca aceita em silêncio
 
-**E/F — Contexto e efeito real na prescrição**
-`trainer-agent` recebe PERIODIZATION_MODEL, BLOCK, BLOCK_NUMBER/TOTAL, WEEK, WEEK_STRATEGY, VOLUME_TARGET, INTENSITY_TARGET, RIR_TARGET, PREVIOUS/NEXT_BLOCK. Cada modelo altera de fato a saída:
-- linear → progressão entre semanas, anchors fixos;
-- ondulatória → faixas de reps/ênfase distintas por sessão (tensão/hipertrofia/volume), proibido dois dias quase iguais;
-- blocos → característica do bloco domina volume/intensidade/acessórios;
-- concorrente → coordena com cardio, evita dias duros consecutivos (regras conservadoras).
-Validador determinístico pós-geração: modelo/bloco/semana válidos, coerência modelo×estratégia, deload não vira overload, volume dentro da faixa, ondulatória com dias realmente diferenciados. Falha → retry com motivo (mesmo padrão dos validadores atuais).
+## Fase 3 — Carb cycling reformulado
 
-**D — UI do gerador**
-Em `TreinoIA.tsx`, bloco "Periodização" com Automática (default) / Linear / Ondulatória / Por blocos / Concorrente, cada uma com descrição de uma linha. Automática mostra o modelo escolhido + motivo após gerar.
+Dois modos:
+- **Calorias variáveis** (padrão): proteína e gordura constantes, carboidrato em g/kg por tipo de dia (LOW / MEDIUM / HIGH). As calorias do dia seguem o carboidrato.
+- **Calorias fixas**: kcal iguais todos os dias; o macro livre se ajusta, com aviso quando o resultado ficar extremo ("a gordura precisaria ficar em 145 g").
 
-**G — Renovação**
-`workout-renewal-analyzer` passa a chamar o resolver antes do agente: performance + aderência + feedback → próximo bloco/semana → geração → validadores → rascunho. Anchors classificados MANTER/PROGREDIR/ROTACIONAR/REMOVER; gate de similaridade atual mantido (queda drástica sem razão técnica → review).
+Tela por dia da semana mostrando treino do dia (do plano ativo quando existir), tipo de dia, g/kg, gramas de carboidrato e kcal. Cada dia guarda sua própria meta, e o editor daquele dia usa exatamente essa meta.
 
-**Progressão**
-`quantitativeProgression` continua determinística; o bloco só define o contexto (acumulação prioriza reps/volume, intensificação prioriza carga, deload sem overload agressivo).
+## Fase 4 — Geração com a IA no papel certo
 
-**H — Telas**
-- Card "Periodização" no plano (admin e aluno) com modelo, bloco X de Y, semana N/4, objetivo, volume, intensidade, RIR, próximo bloco. Linguagem simples para o aluno, detalhe técnico no admin.
-- Home admin: rascunho automático mostra modelo + bloco.
+- Contrato da geração muda para `foodId` + `qtyGrams`; kcal/P/C/G devolvidos pela IA são descartados
+- Alimento sugerido que não existe na base aparece marcado como "Não validado", com as opções: associar a um alimento existente, cadastrar, substituir ou remover
+- `foods` ganha marca, origem, código de barras e identificador externo, para suportar produtos específicos (Whey Optimum, Skyr Arla, etc.)
 
-**I — Testes** (`src/test/periodization.test.ts`) cobrindo os 18 casos da especificação: elegibilidade automática, respeito à escolha manual, efeito de cada modelo, metadados de bloco, cardio no concorrente, plano legado, anchors na renovação, similaridade, deload, determinismo da progressão e build.
+## Fase 5 — Edição e ajuste automático
 
-## Fora desta versão
-Trifásica completa, %1RM, CTL/ATL/TSB, diagnóstico de fadiga, auto-publicação, ferramentas de distribuição (piramidal/high-low/polarizada) — apenas o espaço no schema.
+No topo do plano: Meta do dia / Atual / Diferença, recalculados a cada alteração.
 
-## Entrega
-Implementação em etapas B→I nesta ordem, com relatório final (arquitetura, reuso das fases, schema, decisão automática, integrações, telas, migrations, testes PASS/FAIL, débitos técnicos).
+Ações por alimento: editar quantidade, trocar (busca na base), remover, adicionar e transferir para outra refeição. Transferência não dispara reajuste — só muda a distribuição.
+
+Botão **Ajustar automaticamente** (sem IA): algoritmo determinístico que mexe só nas quantidades, priorizando os alimentos do macro que está faltando ou sobrando, e mostra uma prévia (antes/depois, item por item) com Cancelar / Aplicar. Substituição de alimentos só no modo opcional "Permitir substituições".
+
+## Fase 6 — Publicação e compatibilidade
+
+Publicação bloqueada com alimento não validado, macros fora da tolerância (±50 kcal, ±10 P, ±15 C, ±8 G) ou meta do dia conflitante. Planos antigos continuam abrindo; quando o recálculo pela base divergir, aparece aviso em vez de alteração silenciosa.
+
+## Detalhes técnicos
+
+- Novo `src/lib/nutritionEngine.ts` (cálculo, papéis de macro, diferença, ajuste determinístico) e `src/lib/macroConfig.ts` (g/kg bidirecional, travas, validação de combinação).
+- `dietMacroValidation.ts` e `dietValidation.ts` passam a delegar ao motor; `dietValidation` mantém apenas as regras de estrutura do plano.
+- `carbCycling.ts` reescrito com os dois modos e g/kg por tipo de dia; `weeklyEnergy.ts` guarda o modo e os macros por dia; `dietDayTargets.resolveDayTarget` permanece a fonte única e passa a devolver também P/C/G.
+- Migração em `foods`: `brand`, `source`, `barcode`, `source_food_id` (nullable) + grants.
+- `diet-agent` e `diet-edit-agent`: novo contrato de saída e remoção das instruções que pedem macros à IA.
+- Testes novos para motor, travas de macro, carb cycling e ajuste automático.
+
+Ordem de entrega: Fases 1-2, depois 3, depois 4-5, depois 6. Cada fase entra sem quebrar a geração atual.
