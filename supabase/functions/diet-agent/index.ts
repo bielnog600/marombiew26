@@ -234,6 +234,7 @@ function buildLayeredInstructions(dietConfig: any, trainingContext: any): string
     lines.push('  - Ajuste positivo (dia com mais kcal): usar SOMENTE action = "add" nas instruções.');
     lines.push('  - Ajuste negativo (dia com menos kcal): usar SOMENTE action = "remove" nas instruções.');
     lines.push('  - unit deve ser "g" (gramas) sempre que possível.');
+    lines.push('  - "food_id" é OBRIGATÓRIO e deve existir no FOOD CATALOG; o nome é apenas leitura humana.');
     lines.push('  - Não invente propriedades adicionais. O servidor normaliza e valida antes de aceitar a resposta.');
     lines.push('  - Este campo NÃO substitui days[]. É complementar.');
   }
