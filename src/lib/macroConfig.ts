@@ -40,6 +40,7 @@ export interface BodyBasis {
 export type MacroConfig = Record<MacroKey, MacroSetting>;
 
 const finite = (v: unknown): number | null => {
+  if (v === null || v === undefined || v === '') return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 };
