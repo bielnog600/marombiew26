@@ -226,20 +226,21 @@ export const CarbCyclingPanel = ({
               <p className="text-[10px] font-semibold uppercase">
                 {weeklyAverage.complete ? 'Média semanal' : 'Semana incompleta'}
               </p>
-              {!weeklyAverage.complete && (
+              {!weeklyAverage.complete ? (
                 <p className="text-amber-600">{weeklyAverage.incompleteMessage}</p>
+              ) : (
+                <>
+                  <p>
+                    <strong className="text-foreground">{num(weeklyAverage.average.kcal)} kcal/dia</strong>
+                    {` · ${num(weeklyAverage.weeklyKcal)} kcal/semana`}
+                  </p>
+                  <p>
+                    P: {num(weeklyAverage.average.p)} g · C: {num(weeklyAverage.average.c)} g · G:{' '}
+                    {num(weeklyAverage.average.g)} g
+                  </p>
+                </>
               )}
-              <p>
-                <strong className="text-foreground">
-                  {weeklyAverage.complete ? `${num(weeklyAverage.average.kcal)} kcal/dia` : '—'}
-                </strong>
-                {weeklyAverage.complete ? ` · ${num(weeklyAverage.weeklyKcal)} kcal/semana` : ''}
-              </p>
-              <p>
-                P: {num(weeklyAverage.average.p)} g · C: {num(weeklyAverage.average.c)} g · G:{' '}
-                {num(weeklyAverage.average.g)} g
-              </p>
-              {comparison && (
+              {weeklyAverage.complete && comparison && (
                 <p>
                   Meta base: {num(comparison.baseKcal)} kcal · Diferença média:{' '}
                   {comparison.diffPerDay > 0 ? '+' : ''}{num(comparison.diffPerDay)} kcal/dia (
