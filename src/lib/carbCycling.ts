@@ -320,13 +320,17 @@ export const buildCarbDayTypeTargets = ({
     }
 
     if (mode === 'variable_calories') {
-      // P e G constantes, derivados da configuração canônica (nunca copiados).
+      // P e G constantes: preferencialmente os macros CANÔNICOS já resolvidos
+      // pela Fase 2 (inclui o macro que fechou as calorias). Só quando a
+      // resolução não estiver disponível caímos na configuração declarada.
       const protein =
+        baseResolvedMacros?.p ??
         macroConfig.protein.grams ??
         (macroConfig.protein.perKg != null
           ? gramsFromPerKg(macroConfig.protein.perKg, macroConfig.protein.basis, body)
           : null);
       const fat =
+        baseResolvedMacros?.g ??
         macroConfig.fat.grams ??
         (macroConfig.fat.perKg != null
           ? gramsFromPerKg(macroConfig.fat.perKg, macroConfig.fat.basis, body)
