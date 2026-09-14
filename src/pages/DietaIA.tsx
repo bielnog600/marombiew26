@@ -21,6 +21,7 @@ import { validateDietJSON } from '@/lib/planMigrationUtils';
 import { markdownToDietPlan } from '@/lib/dietPlanAdapter';
 import { finalizeDietPlan } from '@/lib/dietValidation';
 import { parseDietPlanStrict, parseDietPlanLoose, type DietPlan } from '@/lib/dietSchema';
+import { buildAllowedUnresolvedFromModelDiet } from '@/lib/modelDietFoods';
 import { dietPlanToMarkdown } from '@/lib/dietMarkdownSerializer';
 import { extractTrainingContext } from '@/lib/trainingContextExtractor';
 import { parseTrainingSections } from '@/lib/trainingResultParser';
