@@ -1392,6 +1392,13 @@ serve(async (req) => {
               : []),
           );
         }
+        if (!globalTargetReport.ok) {
+          retryParts.unshift(
+            "🚨 METAS NUTRICIONAIS FORA DA TOLERÂNCIA (calculadas pela base de alimentos, não pelos seus números):",
+            ...globalTargetReport.issues.slice(0, 8).map((i) => `• ${i}`),
+            "Ajuste as QUANTIDADES (qtyGrams) para fechar a meta. Tolerância: ±50 kcal, ±10 g P, ±15 g C, ±8 g G.",
+          );
+        }
         const forceMenuVariation =
           !referenceDietProvided &&
           (intent === "regenerate" ||
