@@ -89,7 +89,18 @@ export const resolveDayTarget = ({
   planTargetKcal,
   currentTotalKcal,
   planTargetMacros,
+  dayTarget,
 }: ResolveDayTargetInput): DayTarget => {
+  // 1. Explicit/materialised target of the day (carb cycling) — absolute.
+  const explicitKcal = positive(dayTarget?.kcal);
+  if (explicitKcal) {
+    return {
+      kcal: explicitKcal,
+      p: macro(dayTarget?.p) || macro(planTargetMacros?.p),
+      c: macro(dayTarget?.c) || macro(planTargetMacros?.c),
+      g: macro(dayTarget?.g) || macro(planTargetMacros?.g),
+    };
+  }
   const fromSchedule = scheduleDayTarget(schedule, dayIndex, planTargetKcal);
   const kcal = fromSchedule ?? positive(planTargetKcal) ?? positive(currentTotalKcal) ?? 0;
   return {
