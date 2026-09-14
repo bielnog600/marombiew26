@@ -293,8 +293,9 @@ export const computeMealTotals = (
   items: EngineItem[],
   index: FoodIndex,
   mode: PlanMode = 'draft',
+  policy: ResolutionPolicy = 'legacy',
 ): MealComputation => {
-  const computed = (items ?? []).map((it) => computeItemMacros(it, index, mode));
+  const computed = (items ?? []).map((it) => computeItemMacros(it, index, mode, policy));
   const totals = computed.reduce<EngineMacros>((acc, it) => addMacros(acc, it.macros), ZERO_MACROS);
   return {
     items: computed,
