@@ -104,6 +104,7 @@ export function shouldRetryDietCandidate(s: DietCandidateSignals): boolean {
     nutritionOk: s.nutritionOk,
     dailyAdjustmentsOk: s.dailyAdjustmentsOk,
     dayTargetsOk: s.dayTargetsOk,
+    foodContractOk: s.foodContractOk,
   });
   return !criticalValid || needsDietVariationRetry(s);
 }
