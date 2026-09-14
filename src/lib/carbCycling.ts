@@ -297,6 +297,7 @@ export const buildCarbDayTypeTargets = ({
   body,
   baseKcal,
   closingMacro,
+  baseResolvedMacros,
 }: BuildCarbDayTypeInput): Record<CarbDayType, CarbDayTypeResult> => {
   const out = {} as Record<CarbDayType, CarbDayTypeResult>;
 
