@@ -236,3 +236,49 @@ describe('energyFormula', () => {
     expect(applyMedicationEnergyAdjustment(2800)).toBe(2800);
   });
 });
+
+describe('Fase 2 — integração da configuração de macros', () => {
+  const body = { weightKg: 88, leanMassKg: 73.5 };
+
+  it('perfil real: 2,2 g/kg → 193,6 g e 200 g → 2,27 g/kg', () => {
+    expect(gramsFromPerKg(2.2, 'body_weight', body)).toBeCloseTo(193.6, 1);
+    expect(perKgFromGrams(200, 'body_weight', body)).toBeCloseTo(2.27, 2);
+  });
+
+  it('troca da base peso → massa magra recalcula as gramas', () => {
+    const s = setMacroBasis({ perKg: 2.2, grams: 193.6, basis: 'body_weight', locked: true }, 'lean_mass', body);
+    expect(s.grams).toBeCloseTo(161.7, 1);
+  });
+
+  it('destravar o carboidrato faz ele fechar a meta', () => {
+    const config: MacroConfig = {
+      protein: { perKg: 2.2, grams: null, basis: 'body_weight', locked: true },
+      fat: { perKg: 0.8, grams: null, basis: 'body_weight', locked: true },
+      carbs: { perKg: null, grams: null, basis: 'body_weight', locked: false },
+    };
+    const r = resolveMacroConfig({ kcalTarget: 2750, config, body });
+    expect(r.status).toBe('ok');
+    expect(r.closingMacro).toBe('carbs');
+    const kcal = r.grams!.protein * 4 + r.grams!.carbs * 4 + r.grams!.fat * 9;
+    expect(Math.abs(kcal - 2750)).toBeLessThanOrEqual(2);
+  });
+
+  it('combinação inviável impede a geração (status ≠ ok)', () => {
+    const config: MacroConfig = {
+      protein: { perKg: null, grams: 250, basis: 'body_weight', locked: true },
+      fat: { perKg: null, grams: 120, basis: 'body_weight', locked: true },
+      carbs: { perKg: null, grams: 250, basis: 'body_weight', locked: true },
+    };
+    const r = resolveMacroConfig({ kcalTarget: 2500, config, body });
+    expect(r.status).not.toBe('ok');
+    expect(r.message).toContain('kcal');
+  });
+
+  it('uso hormonal não altera o resultado energético', () => {
+    const base = { sex: 'male' as const, weightKg: 88, heightCm: 182, ageYears: 35 };
+    const a = selectEnergyFormula({ ...base, leanMass: { kg: 73.5 } });
+    const b = selectEnergyFormula({ ...base, leanMass: { kg: 73.5 } });
+    expect(a.bmr).toBe(b.bmr);
+    expect(applyMedicationEnergyAdjustment(a.bmr)).toBe(a.bmr);
+  });
+});
