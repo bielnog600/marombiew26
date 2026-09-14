@@ -1412,7 +1412,8 @@ serve(async (req) => {
         const second = await fallbackCandidatePromise;
 
         const criticalRetry =
-          !foodContract.valid || !nutrition.ok || !initialAdjValidation.ok || !initialDayTargets.ok;
+          !foodContract.valid || !nutrition.ok || !initialAdjValidation.ok ||
+          !initialDayTargets.ok || !globalTargetReport.ok;
         const reviewRequired = (reason: string) => {
           fallbackReasons.push(reason);
           const meta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, null);
