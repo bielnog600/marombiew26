@@ -67,11 +67,10 @@ describe('Fase 3 — carb cycling', () => {
     const m = macros();
     const t = buildCarbDayTypeTargets({
       mode: 'fixed_calories',
-      carbCycling: cfg(),
+      carbCycling: cfg({ fixedClosingMacro: 'fat' }),
       macroConfig: { ...m, fat: { ...m.fat, locked: false } },
       body,
       baseKcal: BASE_KCAL,
-      closingMacro: 'fat',
     });
     expect(t.low.target!.kcal).toBe(BASE_KCAL);
     expect(t.high.target!.kcal).toBe(BASE_KCAL);
@@ -110,7 +109,7 @@ describe('Fase 3 — carb cycling', () => {
     expect(suggestCarbDayTypeForWorkout({ label: 'Peito e tríceps' })).toBe('medium');
     expect(suggestCarbDayTypeForWorkout({ label: 'Descanso' })).toBe('low');
     expect(suggestCarbDayTypeForWorkout({ label: 'Cardio leve' })).toBe('low');
-    expect(suggestCarbDayTypeForWorkout(null)).toBe('low');
+    expect(suggestCarbDayTypeForWorkout(null)).toBe('medium');
   });
 
   it('J — escolha manual do dia sobrescreve a sugestão', () => {
@@ -160,11 +159,10 @@ describe('Fase 3 — carb cycling', () => {
     const m = macros();
     const t = buildCarbDayTypeTargets({
       mode: 'fixed_calories',
-      carbCycling: cfg(),
+      carbCycling: cfg({ fixedClosingMacro: 'fat' }),
       macroConfig: { ...m, fat: { ...m.fat, locked: false } },
       body,
       baseKcal: 900,
-      closingMacro: 'fat',
     });
     expect(t.high.status).not.toBe('ok');
     expect(t.high.target).toBeNull();
