@@ -12,6 +12,7 @@ import {
   NUTRITION_SNAPSHOT_VERSION,
   ZERO_MACROS,
   computeItemMacros,
+  normalizeFoodName,
   roundForDisplay,
   type EngineMacros,
   type ResolutionPolicy,
