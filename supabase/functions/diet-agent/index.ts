@@ -1089,6 +1089,28 @@ serve(async (req) => {
         candidatePlan = first.plan;
       }
 
+      // === Fase 4: contrato de alimentos + hidratação pela base ===
+      // A IA só entrega foodId + qtyGrams. Aqui validamos os IDs e reconstruímos
+      // nome, macros e totais a partir da tabela `foods`. Qualquer valor
+      // nutricional devolvido pelo modelo é descartado ANTES de qualquer validação.
+      const prepareCandidate = (rawPlan: any) => {
+        const contract = validateFoodContract(rawPlan, foodCatalog, allowedUnresolvedNames);
+        const hydrated = hydrateDietPlanFromFoods(rawPlan, foodCatalog, "strict_id");
+        return { plan: hydrated.plan, contract, unresolvedItems: hydrated.unresolvedItems };
+      };
+
+      let prepared = prepareCandidate(candidatePlan);
+      candidatePlan = prepared.plan;
+      let foodContract = prepared.contract;
+      let unresolvedItems = prepared.unresolvedItems;
+      console.log("[diet-agent] food_contract", {
+        model: selectedModel,
+        ok: foodContract.valid,
+        invalidFoodIds: foodContract.invalidFoodIds.length,
+        missingFoodIds: foodContract.missingFoodIds.length,
+        unresolvedAllowed: foodContract.unresolvedAllowed.length,
+      });
+
       const historyJsons = history
         .map((h) => h.conteudo_json)
         .filter((j) => j && typeof j === "object") as any[];
