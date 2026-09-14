@@ -58,7 +58,6 @@ import {
 } from '@/lib/variationProfiles';
 import { computeViabilityScore, describeViability, type ViabilityBreakdown } from '@/lib/dietViability';
 import { buildClosePatch, buildFailPatch, orphanCutoffISO } from '@/lib/dietActionApplier';
-import { buildCarbCyclePlan } from '@/lib/carbCycling';
 import { detectNewFoodsFromPlan, normalizeFoodName, type NewFoodCandidate } from '@/lib/newFoodsDetector';
 import NewFoodsFromPlanCard from '@/components/diet/NewFoodsFromPlanCard';
 import DietValidationBadge from '@/components/diet/DietValidationBadge';
@@ -89,6 +88,7 @@ import {
   calculateWeeklyAverage,
   compareWeeklyAverageToBase,
   suggestCarbDayTypeForWorkout,
+  isCarbCyclingValid,
   type CarbCyclingConfig,
   type CarbDayType,
 } from '@/lib/carbCycling';
@@ -882,6 +882,21 @@ const DietaIA = () => {
             }
             setScheduleAdjustments(nextAdj);
           }
+        }
+        // Fase 3: restaurar integralmente a configuração de carb cycling.
+        const cc = p.carb_cycling;
+        if (cc && typeof cc === 'object') {
+          setCarbCycling((prev) => ({
+            ...prev,
+            enabled: !!cc.enabled,
+            mode: cc.mode === 'fixed_calories' ? 'fixed_calories' : 'variable_calories',
+            types: { ...prev.types, ...(cc.types ?? {}) },
+            assignments: { ...prev.assignments, ...(cc.assignments ?? {}) },
+            manual: { ...prev.manual, ...(cc.manual ?? {}) },
+            fixedClosingMacro: cc.fixedClosingMacro ?? null,
+          }));
+        }
+        if (wes && typeof wes === 'object') {
           if (wes.generated_adjustments && typeof wes.generated_adjustments === 'object') {
             setDailyAdjustments(wes.generated_adjustments as DailyAdjustments);
           }
@@ -1377,9 +1392,16 @@ const DietaIA = () => {
   };
 
   const toggleAdjustment = (id: string) => {
-    setSelectedAdjustments(prev =>
-      prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]
-    );
+    setSelectedAdjustments(prev => {
+      const next = prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id];
+      // O ajuste antigo "Carb Cycling" virou apenas um atalho para a Fase 3:
+      // existe uma única implementação e um único interruptor.
+      if (id === 'carb_cycling') {
+        const enabled = next.includes('carb_cycling');
+        setCarbCycling(prevCycle => (prevCycle.enabled === enabled ? prevCycle : { ...prevCycle, enabled }));
+      }
+      return next;
+    });
   };
 
   const toggleRestriction = (r: string) => {
@@ -1554,7 +1576,14 @@ const DietaIA = () => {
     }
   };
 
-  const canGenerate = Boolean(activityLevel && strategy && mealCount && phase && weeklySchedule && baseKcalIssues.length === 0 && macroResolution.status === 'ok');
+  const carbCyclingValidity = useMemo(
+    () => isCarbCyclingValid(carbCycling, carbTypeTargets, weeklyCarbTargets),
+    [carbCycling, carbTypeTargets, weeklyCarbTargets],
+  );
+  const canGenerate = Boolean(
+    activityLevel && strategy && mealCount && phase && weeklySchedule &&
+    baseKcalIssues.length === 0 && macroResolution.status === 'ok' && carbCyclingValidity.valid,
+  );
 
   const streamDietAgent = async (
     messages: { role: 'user' | 'assistant'; content: string }[],
@@ -1810,7 +1839,8 @@ const DietaIA = () => {
 
     // Inject targets if model didn't echo them
     if (raw.targets) {
-      raw.targets = { ...targets, ...raw.targets };
+      // Autoridade determinística: os targets do app vencem os da IA.
+      raw.targets = { ...raw.targets, ...targets };
     } else {
       raw.targets = targets;
     }
@@ -1962,6 +1992,26 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
 ⚠️ VALIDAÇÃO FINAL: Antes de responder, some alimento por alimento. A dieta só é aceitável se ficar entre ${currentCalories - 50} e ${currentCalories + 50} kcal, proteína entre ${macros.proteinGrams - 10} e ${macros.proteinGrams + 10}g, carboidrato entre ${macros.carbGrams - 15} e ${macros.carbGrams + 15}g e gordura entre ${macros.fatGrams - 8} e ${macros.fatGrams + 8}g.
 `;
 
+    if (carbCycling.enabled) {
+      const dayLines = WEEKDAY_KEYS.map((wd) => {
+        const d = weeklyCarbTargets[wd];
+        if (!d) return '';
+        return `${WEEKDAY_LABELS[wd as EnergyWeekday].toUpperCase()} — ${d.type.toUpperCase()}\nKcal: ${d.kcal}\nP: ${d.p}g\nC: ${d.c}g\nG: ${d.g}g`;
+      }).filter(Boolean).join('\n\n');
+      recText = `
+=== REFERÊNCIA METABÓLICA (NÃO É A META DE TODOS OS DIAS) ===
+- TMB: ${currentBmr ?? 'não aplicada'} kcal${currentFormula ? ` (calculado por ${currentFormula})` : ''}
+- GET: ${currentGET ?? 'não aplicado'} kcal
+- Meta base diária (apenas referência): ${currentCalories} kcal
+
+=== METAS DIÁRIAS OBRIGATÓRIAS (CARB CYCLING) ===
+${dayLines}
+
+⚠️ Cada dia deve respeitar sua própria meta. Não aplicar a meta base global por cima dessas metas.
+⚠️ NÃO recalcule a TMB nem os macros. Os valores acima são definitivos (tolerância ±50 kcal por dia).
+`;
+    }
+
     const prompt = `Gere o plano alimentar COMPLETO para fisiculturismo com as seguintes configurações:
 ${criticalInputsText}
 ${recText}
@@ -2088,18 +2138,9 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
       let structuredError: { status?: number; code?: string; message?: string } | null = null;
       if (currentTargets) {
         // Phase 2: build carb-cycle plan when the protocol is selected.
-        const wantsCarbCycle = selectedAdjustments.includes('carb_cycling');
-        const wantsRefeed = selectedAdjustments.includes('refeed');
-        const cyclePlan = wantsCarbCycle
-          ? buildCarbCyclePlan({
-              baseKcal: currentTargets.calories,
-              baseP: currentTargets.protein,
-              baseC: currentTargets.carbs,
-              baseG: currentTargets.fats,
-              trainingDaysCount: trainingDays ? Number(trainingDays) : null,
-              enableRefeed: wantsRefeed,
-            })
-          : null;
+        // Fase 3 é a única implementação de carb cycling — o plano legado
+        // (buildCarbCyclePlan) não é mais enviado em paralelo ao diet-agent.
+        const cyclePlan = null;
         try {
           const structuredResult = await generateStructuredPlan(
             prompt,
@@ -2342,6 +2383,15 @@ ${generated}`;
         jejum_intermitente: enableJejumIntermitente,
       },
       weekly_energy_schedule: scheduleJson,
+      carb_cycling: {
+        enabled: carbCycling.enabled,
+        mode: carbCycling.mode,
+        types: carbCycling.types,
+        assignments: carbCycling.assignments,
+        manual: carbCycling.manual,
+        fixedClosingMacro: carbCycling.fixedClosingMacro,
+      },
+      weekly_day_targets: carbCycling.enabled ? weeklyCarbTargets : null,
     };
     if (editPlanId) {
       const validation = validateDietJSON(result);
@@ -3002,7 +3052,15 @@ ${generated}`;
               weeklyAverage={carbWeeklyAverage}
               comparison={carbBaseComparison}
               dayInfo={carbDayInfo}
-              onChange={setCarbCycling}
+              body={macroBody}
+              onChange={(next) => {
+                setCarbCycling(next);
+                setSelectedAdjustments((prev) => {
+                  const has = prev.includes('carb_cycling');
+                  if (next.enabled === has) return prev;
+                  return next.enabled ? [...prev, 'carb_cycling'] : prev.filter((a) => a !== 'carb_cycling');
+                });
+              }}
             />
           </CardContent>
         </Card>
