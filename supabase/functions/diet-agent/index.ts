@@ -1345,7 +1345,8 @@ serve(async (req) => {
         emit({ phase: "fallback_review", reasons: fallbackReasons });
         const second = await fallbackCandidatePromise;
 
-        const criticalRetry = !nutrition.ok || !initialAdjValidation.ok || !initialDayTargets.ok;
+        const criticalRetry =
+          !foodContract.valid || !nutrition.ok || !initialAdjValidation.ok || !initialDayTargets.ok;
         const reviewRequired = (reason: string) => {
           fallbackReasons.push(reason);
           const meta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, null);
