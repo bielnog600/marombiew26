@@ -1169,6 +1169,7 @@ serve(async (req) => {
       // A Terra candidate produced by a technical fallback must be CRITICALLY valid.
       if (technicalFallbackUsed) {
         const validity = evaluateDietCandidateValidity({
+          foodContractOk: foodContract.valid,
           nutritionOk: nutrition.ok,
           dayTargetsOk: initialDayTargets.ok,
           dailyAdjustmentsOk: initialAdjValidation.ok,
@@ -1203,6 +1204,7 @@ serve(async (req) => {
         primarySourceRepeatRatio,
         nutritionOk: nutrition.ok,
         dayTargetsOk: initialDayTargets.ok,
+        foodContractOk: foodContract.valid,
         dailyAdjustmentsOk: initialAdjValidation.ok,
         technicalFallbackUsed,
         referenceDietProvided,
