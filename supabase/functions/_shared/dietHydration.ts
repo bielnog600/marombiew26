@@ -67,7 +67,17 @@ export function hydrateDietPlanFromFoods(
   for (const day of days) {
     let dayTotals: EngineMacros = { ...ZERO_MACROS };
     const meals = Array.isArray(day?.meals) ? day.meals : [];
+    let mealIndex = 0;
     for (const meal of meals) {
+      // Campos estruturais obrigatórios preenchidos deterministicamente
+      // (a IA não precisa mais devolvê-los).
+      if (typeof meal.id !== "string" || !meal.id) {
+        meal.id = `${String(day?.weekday ?? "dia")}-${mealIndex + 1}`;
+      }
+      if (typeof meal.order !== "number" || !Number.isFinite(meal.order)) {
+        meal.order = mealIndex + 1;
+      }
+      mealIndex += 1;
       let mealTotals: EngineMacros = { ...ZERO_MACROS };
       const items = Array.isArray(meal?.items) ? meal.items : [];
       for (const item of items) {
