@@ -2123,7 +2123,7 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
                     // ponto único de consumo e nada é reescalonado depois.
                     const cycleDay = carbCycling.enabled ? weeklyCarbTargets[wd] : undefined;
                     const dayTarget = resolveDayTarget({
-                      schedule: weeklySchedule,
+                      schedule: weeklySchedule as unknown as Parameters<typeof resolveDayTarget>[0]['schedule'],
                       dayIndex: ENERGY_WEEKDAYS.indexOf(wd),
                       planTargetKcal: currentTargets.calories,
                       planTargetMacros: { p: canonicalTargets.p, c: canonicalTargets.c, g: canonicalTargets.g },
