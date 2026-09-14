@@ -282,3 +282,37 @@ describe('Fase 2 — integração da configuração de macros', () => {
     expect(applyMedicationEnergyAdjustment(a.bmr)).toBe(a.bmr);
   });
 });
+
+describe('Hardening — fórmula energética', () => {
+  it('C. sexo ausente sem massa magra não assume fórmula masculina', () => {
+    const r = selectEnergyFormula({ sex: null, weightKg: 88, heightCm: 182, ageYears: 35 });
+    expect(r.insufficientData).toBe(true);
+    expect(r.bmr).toBe(0);
+    expect(r.alternatives.mifflin).toBeUndefined();
+    const male = selectEnergyFormula({ sex: 'male', weightKg: 88, heightCm: 182, ageYears: 35 });
+    expect(r.bmr).not.toBe(male.bmr);
+  });
+
+  it('C2. sexo ausente com massa magra válida usa Cunningham', () => {
+    const r = selectEnergyFormula({
+      sex: null, weightKg: 88, heightCm: 182, ageYears: 35,
+      leanMass: { kg: 73.5, measuredAt: new Date().toISOString() },
+    });
+    expect(r.insufficientData).toBe(false);
+    expect(r.formula).toBe('cunningham');
+  });
+
+  it('D. avaliação antiga gera aviso real com a data', () => {
+    const old = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString();
+    const r = selectEnergyFormula({
+      sex: 'male', weightKg: 88, heightCm: 182, ageYears: 35,
+      leanMass: { kg: 73.5, measuredAt: old, source: 'Avaliação física' },
+    });
+    expect(r.warnings.some((w) => w.includes('confira se ainda representa'))).toBe(true);
+    const fresh = selectEnergyFormula({
+      sex: 'male', weightKg: 88, heightCm: 182, ageYears: 35,
+      leanMass: { kg: 73.5, measuredAt: new Date().toISOString() },
+    });
+    expect(fresh.warnings.some((w) => w.includes('confira se ainda representa'))).toBe(false);
+  });
+});
