@@ -1124,10 +1124,27 @@ serve(async (req) => {
       // A IA só entrega foodId + qtyGrams. Aqui validamos os IDs e reconstruímos
       // nome, macros e totais a partir da tabela `foods`. Qualquer valor
       // nutricional devolvido pelo modelo é descartado ANTES de qualquer validação.
+      const hasDailyTargets = scheduleHasDailyMacroTargets(schedule);
       const prepareCandidate = (rawPlan: any) => {
-        const contract = validateFoodContract(rawPlan, foodCatalog, allowedUnresolvedNames);
-        const hydrated = hydrateDietPlanFromFoods(rawPlan, foodCatalog, "strict_id");
-        return { plan: hydrated.plan, contract, unresolvedItems: hydrated.unresolvedItems };
+        const contract = validateFoodContract(rawPlan, foodCatalog, {
+          mode: "fresh",
+          allowedUnresolved: allowedUnresolvedFoodsForContract,
+        });
+        const hydrated = hydrateDietPlanFromFoods(rawPlan, foodCatalog, "strict_id", {
+          authorizationBySource: contract.authorizationBySource,
+        });
+        // Target global só quando NÃO há metas diárias (carb cycling OFF).
+        // Nunca os dois ao mesmo tempo. Sempre com os totais HIDRATADOS.
+        const globalTarget = (hasDailyTargets || hydrated.requiresResolution)
+          ? { ok: true, checkedDays: 0, issues: [] as string[], diffs: [] }
+          : validateGlobalDietTarget(hydrated.plan, canonicalTargets);
+        return {
+          plan: hydrated.plan,
+          contract,
+          unresolvedItems: hydrated.unresolvedItems,
+          requiresResolution: hydrated.requiresResolution,
+          globalTarget,
+        };
       };
 
       let prepared = prepareCandidate(candidatePlan);
