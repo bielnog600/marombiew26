@@ -1419,6 +1419,36 @@ serve(async (req) => {
         );
       }
 
+      // === Metas diárias determinísticas (Fase 3) ===
+      // A IA não pode redefinir kcal/P/C/G de um dia: cada day.totals é
+      // comparado com o target daquele weekday enviado no schedule.
+      if (scheduleHasDailyMacroTargets(schedule)) {
+        const dayTargetCheck = validateDayTargets(finalPlan, schedule);
+        console.log("[diet-agent] day_targets_validation", {
+          ok: dayTargetCheck.ok,
+          checked: dayTargetCheck.checkedDays,
+          issues: dayTargetCheck.issues.map((i) => ({ weekday: i.weekday, reasons: i.reasons })),
+        });
+        if (!dayTargetCheck.ok) {
+          const meta = createRoutingMetadata(modelAttempts, fallbackReason, [...fallbackReasons, "day_targets_invalid"], null);
+          const detail = dayTargetCheck.issues
+            .map((i) => `${i.weekday.toUpperCase()}: ${i.reasons.join(", ")}`)
+            .join(" | ");
+          return new Response(
+            JSON.stringify({
+              error: `Os totais de alguns dias não respeitam as metas diárias definidas no app (${detail}). Regere o plano.`,
+              error_code: "review_required",
+              details: detail,
+              dayTargetIssues: dayTargetCheck.issues,
+              validationReasons: [...fallbackReasons, "day_targets_invalid"],
+              aiRouting: meta.routing,
+              aiUsage: meta.usage,
+            }),
+            { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+      }
+
       emit({ phase: "finalizing", model: selectedModel });
       const routingMeta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, selectedModel);
 
