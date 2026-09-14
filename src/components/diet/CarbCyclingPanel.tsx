@@ -96,7 +96,7 @@ export const CarbCyclingPanel = ({
             <div className="rounded-lg border border-border bg-background p-2">
               <p className="text-[10px] text-muted-foreground">Macro que fecha as calorias</p>
               <div className="mt-1 flex gap-2">
-                {(['protein', 'fat', 'carbs'] as MacroKey[]).map((macro) => (
+                {FIXED_CLOSING_MACRO_OPTIONS.map((macro) => (
                   <button
                     key={macro}
                     type="button"
@@ -107,10 +107,13 @@ export const CarbCyclingPanel = ({
                         : 'border-border text-muted-foreground'
                     }`}
                   >
-                    {macro === 'protein' ? 'Proteína' : macro === 'fat' ? 'Gordura' : 'Carboidrato'}
+                    {macro === 'protein' ? 'Proteína' : 'Gordura'}
                   </button>
                 ))}
               </div>
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                O carboidrato já é definido por LOW/MEDIUM/HIGH e não pode fechar as calorias.
+              </p>
               {!config.fixedClosingMacro && (
                 <p className="mt-1 text-[10px] text-amber-600">
                   Escolha qual macro deve fechar as calorias nos dias do ciclo.
