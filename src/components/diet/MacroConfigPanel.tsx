@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Lock, LockOpen, SlidersHorizontal } from 'lucide-react';
 import {
   MACRO_LABEL,
@@ -34,6 +35,51 @@ const parse = (value: string): number | null => {
   if (!raw) return null;
   const n = Number(raw);
   return Number.isFinite(n) && n >= 0 ? n : null;
+};
+
+/**
+ * Input decimal com estado textual: preserva exatamente o que foi digitado
+ * ("2," / "2.2" / "0,8") e só converte no commit (blur/Enter).
+ */
+const DecimalInput = ({
+  value,
+  onCommit,
+  ariaLabel,
+}: {
+  value: number | null;
+  onCommit: (next: number | null) => void;
+  ariaLabel: string;
+}) => {
+  const [text, setText] = useState<string>(value == null ? '' : String(value).replace('.', ','));
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    if (!editing) setText(value == null ? '' : String(value).replace('.', ','));
+  }, [value, editing]);
+
+  const commit = () => {
+    setEditing(false);
+    onCommit(parse(text));
+  };
+
+  return (
+    <input
+      aria-label={ariaLabel}
+      inputMode="decimal"
+      value={text}
+      onFocus={() => setEditing(true)}
+      onChange={(e) => {
+        setEditing(true);
+        setText(e.target.value);
+      }}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+      }}
+      placeholder="—"
+      className="w-full rounded-md border border-border bg-secondary px-2 py-1 text-sm focus:border-primary focus:outline-none"
+    />
+  );
 };
 
 export const MacroConfigPanel = ({
@@ -96,22 +142,18 @@ export const MacroConfigPanel = ({
               <div className="grid grid-cols-2 gap-1">
                 <label className="block">
                   <span className="text-[10px] text-muted-foreground">g/kg</span>
-                  <input
-                    inputMode="decimal"
-                    value={setting.perKg ?? ''}
-                    onChange={(e) => update(key, setMacroPerKg(setting, parse(e.target.value), body))}
-                    placeholder="—"
-                    className="w-full rounded-md border border-border bg-secondary px-2 py-1 text-sm focus:border-primary focus:outline-none"
+                  <DecimalInput
+                    ariaLabel={`${MACRO_LABEL[key]} g/kg`}
+                    value={setting.perKg}
+                    onCommit={(next) => update(key, setMacroPerKg(setting, next, body))}
                   />
                 </label>
                 <label className="block">
                   <span className="text-[10px] text-muted-foreground">gramas</span>
-                  <input
-                    inputMode="decimal"
-                    value={setting.grams ?? ''}
-                    onChange={(e) => update(key, setMacroGrams(setting, parse(e.target.value), body))}
-                    placeholder="—"
-                    className="w-full rounded-md border border-border bg-secondary px-2 py-1 text-sm focus:border-primary focus:outline-none"
+                  <DecimalInput
+                    ariaLabel={`${MACRO_LABEL[key]} gramas`}
+                    value={setting.grams}
+                    onCommit={(next) => update(key, setMacroGrams(setting, next, body))}
                   />
                 </label>
               </div>

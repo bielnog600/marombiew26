@@ -75,6 +75,7 @@ import {
   defaultMacroConfig,
   resolveMacroConfig,
   setMacroPerKg,
+  getMacroPrescription,
   type MacroConfig,
   type MacroKey,
 } from '@/lib/macroConfig';
@@ -1851,14 +1852,17 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
     const currentGET = baseKcal.calculation.tdee;
     const currentBmr = baseKcal.calculation.bmr;
     const currentFormula = baseKcal.calculation.formula;
-    const peso = parsePositiveNumber(studentCtx.peso) ?? 70;
-    // Fase 2: os macros vêm EXCLUSIVAMENTE da configuração exibida na tela.
+    // Fase 2: os macros vêm EXCLUSIVAMENTE da configuração exibida na tela,
+    // preservando a BASE escolhida (peso corporal ou massa magra) em cada g/kg.
+    const prescription = getMacroPrescription(macroConfig, macroResolution, macroBody);
     const macros = {
       proteinGrams: canonicalTargets.p,
       carbGrams: canonicalTargets.c,
       fatGrams: canonicalTargets.g,
-      proteinPerKg: Math.round((canonicalTargets.p / peso) * 100) / 100,
-      fatPerKg: Math.round((canonicalTargets.g / peso) * 100) / 100,
+      proteinPerKg: prescription?.protein.perKg ?? null,
+      fatPerKg: prescription?.fat.perKg ?? null,
+      proteinBasis: prescription?.protein.basisLabel ?? 'peso corporal',
+      fatBasis: prescription?.fat.basisLabel ?? 'peso corporal',
     };
     currentTargets = {
       calories: currentCalories,
@@ -1875,9 +1879,9 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
 - GET: ${currentGET ?? 'não aplicado'} kcal
 - Estratégia: ${selectedStrategy?.label} (${(currentStrategyPct ?? 0) > 0 ? '+' : ''}${currentStrategyPct ?? 0}%)
 - Calorias alvo EXATAS: ${currentCalories} kcal
-- Proteína EXATA: ${macros.proteinGrams}g (${macros.proteinPerKg}g/kg)
+- Proteína EXATA: ${macros.proteinGrams}g${macros.proteinPerKg ? ` (${macros.proteinPerKg} g/kg de ${macros.proteinBasis})` : ''}
 - Carboidrato EXATO: ${macros.carbGrams}g
-- Gordura EXATA: ${macros.fatGrams}g (${macros.fatPerKg}g/kg)
+- Gordura EXATA: ${macros.fatGrams}g${macros.fatPerKg ? ` (${macros.fatPerKg} g/kg de ${macros.fatBasis})` : ''}
 ⚠️ OBRIGATÓRIO: O TOTAL DIÁRIO da tabela DEVE ser EXATAMENTE ${currentCalories} kcal (tolerância ±50 kcal). Proteína total = ${macros.proteinGrams}g, Carboidrato total = ${macros.carbGrams}g, Gordura total = ${macros.fatGrams}g. NÃO use outros valores. NÃO recalcule a TMB. Estes valores já são definitivos.
 ⚠️ REGRA DE CORREÇÃO: Se faltar caloria para bater a meta, ajuste CARBOIDRATO. NÃO aumente proteína acima de ${macros.proteinGrams}g para completar calorias.
 ⚠️ VALIDAÇÃO FINAL: Antes de responder, some alimento por alimento. A dieta só é aceitável se ficar entre ${currentCalories - 50} e ${currentCalories + 50} kcal, proteína entre ${macros.proteinGrams - 10} e ${macros.proteinGrams + 10}g, carboidrato entre ${macros.carbGrams - 15} e ${macros.carbGrams + 15}g e gordura entre ${macros.fatGrams - 8} e ${macros.fatGrams + 8}g.
