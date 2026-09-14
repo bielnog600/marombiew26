@@ -221,7 +221,7 @@ export const setCarbTypePerKg = (
   body: BodyBasis,
 ): CarbDayTypeConfig =>
   perKg == null
-    ? { ...type, perKg: null, carbsPerKg: null, carbGrams: null }
+    ? { ...type, carbsPerKg: null, carbGrams: null }
     : { ...type, carbsPerKg: perKg, carbGrams: gramsFromPerKg(perKg, type.carbBasis, body) };
 
 export const setCarbTypeGrams = (
