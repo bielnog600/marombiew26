@@ -2383,15 +2383,15 @@ ${generated}`;
         jejum_intermitente: enableJejumIntermitente,
       },
       weekly_energy_schedule: scheduleJson,
-      carb_cycling: {
+      carb_cycling: JSON.parse(JSON.stringify({
         enabled: carbCycling.enabled,
         mode: carbCycling.mode,
         types: carbCycling.types,
         assignments: carbCycling.assignments,
         manual: carbCycling.manual,
         fixedClosingMacro: carbCycling.fixedClosingMacro,
-      },
-      weekly_day_targets: carbCycling.enabled ? weeklyCarbTargets : null,
+      })),
+      weekly_day_targets: carbCycling.enabled ? JSON.parse(JSON.stringify(weeklyCarbTargets)) : null,
     };
     if (editPlanId) {
       const validation = validateDietJSON(result);
