@@ -340,3 +340,37 @@ describe('Fase 3 — prompts do diet-agent', () => {
     expect(src).not.toContain('SE os dados do aluno incluírem uma seção "RECOMENDAÇÃO CALCULADA"');
   });
 });
+
+describe('Fase 3 — patch final de consistência', () => {
+  const schedule7 = {
+    days: Object.fromEntries(
+      ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'].map((wd) => [
+        wd,
+        { target_kcal: 2315, protein_g: 196, carbs_g: 223, fat_g: 71 },
+      ]),
+    ),
+  };
+  const day = (weekday: string) => ({ weekday, totals: { kcal: 2315, p: 196, c: 223, g: 71 } });
+
+  it('A. weekday inválido preenche invalidDays e reprova', () => {
+    const plan = {
+      days: [...['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'].map(day), day('segunda-feira')],
+    };
+    const r = validateDayTargets(plan, schedule7);
+    expect(r.invalidDays).toEqual(['segunda-feira']);
+    expect(r.ok).toBe(false);
+  });
+
+  const agentSrc = readFileSync('supabase/functions/diet-agent/index.ts', 'utf8');
+
+  it('B. com metas diárias o prompt remove o cardápio único e exige 7 dias', () => {
+    expect(agentSrc).toContain('stripSingleMenuRules');
+    expect(agentSrc).toContain('materialize SEPARADAMENTE um objeto em days[] para CADA weekday');
+    expect(agentSrc).toContain('hasDailyTargetsForPrompt');
+  });
+
+  it('C. sem metas diárias o texto legado é preservado', () => {
+    expect(agentSrc).toContain('EXATAMENTE 1 (UM) cardápio completo');
+    expect(agentSrc).toContain('!hasDailyTargetsForPrompt\n            ? text');
+  });
+});

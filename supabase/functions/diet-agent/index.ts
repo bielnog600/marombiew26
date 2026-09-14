@@ -821,11 +821,32 @@ serve(async (req) => {
             : null;
         
         // Limpeza de instruções de formato incompatíveis com JSON
-        const cleanSystemPrompt = sanitizeStructuredPrompt(SYSTEM_PROMPT);
+        const hasDailyTargetsForPrompt = scheduleHasDailyMacroTargets(scheduleForPrompt);
+        // Com metas diárias, o contrato exige um objeto days[] por weekday:
+        // remover as instruções legadas de "cardápio único para todos os dias".
+        const stripSingleMenuRules = (text: string): string =>
+          !hasDailyTargetsForPrompt
+            ? text
+            : text
+                .split("\n")
+                .filter(
+                  (line) =>
+                    !/EXATAMENTE 1 \(UM\) cardápio/i.test(line) &&
+                    !/CARDÁPIO ÚNICO/i.test(line) &&
+                    !/DIETA ÚNICA PARA A SEMANA INTEIRA/i.test(line),
+                )
+                .join("\n");
+
+        const dailyMaterializationRule = hasDailyTargetsForPrompt
+          ? '\n\nREGRA CRÍTICA — METAS DIÁRIAS: materialize SEPARADAMENTE um objeto em days[] para CADA weekday esperado (seg, ter, qua, qui, sex, sab, dom). Preserve, quando possível, a mesma estrutura de refeições e os mesmos alimentos-base entre os dias, mas ajuste as quantidades para que cada weekday atinja EXATAMENTE a sua própria meta de kcal/P/C/G. NÃO gere um cardápio único válido para todos os dias.\n'
+          : "";
+
+        const cleanSystemPrompt = stripSingleMenuRules(sanitizeStructuredPrompt(SYSTEM_PROMPT));
 
         const jsonSystem =
           cleanSystemPrompt +
-          sanitizeStructuredPrompt(contextMessage) +
+          dailyMaterializationRule +
+          stripSingleMenuRules(sanitizeStructuredPrompt(contextMessage)) +
           layeredInstructions +
           "\n\n" +
           dietIntentPrompt(intent) +
