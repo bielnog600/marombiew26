@@ -1,58 +1,69 @@
 # Geração e edição de dietas — macros confiáveis e controle do treinador
 
-Objetivo: a tabela `foods` passa a ser a única autoridade nutricional. A IA monta a estrutura (alimentos + quantidade), o app calcula tudo, ajusta porções de forma determinística e só libera a publicação quando os números fecham.
+Objetivo: a tabela de alimentos passa a ser a única autoridade nutricional. A IA monta a estrutura (qual alimento e quanto), o app calcula tudo, ajusta porções de forma determinística e só libera a publicação quando os números fecham.
 
 ## Fase 1 — Motor único de nutrição
 
-Novo módulo central (`src/lib/nutritionEngine.ts`) que passa a ser o único lugar que calcula:
-- macros de um alimento (`qtyGrams / portion_size` × valores da base)
+Novo módulo central (`src/lib/nutritionEngine.ts`), único lugar que calcula:
+- macros do alimento: `qtyGrams / portion_size` × valores cadastrados (nunca 4/4/9 no lugar das kcal oficiais — a conta 4/4/9 serve só para detectar valores suspeitos)
 - total da refeição, total do dia, diferença para a meta
-- classificação automática do papel do alimento: proteína, carboidrato, gordura, misto ou pouco calórico
+- papel do alimento: proteína, carboidrato, gordura, misto, pouco calórico
 
-Tudo que hoje calcula por conta própria (validação, cards, editor, PDF) passa a chamar esse motor. O validador atual baseado no texto da IA é substituído: a checagem final sempre usa `foods` + gramas.
+Cada item do plano guarda um **snapshot nutricional** (porção, kcal, P/C/G, marca, origem) do momento da publicação, para que alterações futuras no cadastro não mudem dietas antigas em silêncio.
+
+Todo o resto (validação, cards, editor, PDF) passa a chamar esse motor; nada recalcula por conta própria.
 
 ## Fase 2 — Calorias e macros configuráveis
 
-Nova área de configuração antes da geração:
-- fórmula de gasto energético escolhida por regras (peso, altura, idade, %gordura, massa magra, atividade, rotina de treino), com Cunningham permitido sempre que a massa magra for confiável — sem corte rígido de %gordura
+- fórmula de gasto energético escolhida por regras (peso, altura, idade, %gordura, massa magra, atividade, treino), com Cunningham permitido sempre que a massa magra for confiável — sem corte rígido de %gordura
 - medicamentos/hormônios entram como contexto, nunca alteram o gasto estimado
 - exibição clara de Fórmula, TMB, GET e Meta calórica
-- Proteína / Gordura / Carboidrato com campo g/kg e campo em gramas ligados nos dois sentidos, base selecionável (peso corporal ou massa magra)
-- cadeado por macro: os travados são fixos, o livre fecha a conta. Combinação impossível mostra erro explícito ("ultrapassa a meta em 250 kcal"), nunca aceita em silêncio
+- Proteína / Gordura / Carboidrato com g/kg e gramas ligados nos dois sentidos, base selecionável (peso corporal ou massa magra)
+- cadeados por macro, com regras explícitas: dois travados + um livre → o livre fecha a conta; três travados → só válido se fecharem dentro da tolerância; dois livres → o app pede qual será o macro de fechamento, nunca decide sozinho
+- combinação impossível mostra erro ("ultrapassa a meta em 250 kcal"), nunca aceita em silêncio
 
 ## Fase 3 — Carb cycling reformulado
 
-Dois modos:
-- **Calorias variáveis** (padrão): proteína e gordura constantes, carboidrato em g/kg por tipo de dia (LOW / MEDIUM / HIGH). As calorias do dia seguem o carboidrato.
-- **Calorias fixas**: kcal iguais todos os dias; o macro livre se ajusta, com aviso quando o resultado ficar extremo ("a gordura precisaria ficar em 145 g").
+- **Calorias variáveis** (padrão): proteína e gordura constantes, carboidrato em g/kg por tipo de dia. As calorias são consequência dos macros.
+- **Calorias fixas**: kcal é a restrição; exatamente um macro de fechamento, com aviso quando o resultado ficar extremo.
 
-Tela por dia da semana mostrando treino do dia (do plano ativo quando existir), tipo de dia, g/kg, gramas de carboidrato e kcal. Cada dia guarda sua própria meta, e o editor daquele dia usa exatamente essa meta.
+Por tipo de dia (LOW / MEDIUM / HIGH) mostra g/kg, gramas e kcal. Por dia da semana mostra o treino do plano ativo, o tipo de dia e a meta. Também mostra a média semanal de calorias. Cada dia tem P/C/G/kcal próprios, resolvidos sempre pela mesma função de meta do dia — sem metas concorrentes em outros lugares.
 
-## Fase 4 — Geração com a IA no papel certo
+## Fase 4 — A IA no papel certo
 
-- Contrato da geração muda para `foodId` + `qtyGrams`; kcal/P/C/G devolvidos pela IA são descartados
-- Alimento sugerido que não existe na base aparece marcado como "Não validado", com as opções: associar a um alimento existente, cadastrar, substituir ou remover
-- `foods` ganha marca, origem, código de barras e identificador externo, para suportar produtos específicos (Whey Optimum, Skyr Arla, etc.)
+- a IA devolve alimento + gramas; kcal/P/C/G que ela envie são descartados
+- a IA nunca inventa identificador: sem correspondência confiável, o item volta como "Não validado" (nada de associação automática a um produto parecido)
+- item não validado pode ser associado a um alimento existente, cadastrado, substituído ou removido
+- a base de alimentos ganha marca, origem, código de barras e identificador externo, com índices de busca; produtos de marca não se misturam com o genérico. A busca mostra nome, marca, kcal/100g, P/C/G e origem.
 
 ## Fase 5 — Edição e ajuste automático
 
-No topo do plano: Meta do dia / Atual / Diferença, recalculados a cada alteração.
+No topo do plano: Meta do dia / Atual / Diferença, recalculados na hora, sem nenhuma chamada de IA.
 
-Ações por alimento: editar quantidade, trocar (busca na base), remover, adicionar e transferir para outra refeição. Transferência não dispara reajuste — só muda a distribuição.
+Ações por alimento: editar quantidade, trocar (com comparação lado a lado antes de aplicar), remover, adicionar e transferir para outra refeição. Transferir não mexe na quantidade nem no total do dia.
 
-Botão **Ajustar automaticamente** (sem IA): algoritmo determinístico que mexe só nas quantidades, priorizando os alimentos do macro que está faltando ou sobrando, e mostra uma prévia (antes/depois, item por item) com Cancelar / Aplicar. Substituição de alimentos só no modo opcional "Permitir substituições".
+**Ajustar automaticamente** (determinístico):
+- mexe só nas quantidades e respeita o que o treinador editou à mão (item fica bloqueado, com opção de desbloquear)
+- limites mínimos/máximos por alimento — nada de arroz de 150 g para 610 g
+- prioriza os alimentos do macro que falta ou sobra, altera o menor número de itens possível e não move alimentos entre refeições
+- sem solução dentro dos limites: avisa "Não foi possível fechar os macros apenas ajustando quantidades" e oferece o modo opcional "Permitir substituições"
+- sempre com prévia item a item (antes/depois) e Cancelar / Aplicar
 
-## Fase 6 — Publicação e compatibilidade
+## Fase 6 — Publicação e planos antigos
 
-Publicação bloqueada com alimento não validado, macros fora da tolerância (±50 kcal, ±10 P, ±15 C, ±8 G) ou meta do dia conflitante. Planos antigos continuam abrindo; quando o recálculo pela base divergir, aparece aviso em vez de alteração silenciosa.
+Publicar recalcula tudo pelo motor, compara com a meta do dia, valida as tolerâncias (±50 kcal, ±10 P, ±15 C, ±8 G) e só então grava — de forma atômica (plano, metas, carb cycling, protocolos e versão gravam juntos ou nada grava). O texto e o PDF são gerados a partir desse plano, nunca validados separadamente.
+
+Plano antigo abre com aviso "Este plano foi criado antes da validação pela base alimentar", botão Recalcular com base atual e comparação Salvo × Base atual, com decisão manual entre Manter original e Atualizar plano.
 
 ## Detalhes técnicos
 
-- Novo `src/lib/nutritionEngine.ts` (cálculo, papéis de macro, diferença, ajuste determinístico) e `src/lib/macroConfig.ts` (g/kg bidirecional, travas, validação de combinação).
-- `dietMacroValidation.ts` e `dietValidation.ts` passam a delegar ao motor; `dietValidation` mantém apenas as regras de estrutura do plano.
-- `carbCycling.ts` reescrito com os dois modos e g/kg por tipo de dia; `weeklyEnergy.ts` guarda o modo e os macros por dia; `dietDayTargets.resolveDayTarget` permanece a fonte única e passa a devolver também P/C/G.
-- Migração em `foods`: `brand`, `source`, `barcode`, `source_food_id` (nullable) + grants.
-- `diet-agent` e `diet-edit-agent`: novo contrato de saída e remoção das instruções que pedem macros à IA.
-- Testes novos para motor, travas de macro, carb cycling e ajuste automático.
+- Novos: `src/lib/nutritionEngine.ts` (cálculo, papéis, diferença, snapshot), `src/lib/macroConfig.ts` (g/kg bidirecional, travas, macro de fechamento), `src/lib/dietAutoAdjust.ts` (otimizador com bounds e `manualLocked`).
+- `dietMacroValidation.ts` e `dietValidation.ts` delegam ao motor; validação final sempre por `foods` + gramas.
+- `dietSchema.ts`: `MealItem` ganha `foodId`, `resolutionStatus`, `nutritionSnapshot`, `manualLocked`.
+- `carbCycling.ts` reescrito com os dois modos e g/kg por tipo de dia; `weeklyEnergy.ts` guarda modo e macros por dia; `dietDayTargets.resolveDayTarget` passa a devolver `{kcal, p, c, g}` e continua sendo a única fonte.
+- Migração aditiva em `foods`: `brand`, `source`, `barcode`, `source_food_id` (nullable) + índices, mantendo RLS atual.
+- `diet-agent` / `diet-edit-agent`: novo contrato de saída, sem macros vindos da IA, sem invenção de identificadores.
+- Publicação via RPC transacional.
+- Testes cobrindo os casos A–J das regras: macros da IA ignorados, item não resolvido bloqueia publicação, item editado à mão preservado, impossibilidade sinalizada, transferência sem mudar o total, snapshot preservado, carb cycling com média semanal, travas incompatíveis bloqueadas, dois macros livres pedem escolha, edição sem chamada de IA.
 
 Ordem de entrega: Fases 1-2, depois 3, depois 4-5, depois 6. Cada fase entra sem quebrar a geração atual.
