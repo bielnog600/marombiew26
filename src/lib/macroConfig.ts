@@ -87,21 +87,20 @@ export const setMacroPerKg = (
   setting: MacroSetting,
   perKg: number | null,
   body: BodyBasis,
-): MacroSetting => ({
-  ...setting,
-  perKg,
-  grams: perKg === null ? setting.grams : gramsFromPerKg(perKg, setting.basis, body),
-});
+): MacroSetting =>
+  // Limpar o campo limpa os DOIS lados: nunca manter valor antigo escondido.
+  perKg === null
+    ? { ...setting, perKg: null, grams: null }
+    : { ...setting, perKg, grams: gramsFromPerKg(perKg, setting.basis, body) };
 
 export const setMacroGrams = (
   setting: MacroSetting,
   grams: number | null,
   body: BodyBasis,
-): MacroSetting => ({
-  ...setting,
-  grams,
-  perKg: grams === null ? setting.perKg : perKgFromGrams(grams, setting.basis, body),
-});
+): MacroSetting =>
+  grams === null
+    ? { ...setting, perKg: null, grams: null }
+    : { ...setting, grams, perKg: perKgFromGrams(grams, setting.basis, body) };
 
 /** Troca da base mantém o g/kg e recalcula as gramas. */
 export const setMacroBasis = (
@@ -309,3 +308,43 @@ export const defaultMacroConfig = (): MacroConfig => ({
   fat: { perKg: 0.8, grams: null, basis: 'body_weight', locked: true },
   carbs: { perKg: null, grams: null, basis: 'body_weight', locked: false },
 });
+
+/* -------------------------------------------------------------------------- */
+/* Prescrição final por macro (gramas + g/kg na BASE escolhida)               */
+/* -------------------------------------------------------------------------- */
+
+export interface MacroPrescription {
+  grams: number;
+  perKg: number | null;
+  basis: MacroBasis;
+  basisLabel: string;
+}
+
+export const MACRO_BASIS_LABEL: Record<MacroBasis, string> = {
+  body_weight: 'peso corporal',
+  lean_mass: 'massa magra',
+};
+
+/**
+ * Devolve, para cada macro, as gramas finais resolvidas e o g/kg calculado
+ * SEMPRE na base escolhida pelo treinador — nunca recomposto pelo peso corporal.
+ */
+export const getMacroPrescription = (
+  config: MacroConfig,
+  resolution: MacroResolution,
+  body: BodyBasis,
+): Record<MacroKey, MacroPrescription> | null => {
+  if (!resolution.grams) return null;
+  const out = {} as Record<MacroKey, MacroPrescription>;
+  for (const key of MACRO_KEYS) {
+    const basis = config[key].basis;
+    const grams = resolution.grams[key];
+    out[key] = {
+      grams,
+      perKg: perKgFromGrams(grams, basis, body),
+      basis,
+      basisLabel: MACRO_BASIS_LABEL[basis],
+    };
+  }
+  return out;
+};
