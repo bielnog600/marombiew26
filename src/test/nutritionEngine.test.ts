@@ -316,3 +316,56 @@ describe('Hardening — fórmula energética', () => {
     expect(fresh.warnings.some((w) => w.includes('confira se ainda representa'))).toBe(false);
   });
 });
+
+describe('Hardening — correções finais', () => {
+  it('unresolvedNames devolve o nome do item realmente não resolvido', () => {
+    const index = buildFoodIndex([
+      { id: 'f1', nome: 'Arroz', porcao_g: 100, calorias: 130, proteina: 2.7, carboidrato: 28, gordura: 0.3 },
+      { id: 'f2', nome: 'Frango', porcao_g: 100, calorias: 165, proteina: 31, carboidrato: 0, gordura: 3.6 },
+    ] as never);
+    const meal = computeMealTotals(
+      [
+        { foodId: 'f1', name: 'Arroz', qtyGrams: 100 },
+        { foodId: null, name: 'Alimento X', qtyGrams: 50 },
+        { foodId: 'f2', name: 'Frango', qtyGrams: 150 },
+      ] as never,
+      index,
+    );
+    expect(meal.unresolvedNames).toEqual(['Alimento X']);
+    expect(meal.unresolvedNames).not.toContain('Arroz');
+  });
+
+  it('massa magra recente → Cunningham automática', () => {
+    const r = selectEnergyFormula({
+      sex: 'male', weightKg: 89, heightCm: 182, ageYears: 34,
+      leanMass: { kg: 74.2, measuredAt: new Date().toISOString() },
+    });
+    expect(r.formula).toBe('cunningham');
+    expect(r.manual).toBe(false);
+  });
+
+  it('massa magra antiga + sexo → Mifflin automática, Cunningham nas alternativas', () => {
+    const old = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString();
+    const r = selectEnergyFormula({
+      sex: 'male', weightKg: 89, heightCm: 182, ageYears: 34,
+      leanMass: { kg: 74.2, measuredAt: old },
+    });
+    expect(r.formula).toBe('mifflin');
+    expect(r.manual).toBe(false);
+    expect(r.alternatives.cunningham).toBeGreaterThan(0);
+    expect(r.alternatives.katch_mcardle).toBeGreaterThan(0);
+    expect(r.warnings.some((w) => w.includes('confira se ainda representa'))).toBe(true);
+  });
+
+  it('massa magra antiga + escolha manual → Cunningham manual mantendo o aviso', () => {
+    const old = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString();
+    const r = selectEnergyFormula({
+      sex: 'male', weightKg: 89, heightCm: 182, ageYears: 34,
+      leanMass: { kg: 74.2, measuredAt: old },
+      manualFormula: 'cunningham',
+    });
+    expect(r.formula).toBe('cunningham');
+    expect(r.manual).toBe(true);
+    expect(r.warnings.some((w) => w.includes('confira se ainda representa'))).toBe(true);
+  });
+});
