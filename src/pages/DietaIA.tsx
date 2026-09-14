@@ -1841,15 +1841,14 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
     const currentBmr = baseKcal.calculation.bmr;
     const currentFormula = baseKcal.calculation.formula;
     const peso = parsePositiveNumber(studentCtx.peso) ?? 70;
-    const macros = calculateMacroTargets({
-      calories: currentCalories,
-      weight: peso,
-      strategyValue: strategy,
-      phaseValue: phase,
-      hormoneUse: hasHormoneUse(usesHormones),
-      proteinPerKgOverride: proteinPerKgOverride ? Number(proteinPerKgOverride.replace(',', '.')) : null,
-      fatPerKgOverride: fatPerKgOverride ? Number(fatPerKgOverride.replace(',', '.')) : null,
-    });
+    // Fase 2: os macros vêm EXCLUSIVAMENTE da configuração exibida na tela.
+    const macros = {
+      proteinGrams: canonicalTargets.p,
+      carbGrams: canonicalTargets.c,
+      fatGrams: canonicalTargets.g,
+      proteinPerKg: Math.round((canonicalTargets.p / peso) * 100) / 100,
+      fatPerKg: Math.round((canonicalTargets.g / peso) * 100) / 100,
+    };
     currentTargets = {
       calories: currentCalories,
       protein: macros.proteinGrams,
