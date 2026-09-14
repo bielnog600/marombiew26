@@ -20,6 +20,10 @@ interface FoodForm {
   protein: number;
   carbs: number;
   fats: number;
+  /** Identidade opcional — produtos de marca não se fundem com genéricos. */
+  brand?: string | null;
+  source?: string | null;
+  barcode?: string | null;
 }
 
 const emptyForm: FoodForm = {
@@ -30,6 +34,9 @@ const emptyForm: FoodForm = {
   protein: 0,
   carbs: 0,
   fats: 0,
+  brand: '',
+  source: '',
+  barcode: '',
 };
 
 const Alimentos: React.FC = () => {
