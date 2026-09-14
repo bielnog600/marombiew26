@@ -317,8 +317,9 @@ export const computeDayTotals = (
   meals: Array<{ items: EngineItem[] }>,
   index: FoodIndex,
   mode: PlanMode = 'draft',
+  policy: ResolutionPolicy = 'legacy',
 ): DayComputation => {
-  const computedMeals = (meals ?? []).map((m) => computeMealTotals(m.items ?? [], index, mode));
+  const computedMeals = (meals ?? []).map((m) => computeMealTotals(m.items ?? [], index, mode, policy));
   const totals = computedMeals.reduce<EngineMacros>((acc, m) => addMacros(acc, m.totals), ZERO_MACROS);
   const unresolvedNames = Array.from(
     new Set(computedMeals.flatMap((m) => m.unresolvedNames)),
