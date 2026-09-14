@@ -60,12 +60,14 @@ export type DietCandidateValidity = {
   dailyAdjustmentsValid: boolean;
   dayTargetsValid: boolean;
   foodContractValid: boolean;
+  foodTargetsValid: boolean;
   criticalValid: boolean;
   reason:
     | "food_contract_invalid"
     | "nutrition_invalid"
     | "daily_adjustments_invalid"
     | "day_targets_invalid"
+    | "food_targets_invalid"
     | null;
 };
 
@@ -75,19 +77,23 @@ export function evaluateDietCandidateValidity(
     dailyAdjustmentsOk: boolean;
     dayTargetsOk?: boolean;
     foodContractOk?: boolean;
+    foodTargetsOk?: boolean;
   },
 ): DietCandidateValidity {
   const nutritionValid = input.nutritionOk;
   const dailyAdjustmentsValid = input.dailyAdjustmentsOk;
   const dayTargetsValid = input.dayTargetsOk !== false;
   const foodContractValid = input.foodContractOk !== false;
+  const foodTargetsValid = input.foodTargetsOk !== false;
   const criticalValid =
-    foodContractValid && nutritionValid && dailyAdjustmentsValid && dayTargetsValid;
+    foodContractValid && nutritionValid && dailyAdjustmentsValid && dayTargetsValid &&
+    foodTargetsValid;
   return {
     nutritionValid,
     dailyAdjustmentsValid,
     dayTargetsValid,
     foodContractValid,
+    foodTargetsValid,
     criticalValid,
     reason: criticalValid
       ? null
@@ -95,7 +101,9 @@ export function evaluateDietCandidateValidity(
           ? "food_contract_invalid"
           : (!nutritionValid
               ? "nutrition_invalid"
-              : (!dailyAdjustmentsValid ? "daily_adjustments_invalid" : "day_targets_invalid"))),
+              : (!dailyAdjustmentsValid
+                  ? "daily_adjustments_invalid"
+                  : (!dayTargetsValid ? "day_targets_invalid" : "food_targets_invalid")))),
   };
 }
 
