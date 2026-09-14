@@ -455,6 +455,11 @@ const DietaIA = () => {
   const [showCompare, setShowCompare] = useState(false);
   // Canonical structured plan (source of truth when structured generation succeeds).
   const [structuredPlan, setStructuredPlan] = useState<DietPlan | null>(null);
+  // Enquanto houver alimento sem vínculo com a base, a dieta NÃO é validada.
+  const hasUnresolvedItems = useMemo(
+    () => (structuredPlan ? collectUnresolvedItems(structuredPlan).length > 0 : false),
+    [structuredPlan],
+  );
   // Novos alimentos encontrados no plano que não estão na base — aguardam aprovação.
   const [pendingNewFoods, setPendingNewFoods] = useState<NewFoodCandidate[]>([]);
   // Variability controls + feedback (mirrors TreinoIA).
