@@ -41,7 +41,7 @@ const parse = (value: string): number | null => {
  * Input decimal com estado textual: preserva exatamente o que foi digitado
  * ("2," / "2.2" / "0,8") e só converte no commit (blur/Enter).
  */
-const DecimalInput = ({
+export const DecimalInput = ({
   value,
   onCommit,
   ariaLabel,
