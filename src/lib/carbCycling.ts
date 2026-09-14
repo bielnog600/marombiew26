@@ -178,6 +178,14 @@ export interface CarbDayTypeConfig {
   targetKcal?: number | null;
 }
 
+/**
+ * No modo `fixed_calories` o carboidrato já é a restrição do tipo de dia
+ * (LOW/MEDIUM/HIGH definidos em g/kg), portanto nunca pode fechar as calorias.
+ */
+export type FixedClosingMacro = 'protein' | 'fat';
+
+export const FIXED_CLOSING_MACRO_OPTIONS: FixedClosingMacro[] = ['protein', 'fat'];
+
 export interface CarbCyclingConfig {
   enabled: boolean;
   mode: CarbCyclingMode;
@@ -187,7 +195,7 @@ export interface CarbCyclingConfig {
   /** Dias em que o treinador escolheu manualmente — sugestão não sobrescreve. */
   manual: Record<WeekdayKey, boolean>;
   /** Modo `fixed_calories`: macro que fecha as calorias nos dias do ciclo. */
-  fixedClosingMacro: MacroKey | null;
+  fixedClosingMacro: FixedClosingMacro | null;
 }
 
 export const defaultCarbCyclingConfig = (): CarbCyclingConfig => ({
