@@ -22,6 +22,7 @@ import { markdownToDietPlan } from '@/lib/dietPlanAdapter';
 import { finalizeDietPlan } from '@/lib/dietValidation';
 import { parseDietPlanStrict, parseDietPlanLoose, type DietPlan } from '@/lib/dietSchema';
 import { buildAllowedUnresolvedFromModelDiet } from '@/lib/modelDietFoods';
+import { buildStructuredUserPrompt } from '@/lib/structuredDietPrompt';
 import { Badge } from '@/components/ui/badge';
 import UnresolvedFoodsPanel, { collectUnresolvedItems } from '@/components/diet/UnresolvedFoodsPanel';
 import { dietPlanToMarkdown } from '@/lib/dietMarkdownSerializer';
@@ -2181,7 +2182,7 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
         const cyclePlan = null;
         try {
           const structuredResult = await generateStructuredPlan(
-            prompt,
+            buildStructuredUserPrompt(prompt),
             {
               objective: phase || undefined,
               strategy: strategy || undefined,
@@ -2400,6 +2401,11 @@ ${generated}`;
     }
     const mode = modeOverride ?? saveMode;
     const isDraft = mode === 'draft';
+    // Guarda de integridade: alimento sem vínculo com a base não vai para publicação.
+    if (!isDraft && structuredPlan && collectUnresolvedItems(structuredPlan).length > 0) {
+      toast.error('Resolva os alimentos não vinculados à base antes de publicar. É possível salvar como rascunho.');
+      return;
+    }
     // Bloqueio duro: se o schedule tem qualquer dia diferente da base,
     // dailyAdjustments é obrigatório (contrato formal) apenas para PUBLICAÇÃO.
     const scheduleHasAdjustments = ENERGY_WEEKDAYS.some((wd) => {
@@ -2585,6 +2591,60 @@ ${generated}`;
       }
     }
     setSaving(false);
+  };
+
+  /**
+   * Fluxo único: JSON canônico → derivados (markdown, cards, PDF, validação).
+   * Nunca o contrário. Usado depois de resolver um alimento manualmente.
+   */
+  const applyCanonicalPlanUpdate = async (nextPlan: DietPlan) => {
+    setStructuredPlan(nextPlan);
+    const md = dietPlanToMarkdown(nextPlan);
+    setResult(md);
+    const stillUnresolved = collectUnresolvedItems(nextPlan).length > 0;
+    try {
+      const foodRecords = await loadFoodMacroRecords();
+      const targets: DietMacroTargets | null = canonicalTargets.kcal > 0
+        ? {
+          calories: canonicalTargets.kcal,
+          protein: canonicalTargets.p,
+          carbs: canonicalTargets.c,
+          fats: canonicalTargets.g,
+        }
+        : null;
+      if (!targets || stillUnresolved) {
+        // Com alimento pendente a dieta não é validada contra a meta.
+        setMacroReport(null);
+        setDayMacroReport(null);
+        return;
+      }
+      if (carbCycling.enabled) {
+        const dayInputs = (nextPlan.days ?? [])
+          .filter((d) => !!d.weekday)
+          .map((d) => ({
+            weekday: d.weekday as WeekdayKey,
+            type: weeklyCarbTargets[d.weekday as WeekdayKey]?.type ?? null,
+            items: (d.meals ?? []).flatMap((m) =>
+              (m.items ?? []).map((it) => ({
+                name: it.name,
+                qtyGrams: Number(it.qtyGrams) || 0,
+                macros: it.macros,
+              })),
+            ),
+          }));
+        setMacroReport(null);
+        setDayMacroReport(
+          dayInputs.length > 0
+            ? validateDietDaysMacros({ days: dayInputs, dayTargets: weeklyCarbTargets, foods: foodRecords })
+            : null,
+        );
+      } else {
+        setDayMacroReport(null);
+        setMacroReport(validateDietMacros(md, targets, foodRecords));
+      }
+    } catch (e) {
+      console.warn('applyCanonicalPlanUpdate revalidation failed', e);
+    }
   };
 
   const adjustMacros = async () => {
@@ -3464,14 +3524,14 @@ ${generated}`;
             {structuredPlan && (
               <UnresolvedFoodsPanel
                 plan={structuredPlan}
-                onChange={(p) => setStructuredPlan(p)}
+                onChange={(p) => { void applyCanonicalPlanUpdate(p); }}
               />
             )}
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-lg flex items-center gap-2">
                 <UtensilsCrossed className="h-5 w-5 text-primary" />
                 Plano Alimentar
-                {structuredPlan?.validation && !hasUnresolvedItems && (
+                {structuredPlan?.validation && !hasUnresolvedItems && !dayMacroReport && (
                   <DietValidationBadge report={structuredPlan.validation} className="ml-2" />
                 )}
                 {hasUnresolvedItems && (
@@ -3571,13 +3631,21 @@ ${generated}`;
                     </p>
                   )}
                   <div className="flex flex-wrap gap-2 pt-1">
-                    <Button variant="outline" size="sm" onClick={adjustMacros} disabled={adjusting}>
-                      {adjusting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <SlidersHorizontal className="h-3 w-3 mr-1" />}
-                      Ajuste automático
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => setShowMacroModal(true)}>
-                      <Percent className="h-3 w-3 mr-1" /> Ajustar macros
-                    </Button>
+                    {structuredPlan ? (
+                      <span className="text-[11px] text-muted-foreground self-center">
+                        Ajuste determinístico disponível na próxima etapa.
+                      </span>
+                    ) : (
+                      <>
+                        <Button variant="outline" size="sm" onClick={adjustMacros} disabled={adjusting}>
+                          {adjusting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <SlidersHorizontal className="h-3 w-3 mr-1" />}
+                          Ajuste automático
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setShowMacroModal(true)}>
+                          <Percent className="h-3 w-3 mr-1" /> Ajustar macros
+                        </Button>
+                      </>
+                    )}
                     <Button variant="outline" size="sm" onClick={() => { setResult(''); generatePlan({ regenerateIntent: true }); }}>
                       <RefreshCw className="h-3 w-3 mr-1" /> Regenerar dieta
                     </Button>

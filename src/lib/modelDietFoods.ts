@@ -17,12 +17,29 @@ const QTY_TOKEN =
   /\b\d+(?:[.,]\d+)?\s*(?:g|kg|ml|l|un|und|unid|unidade|unidades|colher(?:es)?|fatia[s]?|xícara[s]?|scoop[s]?|ovo[s]?)\b/gi;
 const MEAL_HEADER = /^(refei[çc][ãa]o|caf[ée]|almo[çc]o|jantar|lanche|ceia|pr[ée]|p[óo]s|total|macros?|obs)/i;
 
+/** Só linhas com forma de alimento: bullet, linha de tabela ou "alimento: quantidade". */
+const BULLET_LINE = /^\s*(?:[-*•]|\d+[\).])\s+/;
+const TABLE_ROW = /^\s*\|.*\|\s*$/;
+const NAME_QTY_LINE = /^[^:|]{3,60}:\s*\S+/;
+const NARRATIVE = /^(observa|nota|aten[çc]|dica|coment|importante|resumo|estimativa)/i;
+
+const looksLikeFoodLine = (line: string): boolean => {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+  if (NARRATIVE.test(trimmed)) return false;
+  if (trimmed.startsWith('#')) return false;
+  if (TABLE_ROW.test(trimmed)) return true;
+  if (BULLET_LINE.test(trimmed)) return true;
+  return NAME_QTY_LINE.test(trimmed) && /\d/.test(trimmed);
+};
+
 /** Nomes de alimentos citados no texto, na ordem, sem duplicar. */
 export function extractModelDietFoodNames(text: string): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
   for (const rawLine of String(text ?? '').split('\n')) {
-    let line = rawLine.replace(QTY_PREFIX, '').trim();
+    if (!looksLikeFoodLine(rawLine)) continue;
+    let line = rawLine.replace(/^\s*\|/, '').replace(QTY_PREFIX, '').trim();
     if (!line || MEAL_HEADER.test(line)) continue;
     // "120g de frango" / "Frango — 120 g" → fica só o nome
     line = line.split(/[—–|:]/)[0];

@@ -96,7 +96,11 @@ describe('Fase 4 — contrato de alimentos', () => {
 
   it('D. aceita item sem foodId quando o nome está autorizado', () => {
     const plan = planWith([{ foodName: 'Tofu defumado', qtyGrams: 80 }]);
-    const report = validateFoodContract(plan, catalog, ['tofu defumado']);
+    // Fase 4.1: contrato fresh exige proveniência explícita.
+    const report = validateFoodContract(plan, catalog, {
+      mode: 'fresh',
+      allowedUnresolved: [{ name: 'tofu defumado', source: 'model_diet' }],
+    });
     expect(report.valid).toBe(true);
     expect(report.unresolvedAllowed.length).toBe(1);
   });

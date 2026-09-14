@@ -54,6 +54,7 @@ import {
 import { validateFoodContract, normalizeAllowedUnresolved } from "../_shared/foodContract.ts";
 import { hydrateDietPlanFromFoods } from "../_shared/dietHydration.ts";
 import {
+  isCanonicalTargetValid,
   validateGlobalDietTarget,
   type GlobalDietTarget,
 } from "../_shared/globalDietTarget.ts";
@@ -563,12 +564,13 @@ serve(async (req) => {
 
     // Autorização de alimento sem cadastro exige proveniência explícita
     // (dieta modelo / exigência do treinador). Sugestão espontânea da IA nunca entra.
-    const authorizedUnresolved = normalizeAllowedUnresolved([
-      ...(Array.isArray(rawAllowedUnresolvedFoods) ? rawAllowedUnresolvedFoods : []),
-      ...(Array.isArray(rawAllowedUnresolvedFoodNames)
-        ? rawAllowedUnresolvedFoodNames.map((n: any) => ({ name: String(n), source: "trainer_required" }))
-        : []),
-    ]);
+    // Contrato FRESH: só objetos {name, source}. String solta (o legado
+    // `allowedUnresolvedFoodNames`) nunca vira autorização automática.
+    const authorizedUnresolved = normalizeAllowedUnresolved(
+      Array.isArray(rawAllowedUnresolvedFoods) ? rawAllowedUnresolvedFoods : [],
+      "fresh",
+    );
+    void rawAllowedUnresolvedFoodNames;
     const allowedUnresolvedNames = resolveAllowedUnresolvedNames(
       authorizedUnresolved.map((a) => a.name),
       foodCatalog,
@@ -1055,6 +1057,18 @@ serve(async (req) => {
       // o limite de conexão móvel/proxy (~150s) e o cliente recebe "Load failed"
       // mesmo quando Terra termina com um plano válido. Iniciamos a segunda
       // candidata em paralelo e só a aceitamos pelos mesmos gates determinísticos.
+      // Fase 4.1: sem metas diárias, a meta determinística do app é obrigatória.
+      // Nenhum modelo é chamado sem ela (plan.targets da IA nunca é fallback).
+      if (!scheduleHasDailyMacroTargets(schedule) && !isCanonicalTargetValid(canonicalTargets)) {
+        return new Response(
+          JSON.stringify({
+            error: "Metas nutricionais determinísticas não foram fornecidas.",
+            error_code: "canonical_targets_missing",
+          }),
+          { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
       const fallbackAbort = new AbortController();
       emit({ phase: "models_started", models: [AI_MODELS.primary, AI_MODELS.fallback] });
       const fallbackCandidatePromise = callModel(
@@ -1220,13 +1234,20 @@ serve(async (req) => {
       }
 
       // A Terra candidate produced by a technical fallback must be CRITICALLY valid.
+      // Fase 4.1: alimento unresolved AUTORIZADO deixa os macros oficiais
+      // incompletos. Isso não é erro da IA: não pode reprovar nem gastar o
+      // fallback. Os gates nutricionais viram "requires_resolution".
+      const nutritionOkForGate = () => requiresResolution || nutrition.ok;
+      const dayTargetsOkForGate = () => requiresResolution || initialDayTargets.ok;
+      const foodTargetsOkForGate = () => requiresResolution || globalTargetReport.ok;
+
       if (technicalFallbackUsed) {
         const validity = evaluateDietCandidateValidity({
           foodContractOk: foodContract.valid,
-          nutritionOk: nutrition.ok,
-          dayTargetsOk: initialDayTargets.ok,
+          nutritionOk: nutritionOkForGate(),
+          dayTargetsOk: dayTargetsOkForGate(),
           dailyAdjustmentsOk: initialAdjValidation.ok,
-          foodTargetsOk: globalTargetReport.ok,
+          foodTargetsOk: foodTargetsOkForGate(),
         });
         if (!validity.criticalValid) {
           const reason = validity.reason as string;
@@ -1256,10 +1277,10 @@ serve(async (req) => {
         requireMenuVariation,
         quantityOnlyRatio: qOnly,
         primarySourceRepeatRatio,
-        nutritionOk: nutrition.ok,
-        dayTargetsOk: initialDayTargets.ok,
+        nutritionOk: nutritionOkForGate(),
+        dayTargetsOk: dayTargetsOkForGate(),
         foodContractOk: foodContract.valid,
-        foodTargetsOk: globalTargetReport.ok,
+        foodTargetsOk: foodTargetsOkForGate(),
         dailyAdjustmentsOk: initialAdjValidation.ok,
         technicalFallbackUsed,
         referenceDietProvided,
@@ -1276,19 +1297,19 @@ serve(async (req) => {
           fallbackReason = "food_contract_invalid";
           fallbackReasons.push("food_contract_invalid");
         }
-        if (!nutrition.ok) { 
-          fallbackReason = "nutrition_invalid"; 
-          fallbackReasons.push("nutrition_invalid"); 
+        if (!nutritionOkForGate()) {
+          fallbackReason = "nutrition_invalid";
+          fallbackReasons.push("nutrition_invalid");
         }
         if (!initialAdjValidation.ok) { 
           fallbackReason = fallbackReason || "daily_adjustments_invalid"; 
           fallbackReasons.push("daily_adjustments_invalid"); 
         }
-        if (!initialDayTargets.ok) {
+        if (!dayTargetsOkForGate()) {
           fallbackReason = fallbackReason || "day_targets_invalid";
           fallbackReasons.push("day_targets_invalid");
         }
-        if (!globalTargetReport.ok) {
+        if (!foodTargetsOkForGate()) {
           fallbackReason = fallbackReason || "food_targets_invalid";
           fallbackReasons.push("food_targets_invalid");
         }
@@ -1412,8 +1433,8 @@ serve(async (req) => {
         const second = await fallbackCandidatePromise;
 
         const criticalRetry =
-          !foodContract.valid || !nutrition.ok || !initialAdjValidation.ok ||
-          !initialDayTargets.ok || !globalTargetReport.ok;
+          !foodContract.valid || !nutritionOkForGate() || !initialAdjValidation.ok ||
+          !dayTargetsOkForGate() || !foodTargetsOkForGate();
         const reviewRequired = (reason: string) => {
           fallbackReasons.push(reason);
           const meta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, null);
@@ -1443,12 +1464,13 @@ serve(async (req) => {
           });
           const initialAdjValidation2 = validateAdjustments(secondPlan);
 
+          const rr2 = prepared2.requiresResolution;
           const validity2 = evaluateDietCandidateValidity({
             foodContractOk: prepared2.contract.valid,
-            nutritionOk: nut2.ok,
+            nutritionOk: rr2 || nut2.ok,
             dailyAdjustmentsOk: initialAdjValidation2.ok,
-            dayTargetsOk: checkDayTargets(secondPlan).ok,
-            foodTargetsOk: prepared2.globalTarget.ok,
+            dayTargetsOk: rr2 || checkDayTargets(secondPlan).ok,
+            foodTargetsOk: rr2 || prepared2.globalTarget.ok,
           });
           const criticalValid = validity2.criticalValid;
 
@@ -1509,11 +1531,11 @@ serve(async (req) => {
             return reviewRequired(
               !foodContract.valid
                 ? "food_contract_invalid"
-                : (!nutrition.ok
+                : (!nutritionOkForGate()
                     ? "nutrition_invalid"
                     : (!initialAdjValidation.ok
                         ? "daily_adjustments_invalid"
-                        : (!initialDayTargets.ok ? "day_targets_invalid" : "food_targets_invalid"))),
+                        : (!dayTargetsOkForGate() ? "day_targets_invalid" : "food_targets_invalid"))),
             );
           }
           warning = isPortionOnly ? "quantity_only" : "high_similarity";
@@ -1607,14 +1629,20 @@ serve(async (req) => {
       // === Metas diárias determinísticas (Fase 3) ===
       // A IA não pode redefinir kcal/P/C/G de um dia: cada day.totals é
       // comparado com o target daquele weekday enviado no schedule.
+      let finalDayTargetsStatus: "ok" | "requires_resolution" | "not_applicable" = "not_applicable";
+      let finalDayTargetsCheck: { ok: boolean; checkedDays: number } | null = null;
       if (scheduleHasDailyMacroTargets(schedule)) {
         const dayTargetCheck = validateDayTargets(finalPlan, schedule);
+        finalDayTargetsCheck = { ok: dayTargetCheck.ok, checkedDays: dayTargetCheck.checkedDays };
+        finalDayTargetsStatus = requiresResolution
+          ? "requires_resolution"
+          : (dayTargetCheck.ok ? "ok" : "not_applicable");
         console.log("[diet-agent] day_targets_validation", {
           ok: dayTargetCheck.ok,
           checked: dayTargetCheck.checkedDays,
           issues: dayTargetCheck.issues.map((i) => ({ weekday: i.weekday, reasons: i.reasons })),
         });
-        if (!dayTargetCheck.ok) {
+        if (!dayTargetCheck.ok && !requiresResolution) {
           const meta = createRoutingMetadata(modelAttempts, fallbackReason, [...fallbackReasons, "day_targets_invalid"], null);
           const detail = dayTargetCheck.issues
             .map((i) => `${i.weekday.toUpperCase()}: ${i.reasons.join(", ")}`)
@@ -1671,6 +1699,17 @@ serve(async (req) => {
             proteinRepeatMeals: similarity.proteinRepeatMeals ?? [],
             carbRepeatMeals: similarity.carbRepeatMeals ?? [],
           },
+          nutritionValidationStatus: requiresResolution ? "requires_resolution" : (nutrition.ok ? "ok" : "invalid"),
+          dayTargetValidationStatus: requiresResolution && finalDayTargetsStatus !== "not_applicable"
+            ? "requires_resolution"
+            : finalDayTargetsStatus,
+          dayTargets: finalDayTargetsCheck
+            ? {
+              status: requiresResolution ? "requires_resolution" : (finalDayTargetsCheck.ok ? "ok" : "invalid"),
+              ok: finalDayTargetsCheck.ok,
+              checkedDays: finalDayTargetsCheck.checkedDays,
+            }
+            : null,
           nutrition: {
             ok: nutrition.ok,
             issues: nutrition.issues,
