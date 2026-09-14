@@ -66,6 +66,12 @@ export interface ResolveDayTargetInput {
   currentTotalKcal?: number | null;
   /** Plan-wide macro targets (conteudo_json.targets). */
   planTargetMacros?: { p?: number | null; c?: number | null; g?: number | null } | null;
+  /**
+   * Phase 3 — explicit, already-materialised target of THIS day (carb cycling
+   * or a day saved with its own macros). It is absolute: no schedule
+   * adjustment is applied on top of it, which is what prevents double scaling.
+   */
+  dayTarget?: Partial<DayTarget> | null;
 }
 
 const macro = (v: unknown): number => {
