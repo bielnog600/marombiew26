@@ -115,6 +115,7 @@ export function shouldRetryDietCandidate(s: DietCandidateSignals): boolean {
     dailyAdjustmentsOk: s.dailyAdjustmentsOk,
     dayTargetsOk: s.dayTargetsOk,
     foodContractOk: s.foodContractOk,
+    foodTargetsOk: s.foodTargetsOk,
   });
   return !criticalValid || needsDietVariationRetry(s);
 }
