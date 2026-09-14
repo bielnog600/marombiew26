@@ -65,7 +65,17 @@ const Alimentos: React.FC = () => {
   });
 
   const upsertMutation = useMutation({
-    mutationFn: async (food: FoodForm & { id?: string }) => {
+    mutationFn: async (input: FoodForm & { id?: string }) => {
+      const trim = (v?: string | null) => {
+        const s = (v ?? '').trim();
+        return s.length > 0 ? s : null;
+      };
+      const food = {
+        ...input,
+        brand: trim(input.brand),
+        source: trim(input.source),
+        barcode: trim(input.barcode),
+      };
       if (food.id) {
         const { error } = await supabase.from('foods').update(food).eq('id', food.id);
         if (error) throw error;
