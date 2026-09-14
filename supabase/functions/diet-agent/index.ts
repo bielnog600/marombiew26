@@ -1434,7 +1434,11 @@ serve(async (req) => {
           }
         } else {
           if (criticalRetry) {
-            return reviewRequired(!nutrition.ok ? "nutrition_invalid" : "daily_adjustments_invalid");
+            return reviewRequired(
+              !foodContract.valid
+                ? "food_contract_invalid"
+                : (!nutrition.ok ? "nutrition_invalid" : "daily_adjustments_invalid"),
+            );
           }
           warning = isPortionOnly ? "quantity_only" : "high_similarity";
         }
@@ -1596,6 +1600,12 @@ serve(async (req) => {
             issues: nutrition.issues,
             totalProteinG: Math.round(nutrition.totalProteinG),
             totalKcal: Math.round(nutrition.totalKcal),
+          },
+          foodContract: {
+            ok: foodContract.valid,
+            version: FOOD_CONTRACT_VERSION,
+            unresolvedItems,
+            unresolvedAllowed: foodContract.unresolvedAllowed,
           },
           aiRouting: routingMeta.routing,
           aiUsage: routingMeta.usage,
