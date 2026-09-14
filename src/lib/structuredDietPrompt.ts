@@ -32,8 +32,8 @@ export const STRUCTURED_CONTRACT_BLOCK = `
 === CONTRATO DE SAÍDA (OBRIGATÓRIO) ===
 - Escolha os alimentos SOMENTE entre os IDs do FOOD CATALOG desta requisição.
 - Cada item deve conter apenas "foodId" (UUID do catálogo) e "qtyGrams" (> 0).
-- NÃO calcule nem devolva kcal, proteína, carboidrato ou gordura de nenhum item.
-- NÃO devolva totais de refeição nem totais do dia: o sistema calcula tudo pela base.
+- NUNCA informe calorias, proteína, carboidrato ou gordura de nenhum item.
+- NUNCA informe totais de refeição nem totais do dia: o sistema calcula tudo pela base.
 - Respeite a estrutura de refeições, horários, restrições e preferências informadas.
 - "foodId": null é permitido SOMENTE para os alimentos previamente autorizados;
   nesse caso use o nome exato da dieta modelo — o sistema marcará o item como

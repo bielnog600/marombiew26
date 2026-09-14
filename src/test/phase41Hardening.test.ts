@@ -173,7 +173,7 @@ describe('Fase 4.1 — micro-hardening', () => {
     expect(out).not.toMatch(/Kcal \| P \| C \| G/i);
     expect(out).not.toMatch(/Total de cada refeição/i);
     expect(out).toContain('ROTINA DO ALUNO');
-    expect(out).toContain('NÃO calcule nem devolva kcal');
+    expect(out).toContain('NUNCA informe calorias');
   });
 
   it('Q: texto narrativo da dieta modelo não vira alimento autorizado', () => {
