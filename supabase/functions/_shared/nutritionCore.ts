@@ -120,10 +120,20 @@ export interface ResolvedFood {
   ambiguous: boolean;
 }
 
+/**
+ * Política de resolução (Fase 4):
+ *  - `legacy` (default): plano antigo sem foodId → fallback por nome EXATO;
+ *    zero match ou nome duplicado → unresolved (ambiguous quando duplicado).
+ *  - `strict_id`: geração nova pelo contrato da IA → só o foodId resolve.
+ *    Um ID inválido NUNCA é mascarado por um match de nome.
+ */
+export type ResolutionPolicy = 'legacy' | 'strict_id';
+
 export const resolveFoodForItem = (
   item: EngineItem,
   index: FoodIndex,
   mode: PlanMode = 'draft',
+  policy: ResolutionPolicy = 'legacy',
 ): ResolvedFood => {
   // Plano publicado com snapshot → autoridade histórica.
   if (mode === 'published' && item.nutritionSnapshot) {
