@@ -12,9 +12,10 @@ import {
   setCarbTypeBasis,
   type WeeklyAverage,
   type BaseComparison,
+  FIXED_CLOSING_MACRO_OPTIONS,
 } from '@/lib/carbCycling';
 import { WEEKDAY_KEYS, type WeekdayKey } from '@/lib/dietDayTargets';
-import { MACRO_BASIS_LABEL, type MacroBasis, type MacroKey, type BodyBasis } from '@/lib/macroConfig';
+import { MACRO_BASIS_LABEL, type MacroBasis, type BodyBasis } from '@/lib/macroConfig';
 
 const WEEKDAY_LABEL: Record<WeekdayKey, string> = {
   seg: 'Seg', ter: 'Ter', qua: 'Qua', qui: 'Qui', sex: 'Sex', sab: 'Sáb', dom: 'Dom',
@@ -96,7 +97,7 @@ export const CarbCyclingPanel = ({
             <div className="rounded-lg border border-border bg-background p-2">
               <p className="text-[10px] text-muted-foreground">Macro que fecha as calorias</p>
               <div className="mt-1 flex gap-2">
-                {(['protein', 'fat', 'carbs'] as MacroKey[]).map((macro) => (
+                {FIXED_CLOSING_MACRO_OPTIONS.map((macro) => (
                   <button
                     key={macro}
                     type="button"
@@ -107,10 +108,13 @@ export const CarbCyclingPanel = ({
                         : 'border-border text-muted-foreground'
                     }`}
                   >
-                    {macro === 'protein' ? 'Proteína' : macro === 'fat' ? 'Gordura' : 'Carboidrato'}
+                    {macro === 'protein' ? 'Proteína' : 'Gordura'}
                   </button>
                 ))}
               </div>
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                O carboidrato já é definido por LOW/MEDIUM/HIGH e não pode fechar as calorias.
+              </p>
               {!config.fixedClosingMacro && (
                 <p className="mt-1 text-[10px] text-amber-600">
                   Escolha qual macro deve fechar as calorias nos dias do ciclo.
@@ -222,20 +226,21 @@ export const CarbCyclingPanel = ({
               <p className="text-[10px] font-semibold uppercase">
                 {weeklyAverage.complete ? 'Média semanal' : 'Semana incompleta'}
               </p>
-              {!weeklyAverage.complete && (
+              {!weeklyAverage.complete ? (
                 <p className="text-amber-600">{weeklyAverage.incompleteMessage}</p>
+              ) : (
+                <>
+                  <p>
+                    <strong className="text-foreground">{num(weeklyAverage.average.kcal)} kcal/dia</strong>
+                    {` · ${num(weeklyAverage.weeklyKcal)} kcal/semana`}
+                  </p>
+                  <p>
+                    P: {num(weeklyAverage.average.p)} g · C: {num(weeklyAverage.average.c)} g · G:{' '}
+                    {num(weeklyAverage.average.g)} g
+                  </p>
+                </>
               )}
-              <p>
-                <strong className="text-foreground">
-                  {weeklyAverage.complete ? `${num(weeklyAverage.average.kcal)} kcal/dia` : '—'}
-                </strong>
-                {weeklyAverage.complete ? ` · ${num(weeklyAverage.weeklyKcal)} kcal/semana` : ''}
-              </p>
-              <p>
-                P: {num(weeklyAverage.average.p)} g · C: {num(weeklyAverage.average.c)} g · G:{' '}
-                {num(weeklyAverage.average.g)} g
-              </p>
-              {comparison && (
+              {weeklyAverage.complete && comparison && (
                 <p>
                   Meta base: {num(comparison.baseKcal)} kcal · Diferença média:{' '}
                   {comparison.diffPerDay > 0 ? '+' : ''}{num(comparison.diffPerDay)} kcal/dia (

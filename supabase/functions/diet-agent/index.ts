@@ -44,6 +44,7 @@ import {
   type DietCandidateSignals,
 } from "../_shared/dietRoutingPolicy.ts";
 import { sanitizeStructuredPrompt } from "../_shared/structuredPromptSanitizer.ts";
+import { scheduleHasDailyMacroTargets, validateDayTargets } from "../_shared/dayTargets.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -164,9 +165,22 @@ function buildLayeredInstructions(dietConfig: any, trainingContext: any): string
   // === Weekly Energy Schedule (MVP) — imutável para o modelo ===
   const schedule = dietConfig?.weeklyEnergySchedule;
   if (schedule && typeof schedule === "object" && schedule.days) {
-    lines.push("\n=== CALORIAS POR DIA (BLOCO IMUTÁVEL — NÃO ALTERE) ===");
-    lines.push(`Meta base do plano: ${schedule.base_daily_kcal} kcal/dia.`);
-    lines.push("Cada dia da semana possui uma meta calórica final obrigatória:");
+    const hasDailyMacros = scheduleHasDailyMacroTargets(schedule);
+    lines.push(
+      hasDailyMacros
+        ? "\n=== METAS NUTRICIONAIS POR DIA (BLOCO IMUTÁVEL — NÃO ALTERE) ==="
+        : "\n=== CALORIAS POR DIA (BLOCO IMUTÁVEL — NÃO ALTERE) ===",
+    );
+    lines.push(
+      hasDailyMacros
+        ? `Referência metabólica (NÃO é a meta de todos os dias): ${schedule.base_daily_kcal} kcal/dia.`
+        : `Meta base do plano: ${schedule.base_daily_kcal} kcal/dia.`,
+    );
+    lines.push(
+      hasDailyMacros
+        ? "Cada dia da semana possui metas próprias de kcal, proteína, carboidrato e gordura. Esses valores vêm do app e são imutáveis:"
+        : "Cada dia da semana possui uma meta calórica final obrigatória:",
+    );
     const WD_ORDER = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"];
     const WD_LABEL: Record<string, string> = {
       seg: "Segunda", ter: "Terça", qua: "Quarta", qui: "Quinta",
@@ -182,7 +196,17 @@ function buildLayeredInstructions(dietConfig: any, trainingContext: any): string
         workoutBits.push(`grupos: ${d.workout.muscles.join(", ")}`);
       }
       const workoutTxt = workoutBits.length > 0 ? ` — treino: ${workoutBits.join(" / ")}` : " — sem treino associado";
-      lines.push(`  - ${WD_LABEL[wd]}: ${t} kcal${workoutTxt}`);
+      if (hasDailyMacros) {
+        const dayType = d.day_type ? ` — ${String(d.day_type).toUpperCase()}` : "";
+        lines.push(
+          `  - ${WD_LABEL[wd]}${dayType}: ${t} kcal | P ${Math.round(Number(d.protein_g) || 0)}g | C ${Math.round(Number(d.carbs_g) || 0)}g | G ${Math.round(Number(d.fat_g) || 0)}g${workoutTxt}`,
+        );
+      } else {
+        lines.push(`  - ${WD_LABEL[wd]}: ${t} kcal${workoutTxt}`);
+      }
+    }
+    if (hasDailyMacros) {
+      lines.push("REGRA CRÍTICA: gere um objeto em days[] para CADA weekday acima, com o campo \"weekday\" preenchido, e o day.totals de cada dia deve bater com a meta DAQUELE dia (±50 kcal, ±10g P, ±15g C, ±8g G). NÃO use a meta base global em todos os dias. O servidor valida dia a dia e rejeita divergências.");
     }
     lines.push("REGRAS OBRIGATÓRIAS para a seção 'Ajustes por dia':");
     lines.push("  1. Respeite EXATAMENTE a meta calórica final de cada dia acima.");
@@ -272,7 +296,8 @@ Responda APENAS com um objeto JSON válido (sem markdown, sem texto antes ou dep
 REGRAS:
 - Calcule totals.kcal de cada item via kcal_base * qty / porção_base; macros idem.
 - meal.totals = soma dos items; day.totals = soma dos meals.
-- O somatório de day.totals deve bater com targets.kcal/p/c/g (tolerância: ±50 kcal e ±10g por macro).
+- SEM metas diárias (bloco "METAS NUTRICIONAIS POR DIA" ausente): o somatório de day.totals deve bater com targets.kcal/p/c/g (tolerância: ±50 kcal e ±10g por macro).
+- COM metas diárias: cada day.totals deve bater com a meta do SEU weekday declarada naquele bloco — NÃO com o objeto global "targets".
 - Se estratégia = "carb_cycle", gere múltiplos days com carbBias variando (low/normal/high).
 - Caso contrário, gere 1 day único com label "Padrão" (vale para todos os dias da semana).
 - NÃO inclua nada além do JSON.
@@ -1392,6 +1417,36 @@ serve(async (req) => {
           }),
           { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
+      }
+
+      // === Metas diárias determinísticas (Fase 3) ===
+      // A IA não pode redefinir kcal/P/C/G de um dia: cada day.totals é
+      // comparado com o target daquele weekday enviado no schedule.
+      if (scheduleHasDailyMacroTargets(schedule)) {
+        const dayTargetCheck = validateDayTargets(finalPlan, schedule);
+        console.log("[diet-agent] day_targets_validation", {
+          ok: dayTargetCheck.ok,
+          checked: dayTargetCheck.checkedDays,
+          issues: dayTargetCheck.issues.map((i) => ({ weekday: i.weekday, reasons: i.reasons })),
+        });
+        if (!dayTargetCheck.ok) {
+          const meta = createRoutingMetadata(modelAttempts, fallbackReason, [...fallbackReasons, "day_targets_invalid"], null);
+          const detail = dayTargetCheck.issues
+            .map((i) => `${i.weekday.toUpperCase()}: ${i.reasons.join(", ")}`)
+            .join(" | ");
+          return new Response(
+            JSON.stringify({
+              error: `Os totais de alguns dias não respeitam as metas diárias definidas no app (${detail}). Regere o plano.`,
+              error_code: "review_required",
+              details: detail,
+              dayTargetIssues: dayTargetCheck.issues,
+              validationReasons: [...fallbackReasons, "day_targets_invalid"],
+              aiRouting: meta.routing,
+              aiUsage: meta.usage,
+            }),
+            { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
       }
 
       emit({ phase: "finalizing", model: selectedModel });

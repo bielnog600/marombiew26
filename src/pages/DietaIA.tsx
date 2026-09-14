@@ -92,7 +92,12 @@ import {
   type CarbCyclingConfig,
   type CarbDayType,
 } from '@/lib/carbCycling';
-import { WEEKDAY_KEYS, resolveDayTarget } from '@/lib/dietDayTargets';
+import { WEEKDAY_KEYS, resolveDayTarget, type WeekdayKey } from '@/lib/dietDayTargets';
+import {
+  validateDietDaysMacros,
+  formatDayTargetLine,
+  type DietDaysMacroValidationReport,
+} from '@/lib/dietDayValidation';
 import type { ParsedMeal } from '@/lib/dietResultParser';
 import { Percent } from 'lucide-react';
 
@@ -433,6 +438,8 @@ const DietaIA = () => {
 
   const [result, setResult] = useState('');
   const [macroReport, setMacroReport] = useState<DietMacroValidationReport | null>(null);
+  /** Fase 3: com carb cycling ativo, cada dia é validado contra a SUA meta. */
+  const [dayMacroReport, setDayMacroReport] = useState<DietDaysMacroValidationReport | null>(null);
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
   // Fase 2 (QA): salvar como rascunho por padrão. UI expõe botões separados.
@@ -654,7 +661,11 @@ const DietaIA = () => {
     body: macroBody,
     baseKcal: baseKcal.base_daily_kcal ?? 0,
     closingMacro,
-  }), [carbCycling, macroConfig, macroBody, baseKcal.base_daily_kcal, closingMacro]);
+    // P e G vêm da resolução canônica da Fase 2 (não das travas cruas).
+    baseResolvedMacros: macroResolution.grams
+      ? { p: canonicalTargets.p, c: canonicalTargets.c, g: canonicalTargets.g }
+      : null,
+  }), [carbCycling, macroConfig, macroBody, baseKcal.base_daily_kcal, closingMacro, macroResolution, canonicalTargets]);
 
   const weeklyCarbTargets = useMemo(
     () => (carbCycling.enabled ? buildWeeklyCarbTargets(carbCycling, carbTypeTargets) : {}),
@@ -893,7 +904,11 @@ const DietaIA = () => {
             types: { ...prev.types, ...(cc.types ?? {}) },
             assignments: { ...prev.assignments, ...(cc.assignments ?? {}) },
             manual: { ...prev.manual, ...(cc.manual ?? {}) },
-            fixedClosingMacro: cc.fixedClosingMacro ?? null,
+            // Carboidrato nunca pode fechar as calorias no modo fixo.
+            fixedClosingMacro:
+              cc.fixedClosingMacro === 'protein' || cc.fixedClosingMacro === 'fat'
+                ? cc.fixedClosingMacro
+                : null,
           }));
         }
         if (wes && typeof wes === 'object') {
@@ -2053,7 +2068,7 @@ As 3 opções devem ser alimentos DIFERENTES entre si e diferentes do alimento p
 ${substitutions.length > 0 ? `Use PREFERENCIALMENTE os alimentos abaixo como opções de substituição:\n${substitutions.map(s => `- ${s.food}: ${s.portion}`).join('\n')}` : ''}
 ${modelDiet.trim() ? `
  === DIETA MODELO (APENAS LISTA DE ALIMENTOS) ===
- IMPORTANTE: A dieta modelo serve APENAS como fonte da LISTA DE ALIMENTOS por refeição. IGNORE completamente as calorias, macros, "Estimativa" e "TOTAL DIÁRIO" da dieta modelo — esses valores NÃO devem ser copiados nem usados como referência. A meta calórica e de macros do aluno é a definida acima (${currentCalories} kcal, P=${macros.proteinGrams}g, C=${macros.carbGrams}g, G=${macros.fatGrams}g) e SEMPRE prevalece.
+ IMPORTANTE: A dieta modelo serve APENAS como fonte da LISTA DE ALIMENTOS por refeição. IGNORE completamente as calorias, macros, "Estimativa" e "TOTAL DIÁRIO" da dieta modelo — esses valores NÃO devem ser copiados nem usados como referência. ${carbCycling.enabled ? 'Use as metas específicas de cada dia definidas no bloco METAS DIÁRIAS OBRIGATÓRIAS — não existe meta única para todos os dias.' : `A meta calórica e de macros do aluno é a definida acima (${currentCalories} kcal, P=${macros.proteinGrams}g, C=${macros.carbGrams}g, G=${macros.fatGrams}g) e SEMPRE prevalece.`}
  REGRAS OBRIGATÓRIAS:
  1) Use EXATAMENTE os mesmos alimentos da dieta modelo, na MESMA ordem, refeição por refeição, preservando o NOME EXATO (ex.: "Arroz basmati cozido") — não renomeie nem simplifique. Se o alimento não estiver na base do sistema, use-o mesmo assim e devolva kcal/P/C/G estimados por você.
  2) AJUSTE LIVREMENTE AS QUANTIDADES (gramas/ml/unidades) de cada item para bater EXATAMENTE a meta calórica e de macros do aluno — as quantidades da dieta modelo são apenas ponto de partida e devem ser recalculadas do zero conforme a meta do aluno.
@@ -2232,6 +2247,34 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
         if (currentTargets) {
           const report = validateDietMacros(md, currentTargets, foodRecords);
           setMacroReport(report);
+          // Fase 3: com o ciclo ativo, a meta global não é a autoridade —
+          // cada weekday é comparado com o próprio target determinístico.
+          if (carbCycling.enabled) {
+            const dayInputs = (structured.days ?? [])
+              .filter((d) => !!d.weekday)
+              .map((d) => ({
+                weekday: d.weekday as WeekdayKey,
+                type: weeklyCarbTargets[d.weekday as WeekdayKey]?.type ?? null,
+                items: (d.meals ?? []).flatMap((m) =>
+                  (m.items ?? []).map((it) => ({
+                    name: it.name,
+                    qtyGrams: Number(it.qtyGrams) || 0,
+                    macros: it.macros,
+                  })),
+                ),
+              }));
+            setDayMacroReport(
+              dayInputs.length > 0
+                ? validateDietDaysMacros({
+                    days: dayInputs,
+                    dayTargets: weeklyCarbTargets,
+                    foods: foodRecords,
+                  })
+                : null,
+            );
+          } else {
+            setDayMacroReport(null);
+          }
         }
         // Compute viability score from generated plan + questionnaire + adherence.
         try {
@@ -2305,6 +2348,7 @@ ${generated}`;
         }
 
         setMacroReport(report);
+        setDayMacroReport(null);
         setResult(finalPlan);
         if (report.valid) {
           toast.success('Dieta validada dentro da meta.');
@@ -3432,7 +3476,42 @@ ${generated}`;
                 </Button>
               </div>
             </div>
-            {macroReport && (
+            {dayMacroReport && (
+              <Card className={`border ${dayMacroReport.valid ? 'border-green-500/30 bg-green-500/5' : 'border-yellow-500/40 bg-yellow-500/5'}`}>
+                <CardContent className="space-y-2 p-4 text-xs">
+                  <div className="flex items-center gap-2">
+                    {dayMacroReport.valid
+                      ? <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                      : <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0" />}
+                    <span className="font-bold text-sm">
+                      {dayMacroReport.valid ? 'Todos os dias dentro da meta' : 'Há dias fora da meta'}
+                    </span>
+                  </div>
+                  {WEEKDAY_KEYS.map((wd) => {
+                    const d = dayMacroReport.days[wd];
+                    if (!d) return null;
+                    return (
+                      <div key={wd} className="rounded-lg border border-border bg-background/60 p-2">
+                        <p className="font-semibold">
+                          {wd.toUpperCase()} · {(d.type ?? '').toUpperCase()}
+                        </p>
+                        <p className="text-muted-foreground">Meta: <strong className="text-foreground">{formatDayTargetLine(d.target)}</strong></p>
+                        <p className="text-muted-foreground">Base: <strong className="text-foreground">{formatDayTargetLine(d.generated)}</strong></p>
+                        <p className={d.valid ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}>
+                          {d.valid ? '✓ dentro da meta' : d.reasons.join(' ')}
+                        </p>
+                      </div>
+                    );
+                  })}
+                  {dayMacroReport.missingDays.length > 0 && (
+                    <p className="text-yellow-600 dark:text-yellow-400">
+                      Dias sem cardápio correspondente: {dayMacroReport.missingDays.map((w) => w.toUpperCase()).join(', ')}.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {macroReport && !dayMacroReport && (
               <Card className={`border ${macroReport.valid ? 'border-green-500/30 bg-green-500/5' : 'border-yellow-500/40 bg-yellow-500/5'}`}>
                 <CardContent className="space-y-3 p-4 text-xs">
                   <div className="flex items-center gap-2">

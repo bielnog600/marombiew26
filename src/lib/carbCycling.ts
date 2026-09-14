@@ -35,6 +35,10 @@ const LABEL: Record<"low" | "normal" | "high", string> = {
 };
 
 /**
+ * @deprecated NÃO usar para novas dietas. Fonte oficial = API da Fase 3
+ * (`buildCarbDayTypeTargets` / `buildWeeklyCarbTargets` / `resolveDayTarget`).
+ * Mantido apenas por compatibilidade com dados antigos.
+ *
  * Allocate carb bias across the week:
  *  - training days  → HIGH (carbs +30%)
  *  - off days       → LOW (carbs -35%)
@@ -174,6 +178,14 @@ export interface CarbDayTypeConfig {
   targetKcal?: number | null;
 }
 
+/**
+ * No modo `fixed_calories` o carboidrato já é a restrição do tipo de dia
+ * (LOW/MEDIUM/HIGH definidos em g/kg), portanto nunca pode fechar as calorias.
+ */
+export type FixedClosingMacro = 'protein' | 'fat';
+
+export const FIXED_CLOSING_MACRO_OPTIONS: FixedClosingMacro[] = ['protein', 'fat'];
+
 export interface CarbCyclingConfig {
   enabled: boolean;
   mode: CarbCyclingMode;
@@ -183,7 +195,7 @@ export interface CarbCyclingConfig {
   /** Dias em que o treinador escolheu manualmente — sugestão não sobrescreve. */
   manual: Record<WeekdayKey, boolean>;
   /** Modo `fixed_calories`: macro que fecha as calorias nos dias do ciclo. */
-  fixedClosingMacro: MacroKey | null;
+  fixedClosingMacro: FixedClosingMacro | null;
 }
 
 export const defaultCarbCyclingConfig = (): CarbCyclingConfig => ({
@@ -265,6 +277,12 @@ export interface BuildCarbDayTypeInput {
   /** Meta calórica base (fonte única já calculada). */
   baseKcal: number;
   closingMacro?: MacroKey | null;
+  /**
+   * Macros canônicos JÁ RESOLVIDOS pela Fase 2 (`resolveMacroConfig`).
+   * No modo variable é esta a origem de P e G — o carb cycling nunca
+   * reinterpreta as travas para derivar os macros constantes.
+   */
+  baseResolvedMacros?: { p: number; c: number; g: number } | null;
 }
 
 /**
@@ -279,6 +297,7 @@ export const buildCarbDayTypeTargets = ({
   body,
   baseKcal,
   closingMacro,
+  baseResolvedMacros,
 }: BuildCarbDayTypeInput): Record<CarbDayType, CarbDayTypeResult> => {
   const out = {} as Record<CarbDayType, CarbDayTypeResult>;
 
@@ -301,13 +320,17 @@ export const buildCarbDayTypeTargets = ({
     }
 
     if (mode === 'variable_calories') {
-      // P e G constantes, derivados da configuração canônica (nunca copiados).
+      // P e G constantes: preferencialmente os macros CANÔNICOS já resolvidos
+      // pela Fase 2 (inclui o macro que fechou as calorias). Só quando a
+      // resolução não estiver disponível caímos na configuração declarada.
       const protein =
+        baseResolvedMacros?.p ??
         macroConfig.protein.grams ??
         (macroConfig.protein.perKg != null
           ? gramsFromPerKg(macroConfig.protein.perKg, macroConfig.protein.basis, body)
           : null);
       const fat =
+        baseResolvedMacros?.g ??
         macroConfig.fat.grams ??
         (macroConfig.fat.perKg != null
           ? gramsFromPerKg(macroConfig.fat.perKg, macroConfig.fat.basis, body)
@@ -347,6 +370,13 @@ export const buildCarbDayTypeTargets = ({
       continue;
     }
     const kcalTarget = cfg.targetKcal && cfg.targetKcal > 0 ? cfg.targetKcal : baseKcal;
+    // Configuração LOCAL do tipo de dia (nunca altera a configuração do treinador):
+    //  - carboidrato travado (é a restrição do tipo LOW/MEDIUM/HIGH);
+    //  - macro de fechamento explicitamente LIVRE, mesmo que esteja travado na base;
+    //  - o macro restante permanece fixo, usando o valor canônico já resolvido.
+    const otherMacro: MacroKey = fixedClosing === 'protein' ? 'fat' : 'protein';
+    const otherResolved =
+      otherMacro === 'fat' ? baseResolvedMacros?.g ?? null : baseResolvedMacros?.p ?? null;
     const config: MacroConfig = {
       ...macroConfig,
       carbs: {
@@ -354,6 +384,12 @@ export const buildCarbDayTypeTargets = ({
         perKg: cfg.carbsPerKg,
         grams: carbs,
         basis: cfg.carbBasis,
+        locked: true,
+      },
+      [fixedClosing]: { ...macroConfig[fixedClosing], locked: false },
+      [otherMacro]: {
+        ...macroConfig[otherMacro],
+        grams: macroConfig[otherMacro].grams ?? otherResolved,
         locked: true,
       },
     };
