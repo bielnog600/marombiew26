@@ -2118,14 +2118,31 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
                     // Rebase adjustments over the definitive currentTargets.calories.
                     const adj = entry.adjustment_kcal;
                     const fixed = entry.fixed_kcal;
-                    const target = fixed != null && fixed > 0
-                      ? Math.round(fixed)
-                      : Math.round(currentTargets.calories + adj);
+                    // Fase 3: quando o carb cycling está ativo, o dia já vem
+                    // materializado com {kcal,p,c,g} — resolveDayTarget é o
+                    // ponto único de consumo e nada é reescalonado depois.
+                    const cycleDay = carbCycling.enabled ? weeklyCarbTargets[wd] : undefined;
+                    const dayTarget = resolveDayTarget({
+                      schedule: weeklySchedule,
+                      dayIndex: ENERGY_WEEKDAYS.indexOf(wd),
+                      planTargetKcal: currentTargets.calories,
+                      planTargetMacros: { p: canonicalTargets.p, c: canonicalTargets.c, g: canonicalTargets.g },
+                      dayTarget: cycleDay ?? null,
+                    });
+                    const target = cycleDay
+                      ? dayTarget.kcal
+                      : fixed != null && fixed > 0
+                        ? Math.round(fixed)
+                        : Math.round(currentTargets.calories + adj);
                     return [wd, {
                       base_kcal: currentTargets.calories,
-                      adjustment_kcal: adj,
-                      fixed_kcal: fixed,
+                      adjustment_kcal: cycleDay ? 0 : adj,
+                      fixed_kcal: cycleDay ? target : fixed,
                       target_kcal: target,
+                      day_type: cycleDay?.type ?? null,
+                      protein_g: dayTarget.p || null,
+                      carbs_g: dayTarget.c || null,
+                      fat_g: dayTarget.g || null,
                       workout: entry.workout,
                     }];
                   }),
