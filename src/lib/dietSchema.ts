@@ -108,12 +108,39 @@ export const DietTargets = z.object({
 });
 export type DietTargets = z.infer<typeof DietTargets>;
 
+/** Snapshot nutricional gravado na publicação (autoridade histórica). */
+export const NutritionSnapshot = z.object({
+  version: z.string(),
+  portionSize: z.number().min(0),
+  kcal: z.number().min(0),
+  p: z.number().min(0),
+  c: z.number().min(0),
+  g: z.number().min(0),
+  brand: z.string().nullable().optional(),
+  source: z.string().nullable().optional(),
+});
+export type NutritionSnapshot = z.infer<typeof NutritionSnapshot>;
+
+export const ResolutionStatus = z.enum([
+  'resolved_by_id',
+  'resolved_by_name',
+  'unresolved',
+  'snapshot',
+]);
+export type ResolutionStatus = z.infer<typeof ResolutionStatus>;
+
 export const MealItem = z.object({
-  foodId: z.string().uuid().optional(),
+  foodId: z.string().uuid().nullable().optional(),
   name: z.string().min(1),
   qtyGrams: z.number().min(0).optional(),
   portionLabel: z.string().optional(),    // ex: "1 colher de sopa", "1 unidade média"
   substitution: z.string().optional(),
+  /** Como o item foi ligado à base alimentar (preenchido pelo nutritionEngine). */
+  resolutionStatus: ResolutionStatus.optional(),
+  /** Valores congelados na publicação — não recalculados em silêncio. */
+  nutritionSnapshot: NutritionSnapshot.optional(),
+  /** Quantidade ajustada manualmente pelo treinador. */
+  manualLocked: z.boolean().optional(),
   macros: Macros,
 });
 export type MealItem = z.infer<typeof MealItem>;
@@ -175,6 +202,10 @@ export const DietPlanMeta = z.object({
   decision: z.enum(['manter', 'ajustar', 'nova', 'pedir_dados']).optional(),
   confidence: z.number().min(0).max(100).optional(),
   rationale: z.string().optional(),
+  /** Versão do motor de nutrição que calculou este plano. */
+  nutritionEngineVersion: z.string().optional(),
+  /** Versão do formato dos snapshots gravados nos itens. */
+  nutritionSnapshotVersion: z.string().optional(),
 });
 export type DietPlanMeta = z.infer<typeof DietPlanMeta>;
 
