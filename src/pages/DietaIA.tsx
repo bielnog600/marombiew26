@@ -70,6 +70,16 @@ import DietDraftComparisonDialog from '@/components/consultoria/DietDraftCompari
 import { formatDietMacroLine, validateDietMacros, type DietMacroTargets, type DietMacroValidationReport, type FoodMacroRecord } from '@/lib/dietMacroValidation';
 import { parseSections } from '@/lib/dietResultParser';
 import { scaleMealsToTarget, scaleMealsToMacroTargets, replaceMealTableInMarkdown } from '@/lib/dietMarkdownSerializer';
+import { selectEnergyFormula, type EnergyFormula, type EnergyFormulaResult } from '@/lib/energyFormula';
+import {
+  defaultMacroConfig,
+  resolveMacroConfig,
+  setMacroPerKg,
+  type MacroConfig,
+  type MacroKey,
+} from '@/lib/macroConfig';
+import EnergyCalculationPanel from '@/components/diet/EnergyCalculationPanel';
+import MacroConfigPanel from '@/components/diet/MacroConfigPanel';
 import type { ParsedMeal } from '@/lib/dietResultParser';
 import { Percent } from 'lucide-react';
 
@@ -245,7 +255,8 @@ const calculateMacroTargets = ({
   const proteinMax = isDeficit ? 2.6 : isMaintenance ? 2.2 : 2.4;
   const fatPerKg = isDeficit ? 0.8 : 0.9;
 
-  if (hormoneUse) proteinPerKg = Math.min(proteinPerKg + 0.2, proteinMax);
+  // Hormônios/medicamentos são contexto clínico e NÃO alteram macros (Fase 2).
+  void hormoneUse;
   proteinPerKg = Math.min(proteinPerKg, proteinMax);
 
   // g/kg overrides (Phase 2): apply when caller provided them and they are sensible.
@@ -430,9 +441,11 @@ const DietaIA = () => {
   const [lastIntent, setLastIntent] = useState<DietIntent>('new');
   // Viability score computed after structured generation.
   const [viability, setViability] = useState<{ score: number; breakdown: ViabilityBreakdown; notes: string[] } | null>(null);
-  // Phase 2: g/kg overrides (optional). When null, defaults from phase/strategy are used.
-  const [proteinPerKgOverride, setProteinPerKgOverride] = useState<string>('');
-  const [fatPerKgOverride, setFatPerKgOverride] = useState<string>('');
+  // Fase 2: estado canônico da configuração de macros + fórmula energética.
+  const [manualFormula, setManualFormula] = useState<EnergyFormula | null>(null);
+  const [macroConfig, setMacroConfig] = useState<MacroConfig>(() => defaultMacroConfig());
+  const [macroConfigTouched, setMacroConfigTouched] = useState(false);
+  const [closingMacro, setClosingMacro] = useState<MacroKey | null>(null);
   // Phase 2: enable structured carb cycling alongside the protocol checkbox.
 
   // ─── Weekly Energy Schedule (MVP) ────────────────────────────
