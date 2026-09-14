@@ -276,9 +276,9 @@ export const computeMealTotals = (
   return {
     items: computed,
     totals,
+    // O nome acompanha o próprio item computado (índices alinhados com `items`).
     unresolvedNames: computed
-      .filter((c) => c.status === 'unresolved')
-      .map((_, i) => items[i]?.name)
+      .map((c, i) => (c.status === 'unresolved' ? (items ?? [])[i]?.name : null))
       .filter((n): n is string => Boolean(n)),
   };
 };

@@ -71,10 +71,23 @@ export const EnergyCalculationPanel = ({
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <Metric
           label="Fórmula"
-          value={selection ? ENERGY_FORMULA_LABEL[selection.formula].split(' (')[0] : '—'}
-          hint={selection?.manual ? 'Escolha manual' : 'Seleção automática'}
+          value={
+            selection && !selection.insufficientData
+              ? ENERGY_FORMULA_LABEL[selection.formula].split(' (')[0]
+              : '—'
+          }
+          hint={
+            selection?.insufficientData
+              ? 'Dados insuficientes'
+              : selection?.manual
+                ? 'Escolha manual'
+                : 'Seleção automática'
+          }
         />
-        <Metric label="TMB" value={kcal(selection?.bmr)} />
+        <Metric
+          label="TMB"
+          value={selection && !selection.insufficientData ? kcal(selection.bmr) : '—'}
+        />
         <Metric
           label="GET"
           value={kcal(tdee)}
