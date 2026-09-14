@@ -43,6 +43,11 @@ const add = (a: EngineMacros, b: EngineMacros): EngineMacros => ({
   g: a.g + b.g,
 });
 
+export interface HydrationOptions {
+  /** Nome normalizado → origem da autorização do unresolved. */
+  authorizationBySource?: Record<string, string>;
+}
+
 /**
  * @param policy `strict_id` para geração nova (contrato da IA);
  *               `legacy` para planos antigos (fallback por nome exato).
@@ -51,6 +56,7 @@ export function hydrateDietPlanFromFoods(
   rawPlan: any,
   catalog: FoodCatalog,
   policy: ResolutionPolicy = "strict_id",
+  options: HydrationOptions = {},
 ): HydrationResult {
   const plan = JSON.parse(JSON.stringify(rawPlan ?? {}));
   const unresolvedItems: UnresolvedItemRef[] = [];
