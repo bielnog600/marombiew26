@@ -8,6 +8,7 @@
  *  J      semana 6/7 não apresenta médias parciais como oficiais.
  */
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   defaultCarbCyclingConfig,
   buildCarbDayTypeTargets,
@@ -318,5 +319,24 @@ describe('Fase 3 — micro-hardening', () => {
       dayTargetsOk: true,
     });
     expect(backup.criticalValid).toBe(true);
+  });
+});
+
+describe('Fase 3 — prompts do diet-agent', () => {
+  const src = readFileSync('supabase/functions/diet-agent/index.ts', 'utf8');
+
+  it('F. regra genérica de proteína constante só existe sem metas diárias', () => {
+    const idx = src.indexOf('A PROTEÍNA deve permanecer estável');
+    expect(idx).toBeGreaterThan(-1);
+    // O bloco genérico fica no ramo "else" (sem macros diários).
+    const before = src.slice(Math.max(0, idx - 600), idx);
+    expect(before).toContain('} else {');
+    expect(src).toContain('NÃO aplique regras genéricas de estabilidade');
+  });
+
+  it('G. hormônios são apenas contexto clínico', () => {
+    expect(src).not.toContain('proteína faixa superior, carbs mais elevados');
+    expect(src).toContain('Nunca altere TMB, GET, calorias ou macros por causa deles');
+    expect(src).not.toContain('SE os dados do aluno incluírem uma seção "RECOMENDAÇÃO CALCULADA"');
   });
 });
