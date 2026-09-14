@@ -3275,9 +3275,13 @@ ${generated}`;
                   </div>
                   <div className="grid gap-1 text-muted-foreground sm:grid-cols-3">
                     <span>Meta: <strong className="text-foreground">{formatDietMacroLine(macroReport.target)}</strong></span>
-                    <span>Gerado: <strong className="text-foreground">{formatDietMacroLine(macroReport.generated)}</strong></span>
+                    <span>Calculado pela base alimentar: <strong className="text-foreground">{formatDietMacroLine(macroReport.generated)}</strong></span>
                     <span>Diferença: <strong className="text-foreground">{formatDietMacroLine(macroReport.difference)}</strong></span>
                   </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Valor oficial: o cálculo pela base alimentar acima. Os números dentro das tabelas
+                    ainda vêm do plano gerado e podem divergir até a próxima etapa.
+                  </p>
                   {!macroReport.valid && (
                     <p className="text-yellow-600 dark:text-yellow-400">
                       Fora da meta. Pode ajustar automaticamente, regenerar ou salvar mesmo assim.
