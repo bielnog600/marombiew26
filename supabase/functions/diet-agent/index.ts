@@ -51,8 +51,12 @@ import {
   resolveAllowedUnresolvedNames,
   type FoodCatalog,
 } from "../_shared/foodCatalog.ts";
-import { validateFoodContract } from "../_shared/foodContract.ts";
+import { validateFoodContract, normalizeAllowedUnresolved } from "../_shared/foodContract.ts";
 import { hydrateDietPlanFromFoods } from "../_shared/dietHydration.ts";
+import {
+  validateGlobalDietTarget,
+  type GlobalDietTarget,
+} from "../_shared/globalDietTarget.ts";
 import { FOOD_CONTRACT_VERSION } from "../_shared/nutritionCore.ts";
 
 const corsHeaders = {
@@ -536,6 +540,8 @@ serve(async (req) => {
       referenceDietProvided: rawReferenceDietProvided,
       progressStream: rawProgressStream,
       allowedUnresolvedFoodNames: rawAllowedUnresolvedFoodNames,
+      allowedUnresolvedFoods: rawAllowedUnresolvedFoods,
+      canonicalTargets: rawCanonicalTargets,
     } = await req.json();
     const referenceDietProvided = Boolean(rawReferenceDietProvided);
     const wantsProgressStream = Boolean(rawProgressStream);
@@ -545,10 +551,34 @@ serve(async (req) => {
 
     // Fase 4: uma única leitura do catálogo com IDs reais por requisição.
     const foodCatalog = await loadCatalogOnce();
+    if (!foodCatalog.foods.length) {
+      return new Response(
+        JSON.stringify({
+          error: "Base de alimentos vazia. Cadastre alimentos antes de gerar a dieta.",
+          error_code: "food_catalog_unavailable",
+        }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Autorização de alimento sem cadastro exige proveniência explícita
+    // (dieta modelo / exigência do treinador). Sugestão espontânea da IA nunca entra.
+    const authorizedUnresolved = normalizeAllowedUnresolved([
+      ...(Array.isArray(rawAllowedUnresolvedFoods) ? rawAllowedUnresolvedFoods : []),
+      ...(Array.isArray(rawAllowedUnresolvedFoodNames)
+        ? rawAllowedUnresolvedFoodNames.map((n: any) => ({ name: String(n), source: "trainer_required" }))
+        : []),
+    ]);
     const allowedUnresolvedNames = resolveAllowedUnresolvedNames(
-      Array.isArray(rawAllowedUnresolvedFoodNames) ? rawAllowedUnresolvedFoodNames : [],
+      authorizedUnresolved.map((a) => a.name),
       foodCatalog,
     );
+    const allowedUnresolvedFoodsForContract = authorizedUnresolved.filter((a) =>
+      allowedUnresolvedNames.includes(a.name)
+    );
+    const canonicalTargets = rawCanonicalTargets && typeof rawCanonicalTargets === "object"
+      ? rawCanonicalTargets as GlobalDietTarget
+      : null;
     const unresolvedBlock = allowedUnresolvedNames.length
       ? `\nALIMENTOS SEM CADASTRO AUTORIZADOS (use "foodId": null e o nome exato):\n${allowedUnresolvedNames.map((n) => `- ${n}`).join("\n")}\n`
       : "";
@@ -1094,22 +1124,44 @@ serve(async (req) => {
       // A IA só entrega foodId + qtyGrams. Aqui validamos os IDs e reconstruímos
       // nome, macros e totais a partir da tabela `foods`. Qualquer valor
       // nutricional devolvido pelo modelo é descartado ANTES de qualquer validação.
+      const hasDailyTargets = scheduleHasDailyMacroTargets(schedule);
       const prepareCandidate = (rawPlan: any) => {
-        const contract = validateFoodContract(rawPlan, foodCatalog, allowedUnresolvedNames);
-        const hydrated = hydrateDietPlanFromFoods(rawPlan, foodCatalog, "strict_id");
-        return { plan: hydrated.plan, contract, unresolvedItems: hydrated.unresolvedItems };
+        const contract = validateFoodContract(rawPlan, foodCatalog, {
+          mode: "fresh",
+          allowedUnresolved: allowedUnresolvedFoodsForContract,
+        });
+        const hydrated = hydrateDietPlanFromFoods(rawPlan, foodCatalog, "strict_id", {
+          authorizationBySource: contract.authorizationBySource,
+        });
+        // Target global só quando NÃO há metas diárias (carb cycling OFF).
+        // Nunca os dois ao mesmo tempo. Sempre com os totais HIDRATADOS.
+        const globalTarget = (hasDailyTargets || hydrated.requiresResolution)
+          ? { ok: true, checkedDays: 0, issues: [] as string[], diffs: [] }
+          : validateGlobalDietTarget(hydrated.plan, canonicalTargets);
+        return {
+          plan: hydrated.plan,
+          contract,
+          unresolvedItems: hydrated.unresolvedItems,
+          requiresResolution: hydrated.requiresResolution,
+          globalTarget,
+        };
       };
 
       let prepared = prepareCandidate(candidatePlan);
       candidatePlan = prepared.plan;
       let foodContract = prepared.contract;
       let unresolvedItems = prepared.unresolvedItems;
+      let requiresResolution = prepared.requiresResolution;
+      let globalTargetReport = prepared.globalTarget;
       console.log("[diet-agent] food_contract", {
         model: selectedModel,
         ok: foodContract.valid,
         invalidFoodIds: foodContract.invalidFoodIds.length,
         missingFoodIds: foodContract.missingFoodIds.length,
         unresolvedAllowed: foodContract.unresolvedAllowed.length,
+        requiresResolution,
+        globalTargetOk: globalTargetReport.ok,
+        globalTargetIssues: globalTargetReport.issues.slice(0, 6),
       });
 
       const historyJsons = history
@@ -1174,6 +1226,7 @@ serve(async (req) => {
           nutritionOk: nutrition.ok,
           dayTargetsOk: initialDayTargets.ok,
           dailyAdjustmentsOk: initialAdjValidation.ok,
+          foodTargetsOk: globalTargetReport.ok,
         });
         if (!validity.criticalValid) {
           const reason = validity.reason as string;
@@ -1206,6 +1259,7 @@ serve(async (req) => {
         nutritionOk: nutrition.ok,
         dayTargetsOk: initialDayTargets.ok,
         foodContractOk: foodContract.valid,
+        foodTargetsOk: globalTargetReport.ok,
         dailyAdjustmentsOk: initialAdjValidation.ok,
         technicalFallbackUsed,
         referenceDietProvided,
@@ -1233,6 +1287,10 @@ serve(async (req) => {
         if (!initialDayTargets.ok) {
           fallbackReason = fallbackReason || "day_targets_invalid";
           fallbackReasons.push("day_targets_invalid");
+        }
+        if (!globalTargetReport.ok) {
+          fallbackReason = fallbackReason || "food_targets_invalid";
+          fallbackReasons.push("food_targets_invalid");
         }
         if (variationRetryAllowed && historyJsons.length > 0) {
           if (similarity.score > threshold) { 
@@ -1334,6 +1392,13 @@ serve(async (req) => {
               : []),
           );
         }
+        if (!globalTargetReport.ok) {
+          retryParts.unshift(
+            "🚨 METAS NUTRICIONAIS FORA DA TOLERÂNCIA (calculadas pela base de alimentos, não pelos seus números):",
+            ...globalTargetReport.issues.slice(0, 8).map((i) => `• ${i}`),
+            "Ajuste as QUANTIDADES (qtyGrams) para fechar a meta. Tolerância: ±50 kcal, ±10 g P, ±15 g C, ±8 g G.",
+          );
+        }
         const forceMenuVariation =
           !referenceDietProvided &&
           (intent === "regenerate" ||
@@ -1347,7 +1412,8 @@ serve(async (req) => {
         const second = await fallbackCandidatePromise;
 
         const criticalRetry =
-          !foodContract.valid || !nutrition.ok || !initialAdjValidation.ok || !initialDayTargets.ok;
+          !foodContract.valid || !nutrition.ok || !initialAdjValidation.ok ||
+          !initialDayTargets.ok || !globalTargetReport.ok;
         const reviewRequired = (reason: string) => {
           fallbackReasons.push(reason);
           const meta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, null);
@@ -1382,6 +1448,7 @@ serve(async (req) => {
             nutritionOk: nut2.ok,
             dailyAdjustmentsOk: initialAdjValidation2.ok,
             dayTargetsOk: checkDayTargets(secondPlan).ok,
+            foodTargetsOk: prepared2.globalTarget.ok,
           });
           const criticalValid = validity2.criticalValid;
 
@@ -1393,6 +1460,8 @@ serve(async (req) => {
             finalPlan = secondPlan;
             foodContract = prepared2.contract;
             unresolvedItems = prepared2.unresolvedItems;
+            requiresResolution = prepared2.requiresResolution;
+            globalTargetReport = prepared2.globalTarget;
             similarity = sim2;
             nutrition = nut2;
             selectedModel = AI_MODELS.fallback;
@@ -1416,6 +1485,8 @@ serve(async (req) => {
               finalPlan = secondPlan;
               foodContract = prepared2.contract;
               unresolvedItems = prepared2.unresolvedItems;
+              requiresResolution = prepared2.requiresResolution;
+              globalTargetReport = prepared2.globalTarget;
               similarity = sim2;
               nutrition = nut2;
               selectedModel = AI_MODELS.fallback;
@@ -1438,7 +1509,11 @@ serve(async (req) => {
             return reviewRequired(
               !foodContract.valid
                 ? "food_contract_invalid"
-                : (!nutrition.ok ? "nutrition_invalid" : "daily_adjustments_invalid"),
+                : (!nutrition.ok
+                    ? "nutrition_invalid"
+                    : (!initialAdjValidation.ok
+                        ? "daily_adjustments_invalid"
+                        : (!initialDayTargets.ok ? "day_targets_invalid" : "food_targets_invalid"))),
             );
           }
           warning = isPortionOnly ? "quantity_only" : "high_similarity";
@@ -1605,8 +1680,14 @@ serve(async (req) => {
           foodContract: {
             ok: foodContract.valid,
             version: FOOD_CONTRACT_VERSION,
+            requiresResolution,
             unresolvedItems,
             unresolvedAllowed: foodContract.unresolvedAllowed,
+          },
+          globalTarget: {
+            ok: globalTargetReport.ok,
+            checkedDays: globalTargetReport.checkedDays,
+            issues: globalTargetReport.issues,
           },
           aiRouting: routingMeta.routing,
           aiUsage: routingMeta.usage,

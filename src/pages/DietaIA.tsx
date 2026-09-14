@@ -21,6 +21,9 @@ import { validateDietJSON } from '@/lib/planMigrationUtils';
 import { markdownToDietPlan } from '@/lib/dietPlanAdapter';
 import { finalizeDietPlan } from '@/lib/dietValidation';
 import { parseDietPlanStrict, parseDietPlanLoose, type DietPlan } from '@/lib/dietSchema';
+import { buildAllowedUnresolvedFromModelDiet } from '@/lib/modelDietFoods';
+import { Badge } from '@/components/ui/badge';
+import UnresolvedFoodsPanel, { collectUnresolvedItems } from '@/components/diet/UnresolvedFoodsPanel';
 import { dietPlanToMarkdown } from '@/lib/dietMarkdownSerializer';
 import { extractTrainingContext } from '@/lib/trainingContextExtractor';
 import { parseTrainingSections } from '@/lib/trainingResultParser';
@@ -452,6 +455,11 @@ const DietaIA = () => {
   const [showCompare, setShowCompare] = useState(false);
   // Canonical structured plan (source of truth when structured generation succeeds).
   const [structuredPlan, setStructuredPlan] = useState<DietPlan | null>(null);
+  // Enquanto houver alimento sem vínculo com a base, a dieta NÃO é validada.
+  const hasUnresolvedItems = useMemo(
+    () => (structuredPlan ? collectUnresolvedItems(structuredPlan).length > 0 : false),
+    [structuredPlan],
+  );
   // Novos alimentos encontrados no plano que não estão na base — aguardam aprovação.
   const [pendingNewFoods, setPendingNewFoods] = useState<NewFoodCandidate[]>([]);
   // Variability controls + feedback (mirrors TreinoIA).
@@ -1722,6 +1730,18 @@ const DietaIA = () => {
       console.warn('structured: failed to load training context', e);
     }
 
+    // Alimentos da dieta modelo sem correspondência única na base: só eles podem
+    // voltar sem foodId (source model_diet). Calculado ANTES da geração.
+    let allowedUnresolvedFoods: { name: string; source: string }[] = [];
+    if (modelDiet.trim()) {
+      try {
+        const foodsForCheck = await loadFoodMacroRecords();
+        allowedUnresolvedFoods = buildAllowedUnresolvedFromModelDiet(modelDiet, foodsForCheck);
+      } catch (e) {
+        console.warn('structured: failed to build allowed unresolved foods', e);
+      }
+    }
+
     const streamResp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/diet-agent`, {
       method: 'POST',
       headers: {
@@ -1743,6 +1763,9 @@ const DietaIA = () => {
         // Dieta modelo colada: o plano deve repetir os alimentos de referência,
         // então os filtros de variação/repetição não podem bloquear a geração.
         referenceDietProvided: Boolean(modelDiet.trim()),
+        // Target determinístico do app: única autoridade de meta no servidor.
+        canonicalTargets: { kcal: targets.kcal, p: targets.p, c: targets.c, g: targets.g },
+        allowedUnresolvedFoods,
       }),
     });
 
@@ -3438,12 +3461,23 @@ ${generated}`;
                 </div>
               );
             })()}
+            {structuredPlan && (
+              <UnresolvedFoodsPanel
+                plan={structuredPlan}
+                onChange={(p) => setStructuredPlan(p)}
+              />
+            )}
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-lg flex items-center gap-2">
                 <UtensilsCrossed className="h-5 w-5 text-primary" />
                 Plano Alimentar
-                {structuredPlan?.validation && (
+                {structuredPlan?.validation && !hasUnresolvedItems && (
                   <DietValidationBadge report={structuredPlan.validation} className="ml-2" />
+                )}
+                {hasUnresolvedItems && (
+                  <Badge variant="outline" className="ml-2 border-amber-500/50 text-amber-400 text-[10px]">
+                    NÃO VALIDADO
+                  </Badge>
                 )}
               </h3>
               <div className="flex gap-2 flex-wrap">

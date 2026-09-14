@@ -12,6 +12,7 @@ import {
   NUTRITION_SNAPSHOT_VERSION,
   ZERO_MACROS,
   computeItemMacros,
+  normalizeFoodName,
   roundForDisplay,
   type EngineMacros,
   type ResolutionPolicy,
@@ -23,6 +24,9 @@ export interface UnresolvedItemRef {
   meal: string;
   name: string;
   ambiguous: boolean;
+  reason: "no_food_id" | "ambiguous_name" | "not_found";
+  /** Preenchido quando o alimento foi autorizado antes da geração. */
+  authorizationSource?: string;
 }
 
 export interface HydrationResult {
@@ -40,6 +44,11 @@ const add = (a: EngineMacros, b: EngineMacros): EngineMacros => ({
   g: a.g + b.g,
 });
 
+export interface HydrationOptions {
+  /** Nome normalizado → origem da autorização do unresolved. */
+  authorizationBySource?: Record<string, string>;
+}
+
 /**
  * @param policy `strict_id` para geração nova (contrato da IA);
  *               `legacy` para planos antigos (fallback por nome exato).
@@ -48,6 +57,7 @@ export function hydrateDietPlanFromFoods(
   rawPlan: any,
   catalog: FoodCatalog,
   policy: ResolutionPolicy = "strict_id",
+  options: HydrationOptions = {},
 ): HydrationResult {
   const plan = JSON.parse(JSON.stringify(rawPlan ?? {}));
   const unresolvedItems: UnresolvedItemRef[] = [];
@@ -57,7 +67,17 @@ export function hydrateDietPlanFromFoods(
   for (const day of days) {
     let dayTotals: EngineMacros = { ...ZERO_MACROS };
     const meals = Array.isArray(day?.meals) ? day.meals : [];
+    let mealIndex = 0;
     for (const meal of meals) {
+      // Campos estruturais obrigatórios preenchidos deterministicamente
+      // (a IA não precisa mais devolvê-los).
+      if (typeof meal.id !== "string" || !meal.id) {
+        meal.id = `${String(day?.weekday ?? "dia")}-${mealIndex + 1}`;
+      }
+      if (typeof meal.order !== "number" || !Number.isFinite(meal.order)) {
+        meal.order = mealIndex + 1;
+      }
+      mealIndex += 1;
       let mealTotals: EngineMacros = { ...ZERO_MACROS };
       const items = Array.isArray(meal?.items) ? meal.items : [];
       for (const item of items) {
@@ -89,11 +109,17 @@ export function hydrateDietPlanFromFoods(
         } else {
           // Item não validado pela base não recebe macros estimados pela IA.
           item.macros = { kcal: 0, p: 0, c: 0, g: 0 };
+          const authKey = normalizeFoodName(item.name);
+          const authorizationSource = options.authorizationBySource?.[authKey];
           unresolvedItems.push({
-            day: String(day?.label ?? day?.weekday ?? ""),
+            day: String(day?.weekday ?? day?.label ?? ""),
             meal: String(meal?.name ?? ""),
             name: item.name,
             ambiguous: Boolean(computed.ambiguous),
+            reason: computed.ambiguous
+              ? "ambiguous_name"
+              : (item.foodId ? "not_found" : "no_food_id"),
+            ...(authorizationSource ? { authorizationSource } : {}),
           });
         }
       }
@@ -103,25 +129,38 @@ export function hydrateDietPlanFromFoods(
     day.totals = roundForDisplay(dayTotals);
   }
 
-  // dailyAdjustments: o nome de apresentação vem SEMPRE do registro real.
+  // dailyAdjustments: nome canônico E estimated_kcal recalculados pela base.
+  // A IA não é autoridade nem aqui.
   const adj = plan?.dailyAdjustments;
   if (adj && typeof adj === "object") {
     for (const day of Object.values<any>(adj)) {
       const instructions = Array.isArray(day?.instructions) ? day.instructions : [];
       for (const ins of instructions) {
-        if (ins?.food_id) {
-          const food = catalog.index.byId.get(String(ins.food_id));
-          if (food) ins.food_name = food.name;
-        }
+        if (!ins?.food_id) continue;
+        const food = catalog.index.byId.get(String(ins.food_id));
+        if (!food) continue;
+        ins.food_name = food.name;
+        const computed = computeItemMacros(
+          { foodId: food.id, name: food.name, qtyGrams: Number(ins.quantity) || 0 },
+          catalog.index,
+          "draft",
+          "strict_id",
+        );
+        ins.estimated_kcal = Math.round(computed.macros.kcal);
       }
     }
   }
 
+  const hasSnapshot = days.some((d: any) =>
+    (d?.meals ?? []).some((m: any) => (m?.items ?? []).some((i: any) => i?.nutritionSnapshot)),
+  );
+
   plan.meta = {
     ...(plan.meta ?? {}),
     nutritionEngineVersion: NUTRITION_ENGINE_VERSION,
-    nutritionSnapshotVersion: NUTRITION_SNAPSHOT_VERSION,
     foodContractVersion: FOOD_CONTRACT_VERSION,
+    // Snapshot definitivo é Fase 6: só versionamos se realmente houver snapshot.
+    ...(hasSnapshot ? { nutritionSnapshotVersion: NUTRITION_SNAPSHOT_VERSION } : {}),
   };
 
   return {
