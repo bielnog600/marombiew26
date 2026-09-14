@@ -1448,6 +1448,7 @@ serve(async (req) => {
             nutritionOk: nut2.ok,
             dailyAdjustmentsOk: initialAdjValidation2.ok,
             dayTargetsOk: checkDayTargets(secondPlan).ok,
+            foodTargetsOk: prepared2.globalTarget.ok,
           });
           const criticalValid = validity2.criticalValid;
 
