@@ -2348,6 +2348,7 @@ ${generated}`;
         }
 
         setMacroReport(report);
+        setDayMacroReport(null);
         setResult(finalPlan);
         if (report.valid) {
           toast.success('Dieta validada dentro da meta.');
