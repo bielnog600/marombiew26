@@ -169,6 +169,23 @@ export const selectEnergyFormula = (input: EnergyFormulaInput): EnergyFormulaRes
     warnings.push('Fórmula escolhida manualmente não é aplicável com os dados atuais.');
   }
 
+  // Massa magra antiga (>120 dias) não seleciona Cunningham automaticamente:
+  // preferimos Mifflin quando o sexo está disponível; Cunningham/Katch seguem
+  // nas alternativas para escolha manual (e o aviso permanece).
+  if (leanUsable && staleLeanMass && alternatives.mifflin != null) {
+    return {
+      formula: 'mifflin',
+      bmr: alternatives.mifflin,
+      reason:
+        'Composição corporal antiga — usando Mifflin-St Jeor automaticamente. Cunningham segue disponível para escolha manual.',
+      alternatives,
+      warnings,
+      insufficientData: false,
+      leanMassUsable: true,
+      manual: false,
+    };
+  }
+
   if (leanUsable && alternatives.cunningham != null) {
     return {
       formula: 'cunningham',
