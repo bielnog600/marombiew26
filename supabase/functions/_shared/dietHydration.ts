@@ -118,25 +118,38 @@ export function hydrateDietPlanFromFoods(
     day.totals = roundForDisplay(dayTotals);
   }
 
-  // dailyAdjustments: o nome de apresentação vem SEMPRE do registro real.
+  // dailyAdjustments: nome canônico E estimated_kcal recalculados pela base.
+  // A IA não é autoridade nem aqui.
   const adj = plan?.dailyAdjustments;
   if (adj && typeof adj === "object") {
     for (const day of Object.values<any>(adj)) {
       const instructions = Array.isArray(day?.instructions) ? day.instructions : [];
       for (const ins of instructions) {
-        if (ins?.food_id) {
-          const food = catalog.index.byId.get(String(ins.food_id));
-          if (food) ins.food_name = food.name;
-        }
+        if (!ins?.food_id) continue;
+        const food = catalog.index.byId.get(String(ins.food_id));
+        if (!food) continue;
+        ins.food_name = food.name;
+        const computed = computeItemMacros(
+          { foodId: food.id, name: food.name, qtyGrams: Number(ins.quantity) || 0 },
+          catalog.index,
+          "draft",
+          "strict_id",
+        );
+        ins.estimated_kcal = Math.round(computed.macros.kcal);
       }
     }
   }
 
+  const hasSnapshot = days.some((d: any) =>
+    (d?.meals ?? []).some((m: any) => (m?.items ?? []).some((i: any) => i?.nutritionSnapshot)),
+  );
+
   plan.meta = {
     ...(plan.meta ?? {}),
     nutritionEngineVersion: NUTRITION_ENGINE_VERSION,
-    nutritionSnapshotVersion: NUTRITION_SNAPSHOT_VERSION,
     foodContractVersion: FOOD_CONTRACT_VERSION,
+    // Snapshot definitivo é Fase 6: só versionamos se realmente houver snapshot.
+    ...(hasSnapshot ? { nutritionSnapshotVersion: NUTRITION_SNAPSHOT_VERSION } : {}),
   };
 
   return {
