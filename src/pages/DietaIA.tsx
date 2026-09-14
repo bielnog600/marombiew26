@@ -1722,6 +1722,18 @@ const DietaIA = () => {
       console.warn('structured: failed to load training context', e);
     }
 
+    // Alimentos da dieta modelo sem correspondência única na base: só eles podem
+    // voltar sem foodId (source model_diet). Calculado ANTES da geração.
+    let allowedUnresolvedFoods: { name: string; source: string }[] = [];
+    if (modelDiet.trim()) {
+      try {
+        const foodsForCheck = await loadFoodMacroRecords();
+        allowedUnresolvedFoods = buildAllowedUnresolvedFromModelDiet(modelDiet, foodsForCheck);
+      } catch (e) {
+        console.warn('structured: failed to build allowed unresolved foods', e);
+      }
+    }
+
     const streamResp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/diet-agent`, {
       method: 'POST',
       headers: {
