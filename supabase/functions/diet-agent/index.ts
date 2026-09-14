@@ -547,10 +547,34 @@ serve(async (req) => {
 
     // Fase 4: uma única leitura do catálogo com IDs reais por requisição.
     const foodCatalog = await loadCatalogOnce();
+    if (!foodCatalog.foods.length) {
+      return new Response(
+        JSON.stringify({
+          error: "Base de alimentos vazia. Cadastre alimentos antes de gerar a dieta.",
+          error_code: "food_catalog_unavailable",
+        }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Autorização de alimento sem cadastro exige proveniência explícita
+    // (dieta modelo / exigência do treinador). Sugestão espontânea da IA nunca entra.
+    const authorizedUnresolved = normalizeAllowedUnresolved([
+      ...(Array.isArray(rawAllowedUnresolvedFoods) ? rawAllowedUnresolvedFoods : []),
+      ...(Array.isArray(rawAllowedUnresolvedFoodNames)
+        ? rawAllowedUnresolvedFoodNames.map((n: any) => ({ name: String(n), source: "trainer_required" }))
+        : []),
+    ]);
     const allowedUnresolvedNames = resolveAllowedUnresolvedNames(
-      Array.isArray(rawAllowedUnresolvedFoodNames) ? rawAllowedUnresolvedFoodNames : [],
+      authorizedUnresolved.map((a) => a.name),
       foodCatalog,
     );
+    const allowedUnresolvedFoodsForContract = authorizedUnresolved.filter((a) =>
+      allowedUnresolvedNames.includes(a.name)
+    );
+    const canonicalTargets = rawCanonicalTargets && typeof rawCanonicalTargets === "object"
+      ? rawCanonicalTargets as GlobalDietTarget
+      : null;
     const unresolvedBlock = allowedUnresolvedNames.length
       ? `\nALIMENTOS SEM CADASTRO AUTORIZADOS (use "foodId": null e o nome exato):\n${allowedUnresolvedNames.map((n) => `- ${n}`).join("\n")}\n`
       : "";
