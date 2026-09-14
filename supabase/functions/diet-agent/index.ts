@@ -1412,7 +1412,9 @@ serve(async (req) => {
               escapedPortionOnly: escapedPortion,
               reducedPrimarySourceRepeat: reducedPrimary,
             })) {
-              finalPlan = second.plan;
+              finalPlan = secondPlan;
+              foodContract = prepared2.contract;
+              unresolvedItems = prepared2.unresolvedItems;
               similarity = sim2;
               nutrition = nut2;
               selectedModel = AI_MODELS.fallback;
