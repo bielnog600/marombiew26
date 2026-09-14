@@ -2247,6 +2247,34 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
         if (currentTargets) {
           const report = validateDietMacros(md, currentTargets, foodRecords);
           setMacroReport(report);
+          // Fase 3: com o ciclo ativo, a meta global não é a autoridade —
+          // cada weekday é comparado com o próprio target determinístico.
+          if (carbCycling.enabled) {
+            const dayInputs = (structured.days ?? [])
+              .filter((d) => !!d.weekday)
+              .map((d) => ({
+                weekday: d.weekday as WeekdayKey,
+                type: weeklyCarbTargets[d.weekday as WeekdayKey]?.type ?? null,
+                items: (d.meals ?? []).flatMap((m) =>
+                  (m.items ?? []).map((it) => ({
+                    name: it.name,
+                    qtyGrams: Number(it.qtyGrams) || 0,
+                    macros: it.macros,
+                  })),
+                ),
+              }));
+            setDayMacroReport(
+              dayInputs.length > 0
+                ? validateDietDaysMacros({
+                    days: dayInputs,
+                    dayTargets: weeklyCarbTargets,
+                    foods: foodRecords,
+                  })
+                : null,
+            );
+          } else {
+            setDayMacroReport(null);
+          }
         }
         // Compute viability score from generated plan + questionnaire + adherence.
         try {
