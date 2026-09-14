@@ -370,6 +370,13 @@ export const buildCarbDayTypeTargets = ({
       continue;
     }
     const kcalTarget = cfg.targetKcal && cfg.targetKcal > 0 ? cfg.targetKcal : baseKcal;
+    // Configuração LOCAL do tipo de dia (nunca altera a configuração do treinador):
+    //  - carboidrato travado (é a restrição do tipo LOW/MEDIUM/HIGH);
+    //  - macro de fechamento explicitamente LIVRE, mesmo que esteja travado na base;
+    //  - o macro restante permanece fixo, usando o valor canônico já resolvido.
+    const otherMacro: MacroKey = fixedClosing === 'protein' ? 'fat' : 'protein';
+    const otherResolved =
+      otherMacro === 'fat' ? baseResolvedMacros?.g ?? null : baseResolvedMacros?.p ?? null;
     const config: MacroConfig = {
       ...macroConfig,
       carbs: {
@@ -377,6 +384,12 @@ export const buildCarbDayTypeTargets = ({
         perKg: cfg.carbsPerKg,
         grams: carbs,
         basis: cfg.carbBasis,
+        locked: true,
+      },
+      [fixedClosing]: { ...macroConfig[fixedClosing], locked: false },
+      [otherMacro]: {
+        ...macroConfig[otherMacro],
+        grams: macroConfig[otherMacro].grams ?? otherResolved,
         locked: true,
       },
     };
