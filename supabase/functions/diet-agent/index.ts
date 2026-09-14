@@ -1103,6 +1103,21 @@ serve(async (req) => {
 
       const initialAdjValidation = validateAdjustments(candidatePlan);
 
+      // Fase 3: metas diárias determinísticas viram gate crítico, para que a
+      // candidata de segurança possa corrigir um LOW/HIGH trocado.
+      const checkDayTargets = (plan: any) => validateDayTargets(plan, schedule);
+      const initialDayTargets = checkDayTargets(candidatePlan);
+      if (scheduleHasDailyMacroTargets(schedule)) {
+        console.log("[diet-agent] day_targets_validation", {
+          model: selectedModel,
+          ok: initialDayTargets.ok,
+          checked: initialDayTargets.checkedDays,
+          missing: initialDayTargets.missingDays,
+          duplicate: initialDayTargets.duplicateDays,
+          issues: initialDayTargets.issues.map((i) => ({ weekday: i.weekday, reasons: i.reasons })),
+        });
+      }
+
       // A Terra candidate produced by a technical fallback must be CRITICALLY valid.
       if (technicalFallbackUsed) {
         const validity = evaluateDietCandidateValidity({
