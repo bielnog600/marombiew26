@@ -1509,7 +1509,11 @@ serve(async (req) => {
             return reviewRequired(
               !foodContract.valid
                 ? "food_contract_invalid"
-                : (!nutrition.ok ? "nutrition_invalid" : "daily_adjustments_invalid"),
+                : (!nutrition.ok
+                    ? "nutrition_invalid"
+                    : (!initialAdjValidation.ok
+                        ? "daily_adjustments_invalid"
+                        : (!initialDayTargets.ok ? "day_targets_invalid" : "food_targets_invalid"))),
             );
           }
           warning = isPortionOnly ? "quantity_only" : "high_similarity";
