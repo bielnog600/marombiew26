@@ -98,11 +98,17 @@ export function hydrateDietPlanFromFoods(
         } else {
           // Item não validado pela base não recebe macros estimados pela IA.
           item.macros = { kcal: 0, p: 0, c: 0, g: 0 };
+          const authKey = normalizeFoodName(item.name);
+          const authorizationSource = options.authorizationBySource?.[authKey];
           unresolvedItems.push({
-            day: String(day?.label ?? day?.weekday ?? ""),
+            day: String(day?.weekday ?? day?.label ?? ""),
             meal: String(meal?.name ?? ""),
             name: item.name,
             ambiguous: Boolean(computed.ambiguous),
+            reason: computed.ambiguous
+              ? "ambiguous_name"
+              : (item.foodId ? "not_found" : "no_food_id"),
+            ...(authorizationSource ? { authorizationSource } : {}),
           });
         }
       }
