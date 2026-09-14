@@ -528,8 +528,15 @@ const DietaIA = () => {
     // Fonte única: energyFormula.selectEnergyFormula (sem duplicar contas aqui).
     void bodyFat;
     void leanMass;
-    if (!energySelection) {
-      return { source: 'automatic', base_daily_kcal: null, calculation: emptyCalculationSnapshot(), missing: ['dados corporais'] };
+    if (!energySelection || energySelection.insufficientData) {
+      return {
+        source: 'automatic',
+        base_daily_kcal: null,
+        calculation: emptyCalculationSnapshot(),
+        missing: energySelection?.insufficientData
+          ? ['sexo biológico ou massa magra válida']
+          : ['dados corporais'],
+      };
     }
     const formula = ENERGY_FORMULA_LABEL[energySelection.formula];
     const roundedBmr = Math.round(energySelection.bmr);
