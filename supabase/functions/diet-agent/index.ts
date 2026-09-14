@@ -277,28 +277,29 @@ Responda APENAS com um objeto JSON válido (sem markdown, sem texto antes ou dep
           "order": 0,
           "items": [
             {
-              "name": "Aveia em flocos",
-              "qtyGrams": 60,
-              "portionLabel": "60 g",
-              "substitution": "Tapioca 50g",
-              "macros": { "kcal": 220, "p": 8, "c": 38, "g": 4 }
+              "foodId": "<UUID EXATO copiado do FOOD CATALOG>",
+              "foodName": "Aveia em flocos",
+              "qtyGrams": 60
             }
-          ],
-          "totals": { "kcal": 220, "p": 8, "c": 38, "g": 4 }
+          ]
         }
-      ],
-      "totals": { "kcal": 0, "p": 0, "c": 0, "g": 0 }
+      ]
     }
   ],
   "tips": ["string"]
 
 }
 
-REGRAS:
-- Calcule totals.kcal de cada item via kcal_base * qty / porção_base; macros idem.
-- meal.totals = soma dos items; day.totals = soma dos meals.
-- SEM metas diárias (bloco "METAS NUTRICIONAIS POR DIA" ausente): o somatório de day.totals deve bater com targets.kcal/p/c/g (tolerância: ±50 kcal e ±10g por macro).
-- COM metas diárias: cada day.totals deve bater com a meta do SEU weekday declarada naquele bloco — NÃO com o objeto global "targets".
+REGRAS — CONTRATO DE ALIMENTOS (Fase 4):
+- Cada item DEVE conter "foodId" com um UUID que exista LITERALMENTE no FOOD CATALOG desta requisição.
+- É PROIBIDO inventar, adaptar ou reutilizar UUIDs de outra requisição, e proibido omitir o foodId.
+- "foodName" é apenas leitura humana: se divergir do foodId, o ID vence.
+- NÃO devolva "macros" por item, nem "totals" de refeição ou de dia. O servidor calcula
+  tudo pela base de alimentos; qualquer macro/total que você enviar será IGNORADO.
+- Use as quantidades (qtyGrams) para fechar a meta do dia: o servidor recalcula pela base
+  e reprova o plano se o resultado sair da tolerância (±50 kcal, ±10 P, ±15 C, ±8 G).
+- Alimento fora do catálogo só é aceito quando estiver na lista "ALIMENTOS SEM CADASTRO AUTORIZADOS";
+  nesse caso use "foodId": null e o nome exato autorizado.
 - Se estratégia = "carb_cycle", gere múltiplos days com carbBias variando (low/normal/high).
 - Caso contrário, gere 1 day único com label "Padrão" (vale para todos os dias da semana).
 - NÃO inclua nada além do JSON.
