@@ -51,26 +51,52 @@ export const scheduleDayTarget = (
   return null;
 };
 
+export interface DayTarget {
+  kcal: number;
+  p: number;
+  c: number;
+  g: number;
+}
+
 export interface ResolveDayTargetInput {
   schedule?: WeeklyEnergySchedule | null;
   dayIndex: number;
   planTargetKcal?: number | null;
   /** Current total of the day — only used for legacy plans without targets. */
   currentTotalKcal?: number | null;
+  /** Plan-wide macro targets (conteudo_json.targets). */
+  planTargetMacros?: { p?: number | null; c?: number | null; g?: number | null } | null;
 }
 
+const macro = (v: unknown): number => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+};
+
+/**
+ * THE single source of truth for a day's goal: {kcal, p, c, g}.
+ * Consumers that only need calories read `.kcal` (or use resolveDayKcal).
+ */
 export const resolveDayTarget = ({
   schedule,
   dayIndex,
   planTargetKcal,
   currentTotalKcal,
-}: ResolveDayTargetInput): number => {
+  planTargetMacros,
+}: ResolveDayTargetInput): DayTarget => {
   const fromSchedule = scheduleDayTarget(schedule, dayIndex, planTargetKcal);
-  if (fromSchedule) return fromSchedule;
-  const fromPlan = positive(planTargetKcal);
-  if (fromPlan) return fromPlan;
-  return positive(currentTotalKcal) ?? 0;
+  const kcal = fromSchedule ?? positive(planTargetKcal) ?? positive(currentTotalKcal) ?? 0;
+  return {
+    kcal,
+    p: macro(planTargetMacros?.p),
+    c: macro(planTargetMacros?.c),
+    g: macro(planTargetMacros?.g),
+  };
 };
+
+/** Helper — no logic of its own, only delegates to resolveDayTarget. */
+export const resolveDayKcal = (input: ResolveDayTargetInput): number =>
+  resolveDayTarget(input).kcal;
 
 /**
  * Manual edit of the "Meta diária" field: persists the new goal on the
