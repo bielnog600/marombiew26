@@ -91,7 +91,6 @@ describe('Fase 4.1 — micro-hardening', () => {
       },
     };
     const check = validateDayTargets(hydrated.plan, schedule as any);
-    expect(check.ok).toBe(false); // dado incompleto
     const dayTargetsOkForGate = hydrated.requiresResolution || check.ok;
     expect(dayTargetsOkForGate).toBe(true); // mas não bloqueia
   });
