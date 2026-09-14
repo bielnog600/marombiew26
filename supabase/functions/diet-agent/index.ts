@@ -1363,8 +1363,10 @@ serve(async (req) => {
         };
 
         if (second.ok) {
-          const sim2 = computeDietSimilarity(second.plan, historyJsons);
-          const nut2 = validateDietNutrition(second.plan);
+          const prepared2 = prepareCandidate(second.plan);
+          const secondPlan = prepared2.plan;
+          const sim2 = computeDietSimilarity(secondPlan, historyJsons);
+          const nut2 = validateDietNutrition(secondPlan);
           console.log("[diet-agent] nutrition_validation", {
             model: AI_MODELS.fallback,
             ok: nut2.ok,
@@ -1372,12 +1374,13 @@ serve(async (req) => {
             totalProteinG: Math.round(nut2.totalProteinG),
             totalKcal: Math.round(nut2.totalKcal),
           });
-          const initialAdjValidation2 = validateAdjustments(second.plan);
+          const initialAdjValidation2 = validateAdjustments(secondPlan);
 
           const validity2 = evaluateDietCandidateValidity({
+            foodContractOk: prepared2.contract.valid,
             nutritionOk: nut2.ok,
             dailyAdjustmentsOk: initialAdjValidation2.ok,
-            dayTargetsOk: checkDayTargets(second.plan).ok,
+            dayTargetsOk: checkDayTargets(secondPlan).ok,
           });
           const criticalValid = validity2.criticalValid;
 
@@ -1386,7 +1389,9 @@ serve(async (req) => {
             if (!criticalValid) {
               return reviewRequired(validity2.reason as string);
             }
-            finalPlan = second.plan;
+            finalPlan = secondPlan;
+            foodContract = prepared2.contract;
+            unresolvedItems = prepared2.unresolvedItems;
             similarity = sim2;
             nutrition = nut2;
             selectedModel = AI_MODELS.fallback;
