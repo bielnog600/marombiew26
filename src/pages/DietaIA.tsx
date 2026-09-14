@@ -81,6 +81,18 @@ import {
 } from '@/lib/macroConfig';
 import EnergyCalculationPanel from '@/components/diet/EnergyCalculationPanel';
 import MacroConfigPanel from '@/components/diet/MacroConfigPanel';
+import CarbCyclingPanel from '@/components/diet/CarbCyclingPanel';
+import {
+  defaultCarbCyclingConfig,
+  buildCarbDayTypeTargets,
+  buildWeeklyCarbTargets,
+  calculateWeeklyAverage,
+  compareWeeklyAverageToBase,
+  suggestCarbDayTypeForWorkout,
+  type CarbCyclingConfig,
+  type CarbDayType,
+} from '@/lib/carbCycling';
+import { WEEKDAY_KEYS, resolveDayTarget } from '@/lib/dietDayTargets';
 import type { ParsedMeal } from '@/lib/dietResultParser';
 import { Percent } from 'lucide-react';
 
@@ -447,6 +459,8 @@ const DietaIA = () => {
   const [macroConfig, setMacroConfig] = useState<MacroConfig>(() => defaultMacroConfig());
   const [macroConfigTouched, setMacroConfigTouched] = useState(false);
   const [closingMacro, setClosingMacro] = useState<MacroKey | null>(null);
+  // Fase 3: carb cycling determinístico (camada sobre a configuração canônica).
+  const [carbCycling, setCarbCycling] = useState<CarbCyclingConfig>(() => defaultCarbCyclingConfig());
   // Phase 2: enable structured carb cycling alongside the protocol checkbox.
 
   // ─── Weekly Energy Schedule (MVP) ────────────────────────────
@@ -631,6 +645,60 @@ const DietaIA = () => {
     c: Math.round(macroResolution.grams?.carbs ?? 0),
     g: Math.round(macroResolution.grams?.fat ?? 0),
   }), [baseKcal.base_daily_kcal, macroResolution]);
+
+  // ── Fase 3: metas por tipo de dia e por dia da semana ──────────────
+  const carbTypeTargets = useMemo(() => buildCarbDayTypeTargets({
+    mode: carbCycling.mode,
+    carbCycling,
+    macroConfig,
+    body: macroBody,
+    baseKcal: baseKcal.base_daily_kcal ?? 0,
+    closingMacro,
+  }), [carbCycling, macroConfig, macroBody, baseKcal.base_daily_kcal, closingMacro]);
+
+  const weeklyCarbTargets = useMemo(
+    () => (carbCycling.enabled ? buildWeeklyCarbTargets(carbCycling, carbTypeTargets) : {}),
+    [carbCycling, carbTypeTargets],
+  );
+
+  const carbWeeklyAverage = useMemo(
+    () => calculateWeeklyAverage(weeklyCarbTargets),
+    [weeklyCarbTargets],
+  );
+
+  const carbBaseComparison = useMemo(
+    () => compareWeeklyAverageToBase(carbWeeklyAverage, baseKcal.base_daily_kcal ?? null),
+    [carbWeeklyAverage, baseKcal.base_daily_kcal],
+  );
+
+  const carbDayInfo = useMemo(() => {
+    const out: Record<string, { workoutLabel: string | null; suggestion: CarbDayType }> = {};
+    for (const wd of WEEKDAY_KEYS) {
+      const workout = workoutByWeekday[wd as EnergyWeekday] ?? null;
+      out[wd] = {
+        workoutLabel: workout?.label ?? null,
+        suggestion: suggestCarbDayTypeForWorkout(workout),
+      };
+    }
+    return out;
+  }, [workoutByWeekday]);
+
+  // Sugestão inicial pelo treino — nunca sobrescreve escolha manual do treinador.
+  useEffect(() => {
+    setCarbCycling((prev) => {
+      let changed = false;
+      const assignments = { ...prev.assignments };
+      for (const wd of WEEKDAY_KEYS) {
+        if (prev.manual[wd]) continue;
+        const suggestion = suggestCarbDayTypeForWorkout(workoutByWeekday[wd as EnergyWeekday] ?? null);
+        if (assignments[wd] !== suggestion) {
+          assignments[wd] = suggestion;
+          changed = true;
+        }
+      }
+      return changed ? { ...prev, assignments } : prev;
+    });
+  }, [workoutByWeekday]);
 
   const handleMacroConfigChange = useCallback((next: MacroConfig) => {
     setMacroConfigTouched(true);
@@ -2909,6 +2977,15 @@ ${generated}`;
               targetKcal={baseKcal.base_daily_kcal}
               onChange={handleMacroConfigChange}
               onClosingMacroChange={(macro) => { setMacroConfigTouched(true); setClosingMacro(macro); }}
+            />
+
+            <CarbCyclingPanel
+              config={carbCycling}
+              typeTargets={carbTypeTargets}
+              weeklyAverage={carbWeeklyAverage}
+              comparison={carbBaseComparison}
+              dayInfo={carbDayInfo}
+              onChange={setCarbCycling}
             />
           </CardContent>
         </Card>
