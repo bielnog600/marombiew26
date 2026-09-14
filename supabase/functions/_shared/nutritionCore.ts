@@ -36,9 +36,13 @@ export interface FoodRecord {
   protein: number;
   carbs: number;
   fats: number;
-  /** Opcionais — só existirão na base a partir da Fase 4. */
+  /** Metadata de identidade (Fase 4) — todos opcionais. */
   brand?: string | null;
   source?: string | null;
+  barcode?: string | null;
+  sourceFoodId?: string | null;
+  /** Nome da coluna no banco; mantido para adapters diretos. */
+  portion?: string | null;
 }
 
 export interface NutritionSnapshot {
