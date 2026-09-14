@@ -164,9 +164,22 @@ function buildLayeredInstructions(dietConfig: any, trainingContext: any): string
   // === Weekly Energy Schedule (MVP) — imutável para o modelo ===
   const schedule = dietConfig?.weeklyEnergySchedule;
   if (schedule && typeof schedule === "object" && schedule.days) {
-    lines.push("\n=== CALORIAS POR DIA (BLOCO IMUTÁVEL — NÃO ALTERE) ===");
-    lines.push(`Meta base do plano: ${schedule.base_daily_kcal} kcal/dia.`);
-    lines.push("Cada dia da semana possui uma meta calórica final obrigatória:");
+    const hasDailyMacros = scheduleHasDailyMacroTargets(schedule);
+    lines.push(
+      hasDailyMacros
+        ? "\n=== METAS NUTRICIONAIS POR DIA (BLOCO IMUTÁVEL — NÃO ALTERE) ==="
+        : "\n=== CALORIAS POR DIA (BLOCO IMUTÁVEL — NÃO ALTERE) ===",
+    );
+    lines.push(
+      hasDailyMacros
+        ? `Referência metabólica (NÃO é a meta de todos os dias): ${schedule.base_daily_kcal} kcal/dia.`
+        : `Meta base do plano: ${schedule.base_daily_kcal} kcal/dia.`,
+    );
+    lines.push(
+      hasDailyMacros
+        ? "Cada dia da semana possui metas próprias de kcal, proteína, carboidrato e gordura. Esses valores vêm do app e são imutáveis:"
+        : "Cada dia da semana possui uma meta calórica final obrigatória:",
+    );
     const WD_ORDER = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"];
     const WD_LABEL: Record<string, string> = {
       seg: "Segunda", ter: "Terça", qua: "Quarta", qui: "Quinta",
@@ -182,7 +195,17 @@ function buildLayeredInstructions(dietConfig: any, trainingContext: any): string
         workoutBits.push(`grupos: ${d.workout.muscles.join(", ")}`);
       }
       const workoutTxt = workoutBits.length > 0 ? ` — treino: ${workoutBits.join(" / ")}` : " — sem treino associado";
-      lines.push(`  - ${WD_LABEL[wd]}: ${t} kcal${workoutTxt}`);
+      if (hasDailyMacros) {
+        const dayType = d.day_type ? ` — ${String(d.day_type).toUpperCase()}` : "";
+        lines.push(
+          `  - ${WD_LABEL[wd]}${dayType}: ${t} kcal | P ${Math.round(Number(d.protein_g) || 0)}g | C ${Math.round(Number(d.carbs_g) || 0)}g | G ${Math.round(Number(d.fat_g) || 0)}g${workoutTxt}`,
+        );
+      } else {
+        lines.push(`  - ${WD_LABEL[wd]}: ${t} kcal${workoutTxt}`);
+      }
+    }
+    if (hasDailyMacros) {
+      lines.push("REGRA CRÍTICA: gere um objeto em days[] para CADA weekday acima, com o campo \"weekday\" preenchido, e o day.totals de cada dia deve bater com a meta DAQUELE dia (±50 kcal, ±10g P, ±15g C, ±8g G). NÃO use a meta base global em todos os dias. O servidor valida dia a dia e rejeita divergências.");
     }
     lines.push("REGRAS OBRIGATÓRIAS para a seção 'Ajustes por dia':");
     lines.push("  1. Respeite EXATAMENTE a meta calórica final de cada dia acima.");
