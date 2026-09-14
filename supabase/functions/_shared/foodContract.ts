@@ -66,10 +66,13 @@ export interface ContractItemRef {
  */
 export function normalizeAllowedUnresolved(
   input: Array<AllowedUnresolvedFood | string> | undefined | null,
+  mode: ContractMode = "legacy",
 ): AllowedUnresolvedFood[] {
   const out: AllowedUnresolvedFood[] = [];
   for (const raw of input ?? []) {
     if (typeof raw === "string") {
+      // Contrato FRESH: string solta nunca vira `trainer_required`.
+      if (mode === "fresh") continue;
       const name = raw.trim();
       if (name) out.push({ name, source: "trainer_required" });
       continue;
@@ -144,7 +147,7 @@ export function validateFoodContract(
     ? { allowedUnresolved: options }
     : options;
   const mode: ContractMode = opts.mode ?? "fresh";
-  const authorized = normalizeAllowedUnresolved(opts.allowedUnresolved);
+  const authorized = normalizeAllowedUnresolved(opts.allowedUnresolved, mode);
   const allowed = new Map<string, AllowedUnresolvedSource>();
   for (const a of authorized) {
     const key = normalizeFoodName(a.name);

@@ -11,13 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  buildFoodIndex,
-  computeItemMacros,
-  foodRecordFromRow,
-  roundForDisplay,
-  type FoodRecord,
-} from '@/lib/nutritionEngine';
+import { foodRecordFromRow, type FoodRecord } from '@/lib/nutritionEngine';
+import { resolveDietFoodItem } from '@/lib/dietFoodResolution';
 import type { DietPlan } from '@/lib/dietSchema';
 
 interface UnresolvedRef {
@@ -49,56 +44,6 @@ export function collectUnresolvedItems(plan: any): UnresolvedRef[] {
     });
   });
   return out;
-}
-
-/** Recalcula item, refeição e dia a partir da base — sem nenhuma chamada de IA. */
-function applyResolution(
-  plan: any,
-  ref: UnresolvedRef,
-  food: FoodRecord,
-  foods: FoodRecord[],
-): any {
-  const next = JSON.parse(JSON.stringify(plan));
-  const index = buildFoodIndex(foods);
-  const day = next.days[ref.dayIdx];
-  const meal = day.meals[ref.mealIdx];
-  const item = meal.items[ref.itemIdx];
-
-  const computed = computeItemMacros(
-    { foodId: food.id, name: food.name, qtyGrams: Number(item.qtyGrams) || 0 },
-    index,
-    'draft',
-    'strict_id',
-  );
-  item.foodId = food.id;
-  item.name = food.name;
-  item.resolutionStatus = 'resolved_by_id';
-  item.macros = roundForDisplay(computed.macros);
-
-  const sum = (items: any[]) =>
-    items.reduce(
-      (acc, it) => ({
-        kcal: acc.kcal + (Number(it?.macros?.kcal) || 0),
-        p: acc.p + (Number(it?.macros?.p) || 0),
-        c: acc.c + (Number(it?.macros?.c) || 0),
-        g: acc.g + (Number(it?.macros?.g) || 0),
-      }),
-      { kcal: 0, p: 0, c: 0, g: 0 },
-    );
-
-  meal.totals = roundForDisplay(sum(meal.items ?? []));
-  day.totals = roundForDisplay(
-    (day.meals ?? []).reduce(
-      (acc: any, m: any) => ({
-        kcal: acc.kcal + (Number(m?.totals?.kcal) || 0),
-        p: acc.p + (Number(m?.totals?.p) || 0),
-        c: acc.c + (Number(m?.totals?.c) || 0),
-        g: acc.g + (Number(m?.totals?.g) || 0),
-      }),
-      { kcal: 0, p: 0, c: 0, g: 0 },
-    ),
-  );
-  return next;
 }
 
 interface Props {
@@ -179,7 +124,7 @@ const UnresolvedFoodsPanel: React.FC<Props> = ({ plan, onChange }) => {
                   onClick={() => {
                     const food = foods.find((f) => f.id === chosen);
                     if (!food) return;
-                    onChange(applyResolution(plan, ref, food, foods));
+                    onChange(resolveDietFoodItem(plan, ref, food, foods));
                   }}
                 >
                   <Link2 className="h-3.5 w-3.5 mr-1" />

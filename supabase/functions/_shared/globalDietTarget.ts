@@ -79,3 +79,15 @@ export function validateGlobalDietTarget(
 
   return { ok: issues.length === 0, checkedDays: days.length, issues, diffs };
 }
+
+/** Fase 4.1: geração fresh linear exige metas determinísticas completas. */
+export function isCanonicalTargetValid(target: GlobalDietTarget | null | undefined): boolean {
+  if (!target || typeof target !== "object") return false;
+  const kcal = Number((target as any).kcal);
+  if (!Number.isFinite(kcal) || kcal <= 0) return false;
+  for (const key of ["p", "c", "g"] as const) {
+    const v = Number((target as any)[key]);
+    if (!Number.isFinite(v) || v < 0) return false;
+  }
+  return true;
+}
