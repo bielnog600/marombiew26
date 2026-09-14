@@ -9,6 +9,8 @@ import { validateGlobalDietTarget } from '../../supabase/functions/_shared/globa
 import { evaluateDietCandidateValidity } from '../../supabase/functions/_shared/dietRoutingPolicy';
 import { parseDietPlanStrict } from '@/lib/dietSchema';
 import { buildAllowedUnresolvedFromModelDiet } from '@/lib/modelDietFoods';
+import { dietPlanToParsedMeals } from '@/lib/dietPlanAdapter';
+import { buildMealTableMarkdown } from '@/lib/dietMarkdownSerializer';
 
 const ID_ARROZ_A = '11111111-1111-4111-8111-111111111111';
 const ID_ARROZ_B = '22222222-2222-4222-8222-222222222222';
@@ -202,6 +204,17 @@ describe('Fase 4 — hardening', () => {
     });
     expect(validity.criticalValid).toBe(false);
     expect(validity.reason).toBe('food_targets_invalid');
+  });
+
+  it('U: cards, markdown e PDF consomem os macros hidratados', () => {
+    const { plan } = hydrate(planWith([
+      { foodId: ID_ARROZ_A, qtyGrams: 100, macros: { kcal: 9999, p: 999, c: 999, g: 999 } },
+    ]));
+    const meals = dietPlanToParsedMeals(plan as any);
+    expect(Number(meals[0].foods[0].kcal)).toBe(130);
+    const md = buildMealTableMarkdown(meals);
+    expect(md).toContain('130');
+    expect(md).not.toContain('9999');
   });
 
   it('T: dieta modelo autoriza só nomes sem correspondência única', () => {
