@@ -539,7 +539,9 @@ serve(async (req) => {
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
-    const foodDatabase = await loadFoodDatabase();
+    // Fase 4: uma única leitura do catálogo com IDs reais por requisição.
+    const foodCatalog = await loadCatalogOnce();
+    const foodDatabase = formatFoodCatalogPrompt(foodCatalog);
     const SYSTEM_PROMPT = SYSTEM_PROMPT_TEMPLATE.replace("{{FOOD_DATABASE}}", foodDatabase);
 
     let contextMessage = "";
