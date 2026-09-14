@@ -1259,6 +1259,7 @@ serve(async (req) => {
         nutritionOk: nutrition.ok,
         dayTargetsOk: initialDayTargets.ok,
         foodContractOk: foodContract.valid,
+        foodTargetsOk: globalTargetReport.ok,
         dailyAdjustmentsOk: initialAdjValidation.ok,
         technicalFallbackUsed,
         referenceDietProvided,
