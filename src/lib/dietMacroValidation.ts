@@ -1,3 +1,4 @@
+import { buildFoodIndex, computeItemMacros, type FoodIndex } from '@/lib/nutritionEngine';
 import { parseSections, type ParsedFood, type ParsedMeal } from '@/lib/dietResultParser';
 
 export interface DietMacroTargets {
