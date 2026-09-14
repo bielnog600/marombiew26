@@ -295,7 +295,8 @@ Responda APENAS com um objeto JSON válido (sem markdown, sem texto antes ou dep
 REGRAS:
 - Calcule totals.kcal de cada item via kcal_base * qty / porção_base; macros idem.
 - meal.totals = soma dos items; day.totals = soma dos meals.
-- O somatório de day.totals deve bater com targets.kcal/p/c/g (tolerância: ±50 kcal e ±10g por macro).
+- SEM metas diárias (bloco "METAS NUTRICIONAIS POR DIA" ausente): o somatório de day.totals deve bater com targets.kcal/p/c/g (tolerância: ±50 kcal e ±10g por macro).
+- COM metas diárias: cada day.totals deve bater com a meta do SEU weekday declarada naquele bloco — NÃO com o objeto global "targets".
 - Se estratégia = "carb_cycle", gere múltiplos days com carbBias variando (low/normal/high).
 - Caso contrário, gere 1 day único com label "Padrão" (vale para todos os dias da semana).
 - NÃO inclua nada além do JSON.
