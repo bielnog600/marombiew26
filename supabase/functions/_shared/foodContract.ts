@@ -5,7 +5,8 @@
  * `foodId: null` só é aceito para nomes explicitamente autorizados.
  * Nenhum fuzzy match: ID inválido nunca vira "resolvido por nome".
  */
-import { normalizeFoodName, type FoodCatalog } from "./foodCatalogTypes.ts";
+import { normalizeFoodName } from "./nutritionCore.ts";
+import type { FoodCatalog } from "./foodCatalog.ts";
 
 export interface FoodContractIssue {
   path: string;
