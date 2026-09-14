@@ -152,6 +152,10 @@ export const resolveFoodForItem = (
     }
   }
 
+  if (policy === 'strict_id') {
+    return { status: 'unresolved', food: null, snapshot: item.nutritionSnapshot ?? null, ambiguous: false };
+  }
+
   const matches = index.byName.get(normalizeFoodName(item.name)) ?? [];
   if (matches.length === 1) {
     return { status: 'resolved_by_name', food: matches[0], snapshot: null, ambiguous: false };
