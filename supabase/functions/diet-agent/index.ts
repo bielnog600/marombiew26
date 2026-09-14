@@ -1151,12 +1151,17 @@ serve(async (req) => {
       candidatePlan = prepared.plan;
       let foodContract = prepared.contract;
       let unresolvedItems = prepared.unresolvedItems;
+      let requiresResolution = prepared.requiresResolution;
+      let globalTargetReport = prepared.globalTarget;
       console.log("[diet-agent] food_contract", {
         model: selectedModel,
         ok: foodContract.valid,
         invalidFoodIds: foodContract.invalidFoodIds.length,
         missingFoodIds: foodContract.missingFoodIds.length,
         unresolvedAllowed: foodContract.unresolvedAllowed.length,
+        requiresResolution,
+        globalTargetOk: globalTargetReport.ok,
+        globalTargetIssues: globalTargetReport.issues.slice(0, 6),
       });
 
       const historyJsons = history
