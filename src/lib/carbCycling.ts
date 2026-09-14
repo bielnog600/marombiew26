@@ -277,6 +277,12 @@ export interface BuildCarbDayTypeInput {
   /** Meta calórica base (fonte única já calculada). */
   baseKcal: number;
   closingMacro?: MacroKey | null;
+  /**
+   * Macros canônicos JÁ RESOLVIDOS pela Fase 2 (`resolveMacroConfig`).
+   * No modo variable é esta a origem de P e G — o carb cycling nunca
+   * reinterpreta as travas para derivar os macros constantes.
+   */
+  baseResolvedMacros?: { p: number; c: number; g: number } | null;
 }
 
 /**
