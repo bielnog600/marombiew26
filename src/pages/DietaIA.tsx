@@ -654,7 +654,11 @@ const DietaIA = () => {
     body: macroBody,
     baseKcal: baseKcal.base_daily_kcal ?? 0,
     closingMacro,
-  }), [carbCycling, macroConfig, macroBody, baseKcal.base_daily_kcal, closingMacro]);
+    // P e G vêm da resolução canônica da Fase 2 (não das travas cruas).
+    baseResolvedMacros: macroResolution.grams
+      ? { p: canonicalTargets.p, c: canonicalTargets.c, g: canonicalTargets.g }
+      : null,
+  }), [carbCycling, macroConfig, macroBody, baseKcal.base_daily_kcal, closingMacro, macroResolution, canonicalTargets]);
 
   const weeklyCarbTargets = useMemo(
     () => (carbCycling.enabled ? buildWeeklyCarbTargets(carbCycling, carbTypeTargets) : {}),
@@ -893,7 +897,11 @@ const DietaIA = () => {
             types: { ...prev.types, ...(cc.types ?? {}) },
             assignments: { ...prev.assignments, ...(cc.assignments ?? {}) },
             manual: { ...prev.manual, ...(cc.manual ?? {}) },
-            fixedClosingMacro: cc.fixedClosingMacro ?? null,
+            // Carboidrato nunca pode fechar as calorias no modo fixo.
+            fixedClosingMacro:
+              cc.fixedClosingMacro === 'protein' || cc.fixedClosingMacro === 'fat'
+                ? cc.fixedClosingMacro
+                : null,
           }));
         }
         if (wes && typeof wes === 'object') {
