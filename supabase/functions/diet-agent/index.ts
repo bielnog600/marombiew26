@@ -1288,6 +1288,10 @@ serve(async (req) => {
           fallbackReason = fallbackReason || "day_targets_invalid";
           fallbackReasons.push("day_targets_invalid");
         }
+        if (!globalTargetReport.ok) {
+          fallbackReason = fallbackReason || "food_targets_invalid";
+          fallbackReasons.push("food_targets_invalid");
+        }
         if (variationRetryAllowed && historyJsons.length > 0) {
           if (similarity.score > threshold) { 
             fallbackReason = fallbackReason || "high_similarity"; 
