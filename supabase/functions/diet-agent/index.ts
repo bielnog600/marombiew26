@@ -1217,6 +1217,10 @@ serve(async (req) => {
 
 
       if (needsRetry) {
+        if (!foodContract.valid) {
+          fallbackReason = "food_contract_invalid";
+          fallbackReasons.push("food_contract_invalid");
+        }
         if (!nutrition.ok) { 
           fallbackReason = "nutrition_invalid"; 
           fallbackReasons.push("nutrition_invalid"); 
