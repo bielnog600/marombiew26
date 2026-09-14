@@ -2539,7 +2539,7 @@ ${generated}`;
             <CardContent className="p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <Zap className="h-5 w-5 text-primary" />
-                <h3 className="font-bold text-sm">Recomendação da IA (baseada na avaliação completa)</h3>
+                <h3 className="font-bold text-sm">Referência energética (cálculo determinístico)</h3>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
                 <div className="bg-background rounded-lg p-2 text-center border border-border">
@@ -2930,45 +2930,22 @@ ${generated}`;
                 </div>
               </div>
 
-              {automaticBaseKcal.missing.length > 0 ? (
-                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
-                  <p className="text-xs font-medium text-amber-700">Não foi possível calcular automaticamente. Dados ausentes:</p>
-                  <ul className="list-disc pl-5 text-[11px] text-amber-700">
-                    {automaticBaseKcal.missing.map((item) => <li key={item}>{item}.</li>)}
-                  </ul>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                  <div className="rounded-lg border border-border bg-background p-2">
-                    <span className="text-muted-foreground block">Fórmula</span>
-                    <span className="font-medium">{automaticBaseKcal.calculation.formula}</span>
-                  </div>
-                  <div className="rounded-lg border border-border bg-background p-2">
-                    <span className="text-muted-foreground block">TMB</span>
-                    <span className="font-medium">{automaticBaseKcal.calculation.bmr?.toLocaleString('pt-BR')} kcal</span>
-                  </div>
-                  <div className="rounded-lg border border-border bg-background p-2">
-                    <span className="text-muted-foreground block">Nível de atividade</span>
-                    <span className="font-medium">
-                      {ACTIVITY_LEVELS.find(a => a.value === activityLevel)?.label ?? '—'}
-                      {' · '}
-                      Fator {(automaticBaseKcal.calculation.activity_factor ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 3 })}
-                    </span>
-                  </div>
-                  <div className="rounded-lg border border-border bg-background p-2">
-                    <span className="text-muted-foreground block">GET</span>
-                    <span className="font-medium">{automaticBaseKcal.calculation.tdee?.toLocaleString('pt-BR')} kcal</span>
-                  </div>
-                  <div className="rounded-lg border border-border bg-background p-2">
-                    <span className="text-muted-foreground block">Ajuste da estratégia</span>
-                    <span className="font-medium">{(automaticBaseKcal.calculation.strategy_percent ?? 0) > 0 ? '+' : ''}{automaticBaseKcal.calculation.strategy_percent}%</span>
-                  </div>
-                  <div className="rounded-lg border border-border bg-background p-2">
-                    <span className="text-muted-foreground block">Meta base</span>
-                    <span className="font-medium">{automaticBaseKcal.base_daily_kcal?.toLocaleString('pt-BR')} kcal</span>
-                  </div>
-                </div>
-              )}
+              <EnergyCalculationPanel
+                selection={energySelection}
+                tdee={automaticBaseKcal.calculation.tdee}
+                targetKcal={baseKcal.base_daily_kcal}
+                activityFactor={parsePositiveNumber(activityLevel)}
+                activityLabel={ACTIVITY_LEVELS.find(a => a.value === activityLevel)?.label ?? null}
+                strategyPercent={automaticBaseKcal.calculation.strategy_percent}
+                weightKg={parsePositiveNumber(studentCtx?.peso)}
+                heightCm={parsePositiveNumber(studentCtx?.altura)}
+                ageYears={calculateAge(studentCtx?.data_nascimento)}
+                bodyFatPct={parsePositiveNumber(studentCtx?.percentual_gordura)}
+                leanMassKg={parsePositiveNumber(studentCtx?.massa_magra)}
+                leanMassInfo={studentCtx?.massa_magra ? 'Composição corporal mais recente' : null}
+                missing={automaticBaseKcal.missing}
+                onSelectFormula={setManualFormula}
+              />
 
               {baseKcalMode === 'manual' && (
                 <label className="block">
@@ -3015,43 +2992,15 @@ ${generated}`;
               })}
             </div>
 
-            {/* Macros por g/kg (override opcional) — mantém comportamento, agora em "Ajustes Finos" */}
-            <div className="rounded-xl border border-border bg-secondary/30 p-3 space-y-2">
-              <p className="text-xs font-semibold">Macros por g/kg (opcional)</p>
-              <p className="text-[10px] text-muted-foreground">
-                Deixe em branco para usar os valores automáticos por fase/estratégia. Preencha para
-                sobrescrever apenas proteína e/ou gordura — carboidrato é recalculado para fechar a meta calórica.
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="block">
-                  <span className="text-[10px] text-muted-foreground">Proteína (g/kg)</span>
-                  <input
-                    inputMode="decimal"
-                    value={proteinPerKgOverride}
-                    onChange={(e) => setProteinPerKgOverride(e.target.value)}
-                    placeholder="ex: 2.2"
-                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-[10px] text-muted-foreground">Gordura (g/kg)</span>
-                  <input
-                    inputMode="decimal"
-                    value={fatPerKgOverride}
-                    onChange={(e) => setFatPerKgOverride(e.target.value)}
-                    placeholder="ex: 0.8"
-                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
-                  />
-                </label>
-              </div>
-              {(proteinPerKgOverride || fatPerKgOverride) && studentCtx?.peso && (
-                <p className="text-[10px] text-primary">
-                  Override ativo: P {proteinPerKgOverride || '—'} g/kg, G {fatPerKgOverride || '—'} g/kg
-                  {' '}({Math.round((Number(proteinPerKgOverride.replace(',', '.')) || 0) * Number(studentCtx.peso)) || '—'}g P,
-                  {' '}{Math.round((Number(fatPerKgOverride.replace(',', '.')) || 0) * Number(studentCtx.peso)) || '—'}g G).
-                </p>
-              )}
-            </div>
+            <MacroConfigPanel
+              config={macroConfig}
+              body={macroBody}
+              resolution={macroResolution}
+              closingMacro={closingMacro}
+              targetKcal={baseKcal.base_daily_kcal}
+              onChange={handleMacroConfigChange}
+              onClosingMacroChange={(macro) => { setMacroConfigTouched(true); setClosingMacro(macro); }}
+            />
           </CardContent>
         </Card>
               )}
