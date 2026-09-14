@@ -203,6 +203,9 @@ const Alimentos: React.FC = () => {
       protein: food.protein,
       carbs: food.carbs,
       fats: food.fats,
+      brand: (food as any).brand ?? '',
+      source: (food as any).source ?? '',
+      barcode: (food as any).barcode ?? '',
     });
     setDialogOpen(true);
   };
