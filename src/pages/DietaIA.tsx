@@ -70,7 +70,7 @@ import DietDraftComparisonDialog from '@/components/consultoria/DietDraftCompari
 import { formatDietMacroLine, validateDietMacros, type DietMacroTargets, type DietMacroValidationReport, type FoodMacroRecord } from '@/lib/dietMacroValidation';
 import { parseSections } from '@/lib/dietResultParser';
 import { scaleMealsToTarget, scaleMealsToMacroTargets, replaceMealTableInMarkdown } from '@/lib/dietMarkdownSerializer';
-import { selectEnergyFormula, type EnergyFormula, type EnergyFormulaResult } from '@/lib/energyFormula';
+import { selectEnergyFormula, ENERGY_FORMULA_LABEL, type EnergyFormula, type EnergyFormulaResult } from '@/lib/energyFormula';
 import {
   defaultMacroConfig,
   resolveMacroConfig,
@@ -473,6 +473,24 @@ const DietaIA = () => {
   // Post-generation warnings for per-day targets outside tolerance (±10% ou ±50 kcal máx).
   const [scheduleWarnings, setScheduleWarnings] = useState<string[]>([]);
 
+  // ── Fase 2: seleção determinística da fórmula energética ────────────
+  const energySelection = useMemo<EnergyFormulaResult | null>(() => {
+    const weight = parsePositiveNumber(studentCtx?.peso);
+    const height = parsePositiveNumber(studentCtx?.altura);
+    const age = calculateAge(studentCtx?.data_nascimento);
+    const sex = normalizeSex(studentCtx?.sexo);
+    if (!weight || !height || !age) return null;
+    return selectEnergyFormula({
+      sex: sex === 'masculino' ? 'male' : sex === 'feminino' ? 'female' : null,
+      weightKg: weight,
+      heightCm: height,
+      ageYears: age,
+      bodyFatPct: parsePositiveNumber(studentCtx?.percentual_gordura),
+      leanMass: { kg: parsePositiveNumber(studentCtx?.massa_magra), source: 'Composição corporal mais recente' },
+      manualFormula,
+    });
+  }, [studentCtx?.peso, studentCtx?.altura, studentCtx?.data_nascimento, studentCtx?.sexo, studentCtx?.percentual_gordura, studentCtx?.massa_magra, manualFormula]);
+
   const automaticBaseKcal = useMemo<BaseKcalState>(() => {
     const missing: string[] = [];
     const weight = parsePositiveNumber(studentCtx?.peso);
@@ -502,29 +520,14 @@ const DietaIA = () => {
       };
     }
 
-    const isMale = sex === 'masculino';
-    const harrisBenedict = isMale
-      ? 66.47 + 13.75 * weight + 5.003 * height - 6.755 * age
-      : 655.1 + 9.563 * weight + 1.85 * height - 4.676 * age;
-    const mifflin = isMale
-      ? 10 * weight + 6.25 * height - 5 * age + 5
-      : 10 * weight + 6.25 * height - 5 * age - 161;
-    const cunningham = leanMass ? 500 + 22 * leanMass : null;
-
-    let bmr: number;
-    let formula: string;
-    if (bodyFat !== null && bodyFat < (isMale ? 15 : 22) && leanMass && cunningham) {
-      bmr = cunningham;
-      formula = 'Cunningham (atleta, baixo %G)';
-    } else if (bodyFat !== null && bodyFat > (isMale ? 25 : 32)) {
-      bmr = mifflin;
-      formula = 'Mifflin (sobrepeso/obeso)';
-    } else {
-      bmr = harrisBenedict;
-      formula = 'Harris-Benedict (eutrófico)';
+    // Fonte única: energyFormula.selectEnergyFormula (sem duplicar contas aqui).
+    void bodyFat;
+    void leanMass;
+    if (!energySelection) {
+      return { source: 'automatic', base_daily_kcal: null, calculation: emptyCalculationSnapshot(), missing: ['dados corporais'] };
     }
-
-    const roundedBmr = Math.round(bmr);
+    const formula = ENERGY_FORMULA_LABEL[energySelection.formula];
+    const roundedBmr = Math.round(energySelection.bmr);
     const tdee = Math.round(roundedBmr * activityFactor);
     const strategyPercent = selectedStrategy.pct;
     const base = Math.round(tdee * (1 + strategyPercent / 100));
@@ -541,7 +544,7 @@ const DietaIA = () => {
       },
       missing: [],
     };
-  }, [studentCtx?.peso, studentCtx?.altura, studentCtx?.data_nascimento, studentCtx?.sexo, studentCtx?.percentual_gordura, studentCtx?.massa_magra, activityLevel, phase, strategy]);
+  }, [studentCtx?.peso, studentCtx?.altura, studentCtx?.data_nascimento, studentCtx?.sexo, studentCtx?.percentual_gordura, studentCtx?.massa_magra, activityLevel, phase, strategy, energySelection]);
 
   const manualBaseKcal = useMemo<number | null>(() => {
     const parsed = parsePositiveNumber(manualBaseKcalInput);
