@@ -1676,8 +1676,14 @@ serve(async (req) => {
           foodContract: {
             ok: foodContract.valid,
             version: FOOD_CONTRACT_VERSION,
+            requiresResolution,
             unresolvedItems,
             unresolvedAllowed: foodContract.unresolvedAllowed,
+          },
+          globalTarget: {
+            ok: globalTargetReport.ok,
+            checkedDays: globalTargetReport.checkedDays,
+            issues: globalTargetReport.issues,
           },
           aiRouting: routingMeta.routing,
           aiUsage: routingMeta.usage,
