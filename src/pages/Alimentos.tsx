@@ -421,6 +421,22 @@ const Alimentos: React.FC = () => {
               </div>
             </div>
 
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="brand">Marca (opcional)</Label>
+                <Input id="brand" value={form.brand ?? ''} onChange={(e) => updateField('brand', e.target.value)} placeholder="Ex: Continente" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="source">Fonte (opcional)</Label>
+                <Input id="source" value={form.source ?? ''} onChange={(e) => updateField('source', e.target.value)} placeholder="Ex: rótulo, TACO" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="barcode">Código de barras (opcional)</Label>
+                <Input id="barcode" value={form.barcode ?? ''} onChange={(e) => updateField('barcode', e.target.value)} placeholder="EAN" />
+              </div>
+            </div>
+
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="calories">Calorias (kcal)</Label>
