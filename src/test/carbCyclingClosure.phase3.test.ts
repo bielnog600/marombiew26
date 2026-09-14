@@ -124,8 +124,8 @@ const dayItems = (arroz: number, frango: number, azeite: number) => [
 
 describe('Fase 3 — validação por dia', () => {
   const targets = {
-    seg: { kcal: 1281, p: 63, c: 140, g: 34, type: 'high' },
-    qua: { kcal: 621, p: 63, c: 28, g: 34, type: 'low' },
+    seg: { kcal: 1201, p: 76, c: 140, g: 34, type: 'high' },
+    qua: { kcal: 681, p: 65, c: 28, g: 33, type: 'low' },
   };
 
   it('E/F. cada dia é comparado com a própria meta', () => {
@@ -208,7 +208,7 @@ describe('Fase 3 — ciclo desligado e média incompleta', () => {
     ].join('\n');
     const report = validateDietMacros(
       markdown,
-      { calories: 1281, protein: 63, carbs: 140, fats: 34 },
+      { calories: 1201, protein: 76, carbs: 140, fats: 34 },
       foods,
     );
     expect(report.valid).toBe(true);
