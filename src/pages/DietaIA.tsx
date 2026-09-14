@@ -231,7 +231,7 @@ const hasHormoneUse = (value: unknown): boolean => {
   return !['não', 'nao', 'natural', 'false', '0', 'n'].includes(normalized);
 };
 
-const calculateMacroTargets = ({
+const buildInitialMacroPreset = ({
   calories,
   weight,
   strategyValue,
@@ -486,10 +486,14 @@ const DietaIA = () => {
       heightCm: height,
       ageYears: age,
       bodyFatPct: parsePositiveNumber(studentCtx?.percentual_gordura),
-      leanMass: { kg: parsePositiveNumber(studentCtx?.massa_magra), source: 'Composição corporal mais recente' },
+      leanMass: {
+        kg: parsePositiveNumber(studentCtx?.massa_magra),
+        measuredAt: studentCtx?.massa_magra_data ?? null,
+        source: studentCtx?.massa_magra_origem ?? 'Composição corporal mais recente',
+      },
       manualFormula,
     });
-  }, [studentCtx?.peso, studentCtx?.altura, studentCtx?.data_nascimento, studentCtx?.sexo, studentCtx?.percentual_gordura, studentCtx?.massa_magra, manualFormula]);
+  }, [studentCtx?.peso, studentCtx?.altura, studentCtx?.data_nascimento, studentCtx?.sexo, studentCtx?.percentual_gordura, studentCtx?.massa_magra, studentCtx?.massa_magra_data, studentCtx?.massa_magra_origem, manualFormula]);
 
   const automaticBaseKcal = useMemo<BaseKcalState>(() => {
     const missing: string[] = [];
@@ -590,7 +594,7 @@ const DietaIA = () => {
   // Preset inicial coerente com fase/estratégia — nunca sobrescreve edição manual.
   useEffect(() => {
     if (macroConfigTouched || !macroBody.weightKg) return;
-    const preset = calculateMacroTargets({
+    const preset = buildInitialMacroPreset({
       calories: baseKcal.base_daily_kcal ?? 2000,
       weight: macroBody.weightKg,
       strategyValue: strategy,
@@ -819,13 +823,14 @@ const DietaIA = () => {
     const [profileRes, spRes, assessRes, questRes] = await Promise.all([
       supabase.from('profiles').select('*').eq('user_id', studentId!).maybeSingle(),
       supabase.from('students_profile').select('*').eq('user_id', studentId!).maybeSingle(),
-      supabase.from('assessments').select('id').eq('student_id', studentId!).order('created_at', { ascending: false }).limit(1),
+      supabase.from('assessments').select('id, created_at').eq('student_id', studentId!).order('created_at', { ascending: false }).limit(1),
       supabase.from('diet_questionnaires').select('*').eq('student_id', studentId!).eq('status', 'completed').order('created_at', { ascending: false }).limit(1),
     ]);
 
     const profile = profileRes.data;
     const sp = spRes.data;
     const latestAssessmentId = assessRes.data?.[0]?.id;
+    const latestAssessmentDate = assessRes.data?.[0]?.created_at ?? null;
     const latestQuestionnaire = questRes.data?.[0] || null;
 
     let anthro: any = null, comp: any = null, vitals: any = null, anamnese: any = null;
@@ -1121,6 +1126,8 @@ const DietaIA = () => {
       } : null,
       percentual_gordura: comp?.percentual_gordura,
       massa_magra: comp?.massa_magra, massa_gorda: comp?.massa_gorda,
+      massa_magra_data: comp?.massa_magra != null ? latestAssessmentDate : null,
+      massa_magra_origem: comp?.massa_magra != null ? 'Composição corporal da avaliação física' : null,
       composicao_obs: comp?.observacoes,
       // Skinfolds
       dobras_cutaneas: skinfolds ? {
@@ -1233,32 +1240,6 @@ const DietaIA = () => {
     }
 
     if (peso && altura && birthAge) {
-      // Calculate TMB by multiple formulas
-      const harrisBenedict = isMale
-        ? 66.47 + 13.75 * peso + 5.003 * altura - 6.755 * birthAge
-        : 655.1 + 9.563 * peso + 1.85 * altura - 4.676 * birthAge;
-      const mifflin = isMale
-        ? 10 * peso + 6.25 * altura - 5 * birthAge + 5
-        : 10 * peso + 6.25 * altura - 5 * birthAge - 161;
-      const _faoOms = isMale ? 15.3 * peso + 679 : 14.7 * peso + 496;
-      const cunningham = mlg ? 500 + 22 * mlg : null;
-      const _tinsleyMlg = mlg ? 25.9 * mlg + 284 : null;
-      const _tinsleyPeso = 24.8 * peso + 10;
-
-      // Choose best formula
-      let bestTmb: number;
-      let bestFormula: string;
-      if (bf !== null && bf < (isMale ? 15 : 22) && mlg && cunningham) {
-        bestTmb = cunningham;
-        bestFormula = 'Cunningham (atleta, baixo %G)';
-      } else if (bf !== null && bf > (isMale ? 25 : 32)) {
-        bestTmb = mifflin;
-        bestFormula = 'Mifflin (sobrepeso/obeso)';
-      } else {
-        bestTmb = harrisBenedict;
-        bestFormula = 'Harris-Benedict (eutrófico)';
-      }
-
       // Auto-suggest strategy based on body composition + objective + questionnaire symptoms
       let suggestedStrategy = 'manutencao';
       let suggestedPhase = 'manutencao';
@@ -1301,38 +1282,8 @@ const DietaIA = () => {
       if (!phase) setPhase(suggestedPhase);
       if (!dietStyle) setDietStyle(suggestedDietStyle);
 
-      // ⚠️ Frequência de treino NÃO altera o fator de atividade diária.
-      // O activityLevel só vem da escolha explícita do administrador na Etapa 1.
-      // Para a estimativa auxiliar `recomendacao_ia` (usada só como referência),
-      // usamos o valor já selecionado; se ausente, adotamos 1.55 (moderado) como
-      // neutro — SEM gravar em `activityLevel`.
-      const currentFA = parsePositiveNumber(activityLevel) ?? 1.55;
-      const strategyPct = STRATEGIES.find(s => s.value === suggestedStrategy)?.pct ?? 0;
-      const get = bestTmb * currentFA;
-      const consumo = get * (1 + strategyPct / 100);
-
-      const macros = calculateMacroTargets({
-        calories: consumo,
-        weight: peso,
-        strategyValue: suggestedStrategy,
-        phaseValue: suggestedPhase,
-        hormoneUse: hasHormoneUse(latestQuestionnaire?.usa_hormonios),
-      });
-
-      ctx.recomendacao_ia = {
-        tmb: Math.round(bestTmb),
-        formula: bestFormula,
-        fa: currentFA,
-        get: Math.round(get),
-        consumo: Math.round(consumo),
-        estrategia: suggestedStrategy,
-        proteina_g: macros.proteinGrams,
-        carboidrato_g: macros.carbGrams,
-        gordura_g: macros.fatGrams,
-        proteina_kg: macros.proteinPerKg,
-        gordura_kg: macros.fatPerKg,
-        calorias_total: Math.round(consumo),
-      };
+      // Cálculo energético: fonte única = selectEnergyFormula + fator de atividade
+      // + estratégia + estado canônico de macros (nada é calculado aqui).
       setStudentCtx({ ...ctx });
     } else {
       // Basic fallback - only strategy from BF
@@ -2533,59 +2484,6 @@ ${generated}`;
           </CardContent>
         </Card>
 
-        {/* AI Recommendation Card */}
-        {studentCtx?.recomendacao_ia && (
-          <Card className="border-primary/30 bg-primary/5">
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Zap className="h-5 w-5 text-primary" />
-                <h3 className="font-bold text-sm">Referência energética (cálculo determinístico)</h3>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
-                <div className="bg-background rounded-lg p-2 text-center border border-border">
-                  <span className="text-muted-foreground text-xs block">TMB</span>
-                  <span className="font-bold text-primary">{studentCtx.recomendacao_ia.tmb} kcal</span>
-                  <span className="text-[10px] text-muted-foreground block">{studentCtx.recomendacao_ia.formula}</span>
-                </div>
-                <div className="bg-background rounded-lg p-2 text-center border border-border">
-                  <span className="text-muted-foreground text-xs block">GET</span>
-                  <span className="font-bold text-primary">{studentCtx.recomendacao_ia.get} kcal</span>
-                  <span className="text-[10px] text-muted-foreground block">FA: {studentCtx.recomendacao_ia.fa}</span>
-                </div>
-                <div className="bg-background rounded-lg p-2 text-center border border-border">
-                  <span className="text-muted-foreground text-xs block">Calorias Alvo</span>
-                  <span className="font-bold text-primary">{studentCtx.recomendacao_ia.calorias_total} kcal</span>
-                  <span className="text-[10px] text-muted-foreground block">{STRATEGIES.find(s => s.value === studentCtx.recomendacao_ia.estrategia)?.label}</span>
-                </div>
-                <div className="bg-background rounded-lg p-2 text-center border border-border">
-                  <span className="text-muted-foreground text-xs block">Estratégia</span>
-                  <span className="font-bold text-primary text-xs">{STRATEGIES.find(s => s.value === studentCtx.recomendacao_ia.estrategia)?.label}</span>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-sm">
-                <div className="bg-background rounded-lg p-2 text-center border border-border">
-                  <span className="text-muted-foreground text-xs block">Proteína</span>
-                  <span className="font-bold">{studentCtx.recomendacao_ia.proteina_g}g</span>
-                  <span className="text-[10px] text-muted-foreground block">{studentCtx.recomendacao_ia.proteina_kg}g/kg</span>
-                </div>
-                <div className="bg-background rounded-lg p-2 text-center border border-border">
-                  <span className="text-muted-foreground text-xs block">Carboidrato</span>
-                  <span className="font-bold">{studentCtx.recomendacao_ia.carboidrato_g}g</span>
-                  <span className="text-[10px] text-muted-foreground block">{Math.round(studentCtx.recomendacao_ia.carboidrato_g * 4)} kcal</span>
-                </div>
-                <div className="bg-background rounded-lg p-2 text-center border border-border">
-                  <span className="text-muted-foreground text-xs block">Gordura</span>
-                  <span className="font-bold">{studentCtx.recomendacao_ia.gordura_g}g</span>
-                  <span className="text-[10px] text-muted-foreground block">{studentCtx.recomendacao_ia.gordura_kg}g/kg</span>
-                </div>
-              </div>
-              <p className="text-[10px] text-muted-foreground italic">
-                * Valores calculados com base no perfil, avaliação física, composição corporal e ficha do aluno. Ajuste nos passos abaixo se necessário.
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
         {(() => {
           const STEP_TITLES = [
             'Objetivo do Plano',
@@ -2942,7 +2840,7 @@ ${generated}`;
                 ageYears={calculateAge(studentCtx?.data_nascimento)}
                 bodyFatPct={parsePositiveNumber(studentCtx?.percentual_gordura)}
                 leanMassKg={parsePositiveNumber(studentCtx?.massa_magra)}
-                leanMassInfo={studentCtx?.massa_magra ? 'Composição corporal mais recente' : null}
+                leanMassInfo={studentCtx?.massa_magra_data ? `Avaliação de ${new Date(studentCtx.massa_magra_data).toLocaleDateString('pt-BR')}` : (studentCtx?.massa_magra ? 'Composição corporal mais recente' : null)}
                 missing={automaticBaseKcal.missing}
                 onSelectFormula={setManualFormula}
               />
