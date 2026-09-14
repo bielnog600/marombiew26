@@ -845,7 +845,8 @@ serve(async (req) => {
 
         const jsonSystem =
           cleanSystemPrompt +
-          sanitizeStructuredPrompt(contextMessage) +
+          dailyMaterializationRule +
+          stripSingleMenuRules(sanitizeStructuredPrompt(contextMessage)) +
           layeredInstructions +
           "\n\n" +
           dietIntentPrompt(intent) +
