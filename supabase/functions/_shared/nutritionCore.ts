@@ -1,5 +1,9 @@
 /**
- * nutritionEngine — ÚNICA autoridade de cálculo nutricional do app.
+ * nutritionCore — núcleo puro de cálculo nutricional, compartilhado entre o app
+ * (via `src/lib/nutritionEngine.ts`) e as Edge Functions (diet-agent).
+ *
+ * NÃO existe segunda implementação matemática: qualquer consumidor usa este
+ * arquivo.
  *
  * Regras (Fase 1):
  *  - o registro em `foods` é a autoridade durante geração/edição;
