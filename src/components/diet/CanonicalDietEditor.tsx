@@ -5,7 +5,7 @@
  * nutritionCore. Nunca passa por markdown/ParsedMeal, nunca resolve alimento
  * por nome/aproximação e nunca escala macros manualmente.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,7 @@ import {
   type FoodRecord,
 } from '@/lib/nutritionEngine';
 import { recomputeDayFromFoods } from '@/lib/dietFoodResolution';
+import { relinkResolvableUnresolvedFoods } from '@/lib/dietFoodRelink';
 import {
   optimizeDietDay,
   isWithinTolerance,
@@ -80,6 +81,18 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
 
   const foodRecords = foods ?? loadedFoods ?? [];
   const index = useMemo(() => buildFoodIndex(foodRecords), [foodRecords]);
+
+  /**
+   * HOTFIX — quando o catálogo muda (alimento recém-adicionado à base),
+   * religa automaticamente apenas os itens com correspondência exata única.
+   * `onChange` só é chamado quando algo realmente mudou (sem loop).
+   */
+  useEffect(() => {
+    if (!plan || !foodRecords.length) return;
+    const relinked = relinkResolvableUnresolvedFoods<DietPlan>(plan, foodRecords);
+    if (relinked.changed) onChange(relinked.plan);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan, foodRecords]);
 
   const days = plan?.days ?? [];
   const activeIndex = Math.min(dayIndex, Math.max(0, days.length - 1));
