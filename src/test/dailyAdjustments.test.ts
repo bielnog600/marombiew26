@@ -117,10 +117,10 @@ describe('hasDailyCalorieVariation + normalização sem variação', () => {
     const sch = schedule(2200, { seg: 250, qui: 250, sab: -200, dom: -300 });
     expect(hasDailyCalorieVariation(sch)).toBe(true);
     const model = {
-      seg: { summary: 'add', instructions: [{ action: 'add', food_name: 'x', quantity: 50, unit: 'g', estimated_kcal: 250 }] },
-      qui: { summary: 'add', instructions: [{ action: 'add', food_name: 'x', quantity: 50, unit: 'g', estimated_kcal: 250 }] },
-      sab: { summary: 'rm', instructions: [{ action: 'remove', food_name: 'y', quantity: 40, unit: 'g', estimated_kcal: 200 }] },
-      dom: { summary: 'rm', instructions: [{ action: 'remove', food_name: 'y', quantity: 60, unit: 'g', estimated_kcal: 300 }] },
+      seg: { summary: 'add', instructions: [{ action: 'add', food_id: 'food-x', food_name: 'x', quantity: 50, unit: 'g', estimated_kcal: 250 }] },
+      qui: { summary: 'add', instructions: [{ action: 'add', food_id: 'food-x', food_name: 'x', quantity: 50, unit: 'g', estimated_kcal: 250 }] },
+      sab: { summary: 'rm', instructions: [{ action: 'remove', food_id: 'food-y', food_name: 'y', quantity: 40, unit: 'g', estimated_kcal: 200 }] },
+      dom: { summary: 'rm', instructions: [{ action: 'remove', food_id: 'food-y', food_name: 'y', quantity: 60, unit: 'g', estimated_kcal: 300 }] },
     };
     const { adjustments, missing } = normalizeDailyAdjustments(model, sch);
     expect(missing).toEqual([]);
@@ -140,7 +140,7 @@ describe('hasDailyCalorieVariation + normalização sem variação', () => {
   it('C) IA omite um dia ajustado → missing só contém o dia ausente', () => {
     const sch = schedule(2200, { seg: 250, qui: 250 });
     const model = {
-      seg: { summary: 'add', instructions: [{ action: 'add', food_name: 'x', quantity: 50, unit: 'g', estimated_kcal: 250 }] },
+      seg: { summary: 'add', instructions: [{ action: 'add', food_id: 'food-x', food_name: 'x', quantity: 50, unit: 'g', estimated_kcal: 250 }] },
       // qui omitido
     };
     const { missing } = normalizeDailyAdjustments(model, sch);
