@@ -938,7 +938,7 @@ serve(async (req) => {
           extraSystem +
           "\n\n" +
           STRUCTURED_OUTPUT_INSTRUCTIONS +
-          (scheduleForPrompt && typeof scheduleForPrompt === "object" && scheduleForPrompt.days
+          (dailyAdjustmentMode
             ? "\n\nLEMBRETE FINAL (obrigatório): o JSON de saída DEVE conter o campo raiz \"dailyAdjustments\" com as 7 chaves seg, ter, qua, qui, sex, sab, dom, cada uma seguindo o shape estrito {target_kcal, requested_adjustment_kcal, estimated_adjustment_kcal, status, instructions, summary} descrito acima. Dias com requested_adjustment_kcal=0 usam status=\"base\", instructions=[], summary=\"Manter plano base\". Sem esse campo o servidor devolve 422 e a dieta é descartada.\n"
             : "") +
           "\n\nECONOMIA DE SAÍDA (obrigatório): produza JSON compacto. Textos livres (rationale, notes, summary, instructions, observações) devem ser curtos e objetivos (máx. 160 caracteres cada). Nunca repita listas de alimentos em campos textuais. Priorize sempre completar o JSON inteiro em vez de escrever explicações longas.";
@@ -1116,7 +1116,11 @@ serve(async (req) => {
         dietVariationPrompt(
           intensity,
           historySummary,
-          "CANDIDATA DE SEGURANÇA: valide rigorosamente o contrato completo, os 7 dailyAdjustments e os pisos de proteína (30g no almoço/jantar e 15g no café da manhã). Corrija qualquer risco nutricional antes de concluir.",
+          dailyAdjustmentMode
+            ? "CANDIDATA DE SEGURANÇA: valide rigorosamente o contrato completo, os 7 dailyAdjustments, os targets por dia e os pisos de proteína (30g no almoço/jantar e 15g no café da manhã). Corrija qualquer risco nutricional antes de concluir."
+            : weekdayTargetMode
+              ? "CANDIDATA DE SEGURANÇA: valide rigorosamente o contrato completo, os 7 targets por weekday e os pisos de proteína (30g no almoço/jantar e 15g no café da manhã). NÃO gere dailyAdjustments. Corrija qualquer risco nutricional antes de concluir."
+              : "CANDIDATA DE SEGURANÇA: valide rigorosamente o contrato completo, a meta global e os pisos de proteína (30g no almoço/jantar e 15g no café da manhã). Corrija qualquer risco nutricional antes de concluir.",
           requireMenuVariation,
         ),
         AI_MODELS.fallback,
