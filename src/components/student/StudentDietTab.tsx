@@ -229,11 +229,18 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   }, [plans, extractSingleDayMeals, studentId]);
 
   const handleDelete = async (planId: string) => {
+    // FASE 6.1 — dieta publicada é histórico: nunca deletável pelo app.
+    const target = plans.find(p => p.id === planId);
+    if (target && target.is_draft === false && isStructuredCanonicalPlan(parseDietPlanLoose(target.conteudo_json))) {
+      toast.error('Dieta publicada faz parte do histórico e não pode ser excluída.');
+      return;
+    }
     const { error } = await supabase.from('ai_plans').delete().eq('id', planId);
     if (error) { toast.error('Erro ao deletar: ' + error.message); return; }
     toast.success('Dieta deletada.');
     setPlans(prev => prev.filter(p => p.id !== planId));
   };
+
 
   const handleDuplicate = async (planId: string) => {
     const plan = plans.find(p => p.id === planId);
