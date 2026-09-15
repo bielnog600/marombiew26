@@ -22,6 +22,12 @@ const BULLET_LINE = /^\s*(?:[-*•]|\d+[\).])\s+/;
 const TABLE_ROW = /^\s*\|.*\|\s*$/;
 const NAME_QTY_LINE = /^[^:|]{3,60}:\s*\S+/;
 const NARRATIVE = /^(observa|nota|aten[çc]|dica|coment|importante|resumo|estimativa)/i;
+/** "Iogurte skyr natural — 170 g" (travessão, en dash ou hífen), mesmo sem bullet. */
+const DASH_QTY_LINE = /^[^|]{3,80}\s[—–-]\s*\d+(?:[.,]\d+)?\s*\S/;
+/** Linhas de substituição da dieta modelo: nunca são alimentos principais. */
+const SUBSTITUTION_LINE = /^\s*(?:→|->|=>)/;
+/** Rótulos de relatório que nunca são alimentos. */
+const REPORT_LABEL = /^(macros?|meta|gerado|diferen[çc]a|status|observa[çc][õo]es|substitui[çc][õo]es)\b/i;
 /** Linha separadora de tabela: |---|---| */
 const TABLE_SEPARATOR = /^\s*\|[\s:|-]+\|\s*$/;
 /** Cabeçalho de tabela: sem números e com rótulos genéricos. */
@@ -49,6 +55,8 @@ const looksLikeFoodLine = (line: string): boolean => {
   const trimmed = line.trim();
   if (!trimmed) return false;
   if (NARRATIVE.test(trimmed)) return false;
+  if (SUBSTITUTION_LINE.test(trimmed)) return false;
+  if (REPORT_LABEL.test(trimmed)) return false;
   if (trimmed.startsWith('#')) return false;
   if (TABLE_ROW.test(trimmed)) {
     if (TABLE_SEPARATOR.test(trimmed)) return false;
@@ -61,6 +69,7 @@ const looksLikeFoodLine = (line: string): boolean => {
     if (!/[A-Za-zÀ-ÿ]{3,}/.test(body)) return false;
     return hasPlausibleQuantity(body);
   }
+  if (DASH_QTY_LINE.test(trimmed) && /[A-Za-zÀ-ÿ]{3,}/.test(trimmed)) return true;
   return NAME_QTY_LINE.test(trimmed) && /\d/.test(trimmed);
 };
 
@@ -78,7 +87,11 @@ export function extractModelDietFoodNames(text: string): string[] {
     line = line.replace(/\b\d+(?:[.,]\d+)?\b/g, ' ');
     line = line.replace(/\(.*?\)/g, ' ');
     line = line.replace(/^\s*(?:de|da|do)\s+/i, '');
-    const name = line.replace(/\s{2,}/g, ' ').replace(/[.,;]+$/, '').trim();
+    const name = line
+      .replace(/\s{2,}/g, ' ')
+      .replace(/[.,;]+$/, '')
+      .replace(/[\s\-—–]+$/, '')
+      .trim();
     if (name.length < 3) continue;
     const key = normalizeFoodName(name);
     if (!key || seen.has(key)) continue;

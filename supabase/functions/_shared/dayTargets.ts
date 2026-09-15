@@ -61,6 +61,47 @@ export function scheduleHasDailyMacroTargets(schedule: any): boolean {
   });
 }
 
+/** Meta efetiva (kcal + macros) de um weekday do schedule. */
+const effectiveDayTargetSignature = (schedule: any, wd: string): string | null => {
+  const d = schedule?.days?.[wd];
+  if (!d) return null;
+  const fixed = optNum(d.fixed_kcal);
+  const explicit = optNum(d.target_kcal);
+  const base = num(d.base_kcal ?? schedule?.base_daily_kcal);
+  const kcal =
+    fixed !== null && fixed > 0
+      ? fixed
+      : explicit !== null && explicit > 0
+        ? explicit
+        : base + num(d.adjustment_kcal);
+  const macro = (v: unknown) => {
+    const n = optNum(v);
+    return n === null ? "-" : String(Math.round(n));
+  };
+  return [
+    Math.round(kcal),
+    macro(d.protein_g),
+    macro(d.carbs_g),
+    macro(d.fat_g),
+  ].join("/");
+};
+
+/**
+ * HOTFIX — schedule linear NÃO é carb cycling.
+ *
+ * Só existe "variação diária real" quando pelo menos dois weekdays presentes
+ * possuem metas efetivas diferentes (kcal OU qualquer macro). Sete dias com
+ * 1740/135/175/55 são LINEAR, mesmo com `weeklyEnergySchedule` preenchido.
+ */
+export function hasMeaningfulDailyTargetVariation(schedule: any): boolean {
+  if (!schedule || typeof schedule !== "object" || !schedule.days) return false;
+  const signatures = WEEKDAYS
+    .map((wd) => effectiveDayTargetSignature(schedule, wd))
+    .filter((s): s is string => s !== null);
+  if (signatures.length < 2) return false;
+  return signatures.some((s) => s !== signatures[0]);
+}
+
 export function validateDayTargets(plan: any, schedule: any): DayTargetValidation {
   const issues: DayTargetIssue[] = [];
   const empty: DayTargetValidation = {
