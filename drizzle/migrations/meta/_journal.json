@@ -36,6 +36,13 @@
       "when": 1789506633734,
       "tag": "0004_diet_publication_atomic",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789509813390,
+      "tag": "0005_diet_publication_hardening",
+      "breakpoints": true
     }
   ]
 }
