@@ -826,6 +826,10 @@ serve(async (req) => {
         dietConfig && typeof dietConfig === "object"
           ? (dietConfig as any).weeklyEnergySchedule
           : null;
+      // HOTFIX — só variação diária REAL ativa o modo por weekday
+      // (materialização seg–dom, validateDayTargets e dailyAdjustments).
+      const dailyVariationMode =
+        scheduleHasDailyMacroTargets(schedule) && hasMeaningfulDailyTargetVariation(schedule);
       const layeredInstructions = buildLayeredInstructions(dietConfig, trainingContext);
       // Resolve intent: explicit `intent` wins; legacy `regenerateIntent` maps to "regenerate".
       const intent: DietIntent =
@@ -876,7 +880,9 @@ serve(async (req) => {
             : null;
         
         // Limpeza de instruções de formato incompatíveis com JSON
-        const hasDailyTargetsForPrompt = scheduleHasDailyMacroTargets(scheduleForPrompt);
+        const hasDailyTargetsForPrompt =
+          scheduleHasDailyMacroTargets(scheduleForPrompt) &&
+          hasMeaningfulDailyTargetVariation(scheduleForPrompt);
         // Com metas diárias, o contrato exige um objeto days[] por weekday:
         // remover as instruções legadas de "cardápio único para todos os dias".
         const stripSingleMenuRules = (text: string): string =>
@@ -1076,7 +1082,7 @@ serve(async (req) => {
       // candidata em paralelo e só a aceitamos pelos mesmos gates determinísticos.
       // Fase 4.1: sem metas diárias, a meta determinística do app é obrigatória.
       // Nenhum modelo é chamado sem ela (plan.targets da IA nunca é fallback).
-      if (!scheduleHasDailyMacroTargets(schedule) && !isCanonicalTargetValid(canonicalTargets)) {
+      if (!dailyVariationMode && !isCanonicalTargetValid(canonicalTargets)) {
         return new Response(
           JSON.stringify({
             error: "Metas nutricionais determinísticas não foram fornecidas.",
@@ -1155,7 +1161,7 @@ serve(async (req) => {
       // A IA só entrega foodId + qtyGrams. Aqui validamos os IDs e reconstruímos
       // nome, macros e totais a partir da tabela `foods`. Qualquer valor
       // nutricional devolvido pelo modelo é descartado ANTES de qualquer validação.
-      const hasDailyTargets = scheduleHasDailyMacroTargets(schedule);
+      const hasDailyTargets = dailyVariationMode;
       const prepareCandidate = (rawPlan: any) => {
         const contract = validateFoodContract(rawPlan, foodCatalog, {
           mode: "fresh",
@@ -1223,7 +1229,7 @@ serve(async (req) => {
       const primarySourceTooRepetitive = primarySourceRepeatRatio >= PRIMARY_SOURCE_REPEAT_LIMIT;
 
       const validateAdjustments = (plan: any) => {
-        if (!(schedule && typeof schedule === "object" && schedule.days)) {
+        if (!dailyVariationMode) {
           return { ok: true, errors: [] as string[] };
         }
         const modelAdj = (plan && typeof plan === "object") ? (plan as any).dailyAdjustments : null;
@@ -1568,7 +1574,7 @@ serve(async (req) => {
       // apenas instructions / summary / estimated_adjustment_kcal.
       let normalizedDailyAdjustments: any = null;
       let dailyAdjustmentsError: string | null = null;
-      if (schedule && typeof schedule === "object" && schedule.days) {
+      if (dailyVariationMode) {
         const hasVariation = hasDailyCalorieVariation(schedule);
         console.log("[diet-agent] weekly_schedule_received=true", {
           requested_day_count: ENERGY_WEEKDAYS.filter((wd) => schedule.days?.[wd]).length,
@@ -1627,7 +1633,7 @@ serve(async (req) => {
         }
       }
 
-      if (schedule && !normalizedDailyAdjustments) {
+      if (dailyVariationMode && !normalizedDailyAdjustments) {
         const meta = createRoutingMetadata(modelAttempts, fallbackReason, [...fallbackReasons, "daily_adjustments_invalid"], null);
         return new Response(
           JSON.stringify({
@@ -1648,7 +1654,7 @@ serve(async (req) => {
       // comparado com o target daquele weekday enviado no schedule.
       let finalDayTargetsStatus: "ok" | "requires_resolution" | "not_applicable" = "not_applicable";
       let finalDayTargetsCheck: { ok: boolean; checkedDays: number } | null = null;
-      if (scheduleHasDailyMacroTargets(schedule)) {
+      if (dailyVariationMode) {
         const dayTargetCheck = validateDayTargets(finalPlan, schedule);
         finalDayTargetsCheck = { ok: dayTargetCheck.ok, checkedDays: dayTargetCheck.checkedDays };
         finalDayTargetsStatus = requiresResolution
