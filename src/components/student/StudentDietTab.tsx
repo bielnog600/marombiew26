@@ -558,7 +558,10 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         <span className="hidden sm:inline">{isEditing ? 'Visualizar' : 'Editar'}</span>
                       </Button>
                     )}
-                    {isExpanded && isEditing && (
+                    {/* Fase 5.1: escala percentual de macros é EXCLUSIVA do legado. */}
+                    {isExpanded && isEditing && !isStructuredCanonicalPlan(
+                      editedPlans[plan.id] ?? parseDietPlanLoose(plan.conteudo_json),
+                    ) && (
                       <Button
                         variant="ghost"
                         size="icon"
