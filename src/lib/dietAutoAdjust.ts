@@ -269,7 +269,7 @@ const solveLinearSystem = (A: number[][], b: number[]): number[] | null => {
       for (let cc = col; cc <= n; cc++) M[r][cc] -= f * M[col][cc];
     }
   }
-  return M.map((row, i) => row[n] / row[i][i === i ? i : i]);
+  return M.map((row, i) => row[n] / M[i][i]);
 };
 
 /** Resolve deltas contínuos que aproximam A·delta ≈ residual (ponderado). */
