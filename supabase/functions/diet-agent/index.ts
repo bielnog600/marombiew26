@@ -164,6 +164,23 @@ function buildLayeredInstructions(dietConfig: any, trainingContext: any): string
   // === Weekly Energy Schedule (MVP) — imutável para o modelo ===
   const schedule = dietConfig?.weeklyEnergySchedule;
   if (schedule && typeof schedule === "object" && schedule.days) {
+    // HOTFIX — schedule com 7 dias IDÊNTICOS é LINEAR: nada de materialização
+    // por weekday, nada de dailyAdjustments, nada de instruções contraditórias.
+    if (!hasMeaningfulDailyTargetVariation(schedule)) {
+      const d: any = schedule.days?.seg ?? Object.values(schedule.days ?? {})[0] ?? {};
+      const kcal = Math.round(Number(d.target_kcal ?? d.fixed_kcal ?? schedule.base_daily_kcal) || 0);
+      const macroBits: string[] = [];
+      if (d.protein_g != null) macroBits.push(`P ${Math.round(Number(d.protein_g) || 0)}g`);
+      if (d.carbs_g != null) macroBits.push(`C ${Math.round(Number(d.carbs_g) || 0)}g`);
+      if (d.fat_g != null) macroBits.push(`G ${Math.round(Number(d.fat_g) || 0)}g`);
+      lines.push("\n=== META GLOBAL (BLOCO IMUTÁVEL — NÃO ALTERE) ===");
+      lines.push(
+        `Todos os dias da semana têm EXATAMENTE a mesma meta: ${kcal} kcal${macroBits.length ? ` | ${macroBits.join(" | ")}` : ""}.`,
+      );
+      lines.push("A dieta é LINEAR: gere UM ÚNICO cardápio (um objeto em days[], label \"Padrão\").");
+      lines.push("NÃO gere um objeto por weekday e NÃO inclua o campo \"dailyAdjustments\".");
+      return lines.join("\n") + "\n";
+    }
     const hasDailyMacros = scheduleHasDailyMacroTargets(schedule);
     lines.push(
       hasDailyMacros
