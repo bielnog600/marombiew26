@@ -151,3 +151,46 @@ describe('Aviso de dieta modelo linear', () => {
     expect(modelDietMentionsLinearTargets('Café da manhã: ovos — 100 g')).toBe(false);
   });
 });
+
+/**
+ * MICRO-HOTFIX — instruções residuais de dailyAdjustments no prompt.
+ * Espelho exato das expressões usadas em diet-agent/index.ts.
+ */
+const finalReminder = (dailyAdjustmentMode: boolean) =>
+  dailyAdjustmentMode
+    ? '\n\nLEMBRETE FINAL (obrigatório): o JSON de saída DEVE conter o campo raiz "dailyAdjustments" com as 7 chaves seg, ter, qua, qui, sex, sab, dom...'
+    : '';
+
+const safetyCandidate = (weekdayTargetMode: boolean, dailyAdjustmentMode: boolean) =>
+  dailyAdjustmentMode
+    ? 'CANDIDATA DE SEGURANÇA: valide rigorosamente o contrato completo, os 7 dailyAdjustments, os targets por dia e os pisos de proteína (30g no almoço/jantar e 15g no café da manhã). Corrija qualquer risco nutricional antes de concluir.'
+    : weekdayTargetMode
+      ? 'CANDIDATA DE SEGURANÇA: valide rigorosamente o contrato completo, os 7 targets por weekday e os pisos de proteína (30g no almoço/jantar e 15g no café da manhã). NÃO gere dailyAdjustments. Corrija qualquer risco nutricional antes de concluir.'
+      : 'CANDIDATA DE SEGURANÇA: valide rigorosamente o contrato completo, a meta global e os pisos de proteína (30g no almoço/jantar e 15g no café da manhã). Corrija qualquer risco nutricional antes de concluir.';
+
+describe('Instruções residuais de dailyAdjustments', () => {
+  it('A. carb cycling: lembrete final não exige dailyAdjustments', () => {
+    const f = flags(carbCyclingSchedule(), true);
+    expect(finalReminder(f.dailyAdjustmentMode)).not.toContain('dailyAdjustments');
+  });
+
+  it('B/C. carb cycling: candidata de segurança não pede 7 dailyAdjustments e cita targets por weekday', () => {
+    const f = flags(carbCyclingSchedule(), true);
+    const text = safetyCandidate(f.weekdayTargetMode, f.dailyAdjustmentMode);
+    expect(text).not.toContain('7 dailyAdjustments');
+    expect(text).toContain('7 targets por weekday');
+    expect(text).toContain('NÃO gere dailyAdjustments');
+  });
+
+  it('D. ajuste manual: prompt continua exigindo dailyAdjustments', () => {
+    const f = flags(manualSchedule(), false);
+    expect(finalReminder(f.dailyAdjustmentMode)).toContain('dailyAdjustments');
+    expect(safetyCandidate(f.weekdayTargetMode, f.dailyAdjustmentMode)).toContain('7 dailyAdjustments');
+  });
+
+  it('E. linear: nenhum pedido de dailyAdjustments', () => {
+    const f = flags(linearSchedule(), false);
+    expect(finalReminder(f.dailyAdjustmentMode)).toBe('');
+    expect(safetyCandidate(f.weekdayTargetMode, f.dailyAdjustmentMode)).toContain('meta global');
+  });
+});
