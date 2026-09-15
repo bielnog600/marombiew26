@@ -622,6 +622,15 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         className="h-7 gap-1 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                         onClick={async (e) => {
                           e.stopPropagation();
+                          // Fase 5.1: guarda de publicação com item não validado.
+                          const canonicalNow = editedPlans[plan.id] ?? parseDietPlanLoose(plan.conteudo_json);
+                          if (
+                            isStructuredCanonicalPlan(canonicalNow) &&
+                            hasUnresolvedCanonicalItems(canonicalNow)
+                          ) {
+                            toast.error('Existem alimentos não validados. Resolva antes de publicar.');
+                            return;
+                          }
                           const { error } = await supabase.from('ai_plans').update({ is_draft: false }).eq('id', plan.id);
                           if (error) { toast.error('Erro ao publicar: ' + error.message); return; }
                           toast.success('Dieta publicada para o aluno.');
