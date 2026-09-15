@@ -105,19 +105,51 @@ const NewFoodsFromPlanCard: React.FC<Props> = ({
   const approve = async (row: Row) => {
     updateRow(row.key, { loading: true });
     try {
-      const { error } = await supabase.from('foods').insert({
-        name: row.name,
-        portion: row.portion,
-        portion_size: row.portion_size,
-        calories: row.kcal,
-        protein: row.protein,
-        carbs: row.carbs,
-        fats: row.fats,
-      });
-      if (error) throw error;
+      // HOTFIX — guard anti-duplicata: reaproveita alimento já existente.
+      const { data: allFoods, error: listError } = await supabase
+        .from('foods')
+        .select('id, name, calories, protein, carbs, fats, portion, portion_size, brand, source');
+      if (listError) throw listError;
+      const matches = findExactFoodMatches(row.name, (allFoods ?? []) as any[]);
+
+      if (matches.length > 1) {
+        updateRow(row.key, { loading: false });
+        toast.warning(
+          `Existem ${matches.length} alimentos com o nome "${row.name}" na base. Use "Substituir por existente" para escolher o correto.`,
+        );
+        return;
+      }
+
+      let created: any;
+      if (matches.length === 1) {
+        created = matches[0];
+        toast.info(`"${created.name}" já existe na base — o plano foi vinculado ao registro existente.`);
+      } else {
+        const { data, error } = await supabase
+          .from('foods')
+          .insert({
+            name: row.name,
+            portion: row.portion,
+            portion_size: row.portion_size,
+            calories: row.kcal,
+            protein: row.protein,
+            carbs: row.carbs,
+            fats: row.fats,
+          })
+          .select('id, name, calories, protein, carbs, fats, portion, portion_size, brand, source')
+          .single();
+        if (error) throw error;
+        created = data;
+        toast.success(`${row.name} adicionado à base de alimentos`);
+      }
+
       queryClient.invalidateQueries({ queryKey: ['foods'] });
+      queryClient.invalidateQueries({ queryKey: ['canonical-editor-foods'] });
+      queryClient.invalidateQueries({ queryKey: ['foods-resolution-catalog'] });
       updateRow(row.key, { approved: true, loading: false });
-      toast.success(`${row.name} adicionado à base de alimentos`);
+      if (created && onFoodLinked) {
+        onFoodLinked(row, foodRecordFromRow(created));
+      }
     } catch (e: any) {
       console.error(e);
       toast.error(`Erro ao adicionar: ${e?.message || 'desconhecido'}`);
