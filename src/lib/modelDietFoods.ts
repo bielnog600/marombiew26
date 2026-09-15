@@ -22,14 +22,45 @@ const BULLET_LINE = /^\s*(?:[-*•]|\d+[\).])\s+/;
 const TABLE_ROW = /^\s*\|.*\|\s*$/;
 const NAME_QTY_LINE = /^[^:|]{3,60}:\s*\S+/;
 const NARRATIVE = /^(observa|nota|aten[çc]|dica|coment|importante|resumo|estimativa)/i;
+/** Linha separadora de tabela: |---|---| */
+const TABLE_SEPARATOR = /^\s*\|[\s:|-]+\|\s*$/;
+/** Cabeçalho de tabela: sem números e com rótulos genéricos. */
+const TABLE_HEADER_CELL = /^(alimento|quantidade|qtd|medida|porç[ãa]o|kcal|calorias|prote[íi]na|carbo\w*|gordura|macros?|refei[çc][ãa]o|hor[áa]rio|substitui\w*)$/i;
+
+const isTableHeaderRow = (line: string): boolean => {
+  const cells = line
+    .replace(/^\s*\|/, '')
+    .replace(/\|\s*$/, '')
+    .split('|')
+    .map((c) => c.trim())
+    .filter(Boolean);
+  if (cells.length === 0) return true;
+  return cells.every((c) => TABLE_HEADER_CELL.test(c));
+};
+
+/** Alimento plausível: nome com letras + quantidade numérica na linha. */
+const hasPlausibleQuantity = (line: string): boolean => {
+  QTY_TOKEN.lastIndex = 0;
+  if (QTY_TOKEN.test(line)) return true;
+  return /[:\-—–]\s*\d/.test(line) || /\b\d+(?:[.,]\d+)?\s*\S/.test(line);
+};
 
 const looksLikeFoodLine = (line: string): boolean => {
   const trimmed = line.trim();
   if (!trimmed) return false;
   if (NARRATIVE.test(trimmed)) return false;
   if (trimmed.startsWith('#')) return false;
-  if (TABLE_ROW.test(trimmed)) return true;
-  if (BULLET_LINE.test(trimmed)) return true;
+  if (TABLE_ROW.test(trimmed)) {
+    if (TABLE_SEPARATOR.test(trimmed)) return false;
+    if (isTableHeaderRow(trimmed)) return false;
+    return /\d/.test(trimmed) && /[A-Za-zÀ-ÿ]{3,}/.test(trimmed);
+  }
+  if (BULLET_LINE.test(trimmed)) {
+    const body = trimmed.replace(BULLET_LINE, '').trim();
+    if (!body || NARRATIVE.test(body)) return false;
+    if (!/[A-Za-zÀ-ÿ]{3,}/.test(body)) return false;
+    return hasPlausibleQuantity(body);
+  }
   return NAME_QTY_LINE.test(trimmed) && /\d/.test(trimmed);
 };
 
