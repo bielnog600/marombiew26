@@ -44,7 +44,7 @@ import {
   type DietCandidateSignals,
 } from "../_shared/dietRoutingPolicy.ts";
 import { sanitizeStructuredPrompt } from "../_shared/structuredPromptSanitizer.ts";
-import { scheduleHasDailyMacroTargets, validateDayTargets, hasMeaningfulDailyTargetVariation } from "../_shared/dayTargets.ts";
+import { scheduleHasDailyMacroTargets, validateDayTargets, hasMeaningfulDailyTargetVariation, hasManualWeeklyAdjustment } from "../_shared/dayTargets.ts";
 import {
   formatFoodCatalogPrompt,
   loadFoodCatalog,
@@ -141,6 +141,7 @@ async function loadCatalogOnce(): Promise<FoodCatalog> {
 }
 
 function buildLayeredInstructions(dietConfig: any, trainingContext: any): string {
+  const carbCyclingEnabled = dietConfig?.carbCyclingEnabled === true;
   if (!dietConfig && !trainingContext) return "";
   const lines: string[] = ["\n\n=== CAMADAS DE DECISÃO (USE COMO ÂNCORA) ===\n"];
   if (dietConfig?.objective) lines.push(`1) OBJETIVO METABÓLICO: ${dietConfig.objective} — define direção calórica.`);
@@ -223,6 +224,13 @@ function buildLayeredInstructions(dietConfig: any, trainingContext: any): string
     }
     if (hasDailyMacros) {
       lines.push("REGRA CRÍTICA: gere um objeto em days[] para CADA weekday acima, com o campo \"weekday\" preenchido, e o day.totals de cada dia deve bater com a meta DAQUELE dia (±50 kcal, ±10g P, ±15g C, ±8g G). NÃO use a meta base global em todos os dias. O servidor valida dia a dia e rejeita divergências.");
+    }
+    // HOTFIX — CARB CYCLING já materializa cada weekday completo: pedir
+    // também dailyAdjustments (add/remove) duplicaria a mesma variação.
+    if (carbCyclingEnabled) {
+      lines.push("CARB CYCLING ATIVO: gere o cardápio COMPLETO de cada weekday respeitando a meta daquele dia.");
+      lines.push("NÃO inclua o campo \"dailyAdjustments\" e NÃO produza instruções add/remove — a variação já está nas metas por dia.");
+      return lines.join("\n") + "\n";
     }
     lines.push("REGRAS OBRIGATÓRIAS para a seção 'Ajustes por dia':");
     if (hasDailyMacros) {
@@ -826,10 +834,20 @@ serve(async (req) => {
         dietConfig && typeof dietConfig === "object"
           ? (dietConfig as any).weeklyEnergySchedule
           : null;
-      // HOTFIX — só variação diária REAL ativa o modo por weekday
-      // (materialização seg–dom, validateDayTargets e dailyAdjustments).
-      const dailyVariationMode =
+      // HOTFIX — dois conceitos SEPARADOS:
+      //  weekdayTargetMode   → existe meta própria por weekday (carb cycling
+      //                        ou ajuste manual): materializa 7 dias e valida
+      //                        cada dia contra a sua meta.
+      //  dailyAdjustmentMode → instruções complementares add/remove sobre uma
+      //                        dieta base. NUNCA exigido com carb cycling.
+      const carbCyclingEnabled =
+        dietConfig && typeof dietConfig === "object"
+          ? (dietConfig as any).carbCyclingEnabled === true
+          : false;
+      const weekdayTargetMode =
         scheduleHasDailyMacroTargets(schedule) && hasMeaningfulDailyTargetVariation(schedule);
+      const dailyAdjustmentMode =
+        weekdayTargetMode && !carbCyclingEnabled && hasManualWeeklyAdjustment(schedule);
       const layeredInstructions = buildLayeredInstructions(dietConfig, trainingContext);
       // Resolve intent: explicit `intent` wins; legacy `regenerateIntent` maps to "regenerate".
       const intent: DietIntent =
@@ -1082,7 +1100,7 @@ serve(async (req) => {
       // candidata em paralelo e só a aceitamos pelos mesmos gates determinísticos.
       // Fase 4.1: sem metas diárias, a meta determinística do app é obrigatória.
       // Nenhum modelo é chamado sem ela (plan.targets da IA nunca é fallback).
-      if (!dailyVariationMode && !isCanonicalTargetValid(canonicalTargets)) {
+      if (!weekdayTargetMode && !isCanonicalTargetValid(canonicalTargets)) {
         return new Response(
           JSON.stringify({
             error: "Metas nutricionais determinísticas não foram fornecidas.",
@@ -1161,7 +1179,7 @@ serve(async (req) => {
       // A IA só entrega foodId + qtyGrams. Aqui validamos os IDs e reconstruímos
       // nome, macros e totais a partir da tabela `foods`. Qualquer valor
       // nutricional devolvido pelo modelo é descartado ANTES de qualquer validação.
-      const hasDailyTargets = dailyVariationMode;
+      const hasDailyTargets = weekdayTargetMode;
       const prepareCandidate = (rawPlan: any) => {
         const contract = validateFoodContract(rawPlan, foodCatalog, {
           mode: "fresh",
@@ -1229,7 +1247,7 @@ serve(async (req) => {
       const primarySourceTooRepetitive = primarySourceRepeatRatio >= PRIMARY_SOURCE_REPEAT_LIMIT;
 
       const validateAdjustments = (plan: any) => {
-        if (!dailyVariationMode) {
+        if (!dailyAdjustmentMode) {
           return { ok: true, errors: [] as string[] };
         }
         const modelAdj = (plan && typeof plan === "object") ? (plan as any).dailyAdjustments : null;
@@ -1244,11 +1262,11 @@ serve(async (req) => {
       // Fase 3: metas diárias determinísticas viram gate crítico, para que a
       // candidata de segurança possa corrigir um LOW/HIGH trocado.
       const checkDayTargets = (plan: any) =>
-        dailyVariationMode
+        weekdayTargetMode
           ? validateDayTargets(plan, schedule)
           : validateDayTargets(plan, null);
       const initialDayTargets = checkDayTargets(candidatePlan);
-      if (dailyVariationMode) {
+      if (weekdayTargetMode) {
         console.log("[diet-agent] day_targets_validation", {
           model: selectedModel,
           ok: initialDayTargets.ok,
@@ -1577,7 +1595,7 @@ serve(async (req) => {
       // apenas instructions / summary / estimated_adjustment_kcal.
       let normalizedDailyAdjustments: any = null;
       let dailyAdjustmentsError: string | null = null;
-      if (dailyVariationMode) {
+      if (dailyAdjustmentMode) {
         const hasVariation = hasDailyCalorieVariation(schedule);
         console.log("[diet-agent] weekly_schedule_received=true", {
           requested_day_count: ENERGY_WEEKDAYS.filter((wd) => schedule.days?.[wd]).length,
@@ -1636,7 +1654,7 @@ serve(async (req) => {
         }
       }
 
-      if (dailyVariationMode && !normalizedDailyAdjustments) {
+      if (dailyAdjustmentMode && !normalizedDailyAdjustments) {
         const meta = createRoutingMetadata(modelAttempts, fallbackReason, [...fallbackReasons, "daily_adjustments_invalid"], null);
         return new Response(
           JSON.stringify({
@@ -1657,7 +1675,7 @@ serve(async (req) => {
       // comparado com o target daquele weekday enviado no schedule.
       let finalDayTargetsStatus: "ok" | "requires_resolution" | "not_applicable" = "not_applicable";
       let finalDayTargetsCheck: { ok: boolean; checkedDays: number } | null = null;
-      if (dailyVariationMode) {
+      if (weekdayTargetMode) {
         const dayTargetCheck = validateDayTargets(finalPlan, schedule);
         finalDayTargetsCheck = { ok: dayTargetCheck.ok, checkedDays: dayTargetCheck.checkedDays };
         finalDayTargetsStatus = requiresResolution

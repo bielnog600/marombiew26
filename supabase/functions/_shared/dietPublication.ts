@@ -368,7 +368,11 @@ export const validatePublicationDailyAdjustments = (
   const generated = schedule?.generated_adjustments ?? null;
   const base = Math.round(num(schedule?.base_daily_kcal));
 
-  const requiresAdjustments = !!schedule && base > 0 && ENERGY_WEEKDAYS.some((wd) => {
+  // HOTFIX — carb cycling materializa cada weekday em `weekly_day_targets` +
+  // DietPlan.days. Nesse modo `generated_adjustments` não é exigido.
+  const carbCyclingEnabled = protocols?.carb_cycling?.enabled === true;
+
+  const requiresAdjustments = !carbCyclingEnabled && !!schedule && base > 0 && ENERGY_WEEKDAYS.some((wd) => {
     const d = schedule?.days?.[wd];
     if (!d) return false;
     const target = d?.fixed_kcal != null && num(d.fixed_kcal) > 0

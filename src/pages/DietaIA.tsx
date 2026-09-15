@@ -21,7 +21,7 @@ import { validateDietJSON } from '@/lib/planMigrationUtils';
 import { markdownToDietPlan } from '@/lib/dietPlanAdapter';
 import { finalizeDietPlan } from '@/lib/dietValidation';
 import { parseDietPlanStrict, parseDietPlanLoose, type DietPlan } from '@/lib/dietSchema';
-import { buildAllowedUnresolvedFromModelDiet } from '@/lib/modelDietFoods';
+import { buildAllowedUnresolvedFromModelDiet, modelDietMentionsLinearTargets } from '@/lib/modelDietFoods';
 import { buildStructuredDietPrompt } from '@/lib/structuredDietPrompt';
 import {
   validateCanonicalDietTarget,
@@ -1747,7 +1747,7 @@ const DietaIA = () => {
   const generateStructuredPlan = async (
 
     userPrompt: string,
-    dietConfig: { objective?: string; strategy?: string; style?: string; carbCyclePlan?: any; weeklyEnergySchedule?: any },
+    dietConfig: { objective?: string; strategy?: string; style?: string; carbCyclePlan?: any; weeklyEnergySchedule?: any; carbCyclingEnabled?: boolean },
     targets: { kcal: number; p: number; c: number; g: number; tmb?: number; get?: number },
     intent: DietIntent = 'new',
   ): Promise<{
@@ -2297,6 +2297,9 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
               strategy: strategy || undefined,
               style: dietStyle || undefined,
               ...(cyclePlan ? { carbCyclePlan: cyclePlan } : {}),
+              // Autoridade explícita: carb cycling materializa cada weekday e
+              // por isso NÃO exige dailyAdjustments add/remove.
+              carbCyclingEnabled: carbCycling.enabled,
               weeklyEnergySchedule: {
                 base_daily_kcal: currentTargets.calories,
                 base_source: weeklySchedule.base_source,
@@ -3492,6 +3495,25 @@ ${generated}`;
                 rows={6}
                 className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none resize-y min-h-[100px]"
               />
+              {carbCycling.enabled && modelDietMentionsLinearTargets(modelDiet) && (
+                <div className="mt-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 space-y-2">
+                  <p className="text-xs text-amber-600">
+                    A dieta modelo menciona dieta linear, mas o Carb Cycling está ativo.
+                    As metas configuradas no app serão utilizadas.
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setCarbCycling((prev) => ({ ...prev, enabled: false }));
+                      setSelectedAdjustments((prev) => prev.filter((id) => id !== 'carb_cycling'));
+                    }}
+                  >
+                    Desativar Carb Cycling
+                  </Button>
+                </div>
+              )}
             </div>
             </div>
           </CardContent>
