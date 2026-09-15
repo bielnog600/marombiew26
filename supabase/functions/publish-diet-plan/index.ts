@@ -96,8 +96,10 @@ Deno.serve(async (req) => {
       const catalog = await loadFoodCatalog(supabase);
 
       // Contrato de publicação: nenhum unresolved autorizado.
+      // Contrato STRICT: foodId obrigatório, qtyGrams > 0, zero unresolved,
+      // inclusive nos ajustes diários.
       const contract = validateFoodContract(row.conteudo_json, catalog, {
-        mode: "legacy",
+        mode: "fresh",
         allowedUnresolved: [],
       });
       const blockers = collectPublicationBlockers(row.conteudo_json, catalog);
