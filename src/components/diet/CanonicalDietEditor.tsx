@@ -47,6 +47,12 @@ import {
   type AutoAdjustResult,
 } from '@/lib/dietAutoAdjust';
 import type { DayTarget } from '@/lib/dietDayTargets';
+import {
+  simulateCopyDayToWeek,
+  dayIsFullyResolved,
+  COPY_DAY_MESSAGES,
+  type CopyDayResult,
+} from '@/lib/dietCopyDay';
 import AutoAdjustPreviewDialog from './AutoAdjustPreviewDialog';
 import CanonicalFoodPickerDialog from './CanonicalFoodPickerDialog';
 
