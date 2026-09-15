@@ -3650,6 +3650,26 @@ ${generated}`;
                   });
                   toast.info(`"${cand.name}" removido do plano`);
                 }}
+                onFoodLinked={async (cand, food) => {
+                  // HOTFIX — vincula imediatamente o item do plano ao alimento
+                  // recém-criado/reaproveitado, sem regerar a dieta.
+                  if (!structuredPlan) return;
+                  try {
+                    const foodRecords = await loadFoodMacroRecords();
+                    const linked = linkPlanItemsToFood<DietPlan>(
+                      structuredPlan,
+                      cand.name,
+                      food,
+                      foodRecords,
+                    );
+                    if (linked.changed) {
+                      await applyCanonicalPlanUpdate(linked.plan);
+                      toast.success(`"${food.name}" vinculado à dieta (${linked.resolvedCount} item(ns)).`);
+                    }
+                  } catch (e) {
+                    console.warn('linkPlanItemsToFood failed', e);
+                  }
+                }}
               />
             )}
             {dietSimilarity && dietSimilarity.historyCount > 0 && (() => {
