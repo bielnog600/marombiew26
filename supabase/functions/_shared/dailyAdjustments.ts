@@ -12,6 +12,8 @@ export type AdjustmentStatus = 'base' | 'adjusted';
 
 export interface AdjustmentInstruction {
   action: AdjustmentAction;
+  /** HOTFIX — autoridade do alimento. Nome é apenas leitura humana. */
+  food_id: string;
   food_name: string;
   quantity: number;
   unit: string;
@@ -73,8 +75,10 @@ function sanitizeInstruction(raw: any): AdjustmentInstruction | null {
   const quantity = Number(raw.quantity);
   const estimated_kcal = Number(raw.estimated_kcal);
   const unit = typeof raw.unit === 'string' ? raw.unit.trim() : 'g';
+  const food_id = typeof raw.food_id === 'string' ? raw.food_id.trim() : '';
   return {
     action,
+    food_id,
     food_name,
     quantity: Number.isFinite(quantity) ? Math.round(quantity) : 0,
     unit: unit || 'g',
