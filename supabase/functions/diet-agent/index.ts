@@ -1243,9 +1243,12 @@ serve(async (req) => {
 
       // Fase 3: metas diárias determinísticas viram gate crítico, para que a
       // candidata de segurança possa corrigir um LOW/HIGH trocado.
-      const checkDayTargets = (plan: any) => validateDayTargets(plan, schedule);
+      const checkDayTargets = (plan: any) =>
+        dailyVariationMode
+          ? validateDayTargets(plan, schedule)
+          : validateDayTargets(plan, null);
       const initialDayTargets = checkDayTargets(candidatePlan);
-      if (scheduleHasDailyMacroTargets(schedule)) {
+      if (dailyVariationMode) {
         console.log("[diet-agent] day_targets_validation", {
           model: selectedModel,
           ok: initialDayTargets.ok,
