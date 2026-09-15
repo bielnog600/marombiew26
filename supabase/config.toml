@@ -14,3 +14,9 @@ verify_jwt = false
 
 [functions.daily-workout-motivator]
 verify_jwt = false
+
+[functions.publish-diet-plan]
+verify_jwt = true
+
+[functions.create-diet-version]
+verify_jwt = true
