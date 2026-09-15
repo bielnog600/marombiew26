@@ -55,6 +55,8 @@ const looksLikeFoodLine = (line: string): boolean => {
   const trimmed = line.trim();
   if (!trimmed) return false;
   if (NARRATIVE.test(trimmed)) return false;
+  if (SUBSTITUTION_LINE.test(trimmed)) return false;
+  if (REPORT_LABEL.test(trimmed)) return false;
   if (trimmed.startsWith('#')) return false;
   if (TABLE_ROW.test(trimmed)) {
     if (TABLE_SEPARATOR.test(trimmed)) return false;
