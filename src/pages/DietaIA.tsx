@@ -3676,7 +3676,7 @@ ${generated}`;
                   <div className="flex flex-wrap gap-2 pt-1">
                     {structuredPlan ? (
                       <span className="text-[11px] text-muted-foreground self-center">
-                        Ajuste determinístico disponível na próxima etapa.
+                        Ajuste de porções disponível no editor abaixo.
                       </span>
                     ) : (
                       <>
