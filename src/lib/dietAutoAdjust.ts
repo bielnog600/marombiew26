@@ -332,13 +332,17 @@ const combinations = (n: number, k: number): number[][] => {
 /* Otimização de UM dia                                                       */
 /* -------------------------------------------------------------------------- */
 
-const isValidTarget = (t: DayTarget | null | undefined): t is DayTarget =>
+/** kcal > 0; P/C/G podem ser zero (meta válida) mas nunca negativos. */
+export const isValidTarget = (t: DayTarget | null | undefined): t is DayTarget =>
   !!t &&
   Number.isFinite(t.kcal) &&
   Number.isFinite(t.p) &&
   Number.isFinite(t.c) &&
   Number.isFinite(t.g) &&
-  t.kcal > 0;
+  t.kcal > 0 &&
+  t.p >= 0 &&
+  t.c >= 0 &&
+  t.g >= 0;
 
 export interface OptimizeDayInput<TPlan = any> {
   plan: TPlan;
