@@ -136,6 +136,17 @@ Deno.serve(async (req) => {
         return { error: fail("daily_adjustments_invalid", 422, adjustments.issues) };
       }
 
+      // FASE 6.1 — os ajustes recalculados pela base ATUAL são persistidos
+      // na mesma transação da publicação.
+      const finalProtocols = row.protocols
+        ? JSON.parse(JSON.stringify(row.protocols))
+        : row.protocols ?? null;
+      if (finalProtocols?.weekly_energy_schedule && adjustments.adjustments) {
+        finalProtocols.weekly_energy_schedule.generated_adjustments = adjustments.adjustments;
+      }
+      const normalizedAdjustments =
+        finalProtocols?.weekly_energy_schedule?.generated_adjustments ?? null;
+
       const { plan: snapshotPlan } = buildPublishedSnapshotPlan(hydrated.plan, catalog);
       const schema = validatePublicationPlan(snapshotPlan);
       if (!schema.ok) {
@@ -143,15 +154,26 @@ Deno.serve(async (req) => {
       }
 
       const markdown = canonicalDietPlanToMarkdown(snapshotPlan);
-      const assertions = collectFoodAssertions(snapshotPlan, catalog);
+      const assertions = collectFoodAssertions(snapshotPlan, catalog, normalizedAdjustments);
+
+      const integrity = validateSnapshotAssertionIntegrity(
+        snapshotPlan,
+        assertions,
+        normalizedAdjustments,
+      );
+      if (!integrity.ok) {
+        return { error: fail("publication_schema_invalid", 422, integrity.issues.slice(0, 20)) };
+      }
 
       const { data, error } = await supabase.rpc("publish_diet_plan_atomic", {
         p_plan_id: planId,
         p_expected_revision: expectedRevision,
         p_final_plan: snapshotPlan,
         p_final_markdown: markdown,
+        p_final_protocols: finalProtocols,
         p_food_assertions: assertions,
       });
+
       if (error) return { rpcError: rpcErrorCode(String(error.message ?? "")), raw: error.message };
       return { data };
     };
