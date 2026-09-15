@@ -11,8 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { foodRecordFromRow, type FoodRecord } from '@/lib/nutritionEngine';
-import { resolveDietFoodItem } from '@/lib/dietFoodResolution';
+import { foodRecordFromRow, normalizeFoodName, type FoodRecord } from '@/lib/nutritionEngine';
+import { linkPlanItemsToFood } from '@/lib/dietFoodRelink';
 import type { DietPlan } from '@/lib/dietSchema';
 
 interface UnresolvedRef {
@@ -46,18 +46,42 @@ export function collectUnresolvedItems(plan: any): UnresolvedRef[] {
   return out;
 }
 
+export interface UnresolvedGroup {
+  key: string;
+  name: string;
+  occurrences: number;
+  refs: UnresolvedRef[];
+}
+
+/** HOTFIX UX — uma linha por alimento, não por ocorrência. */
+export function groupUnresolvedItems(plan: any): UnresolvedGroup[] {
+  const groups = new Map<string, UnresolvedGroup>();
+  for (const ref of collectUnresolvedItems(plan)) {
+    const key = normalizeFoodName(ref.name);
+    if (!key) continue;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.occurrences += 1;
+      existing.refs.push(ref);
+    } else {
+      groups.set(key, { key, name: ref.name, occurrences: 1, refs: [ref] });
+    }
+  }
+  return [...groups.values()];
+}
+
 interface Props {
   plan: DietPlan | any;
   onChange: (plan: any) => void;
 }
 
 const UnresolvedFoodsPanel: React.FC<Props> = ({ plan, onChange }) => {
-  const unresolved = useMemo(() => collectUnresolvedItems(plan), [plan]);
+  const groups = useMemo(() => groupUnresolvedItems(plan), [plan]);
   const [selection, setSelection] = useState<Record<string, string>>({});
 
   const { data: foods = [] } = useQuery<FoodRecord[]>({
     queryKey: ['foods-resolution-catalog'],
-    enabled: unresolved.length > 0,
+    enabled: groups.length > 0,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('foods')
@@ -68,7 +92,7 @@ const UnresolvedFoodsPanel: React.FC<Props> = ({ plan, onChange }) => {
     },
   });
 
-  if (!unresolved.length) return null;
+  if (!groups.length) return null;
 
   return (
     <div className="glass-card rounded-2xl p-4 border border-amber-500/30 space-y-3">
@@ -77,42 +101,56 @@ const UnresolvedFoodsPanel: React.FC<Props> = ({ plan, onChange }) => {
         <div>
           <p className="text-sm font-semibold text-foreground">Alimentos não vinculados à base</p>
           <p className="text-xs text-muted-foreground">
-            Esta dieta possui alimentos que ainda não foram vinculados à base. Resolva-os antes de
-            considerar os macros validados.
+            Escolha o alimento correto uma única vez: o vínculo vale para todas as ocorrências,
+            em todos os dias, mantendo as quantidades de cada refeição.
           </p>
         </div>
       </div>
 
       <div className="space-y-2">
-        {unresolved.map((ref) => {
-          const key = `${ref.dayIdx}-${ref.mealIdx}-${ref.itemIdx}`;
-          const chosen = selection[key];
+        {groups.map((group) => {
+          const chosen = selection[group.key];
+          const days = [...new Set(group.refs.map((r) => r.dayLabel).filter(Boolean))];
           return (
             <div
-              key={key}
+              key={group.key}
               className="rounded-xl bg-background/40 p-3 space-y-2 border border-border/40"
             >
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="outline" className="border-amber-500/50 text-amber-400 text-[10px]">
                   NÃO VALIDADO
                 </Badge>
-                <span className="text-sm font-medium">{ref.name}</span>
+                <span className="text-sm font-medium">{group.name}</span>
                 <span className="text-xs text-muted-foreground">
-                  {ref.dayLabel} · {ref.mealName} · {Math.round(ref.qtyGrams)} g
+                  {group.occurrences} ocorrência{group.occurrences > 1 ? 's' : ''}
+                  {days.length ? ` · ${days.join(', ')}` : ''}
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <Select value={chosen ?? ''} onValueChange={(v) => setSelection((s) => ({ ...s, [key]: v }))}>
+                <Select
+                  value={chosen ?? ''}
+                  onValueChange={(v) => setSelection((s) => ({ ...s, [group.key]: v }))}
+                >
                   <SelectTrigger className="h-8 text-xs flex-1">
                     <SelectValue placeholder="Escolher alimento da base..." />
                   </SelectTrigger>
                   <SelectContent className="max-h-72">
                     {foods.map((f) => (
                       <SelectItem key={f.id} value={f.id} className="text-xs">
-                        {f.name}
-                        {f.brand ? ` · ${f.brand}` : ''}
-                        {f.source ? ` · ${f.source}` : ''}
-                        {` — ${Math.round(Number(f.calories) || 0)} kcal / ${Math.round(Number(f.portion_size) || 100)}g`}
+                        <span className="flex flex-col">
+                          <span>
+                            {f.name}
+                            {f.brand ? ` · ${f.brand}` : ''}
+                            {f.source ? ` · ${f.source}` : ''}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {Math.round(Number(f.calories) || 0)} kcal /{' '}
+                            {Math.round(Number(f.portion_size) || 100)}g ·{' '}
+                            {Math.round(Number(f.protein) || 0)}P ·{' '}
+                            {Math.round(Number(f.carbs) || 0)}C ·{' '}
+                            {Math.round(Number(f.fats) || 0)}G
+                          </span>
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -124,7 +162,8 @@ const UnresolvedFoodsPanel: React.FC<Props> = ({ plan, onChange }) => {
                   onClick={() => {
                     const food = foods.find((f) => f.id === chosen);
                     if (!food) return;
-                    onChange(resolveDietFoodItem(plan, ref, food, foods));
+                    const result = linkPlanItemsToFood(plan, group.name, food, foods);
+                    if (result.changed) onChange(result.plan);
                   }}
                 >
                   <Link2 className="h-3.5 w-3.5 mr-1" />
