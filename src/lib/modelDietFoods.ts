@@ -69,6 +69,7 @@ const looksLikeFoodLine = (line: string): boolean => {
     if (!/[A-Za-zÀ-ÿ]{3,}/.test(body)) return false;
     return hasPlausibleQuantity(body);
   }
+  if (DASH_QTY_LINE.test(trimmed) && /[A-Za-zÀ-ÿ]{3,}/.test(trimmed)) return true;
   return NAME_QTY_LINE.test(trimmed) && /\d/.test(trimmed);
 };
 
