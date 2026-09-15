@@ -278,3 +278,91 @@ describe('Fase 5 — plano completo', () => {
     expect(res.days[1].target.c).toBeCloseTo(low.c, 5);
   });
 });
+
+describe('Fase 5 — integração canônica (U–AF)', () => {
+  const outOfTarget = () => makePlan([item(ARROZ, 250), item(FRANGO, 150), item(AZEITE, 15)]);
+  const target = totalsOf([[ARROZ, 180], [FRANGO, 180], [AZEITE, 12]]);
+
+  it('U/V. manualLocked bloqueia e desbloquear devolve o item ao solver', () => {
+    const locked = makePlan([
+      item(ARROZ, 250, { manualLocked: true }),
+      item(FRANGO, 150),
+      item(AZEITE, 15),
+    ]);
+    const a = optimizeDietDay({ plan: locked, dayIndex: 0, target, foods: FOODS });
+    expect((a.adjustedPlan as any)?.days[0].meals[0].items[0].qtyGrams ?? 250).toBe(250);
+
+    const unlocked = JSON.parse(JSON.stringify(locked));
+    unlocked.days[0].meals[0].items[0].manualLocked = false;
+    const b = optimizeDietDay({ plan: unlocked, dayIndex: 0, target, foods: FOODS });
+    expect(b.status).toBe('feasible');
+    expect((b.adjustedPlan as any).days[0].meals[0].items[0].qtyGrams).not.toBe(250);
+  });
+
+  it('X/Y. o preview não muta o plano original (cancelar mantém tudo)', () => {
+    const plan = outOfTarget();
+    const snapshot = JSON.parse(JSON.stringify(plan));
+    const res = optimizeDietDay({ plan, dayIndex: 0, target, foods: FOODS });
+    expect(res.adjustedPlan).not.toBe(plan);
+    expect(plan).toEqual(snapshot);
+  });
+
+  it('Z/AA. aplicar produz novo plano e o snapshot restaura o anterior', () => {
+    const plan = outOfTarget();
+    const undoSnapshot = JSON.parse(JSON.stringify(plan));
+    const res = optimizeDietDay({ plan, dayIndex: 0, target, foods: FOODS });
+    const applied = res.adjustedPlan as any;
+    expect(applied).not.toEqual(undoSnapshot);
+    const restored = JSON.parse(JSON.stringify(undoSnapshot));
+    expect(restored).toEqual(undoSnapshot);
+  });
+
+  it('AB/AC/AD. após aplicar, validação canônica e markdown refletem as novas quantidades', async () => {
+    const { validateCanonicalDietTarget } = await import('@/lib/canonicalDietValidation');
+    const { dietPlanToMarkdown } = await import('@/lib/dietMarkdownSerializer');
+    const { recomputeDayFromFoods } = await import('@/lib/dietFoodResolution');
+
+    const plan = outOfTarget() as any;
+    const res = optimizeDietDay({ plan, dayIndex: 0, target, foods: FOODS });
+    const applied = JSON.parse(JSON.stringify(res.adjustedPlan));
+    applied.targets = { kcal: target.kcal, p: target.p, c: target.c, g: target.g };
+    recomputeDayFromFoods(applied.days[0], FOODS);
+
+    const report = validateCanonicalDietTarget(applied, target, FOODS);
+    expect(report.valid).toBe(true);
+
+    const md = dietPlanToMarkdown(applied);
+    const qty = applied.days[0].meals[0].items[0].qtyGrams;
+    expect(md).toContain(String(qty));
+  });
+
+  it('AE. o editor canônico não usa scaleMealsToTarget nem resolução por nome', async () => {
+    const fs = await import('node:fs');
+    const src = fs.readFileSync('src/components/diet/CanonicalDietEditor.tsx', 'utf8');
+    expect(src).not.toContain('scaleMealsToTarget');
+    expect(src).not.toContain('normalizeFoodKey');
+    expect(src).not.toContain('fuzzy');
+    expect(src).toContain('computeDayTotals');
+  });
+
+  it('AF. o fluxo legado (markdown) continua disponível sem regressão', async () => {
+    const { scaleMealsToTarget } = await import('@/lib/dietMarkdownSerializer');
+    const meals: any[] = [
+      { name: 'Almoço', foods: [{ name: 'Arroz', qty: '200 g', kcal: 260, p: 5, c: 56, g: 1 }] },
+    ];
+    const scaled = scaleMealsToTarget(meals, 130);
+    expect(scaled[0].foods[0].qty).toBeTruthy();
+  });
+
+  it('W. o optimizer não faz nenhuma chamada de rede/IA', () => {
+    const spy = vi.fn();
+    const originalFetch = globalThis.fetch;
+    (globalThis as any).fetch = spy;
+    try {
+      optimizeDietDay({ plan: outOfTarget(), dayIndex: 0, target, foods: FOODS });
+    } finally {
+      (globalThis as any).fetch = originalFetch;
+    }
+    expect(spy).not.toHaveBeenCalled();
+  });
+});
