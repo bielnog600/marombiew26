@@ -27,6 +27,7 @@ import {
   resolvePersistedTargetsByDay,
   buildDuplicateDietPayload,
 } from '@/lib/dietStructuredGuards';
+import { createDietVersion, publishDietPlan } from '@/lib/publishDietPlan';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
@@ -291,38 +292,51 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     loadPlans();
   }, [studentId]);
 
+  /**
+   * FASE 6: histórico é sagrado. Nenhuma versão é apagada automaticamente —
+   * o dedupe destrutivo por título foi REMOVIDO. A ordenação prioriza a
+   * publicação mais recente (dietas legadas têm published_at nulo).
+   */
   const loadPlans = async () => {
     const { data } = await supabase
       .from('ai_plans')
       .select('*')
       .eq('student_id', studentId)
       .eq('tipo', 'dieta')
+      .order('published_at', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false });
-    const rows = data ?? [];
-    // Dedupe by normalized título: consecutive saves/regenerations of the
-    // same diet were producing 2-3 identical rows ("Dieta - 03/07/2026").
-    // Keep the most recent per título and hard-delete the older twins so
-    // the list — and the student portal — always show a single source of
-    // truth for that plan.
-    const seen = new Map<string, any>();
-    const dupIds: string[] = [];
-    for (const p of rows) {
-      const key = String(p.titulo || '').trim().toLowerCase().replace(/\s*\(c[óo]pia[^)]*\)\s*/gi, '').trim();
-      if (!key) { seen.set(String(p.id), p); continue; }
-      if (seen.has(key)) {
-        dupIds.push(p.id);
-      } else {
-        seen.set(key, p);
-      }
+    setPlans(data ?? []);
+  };
+
+  /** FASE 6 — publicação atômica server-side (nunca UPDATE direto). */
+  const publishStructuredPlan = async (planId: string): Promise<boolean> => {
+    const result = await publishDietPlan(planId);
+    if (!result.ok) {
+      toast.error(result.message ?? 'Não foi possível publicar esta dieta.');
+      return false;
     }
-    const deduped = rows.filter(p => !dupIds.includes(p.id));
-    setPlans(deduped);
-    if (dupIds.length > 0) {
-      // Fire-and-forget cleanup; failure is non-fatal (RLS/network).
-      supabase.from('ai_plans').delete().in('id', dupIds).then(({ error }) => {
-        if (error) console.warn('duplicate cleanup skipped:', error.message);
-      });
+    toast.success('Dieta publicada.');
+    await loadPlans();
+    return true;
+  };
+
+  /**
+   * FASE 6: dieta structured publicada é IMUTÁVEL. Qualquer edição
+   * (editor, IA, ajuste rápido) passa por uma nova versão em rascunho.
+   */
+  const ensureEditableDraft = async (plan: any): Promise<any | null> => {
+    const canonical = parseDietPlanLoose(plan?.conteudo_json);
+    if (plan?.is_draft !== false || !isStructuredCanonicalPlan(canonical)) return plan;
+    const result = await createDietVersion(plan.id);
+    if (!result.ok || !result.plan) {
+      toast.error(result.message ?? 'Não foi possível criar a nova versão desta dieta.');
+      return null;
     }
+    const draft = result.plan;
+    setPlans(prev => (prev.some(p => p.id === draft.id) ? prev : [draft, ...prev]));
+    setExpandedId(draft.id);
+    toast.success(result.reused ? 'Rascunho desta versão reaberto.' : 'Nova versão em rascunho criada.');
+    return draft;
   };
 
   const handleMealsChange = (planId: string, meals: ParsedMeal[]) => {
@@ -357,6 +371,12 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     if (!plan) return;
 
     const basePlan: DietPlan | null = updatedPlan ?? parseDietPlanLoose(plan.conteudo_json);
+
+    // FASE 6: nunca fazer UPDATE de conteúdo em structured publicado.
+    if (plan.is_draft === false && isStructuredCanonicalPlan(basePlan)) {
+      toast.error('Esta dieta está publicada. Crie uma nova versão para editar.');
+      return;
+    }
     const latestDays = (daysEdit && daysEdit.length > 0)
       ? daysEdit
       : (meals && meals.length > 0 ? [{ label: 'Padrão', meals }] : null);
@@ -507,6 +527,11 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         ) : (
                           <Badge variant="outline" className={cn('h-4 px-1 text-[8px] uppercase text-amber-500 border-amber-500/30', isEditing && 'hidden sm:inline-flex')}>Rascunho</Badge>
                         )}
+                        {typeof plan.version === 'number' && plan.version > 1 && (
+                          <Badge variant="outline" className={cn('h-4 px-1 text-[8px] uppercase text-muted-foreground border-border', isEditing && 'hidden sm:inline-flex')}>
+                            v{plan.version}
+                          </Badge>
+                        )}
                       </div>
                       {!isEditing && (
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -557,13 +582,18 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         variant="ghost"
                         size="sm"
                         className="h-7 gap-1 px-2 text-xs"
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
-                          setEditingId(isEditing ? null : plan.id);
                           if (isEditing) {
+                            setEditingId(null);
                             setEditedMeals(prev => { const c = { ...prev }; delete c[plan.id]; return c; });
                             setEditedDays(prev => { const c = { ...prev }; delete c[plan.id]; return c; });
+                            return;
                           }
+                          // FASE 6: publicado structured abre uma nova versão em rascunho.
+                          const target = await ensureEditableDraft(plan);
+                          if (!target) return;
+                          setEditingId(target.id);
                         }}
                       >
                         {isEditing ? <Eye className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
@@ -639,11 +669,18 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                           e.stopPropagation();
                           // Fase 5.1: guarda de publicação com item não validado.
                           const canonicalNow = editedPlans[plan.id] ?? parseDietPlanLoose(plan.conteudo_json);
-                          if (
-                            isStructuredCanonicalPlan(canonicalNow) &&
-                            hasUnresolvedCanonicalItems(canonicalNow)
-                          ) {
+                          const structured = isStructuredCanonicalPlan(canonicalNow);
+                          if (structured && hasUnresolvedCanonicalItems(canonicalNow)) {
                             toast.error('Existem alimentos não validados. Resolva antes de publicar.');
+                            return;
+                          }
+                          if (structured) {
+                            // FASE 6: publicação structured é SEMPRE server-side e atômica.
+                            if (editedPlans[plan.id] || editedMeals[plan.id] || editedDays[plan.id] || editedSchedules[plan.id]) {
+                              await handleSave(plan.id);
+                            }
+                            const published = await publishStructuredPlan(plan.id);
+                            if (!published) return;
                             return;
                           }
                           const { error } = await supabase.from('ai_plans').update({ is_draft: false }).eq('id', plan.id);
@@ -667,7 +704,11 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         size="sm" 
                         variant="outline" 
                         className="h-8 gap-1.5 text-xs rounded-xl bg-primary/5 border-primary/20"
-                        onClick={() => setAiDialogPlanId(plan.id)}
+                        onClick={async () => {
+                          const target = await ensureEditableDraft(plan);
+                          if (!target) return;
+                          setAiDialogPlanId(target.id);
+                        }}
                       >
                         <Wand2 className="h-3.5 w-3.5 text-primary" />
                         Ajustar com IA
@@ -706,7 +747,11 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         size="sm" 
                         variant="outline" 
                         className="h-8 gap-1.5 text-xs rounded-xl bg-orange-500/5 border-orange-500/20 text-orange-600"
-                        onClick={() => navigate(`/dieta-ia/${studentId}?edit=${plan.id}&mode=adjust`)}
+                        onClick={async () => {
+                          const target = await ensureEditableDraft(plan);
+                          if (!target) return;
+                          navigate(`/dieta-ia/${studentId}?edit=${target.id}&mode=adjust`);
+                        }}
                       >
                         <Zap className="h-3.5 w-3.5" />
                         Ajuste Rápido

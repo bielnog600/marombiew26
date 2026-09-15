@@ -1,5 +1,6 @@
 import type { ParsedFood, ParsedMeal } from './dietResultParser';
 import type { DietPlan } from './dietSchema';
+import { canonicalDietPlanToMarkdown } from '../../supabase/functions/_shared/canonicalDietMarkdown';
 import { dietPlanToParsedMeals } from './dietPlanAdapter';
 
 const num = (v?: string) => {
@@ -239,11 +240,16 @@ export const scaleMealsToMacroTargets = (meals: ParsedMeal[], target: MacroTarge
   }));
 };
 /**
- * Render a DietPlan as the legacy markdown format. Used to keep PDF,
- * student portal and reports working unchanged while the JSON becomes the
- * source of truth.
+ * FASE 6 — o serializer CANÔNICO é compartilhado com as Edge Functions
+ * (`supabase/functions/_shared/canonicalDietMarkdown.ts`), de modo que o
+ * markdown publicado pelo servidor e o markdown do app sejam idênticos.
+ * As funções legacy de scaling continuam neste arquivo.
  */
-export const dietPlanToMarkdown = (plan: DietPlan): string => {
+export const dietPlanToMarkdown = (plan: DietPlan): string =>
+  canonicalDietPlanToMarkdown(plan as any);
+
+/** Implementação legada mantida apenas para referência de compatibilidade. */
+export const legacyDietPlanToMarkdown = (plan: DietPlan): string => {
   const t = plan.targets;
   const meta = plan.meta;
   const headerParts: string[] = [];
