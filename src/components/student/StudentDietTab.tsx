@@ -21,6 +21,11 @@ import { parseSections } from '@/lib/dietResultParser';
 import { parseDietPlanLoose, type DietPlan } from '@/lib/dietSchema';
 import DietValidationBadge from '@/components/diet/DietValidationBadge';
 import { extractTargetsFromSections } from '@/lib/dietTargets';
+import {
+  isStructuredCanonicalPlan,
+  hasUnresolvedCanonicalItems,
+  resolvePersistedTargetsByDay,
+} from '@/lib/dietStructuredGuards';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
@@ -419,6 +424,14 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   const handleApplyMacroPct = (planId: string) => {
     const plan = plans.find(p => p.id === planId);
     if (!plan) return;
+    // Fase 5.1: em plano STRUCTURED macros nunca são escalados diretamente —
+    // só quantidades (gramas) mudam, via optimizer determinístico.
+    const canonicalForScale = editedPlans[planId] ?? parseDietPlanLoose(plan.conteudo_json);
+    if (isStructuredCanonicalPlan(canonicalForScale)) {
+      setMacroModalPlanId(null);
+      toast.error('Esta dieta é estruturada: ajuste as quantidades no editor, não os macros.');
+      return;
+    }
     try {
       const meals = extractSingleDayMeals(plan.conteudo);
       if (!meals.length) { toast.error('Nenhuma refeição encontrada.'); return; }
@@ -507,6 +520,15 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                           </p>
                           {(() => {
                             const parsed = parseDietPlanLoose(plan.conteudo_json);
+                            // Fase 5.1: em plano estruturado o selo NÃO pode vir de
+                            // uma validação antiga gravada no JSON.
+                            if (isStructuredCanonicalPlan(parsed)) {
+                              return hasUnresolvedCanonicalItems(parsed) ? (
+                                <Badge variant="outline" className="ml-1 h-4 px-1 text-[8px] uppercase text-amber-500 border-amber-500/30">
+                                  Não validada
+                                </Badge>
+                              ) : null;
+                            }
                             return parsed?.validation ? (
                               <DietValidationBadge report={parsed.validation} className="ml-1" />
                             ) : null;
@@ -553,7 +575,10 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         <span className="hidden sm:inline">{isEditing ? 'Visualizar' : 'Editar'}</span>
                       </Button>
                     )}
-                    {isExpanded && isEditing && (
+                    {/* Fase 5.1: escala percentual de macros é EXCLUSIVA do legado. */}
+                    {isExpanded && isEditing && !isStructuredCanonicalPlan(
+                      editedPlans[plan.id] ?? parseDietPlanLoose(plan.conteudo_json),
+                    ) && (
                       <Button
                         variant="ghost"
                         size="icon"
@@ -617,6 +642,15 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         className="h-7 gap-1 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                         onClick={async (e) => {
                           e.stopPropagation();
+                          // Fase 5.1: guarda de publicação com item não validado.
+                          const canonicalNow = editedPlans[plan.id] ?? parseDietPlanLoose(plan.conteudo_json);
+                          if (
+                            isStructuredCanonicalPlan(canonicalNow) &&
+                            hasUnresolvedCanonicalItems(canonicalNow)
+                          ) {
+                            toast.error('Existem alimentos não validados. Resolva antes de publicar.');
+                            return;
+                          }
                           const { error } = await supabase.from('ai_plans').update({ is_draft: false }).eq('id', plan.id);
                           if (error) { toast.error('Erro ao publicar: ' + error.message); return; }
                           toast.success('Dieta publicada para o aluno.');
@@ -704,17 +738,15 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
 
                     {isEditing ? (
                       (() => {
-                        // Fase 5: plano STRUCTURED (conteudo_json com foodId) usa o
-                        // editor canônico; markdown/legacy segue no editor antigo.
+                        // Fase 5.1: STRUCTURED é definido pelo contrato do plano.
                         const canonical = editedPlans[plan.id] ?? parseDietPlanLoose(plan.conteudo_json);
-                        const isStructured = !!canonical?.days?.some((d) =>
-                          (d.meals ?? []).some((m) => (m.items ?? []).some((i) => !!i.foodId)),
-                        );
+                        const isStructured = isStructuredCanonicalPlan(canonical);
                         if (isStructured && canonical) {
-                          const t = canonical.targets;
-                          const targetsByDay = (canonical.days ?? []).map(() =>
-                            t && t.kcal > 0 ? { kcal: t.kcal, p: t.p, c: t.c, g: t.g } : null,
-                          );
+                          // Metas reais persistidas (carb cycling por weekday).
+                          const targetsByDay = resolvePersistedTargetsByDay({
+                            plan: canonical,
+                            protocols: (plan as any).protocols,
+                          });
                           return (
                             <CanonicalDietEditor
                               plan={canonical}

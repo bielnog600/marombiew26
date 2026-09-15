@@ -52,7 +52,15 @@ export interface AutoAdjustChange {
 export interface AutoAdjustResult<TPlan = any> {
   status: AutoAdjustStatus;
   originalPlan: TPlan;
+  /**
+   * Plano aplicável — preenchido SOMENTE quando a solução fecha dentro das
+   * tolerâncias. Nunca contém a "melhor tentativa".
+   */
   adjustedPlan?: TPlan;
+  /** Alias explícito de `adjustedPlan` (Fase 5.1: API sem ambiguidade). */
+  feasibleAdjustedPlan?: TPlan;
+  /** Melhor aproximação quando o dia é inviável — não é uma solução válida. */
+  bestAttemptPlan?: TPlan;
   target: DayTarget;
   before: AutoAdjustMacros;
   after?: AutoAdjustMacros;
@@ -324,13 +332,17 @@ const combinations = (n: number, k: number): number[][] => {
 /* Otimização de UM dia                                                       */
 /* -------------------------------------------------------------------------- */
 
-const isValidTarget = (t: DayTarget | null | undefined): t is DayTarget =>
+/** kcal > 0; P/C/G podem ser zero (meta válida) mas nunca negativos. */
+export const isValidTarget = (t: DayTarget | null | undefined): t is DayTarget =>
   !!t &&
   Number.isFinite(t.kcal) &&
   Number.isFinite(t.p) &&
   Number.isFinite(t.c) &&
   Number.isFinite(t.g) &&
-  t.kcal > 0;
+  t.kcal > 0 &&
+  t.p >= 0 &&
+  t.c >= 0 &&
+  t.g >= 0;
 
 export interface OptimizeDayInput<TPlan = any> {
   plan: TPlan;
@@ -661,7 +673,10 @@ export function optimizeDietDay<TPlan = any>({
   return {
     status: withinTolerance ? 'feasible' : 'infeasible',
     originalPlan: plan,
-    adjustedPlan: nextPlan as TPlan,
+    // Fase 5.1: só uma solução viável vira plano aplicável.
+    adjustedPlan: withinTolerance ? (nextPlan as TPlan) : undefined,
+    feasibleAdjustedPlan: withinTolerance ? (nextPlan as TPlan) : undefined,
+    bestAttemptPlan: withinTolerance ? undefined : (nextPlan as TPlan),
     target,
     before,
     after,
@@ -689,7 +704,11 @@ export interface OptimizeDietPlanInput<TPlan = any> {
 export interface OptimizeDietPlanResult<TPlan = any> {
   status: AutoAdjustStatus;
   originalPlan: TPlan;
-  adjustedPlan: TPlan;
+  /** Plano aplicável — só quando TODOS os dias fecharam dentro da tolerância. */
+  adjustedPlan?: TPlan;
+  feasibleAdjustedPlan?: TPlan;
+  /** Melhor aproximação acumulada (nunca apresentada como válida). */
+  bestAttemptPlan: TPlan;
   days: AutoAdjustResult<TPlan>[];
   changes: AutoAdjustChange[];
   changedItems: number;
@@ -719,10 +738,25 @@ export function optimizeDietPlan<TPlan = any>({
   const total = (working?.days ?? []).length;
   for (let dayIndex = 0; dayIndex < total; dayIndex++) {
     const target = targetsByDay[dayIndex];
-    if (!target) continue;
+    // Fase 5.1: dia materializado sem meta NUNCA é ignorado em silêncio.
+    if (!isValidTarget(target)) {
+      days.push({
+        status: 'invalid_target',
+        originalPlan: plan,
+        target: (target as DayTarget) ?? { kcal: 0, p: 0, c: 0, g: 0 },
+        before: zero,
+        beforeDiff: { kcal: 0, p: 0, c: 0, g: 0 },
+        changes: [],
+        changedItems: 0,
+        withinTolerance: false,
+        reason: AUTO_ADJUST_MESSAGES.invalid_target,
+      });
+      continue;
+    }
     const res = optimizeDietDay<TPlan>({ plan: working, dayIndex, target, foods, options });
     days.push(res);
-    if (res.adjustedPlan) working = res.adjustedPlan as any;
+    const next = res.adjustedPlan ?? res.bestAttemptPlan;
+    if (next) working = next as any;
     changes.push(...res.changes);
   }
 
@@ -734,7 +768,9 @@ export function optimizeDietPlan<TPlan = any>({
   return {
     status,
     originalPlan: plan,
-    adjustedPlan: working as TPlan,
+    adjustedPlan: withinTolerance ? (working as TPlan) : undefined,
+    feasibleAdjustedPlan: withinTolerance ? (working as TPlan) : undefined,
+    bestAttemptPlan: working as TPlan,
     days,
     changes,
     changedItems: changes.length,

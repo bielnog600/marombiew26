@@ -1,16 +1,16 @@
 /**
- * FASE 5 — editor canônico (STRUCTURED).
+ * FASE 5 / 5.1 — editor canônico (STRUCTURED).
  *
  * Trabalha diretamente sobre o DietPlan canônico: foodId + qtyGrams +
  * nutritionCore. Nunca passa por markdown/ParsedMeal, nunca resolve alimento
- * por nome/fuzzy e nunca usa densidade calculada do texto.
+ * por nome/aproximação e nunca escala macros manualmente.
  */
 import React, { useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Lock, LockOpen, Trash2, Sliders, Undo2, AlertTriangle } from 'lucide-react';
+import { Lock, LockOpen, Trash2, Sliders, Undo2, AlertTriangle, Plus, Replace } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -30,6 +30,7 @@ import {
 } from '@/lib/dietAutoAdjust';
 import type { DayTarget } from '@/lib/dietDayTargets';
 import AutoAdjustPreviewDialog from './AutoAdjustPreviewDialog';
+import CanonicalFoodPickerDialog from './CanonicalFoodPickerDialog';
 
 interface Props {
   plan: DietPlan;
@@ -42,12 +43,12 @@ interface Props {
 
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 
-/** Aceita "18", "18,5" e "18.5"; só converte no commit. */
-const parseGrams = (text: string): number | null => {
+/** Aceita "18", "18,5" e "18.5"; só converte no commit. Quantidade deve ser > 0. */
+export const parseGrams = (text: string): number | null => {
   const normalized = String(text ?? '').replace(',', '.').trim();
   if (!normalized) return null;
   const n = Number(normalized);
-  return Number.isFinite(n) && n >= 0 ? n : null;
+  return Number.isFinite(n) && n > 0 ? n : null;
 };
 
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : (Math.round(n * 10) / 10).toFixed(1));
@@ -60,6 +61,9 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<AutoAdjustResult | null>(null);
   const [undoSnapshot, setUndoSnapshot] = useState<DietPlan | null>(null);
+  const [picker, setPicker] = useState<
+    { mode: 'add'; mealIdx: number } | { mode: 'replace'; mealIdx: number; itemIdx: number } | null
+  >(null);
 
   const { data: loadedFoods } = useQuery({
     queryKey: ['canonical-editor-foods'],
@@ -131,7 +135,10 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
       delete copy[`${activeIndex}-${mealIdx}-${itemIdx}`];
       return copy;
     });
-    if (grams === null) return;
+    if (grams === null) {
+      toast.error('Informe uma quantidade maior que zero. Para retirar o alimento, use a lixeira.');
+      return;
+    }
     const next = clone(plan);
     const item: any = next.days[activeIndex].meals[mealIdx].items[itemIdx];
     if (!item || Number(item.qtyGrams) === grams) return;
@@ -155,15 +162,49 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
     applyPlan(next);
   };
 
+  const handlePickFood = (food: FoodRecord) => {
+    if (!picker) return;
+    const next = clone(plan);
+    const meal: any = next.days[activeIndex].meals[picker.mealIdx];
+    if (picker.mode === 'add') {
+      meal.items.push({
+        foodId: food.id,
+        name: food.name,
+        qtyGrams: 100,
+        resolutionStatus: 'resolved_by_id',
+        manualLocked: true,
+        macros: { kcal: 0, p: 0, c: 0, g: 0 },
+      });
+    } else {
+      const item: any = meal.items[picker.itemIdx];
+      if (!item) return;
+      item.foodId = food.id;
+      item.name = food.name;
+      item.resolutionStatus = 'resolved_by_id';
+      item.manualLocked = true;
+      delete item.nutritionSnapshot;
+    }
+    setPicker(null);
+    setUndoSnapshot(null);
+    applyPlan(next);
+  };
+
   const runOptimizer = () => {
-    if (!target) return;
+    if (!target) {
+      toast.warning('Meta diária indisponível.');
+      return;
+    }
     const result = optimizeDietDay<DietPlan>({
       plan,
       dayIndex: activeIndex,
       target,
       foods: foodRecords,
     });
-    if (result.status === 'blocked_unresolved' || result.status === 'no_adjustable_items') {
+    if (
+      result.status === 'blocked_unresolved' ||
+      result.status === 'no_adjustable_items' ||
+      result.status === 'invalid_target'
+    ) {
       toast.warning(result.reason ?? AUTO_ADJUST_MESSAGES.infeasible);
       return;
     }
@@ -174,15 +215,18 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
     setPreview(result);
   };
 
-  const applyPreview = () => {
-    if (!preview?.adjustedPlan) return;
+  const applyPreview = (kind: 'feasible' | 'approximation') => {
+    if (!preview) return;
+    const nextPlan =
+      kind === 'feasible' ? preview.feasibleAdjustedPlan : preview.bestAttemptPlan;
+    if (!nextPlan) return;
     setUndoSnapshot(clone(plan));
-    onChange(preview.adjustedPlan);
+    onChange(nextPlan as DietPlan);
     setPreview(null);
     toast.success(
-      preview.withinTolerance
+      kind === 'feasible'
         ? 'Porções ajustadas dentro da meta.'
-        : 'Ajuste aplicado, mas a dieta continua fora da meta.',
+        : 'Aproximação aplicada — a dieta continua fora da meta.',
     );
   };
 
@@ -206,60 +250,76 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
         </div>
       )}
 
-      {target && (
-        <Card className={`border ${within ? 'border-green-500/30 bg-green-500/5' : 'border-yellow-500/40 bg-yellow-500/5'}`}>
-          <CardContent className="space-y-2 p-4 text-xs">
-            <p className="font-bold text-sm">Ajuste de porções</p>
-            <div className="grid gap-1 text-muted-foreground sm:grid-cols-3">
-              <span>Meta: <strong className="text-foreground">{line(target)}</strong></span>
-              <span>Atual: <strong className="text-foreground">{line(computed?.totals)}</strong></span>
-              <span>Diferença: <strong className="text-foreground">{line(diff)}</strong></span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              {within ? (
-                <Badge variant="outline" className="border-green-500/50 text-green-500 text-[10px]">
-                  Dentro da meta
-                </Badge>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={runOptimizer}
-                  disabled={hasUnresolved || adjustableCount === 0}
-                >
-                  <Sliders className="mr-1 h-3 w-3" /> Ajustar automaticamente
-                </Button>
+      <Card
+        className={`border ${
+          !target
+            ? 'border-border'
+            : within
+              ? 'border-green-500/30 bg-green-500/5'
+              : 'border-yellow-500/40 bg-yellow-500/5'
+        }`}
+      >
+        <CardContent className="space-y-2 p-4 text-xs">
+          <p className="text-sm font-bold">Ajuste de porções</p>
+          {!target ? (
+            <p className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
+              <AlertTriangle className="h-3 w-3" /> Meta diária indisponível.
+            </p>
+          ) : (
+            <>
+              <div className="grid gap-1 text-muted-foreground sm:grid-cols-3">
+                <span>Meta: <strong className="text-foreground">{line(target)}</strong></span>
+                <span>Atual: <strong className="text-foreground">{line(computed?.totals)}</strong></span>
+                <span>Diferença: <strong className="text-foreground">{line(diff)}</strong></span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                {within ? (
+                  <Badge variant="outline" className="border-green-500/50 text-[10px] text-green-500">
+                    Dentro da meta
+                  </Badge>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={runOptimizer}
+                    disabled={hasUnresolved || adjustableCount === 0}
+                  >
+                    <Sliders className="mr-1 h-3 w-3" /> Ajustar automaticamente
+                  </Button>
+                )}
+                {undoSnapshot && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      onChange(undoSnapshot);
+                      setUndoSnapshot(null);
+                    }}
+                  >
+                    <Undo2 className="mr-1 h-3 w-3" /> Desfazer ajuste
+                  </Button>
+                )}
+              </div>
+              {hasUnresolved && (
+                <p className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
+                  <AlertTriangle className="h-3 w-3" /> {AUTO_ADJUST_MESSAGES.blocked_unresolved}
+                </p>
               )}
-              {undoSnapshot && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    onChange(undoSnapshot);
-                    setUndoSnapshot(null);
-                  }}
-                >
-                  <Undo2 className="mr-1 h-3 w-3" /> Desfazer ajuste
-                </Button>
+              {!hasUnresolved && adjustableCount === 0 && (
+                <p className="text-yellow-600 dark:text-yellow-400">
+                  {AUTO_ADJUST_MESSAGES.no_adjustable_items}
+                </p>
               )}
-            </div>
-            {hasUnresolved && (
-              <p className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
-                <AlertTriangle className="h-3 w-3" /> {AUTO_ADJUST_MESSAGES.blocked_unresolved}
-              </p>
-            )}
-            {!hasUnresolved && adjustableCount === 0 && (
-              <p className="text-yellow-600 dark:text-yellow-400">{AUTO_ADJUST_MESSAGES.no_adjustable_items}</p>
-            )}
-          </CardContent>
-        </Card>
-      )}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {(day.meals ?? []).map((meal, mealIdx) => (
         <Card key={meal.id ?? mealIdx} className="border-border">
           <CardContent className="space-y-2 p-4">
             <div className="flex items-center justify-between text-xs">
-              <p className="font-bold text-sm">
+              <p className="text-sm font-bold">
                 {meal.name}
                 {meal.time ? <span className="ml-2 text-muted-foreground">{meal.time}</span> : null}
               </p>
@@ -281,7 +341,7 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
                     <span className="min-w-[8rem] flex-1 text-foreground">
                       {item.name}
                       {unresolved && (
-                        <Badge variant="outline" className="ml-2 border-amber-500/50 text-amber-500 text-[9px]">
+                        <Badge variant="outline" className="ml-2 border-amber-500/50 text-[9px] text-amber-500">
                           NÃO VALIDADO
                         </Badge>
                       )}
@@ -323,6 +383,15 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
                       size="icon"
                       variant="ghost"
                       className="h-7 w-7"
+                      title="Substituir alimento"
+                      onClick={() => setPicker({ mode: 'replace', mealIdx, itemIdx })}
+                    >
+                      <Replace className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
                       onClick={() => removeItem(mealIdx, itemIdx)}
                     >
                       <Trash2 className="h-3.5 w-3.5 text-destructive" />
@@ -331,6 +400,14 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
                 );
               })}
             </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-[11px]"
+              onClick={() => setPicker({ mode: 'add', mealIdx })}
+            >
+              <Plus className="mr-1 h-3 w-3" /> Adicionar alimento
+            </Button>
           </CardContent>
         </Card>
       ))}
@@ -340,6 +417,14 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
         onOpenChange={(o) => !o && setPreview(null)}
         data={preview}
         onApply={applyPreview}
+      />
+
+      <CanonicalFoodPickerDialog
+        open={!!picker}
+        onOpenChange={(o) => !o && setPicker(null)}
+        foods={foodRecords}
+        title={picker?.mode === 'replace' ? 'Substituir alimento' : 'Adicionar alimento'}
+        onSelect={handlePickFood}
       />
     </div>
   );
