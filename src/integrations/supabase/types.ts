@@ -57,6 +57,7 @@ export type Database = {
           block_start_date: string | null
           block_total: number | null
           block_type: string | null
+          content_revision: number
           conteudo: string
           conteudo_json: Json | null
           created_at: string
@@ -89,6 +90,8 @@ export type Database = {
           periodization_reason: string | null
           periodization_snapshot: Json | null
           protocols: Json | null
+          published_at: string | null
+          published_by: string | null
           renewal_mode: string
           strategy_source: string | null
           student_id: string
@@ -107,6 +110,7 @@ export type Database = {
           block_start_date?: string | null
           block_total?: number | null
           block_type?: string | null
+          content_revision?: number
           conteudo?: string
           conteudo_json?: Json | null
           created_at?: string
@@ -139,6 +143,8 @@ export type Database = {
           periodization_reason?: string | null
           periodization_snapshot?: Json | null
           protocols?: Json | null
+          published_at?: string | null
+          published_by?: string | null
           renewal_mode?: string
           strategy_source?: string | null
           student_id: string
@@ -157,6 +163,7 @@ export type Database = {
           block_start_date?: string | null
           block_total?: number | null
           block_type?: string | null
+          content_revision?: number
           conteudo?: string
           conteudo_json?: Json | null
           created_at?: string
@@ -189,6 +196,8 @@ export type Database = {
           periodization_reason?: string | null
           periodization_snapshot?: Json | null
           protocols?: Json | null
+          published_at?: string | null
+          published_by?: string | null
           renewal_mode?: string
           strategy_source?: string | null
           student_id?: string
@@ -3621,6 +3630,16 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      publish_diet_plan_atomic: {
+        Args: {
+          p_expected_revision: number
+          p_final_markdown: string
+          p_final_plan: Json
+          p_food_assertions: Json
+          p_plan_id: string
+        }
+        Returns: Json
       }
       reactivate_student_access: {
         Args: { _user_id: string }

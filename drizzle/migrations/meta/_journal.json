@@ -29,6 +29,13 @@
       "when": 1789427373046,
       "tag": "0003_foods_identity_metadata",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789506633734,
+      "tag": "0004_diet_publication_atomic",
+      "breakpoints": true
     }
   ]
 }
