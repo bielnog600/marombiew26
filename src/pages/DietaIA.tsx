@@ -2006,6 +2006,7 @@ const DietaIA = () => {
     if (!canGenerate || !studentCtx || generating) return;
     const intent: DietIntent = opts.intent ?? (opts.regenerateIntent ? 'regenerate' : 'new');
     setLastIntent(intent);
+    scrollToResultAfterGenerationRef.current = true;
     setGenerating(true);
     setGenOutcome(null);
     setGenProgress({ label: 'Preparando dados do aluno...', ratio: 0.03 });
