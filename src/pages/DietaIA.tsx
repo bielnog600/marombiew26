@@ -972,8 +972,16 @@ const DietaIA = () => {
     }
   };
 
+  /**
+   * HOTFIX UX — o scroll automático acontece SOMENTE quando uma nova dieta
+   * acabou de ser gerada. Edições (quantidade, substituição, remoção, resolver
+   * alimento, autoajuste, desfazer, copiar dia, salvar) nunca movem a tela.
+   */
   useEffect(() => {
-    if (result && resultRef.current) resultRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (!scrollToResultAfterGenerationRef.current) return;
+    if (!result || !resultRef.current) return;
+    scrollToResultAfterGenerationRef.current = false;
+    resultRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [result]);
 
   const loadStudentData = async () => {
