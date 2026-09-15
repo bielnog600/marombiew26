@@ -291,38 +291,41 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     loadPlans();
   }, [studentId]);
 
+  /**
+   * FASE 6: histórico é sagrado. Nenhuma versão é apagada automaticamente —
+   * o dedupe destrutivo por título foi REMOVIDO. A ordenação prioriza a
+   * publicação mais recente (dietas legadas têm published_at nulo).
+   */
   const loadPlans = async () => {
     const { data } = await supabase
       .from('ai_plans')
       .select('*')
       .eq('student_id', studentId)
       .eq('tipo', 'dieta')
+      .order('published_at', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false });
-    const rows = data ?? [];
-    // Dedupe by normalized título: consecutive saves/regenerations of the
-    // same diet were producing 2-3 identical rows ("Dieta - 03/07/2026").
-    // Keep the most recent per título and hard-delete the older twins so
-    // the list — and the student portal — always show a single source of
-    // truth for that plan.
-    const seen = new Map<string, any>();
-    const dupIds: string[] = [];
-    for (const p of rows) {
-      const key = String(p.titulo || '').trim().toLowerCase().replace(/\s*\(c[óo]pia[^)]*\)\s*/gi, '').trim();
-      if (!key) { seen.set(String(p.id), p); continue; }
-      if (seen.has(key)) {
-        dupIds.push(p.id);
-      } else {
-        seen.set(key, p);
-      }
+    setPlans(data ?? []);
+  };
+
+  /**
+   * FASE 6: dieta structured publicada é IMUTÁVEL. Qualquer edição
+   * (editor, IA, ajuste rápido) passa por uma nova versão em rascunho.
+   */
+  const ensureEditableDraft = async (plan: any): Promise<any | null> => {
+    const canonical = parseDietPlanLoose(plan?.conteudo_json);
+    if (plan?.is_draft !== false || !isStructuredCanonicalPlan(canonical)) return plan;
+    const { data, error } = await supabase.functions.invoke('create-diet-version', {
+      body: { planId: plan.id },
+    });
+    if (error || !data?.plan) {
+      toast.error('Não foi possível criar a nova versão desta dieta.');
+      return null;
     }
-    const deduped = rows.filter(p => !dupIds.includes(p.id));
-    setPlans(deduped);
-    if (dupIds.length > 0) {
-      // Fire-and-forget cleanup; failure is non-fatal (RLS/network).
-      supabase.from('ai_plans').delete().in('id', dupIds).then(({ error }) => {
-        if (error) console.warn('duplicate cleanup skipped:', error.message);
-      });
-    }
+    const draft = data.plan;
+    setPlans(prev => (prev.some(p => p.id === draft.id) ? prev : [draft, ...prev]));
+    setExpandedId(draft.id);
+    toast.success(data.reused ? 'Rascunho desta versão reaberto.' : 'Nova versão em rascunho criada.');
+    return draft;
   };
 
   const handleMealsChange = (planId: string, meals: ParsedMeal[]) => {
