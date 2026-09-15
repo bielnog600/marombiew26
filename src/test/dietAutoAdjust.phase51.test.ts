@@ -122,17 +122,31 @@ describe('Fase 5.1 — política de inviabilidade', () => {
   });
 });
 
-describe('Fase 5.1 — score: menos itens e desempate posicional', () => {
-  it('H. duas alterações vencem quatro alterações', () => {
-    const two = { feasible: 1, changedItems: 2, totalDeltaGrams: 400, firstIndex: 5 };
-    const four = { feasible: 1, changedItems: 4, totalDeltaGrams: 100, firstIndex: 0 };
-    expect(compareScores(two as any, four as any)).toBeLessThan(0);
+describe('Fase 5.1 — score: menos itens e desempate', () => {
+  const score = (over: Partial<ReturnType<typeof scoreAdjustmentCandidate>>) => ({
+    feasible: true,
+    changedItemCount: 2,
+    maxNormalizedResidual: 0.01,
+    sumNormalizedResidual: 0.02,
+    totalRelativeChange: 0.1,
+    totalAbsoluteGramChange: 100,
+    ...over,
   });
 
-  it('I. empate total é resolvido pela posição (determinismo)', () => {
-    const a = { feasible: 1, changedItems: 2, totalDeltaGrams: 100, firstIndex: 1 };
-    const b = { feasible: 1, changedItems: 2, totalDeltaGrams: 100, firstIndex: 3 };
-    expect(compareScores(a as any, b as any)).toBeLessThan(0);
+  it('H. entre duas soluções viáveis, a de 2 itens vence a de 4 itens', () => {
+    const two = score({ changedItemCount: 2, totalAbsoluteGramChange: 400 });
+    const four = score({ changedItemCount: 4, totalAbsoluteGramChange: 100 });
+    expect(compareScores(two, four)).toBeLessThan(0);
+  });
+
+  it('I. empate total devolve 0 — a primeira solução encontrada é mantida', () => {
+    expect(compareScores(score({}), score({}))).toBe(0);
+  });
+
+  it('I2. viável sempre vence inviável, mesmo com mais alterações', () => {
+    const feasible = score({ changedItemCount: 5 });
+    const infeasible = score({ feasible: false, changedItemCount: 1 });
+    expect(compareScores(feasible, infeasible)).toBeLessThan(0);
   });
 });
 
