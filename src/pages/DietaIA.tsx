@@ -29,6 +29,7 @@ import {
 } from '@/lib/canonicalDietValidation';
 import { Badge } from '@/components/ui/badge';
 import UnresolvedFoodsPanel, { collectUnresolvedItems } from '@/components/diet/UnresolvedFoodsPanel';
+import CanonicalDietEditor from '@/components/diet/CanonicalDietEditor';
 import { dietPlanToMarkdown } from '@/lib/dietMarkdownSerializer';
 import { extractTrainingContext } from '@/lib/trainingContextExtractor';
 import { parseTrainingSections } from '@/lib/trainingResultParser';
@@ -684,6 +685,27 @@ const DietaIA = () => {
     () => (carbCycling.enabled ? buildWeeklyCarbTargets(carbCycling, carbTypeTargets) : {}),
     [carbCycling, carbTypeTargets],
   );
+
+  /**
+   * Fase 5: target FINAL por dia materializado do plano canônico.
+   * Linear → meta global; carb cycling → meta do weekday. O optimizer nunca
+   * recalcula meta: apenas consome o valor já resolvido pelas Fases 2–3.
+   */
+  const structuredTargetsByDay = useMemo(() => {
+    const days = structuredPlan?.days ?? [];
+    return days.map((d) => {
+      if (carbCycling.enabled) {
+        const wd = String(d?.weekday ?? '') as WeekdayKey;
+        const t = weeklyCarbTargets[wd];
+        return t ? { kcal: t.kcal, p: t.p, c: t.c, g: t.g } : null;
+      }
+      return canonicalTargets.kcal > 0
+        ? { kcal: canonicalTargets.kcal, p: canonicalTargets.p, c: canonicalTargets.c, g: canonicalTargets.g }
+        : null;
+    });
+  }, [structuredPlan, carbCycling.enabled, weeklyCarbTargets, canonicalTargets]);
+
+
 
   const carbWeeklyAverage = useMemo(
     () => calculateWeeklyAverage(weeklyCarbTargets),
@@ -3654,7 +3676,7 @@ ${generated}`;
                   <div className="flex flex-wrap gap-2 pt-1">
                     {structuredPlan ? (
                       <span className="text-[11px] text-muted-foreground self-center">
-                        Ajuste determinístico disponível na próxima etapa.
+                        Ajuste de porções disponível no editor abaixo.
                       </span>
                     ) : (
                       <>
@@ -3683,6 +3705,15 @@ ${generated}`;
                   </div>
                 </CardContent>
               </Card>
+            )}
+            {/* Fase 5: editor canônico (foodId + nutritionCore) com ajuste
+                determinístico de porções. Planos legacy seguem no editor antigo. */}
+            {structuredPlan && (
+              <CanonicalDietEditor
+                plan={structuredPlan}
+                targetsByDay={structuredTargetsByDay}
+                onChange={(p) => { void applyCanonicalPlanUpdate(p); }}
+              />
             )}
             {lastDietPlan && !editPlanId && (
               <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs flex flex-wrap items-center justify-between gap-2">

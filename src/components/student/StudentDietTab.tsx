@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import DietResultCards from '@/components/DietResultCards';
 import DietPlanEditor from '@/components/diet/DietPlanEditor';
+import CanonicalDietEditor from '@/components/diet/CanonicalDietEditor';
 import AiEditDietDialog from '@/components/diet/AiEditDietDialog';
 import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
 import { replaceMealTableInMarkdown, replaceMealTablesPerDayInMarkdown, scaleMealsToMacroTargets, computeDayTotals, dietPlanToMarkdown } from '@/lib/dietMarkdownSerializer';
@@ -702,17 +703,40 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                     </div>
 
                     {isEditing ? (
-                      <DietPlanEditor
-                        markdown={plan.conteudo}
-                        onMealsChange={(meals) => handleMealsChange(plan.id, meals)}
-                        onDaysChange={(days) => handleDaysChange(plan.id, days)}
-                        studentId={studentId}
-                        onAiNotes={(notes) => setAiNotes(prev => ({ ...prev, [plan.id]: [...(prev[plan.id] || []), ...notes] }))}
-                        currentPlan={editedPlans[plan.id] ?? parseDietPlanLoose(plan.conteudo_json)}
-                        onPlanChange={(p) => handlePlanChange(plan.id, p)}
-                        weeklySchedule={editedSchedules[plan.id] ?? (plan as any).protocols?.weekly_energy_schedule ?? null}
-                        onScheduleChange={(s) => handleScheduleChange(plan.id, s)}
-                      />
+                      (() => {
+                        // Fase 5: plano STRUCTURED (conteudo_json com foodId) usa o
+                        // editor canônico; markdown/legacy segue no editor antigo.
+                        const canonical = editedPlans[plan.id] ?? parseDietPlanLoose(plan.conteudo_json);
+                        const isStructured = !!canonical?.days?.some((d) =>
+                          (d.meals ?? []).some((m) => (m.items ?? []).some((i) => !!i.foodId)),
+                        );
+                        if (isStructured && canonical) {
+                          const t = canonical.targets;
+                          const targetsByDay = (canonical.days ?? []).map(() =>
+                            t && t.kcal > 0 ? { kcal: t.kcal, p: t.p, c: t.c, g: t.g } : null,
+                          );
+                          return (
+                            <CanonicalDietEditor
+                              plan={canonical}
+                              targetsByDay={targetsByDay}
+                              onChange={(p) => handlePlanChange(plan.id, p)}
+                            />
+                          );
+                        }
+                        return (
+                          <DietPlanEditor
+                            markdown={plan.conteudo}
+                            onMealsChange={(meals) => handleMealsChange(plan.id, meals)}
+                            onDaysChange={(days) => handleDaysChange(plan.id, days)}
+                            studentId={studentId}
+                            onAiNotes={(notes) => setAiNotes(prev => ({ ...prev, [plan.id]: [...(prev[plan.id] || []), ...notes] }))}
+                            currentPlan={canonical}
+                            onPlanChange={(p) => handlePlanChange(plan.id, p)}
+                            weeklySchedule={editedSchedules[plan.id] ?? (plan as any).protocols?.weekly_energy_schedule ?? null}
+                            onScheduleChange={(s) => handleScheduleChange(plan.id, s)}
+                          />
+                        );
+                      })()
                     ) : (
                       <DietResultCards markdown={cleanedMarkdown} />
                     )}
