@@ -1,0 +1,348 @@
+/**
+ * FASE 5 — editor canônico (STRUCTURED).
+ *
+ * Trabalha diretamente sobre o DietPlan canônico: foodId + qtyGrams +
+ * nutritionCore. Nunca passa por markdown/ParsedMeal, nunca resolve alimento
+ * por nome/fuzzy e nunca usa densidade calculada do texto.
+ */
+import React, { useMemo, useState } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Lock, LockOpen, Trash2, Sliders, Undo2, AlertTriangle } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import type { DietPlan } from '@/lib/dietSchema';
+import {
+  buildFoodIndex,
+  computeDayTotals,
+  foodRecordFromRow,
+  type FoodRecord,
+} from '@/lib/nutritionEngine';
+import { recomputeDayFromFoods } from '@/lib/dietFoodResolution';
+import {
+  optimizeDietDay,
+  isWithinTolerance,
+  AUTO_ADJUST_MESSAGES,
+  type AutoAdjustResult,
+} from '@/lib/dietAutoAdjust';
+import type { DayTarget } from '@/lib/dietDayTargets';
+import AutoAdjustPreviewDialog from './AutoAdjustPreviewDialog';
+
+interface Props {
+  plan: DietPlan;
+  /** Base alimentar; quando ausente é carregada aqui. */
+  foods?: FoodRecord[];
+  /** Target FINAL por índice de dia (linear = global, carb cycling = weekday). */
+  targetsByDay?: Array<DayTarget | null | undefined>;
+  onChange: (plan: DietPlan) => void;
+}
+
+const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
+
+/** Aceita "18", "18,5" e "18.5"; só converte no commit. */
+const parseGrams = (text: string): number | null => {
+  const normalized = String(text ?? '').replace(',', '.').trim();
+  if (!normalized) return null;
+  const n = Number(normalized);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+};
+
+const fmt = (n: number) => (Number.isInteger(n) ? String(n) : (Math.round(n * 10) / 10).toFixed(1));
+
+const line = (m: { kcal: number; p: number; c: number; g: number } | null | undefined) =>
+  m ? `${Math.round(m.kcal)} kcal · ${Math.round(m.p)}P · ${Math.round(m.c)}C · ${Math.round(m.g)}G` : '—';
+
+const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onChange }) => {
+  const [dayIndex, setDayIndex] = useState(0);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [preview, setPreview] = useState<AutoAdjustResult | null>(null);
+  const [undoSnapshot, setUndoSnapshot] = useState<DietPlan | null>(null);
+
+  const { data: loadedFoods } = useQuery({
+    queryKey: ['canonical-editor-foods'],
+    enabled: !foods,
+    queryFn: async (): Promise<FoodRecord[]> => {
+      const { data, error } = await supabase
+        .from('foods')
+        .select('id, name, calories, protein, carbs, fats, portion, portion_size')
+        .order('name');
+      if (error) throw error;
+      return (data ?? []).map((row: any) => foodRecordFromRow(row));
+    },
+  });
+
+  const foodRecords = foods ?? loadedFoods ?? [];
+  const index = useMemo(() => buildFoodIndex(foodRecords), [foodRecords]);
+
+  const days = plan?.days ?? [];
+  const activeIndex = Math.min(dayIndex, Math.max(0, days.length - 1));
+  const day = days[activeIndex];
+
+  const computed = useMemo(() => {
+    if (!day) return null;
+    return computeDayTotals(
+      (day.meals ?? []).map((m) => ({
+        items: (m.items ?? []).map((it) => ({
+          foodId: it.foodId ?? null,
+          name: it.name,
+          qtyGrams: Number(it.qtyGrams) || 0,
+        })),
+      })),
+      index,
+      'draft',
+      'strict_id',
+    );
+  }, [day, index]);
+
+  const target = targetsByDay?.[activeIndex] ?? null;
+  const diff: DayTarget | null =
+    target && computed
+      ? {
+          kcal: computed.totals.kcal - target.kcal,
+          p: computed.totals.p - target.p,
+          c: computed.totals.c - target.c,
+          g: computed.totals.g - target.g,
+        }
+      : null;
+  const within = diff ? isWithinTolerance(diff) : null;
+
+  const hasUnresolved = !!computed?.meals.some((m) => m.items.some((i) => i.status === 'unresolved'));
+  const adjustableCount = (day?.meals ?? []).reduce(
+    (acc, meal) =>
+      acc +
+      (meal.items ?? []).filter(
+        (it) => it.manualLocked !== true && it.foodId && index.byId.get(String(it.foodId)),
+      ).length,
+    0,
+  );
+
+  const applyPlan = (next: DietPlan) => {
+    if (next.days?.[activeIndex]) recomputeDayFromFoods(next.days[activeIndex], foodRecords);
+    onChange(next);
+  };
+
+  const commitQty = (mealIdx: number, itemIdx: number, text: string) => {
+    const grams = parseGrams(text);
+    setDrafts((prev) => {
+      const copy = { ...prev };
+      delete copy[`${activeIndex}-${mealIdx}-${itemIdx}`];
+      return copy;
+    });
+    if (grams === null) return;
+    const next = clone(plan);
+    const item: any = next.days[activeIndex].meals[mealIdx].items[itemIdx];
+    if (!item || Number(item.qtyGrams) === grams) return;
+    item.qtyGrams = grams;
+    item.manualLocked = true;
+    setUndoSnapshot(null);
+    applyPlan(next);
+  };
+
+  const toggleLock = (mealIdx: number, itemIdx: number) => {
+    const next = clone(plan);
+    const item: any = next.days[activeIndex].meals[mealIdx].items[itemIdx];
+    item.manualLocked = item.manualLocked !== true;
+    applyPlan(next);
+  };
+
+  const removeItem = (mealIdx: number, itemIdx: number) => {
+    const next = clone(plan);
+    next.days[activeIndex].meals[mealIdx].items.splice(itemIdx, 1);
+    setUndoSnapshot(null);
+    applyPlan(next);
+  };
+
+  const runOptimizer = () => {
+    if (!target) return;
+    const result = optimizeDietDay<DietPlan>({
+      plan,
+      dayIndex: activeIndex,
+      target,
+      foods: foodRecords,
+    });
+    if (result.status === 'blocked_unresolved' || result.status === 'no_adjustable_items') {
+      toast.warning(result.reason ?? AUTO_ADJUST_MESSAGES.infeasible);
+      return;
+    }
+    if (result.status === 'already_within_target') {
+      toast.info(AUTO_ADJUST_MESSAGES.already_within_target);
+      return;
+    }
+    setPreview(result);
+  };
+
+  const applyPreview = () => {
+    if (!preview?.adjustedPlan) return;
+    setUndoSnapshot(clone(plan));
+    onChange(preview.adjustedPlan);
+    setPreview(null);
+    toast.success(
+      preview.withinTolerance
+        ? 'Porções ajustadas dentro da meta.'
+        : 'Ajuste aplicado, mas a dieta continua fora da meta.',
+    );
+  };
+
+  if (!day) return null;
+
+  return (
+    <div className="space-y-3">
+      {days.length > 1 && (
+        <div className="flex flex-wrap gap-1">
+          {days.map((d, i) => (
+            <Button
+              key={`${d.label}-${i}`}
+              size="sm"
+              variant={i === activeIndex ? 'default' : 'outline'}
+              className="h-7 text-[11px]"
+              onClick={() => setDayIndex(i)}
+            >
+              {(d.weekday ?? d.label ?? `Dia ${i + 1}`).toString().toUpperCase()}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      {target && (
+        <Card className={`border ${within ? 'border-green-500/30 bg-green-500/5' : 'border-yellow-500/40 bg-yellow-500/5'}`}>
+          <CardContent className="space-y-2 p-4 text-xs">
+            <p className="font-bold text-sm">Ajuste de porções</p>
+            <div className="grid gap-1 text-muted-foreground sm:grid-cols-3">
+              <span>Meta: <strong className="text-foreground">{line(target)}</strong></span>
+              <span>Atual: <strong className="text-foreground">{line(computed?.totals)}</strong></span>
+              <span>Diferença: <strong className="text-foreground">{line(diff)}</strong></span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              {within ? (
+                <Badge variant="outline" className="border-green-500/50 text-green-500 text-[10px]">
+                  Dentro da meta
+                </Badge>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={runOptimizer}
+                  disabled={hasUnresolved || adjustableCount === 0}
+                >
+                  <Sliders className="mr-1 h-3 w-3" /> Ajustar automaticamente
+                </Button>
+              )}
+              {undoSnapshot && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    onChange(undoSnapshot);
+                    setUndoSnapshot(null);
+                  }}
+                >
+                  <Undo2 className="mr-1 h-3 w-3" /> Desfazer ajuste
+                </Button>
+              )}
+            </div>
+            {hasUnresolved && (
+              <p className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
+                <AlertTriangle className="h-3 w-3" /> {AUTO_ADJUST_MESSAGES.blocked_unresolved}
+              </p>
+            )}
+            {!hasUnresolved && adjustableCount === 0 && (
+              <p className="text-yellow-600 dark:text-yellow-400">{AUTO_ADJUST_MESSAGES.no_adjustable_items}</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {(day.meals ?? []).map((meal, mealIdx) => (
+        <Card key={meal.id ?? mealIdx} className="border-border">
+          <CardContent className="space-y-2 p-4">
+            <div className="flex items-center justify-between text-xs">
+              <p className="font-bold text-sm">
+                {meal.name}
+                {meal.time ? <span className="ml-2 text-muted-foreground">{meal.time}</span> : null}
+              </p>
+              <span className="text-muted-foreground">
+                {line(computed?.meals[mealIdx]?.totals)}
+              </span>
+            </div>
+            <div className="space-y-1">
+              {(meal.items ?? []).map((item, itemIdx) => {
+                const key = `${activeIndex}-${mealIdx}-${itemIdx}`;
+                const calc = computed?.meals[mealIdx]?.items[itemIdx];
+                const locked = item.manualLocked === true;
+                const unresolved = calc?.status === 'unresolved';
+                return (
+                  <div
+                    key={key}
+                    className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background/60 px-2 py-1.5 text-xs"
+                  >
+                    <span className="min-w-[8rem] flex-1 text-foreground">
+                      {item.name}
+                      {unresolved && (
+                        <Badge variant="outline" className="ml-2 border-amber-500/50 text-amber-500 text-[9px]">
+                          NÃO VALIDADO
+                        </Badge>
+                      )}
+                    </span>
+                    <Input
+                      className="h-7 w-20 text-xs"
+                      inputMode="decimal"
+                      value={drafts[key] ?? String(item.qtyGrams ?? 0)}
+                      onChange={(e) => setDrafts((p) => ({ ...p, [key]: e.target.value }))}
+                      onBlur={(e) => commitQty(mealIdx, itemIdx, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                      }}
+                    />
+                    <span className="text-muted-foreground">g</span>
+                    <span className="w-40 text-right text-muted-foreground">
+                      {calc
+                        ? `${Math.round(calc.macros.kcal)} kcal · ${fmt(calc.macros.p)}P · ${fmt(calc.macros.c)}C · ${fmt(calc.macros.g)}G`
+                        : '—'}
+                    </span>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      title={
+                        locked
+                          ? 'Quantidade alterada manualmente. O ajuste automático não modificará este item.'
+                          : 'Livre para o ajuste automático.'
+                      }
+                      onClick={() => toggleLock(mealIdx, itemIdx)}
+                    >
+                      {locked ? (
+                        <Lock className="h-3.5 w-3.5 text-primary" />
+                      ) : (
+                        <LockOpen className="h-3.5 w-3.5 text-muted-foreground" />
+                      )}
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      onClick={() => removeItem(mealIdx, itemIdx)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+
+      <AutoAdjustPreviewDialog
+        open={!!preview}
+        onOpenChange={(o) => !o && setPreview(null)}
+        data={preview}
+        onApply={applyPreview}
+      />
+    </div>
+  );
+};
+
+export default CanonicalDietEditor;
