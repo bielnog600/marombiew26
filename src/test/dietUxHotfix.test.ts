@@ -188,7 +188,7 @@ describe('copiar dia para a semana', () => {
     plan.days[1].meals[0].items = [
       { foodId: 'f1', name: 'Arroz integral', qtyGrams: 10, resolutionStatus: 'resolved_by_id', macros: { kcal: 0, p: 0, c: 0, g: 0 } },
     ];
-    const target = { kcal: 590, p: 67.4, c: 56, g: 7.8 };
+    const target = { kcal: 413, p: 47.2, c: 39.2, g: 5.5 };
     const sim = simulateCopyDayToWeek({
       plan,
       sourceIndex: 0,
@@ -207,7 +207,7 @@ describe('copiar dia para a semana', () => {
     const sim = simulateCopyDayToWeek({
       plan,
       sourceIndex: 0,
-      targetsByDay: [null, { kcal: 590, p: 67.4, c: 56, g: 7.8 }],
+      targetsByDay: [null, { kcal: 413, p: 47.2, c: 39.2, g: 5.5 }],
       foods: FOODS,
     });
     expect((sim.plan as any).days[0]).toEqual(plan.days[0]);
