@@ -704,17 +704,15 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
 
                     {isEditing ? (
                       (() => {
-                        // Fase 5: plano STRUCTURED (conteudo_json com foodId) usa o
-                        // editor canônico; markdown/legacy segue no editor antigo.
+                        // Fase 5.1: STRUCTURED é definido pelo contrato do plano.
                         const canonical = editedPlans[plan.id] ?? parseDietPlanLoose(plan.conteudo_json);
-                        const isStructured = !!canonical?.days?.some((d) =>
-                          (d.meals ?? []).some((m) => (m.items ?? []).some((i) => !!i.foodId)),
-                        );
+                        const isStructured = isStructuredCanonicalPlan(canonical);
                         if (isStructured && canonical) {
-                          const t = canonical.targets;
-                          const targetsByDay = (canonical.days ?? []).map(() =>
-                            t && t.kcal > 0 ? { kcal: t.kcal, p: t.p, c: t.c, g: t.g } : null,
-                          );
+                          // Metas reais persistidas (carb cycling por weekday).
+                          const targetsByDay = resolvePersistedTargetsByDay({
+                            plan: canonical,
+                            protocols: (plan as any).protocols,
+                          });
                           return (
                             <CanonicalDietEditor
                               plan={canonical}
