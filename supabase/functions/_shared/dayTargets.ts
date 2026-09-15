@@ -102,6 +102,26 @@ export function hasMeaningfulDailyTargetVariation(schedule: any): boolean {
   return signatures.some((s) => s !== signatures[0]);
 }
 
+/**
+ * HOTFIX CARB CYCLING — ajuste manual de kcal por dia sobre uma base.
+ * Só é verdadeiro quando o treinador mexeu em `adjustment_kcal` (ou fixou um
+ * kcal diferente da base). Metas materializadas por carb cycling NÃO contam.
+ */
+export function hasManualWeeklyAdjustment(schedule: any): boolean {
+  if (!schedule || typeof schedule !== "object" || !schedule.days) return false;
+  const base = Math.round(num(schedule.base_daily_kcal));
+  return WEEKDAYS.some((wd) => {
+    const d = schedule.days?.[wd];
+    if (!d) return false;
+    const adj = num(d.adjustment_kcal);
+    if (adj !== 0) return true;
+    const fixed = optNum(d.fixed_kcal);
+    return fixed !== null && fixed > 0 && Math.round(fixed) !== base;
+  });
+}
+
+
+
 export function validateDayTargets(plan: any, schedule: any): DayTargetValidation {
   const issues: DayTargetIssue[] = [];
   const empty: DayTargetValidation = {
