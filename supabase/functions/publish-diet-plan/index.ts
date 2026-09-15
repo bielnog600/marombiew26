@@ -24,8 +24,11 @@ import {
   isStructuredPlan,
   validatePublicationDailyAdjustments,
   validatePublicationPlan,
+  validatePublicationPlan,
+  validateSnapshotAssertionIntegrity,
   type PublicationErrorCode,
 } from "../_shared/dietPublication.ts";
+
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {

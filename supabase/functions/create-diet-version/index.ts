@@ -53,6 +53,11 @@ Deno.serve(async (req) => {
     if (source.tipo !== "dieta" || !isStructuredPlan(source.conteudo_json)) {
       return json({ error_code: "structured_plan_required" }, 400);
     }
+    // FASE 6.1 — apenas uma dieta PUBLICADA pode ser parent de nova versão.
+    if (source.is_draft !== false) {
+      return json({ error_code: "published_plan_required" }, 409);
+    }
+
 
     // Nunca duplicar a mesma versão: reutiliza o draft existente.
     const { data: existing } = await supabase
