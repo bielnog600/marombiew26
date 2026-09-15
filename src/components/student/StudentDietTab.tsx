@@ -334,7 +334,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     const draft = result.plan;
     setPlans(prev => (prev.some(p => p.id === draft.id) ? prev : [draft, ...prev]));
     setExpandedId(draft.id);
-    toast.success(data.reused ? 'Rascunho desta versão reaberto.' : 'Nova versão em rascunho criada.');
+    toast.success(result.reused ? 'Rascunho desta versão reaberto.' : 'Nova versão em rascunho criada.');
     return draft;
   };
 
