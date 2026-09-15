@@ -360,6 +360,12 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     if (!plan) return;
 
     const basePlan: DietPlan | null = updatedPlan ?? parseDietPlanLoose(plan.conteudo_json);
+
+    // FASE 6: nunca fazer UPDATE de conteúdo em structured publicado.
+    if (plan.is_draft === false && isStructuredCanonicalPlan(basePlan)) {
+      toast.error('Esta dieta está publicada. Crie uma nova versão para editar.');
+      return;
+    }
     const latestDays = (daysEdit && daysEdit.length > 0)
       ? daysEdit
       : (meals && meals.length > 0 ? [{ label: 'Padrão', meals }] : null);
