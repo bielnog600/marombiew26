@@ -834,10 +834,20 @@ serve(async (req) => {
         dietConfig && typeof dietConfig === "object"
           ? (dietConfig as any).weeklyEnergySchedule
           : null;
-      // HOTFIX — só variação diária REAL ativa o modo por weekday
-      // (materialização seg–dom, validateDayTargets e dailyAdjustments).
-      const dailyVariationMode =
+      // HOTFIX — dois conceitos SEPARADOS:
+      //  weekdayTargetMode   → existe meta própria por weekday (carb cycling
+      //                        ou ajuste manual): materializa 7 dias e valida
+      //                        cada dia contra a sua meta.
+      //  dailyAdjustmentMode → instruções complementares add/remove sobre uma
+      //                        dieta base. NUNCA exigido com carb cycling.
+      const carbCyclingEnabled =
+        dietConfig && typeof dietConfig === "object"
+          ? (dietConfig as any).carbCyclingEnabled === true
+          : false;
+      const weekdayTargetMode =
         scheduleHasDailyMacroTargets(schedule) && hasMeaningfulDailyTargetVariation(schedule);
+      const dailyAdjustmentMode =
+        weekdayTargetMode && !carbCyclingEnabled && hasManualWeeklyAdjustment(schedule);
       const layeredInstructions = buildLayeredInstructions(dietConfig, trainingContext);
       // Resolve intent: explicit `intent` wins; legacy `regenerateIntent` maps to "regenerate".
       const intent: DietIntent =
