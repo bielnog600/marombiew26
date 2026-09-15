@@ -87,7 +87,11 @@ export function extractModelDietFoodNames(text: string): string[] {
     line = line.replace(/\b\d+(?:[.,]\d+)?\b/g, ' ');
     line = line.replace(/\(.*?\)/g, ' ');
     line = line.replace(/^\s*(?:de|da|do)\s+/i, '');
-    const name = line.replace(/\s{2,}/g, ' ').replace(/[.,;]+$/, '').trim();
+    const name = line
+      .replace(/\s{2,}/g, ' ')
+      .replace(/[.,;]+$/, '')
+      .replace(/[\s\-—–]+$/, '')
+      .trim();
     if (name.length < 3) continue;
     const key = normalizeFoodName(name);
     if (!key || seen.has(key)) continue;
