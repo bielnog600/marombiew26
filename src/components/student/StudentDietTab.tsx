@@ -240,16 +240,10 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     try {
       const today = new Date();
       const dateLabel = today.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      const payload: Record<string, unknown> = {
-        student_id: plan.student_id,
-        tipo: 'dieta',
-        titulo: `${plan.titulo || 'Dieta'} (cópia ${dateLabel})`,
-        conteudo: plan.conteudo,
-        conteudo_json: plan.conteudo_json ?? null,
-        migration_status: plan.migration_status ?? null,
-        fase: plan.fase ?? null,
-        is_draft: false,
-      };
+      const payload = buildDuplicateDietPayload(
+        plan as any,
+        `${plan.titulo || 'Dieta'} (cópia ${dateLabel})`,
+      );
       const { data, error } = await supabase.from('ai_plans').insert(payload as any).select('*').single();
       if (error) throw error;
       toast.success('Dieta duplicada!');
