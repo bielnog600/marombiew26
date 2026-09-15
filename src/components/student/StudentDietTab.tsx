@@ -25,6 +25,7 @@ import {
   isStructuredCanonicalPlan,
   hasUnresolvedCanonicalItems,
   resolvePersistedTargetsByDay,
+  buildDuplicateDietPayload,
 } from '@/lib/dietStructuredGuards';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Slider } from '@/components/ui/slider';
