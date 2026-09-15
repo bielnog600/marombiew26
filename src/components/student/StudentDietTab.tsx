@@ -725,7 +725,11 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         size="sm" 
                         variant="outline" 
                         className="h-8 gap-1.5 text-xs rounded-xl bg-primary/5 border-primary/20"
-                        onClick={() => setAiDialogPlanId(plan.id)}
+                        onClick={async () => {
+                          const target = await ensureEditableDraft(plan);
+                          if (!target) return;
+                          setAiDialogPlanId(target.id);
+                        }}
                       >
                         <Wand2 className="h-3.5 w-3.5 text-primary" />
                         Ajustar com IA
@@ -764,7 +768,11 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         size="sm" 
                         variant="outline" 
                         className="h-8 gap-1.5 text-xs rounded-xl bg-orange-500/5 border-orange-500/20 text-orange-600"
-                        onClick={() => navigate(`/dieta-ia/${studentId}?edit=${plan.id}&mode=adjust`)}
+                        onClick={async () => {
+                          const target = await ensureEditableDraft(plan);
+                          if (!target) return;
+                          navigate(`/dieta-ia/${studentId}?edit=${target.id}&mode=adjust`);
+                        }}
                       >
                         <Zap className="h-3.5 w-3.5" />
                         Ajuste Rápido
