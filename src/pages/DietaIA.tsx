@@ -3495,6 +3495,25 @@ ${generated}`;
                 rows={6}
                 className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none resize-y min-h-[100px]"
               />
+              {carbCycling.enabled && modelDietMentionsLinearTargets(modelDiet) && (
+                <div className="mt-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 space-y-2">
+                  <p className="text-xs text-amber-600">
+                    A dieta modelo menciona dieta linear, mas o Carb Cycling está ativo.
+                    As metas configuradas no app serão utilizadas.
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setCarbCycling((prev) => ({ ...prev, enabled: false }));
+                      setSelectedAdjustments((prev) => prev.filter((id) => id !== 'carb_cycling'));
+                    }}
+                  >
+                    Desativar Carb Cycling
+                  </Button>
+                </div>
+              )}
             </div>
             </div>
           </CardContent>
