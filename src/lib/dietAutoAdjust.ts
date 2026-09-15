@@ -704,7 +704,11 @@ export interface OptimizeDietPlanInput<TPlan = any> {
 export interface OptimizeDietPlanResult<TPlan = any> {
   status: AutoAdjustStatus;
   originalPlan: TPlan;
-  adjustedPlan: TPlan;
+  /** Plano aplicável — só quando TODOS os dias fecharam dentro da tolerância. */
+  adjustedPlan?: TPlan;
+  feasibleAdjustedPlan?: TPlan;
+  /** Melhor aproximação acumulada (nunca apresentada como válida). */
+  bestAttemptPlan: TPlan;
   days: AutoAdjustResult<TPlan>[];
   changes: AutoAdjustChange[];
   changedItems: number;
@@ -734,10 +738,25 @@ export function optimizeDietPlan<TPlan = any>({
   const total = (working?.days ?? []).length;
   for (let dayIndex = 0; dayIndex < total; dayIndex++) {
     const target = targetsByDay[dayIndex];
-    if (!target) continue;
+    // Fase 5.1: dia materializado sem meta NUNCA é ignorado em silêncio.
+    if (!isValidTarget(target)) {
+      days.push({
+        status: 'invalid_target',
+        originalPlan: plan,
+        target: (target as DayTarget) ?? { kcal: 0, p: 0, c: 0, g: 0 },
+        before: zero,
+        beforeDiff: { kcal: 0, p: 0, c: 0, g: 0 },
+        changes: [],
+        changedItems: 0,
+        withinTolerance: false,
+        reason: AUTO_ADJUST_MESSAGES.invalid_target,
+      });
+      continue;
+    }
     const res = optimizeDietDay<TPlan>({ plan: working, dayIndex, target, foods, options });
     days.push(res);
-    if (res.adjustedPlan) working = res.adjustedPlan as any;
+    const next = res.adjustedPlan ?? res.bestAttemptPlan;
+    if (next) working = next as any;
     changes.push(...res.changes);
   }
 
@@ -749,7 +768,9 @@ export function optimizeDietPlan<TPlan = any>({
   return {
     status,
     originalPlan: plan,
-    adjustedPlan: working as TPlan,
+    adjustedPlan: withinTolerance ? (working as TPlan) : undefined,
+    feasibleAdjustedPlan: withinTolerance ? (working as TPlan) : undefined,
+    bestAttemptPlan: working as TPlan,
     days,
     changes,
     changedItems: changes.length,
