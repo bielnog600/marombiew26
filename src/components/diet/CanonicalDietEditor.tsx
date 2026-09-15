@@ -256,19 +256,38 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
     setPreview(result);
   };
 
-  const applyPreview = (kind: 'feasible' | 'approximation') => {
-    if (!preview) return;
-    const nextPlan =
-      kind === 'feasible' ? preview.feasibleAdjustedPlan : preview.bestAttemptPlan;
+  /** HOTFIX UX — o preview é editável: recebe o plano final já montado. */
+  const applyPreviewPlan = (nextPlan: DietPlan, withinTarget: boolean) => {
     if (!nextPlan) return;
     setUndoSnapshot(clone(plan));
-    onChange(nextPlan as DietPlan);
+    onChange(nextPlan);
     setPreview(null);
     toast.success(
-      kind === 'feasible'
+      withinTarget
         ? 'Porções ajustadas dentro da meta.'
-        : 'Aproximação aplicada — a dieta continua fora da meta.',
+        : 'Alterações aplicadas — a dieta continua fora da meta.',
     );
+  };
+
+  const dayName = (d: any, i: number) =>
+    (d?.weekday ?? d?.label ?? `Dia ${i + 1}`).toString().toUpperCase();
+
+  const runCopyDay = () => {
+    if (!dayIsFullyResolved(plan, activeIndex, foodRecords)) {
+      toast.warning(COPY_DAY_MESSAGES.unresolved);
+      return;
+    }
+    const sim = simulateCopyDayToWeek<DietPlan>({
+      plan,
+      sourceIndex: activeIndex,
+      targetsByDay,
+      foods: foodRecords,
+    });
+    if (sim.blocked) {
+      toast.warning(sim.blocked);
+      return;
+    }
+    setCopySim({ plan: sim.plan, results: sim.results, sourceLabel: dayName(day, activeIndex) });
   };
 
   if (!day) return null;
@@ -276,7 +295,7 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
   return (
     <div className="space-y-3">
       {days.length > 1 && (
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           {days.map((d, i) => (
             <Button
               key={`${d.label}-${i}`}
@@ -285,9 +304,18 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
               className="h-7 text-[11px]"
               onClick={() => setDayIndex(i)}
             >
-              {(d.weekday ?? d.label ?? `Dia ${i + 1}`).toString().toUpperCase()}
+              {dayName(d, i)}
             </Button>
           ))}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-[11px]"
+            onClick={runCopyDay}
+            title="Copiar este cardápio para os outros dias, ajustando cada um à sua meta."
+          >
+            <Copy className="mr-1 h-3 w-3" /> Copiar dia
+          </Button>
         </div>
       )}
 
