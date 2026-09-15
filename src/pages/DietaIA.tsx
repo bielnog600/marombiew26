@@ -2526,11 +2526,14 @@ ${generated}`;
           if (lifted) canonicalPlan = finalizeDietPlan(lifted);
         }
       } catch (e) { console.error('lift to DietPlan failed', e); }
+      // FASE 6: structured NUNCA é publicado pelo cliente — salva rascunho e
+      // delega a publicação atômica para a Edge Function.
+      const structuredSave = isStructuredCanonicalPlan(canonicalPlan);
       const { error } = await supabase.from('ai_plans').update({
         conteudo: result,
         titulo: `Dieta - ${new Date().toLocaleDateString('pt-BR')} (editada)`,
         protocols,
-        is_draft: isDraft,
+        is_draft: structuredSave ? true : isDraft,
         conteudo_json: canonicalPlan ?? (validation.success ? (validation.data as any) : null),
         migration_status: (validation.success ? 'completed' : 'failed') as any,
         migration_error: validation.error || null,
@@ -2538,6 +2541,10 @@ ${generated}`;
       if (error) {
         toast.error('Erro: ' + error.message);
         await failDietApplication(applicationId, error.message);
+      } else if (structuredSave && !isDraft) {
+        const ok = await publishStructuredPlanViaEdge(editPlanId);
+        if (ok) await closeDietApplication(applicationId, editPlanId);
+        else await failDietApplication(applicationId, 'publicação bloqueada');
       } else {
         toast.success('Dieta atualizada!');
         await closeDietApplication(applicationId, editPlanId);
@@ -2570,6 +2577,8 @@ ${generated}`;
           .select('id, created_at')
           .eq('student_id', studentId!)
           .eq('tipo', 'dieta')
+          // FASE 6: reaproveitar apenas RASCUNHO do dia. Dieta publicada é histórico.
+          .eq('is_draft', true)
           .gte('created_at', startOfDay.toISOString())
           .order('created_at', { ascending: false })
           .limit(1);
