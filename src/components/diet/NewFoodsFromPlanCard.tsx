@@ -43,6 +43,7 @@ const NewFoodsFromPlanCard: React.FC<Props> = ({
   onDismissAll,
   onRemoveFromPlan,
   onReplaceInPlan,
+  onFoodLinked,
 }) => {
   const queryClient = useQueryClient();
   const [rows, setRows] = useState<Row[]>(() =>
