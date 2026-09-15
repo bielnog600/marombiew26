@@ -3706,6 +3706,15 @@ ${generated}`;
                 </CardContent>
               </Card>
             )}
+            {/* Fase 5: editor canônico (foodId + nutritionCore) com ajuste
+                determinístico de porções. Planos legacy seguem no editor antigo. */}
+            {structuredPlan && (
+              <CanonicalDietEditor
+                plan={structuredPlan}
+                targetsByDay={structuredTargetsByDay}
+                onChange={(p) => { void applyCanonicalPlanUpdate(p); }}
+              />
+            )}
             {lastDietPlan && !editPlanId && (
               <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
