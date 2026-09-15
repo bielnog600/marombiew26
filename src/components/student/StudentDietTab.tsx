@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import DietResultCards from '@/components/DietResultCards';
 import DietPlanEditor from '@/components/diet/DietPlanEditor';
+import CanonicalDietEditor from '@/components/diet/CanonicalDietEditor';
 import AiEditDietDialog from '@/components/diet/AiEditDietDialog';
 import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
 import { replaceMealTableInMarkdown, replaceMealTablesPerDayInMarkdown, scaleMealsToMacroTargets, computeDayTotals, dietPlanToMarkdown } from '@/lib/dietMarkdownSerializer';
