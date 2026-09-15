@@ -29,6 +29,7 @@ import {
 } from '@/lib/canonicalDietValidation';
 import { Badge } from '@/components/ui/badge';
 import UnresolvedFoodsPanel, { collectUnresolvedItems } from '@/components/diet/UnresolvedFoodsPanel';
+import CanonicalDietEditor from '@/components/diet/CanonicalDietEditor';
 import { dietPlanToMarkdown } from '@/lib/dietMarkdownSerializer';
 import { extractTrainingContext } from '@/lib/trainingContextExtractor';
 import { parseTrainingSections } from '@/lib/trainingResultParser';
