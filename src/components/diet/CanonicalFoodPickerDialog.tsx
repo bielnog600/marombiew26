@@ -53,23 +53,31 @@ const CanonicalFoodPickerDialog: React.FC<Props> = ({
           {filtered.length === 0 ? (
             <p className="p-2 text-xs text-muted-foreground">Nenhum alimento encontrado.</p>
           ) : (
-            filtered.map((f) => (
-              <Button
-                key={f.id}
-                variant="ghost"
-                className="h-auto w-full justify-between px-2 py-1.5 text-left text-xs"
-                onClick={() => {
-                  onSelect(f);
-                  onOpenChange(false);
-                  setTerm('');
-                }}
-              >
-                <span className="text-foreground">{f.name}</span>
-                <span className="text-muted-foreground">
-                  {Math.round(f.calories)} kcal / {f.portion_size || 100}g
-                </span>
-              </Button>
-            ))
+            filtered.map((f) => {
+              const origin = [f.brand, f.source].filter((v) => String(v ?? '').trim()).join(' · ');
+              return (
+                <Button
+                  key={f.id}
+                  variant="ghost"
+                  className="h-auto w-full justify-between gap-3 px-2 py-1.5 text-left text-xs"
+                  onClick={() => {
+                    onSelect(f);
+                    onOpenChange(false);
+                    setTerm('');
+                  }}
+                >
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate text-foreground">{f.name}</span>
+                    {origin && (
+                      <span className="truncate text-[10px] text-muted-foreground">{origin}</span>
+                    )}
+                  </span>
+                  <span className="shrink-0 text-muted-foreground">
+                    {Math.round(f.calories)} kcal / {f.portion_size || 100}g
+                  </span>
+                </Button>
+              );
+            })
           )}
         </div>
       </DialogContent>

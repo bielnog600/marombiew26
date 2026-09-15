@@ -152,6 +152,7 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
     const next = clone(plan);
     const item: any = next.days[activeIndex].meals[mealIdx].items[itemIdx];
     item.manualLocked = item.manualLocked !== true;
+    setUndoSnapshot(null);
     applyPlan(next);
   };
 

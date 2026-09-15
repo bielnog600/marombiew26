@@ -49,15 +49,28 @@ const num = (v: unknown): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
+/**
+ * FASE 5.2 — meta persistida precisa ser COMPLETA.
+ * kcal, p, c e g devem existir explicitamente e ser finitos.
+ * Zero explícito é válido; ausente/null NÃO vira zero.
+ */
 const toTarget = (raw: any): DayTarget | null => {
   if (!raw || typeof raw !== 'object') return null;
   const kcal = num(raw.kcal);
+  const p = num(raw.p);
+  const c = num(raw.c);
+  const g = num(raw.g);
   if (kcal === null || kcal <= 0) return null;
-  const p = num(raw.p) ?? 0;
-  const c = num(raw.c) ?? 0;
-  const g = num(raw.g) ?? 0;
+  if (p === null || c === null || g === null) return null;
   if (p < 0 || c < 0 || g < 0) return null;
   return { kcal, p, c, g };
+};
+
+/** Existe camada de metas por dia persistida (pelo menos uma meta válida). */
+export const hasWeeklyDayTargetsLayer = (protocols: any): boolean => {
+  const weekly = protocols?.weekly_day_targets;
+  if (!weekly || typeof weekly !== 'object') return false;
+  return Object.values(weekly).some((v) => toTarget(v) !== null);
 };
 
 export interface ResolvePersistedTargetsInput {
@@ -78,6 +91,7 @@ export const resolvePersistedTargetsByDay = ({
   const days: any[] = plan?.days ?? [];
   const carbCyclingActive = !!protocols?.carb_cycling?.enabled;
   const weeklyTargets = protocols?.weekly_day_targets ?? null;
+  const weeklyLayer = hasWeeklyDayTargetsLayer(protocols);
   const globalTarget = toTarget(plan?.targets);
 
   return days.map((day) => {
@@ -88,8 +102,45 @@ export const resolvePersistedTargetsByDay = ({
     const materialized = toTarget(day?.targets ?? day?.target);
     if (materialized) return materialized;
 
-    // Carb cycling ativo: jamais usar a meta global como substituta.
-    if (carbCyclingActive) return null;
+    // Camada diária existente (ou carb cycling ativo): jamais usar o global.
+    if (carbCyclingActive || weeklyLayer) return null;
     return globalTarget;
   });
 };
+
+/* -------------------------------------------------------------------------- */
+/* FASE 5.2 — duplicação sempre em rascunho                                    */
+/* -------------------------------------------------------------------------- */
+
+export interface DuplicateDietSource {
+  student_id?: string | null;
+  titulo?: string | null;
+  conteudo?: string | null;
+  conteudo_json?: unknown;
+  protocols?: unknown;
+  migration_status?: string | null;
+  fase?: string | null;
+  is_draft?: boolean | null;
+}
+
+/**
+ * Payload de duplicação de dieta. A cópia SEMPRE nasce como rascunho,
+ * independentemente do estado da origem (inclusive structured + unresolved).
+ */
+export const buildDuplicateDietPayload = (
+  plan: DuplicateDietSource,
+  titulo: string,
+): Record<string, unknown> => ({
+  student_id: plan.student_id,
+  tipo: 'dieta',
+  titulo,
+  conteudo: plan.conteudo ?? null,
+  conteudo_json: plan.conteudo_json ?? null,
+  protocols: plan.protocols ?? null,
+  migration_status: plan.migration_status ?? null,
+  fase: plan.fase ?? null,
+  is_draft: true,
+  whatsapp_notified_at: null,
+  whatsapp_notified_count: 0,
+});
+
