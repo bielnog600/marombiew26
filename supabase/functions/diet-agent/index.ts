@@ -225,6 +225,13 @@ function buildLayeredInstructions(dietConfig: any, trainingContext: any): string
     if (hasDailyMacros) {
       lines.push("REGRA CRÍTICA: gere um objeto em days[] para CADA weekday acima, com o campo \"weekday\" preenchido, e o day.totals de cada dia deve bater com a meta DAQUELE dia (±50 kcal, ±10g P, ±15g C, ±8g G). NÃO use a meta base global em todos os dias. O servidor valida dia a dia e rejeita divergências.");
     }
+    // HOTFIX — CARB CYCLING já materializa cada weekday completo: pedir
+    // também dailyAdjustments (add/remove) duplicaria a mesma variação.
+    if (carbCyclingEnabled) {
+      lines.push("CARB CYCLING ATIVO: gere o cardápio COMPLETO de cada weekday respeitando a meta daquele dia.");
+      lines.push("NÃO inclua o campo \"dailyAdjustments\" e NÃO produza instruções add/remove — a variação já está nas metas por dia.");
+      return lines.join("\n") + "\n";
+    }
     lines.push("REGRAS OBRIGATÓRIAS para a seção 'Ajustes por dia':");
     if (hasDailyMacros) {
       // Com metas diárias, P/C/G de cada dia são autoridade: nenhuma regra
