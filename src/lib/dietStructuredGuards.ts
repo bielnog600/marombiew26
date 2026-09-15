@@ -44,10 +44,20 @@ export const hasUnresolvedCanonicalItems = (plan: any): boolean =>
     ),
   );
 
+/**
+ * FASE 5.2.1 — null, undefined, string vazia e boolean NUNCA viram zero.
+ * Aceita número finito ou string numérica não vazia (decimal PT também).
+ */
 const num = (v: unknown): number | null => {
-  const n = Number(v);
+  if (v === null || v === undefined) return null;
+  if (typeof v !== 'number' && typeof v !== 'string') return null;
+  const raw = typeof v === 'string' ? v.trim().replace(',', '.') : v;
+  if (raw === '') return null;
+  const n = Number(raw);
   return Number.isFinite(n) ? n : null;
 };
+
+const WEEKDAY_KEYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'] as const;
 
 /**
  * FASE 5.2 — meta persistida precisa ser COMPLETA.
