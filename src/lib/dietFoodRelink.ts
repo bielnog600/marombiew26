@@ -8,7 +8,7 @@
  * - nenhum fuzzy matching / similaridade;
  * - qtyGrams preservado; macros recalculados pelo nutritionCore (strict_id).
  */
-import { buildFoodIndex, normalizeFoodName, type FoodRecord } from './nutritionEngine';
+import { normalizeFoodName, type FoodRecord } from './nutritionEngine';
 import { recomputeDayFromFoods } from './dietFoodResolution';
 
 export interface RelinkResult<T = any> {
@@ -39,15 +39,13 @@ export function relinkResolvableUnresolvedFoods<T extends { days?: any[] }>(
   if (!plan || !Array.isArray((plan as any).days) || !(foods?.length)) {
     return { plan, resolvedCount: 0, changed: false };
   }
-  const index = buildFoodIndex(foods);
-
   // Detecção sem mutar.
   let pending = 0;
   for (const day of (plan as any).days ?? []) {
     for (const meal of day?.meals ?? []) {
       for (const item of meal?.items ?? []) {
         if (!isCandidate(item)) continue;
-        const matches = index.byName.get(normalizeFoodName(String(item?.name ?? ''))) ?? [];
+        const matches = findFoodCandidates(String(item?.name ?? ''), foods);
         if (matches.length === 1) pending += 1;
       }
     }
@@ -61,7 +59,7 @@ export function relinkResolvableUnresolvedFoods<T extends { days?: any[] }>(
     for (const meal of day?.meals ?? []) {
       for (const item of meal?.items ?? []) {
         if (!isCandidate(item)) continue;
-        const matches = index.byName.get(normalizeFoodName(String(item?.name ?? ''))) ?? [];
+        const matches = findFoodCandidates(String(item?.name ?? ''), foods);
         if (matches.length !== 1) continue;
         applyFoodToItem(item, matches[0]);
         resolvedCount += 1;
