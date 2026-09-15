@@ -361,22 +361,23 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
    * derived from that same JSON, so `conteudo` and `conteudo_json` can never
    * disagree (which previously made saved portions "come back" on reload).
    */
-  const handleSave = async (planId: string) => {
+  const handleSave = async (planId: string): Promise<boolean> => {
     const meals = editedMeals[planId];
     const daysEdit = editedDays[planId];
     const updatedPlan = editedPlans[planId];
     const scheduleEdit = editedSchedules[planId];
-    if (!meals && !updatedPlan && !daysEdit && !scheduleEdit) return;
+    if (!meals && !updatedPlan && !daysEdit && !scheduleEdit) return false;
     const plan = plans.find(p => p.id === planId);
-    if (!plan) return;
+    if (!plan) return false;
 
     const basePlan: DietPlan | null = updatedPlan ?? parseDietPlanLoose(plan.conteudo_json);
 
     // FASE 6: nunca fazer UPDATE de conteúdo em structured publicado.
     if (plan.is_draft === false && isStructuredCanonicalPlan(basePlan)) {
       toast.error('Esta dieta está publicada. Crie uma nova versão para editar.');
-      return;
+      return false;
     }
+
     const latestDays = (daysEdit && daysEdit.length > 0)
       ? daysEdit
       : (meals && meals.length > 0 ? [{ label: 'Padrão', meals }] : null);
