@@ -484,9 +484,62 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
       <AutoAdjustPreviewDialog
         open={!!preview}
         onOpenChange={(o) => !o && setPreview(null)}
-        data={preview}
-        onApply={applyPreview}
+        result={preview}
+        dayIndex={activeIndex}
+        target={target}
+        foods={foodRecords}
+        onApply={(nextPlan, withinTarget) => applyPreviewPlan(nextPlan as DietPlan, withinTarget)}
       />
+
+      <Dialog open={!!copySim} onOpenChange={(o) => !o && setCopySim(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Copiar {copySim?.sourceLabel} para a semana</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 text-xs">
+            <p className="text-muted-foreground">
+              O dia de origem não muda. Cada dia de destino recebe o mesmo cardápio como ponto
+              de partida e tem as porções ajustadas à meta dele.
+            </p>
+            {(copySim?.results ?? []).map((r) => (
+              <div
+                key={r.dayIndex}
+                className="flex items-center justify-between gap-2 rounded-lg border border-border px-2 py-1.5"
+              >
+                <span className="font-semibold text-foreground">
+                  {(r.weekday ?? r.label ?? `Dia ${r.dayIndex + 1}`).toString().toUpperCase()}
+                </span>
+                {r.status === 'ok' ? (
+                  <span className="text-green-600 dark:text-green-400">{line(r.totals)}</span>
+                ) : (
+                  <span className="text-yellow-600 dark:text-yellow-400">
+                    {r.message ?? COPY_DAY_MESSAGES.infeasible} — dia mantido como está
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setCopySim(null)}>
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              disabled={!copySim?.results.some((r) => r.status === 'ok')}
+              onClick={() => {
+                if (!copySim) return;
+                setUndoSnapshot(clone(plan));
+                onChange(copySim.plan);
+                const okCount = copySim.results.filter((r) => r.status === 'ok').length;
+                setCopySim(null);
+                toast.success(`Cardápio copiado para ${okCount} dia(s).`);
+              }}
+            >
+              Aplicar aos dias válidos
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <CanonicalFoodPickerDialog
         open={!!picker}
