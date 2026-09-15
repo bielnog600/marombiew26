@@ -424,6 +424,14 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   const handleApplyMacroPct = (planId: string) => {
     const plan = plans.find(p => p.id === planId);
     if (!plan) return;
+    // Fase 5.1: em plano STRUCTURED macros nunca são escalados diretamente —
+    // só quantidades (gramas) mudam, via optimizer determinístico.
+    const canonicalForScale = editedPlans[planId] ?? parseDietPlanLoose(plan.conteudo_json);
+    if (isStructuredCanonicalPlan(canonicalForScale)) {
+      setMacroModalPlanId(null);
+      toast.error('Esta dieta é estruturada: ajuste as quantidades no editor, não os macros.');
+      return;
+    }
     try {
       const meals = extractSingleDayMeals(plan.conteudo);
       if (!meals.length) { toast.error('Nenhuma refeição encontrada.'); return; }
