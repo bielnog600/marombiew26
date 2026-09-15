@@ -119,3 +119,23 @@ export function buildAllowedUnresolvedFromModelDiet(
     .filter((name) => (byName.get(normalizeFoodName(name)) ?? 0) !== 1)
     .map((name) => ({ name, source: 'model_diet' as const }));
 }
+
+/**
+ * HOTFIX CARB CYCLING — a dieta modelo declara explicitamente meta única?
+ * Usado apenas para avisar o treinador quando o Carb Cycling está ativo.
+ * A dieta modelo NUNCA é autoridade das metas.
+ */
+export function modelDietMentionsLinearTargets(modelDietText: string): boolean {
+  if (!modelDietText || typeof modelDietText !== 'string') return false;
+  const text = modelDietText
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  return (
+    /sem\s+ciclagem/.test(text) ||
+    /sem\s+carb\s*cycling/.test(text) ||
+    /meta\s+unica\s+para\s+os?\s+7\s+dias/.test(text) ||
+    /mesma\s+meta\s+(?:em\s+)?todos\s+os\s+dias/.test(text) ||
+    /meta\s+unica\s+para\s+todos\s+os\s+dias/.test(text)
+  );
+}
