@@ -95,20 +95,35 @@ export const resolvePublicationTargets = (
   }
 
   if (weeklyLayer || carbCyclingActive) {
+    // FASE 6.1 — a camada semanal é a AUTORIDADE: byWeekday sai dela, não do
+    // plano. Carb cycling ativo exige a semana completa (seg–dom).
     const byWeekday: Record<string, PublicationTarget> = {};
-    for (const day of days) {
-      const wd = String(day?.weekday ?? "").toLowerCase();
-      if (!(WEEKDAYS as readonly string[]).includes(wd)) {
-        issues.push(`Dia sem weekday reconhecido: "${String(day?.weekday ?? day?.label ?? "")}".`);
-        continue;
-      }
-      const target = toPublicationTarget(weekly?.[wd]) ?? toPublicationTarget(day?.targets ?? day?.target);
+    const required = carbCyclingActive
+      ? [...WEEKDAYS]
+      : WEEKDAYS.filter((wd) => weekly?.[wd] !== undefined && weekly?.[wd] !== null);
+
+    for (const wd of required) {
+      const target = toPublicationTarget(weekly?.[wd]);
       if (!target) {
         issues.push(`Sem meta válida para ${wd}.`);
         continue;
       }
       byWeekday[wd] = target;
     }
+
+    // Dias materializados precisam estar cobertos pela camada autoritativa.
+    // Sem fallback para day.targets / plan.targets.
+    for (const day of days) {
+      const wd = String(day?.weekday ?? "").toLowerCase();
+      if (!(WEEKDAYS as readonly string[]).includes(wd)) {
+        issues.push(`Dia sem weekday reconhecido: "${String(day?.weekday ?? day?.label ?? "")}".`);
+        continue;
+      }
+      if (!byWeekday[wd] && !required.includes(wd as any)) {
+        issues.push(`Sem meta válida para ${wd}.`);
+      }
+    }
+
     const ok = issues.length === 0;
     return {
       ok,
@@ -120,6 +135,7 @@ export const resolvePublicationTargets = (
       schedule: ok ? buildScheduleFromWeeklyTargets(byWeekday) : null,
     };
   }
+
 
   const global = toPublicationTarget(plan?.targets);
   if (!global) {

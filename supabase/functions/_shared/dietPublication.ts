@@ -156,29 +156,81 @@ const assertionFromFood = (food: FoodRecord): FoodAssertion => ({
   source: food.source ?? null,
 });
 
-/** Lista ÚNICA por foodId com os valores usados para criar os snapshots. */
-export const collectFoodAssertions = (plan: any, catalog: FoodCatalog): FoodAssertion[] => {
-  const byId = new Map<string, FoodAssertion>();
-  for (const ref of collectPlanItems(plan)) {
-    const id = ref.item?.foodId ? String(ref.item.foodId) : "";
-    if (!id || byId.has(id)) continue;
-    const food = catalog.index.byId.get(id);
-    if (!food) continue;
-    byId.set(id, assertionFromFood(food));
-  }
-  const adj = plan?.dailyAdjustments;
-  if (adj && typeof adj === "object") {
-    for (const day of Object.values<any>(adj)) {
-      for (const ins of day?.instructions ?? []) {
-        const id = ins?.food_id ? String(ins.food_id) : "";
-        if (!id || byId.has(id)) continue;
-        const food = catalog.index.byId.get(id);
-        if (food) byId.set(id, assertionFromFood(food));
-      }
+const collectAdjustmentFoodIds = (adjustments: any): string[] => {
+  const ids: string[] = [];
+  if (!adjustments || typeof adjustments !== "object") return ids;
+  for (const day of Object.values<any>(adjustments)) {
+    for (const ins of day?.instructions ?? []) {
+      const id = ins?.food_id ? String(ins.food_id) : "";
+      if (id) ids.push(id);
     }
   }
+  return ids;
+};
+
+/**
+ * Lista ÚNICA por foodId com os valores usados para criar os snapshots.
+ * FASE 6.1 — cobre também os `generated_adjustments` normalizados (que vivem
+ * em `protocols.weekly_energy_schedule`, fora do plano).
+ */
+export const collectFoodAssertions = (
+  plan: any,
+  catalog: FoodCatalog,
+  normalizedDailyAdjustments?: any,
+): FoodAssertion[] => {
+  const byId = new Map<string, FoodAssertion>();
+  const push = (rawId: unknown) => {
+    const id = rawId ? String(rawId) : "";
+    if (!id || byId.has(id)) return;
+    const food = catalog.index.byId.get(id);
+    if (food) byId.set(id, assertionFromFood(food));
+  };
+  for (const ref of collectPlanItems(plan)) push(ref.item?.foodId);
+  for (const id of collectAdjustmentFoodIds(plan?.dailyAdjustments)) push(id);
+  for (const id of collectAdjustmentFoodIds(normalizedDailyAdjustments)) push(id);
   return Array.from(byId.values()).sort((a, b) => a.id.localeCompare(b.id));
 };
+
+const round4 = (v: unknown): number => Math.round(num(v) * 10000) / 10000;
+const str = (v: unknown): string => (v === null || v === undefined ? "" : String(v));
+
+/**
+ * FASE 6.1 — o snapshot histórico gravado precisa ser EXATAMENTE o alimento
+ * conferido contra `foods` (assertion). Mesma regra aplicada pela RPC.
+ */
+export const validateSnapshotAssertionIntegrity = (
+  plan: any,
+  assertions: FoodAssertion[],
+  normalizedDailyAdjustments?: any,
+): PublicationSchemaReport => {
+  const issues: string[] = [];
+  const byId = new Map<string, FoodAssertion>();
+  for (const a of assertions ?? []) byId.set(String(a.id), a);
+
+  for (const ref of collectPlanItems(plan)) {
+    const path = `${ref.day} / ${ref.meal} / ${ref.name || "item"}`;
+    const id = ref.item?.foodId ? String(ref.item.foodId) : "";
+    const a = id ? byId.get(id) : undefined;
+    if (!a) { issues.push(`${path}: sem assertion para o alimento.`); continue; }
+    const s = ref.item?.nutritionSnapshot;
+    if (!s) { issues.push(`${path}: sem nutritionSnapshot.`); continue; }
+    if (round4(s.portionSize) !== round4(a.portionSize)) issues.push(`${path}: portionSize divergente.`);
+    if (round4(s.kcal) !== round4(a.kcal)) issues.push(`${path}: kcal divergente.`);
+    if (round4(s.p) !== round4(a.p)) issues.push(`${path}: proteína divergente.`);
+    if (round4(s.c) !== round4(a.c)) issues.push(`${path}: carboidrato divergente.`);
+    if (round4(s.g) !== round4(a.g)) issues.push(`${path}: gordura divergente.`);
+    if (str(s.brand) !== str(a.brand)) issues.push(`${path}: marca divergente.`);
+    if (str(s.source) !== str(a.source)) issues.push(`${path}: fonte divergente.`);
+    if (str(ref.item?.name) !== str(a.name)) issues.push(`${path}: nome divergente do alimento.`);
+  }
+
+  for (const id of collectAdjustmentFoodIds(normalizedDailyAdjustments ?? plan?.dailyAdjustments)) {
+    if (!byId.has(id)) issues.push(`Ajuste diário sem assertion para o alimento ${id}.`);
+  }
+
+  return { ok: issues.length === 0, issues };
+};
+
 
 /* -------------------------------------------------------------------------- */
 /* Snapshot                                                                   */

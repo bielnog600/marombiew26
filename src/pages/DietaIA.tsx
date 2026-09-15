@@ -2594,7 +2594,10 @@ ${generated}`;
           .eq('student_id', studentId!)
           .eq('tipo', 'dieta')
           // FASE 6: reaproveitar apenas RASCUNHO do dia. Dieta publicada é histórico.
+          // FASE 6.1: nunca reaproveitar draft que é NOVA VERSÃO de uma publicada.
           .eq('is_draft', true)
+          .is('parent_plan_id', null)
+
           .gte('created_at', startOfDay.toISOString())
           .order('created_at', { ascending: false })
           .limit(1);
@@ -2658,12 +2661,13 @@ ${generated}`;
         if (structuredSave && !isDraft && insertedPlan?.id) {
           published = await publishStructuredPlanViaEdge(insertedPlan.id);
         }
-        // FASE 6: o ciclo só é renovado quando a nova dieta fica realmente ativa.
-        if (published && !isDraft && lastDietPlan?.id) {
+        // FASE 6.1: em structured quem renova o ciclo é a RPC atômica.
+        if (!structuredSave && published && !isDraft && lastDietPlan?.id) {
           await supabase.from('ai_plans').update({
             cycle_status: 'renovado'
           }).eq('id', lastDietPlan.id);
         }
+
         if (!structuredSave || isDraft) {
           toast.success(isDraft ? 'Rascunho salvo!' : 'Dieta salva e ciclo atualizado!');
         }

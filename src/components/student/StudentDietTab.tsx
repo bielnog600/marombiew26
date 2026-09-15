@@ -229,11 +229,18 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   }, [plans, extractSingleDayMeals, studentId]);
 
   const handleDelete = async (planId: string) => {
+    // FASE 6.1 — dieta publicada é histórico: nunca deletável pelo app.
+    const target = plans.find(p => p.id === planId);
+    if (target && target.is_draft === false && isStructuredCanonicalPlan(parseDietPlanLoose(target.conteudo_json))) {
+      toast.error('Dieta publicada faz parte do histórico e não pode ser excluída.');
+      return;
+    }
     const { error } = await supabase.from('ai_plans').delete().eq('id', planId);
     if (error) { toast.error('Erro ao deletar: ' + error.message); return; }
     toast.success('Dieta deletada.');
     setPlans(prev => prev.filter(p => p.id !== planId));
   };
+
 
   const handleDuplicate = async (planId: string) => {
     const plan = plans.find(p => p.id === planId);
@@ -361,22 +368,23 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
    * derived from that same JSON, so `conteudo` and `conteudo_json` can never
    * disagree (which previously made saved portions "come back" on reload).
    */
-  const handleSave = async (planId: string) => {
+  const handleSave = async (planId: string): Promise<boolean> => {
     const meals = editedMeals[planId];
     const daysEdit = editedDays[planId];
     const updatedPlan = editedPlans[planId];
     const scheduleEdit = editedSchedules[planId];
-    if (!meals && !updatedPlan && !daysEdit && !scheduleEdit) return;
+    if (!meals && !updatedPlan && !daysEdit && !scheduleEdit) return false;
     const plan = plans.find(p => p.id === planId);
-    if (!plan) return;
+    if (!plan) return false;
 
     const basePlan: DietPlan | null = updatedPlan ?? parseDietPlanLoose(plan.conteudo_json);
 
     // FASE 6: nunca fazer UPDATE de conteúdo em structured publicado.
     if (plan.is_draft === false && isStructuredCanonicalPlan(basePlan)) {
       toast.error('Esta dieta está publicada. Crie uma nova versão para editar.');
-      return;
+      return false;
     }
+
     const latestDays = (daysEdit && daysEdit.length > 0)
       ? daysEdit
       : (meals && meals.length > 0 ? [{ label: 'Padrão', meals }] : null);
@@ -423,18 +431,21 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
 
     if (error || !savedRow) {
       toast.error('Erro ao salvar: ' + (error?.message || 'falha ao gravar'));
-    } else {
-      toast.success('Dieta salva com sucesso!');
-      setPlans(prev => prev.map(p => p.id === planId ? savedRow : p));
-      setEditedMeals(prev => { const c = { ...prev }; delete c[planId]; return c; });
-      setEditedDays(prev => { const c = { ...prev }; delete c[planId]; return c; });
-      setEditedPlans(prev => { const c = { ...prev }; delete c[planId]; return c; });
-      setEditedSchedules(prev => { const c = { ...prev }; delete c[planId]; return c; });
-      setAiNotes(prev => { const c = { ...prev }; delete c[planId]; return c; });
-      setEditingId(null);
+      setSaving(null);
+      return false;
     }
+    toast.success('Dieta salva com sucesso!');
+    setPlans(prev => prev.map(p => p.id === planId ? savedRow : p));
+    setEditedMeals(prev => { const c = { ...prev }; delete c[planId]; return c; });
+    setEditedDays(prev => { const c = { ...prev }; delete c[planId]; return c; });
+    setEditedPlans(prev => { const c = { ...prev }; delete c[planId]; return c; });
+    setEditedSchedules(prev => { const c = { ...prev }; delete c[planId]; return c; });
+    setAiNotes(prev => { const c = { ...prev }; delete c[planId]; return c; });
+    setEditingId(null);
     setSaving(null);
+    return true;
   };
+
 
   const handleApplyMacroPct = (planId: string) => {
     const plan = plans.find(p => p.id === planId);
@@ -622,6 +633,18 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         ))
                       }
                     />
+                    {plan.is_draft === false && isStructuredCanonicalPlan(parseDietPlanLoose(plan.conteudo_json)) ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled
+                        title="Dieta publicada faz parte do histórico e não pode ser excluída."
+                        className="h-7 w-7 text-muted-foreground/40"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    ) : (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button
@@ -649,6 +672,8 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
+                    )}
+
                     {isExpanded && hasChanges && (
                       <Button
                         size="sm"
@@ -676,9 +701,12 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                           }
                           if (structured) {
                             // FASE 6: publicação structured é SEMPRE server-side e atômica.
+                            // FASE 6.1: se o save falhar, NÃO publica.
                             if (editedPlans[plan.id] || editedMeals[plan.id] || editedDays[plan.id] || editedSchedules[plan.id]) {
-                              await handleSave(plan.id);
+                              const saved = await handleSave(plan.id);
+                              if (!saved) return;
                             }
+
                             const published = await publishStructuredPlan(plan.id);
                             if (!published) return;
                             return;
