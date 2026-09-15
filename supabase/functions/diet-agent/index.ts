@@ -44,7 +44,7 @@ import {
   type DietCandidateSignals,
 } from "../_shared/dietRoutingPolicy.ts";
 import { sanitizeStructuredPrompt } from "../_shared/structuredPromptSanitizer.ts";
-import { scheduleHasDailyMacroTargets, validateDayTargets } from "../_shared/dayTargets.ts";
+import { scheduleHasDailyMacroTargets, validateDayTargets, hasMeaningfulDailyTargetVariation } from "../_shared/dayTargets.ts";
 import {
   formatFoodCatalogPrompt,
   loadFoodCatalog,
