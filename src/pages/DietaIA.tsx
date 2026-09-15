@@ -2594,7 +2594,10 @@ ${generated}`;
           .eq('student_id', studentId!)
           .eq('tipo', 'dieta')
           // FASE 6: reaproveitar apenas RASCUNHO do dia. Dieta publicada é histórico.
+          // FASE 6.1: nunca reaproveitar draft que é NOVA VERSÃO de uma publicada.
           .eq('is_draft', true)
+          .is('parent_plan_id', null)
+
           .gte('created_at', startOfDay.toISOString())
           .order('created_at', { ascending: false })
           .limit(1);
