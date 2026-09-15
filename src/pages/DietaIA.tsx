@@ -1750,7 +1750,16 @@ const DietaIA = () => {
     dietConfig: { objective?: string; strategy?: string; style?: string; carbCyclePlan?: any; weeklyEnergySchedule?: any },
     targets: { kcal: number; p: number; c: number; g: number; tmb?: number; get?: number },
     intent: DietIntent = 'new',
-  ): Promise<{ plan: DietPlan | null; errorCode?: string; status?: number; message?: string }> => {
+  ): Promise<{
+    plan: DietPlan | null;
+    errorCode?: string;
+    status?: number;
+    message?: string;
+    details?: string;
+    validationReasons?: unknown;
+    missingDays?: unknown;
+    dayTargetIssues?: unknown;
+  }> => {
     // Latest training markdown → structured context
     let trainingContext: any = undefined;
     try {
@@ -1814,12 +1823,25 @@ const DietaIA = () => {
 
     if (!streamResp.ok || !streamResp.body) {
       const err = await streamResp.json().catch(() => ({}));
-      console.warn('structured diet-agent non-200:', streamResp.status, err);
+      const body = (err && typeof err === 'object' ? err : {}) as any;
+      console.error('[DietaIA] structured generation failed', {
+        status: streamResp.status,
+        error_code: body.error_code,
+        error: body.error,
+        details: body.details,
+        validationReasons: body.validationReasons,
+        missing_days: body.missing_days,
+        dayTargetIssues: body.dayTargetIssues,
+      });
       return {
         plan: null,
         status: streamResp.status,
-        errorCode: (err && typeof err === 'object' && (err as any).error_code) || undefined,
-        message: (err && typeof err === 'object' && (err as any).error) || undefined,
+        errorCode: body.error_code || undefined,
+        message: body.error || undefined,
+        details: body.details,
+        validationReasons: body.validationReasons,
+        missingDays: body.missing_days,
+        dayTargetIssues: body.dayTargetIssues,
       };
     }
 
@@ -1861,12 +1883,24 @@ const DietaIA = () => {
     const resp = { status: finalStatus, ok: finalStatus >= 200 && finalStatus < 300 };
     const parsedBody = (() => { try { return JSON.parse(finalBody); } catch { return null; } })();
     if (!resp.ok) {
-      console.warn('structured diet-agent non-200:', resp.status, parsedBody);
+      console.error('[DietaIA] structured generation failed', {
+        status: resp.status,
+        error_code: parsedBody?.error_code,
+        error: parsedBody?.error,
+        details: parsedBody?.details,
+        validationReasons: parsedBody?.validationReasons,
+        missing_days: parsedBody?.missing_days,
+        dayTargetIssues: parsedBody?.dayTargetIssues,
+      });
       return {
         plan: null,
         status: resp.status,
         errorCode: parsedBody?.error_code || undefined,
         message: parsedBody?.error || undefined,
+        details: parsedBody?.details,
+        validationReasons: parsedBody?.validationReasons,
+        missingDays: parsedBody?.missing_days,
+        dayTargetIssues: parsedBody?.dayTargetIssues,
       };
     }
     const data = parsedBody;
@@ -2218,7 +2252,15 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
 
       // ── 1) STRUCTURED MODE (primary path) ──
       let structured: DietPlan | null = null;
-      let structuredError: { status?: number; code?: string; message?: string } | null = null;
+      let structuredError: {
+        status?: number;
+        code?: string;
+        message?: string;
+        details?: string;
+        validationReasons?: unknown;
+        missingDays?: unknown;
+        dayTargetIssues?: unknown;
+      } | null = null;
       if (currentTargets) {
         // Phase 2: build carb-cycle plan when the protocol is selected.
         // Fase 3 é a única implementação de carb cycling — o plano legado
@@ -2312,6 +2354,10 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
               status: structuredResult.status,
               code: structuredResult.errorCode,
               message: structuredResult.message,
+              details: structuredResult.details,
+              validationReasons: structuredResult.validationReasons,
+              missingDays: structuredResult.missingDays,
+              dayTargetIssues: structuredResult.dayTargetIssues,
             };
           }
         } catch (e) {
@@ -2381,15 +2427,18 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
       // daily_adjustments_invalid), NÃO cair no fallback markdown — o editor
       // não pode exibir um plano sem os ajustes por dia.
       if (weeklySchedule && structuredError) {
-        const isDailyAdj = structuredError.code === 'daily_adjustments_invalid';
-        const isReview = structuredError.code === 'review_required';
-        console.warn('[DietaIA] structured_failed_with_schedule', structuredError);
+        console.error('[DietaIA] structured_failed_with_schedule', structuredError);
+        const TOAST_BY_CODE: Record<string, string> = {
+          daily_adjustments_invalid: 'Falha nos ajustes diários da dieta.',
+          food_contract_invalid: 'Alguns alimentos da dieta modelo não foram encontrados na base.',
+          canonical_targets_missing: 'As metas nutricionais não foram enviadas corretamente.',
+          day_targets_invalid: 'Um ou mais dias ficaram fora da meta.',
+          review_required: 'O plano precisa de revisão antes de ser aceito.',
+        };
         toast.error(
-          isDailyAdj
-            ? (structuredError.message || 'A IA não devolveu os ajustes dos dias com variação calórica. Regere o plano.')
-            : isReview
-              ? 'O plano gerado não passou na validação (estrutura nutricional ou ajustes diários). Clique em gerar novamente.'
-              : structuredError.message || 'Falha ao gerar dieta estruturada. Regere o plano.',
+          (structuredError.code && TOAST_BY_CODE[structuredError.code]) ||
+            structuredError.message ||
+            'Falha ao gerar dieta estruturada. Regere o plano.',
         );
         return;
       }
