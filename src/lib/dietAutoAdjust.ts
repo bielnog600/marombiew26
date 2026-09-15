@@ -52,7 +52,15 @@ export interface AutoAdjustChange {
 export interface AutoAdjustResult<TPlan = any> {
   status: AutoAdjustStatus;
   originalPlan: TPlan;
+  /**
+   * Plano aplicável — preenchido SOMENTE quando a solução fecha dentro das
+   * tolerâncias. Nunca contém a "melhor tentativa".
+   */
   adjustedPlan?: TPlan;
+  /** Alias explícito de `adjustedPlan` (Fase 5.1: API sem ambiguidade). */
+  feasibleAdjustedPlan?: TPlan;
+  /** Melhor aproximação quando o dia é inviável — não é uma solução válida. */
+  bestAttemptPlan?: TPlan;
   target: DayTarget;
   before: AutoAdjustMacros;
   after?: AutoAdjustMacros;
