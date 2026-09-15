@@ -101,7 +101,21 @@ Deno.serve(async (req) => {
       })
       .select("*")
       .single();
-    if (insertError) return json({ error_code: "version_failed", details: insertError.message }, 400);
+    if (insertError) {
+      // FASE 6.1 — corrida entre duas chamadas: o índice único protege o banco
+      // e nós devolvemos o draft vencedor (idempotência sob concorrência).
+      const { data: raced } = await supabase
+        .from("ai_plans")
+        .select("*")
+        .eq("parent_plan_id", planId)
+        .eq("tipo", "dieta")
+        .eq("is_draft", true)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (raced && raced.length > 0) return json({ ok: true, reused: true, plan: raced[0] });
+      return json({ error_code: "version_failed", details: insertError.message }, 400);
+    }
+
 
     return json({
       ok: true,
