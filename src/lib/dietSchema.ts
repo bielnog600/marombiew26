@@ -208,6 +208,10 @@ export const DietPlanMeta = z.object({
   nutritionSnapshotVersion: z.string().optional(),
   /** Versão do contrato {foodId, qtyGrams} usado pela IA. */
   foodContractVersion: z.string().optional(),
+  /** FASE 6 — preenchidos SOMENTE pelo RPC de publicação (nunca pela IA). */
+  publishedAt: z.string().optional(),
+  publishedBy: z.string().optional(),
+  publicationRevision: z.number().optional(),
 });
 export type DietPlanMeta = z.infer<typeof DietPlanMeta>;
 
