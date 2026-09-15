@@ -472,6 +472,8 @@ const DietaIA = () => {
   const [saveMode, setSaveMode] = useState<'draft' | 'publish'>('draft');
   const [adjusting, setAdjusting] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
+  /** Só é ativada no início de uma geração de dieta (nunca em edições). */
+  const scrollToResultAfterGenerationRef = useRef(false);
   const [showMacroModal, setShowMacroModal] = useState(false);
   const [macroPct, setMacroPct] = useState({ protein: 20, carbs: 50, fat: 30 });
   const [lastDietPlan, setLastDietPlan] = useState<any>(null);
