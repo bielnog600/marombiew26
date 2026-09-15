@@ -673,7 +673,10 @@ export function optimizeDietDay<TPlan = any>({
   return {
     status: withinTolerance ? 'feasible' : 'infeasible',
     originalPlan: plan,
-    adjustedPlan: nextPlan as TPlan,
+    // Fase 5.1: só uma solução viável vira plano aplicável.
+    adjustedPlan: withinTolerance ? (nextPlan as TPlan) : undefined,
+    feasibleAdjustedPlan: withinTolerance ? (nextPlan as TPlan) : undefined,
+    bestAttemptPlan: withinTolerance ? undefined : (nextPlan as TPlan),
     target,
     before,
     after,
