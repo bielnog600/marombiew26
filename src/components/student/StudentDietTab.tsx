@@ -21,6 +21,11 @@ import { parseSections } from '@/lib/dietResultParser';
 import { parseDietPlanLoose, type DietPlan } from '@/lib/dietSchema';
 import DietValidationBadge from '@/components/diet/DietValidationBadge';
 import { extractTargetsFromSections } from '@/lib/dietTargets';
+import {
+  isStructuredCanonicalPlan,
+  hasUnresolvedCanonicalItems,
+  resolvePersistedTargetsByDay,
+} from '@/lib/dietStructuredGuards';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
