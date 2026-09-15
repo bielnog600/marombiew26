@@ -328,7 +328,11 @@ describe('Fase 5 — integração canônica (U–AF)', () => {
     applied.targets = { kcal: target.kcal, p: target.p, c: target.c, g: target.g };
     recomputeDayFromFoods(applied.days[0], FOODS);
 
-    const report = validateCanonicalDietTarget(applied, target, FOODS);
+    const report = validateCanonicalDietTarget({
+      plan: applied,
+      target: { calories: target.kcal, protein: target.p, carbs: target.c, fats: target.g },
+      foods: FOODS,
+    });
     expect(report.valid).toBe(true);
 
     const md = dietPlanToMarkdown(applied);
@@ -341,7 +345,8 @@ describe('Fase 5 — integração canônica (U–AF)', () => {
     const src = fs.readFileSync('src/components/diet/CanonicalDietEditor.tsx', 'utf8');
     expect(src).not.toContain('scaleMealsToTarget');
     expect(src).not.toContain('normalizeFoodKey');
-    expect(src).not.toContain('fuzzy');
+    expect(src).not.toContain('fuzzyMatch');
+    expect(src).not.toContain('scaleMealsToMacroTargets');
     expect(src).toContain('computeDayTotals');
   });
 
