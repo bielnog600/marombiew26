@@ -109,6 +109,39 @@ import {
 } from '@/lib/dietDayValidation';
 import type { ParsedMeal } from '@/lib/dietResultParser';
 import { Percent } from 'lucide-react';
+import { isStructuredCanonicalPlan } from '@/lib/dietStructuredGuards';
+
+/** FASE 6 — mensagens de UI para os error_code da publicação atômica. */
+const PUBLISH_ERROR_MESSAGES: Record<string, string> = {
+  not_authorized: 'Você não tem permissão para publicar esta dieta.',
+  plan_not_found: 'Dieta não encontrada.',
+  structured_plan_required: 'Esta dieta não está no formato estruturado.',
+  already_published: 'Esta dieta já está publicada.',
+  food_contract_invalid: 'Há alimentos inválidos na dieta. Revise antes de publicar.',
+  unresolved_foods: 'Resolva todos os alimentos antes de publicar.',
+  publication_targets_invalid: 'Falta a meta de algum dia. Defina as metas antes de publicar.',
+  nutrition_target_invalid: 'A dieta está fora da meta. Ajuste as porções antes de publicar.',
+  daily_adjustments_invalid: 'Os ajustes diários estão incompletos ou fora da tolerância.',
+  food_catalog_changed: 'A base alimentar mudou durante a publicação. Tente novamente.',
+  draft_changed_refresh_required: 'Este rascunho foi alterado em outra sessão. Atualize a página.',
+  publication_schema_invalid: 'A dieta não passou na verificação final de integridade.',
+  publication_failed: 'Não foi possível publicar esta dieta.',
+};
+
+/**
+ * FASE 6 — publicação structured SEMPRE pela Edge Function (atômica,
+ * com snapshot nutricional e markdown gerados no servidor).
+ */
+const publishStructuredPlanViaEdge = async (planId: string): Promise<boolean> => {
+  const { data, error } = await supabase.functions.invoke('publish-diet-plan', { body: { planId } });
+  const code = (data as any)?.error_code ?? null;
+  if (code || error) {
+    toast.error(PUBLISH_ERROR_MESSAGES[code as string] ?? 'Não foi possível publicar esta dieta.');
+    return false;
+  }
+  toast.success('Dieta publicada.');
+  return true;
+};
 
 type StudentCtx = Record<string, any>;
 
