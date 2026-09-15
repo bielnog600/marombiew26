@@ -566,13 +566,18 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         variant="ghost"
                         size="sm"
                         className="h-7 gap-1 px-2 text-xs"
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
-                          setEditingId(isEditing ? null : plan.id);
                           if (isEditing) {
+                            setEditingId(null);
                             setEditedMeals(prev => { const c = { ...prev }; delete c[plan.id]; return c; });
                             setEditedDays(prev => { const c = { ...prev }; delete c[plan.id]; return c; });
+                            return;
                           }
+                          // FASE 6: publicado structured abre uma nova versão em rascunho.
+                          const target = await ensureEditableDraft(plan);
+                          if (!target) return;
+                          setEditingId(target.id);
                         }}
                       >
                         {isEditing ? <Eye className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
@@ -648,11 +653,18 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                           e.stopPropagation();
                           // Fase 5.1: guarda de publicação com item não validado.
                           const canonicalNow = editedPlans[plan.id] ?? parseDietPlanLoose(plan.conteudo_json);
-                          if (
-                            isStructuredCanonicalPlan(canonicalNow) &&
-                            hasUnresolvedCanonicalItems(canonicalNow)
-                          ) {
+                          const structured = isStructuredCanonicalPlan(canonicalNow);
+                          if (structured && hasUnresolvedCanonicalItems(canonicalNow)) {
                             toast.error('Existem alimentos não validados. Resolva antes de publicar.');
+                            return;
+                          }
+                          if (structured) {
+                            // FASE 6: publicação structured é SEMPRE server-side e atômica.
+                            if (editedPlans[plan.id] || editedMeals[plan.id] || editedDays[plan.id] || editedSchedules[plan.id]) {
+                              await handleSave(plan.id);
+                            }
+                            const published = await publishStructuredPlan(plan.id);
+                            if (!published) return;
                             return;
                           }
                           const { error } = await supabase.from('ai_plans').update({ is_draft: false }).eq('id', plan.id);
