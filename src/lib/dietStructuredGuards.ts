@@ -44,10 +44,20 @@ export const hasUnresolvedCanonicalItems = (plan: any): boolean =>
     ),
   );
 
+/**
+ * FASE 5.2.1 — null, undefined, string vazia e boolean NUNCA viram zero.
+ * Aceita número finito ou string numérica não vazia (decimal PT também).
+ */
 const num = (v: unknown): number | null => {
-  const n = Number(v);
+  if (v === null || v === undefined) return null;
+  if (typeof v !== 'number' && typeof v !== 'string') return null;
+  const raw = typeof v === 'string' ? v.trim().replace(',', '.') : v;
+  if (raw === '') return null;
+  const n = Number(raw);
   return Number.isFinite(n) ? n : null;
 };
+
+const WEEKDAY_KEYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'] as const;
 
 /**
  * FASE 5.2 — meta persistida precisa ser COMPLETA.
@@ -67,10 +77,14 @@ const toTarget = (raw: any): DayTarget | null => {
 };
 
 /** Existe camada de metas por dia persistida (pelo menos uma meta válida). */
+/**
+ * A camada existe pela PRESENÇA de pelo menos um weekday reconhecido,
+ * mesmo que a meta desse dia esteja inválida/corrompida.
+ */
 export const hasWeeklyDayTargetsLayer = (protocols: any): boolean => {
   const weekly = protocols?.weekly_day_targets;
   if (!weekly || typeof weekly !== 'object') return false;
-  return Object.values(weekly).some((v) => toTarget(v) !== null);
+  return WEEKDAY_KEYS.some((k) => weekly[k] !== undefined && weekly[k] !== null);
 };
 
 export interface ResolvePersistedTargetsInput {

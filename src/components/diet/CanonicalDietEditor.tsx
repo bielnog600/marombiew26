@@ -71,7 +71,7 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
     queryFn: async (): Promise<FoodRecord[]> => {
       const { data, error } = await supabase
         .from('foods')
-        .select('id, name, calories, protein, carbs, fats, portion, portion_size')
+        .select('id, name, calories, protein, carbs, fats, portion, portion_size, brand, source')
         .order('name');
       if (error) throw error;
       return (data ?? []).map((row: any) => foodRecordFromRow(row));

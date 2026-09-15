@@ -183,3 +183,66 @@ describe('Fase 5.2 — picker e undo', () => {
     }
   });
 });
+
+describe('Fase 5.2.1 — micro-correções', () => {
+  const dayPlan = (targets: any) => ({ days: [{ label: 'Dia 1' }], targets });
+
+  it('K. null não vira zero', () => {
+    expect(
+      resolvePersistedTargetsByDay({ plan: dayPlan({ kcal: 2000, p: 150, c: null, g: 70 }) })[0],
+    ).toBeNull();
+  });
+
+  it('L. string vazia não vira zero', () => {
+    expect(
+      resolvePersistedTargetsByDay({ plan: dayPlan({ kcal: 2000, p: 150, c: '', g: 70 }) })[0],
+    ).toBeNull();
+    expect(
+      resolvePersistedTargetsByDay({ plan: dayPlan({ kcal: 2000, p: 150, c: '   ', g: 70 }) })[0],
+    ).toBeNull();
+    expect(
+      resolvePersistedTargetsByDay({ plan: dayPlan({ kcal: 2000, p: true, c: 10, g: 70 }) })[0],
+    ).toBeNull();
+  });
+
+  it('M. zero explícito (número e string) continua válido', () => {
+    expect(resolvePersistedTargetsByDay({ plan: dayPlan({ kcal: 2000, p: 150, c: 0, g: 70 }) })[0]).toEqual(
+      { kcal: 2000, p: 150, c: 0, g: 70 },
+    );
+    expect(
+      resolvePersistedTargetsByDay({ plan: dayPlan({ kcal: 2000, p: '150', c: '0', g: '0,5' }) })[0],
+    ).toEqual({ kcal: 2000, p: 150, c: 0, g: 0.5 });
+  });
+
+  it('N. camada semanal inválida continua sendo camada (nunca global)', () => {
+    const protocols = { weekly_day_targets: { seg: { kcal: 2200, p: 160, c: null, g: 70 } } };
+    expect(hasWeeklyDayTargetsLayer(protocols)).toBe(true);
+    const out = resolvePersistedTargetsByDay({
+      plan: { targets: { kcal: 2000, p: 150, c: 200, g: 60 }, days: [{ weekday: 'seg' }] },
+      protocols,
+    });
+    expect(out[0]).toBeNull();
+  });
+
+  it('O. camada semanal vazia permite o global', () => {
+    const protocols = { weekly_day_targets: {} };
+    expect(hasWeeklyDayTargetsLayer(protocols)).toBe(false);
+    expect(
+      resolvePersistedTargetsByDay({
+        plan: { targets: { kcal: 2000, p: 150, c: 200, g: 60 }, days: [{ weekday: 'seg' }] },
+        protocols,
+      })[0],
+    ).toEqual({ kcal: 2000, p: 150, c: 200, g: 60 });
+  });
+
+  it('P. metadata sem weekday não cria camada', () => {
+    const protocols = { weekly_day_targets: { version: 1 } };
+    expect(hasWeeklyDayTargetsLayer(protocols)).toBe(false);
+    expect(
+      resolvePersistedTargetsByDay({
+        plan: { targets: { kcal: 2000, p: 150, c: 200, g: 60 }, days: [{ weekday: 'seg' }] },
+        protocols,
+      })[0],
+    ).toEqual({ kcal: 2000, p: 150, c: 200, g: 60 });
+  });
+});
