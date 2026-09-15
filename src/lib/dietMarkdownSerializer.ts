@@ -1,5 +1,6 @@
 import type { ParsedFood, ParsedMeal } from './dietResultParser';
 import type { DietPlan } from './dietSchema';
+import { canonicalDietPlanToMarkdown } from '../../supabase/functions/_shared/canonicalDietMarkdown';
 import { dietPlanToParsedMeals } from './dietPlanAdapter';
 
 const num = (v?: string) => {
@@ -248,7 +249,7 @@ export const dietPlanToMarkdown = (plan: DietPlan): string =>
   canonicalDietPlanToMarkdown(plan as any);
 
 /** Implementação legada mantida apenas para referência de compatibilidade. */
-const legacyDietPlanToMarkdown = (plan: DietPlan): string => {
+export const legacyDietPlanToMarkdown = (plan: DietPlan): string => {
   const t = plan.targets;
   const meta = plan.meta;
   const headerParts: string[] = [];
