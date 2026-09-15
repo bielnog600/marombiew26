@@ -326,14 +326,12 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   const ensureEditableDraft = async (plan: any): Promise<any | null> => {
     const canonical = parseDietPlanLoose(plan?.conteudo_json);
     if (plan?.is_draft !== false || !isStructuredCanonicalPlan(canonical)) return plan;
-    const { data, error } = await supabase.functions.invoke('create-diet-version', {
-      body: { planId: plan.id },
-    });
-    if (error || !data?.plan) {
-      toast.error('Não foi possível criar a nova versão desta dieta.');
+    const result = await createDietVersion(plan.id);
+    if (!result.ok || !result.plan) {
+      toast.error(result.message ?? 'Não foi possível criar a nova versão desta dieta.');
       return null;
     }
-    const draft = data.plan;
+    const draft = result.plan;
     setPlans(prev => (prev.some(p => p.id === draft.id) ? prev : [draft, ...prev]));
     setExpandedId(draft.id);
     toast.success(data.reused ? 'Rascunho desta versão reaberto.' : 'Nova versão em rascunho criada.');
