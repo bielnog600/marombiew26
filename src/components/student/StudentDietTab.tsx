@@ -520,6 +520,15 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                           </p>
                           {(() => {
                             const parsed = parseDietPlanLoose(plan.conteudo_json);
+                            // Fase 5.1: em plano estruturado o selo NÃO pode vir de
+                            // uma validação antiga gravada no JSON.
+                            if (isStructuredCanonicalPlan(parsed)) {
+                              return hasUnresolvedCanonicalItems(parsed) ? (
+                                <Badge variant="outline" className="ml-1 h-4 px-1 text-[8px] uppercase text-amber-500 border-amber-500/30">
+                                  Não validada
+                                </Badge>
+                              ) : null;
+                            }
                             return parsed?.validation ? (
                               <DietValidationBadge report={parsed.validation} className="ml-1" />
                             ) : null;
