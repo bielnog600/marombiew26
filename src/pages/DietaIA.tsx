@@ -686,6 +686,27 @@ const DietaIA = () => {
     [carbCycling, carbTypeTargets],
   );
 
+  /**
+   * Fase 5: target FINAL por dia materializado do plano canônico.
+   * Linear → meta global; carb cycling → meta do weekday. O optimizer nunca
+   * recalcula meta: apenas consome o valor já resolvido pelas Fases 2–3.
+   */
+  const structuredTargetsByDay = useMemo(() => {
+    const days = structuredPlan?.days ?? [];
+    return days.map((d) => {
+      if (carbCycling.enabled) {
+        const wd = String(d?.weekday ?? '') as WeekdayKey;
+        const t = weeklyCarbTargets[wd];
+        return t ? { kcal: t.kcal, p: t.p, c: t.c, g: t.g } : null;
+      }
+      return canonicalTargets.kcal > 0
+        ? { kcal: canonicalTargets.kcal, p: canonicalTargets.p, c: canonicalTargets.c, g: canonicalTargets.g }
+        : null;
+    });
+  }, [structuredPlan, carbCycling.enabled, weeklyCarbTargets, canonicalTargets]);
+
+
+
   const carbWeeklyAverage = useMemo(
     () => calculateWeeklyAverage(weeklyCarbTargets),
     [weeklyCarbTargets],
