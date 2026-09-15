@@ -626,6 +626,18 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         ))
                       }
                     />
+                    {plan.is_draft === false && isStructuredCanonicalPlan(parseDietPlanLoose(plan.conteudo_json)) ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled
+                        title="Dieta publicada faz parte do histórico e não pode ser excluída."
+                        className="h-7 w-7 text-muted-foreground/40"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    ) : (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button
@@ -653,6 +665,8 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
+                    )}
+
                     {isExpanded && hasChanges && (
                       <Button
                         size="sm"
