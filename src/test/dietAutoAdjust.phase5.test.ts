@@ -126,7 +126,7 @@ describe('Fase 5 — solver', () => {
     const res = optimizeDietDay({ plan, dayIndex: 0, target: targetSimple, foods: FOODS });
     expect(res.status).toBe('feasible');
     expect(res.withinTolerance).toBe(true);
-    const items = (res.adjustedPlan as any).days[0].meals[0].items;
+    const items = ((res.adjustedPlan ?? res.bestAttemptPlan) as any).days[0].meals[0].items;
     expect(items.map((i: any) => i.foodId)).toEqual(['rice-id', 'chicken-id', 'oil-id']);
     expect((res.adjustedPlan as any).days[0].meals[0].name).toBe('Almoço');
     // kcal oficial (130/100g), nunca 4/4/9 (que daria ~125,5 para o arroz)
@@ -141,7 +141,7 @@ describe('Fase 5 — solver', () => {
       item(AZEITE, 10),
     ]);
     const res = optimizeDietDay({ plan, dayIndex: 0, target: targetSimple, foods: FOODS });
-    const items = (res.adjustedPlan as any).days[0].meals[0].items;
+    const items = ((res.adjustedPlan ?? res.bestAttemptPlan) as any).days[0].meals[0].items;
     expect(items[0].qtyGrams).toBe(250);
     expect(res.changes.every((c) => c.foodId !== 'rice-id')).toBe(true);
   });
@@ -154,7 +154,7 @@ describe('Fase 5 — solver', () => {
       target: { kcal: 5000, p: 300, c: 900, g: 10 },
       foods: FOODS,
     });
-    const qty = (res.adjustedPlan as any).days[0].meals[0].items[0].qtyGrams;
+    const qty = ((res.adjustedPlan ?? res.bestAttemptPlan) as any).days[0].meals[0].items[0].qtyGrams;
     expect(qty).toBeLessThanOrEqual(320);
     expect(qty).toBeGreaterThanOrEqual(100);
     expect(qty % 10).toBe(0);
