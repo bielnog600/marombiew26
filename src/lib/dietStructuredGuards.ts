@@ -77,10 +77,14 @@ const toTarget = (raw: any): DayTarget | null => {
 };
 
 /** Existe camada de metas por dia persistida (pelo menos uma meta válida). */
+/**
+ * A camada existe pela PRESENÇA de pelo menos um weekday reconhecido,
+ * mesmo que a meta desse dia esteja inválida/corrompida.
+ */
 export const hasWeeklyDayTargetsLayer = (protocols: any): boolean => {
   const weekly = protocols?.weekly_day_targets;
   if (!weekly || typeof weekly !== 'object') return false;
-  return Object.values(weekly).some((v) => toTarget(v) !== null);
+  return WEEKDAY_KEYS.some((k) => weekly[k] !== undefined && weekly[k] !== null);
 };
 
 export interface ResolvePersistedTargetsInput {
