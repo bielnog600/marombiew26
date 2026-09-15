@@ -208,7 +208,7 @@ describe('Fase 5 — solver', () => {
 
   it('T. homônimo resolve por foodId, nunca pelo nome', () => {
     const arrozB = food('rice-b', 'Arroz branco', 358, 6.6, 79, 0.6);
-    const plan = makePlan([item(ARROZ, 200), item(FRANGO, 150)]);
+    const plan = makePlan([item(ARROZ, 300), item(FRANGO, 150)]);
     const target = totalsOf([[ARROZ, 180], [FRANGO, 150]]);
     const res = optimizeDietDay({ plan, dayIndex: 0, target, foods: [ARROZ, arrozB, FRANGO] });
     const rice = (res.adjustedPlan as any).days[0].meals[0].items[0];
