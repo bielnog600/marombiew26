@@ -119,6 +119,40 @@ export function linkPlanItemsToFood<T extends { days?: any[] }>(
   return { plan: next as T, resolvedCount, changed: resolvedCount > 0 };
 }
 
+/**
+ * Segunda normalização — remove APENAS qualificadores de preparo.
+ * "Batata-doce cozida" → "batata-doce"; "Peito de frango grelhado" → "peito de frango".
+ * Nunca é fuzzy: o resultado ainda precisa bater exatamente com a base.
+ */
+const PREPARATION_TERMS = [
+  'cozido', 'cozida', 'cozidos', 'cozidas',
+  'grelhado', 'grelhada', 'grelhados', 'grelhadas',
+  'assado', 'assada', 'assados', 'assadas',
+  'cru', 'crua', 'crus', 'cruas',
+];
+
+export function normalizeFoodForPreparationMatch(name: string): string {
+  const base = normalizeFoodName(String(name ?? ''));
+  if (!base) return '';
+  const tokens = base.split(/\s+/).filter((t) => !PREPARATION_TERMS.includes(t));
+  return tokens.join(' ').trim();
+}
+
+/**
+ * Candidatos para um nome unresolved: primeiro match exato; se não houver
+ * exatamente 1, tenta o match por preparo. Sempre exige unicidade.
+ */
+export function findFoodCandidates(name: string, foods: FoodRecord[]): FoodRecord[] {
+  const list = foods ?? [];
+  const exactKey = normalizeFoodName(String(name ?? ''));
+  const exact = list.filter((f) => normalizeFoodName(f?.name ?? '') === exactKey);
+  if (exact.length === 1) return exact;
+  if (exact.length > 1) return exact;
+  const prepKey = normalizeFoodForPreparationMatch(name);
+  if (!prepKey || prepKey === exactKey) return exact;
+  return list.filter((f) => normalizeFoodForPreparationMatch(f?.name ?? '') === prepKey);
+}
+
 /** Matches exatos normalizados na base (guard anti-duplicata). */
 export function findExactFoodMatches(
   name: string,
