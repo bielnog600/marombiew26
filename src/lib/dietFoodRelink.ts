@@ -1,0 +1,130 @@
+/**
+ * HOTFIX — religar alimentos não validados à base SEM regerar a dieta.
+ *
+ * Regras:
+ * - só toca itens com `foodId == null` ou `resolutionStatus === 'unresolved'`;
+ * - correspondência EXATA normalizada (normalizeFoodName do contrato nutricional);
+ * - 0 ou 2+ correspondências → permanece unresolved (nunca adivinhar);
+ * - nenhum fuzzy matching / similaridade;
+ * - qtyGrams preservado; macros recalculados pelo nutritionCore (strict_id).
+ */
+import { buildFoodIndex, normalizeFoodName, type FoodRecord } from './nutritionEngine';
+import { recomputeDayFromFoods } from './dietFoodResolution';
+
+export interface RelinkResult<T = any> {
+  plan: T;
+  /** Quantos itens passaram a ter foodId real. */
+  resolvedCount: number;
+  changed: boolean;
+}
+
+const isCandidate = (item: any): boolean =>
+  !!item && (item.foodId == null || item.resolutionStatus === 'unresolved');
+
+const applyFoodToItem = (item: any, food: FoodRecord) => {
+  item.foodId = food.id;
+  item.name = food.name;
+  item.resolutionStatus = 'resolved_by_id';
+  if ('nutritionSnapshot' in item) delete item.nutritionSnapshot;
+};
+
+/**
+ * Religa automaticamente apenas os itens com correspondência exata ÚNICA na base.
+ * Se nada muda, devolve o plano original (mesma referência) — evita loop no React.
+ */
+export function relinkResolvableUnresolvedFoods<T extends { days?: any[] }>(
+  plan: T,
+  foods: FoodRecord[],
+): RelinkResult<T> {
+  if (!plan || !Array.isArray((plan as any).days) || !(foods?.length)) {
+    return { plan, resolvedCount: 0, changed: false };
+  }
+  const index = buildFoodIndex(foods);
+
+  // Detecção sem mutar.
+  let pending = 0;
+  for (const day of (plan as any).days ?? []) {
+    for (const meal of day?.meals ?? []) {
+      for (const item of meal?.items ?? []) {
+        if (!isCandidate(item)) continue;
+        const matches = index.byName.get(normalizeFoodName(String(item?.name ?? ''))) ?? [];
+        if (matches.length === 1) pending += 1;
+      }
+    }
+  }
+  if (pending === 0) return { plan, resolvedCount: 0, changed: false };
+
+  const next: any = JSON.parse(JSON.stringify(plan));
+  let resolvedCount = 0;
+  for (const day of next.days ?? []) {
+    let dayChanged = false;
+    for (const meal of day?.meals ?? []) {
+      for (const item of meal?.items ?? []) {
+        if (!isCandidate(item)) continue;
+        const matches = index.byName.get(normalizeFoodName(String(item?.name ?? ''))) ?? [];
+        if (matches.length !== 1) continue;
+        applyFoodToItem(item, matches[0]);
+        resolvedCount += 1;
+        dayChanged = true;
+      }
+    }
+    if (dayChanged) recomputeDayFromFoods(day, foods);
+  }
+
+  return { plan: next as T, resolvedCount, changed: resolvedCount > 0 };
+}
+
+/**
+ * Vincula, por nome normalizado, todos os itens unresolved a um alimento
+ * específico da base (usado logo após "Adicionar à base" / reuso de ID).
+ */
+export function linkPlanItemsToFood<T extends { days?: any[] }>(
+  plan: T,
+  candidateName: string,
+  food: FoodRecord,
+  foods: FoodRecord[],
+): RelinkResult<T> {
+  const target = normalizeFoodName(String(candidateName ?? ''));
+  if (!plan || !target || !food?.id) return { plan, resolvedCount: 0, changed: false };
+
+  const catalog = foods?.some((f) => f.id === food.id) ? foods : [...(foods ?? []), food];
+
+  let pending = 0;
+  for (const day of (plan as any).days ?? []) {
+    for (const meal of day?.meals ?? []) {
+      for (const item of meal?.items ?? []) {
+        if (!isCandidate(item)) continue;
+        if (normalizeFoodName(String(item?.name ?? '')) === target) pending += 1;
+      }
+    }
+  }
+  if (pending === 0) return { plan, resolvedCount: 0, changed: false };
+
+  const next: any = JSON.parse(JSON.stringify(plan));
+  let resolvedCount = 0;
+  for (const day of next.days ?? []) {
+    let dayChanged = false;
+    for (const meal of day?.meals ?? []) {
+      for (const item of meal?.items ?? []) {
+        if (!isCandidate(item)) continue;
+        if (normalizeFoodName(String(item?.name ?? '')) !== target) continue;
+        applyFoodToItem(item, food);
+        resolvedCount += 1;
+        dayChanged = true;
+      }
+    }
+    if (dayChanged) recomputeDayFromFoods(day, catalog);
+  }
+
+  return { plan: next as T, resolvedCount, changed: resolvedCount > 0 };
+}
+
+/** Matches exatos normalizados na base (guard anti-duplicata). */
+export function findExactFoodMatches(
+  name: string,
+  foods: Array<{ id: string; name: string }>,
+): Array<{ id: string; name: string }> {
+  const key = normalizeFoodName(String(name ?? ''));
+  if (!key) return [];
+  return (foods ?? []).filter((f) => normalizeFoodName(f?.name ?? '') === key);
+}

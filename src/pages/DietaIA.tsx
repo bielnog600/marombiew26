@@ -29,6 +29,7 @@ import {
 } from '@/lib/canonicalDietValidation';
 import { Badge } from '@/components/ui/badge';
 import UnresolvedFoodsPanel, { collectUnresolvedItems } from '@/components/diet/UnresolvedFoodsPanel';
+import { linkPlanItemsToFood } from '@/lib/dietFoodRelink';
 import CanonicalDietEditor from '@/components/diet/CanonicalDietEditor';
 import { dietPlanToMarkdown } from '@/lib/dietMarkdownSerializer';
 import { extractTrainingContext } from '@/lib/trainingContextExtractor';
@@ -3649,6 +3650,26 @@ ${generated}`;
                     return next;
                   });
                   toast.info(`"${cand.name}" removido do plano`);
+                }}
+                onFoodLinked={async (cand, food) => {
+                  // HOTFIX — vincula imediatamente o item do plano ao alimento
+                  // recém-criado/reaproveitado, sem regerar a dieta.
+                  if (!structuredPlan) return;
+                  try {
+                    const foodRecords = await loadFoodMacroRecords();
+                    const linked = linkPlanItemsToFood<DietPlan>(
+                      structuredPlan,
+                      cand.name,
+                      food,
+                      foodRecords,
+                    );
+                    if (linked.changed) {
+                      await applyCanonicalPlanUpdate(linked.plan);
+                      toast.success(`"${food.name}" vinculado à dieta (${linked.resolvedCount} item(ns)).`);
+                    }
+                  } catch (e) {
+                    console.warn('linkPlanItemsToFood failed', e);
+                  }
                 }}
               />
             )}
