@@ -8,6 +8,7 @@ import {
   optimizeDietPlan,
   isValidTarget,
   compareScores,
+  scoreAdjustmentCandidate,
 } from '@/lib/dietAutoAdjust';
 import {
   isStructuredCanonicalPlan,
