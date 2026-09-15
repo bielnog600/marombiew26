@@ -680,9 +680,12 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                           }
                           if (structured) {
                             // FASE 6: publicação structured é SEMPRE server-side e atômica.
+                            // FASE 6.1: se o save falhar, NÃO publica.
                             if (editedPlans[plan.id] || editedMeals[plan.id] || editedDays[plan.id] || editedSchedules[plan.id]) {
-                              await handleSave(plan.id);
+                              const saved = await handleSave(plan.id);
+                              if (!saved) return;
                             }
+
                             const published = await publishStructuredPlan(plan.id);
                             if (!published) return;
                             return;
