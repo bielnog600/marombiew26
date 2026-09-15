@@ -22,6 +22,12 @@ const BULLET_LINE = /^\s*(?:[-*•]|\d+[\).])\s+/;
 const TABLE_ROW = /^\s*\|.*\|\s*$/;
 const NAME_QTY_LINE = /^[^:|]{3,60}:\s*\S+/;
 const NARRATIVE = /^(observa|nota|aten[çc]|dica|coment|importante|resumo|estimativa)/i;
+/** "Iogurte skyr natural — 170 g" (travessão, en dash ou hífen), mesmo sem bullet. */
+const DASH_QTY_LINE = /^[^|]{3,80}\s[—–-]\s*\d+(?:[.,]\d+)?\s*\S/;
+/** Linhas de substituição da dieta modelo: nunca são alimentos principais. */
+const SUBSTITUTION_LINE = /^\s*(?:→|->|=>)/;
+/** Rótulos de relatório que nunca são alimentos. */
+const REPORT_LABEL = /^(macros?|meta|gerado|diferen[çc]a|status|observa[çc][õo]es|substitui[çc][õo]es)\b/i;
 /** Linha separadora de tabela: |---|---| */
 const TABLE_SEPARATOR = /^\s*\|[\s:|-]+\|\s*$/;
 /** Cabeçalho de tabela: sem números e com rótulos genéricos. */
