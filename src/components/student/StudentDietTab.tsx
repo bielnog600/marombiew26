@@ -553,6 +553,11 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         ) : (
                           <Badge variant="outline" className={cn('h-4 px-1 text-[8px] uppercase text-amber-500 border-amber-500/30', isEditing && 'hidden sm:inline-flex')}>Rascunho</Badge>
                         )}
+                        {typeof plan.version === 'number' && plan.version > 1 && (
+                          <Badge variant="outline" className={cn('h-4 px-1 text-[8px] uppercase text-muted-foreground border-border', isEditing && 'hidden sm:inline-flex')}>
+                            v{plan.version}
+                          </Badge>
+                        )}
                       </div>
                       {!isEditing && (
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
