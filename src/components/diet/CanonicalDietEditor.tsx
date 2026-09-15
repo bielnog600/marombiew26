@@ -10,7 +10,24 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Lock, LockOpen, Trash2, Sliders, Undo2, AlertTriangle, Plus, Replace } from 'lucide-react';
+import {
+  Lock,
+  LockOpen,
+  Trash2,
+  Sliders,
+  Undo2,
+  AlertTriangle,
+  Plus,
+  Replace,
+  Copy,
+} from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
