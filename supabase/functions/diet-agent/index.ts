@@ -141,6 +141,7 @@ async function loadCatalogOnce(): Promise<FoodCatalog> {
 }
 
 function buildLayeredInstructions(dietConfig: any, trainingContext: any): string {
+  const carbCyclingEnabled = dietConfig?.carbCyclingEnabled === true;
   if (!dietConfig && !trainingContext) return "";
   const lines: string[] = ["\n\n=== CAMADAS DE DECISÃO (USE COMO ÂNCORA) ===\n"];
   if (dietConfig?.objective) lines.push(`1) OBJETIVO METABÓLICO: ${dietConfig.objective} — define direção calórica.`);
