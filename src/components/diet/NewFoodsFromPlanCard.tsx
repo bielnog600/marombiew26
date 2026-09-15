@@ -18,6 +18,8 @@ import {
 } from '@/components/ui/command';
 import { tokenMatchScore } from '@/lib/fuzzyMatch';
 import { normalizeFoodName, type NewFoodCandidate } from '@/lib/newFoodsDetector';
+import { findExactFoodMatches } from '@/lib/dietFoodRelink';
+import { foodRecordFromRow, type FoodRecord } from '@/lib/nutritionEngine';
 
 interface Row extends NewFoodCandidate {
   key: string;              // stable identifier
@@ -32,6 +34,8 @@ interface Props {
   onDismissAll: () => void;
   onRemoveFromPlan?: (candidate: NewFoodCandidate) => void;
   onReplaceInPlan?: (candidate: NewFoodCandidate, existingName: string) => void;
+  /** Alimento criado/reaproveitado na base: vincular imediatamente no plano. */
+  onFoodLinked?: (candidate: NewFoodCandidate, food: FoodRecord) => void;
 }
 
 const NewFoodsFromPlanCard: React.FC<Props> = ({
