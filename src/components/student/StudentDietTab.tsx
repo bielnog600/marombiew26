@@ -424,18 +424,21 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
 
     if (error || !savedRow) {
       toast.error('Erro ao salvar: ' + (error?.message || 'falha ao gravar'));
-    } else {
-      toast.success('Dieta salva com sucesso!');
-      setPlans(prev => prev.map(p => p.id === planId ? savedRow : p));
-      setEditedMeals(prev => { const c = { ...prev }; delete c[planId]; return c; });
-      setEditedDays(prev => { const c = { ...prev }; delete c[planId]; return c; });
-      setEditedPlans(prev => { const c = { ...prev }; delete c[planId]; return c; });
-      setEditedSchedules(prev => { const c = { ...prev }; delete c[planId]; return c; });
-      setAiNotes(prev => { const c = { ...prev }; delete c[planId]; return c; });
-      setEditingId(null);
+      setSaving(null);
+      return false;
     }
+    toast.success('Dieta salva com sucesso!');
+    setPlans(prev => prev.map(p => p.id === planId ? savedRow : p));
+    setEditedMeals(prev => { const c = { ...prev }; delete c[planId]; return c; });
+    setEditedDays(prev => { const c = { ...prev }; delete c[planId]; return c; });
+    setEditedPlans(prev => { const c = { ...prev }; delete c[planId]; return c; });
+    setEditedSchedules(prev => { const c = { ...prev }; delete c[planId]; return c; });
+    setAiNotes(prev => { const c = { ...prev }; delete c[planId]; return c; });
+    setEditingId(null);
     setSaving(null);
+    return true;
   };
+
 
   const handleApplyMacroPct = (planId: string) => {
     const plan = plans.find(p => p.id === planId);
