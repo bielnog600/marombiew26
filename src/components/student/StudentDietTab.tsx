@@ -43,23 +43,6 @@ interface StudentDietTabProps {
   studentId: string;
 }
 
-/** FASE 6 — mensagens de UI para os error_code da publicação atômica. */
-const PUBLISH_ERROR_MESSAGES: Record<string, string> = {
-  not_authorized: 'Você não tem permissão para publicar esta dieta.',
-  plan_not_found: 'Dieta não encontrada.',
-  structured_plan_required: 'Esta dieta não está no formato estruturado.',
-  already_published: 'Esta dieta já está publicada.',
-  food_contract_invalid: 'Há alimentos inválidos na dieta. Revise antes de publicar.',
-  unresolved_foods: 'Resolva todos os alimentos antes de publicar.',
-  publication_targets_invalid: 'Falta a meta de algum dia. Defina as metas antes de publicar.',
-  nutrition_target_invalid: 'A dieta está fora da meta. Ajuste as porções antes de publicar.',
-  daily_adjustments_invalid: 'Os ajustes diários estão incompletos ou fora da tolerância.',
-  food_catalog_changed: 'A base alimentar mudou durante a publicação. O plano foi recalculado; tente novamente.',
-  draft_changed_refresh_required: 'Este rascunho foi alterado em outra sessão. Atualize a página antes de publicar.',
-  publication_schema_invalid: 'A dieta não passou na verificação final de integridade.',
-  publication_failed: 'Não foi possível publicar esta dieta.',
-};
-
 const parseDec = (v: string): number => {
   const n = Number(String(v ?? '').replace(',', '.'));
   return Number.isFinite(n) ? n : 0;
@@ -324,22 +307,14 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     setPlans(data ?? []);
   };
 
-  /** FASE 6 — mensagens estáveis por error_code da publicação. */
+  /** FASE 6 — publicação atômica server-side (nunca UPDATE direto). */
   const publishStructuredPlan = async (planId: string): Promise<boolean> => {
-    const { data, error } = await supabase.functions.invoke('publish-diet-plan', {
-      body: { planId },
-    });
-    const code = (data as any)?.error_code
-      ?? (error ? ((await (error as any)?.context?.json?.().catch(() => null))?.error_code ?? null) : null);
-    if (code || error) {
-      toast.error(PUBLISH_ERROR_MESSAGES[code as string] ?? 'Não foi possível publicar esta dieta.');
+    const result = await publishDietPlan(planId);
+    if (!result.ok) {
+      toast.error(result.message ?? 'Não foi possível publicar esta dieta.');
       return false;
     }
-    const published = (data as any)?.plan;
     toast.success('Dieta publicada.');
-    if (published) {
-      setPlans(prev => prev.map(p => (p.id === planId ? published : p)));
-    }
     await loadPlans();
     return true;
   };
