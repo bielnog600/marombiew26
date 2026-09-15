@@ -225,6 +225,10 @@ export function validateDailyAdjustments(
       } else {
         const expectedAction: AdjustmentAction = req > 0 ? 'add' : 'remove';
         for (const inst of d.instructions) {
+          if (!inst.food_id) {
+            errors.push(`${WEEKDAY_LABELS[wd]}: instrução sem food_id ("${inst.food_name}").`);
+            break;
+          }
           if (inst.action !== expectedAction) {
             errors.push(
               `${WEEKDAY_LABELS[wd]}: instrução com action="${inst.action}" incompatível com ajuste ${req > 0 ? 'positivo' : 'negativo'}.`,

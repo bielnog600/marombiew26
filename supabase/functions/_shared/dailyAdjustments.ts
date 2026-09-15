@@ -168,6 +168,10 @@ export function validateDailyAdjustments(adj: DailyAdjustments | null | undefine
       } else {
         const expected: AdjustmentAction = req > 0 ? 'add' : 'remove';
         for (const inst of d.instructions) {
+          if (!inst.food_id) {
+            errors.push(`${wd}: instrução sem food_id ("${inst.food_name}").`);
+            break;
+          }
           if (inst.action !== expected) {
             errors.push(`${wd}: instrução com action inválida (${inst.action}).`);
             break;
