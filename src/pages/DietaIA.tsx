@@ -21,7 +21,7 @@ import { validateDietJSON } from '@/lib/planMigrationUtils';
 import { markdownToDietPlan } from '@/lib/dietPlanAdapter';
 import { finalizeDietPlan } from '@/lib/dietValidation';
 import { parseDietPlanStrict, parseDietPlanLoose, type DietPlan } from '@/lib/dietSchema';
-import { buildAllowedUnresolvedFromModelDiet } from '@/lib/modelDietFoods';
+import { buildAllowedUnresolvedFromModelDiet, modelDietMentionsLinearTargets } from '@/lib/modelDietFoods';
 import { buildStructuredDietPrompt } from '@/lib/structuredDietPrompt';
 import {
   validateCanonicalDietTarget,
@@ -1747,7 +1747,7 @@ const DietaIA = () => {
   const generateStructuredPlan = async (
 
     userPrompt: string,
-    dietConfig: { objective?: string; strategy?: string; style?: string; carbCyclePlan?: any; weeklyEnergySchedule?: any },
+    dietConfig: { objective?: string; strategy?: string; style?: string; carbCyclePlan?: any; weeklyEnergySchedule?: any; carbCyclingEnabled?: boolean },
     targets: { kcal: number; p: number; c: number; g: number; tmb?: number; get?: number },
     intent: DietIntent = 'new',
   ): Promise<{
@@ -2297,6 +2297,9 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
               strategy: strategy || undefined,
               style: dietStyle || undefined,
               ...(cyclePlan ? { carbCyclePlan: cyclePlan } : {}),
+              // Autoridade explícita: carb cycling materializa cada weekday e
+              // por isso NÃO exige dailyAdjustments add/remove.
+              carbCyclingEnabled: carbCycling.enabled,
               weeklyEnergySchedule: {
                 base_daily_kcal: currentTargets.calories,
                 base_source: weeklySchedule.base_source,
