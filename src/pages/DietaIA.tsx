@@ -22,7 +22,11 @@ import { markdownToDietPlan } from '@/lib/dietPlanAdapter';
 import { finalizeDietPlan } from '@/lib/dietValidation';
 import { parseDietPlanStrict, parseDietPlanLoose, type DietPlan } from '@/lib/dietSchema';
 import { buildAllowedUnresolvedFromModelDiet } from '@/lib/modelDietFoods';
-import { buildStructuredUserPrompt } from '@/lib/structuredDietPrompt';
+import { buildStructuredDietPrompt } from '@/lib/structuredDietPrompt';
+import {
+  validateCanonicalDietTarget,
+  validateCanonicalDietDayTargets,
+} from '@/lib/canonicalDietValidation';
 import { Badge } from '@/components/ui/badge';
 import UnresolvedFoodsPanel, { collectUnresolvedItems } from '@/components/diet/UnresolvedFoodsPanel';
 import { dietPlanToMarkdown } from '@/lib/dietMarkdownSerializer';
@@ -1897,13 +1901,15 @@ const DietaIA = () => {
     return { plan: finalizeDietPlan(parsed.data, targets as any) };
   };
 
-  const loadFoodMacroRecords = async (): Promise<FoodMacroRecord[]> => {
+  // Fase 4.2: o fluxo structured valida por foodId — o `id` é obrigatório aqui.
+  const loadFoodMacroRecords = async (): Promise<Array<FoodMacroRecord & { id: string }>> => {
     const { data, error } = await supabase
       .from('foods')
-      .select('name, calories, protein, carbs, fats, portion_size')
+      .select('id, name, calories, protein, carbs, fats, portion_size')
       .order('name');
     if (error) throw new Error('Erro ao carregar base alimentar: ' + error.message);
     return (data || []).map((food) => ({
+      id: String(food.id),
       name: food.name,
       calories: Number(food.calories) || 0,
       protein: Number(food.protein) || 0,
@@ -2180,9 +2186,32 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
         // Fase 3 é a única implementação de carb cycling — o plano legado
         // (buildCarbCyclePlan) não é mais enviado em paralelo ao diet-agent.
         const cyclePlan = null;
+        // Fase 4.2: prompt structured por construção positiva (sem sanitizar o legado).
+        const structuredPrompt = buildStructuredDietPrompt({
+          studentContext: criticalInputsText,
+          routine: [
+            `Rotina diária: ${dailyRoutine || 'Não informada'}`,
+            `Horário de treino: ${selectedTrainingTime?.label || 'Não informado'}`,
+          ].join('\n'),
+          training: trainingDays ? `${trainingDays}x/semana` : 'Não informado',
+          phase: `${selectedPhase?.label ?? 'Não informada'} — ${selectedPhase?.desc ?? ''}`,
+          strategy: `${selectedStrategy?.label ?? 'Não informada'} (${(selectedStrategy?.pct ?? 0) > 0 ? '+' : ''}${selectedStrategy?.pct ?? 0}%)`,
+          style: `${selectedDietStyle?.label || 'Não definido'} — ${selectedDietStyle?.desc || ''}`,
+          meals: [
+            `Número de refeições: ${mealCount} por dia`,
+            `Nomes das refeições (use exatamente): ${mealNames.join(', ')}`,
+            alimentosPorRefeicaoText.trim(),
+          ].filter(Boolean).join('\n'),
+          restrictions: [getRestrictionsText(), ...selectedRestrictions].filter(Boolean).join('; '),
+          preferences: [getPreferencesText(), ...selectedPreferences].filter(Boolean).join('; '),
+          targets: carbCycling.enabled ? '' : recText,
+          carbCycling: carbCycling.enabled ? recText : '',
+          modelDiet: modelDiet.trim(),
+          extras: adjustmentLabels.length > 0 ? adjustmentLabels.map((a) => `- ${a}`).join('\n') : '',
+        });
         try {
           const structuredResult = await generateStructuredPlan(
-            buildStructuredUserPrompt(prompt),
+            structuredPrompt,
             {
               objective: phase || undefined,
               strategy: strategy || undefined,
@@ -2269,35 +2298,26 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
           console.warn('detectNewFoodsFromPlan failed', e);
         }
         if (currentTargets) {
-          const report = validateDietMacros(md, currentTargets, foodRecords);
-          setMacroReport(report);
-          // Fase 3: com o ciclo ativo, a meta global não é a autoridade —
-          // cada weekday é comparado com o próprio target determinístico.
+          // Fase 4.2: plano STRUCTURED é validado direto pelo JSON canônico
+          // (foodId → foods → nutritionCore). O markdown é apenas derivado.
           if (carbCycling.enabled) {
-            const dayInputs = (structured.days ?? [])
-              .filter((d) => !!d.weekday)
-              .map((d) => ({
-                weekday: d.weekday as WeekdayKey,
-                type: weeklyCarbTargets[d.weekday as WeekdayKey]?.type ?? null,
-                items: (d.meals ?? []).flatMap((m) =>
-                  (m.items ?? []).map((it) => ({
-                    name: it.name,
-                    qtyGrams: Number(it.qtyGrams) || 0,
-                    macros: it.macros,
-                  })),
-                ),
-              }));
+            setMacroReport(null);
             setDayMacroReport(
-              dayInputs.length > 0
-                ? validateDietDaysMacros({
-                    days: dayInputs,
-                    dayTargets: weeklyCarbTargets,
-                    foods: foodRecords,
-                  })
-                : null,
+              validateCanonicalDietDayTargets({
+                plan: structured,
+                dayTargets: weeklyCarbTargets,
+                foods: foodRecords,
+              }),
             );
           } else {
             setDayMacroReport(null);
+            setMacroReport(
+              validateCanonicalDietTarget({
+                plan: structured,
+                target: currentTargets,
+                foods: foodRecords,
+              }),
+            );
           }
         }
         // Compute viability score from generated plan + questionnaire + adherence.
@@ -2599,8 +2619,6 @@ ${generated}`;
    */
   const applyCanonicalPlanUpdate = async (nextPlan: DietPlan) => {
     setStructuredPlan(nextPlan);
-    const md = dietPlanToMarkdown(nextPlan);
-    setResult(md);
     const stillUnresolved = collectUnresolvedItems(nextPlan).length > 0;
     try {
       const foodRecords = await loadFoodMacroRecords();
@@ -2618,32 +2636,27 @@ ${generated}`;
         setDayMacroReport(null);
         return;
       }
+      // Fase 4.2: validação direto pelo JSON canônico (foodId), nunca pelo markdown.
       if (carbCycling.enabled) {
-        const dayInputs = (nextPlan.days ?? [])
-          .filter((d) => !!d.weekday)
-          .map((d) => ({
-            weekday: d.weekday as WeekdayKey,
-            type: weeklyCarbTargets[d.weekday as WeekdayKey]?.type ?? null,
-            items: (d.meals ?? []).flatMap((m) =>
-              (m.items ?? []).map((it) => ({
-                name: it.name,
-                qtyGrams: Number(it.qtyGrams) || 0,
-                macros: it.macros,
-              })),
-            ),
-          }));
         setMacroReport(null);
         setDayMacroReport(
-          dayInputs.length > 0
-            ? validateDietDaysMacros({ days: dayInputs, dayTargets: weeklyCarbTargets, foods: foodRecords })
-            : null,
+          validateCanonicalDietDayTargets({
+            plan: nextPlan,
+            dayTargets: weeklyCarbTargets,
+            foods: foodRecords,
+          }),
         );
       } else {
         setDayMacroReport(null);
-        setMacroReport(validateDietMacros(md, targets, foodRecords));
+        setMacroReport(
+          validateCanonicalDietTarget({ plan: nextPlan, target: targets, foods: foodRecords }),
+        );
       }
     } catch (e) {
       console.warn('applyCanonicalPlanUpdate revalidation failed', e);
+    } finally {
+      // Markdown/cards/PDF são derivados do canônico.
+      setResult(dietPlanToMarkdown(nextPlan));
     }
   };
 
@@ -3531,14 +3544,22 @@ ${generated}`;
               <h3 className="font-bold text-lg flex items-center gap-2">
                 <UtensilsCrossed className="h-5 w-5 text-primary" />
                 Plano Alimentar
-                {structuredPlan?.validation && !hasUnresolvedItems && !dayMacroReport && (
-                  <DietValidationBadge report={structuredPlan.validation} className="ml-2" />
-                )}
-                {hasUnresolvedItems && (
+                {/* Fase 4.2: em plano STRUCTURED o selo vem SEMPRE do relatório atual,
+                    nunca de structuredPlan.validation (pode estar desatualizado). */}
+                {hasUnresolvedItems ? (
                   <Badge variant="outline" className="ml-2 border-amber-500/50 text-amber-400 text-[10px]">
                     NÃO VALIDADO
                   </Badge>
-                )}
+                ) : structuredPlan ? (
+                  (dayMacroReport ?? macroReport) && (
+                    <Badge
+                      variant="outline"
+                      className={`ml-2 text-[10px] ${(dayMacroReport ?? macroReport)!.valid ? 'border-green-500/50 text-green-400' : 'border-yellow-500/50 text-yellow-400'}`}
+                    >
+                      {(dayMacroReport ?? macroReport)!.valid ? 'DIETA VALIDADA' : 'FORA DA META'}
+                    </Badge>
+                  )
+                ) : null}
               </h3>
               <div className="flex gap-2 flex-wrap">
                 <Button

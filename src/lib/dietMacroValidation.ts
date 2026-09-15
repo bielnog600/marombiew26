@@ -1,4 +1,5 @@
 import { buildFoodIndex, computeItemMacros, type FoodIndex } from '@/lib/nutritionEngine';
+import { OFFICIAL_MACRO_TOLERANCE_LABELS } from '@/lib/macroTolerances';
 import { parseSections, type ParsedFood, type ParsedMeal } from '@/lib/dietResultParser';
 
 export interface DietMacroTargets {
@@ -9,6 +10,8 @@ export interface DietMacroTargets {
 }
 
 export interface FoodMacroRecord {
+  /** Fase 4.2: id real da base — obrigatório no fluxo structured. */
+  id?: string;
   name: string;
   calories: number;
   protein: number;
@@ -34,12 +37,8 @@ export interface DietMacroValidationReport {
   reasons: string[];
 }
 
-export const DIET_MACRO_TOLERANCES: DietMacroTargets = {
-  calories: 50,
-  protein: 10,
-  carbs: 15,
-  fats: 8,
-};
+/** Fonte única (Fase 4.2): `_shared/macroTolerances`. */
+export const DIET_MACRO_TOLERANCES: DietMacroTargets = { ...OFFICIAL_MACRO_TOLERANCE_LABELS };
 
 const parseNumber = (value?: string) => {
   if (!value) return 0;

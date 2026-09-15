@@ -12,7 +12,10 @@
  *  - 0 é meta válida: só ignoramos o macro quando o campo está ausente/null.
  */
 
-export const DAY_TARGET_TOLERANCES = { kcal: 50, p: 10, c: 15, g: 8 };
+import { OFFICIAL_MACRO_TOLERANCE } from "./macroTolerances.ts";
+
+/** Fonte única das tolerâncias oficiais (Fase 4.2). */
+export const DAY_TARGET_TOLERANCES = OFFICIAL_MACRO_TOLERANCE;
 
 export const WEEKDAYS = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"] as const;
 export type WeekdayKey = (typeof WEEKDAYS)[number];

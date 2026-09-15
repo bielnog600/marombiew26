@@ -4,6 +4,8 @@
  *
  * Nunca usa `plan.targets` devolvido pela IA — o target vem do app.
  */
+import { OFFICIAL_MACRO_TOLERANCE } from "./macroTolerances.ts";
+
 export interface GlobalDietTarget {
   kcal?: number | null;
   p?: number | null;
@@ -11,7 +13,8 @@ export interface GlobalDietTarget {
   g?: number | null;
 }
 
-export const GLOBAL_TARGET_TOLERANCE = { kcal: 50, p: 10, c: 15, g: 8 };
+/** Fonte única das tolerâncias oficiais (Fase 4.2). */
+export const GLOBAL_TARGET_TOLERANCE = OFFICIAL_MACRO_TOLERANCE;
 
 export interface GlobalTargetDayDiff {
   weekday: string;
