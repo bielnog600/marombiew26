@@ -88,6 +88,10 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
   const [picker, setPicker] = useState<
     { mode: 'add'; mealIdx: number } | { mode: 'replace'; mealIdx: number; itemIdx: number } | null
   >(null);
+  const [copySim, setCopySim] = useState<
+    { plan: DietPlan; results: CopyDayResult[]; sourceLabel: string } | null
+  >(null);
+
 
   const { data: loadedFoods } = useQuery({
     queryKey: ['canonical-editor-foods'],
