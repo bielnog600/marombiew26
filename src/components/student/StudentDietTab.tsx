@@ -517,17 +517,23 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
 
   const pctSum = macroPct.protein + macroPct.carbs + macroPct.fat;
 
+  // MICRO-HOTFIX — cada cadeia de versões vira UM card; o histórico fica dentro.
+  const chains = groupDietVersionChains(plans as any[]);
+
   return (
     <>
       <div className="space-y-3">
-        {plans.map(plan => {
+        {chains.map(chain => {
+          const plan = (chain.versions.find(v => v.id === expandedId) ?? chain.head) as any;
           const isExpanded = expandedId === plan.id;
           const hasChanges = editedMeals[plan.id] !== undefined || editedDays[plan.id] !== undefined || editedPlans[plan.id] !== undefined || editedSchedules[plan.id] !== undefined || (aiNotes[plan.id]?.length || 0) > 0;
           const isEditing = editingId === plan.id;
           const cleanedMarkdown = stripDietPreamble(plan.conteudo);
+          const historyVersions = chain.versions.filter(v => v.id !== plan.id);
+          const isHistoryOpen = historyOpen[chain.rootId] === true;
 
           return (
-            <Card key={plan.id} className="glass-card">
+            <Card key={chain.rootId} className="glass-card">
               <CardContent className="p-4">
                 <div
                   className="flex items-center justify-between cursor-pointer"
