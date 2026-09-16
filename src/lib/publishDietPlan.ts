@@ -25,6 +25,9 @@ export const PUBLISH_ERROR_MESSAGES: Record<string, string> = {
 export interface PublishDietPlanResult {
   ok: boolean;
   plan: any | null;
+  /** true quando o rascunho era idêntico à versão publicada (nada foi criado). */
+  noChanges: boolean;
+  discardedDraftId: string | null;
   errorCode: string | null;
   message: string | null;
 }

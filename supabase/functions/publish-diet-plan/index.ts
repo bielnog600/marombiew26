@@ -28,6 +28,7 @@ import {
   validateSnapshotAssertionIntegrity,
   type PublicationErrorCode,
 } from "../_shared/dietPublication.ts";
+import { areDietsSemanticallyEqual } from "../_shared/dietSemanticFingerprint.ts";
 
 
 const json = (body: unknown, status = 200) =>
