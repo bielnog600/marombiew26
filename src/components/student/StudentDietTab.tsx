@@ -154,6 +154,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   const navigate = useNavigate();
   const [plans, setPlans] = useState<any[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState<Record<string, boolean>>({});
   const [editedMeals, setEditedMeals] = useState<Record<string, ParsedMeal[]>>({});
   const [editedDays, setEditedDays] = useState<Record<string, { label: string; meals: ParsedMeal[] }[]>>({});
   const [aiNotes, setAiNotes] = useState<Record<string, string[]>>({});
@@ -543,7 +544,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                     <UtensilsCrossed className="h-5 w-5 text-green-500 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className={cn('font-medium truncate', isEditing ? 'text-xs' : 'text-sm')}>{plan.titulo}</p>
+                        <p className={cn('font-medium truncate', isEditing ? 'text-xs' : 'text-sm')}>{normalizeDietTitle(plan.titulo) || 'Dieta'}</p>
                         {plan.migration_status === 'completed' && (
                           <Badge variant="outline" className={cn('h-4 px-1 text-[8px] uppercase text-emerald-500 border-emerald-500/30', isEditing && 'hidden sm:inline-flex')}>JSON</Badge>
                         )}
