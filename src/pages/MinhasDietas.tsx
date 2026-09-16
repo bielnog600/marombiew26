@@ -25,12 +25,19 @@ import ProtocolsDialog from '@/components/diet/ProtocolsDialog';
 import { protocolsToKeys, type SavedProtocols, type ProtocolKey } from '@/lib/dietProtocols';
 import { ListChecks } from 'lucide-react';
 import { buildCarbCycleDays } from '@/lib/dietAiActions';
+import { parseDietPlanLoose } from '@/lib/dietSchema';
+import {
+  buildStructuredDisplayGroups,
+  isStructuredPublishedDiet,
+  type StudentStructuredDay,
+} from '@/lib/studentStructuredDiet';
 
 const WEEKDAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const WEEKDAY_KEYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'] as const;
 const WEEKDAY_KEYS_EN = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
 const OPTION_TITLE_REGEX = /(op[cç][aã]o|card[aá]pio)/i;
-const DIET_DISPLAY_SCHEMA_VERSION = 'dedupe-v2';
+// HOTFIX ALUNO — nova versão de schema invalida o cache antigo (sem conteudo_json).
+const DIET_DISPLAY_SCHEMA_VERSION = 'structured-v1';
 
 /**
  * Recover a previously-applied carb cycle saved in the diet markdown notes
