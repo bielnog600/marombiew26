@@ -503,7 +503,9 @@ const MinhaArea = () => {
 
 
         {/* Diet Summary */}
-        {meals.length > 0 && <DietPlanCard sections={dietSections} />}
+        {(meals.length > 0 || (structuredTodayMeals?.length ?? 0) > 0) && (
+          <DietPlanCard sections={dietSections} structuredTodayMeals={structuredTodayMeals ?? undefined} />
+        )}
 
         {/* Dashboard Cards */}
         <div className="grid grid-cols-3 gap-3">

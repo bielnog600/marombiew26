@@ -15,9 +15,11 @@ interface DietPlanCardProps {
   sections: ParsedSection[];
   mealsCompleted?: number[];
   onToggleMeal?: (index: number) => void;
+  /** Dieta structured publicada: refeições REAIS do dia de hoje. */
+  structuredTodayMeals?: ParsedMeal[];
 }
 
-const DietPlanCard: React.FC<DietPlanCardProps> = ({ sections, mealsCompleted = [], onToggleMeal }) => {
+const DietPlanCard: React.FC<DietPlanCardProps> = ({ sections, mealsCompleted = [], onToggleMeal, structuredTodayMeals }) => {
   const navigate = useNavigate();
 
   const mealSections = useMemo(
