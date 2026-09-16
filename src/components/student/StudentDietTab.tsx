@@ -322,6 +322,13 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
       toast.error(result.message ?? 'Não foi possível publicar esta dieta.');
       return false;
     }
+    if (result.noChanges) {
+      // Rascunho idêntico ao publicado: nenhuma versão nova foi criada.
+      toast.info(result.message ?? 'Nenhuma alteração na dieta. A versão publicada foi mantida.');
+      if (result.plan?.id) setExpandedId(result.plan.id);
+      await loadPlans();
+      return true;
+    }
     toast.success('Dieta publicada.');
     await loadPlans();
     return true;
