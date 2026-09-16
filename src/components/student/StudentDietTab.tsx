@@ -739,6 +739,46 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                   </div>
                 </div>
 
+                {historyVersions.length > 0 && (
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setHistoryOpen(prev => ({ ...prev, [chain.rootId]: !prev[chain.rootId] }));
+                      }}
+                    >
+                      Histórico · {chain.versions.length} versões
+                    </button>
+                    {isHistoryOpen && (
+                      <div className="mt-2 space-y-1">
+                        {chain.versions.map(v => (
+                          <button
+                            key={v.id}
+                            type="button"
+                            className={cn(
+                              'flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-[11px] hover:bg-muted/40',
+                              v.id === plan.id && 'bg-muted/30',
+                            )}
+                            onClick={(e) => { e.stopPropagation(); setExpandedId(v.id); }}
+                          >
+                            <span className="font-medium">v{Number(v.version ?? 1)}</span>
+                            <span className={v.is_draft === false ? 'text-emerald-500' : 'text-amber-500'}>
+                              {v.is_draft === false ? 'Publicada' : 'Rascunho'}
+                            </span>
+                            <span className="text-muted-foreground">
+                              {new Date(v.published_at ?? v.created_at).toLocaleString('pt-BR', {
+                                day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+                              })}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {isExpanded && (
                   <div className="mt-4 pt-4 border-t border-border space-y-4">
                     {/* Ações Híbridas - Central de Ação Individual */}
