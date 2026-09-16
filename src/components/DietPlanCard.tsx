@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { UtensilsCrossed, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import type { ParsedSection } from '@/lib/dietResultParser';
+import type { ParsedMeal, ParsedSection } from '@/lib/dietResultParser';
 import { extractTargetsFromSections } from '@/lib/dietTargets';
 
 const parseNum = (v?: string) => {
@@ -57,7 +57,11 @@ const DietPlanCard: React.FC<DietPlanCardProps> = ({ sections, mealsCompleted = 
     return (jsDay + 6) % 7 % mealsByDay.length;
   }, [hasDays, mealsByDay.length, mealSections]);
 
-  const currentMeals = mealsByDay[dayIndex] ?? [];
+  // Structured publicada tem prioridade: é o dia publicado real de hoje.
+  const currentMeals =
+    structuredTodayMeals && structuredTodayMeals.length > 0
+      ? structuredTodayMeals
+      : mealsByDay[dayIndex] ?? [];
 
   const parsedTotals = useMemo(() => ({
     kcal: currentMeals.reduce((sum, meal) => sum + parseNum(meal.totalKcal), 0),
