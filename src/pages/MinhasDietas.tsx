@@ -463,7 +463,7 @@ const MinhasDietas = () => {
         g: scaleNum(f.g),
       })),
     }));
-  }, [baseMealsForDay, daySchedule]);
+  }, [baseMealsForDay, daySchedule, isStructuredDiet]);
 
   // META PRESCRITA PELO PROFESSOR — imutável para o aluno.
   const dailyTarget = useMemo<Macros>(() => sumMealMacros(prescribedMeals as any), [prescribedMeals]);
