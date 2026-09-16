@@ -125,6 +125,9 @@ const MinhasDietas = () => {
   const [protocolKeys, setProtocolKeys] = useState<ProtocolKey[]>([]);
   const [weeklySchedule, setWeeklySchedule] = useState<any | null>(null);
   const [showProtocols, setShowProtocols] = useState(false);
+  // HOTFIX ALUNO — dieta structured publicada (fonte de verdade do cardápio).
+  const [structuredPlan, setStructuredPlan] = useState<any | null>(null);
+  const [structuredProtocols, setStructuredProtocols] = useState<any | null>(null);
 
   // Key local substitutions per plan version so admin edits invalidate stale subs
   const subsStorageKey = user && planVersion ? `diet-subs-${user.id}-${planVersion}` : '';
