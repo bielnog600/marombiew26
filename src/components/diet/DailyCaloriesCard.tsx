@@ -20,14 +20,16 @@ const MacroPill: React.FC<{
   label: string;
   icon: React.ReactNode;
   value: MacroValue;
-  colorClass: string;
+  /** Classes Tailwind LITERAIS — nunca montadas dinamicamente. */
+  textClass: string;
+  fillClass: string;
   trackClass: string;
-}> = ({ label, icon, value, colorClass, trackClass }) => {
+}> = ({ label, icon, value, textClass, fillClass, trackClass }) => {
   const pct = value.target > 0 ? Math.min((value.current / value.target) * 100, 100) : 0;
   return (
     <div className="flex-1 rounded-xl bg-background/50 px-2.5 py-2">
       <div className="flex items-center gap-1.5">
-        <span className={colorClass}>{icon}</span>
+        <span className={textClass}>{icon}</span>
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</span>
       </div>
       <p className="mt-1 text-sm font-bold text-foreground">
@@ -36,7 +38,7 @@ const MacroPill: React.FC<{
       </p>
       <div className={`mt-1.5 h-1 w-full overflow-hidden rounded-full ${trackClass}`}>
         <div
-          className={`h-full rounded-full transition-all duration-700 ease-out ${colorClass.replace('text-', 'bg-')}`}
+          className={`h-full rounded-full transition-all duration-700 ease-out ${fillClass}`}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -106,21 +108,24 @@ const DailyCaloriesCard: React.FC<DailyCaloriesCardProps> = ({ consumed, target,
           label="Proteína"
           icon={<Beef className="h-3.5 w-3.5" />}
           value={protein}
-          colorClass="text-chart-2"
+          textClass="text-chart-2"
+          fillClass="bg-chart-2"
           trackClass="bg-chart-2/15"
         />
         <MacroPill
           label="Carbo"
           icon={<Wheat className="h-3.5 w-3.5" />}
           value={carbs}
-          colorClass="text-chart-3"
+          textClass="text-chart-3"
+          fillClass="bg-chart-3"
           trackClass="bg-chart-3/15"
         />
         <MacroPill
           label="Gordura"
           icon={<Droplet className="h-3.5 w-3.5" />}
           value={fats}
-          colorClass="text-chart-5"
+          textClass="text-chart-5"
+          fillClass="bg-chart-5"
           trackClass="bg-chart-5/15"
         />
       </div>
