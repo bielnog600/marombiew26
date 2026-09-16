@@ -28,6 +28,7 @@ import {
   validateSnapshotAssertionIntegrity,
   type PublicationErrorCode,
 } from "../_shared/dietPublication.ts";
+import { shouldDiscardRedundantDraft } from "../_shared/dietSemanticFingerprint.ts";
 
 
 const json = (body: unknown, status = 200) =>
@@ -91,6 +92,37 @@ Deno.serve(async (req) => {
     if (row.is_draft !== true) return fail("already_published", 409);
     if (!row.conteudo_json || !isStructuredPlan(row.conteudo_json)) {
       return fail("structured_plan_required", 400);
+    }
+
+    // MICRO-HOTFIX — publicar um rascunho idêntico ao pai publicado NÃO cria
+    // uma nova versão. Nada do contrato da Fase 6 muda: só evitamos o no-op.
+    if (row.parent_plan_id) {
+      const { data: parent } = await supabase
+        .from("ai_plans")
+        .select("*")
+        .eq("id", row.parent_plan_id)
+        .maybeSingle();
+      if (
+        parent &&
+        isStructuredPlan(parent.conteudo_json) &&
+        shouldDiscardRedundantDraft(row, parent)
+      ) {
+        const { error: discardError } = await supabase
+          .from("ai_plans")
+          .delete()
+          .eq("id", planId)
+          .eq("is_draft", true)
+          .eq("parent_plan_id", parent.id);
+        if (discardError) {
+          console.warn("[publish-diet-plan] no-op draft discard failed:", discardError.message);
+        }
+        return json({
+          ok: true,
+          noChanges: true,
+          plan: parent,
+          discardedDraftId: discardError ? null : planId,
+        });
+      }
     }
 
     const expectedRevision = Number(row.content_revision ?? 1);

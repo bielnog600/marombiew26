@@ -25,6 +25,9 @@ export const PUBLISH_ERROR_MESSAGES: Record<string, string> = {
 export interface PublishDietPlanResult {
   ok: boolean;
   plan: any | null;
+  /** true quando o rascunho era idêntico à versão publicada (nada foi criado). */
+  noChanges: boolean;
+  discardedDraftId: string | null;
   errorCode: string | null;
   message: string | null;
 }
@@ -51,11 +54,21 @@ export async function publishDietPlan(planId: string): Promise<PublishDietPlanRe
     return {
       ok: false,
       plan: null,
+      noChanges: false,
+      discardedDraftId: null,
       errorCode,
       message: PUBLISH_ERROR_MESSAGES[errorCode] ?? PUBLISH_ERROR_MESSAGES.publication_failed,
     };
   }
-  return { ok: true, plan: (data as any)?.plan ?? null, errorCode: null, message: null };
+  const noChanges = (data as any)?.noChanges === true;
+  return {
+    ok: true,
+    plan: (data as any)?.plan ?? null,
+    noChanges,
+    discardedDraftId: (data as any)?.discardedDraftId ?? null,
+    errorCode: null,
+    message: noChanges ? 'Nenhuma alteração na dieta. A versão publicada foi mantida.' : null,
+  };
 }
 
 export interface CreateDietVersionResult {

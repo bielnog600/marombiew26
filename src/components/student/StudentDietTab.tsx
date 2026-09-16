@@ -28,6 +28,7 @@ import {
   buildDuplicateDietPayload,
 } from '@/lib/dietStructuredGuards';
 import { createDietVersion, publishDietPlan } from '@/lib/publishDietPlan';
+import { groupDietVersionChains, normalizeDietTitle } from '@/lib/dietVersionChains';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
@@ -153,6 +154,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   const navigate = useNavigate();
   const [plans, setPlans] = useState<any[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState<Record<string, boolean>>({});
   const [editedMeals, setEditedMeals] = useState<Record<string, ParsedMeal[]>>({});
   const [editedDays, setEditedDays] = useState<Record<string, { label: string; meals: ParsedMeal[] }[]>>({});
   const [aiNotes, setAiNotes] = useState<Record<string, string[]>>({});
@@ -321,6 +323,13 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     if (!result.ok) {
       toast.error(result.message ?? 'Não foi possível publicar esta dieta.');
       return false;
+    }
+    if (result.noChanges) {
+      // Rascunho idêntico ao publicado: nenhuma versão nova foi criada.
+      toast.info(result.message ?? 'Nenhuma alteração na dieta. A versão publicada foi mantida.');
+      if (result.plan?.id) setExpandedId(result.plan.id);
+      await loadPlans();
+      return true;
     }
     toast.success('Dieta publicada.');
     await loadPlans();
@@ -509,17 +518,23 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
 
   const pctSum = macroPct.protein + macroPct.carbs + macroPct.fat;
 
+  // MICRO-HOTFIX — cada cadeia de versões vira UM card; o histórico fica dentro.
+  const chains = groupDietVersionChains(plans as any[]);
+
   return (
     <>
       <div className="space-y-3">
-        {plans.map(plan => {
+        {chains.map(chain => {
+          const plan = (chain.versions.find(v => v.id === expandedId) ?? chain.head) as any;
           const isExpanded = expandedId === plan.id;
           const hasChanges = editedMeals[plan.id] !== undefined || editedDays[plan.id] !== undefined || editedPlans[plan.id] !== undefined || editedSchedules[plan.id] !== undefined || (aiNotes[plan.id]?.length || 0) > 0;
           const isEditing = editingId === plan.id;
           const cleanedMarkdown = stripDietPreamble(plan.conteudo);
+          const historyVersions = chain.versions.filter(v => v.id !== plan.id);
+          const isHistoryOpen = historyOpen[chain.rootId] === true;
 
           return (
-            <Card key={plan.id} className="glass-card">
+            <Card key={chain.rootId} className="glass-card">
               <CardContent className="p-4">
                 <div
                   className="flex items-center justify-between cursor-pointer"
@@ -529,7 +544,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                     <UtensilsCrossed className="h-5 w-5 text-green-500 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className={cn('font-medium truncate', isEditing ? 'text-xs' : 'text-sm')}>{plan.titulo}</p>
+                        <p className={cn('font-medium truncate', isEditing ? 'text-xs' : 'text-sm')}>{normalizeDietTitle(plan.titulo) || 'Dieta'}</p>
                         {plan.migration_status === 'completed' && (
                           <Badge variant="outline" className={cn('h-4 px-1 text-[8px] uppercase text-emerald-500 border-emerald-500/30', isEditing && 'hidden sm:inline-flex')}>JSON</Badge>
                         )}
@@ -624,15 +639,18 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         <Percent className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    <WhatsAppNotifyPlanButton
-                      plan={plan}
-                      studentId={studentId}
-                      onNotified={(planId, notifiedAt, count) =>
-                        setPlans(prev => prev.map(p =>
-                          p.id === planId ? { ...p, whatsapp_notified_at: notifiedAt, whatsapp_notified_count: count } : p
-                        ))
-                      }
-                    />
+                    {/* WhatsApp só para a última versão publicada da cadeia. */}
+                    {chain.latestPublished && plan.id === chain.latestPublished.id && (
+                      <WhatsAppNotifyPlanButton
+                        plan={plan}
+                        studentId={studentId}
+                        onNotified={(planId, notifiedAt, count) =>
+                          setPlans(prev => prev.map(p =>
+                            p.id === planId ? { ...p, whatsapp_notified_at: notifiedAt, whatsapp_notified_count: count } : p
+                          ))
+                        }
+                      />
+                    )}
                     {plan.is_draft === false && isStructuredCanonicalPlan(parseDietPlanLoose(plan.conteudo_json)) ? (
                       <Button
                         variant="ghost"
@@ -723,6 +741,46 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                     {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                   </div>
                 </div>
+
+                {historyVersions.length > 0 && (
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setHistoryOpen(prev => ({ ...prev, [chain.rootId]: !prev[chain.rootId] }));
+                      }}
+                    >
+                      Histórico · {chain.versions.length} versões
+                    </button>
+                    {isHistoryOpen && (
+                      <div className="mt-2 space-y-1">
+                        {chain.versions.map(v => (
+                          <button
+                            key={v.id}
+                            type="button"
+                            className={cn(
+                              'flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-[11px] hover:bg-muted/40',
+                              v.id === plan.id && 'bg-muted/30',
+                            )}
+                            onClick={(e) => { e.stopPropagation(); setExpandedId(v.id); }}
+                          >
+                            <span className="font-medium">v{Number(v.version ?? 1)}</span>
+                            <span className={v.is_draft === false ? 'text-emerald-500' : 'text-amber-500'}>
+                              {v.is_draft === false ? 'Publicada' : 'Rascunho'}
+                            </span>
+                            <span className="text-muted-foreground">
+                              {new Date(v.published_at ?? v.created_at).toLocaleString('pt-BR', {
+                                day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+                              })}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {isExpanded && (
                   <div className="mt-4 pt-4 border-t border-border space-y-4">
