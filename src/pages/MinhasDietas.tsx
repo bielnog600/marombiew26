@@ -329,7 +329,7 @@ const MinhasDietas = () => {
     // plan (fonte da meta diária imutável). Edits are overlaid later, after
     // the per-day scaling, so the professor's target never changes.
     return base;
-  }, [mealGroups, usesMealOptions, dietMarkdown]);
+  }, [mealGroups, usesMealOptions, dietMarkdown, structuredGroups]);
 
   const persistFoodsChange = useCallback((groupIdx: number, mealIdx: number, foods: any[]) => {
     setSubstitutions((prev) => {
