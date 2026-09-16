@@ -10,6 +10,7 @@ import { loadFoodCatalog } from "../_shared/foodCatalog.ts";
 import { hydrateDietPlanFromFoods } from "../_shared/dietHydration.ts";
 import { canonicalDietPlanToMarkdown } from "../_shared/canonicalDietMarkdown.ts";
 import { isStructuredPlan, stripPublicationSnapshots } from "../_shared/dietPublication.ts";
+import { normalizeDietTitle } from "../_shared/dietTitle.ts";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -82,7 +83,8 @@ Deno.serve(async (req) => {
       .insert({
         student_id: source.student_id,
         tipo: "dieta",
-        titulo: `${source.titulo || "Dieta"} (v${Number(source.version ?? 1) + 1})`,
+        // Título canônico: a versão vive na coluna `version`, nunca no título.
+        titulo: normalizeDietTitle(source.titulo) || "Dieta",
         conteudo: markdown,
         conteudo_json: hydrated.plan,
         protocols: source.protocols,
