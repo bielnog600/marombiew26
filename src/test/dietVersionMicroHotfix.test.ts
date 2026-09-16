@@ -3,6 +3,7 @@ import {
   areDietsSemanticallyEqual,
   buildDietSemanticPayload,
   dietSemanticFingerprint,
+  shouldDiscardRedundantDraft,
 } from '../../supabase/functions/_shared/dietSemanticFingerprint';
 import { normalizeDietTitle } from '../../supabase/functions/_shared/dietTitle';
 import { groupDietVersionChains } from '@/lib/dietVersionChains';
@@ -216,9 +217,6 @@ describe('identidade do preview', () => {
 });
 
 describe('guarda de publicação no-op', () => {
-  const { shouldDiscardRedundantDraft } = await import(
-    '../../supabase/functions/_shared/dietSemanticFingerprint'
-  );
   const parent = () => ({ id: 'p', tipo: 'dieta', is_draft: false, conteudo_json: basePlan(), protocols: protocols() });
   const draft = (over: any = {}) => ({
     id: 'd', tipo: 'dieta', is_draft: true, parent_plan_id: 'p',
