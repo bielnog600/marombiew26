@@ -392,6 +392,12 @@ const MinhasDietas = () => {
   // When present, the student sees the actual daily meta (not the flat sum
   // of the base meal block).
   const daySchedule = useMemo(() => {
+    // Structured publicada: a meta teórica vem de weekly_day_targets e NUNCA
+    // é usada para escalar o cardápio.
+    if (isStructuredDiet) {
+      const g = structuredGroups[activeGroupIndex];
+      return g?.target ? { target: Math.round(g.target.kcal), adjustment: 0, instructions: null } : null;
+    }
     if (!weeklySchedule || usesMealOptions) return null;
     const key = WEEKDAY_KEYS[activeGroupIndex];
     const keyEn = WEEKDAY_KEYS_EN[activeGroupIndex];
