@@ -20,7 +20,8 @@ export const buildWorkingPlan = <T extends { days?: any[] }>(plan: T, dayIndex: 
   const day = next?.days?.[dayIndex];
   (day?.meals ?? []).forEach((meal: any) => {
     (meal?.items ?? []).forEach((item: any, i: number) => {
-      item[PREVIEW_SRC_KEY] = i;
+      // Identidade estável: uma vez atribuída, NUNCA é reatribuída.
+      if (item[PREVIEW_SRC_KEY] == null) item[PREVIEW_SRC_KEY] = i;
     });
   });
   return next as T;
