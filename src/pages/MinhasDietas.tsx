@@ -213,10 +213,23 @@ const MinhasDietas = () => {
   }, [user]);
 
   const loadDiet = async () => {
-    const { data: dieta } = await fetchWithCache(`plan:dieta:full:${user!.id}`, async () => {
-      const { data } = await supabase.from('ai_plans').select('id, conteudo, created_at, protocols').eq('student_id', user!.id).eq('tipo', 'dieta').eq('is_draft', false).order('created_at', { ascending: false }).limit(1).maybeSingle();
-      return data;
-    });
+    // Chave de cache versionada: o cache antigo não continha conteudo_json.
+    const { data: dieta } = await fetchWithCache(
+      `plan:dieta:full:${DIET_DISPLAY_SCHEMA_VERSION}:${user!.id}`,
+      async () => {
+        const { data } = await supabase
+          .from('ai_plans')
+          .select('id, titulo, conteudo, conteudo_json, protocols, version, content_revision, created_at, published_at, is_draft')
+          .eq('student_id', user!.id)
+          .eq('tipo', 'dieta')
+          .eq('is_draft', false)
+          .order('published_at', { ascending: false, nullsFirst: false })
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        return data;
+      },
+    );
     if (dieta) {
       const conteudo = await translatePlanMarkdown(dieta.conteudo, language);
       setSections(parseSections(conteudo));
@@ -224,10 +237,17 @@ const MinhasDietas = () => {
       const saved = (dieta as any).protocols as SavedProtocols | null | undefined;
       setProtocolKeys(protocolsToKeys(saved));
       setWeeklySchedule((saved as any)?.weekly_energy_schedule ?? null);
+      // HOTFIX ALUNO — structured publicada: o cardápio vem de conteudo_json.
+      const canonical = parseDietPlanLoose((dieta as any).conteudo_json);
+      const structured = isStructuredPublishedDiet(canonical, (dieta as any).is_draft);
+      setStructuredPlan(structured ? canonical : null);
+      setStructuredProtocols(structured ? saved ?? null : null);
       // Version key combines plan id + created_at so any admin edit (which
       // bumps created_at via re-insert OR keeps it via update) is detected.
       // We hash the content length as a tiebreaker for in-place updates.
-      setPlanVersion(`${dieta.id}-${dieta.conteudo.length}-${DIET_DISPLAY_SCHEMA_VERSION}`);
+      setPlanVersion(
+        `${dieta.id}-${(dieta as any).content_revision ?? 0}-${dieta.conteudo.length}-${DIET_DISPLAY_SCHEMA_VERSION}`,
+      );
     }
     setLoading(false);
   };
