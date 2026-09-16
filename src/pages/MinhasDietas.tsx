@@ -260,13 +260,30 @@ const MinhasDietas = () => {
     }));
   }, [sections]);
 
+  // HOTFIX ALUNO — grupos vindos diretamente da dieta structured publicada.
+  const structuredGroups = useMemo<StudentStructuredDay[]>(
+    () => (structuredPlan ? buildStructuredDisplayGroups(structuredPlan, structuredProtocols) : []),
+    [structuredPlan, structuredProtocols],
+  );
+  const isStructuredDiet = structuredGroups.length > 0;
+
   const usesMealOptions = useMemo(
-    () => mealGroups.length > 1 && mealGroups.some((group) => OPTION_TITLE_REGEX.test(group.label)),
-    [mealGroups],
+    () =>
+      !isStructuredDiet &&
+      mealGroups.length > 1 &&
+      mealGroups.some((group) => OPTION_TITLE_REGEX.test(group.label)),
+    [mealGroups, isStructuredDiet],
   );
 
   // When day-based (not options), always show 7 weekday buttons with independent meal copies
   const displayGroups = useMemo(() => {
+    // Structured publicada: um grupo por weekday, exatamente como publicado.
+    if (structuredGroups.length > 0) {
+      return structuredGroups.map((g) => ({
+        label: g.tag ? `${g.label} (${g.tag})` : g.label,
+        meals: g.meals,
+      }));
+    }
     let base: { label: string; meals: any[] }[];
     if (usesMealOptions || mealGroups.length === 0) {
       base = mealGroups;
