@@ -28,6 +28,7 @@ import {
   buildDuplicateDietPayload,
 } from '@/lib/dietStructuredGuards';
 import { createDietVersion, publishDietPlan } from '@/lib/publishDietPlan';
+import { groupDietVersionChains, normalizeDietTitle } from '@/lib/dietVersionChains';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
