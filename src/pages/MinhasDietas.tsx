@@ -25,12 +25,19 @@ import ProtocolsDialog from '@/components/diet/ProtocolsDialog';
 import { protocolsToKeys, type SavedProtocols, type ProtocolKey } from '@/lib/dietProtocols';
 import { ListChecks } from 'lucide-react';
 import { buildCarbCycleDays } from '@/lib/dietAiActions';
+import { parseDietPlanLoose } from '@/lib/dietSchema';
+import {
+  buildStructuredDisplayGroups,
+  isStructuredPublishedDiet,
+  type StudentStructuredDay,
+} from '@/lib/studentStructuredDiet';
 
 const WEEKDAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const WEEKDAY_KEYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'] as const;
 const WEEKDAY_KEYS_EN = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
 const OPTION_TITLE_REGEX = /(op[cç][aã]o|card[aá]pio)/i;
-const DIET_DISPLAY_SCHEMA_VERSION = 'dedupe-v2';
+// HOTFIX ALUNO — nova versão de schema invalida o cache antigo (sem conteudo_json).
+const DIET_DISPLAY_SCHEMA_VERSION = 'structured-v1';
 
 /**
  * Recover a previously-applied carb cycle saved in the diet markdown notes
@@ -118,6 +125,9 @@ const MinhasDietas = () => {
   const [protocolKeys, setProtocolKeys] = useState<ProtocolKey[]>([]);
   const [weeklySchedule, setWeeklySchedule] = useState<any | null>(null);
   const [showProtocols, setShowProtocols] = useState(false);
+  // HOTFIX ALUNO — dieta structured publicada (fonte de verdade do cardápio).
+  const [structuredPlan, setStructuredPlan] = useState<any | null>(null);
+  const [structuredProtocols, setStructuredProtocols] = useState<any | null>(null);
 
   // Key local substitutions per plan version so admin edits invalidate stale subs
   const subsStorageKey = user && planVersion ? `diet-subs-${user.id}-${planVersion}` : '';
@@ -203,10 +213,23 @@ const MinhasDietas = () => {
   }, [user]);
 
   const loadDiet = async () => {
-    const { data: dieta } = await fetchWithCache(`plan:dieta:full:${user!.id}`, async () => {
-      const { data } = await supabase.from('ai_plans').select('id, conteudo, created_at, protocols').eq('student_id', user!.id).eq('tipo', 'dieta').eq('is_draft', false).order('created_at', { ascending: false }).limit(1).maybeSingle();
-      return data;
-    });
+    // Chave de cache versionada: o cache antigo não continha conteudo_json.
+    const { data: dieta } = await fetchWithCache(
+      `plan:dieta:full:${DIET_DISPLAY_SCHEMA_VERSION}:${user!.id}`,
+      async () => {
+        const { data } = await supabase
+          .from('ai_plans')
+          .select('id, titulo, conteudo, conteudo_json, protocols, version, content_revision, created_at, published_at, is_draft')
+          .eq('student_id', user!.id)
+          .eq('tipo', 'dieta')
+          .eq('is_draft', false)
+          .order('published_at', { ascending: false, nullsFirst: false })
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        return data;
+      },
+    );
     if (dieta) {
       const conteudo = await translatePlanMarkdown(dieta.conteudo, language);
       setSections(parseSections(conteudo));
@@ -214,10 +237,17 @@ const MinhasDietas = () => {
       const saved = (dieta as any).protocols as SavedProtocols | null | undefined;
       setProtocolKeys(protocolsToKeys(saved));
       setWeeklySchedule((saved as any)?.weekly_energy_schedule ?? null);
+      // HOTFIX ALUNO — structured publicada: o cardápio vem de conteudo_json.
+      const canonical = parseDietPlanLoose((dieta as any).conteudo_json);
+      const structured = isStructuredPublishedDiet(canonical, (dieta as any).is_draft);
+      setStructuredPlan(structured ? canonical : null);
+      setStructuredProtocols(structured ? saved ?? null : null);
       // Version key combines plan id + created_at so any admin edit (which
       // bumps created_at via re-insert OR keeps it via update) is detected.
       // We hash the content length as a tiebreaker for in-place updates.
-      setPlanVersion(`${dieta.id}-${dieta.conteudo.length}-${DIET_DISPLAY_SCHEMA_VERSION}`);
+      setPlanVersion(
+        `${dieta.id}-${(dieta as any).content_revision ?? 0}-${dieta.conteudo.length}-${DIET_DISPLAY_SCHEMA_VERSION}`,
+      );
     }
     setLoading(false);
   };
@@ -230,13 +260,30 @@ const MinhasDietas = () => {
     }));
   }, [sections]);
 
+  // HOTFIX ALUNO — grupos vindos diretamente da dieta structured publicada.
+  const structuredGroups = useMemo<StudentStructuredDay[]>(
+    () => (structuredPlan ? buildStructuredDisplayGroups(structuredPlan, structuredProtocols) : []),
+    [structuredPlan, structuredProtocols],
+  );
+  const isStructuredDiet = structuredGroups.length > 0;
+
   const usesMealOptions = useMemo(
-    () => mealGroups.length > 1 && mealGroups.some((group) => OPTION_TITLE_REGEX.test(group.label)),
-    [mealGroups],
+    () =>
+      !isStructuredDiet &&
+      mealGroups.length > 1 &&
+      mealGroups.some((group) => OPTION_TITLE_REGEX.test(group.label)),
+    [mealGroups, isStructuredDiet],
   );
 
   // When day-based (not options), always show 7 weekday buttons with independent meal copies
   const displayGroups = useMemo(() => {
+    // Structured publicada: um grupo por weekday, exatamente como publicado.
+    if (structuredGroups.length > 0) {
+      return structuredGroups.map((g) => ({
+        label: g.tag ? `${g.label} (${g.tag})` : g.label,
+        meals: g.meals,
+      }));
+    }
     let base: { label: string; meals: any[] }[];
     if (usesMealOptions || mealGroups.length === 0) {
       base = mealGroups;
@@ -282,7 +329,7 @@ const MinhasDietas = () => {
     // plan (fonte da meta diária imutável). Edits are overlaid later, after
     // the per-day scaling, so the professor's target never changes.
     return base;
-  }, [mealGroups, usesMealOptions, dietMarkdown]);
+  }, [mealGroups, usesMealOptions, dietMarkdown, structuredGroups]);
 
   const persistFoodsChange = useCallback((groupIdx: number, mealIdx: number, foods: any[]) => {
     setSubstitutions((prev) => {
@@ -345,6 +392,12 @@ const MinhasDietas = () => {
   // When present, the student sees the actual daily meta (not the flat sum
   // of the base meal block).
   const daySchedule = useMemo(() => {
+    // Structured publicada: a meta teórica vem de weekly_day_targets e NUNCA
+    // é usada para escalar o cardápio.
+    if (isStructuredDiet) {
+      const g = structuredGroups[activeGroupIndex];
+      return g?.target ? { target: Math.round(g.target.kcal), adjustment: 0, instructions: null } : null;
+    }
     if (!weeklySchedule || usesMealOptions) return null;
     const key = WEEKDAY_KEYS[activeGroupIndex];
     const keyEn = WEEKDAY_KEYS_EN[activeGroupIndex];
@@ -366,12 +419,14 @@ const MinhasDietas = () => {
       dayInstructions = generated[key] ?? generated[keyEn] ?? null;
     }
     return { target, adjustment, instructions: dayInstructions };
-  }, [weeklySchedule, activeGroupIndex, usesMealOptions]);
+  }, [weeklySchedule, activeGroupIndex, usesMealOptions, isStructuredDiet, structuredGroups]);
 
   // Scale foods (qty + kcal + macros) proportionally to the per-day target
   // so the student sees a different meal size on adjusted days instead of
   // the same base menu everywhere. This is the PRESCRIBED plan of the day.
+  // PROIBIDO para structured publicada: o dia já vem pronto do banco.
   const prescribedMeals = useMemo(() => {
+    if (isStructuredDiet) return baseMealsForDay;
     const target = daySchedule?.target;
     if (!target || target <= 0 || baseMealsForDay.length === 0) return baseMealsForDay;
     const baseTotal = baseMealsForDay.reduce(
@@ -408,7 +463,7 @@ const MinhasDietas = () => {
         g: scaleNum(f.g),
       })),
     }));
-  }, [baseMealsForDay, daySchedule]);
+  }, [baseMealsForDay, daySchedule, isStructuredDiet]);
 
   // META PRESCRITA PELO PROFESSOR — imutável para o aluno.
   const dailyTarget = useMemo<Macros>(() => sumMealMacros(prescribedMeals as any), [prescribedMeals]);

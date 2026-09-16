@@ -19,6 +19,13 @@ import workoutHero from '@/assets/workout-hero.jpg';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { parseSections, type ParsedMeal, type ParsedSection } from '@/lib/dietResultParser';
 import DietPlanCard from '@/components/DietPlanCard';
+import { parseDietPlanLoose } from '@/lib/dietSchema';
+import {
+  getStructuredDayDisplay,
+  isStructuredPublishedDiet,
+  STUDENT_WEEKDAY_KEYS,
+  todayWeekdayIndex,
+} from '@/lib/studentStructuredDiet';
 import TabataDoDiaCard from '@/components/home/TabataDoDiaCard';
 import CardioDoDiaCard from '@/components/home/CardioDoDiaCard';
 import HomeCardsCarousel from '@/components/home/HomeCardsCarousel';
@@ -46,6 +53,8 @@ const MinhaArea = () => {
   const [tabataConteudo, setTabataConteudo] = useState<string | null>(null);
   const [cardioConteudo, setCardioConteudo] = useState<string | null>(null);
   const [dietSections, setDietSections] = useState<ParsedSection[]>([]);
+  /** Refeições publicadas do dia de hoje (dieta structured). */
+  const [structuredTodayMeals, setStructuredTodayMeals] = useState<ParsedMeal[] | null>(null);
   const [_trainingTitle, setTrainingTitle] = useState('');
   const [_dietTitle, setDietTitle] = useState('');
   const [isTrainingDay, setIsTrainingDay] = useState(false);
@@ -121,8 +130,9 @@ const MinhaArea = () => {
         fetchWithCache(`plan:treino:${user!.id}`, async () => {
           return (await supabase.from('ai_plans').select('conteudo, titulo').eq('student_id', user!.id).eq('tipo', 'treino').order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
         }),
-        fetchWithCache(`plan:dieta:${user!.id}`, async () => {
-          return (await supabase.from('ai_plans').select('conteudo, titulo').eq('student_id', user!.id).eq('tipo', 'dieta').eq('is_draft', false).order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
+        // HOTFIX ALUNO — chave nova (o cache antigo não tinha conteudo_json).
+        fetchWithCache(`plan:dieta:structured-v1:${user!.id}`, async () => {
+          return (await supabase.from('ai_plans').select('conteudo, titulo, conteudo_json, protocols, version, content_revision, published_at, is_draft').eq('student_id', user!.id).eq('tipo', 'dieta').eq('is_draft', false).order('published_at', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
         }),
         fetchWithCache(`plan:tabata:${user!.id}`, async () => {
           return (await supabase.from('ai_plans').select('conteudo').eq('student_id', user!.id).eq('tipo', 'tabata').order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
@@ -198,6 +208,19 @@ const MinhaArea = () => {
         setDietSections(sections);
         const allMeals = sections.flatMap(s => s.meals ?? []);
         setMeals(allMeals);
+
+        // Structured publicada: o cardápio de HOJE vem de conteudo_json.days.
+        const canonical = parseDietPlanLoose((dieta as any).conteudo_json);
+        if (isStructuredPublishedDiet(canonical, (dieta as any).is_draft)) {
+          const today = getStructuredDayDisplay(
+            canonical,
+            (dieta as any).protocols,
+            STUDENT_WEEKDAY_KEYS[todayWeekdayIndex()],
+          );
+          setStructuredTodayMeals(today?.meals ?? null);
+        } else {
+          setStructuredTodayMeals(null);
+        }
       }
 
       setTabataConteudo(tabata?.conteudo || null);
@@ -480,7 +503,9 @@ const MinhaArea = () => {
 
 
         {/* Diet Summary */}
-        {meals.length > 0 && <DietPlanCard sections={dietSections} />}
+        {(meals.length > 0 || (structuredTodayMeals?.length ?? 0) > 0) && (
+          <DietPlanCard sections={dietSections} structuredTodayMeals={structuredTodayMeals ?? undefined} />
+        )}
 
         {/* Dashboard Cards */}
         <div className="grid grid-cols-3 gap-3">
