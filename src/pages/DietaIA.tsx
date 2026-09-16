@@ -472,6 +472,8 @@ const DietaIA = () => {
   const [saveMode, setSaveMode] = useState<'draft' | 'publish'>('draft');
   const [adjusting, setAdjusting] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
+  /** Só é ativada no início de uma geração de dieta (nunca em edições). */
+  const scrollToResultAfterGenerationRef = useRef(false);
   const [showMacroModal, setShowMacroModal] = useState(false);
   const [macroPct, setMacroPct] = useState({ protein: 20, carbs: 50, fat: 30 });
   const [lastDietPlan, setLastDietPlan] = useState<any>(null);
@@ -972,8 +974,16 @@ const DietaIA = () => {
     }
   };
 
+  /**
+   * HOTFIX UX — o scroll automático acontece SOMENTE quando uma nova dieta
+   * acabou de ser gerada. Edições (quantidade, substituição, remoção, resolver
+   * alimento, autoajuste, desfazer, copiar dia, salvar) nunca movem a tela.
+   */
   useEffect(() => {
-    if (result && resultRef.current) resultRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (!scrollToResultAfterGenerationRef.current) return;
+    if (!result || !resultRef.current) return;
+    scrollToResultAfterGenerationRef.current = false;
+    resultRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [result]);
 
   const loadStudentData = async () => {
@@ -1996,6 +2006,7 @@ const DietaIA = () => {
     if (!canGenerate || !studentCtx || generating) return;
     const intent: DietIntent = opts.intent ?? (opts.regenerateIntent ? 'regenerate' : 'new');
     setLastIntent(intent);
+    scrollToResultAfterGenerationRef.current = true;
     setGenerating(true);
     setGenOutcome(null);
     setGenProgress({ label: 'Preparando dados do aluno...', ratio: 0.03 });

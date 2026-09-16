@@ -10,7 +10,24 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Lock, LockOpen, Trash2, Sliders, Undo2, AlertTriangle, Plus, Replace } from 'lucide-react';
+import {
+  Lock,
+  LockOpen,
+  Trash2,
+  Sliders,
+  Undo2,
+  AlertTriangle,
+  Plus,
+  Replace,
+  Copy,
+} from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -30,6 +47,12 @@ import {
   type AutoAdjustResult,
 } from '@/lib/dietAutoAdjust';
 import type { DayTarget } from '@/lib/dietDayTargets';
+import {
+  simulateCopyDayToWeek,
+  dayIsFullyResolved,
+  COPY_DAY_MESSAGES,
+  type CopyDayResult,
+} from '@/lib/dietCopyDay';
 import AutoAdjustPreviewDialog from './AutoAdjustPreviewDialog';
 import CanonicalFoodPickerDialog from './CanonicalFoodPickerDialog';
 
@@ -65,6 +88,10 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
   const [picker, setPicker] = useState<
     { mode: 'add'; mealIdx: number } | { mode: 'replace'; mealIdx: number; itemIdx: number } | null
   >(null);
+  const [copySim, setCopySim] = useState<
+    { plan: DietPlan; results: CopyDayResult[]; sourceLabel: string } | null
+  >(null);
+
 
   const { data: loadedFoods } = useQuery({
     queryKey: ['canonical-editor-foods'],
@@ -229,19 +256,38 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
     setPreview(result);
   };
 
-  const applyPreview = (kind: 'feasible' | 'approximation') => {
-    if (!preview) return;
-    const nextPlan =
-      kind === 'feasible' ? preview.feasibleAdjustedPlan : preview.bestAttemptPlan;
+  /** HOTFIX UX — o preview é editável: recebe o plano final já montado. */
+  const applyPreviewPlan = (nextPlan: DietPlan, withinTarget: boolean) => {
     if (!nextPlan) return;
     setUndoSnapshot(clone(plan));
-    onChange(nextPlan as DietPlan);
+    onChange(nextPlan);
     setPreview(null);
     toast.success(
-      kind === 'feasible'
+      withinTarget
         ? 'Porções ajustadas dentro da meta.'
-        : 'Aproximação aplicada — a dieta continua fora da meta.',
+        : 'Alterações aplicadas — a dieta continua fora da meta.',
     );
+  };
+
+  const dayName = (d: any, i: number) =>
+    (d?.weekday ?? d?.label ?? `Dia ${i + 1}`).toString().toUpperCase();
+
+  const runCopyDay = () => {
+    if (!dayIsFullyResolved(plan, activeIndex, foodRecords)) {
+      toast.warning(COPY_DAY_MESSAGES.unresolved);
+      return;
+    }
+    const sim = simulateCopyDayToWeek<DietPlan>({
+      plan,
+      sourceIndex: activeIndex,
+      targetsByDay,
+      foods: foodRecords,
+    });
+    if (sim.blocked) {
+      toast.warning(sim.blocked);
+      return;
+    }
+    setCopySim({ plan: sim.plan, results: sim.results, sourceLabel: dayName(day, activeIndex) });
   };
 
   if (!day) return null;
@@ -249,7 +295,7 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
   return (
     <div className="space-y-3">
       {days.length > 1 && (
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           {days.map((d, i) => (
             <Button
               key={`${d.label}-${i}`}
@@ -258,9 +304,18 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
               className="h-7 text-[11px]"
               onClick={() => setDayIndex(i)}
             >
-              {(d.weekday ?? d.label ?? `Dia ${i + 1}`).toString().toUpperCase()}
+              {dayName(d, i)}
             </Button>
           ))}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-[11px]"
+            onClick={runCopyDay}
+            title="Copiar este cardápio para os outros dias, ajustando cada um à sua meta."
+          >
+            <Copy className="mr-1 h-3 w-3" /> Copiar dia
+          </Button>
         </div>
       )}
 
@@ -429,9 +484,62 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
       <AutoAdjustPreviewDialog
         open={!!preview}
         onOpenChange={(o) => !o && setPreview(null)}
-        data={preview}
-        onApply={applyPreview}
+        result={preview}
+        dayIndex={activeIndex}
+        target={target}
+        foods={foodRecords}
+        onApply={(nextPlan, withinTarget) => applyPreviewPlan(nextPlan as DietPlan, withinTarget)}
       />
+
+      <Dialog open={!!copySim} onOpenChange={(o) => !o && setCopySim(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Copiar {copySim?.sourceLabel} para a semana</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 text-xs">
+            <p className="text-muted-foreground">
+              O dia de origem não muda. Cada dia de destino recebe o mesmo cardápio como ponto
+              de partida e tem as porções ajustadas à meta dele.
+            </p>
+            {(copySim?.results ?? []).map((r) => (
+              <div
+                key={r.dayIndex}
+                className="flex items-center justify-between gap-2 rounded-lg border border-border px-2 py-1.5"
+              >
+                <span className="font-semibold text-foreground">
+                  {(r.weekday ?? r.label ?? `Dia ${r.dayIndex + 1}`).toString().toUpperCase()}
+                </span>
+                {r.status === 'ok' ? (
+                  <span className="text-green-600 dark:text-green-400">{line(r.totals)}</span>
+                ) : (
+                  <span className="text-yellow-600 dark:text-yellow-400">
+                    {r.message ?? COPY_DAY_MESSAGES.infeasible} — dia mantido como está
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setCopySim(null)}>
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              disabled={!copySim?.results.some((r) => r.status === 'ok')}
+              onClick={() => {
+                if (!copySim) return;
+                setUndoSnapshot(clone(plan));
+                onChange(copySim.plan);
+                const okCount = copySim.results.filter((r) => r.status === 'ok').length;
+                setCopySim(null);
+                toast.success(`Cardápio copiado para ${okCount} dia(s).`);
+              }}
+            >
+              Aplicar aos dias válidos
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <CanonicalFoodPickerDialog
         open={!!picker}
