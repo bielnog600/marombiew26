@@ -132,3 +132,21 @@ export function areDietsSemanticallyEqual(
 ): boolean {
   return dietSemanticFingerprint(aPlan, aProtocols) === dietSemanticFingerprint(bPlan, bProtocols);
 }
+
+/**
+ * Decide se um rascunho é publicação no-op: mesmo conteúdo semântico do pai
+ * já publicado. Nunca decide nada sobre a versão publicada em si.
+ */
+export function shouldDiscardRedundantDraft(
+  draft: { is_draft?: boolean | null; parent_plan_id?: string | null; conteudo_json?: any; protocols?: any },
+  parent: { id?: string; tipo?: string | null; is_draft?: boolean | null; conteudo_json?: any; protocols?: any } | null,
+): boolean {
+  if (!draft || draft.is_draft !== true || !draft.parent_plan_id) return false;
+  if (!parent || parent.tipo !== "dieta" || parent.is_draft !== false) return false;
+  return areDietsSemanticallyEqual(
+    draft.conteudo_json,
+    draft.protocols,
+    parent.conteudo_json,
+    parent.protocols,
+  );
+}
