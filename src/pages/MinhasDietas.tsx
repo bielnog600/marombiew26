@@ -419,12 +419,14 @@ const MinhasDietas = () => {
       dayInstructions = generated[key] ?? generated[keyEn] ?? null;
     }
     return { target, adjustment, instructions: dayInstructions };
-  }, [weeklySchedule, activeGroupIndex, usesMealOptions]);
+  }, [weeklySchedule, activeGroupIndex, usesMealOptions, isStructuredDiet, structuredGroups]);
 
   // Scale foods (qty + kcal + macros) proportionally to the per-day target
   // so the student sees a different meal size on adjusted days instead of
   // the same base menu everywhere. This is the PRESCRIBED plan of the day.
+  // PROIBIDO para structured publicada: o dia já vem pronto do banco.
   const prescribedMeals = useMemo(() => {
+    if (isStructuredDiet) return baseMealsForDay;
     const target = daySchedule?.target;
     if (!target || target <= 0 || baseMealsForDay.length === 0) return baseMealsForDay;
     const baseTotal = baseMealsForDay.reduce(
