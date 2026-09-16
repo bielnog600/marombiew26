@@ -104,15 +104,8 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (
         parent &&
-        parent.tipo === "dieta" &&
-        parent.is_draft === false &&
         isStructuredPlan(parent.conteudo_json) &&
-        areDietsSemanticallyEqual(
-          row.conteudo_json,
-          row.protocols,
-          parent.conteudo_json,
-          parent.protocols,
-        )
+        shouldDiscardRedundantDraft(row, parent)
       ) {
         const { error: discardError } = await supabase
           .from("ai_plans")
