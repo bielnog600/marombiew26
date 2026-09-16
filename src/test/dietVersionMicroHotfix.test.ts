@@ -214,3 +214,43 @@ describe('identidade do preview', () => {
     expect(working.days[0].meals[0].items.map((i: any) => i.__previewSrcIndex)).toEqual(before);
   });
 });
+
+describe('guarda de publicação no-op', () => {
+  const { shouldDiscardRedundantDraft } = await import(
+    '../../supabase/functions/_shared/dietSemanticFingerprint'
+  );
+  const parent = () => ({ id: 'p', tipo: 'dieta', is_draft: false, conteudo_json: basePlan(), protocols: protocols() });
+  const draft = (over: any = {}) => ({
+    id: 'd', tipo: 'dieta', is_draft: true, parent_plan_id: 'p',
+    conteudo_json: basePlan(), protocols: protocols(), ...over,
+  });
+
+  it('11: rascunho idêntico ao pai é descartável', () => {
+    expect(shouldDiscardRedundantDraft(draft(), parent())).toBe(true);
+  });
+
+  it('12: rascunho com qtyGrams diferente segue o fluxo normal', () => {
+    const plan: any = basePlan();
+    plan.days[0].meals[0].items[0].qtyGrams = 180;
+    expect(shouldDiscardRedundantDraft(draft({ conteudo_json: plan }), parent())).toBe(false);
+  });
+
+  it('13: rascunho sem pai nunca é descartado', () => {
+    expect(shouldDiscardRedundantDraft(draft({ parent_plan_id: null }), parent())).toBe(false);
+  });
+
+  it('14: versão publicada nunca é candidata a descarte', () => {
+    expect(shouldDiscardRedundantDraft({ ...draft(), is_draft: false }, parent())).toBe(false);
+  });
+
+  it('15: pai não publicado não gera descarte', () => {
+    expect(shouldDiscardRedundantDraft(draft(), { ...parent(), is_draft: true })).toBe(false);
+  });
+
+  it('16: só metadados de publicação diferentes ainda é no-op', () => {
+    const plan: any = basePlan();
+    plan.meta.publishedAt = '2026-05-05T10:00:00Z';
+    plan.days[0].meals[0].items[0].nutritionSnapshot = { kcal: 1 };
+    expect(shouldDiscardRedundantDraft(draft(), { ...parent(), conteudo_json: plan })).toBe(true);
+  });
+});
