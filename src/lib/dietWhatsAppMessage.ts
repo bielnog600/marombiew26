@@ -222,8 +222,8 @@ export const buildDietWhatsAppMessage = ({
     const lines = cycle.map((d) => {
       const emoji = d.type ? TYPE_EMOJI[d.type] : '⚪';
       const typeLabel = d.type ? ` — ${d.type}` : '';
-      const kcalLabel = d.kcal !== null ? ` · ${d.kcal} kcal` : '';
-      return `${emoji} ${d.label}${typeLabel}${kcalLabel}`;
+      const macroLine = formatMacroDayLine(d);
+      return `${emoji} ${d.label}${typeLabel}${macroLine ? `\n${macroLine}` : ''}`;
     });
     parts.push(`📅 Sua semana ficou assim:\n\n${lines.join('\n')}`);
     parts.push(
