@@ -79,18 +79,22 @@ export const resolveCarbCycleWhatsAppDays = (
 ): CarbCycleWhatsAppDay[] | null => {
   const weekly = indexByWeekday(protocols?.weekly_day_targets);
   const assignments = indexByWeekday(protocols?.carb_cycling?.assignments);
+  const enabled = protocols?.carb_cycling?.enabled === true;
 
-  const hasWeekly = WEEKDAY_KEYS.some((k) => {
-    const row = weekly[k];
-    return !!row && (positiveNumber(row?.kcal) !== null || normalizeType(row?.type) !== null);
-  });
-  const hasAssignments = WEEKDAY_KEYS.some((k) => normalizeType(assignments[k]) !== null);
+  // weekly_day_targets só conta como ciclo quando está realmente materializado
+  // como tal: pelo menos 2 tipos diferentes entre HIGH/MEDIUM/LOW.
+  const weeklyTypes = new Set(
+    WEEKDAY_KEYS.map((k) => normalizeType(weekly[k]?.type)).filter(Boolean) as string[],
+  );
+  const weeklyIsCycle = weeklyTypes.size >= 2;
 
-  if (!hasWeekly && !hasAssignments) return null;
+  // enabled === false tem PRIORIDADE: assignments residuais nunca ativam ciclo.
+  const isCycle = enabled || weeklyIsCycle;
+  if (!isCycle) return null;
 
   const days = WEEKDAY_KEYS.map((key) => {
     const row = weekly[key];
-    const type = normalizeType(row?.type) ?? normalizeType(assignments[key]);
+    const type = normalizeType(row?.type) ?? (enabled ? normalizeType(assignments[key]) : null);
     const kcal = positiveNumber(row?.kcal);
     return { key, label: WEEKDAY_LABELS[key], type, kcal };
   });
@@ -198,16 +202,20 @@ export const buildDietWhatsAppMessage = ({
   } else {
     const t = resolveLinearDietTargets(plan?.conteudo_json);
     if (t) {
-      parts.push(
-        `📊 Meta diária:\n🔥 ${t.kcal} kcal\n🥩 ${t.p}g Proteína\n🍞 ${t.c}g Carboidratos\n🥑 ${t.g}g Gorduras`,
-      );
+      parts.push(`🔥 Meta diária: ${t.kcal} kcal`);
     }
-    parts.push(
-      'Organizei o plano com as quantidades e refeições que você deve seguir no dia a dia.',
-    );
-    parts.push(
-      'Abra o app para conferir o cardápio completo, as quantidades e marcar suas refeições conforme for realizando.',
-    );
+    if (resendState === 'new') {
+      parts.push(
+        'Organizei o plano com as quantidades e refeições que você deve seguir no dia a dia.',
+      );
+      parts.push(
+        'Abra o app para conferir o cardápio completo, as quantidades e marcar suas refeições conforme for realizando.',
+      );
+    } else if (resendState === 'adjusted') {
+      parts.push('Abra o app para conferir as novas quantidades e refeições.');
+    } else {
+      parts.push('Abra o app para conferir o cardápio completo.');
+    }
   }
 
   parts.push('Qualquer dúvida ou dificuldade com algum alimento, me chama por aqui. 💪');
