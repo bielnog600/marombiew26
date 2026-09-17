@@ -3858,6 +3858,11 @@ ${generated}`;
               <CanonicalDietEditor
                 plan={structuredPlan}
                 targetsByDay={structuredTargetsByDay}
+                dayTypesByDay={(structuredPlan?.days ?? []).map((d: any) =>
+                  carbCycling.enabled
+                    ? (carbCycling.assignments?.[String(d?.weekday ?? '') as WeekdayKey] ?? null)
+                    : null,
+                )}
                 onChange={(p) => { void applyCanonicalPlanUpdate(p); }}
               />
             )}

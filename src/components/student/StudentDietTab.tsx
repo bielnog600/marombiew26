@@ -873,10 +873,20 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                             plan: canonical,
                             protocols: (plan as any).protocols,
                           });
+                          const protocolsRow = (plan as any).protocols ?? null;
+                          const dayTypesByDay = (canonical.days ?? []).map((d: any) => {
+                            const wd = String(d?.weekday ?? '').toLowerCase();
+                            return (
+                              protocolsRow?.weekly_day_targets?.[wd]?.type ??
+                              protocolsRow?.carb_cycling?.assignments?.[wd] ??
+                              null
+                            );
+                          });
                           return (
                             <CanonicalDietEditor
                               plan={canonical}
                               targetsByDay={targetsByDay}
+                              dayTypesByDay={dayTypesByDay}
                               onChange={(p) => handlePlanChange(plan.id, p)}
                             />
                           );

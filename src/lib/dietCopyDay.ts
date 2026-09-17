@@ -86,6 +86,8 @@ export interface SimulateCopyInput<T = any> {
   sourceIndex: number;
   targetsByDay?: Array<DayTarget | null | undefined>;
   foods: FoodRecord[];
+  /** Quando informado, apenas estes índices são simulados/substituídos. */
+  destinationIndexes?: number[];
 }
 
 export interface SimulateCopyOutput<T = any> {
@@ -94,6 +96,28 @@ export interface SimulateCopyOutput<T = any> {
   results: CopyDayResult[];
   blocked?: string;
 }
+
+/** Normaliza rótulo de tipo do dia (LOW/MEDIUM/HIGH). */
+export const normalizeDayType = (raw: unknown): 'LOW' | 'MEDIUM' | 'HIGH' | null => {
+  const v = String(raw ?? '').trim().toUpperCase();
+  return v === 'LOW' || v === 'MEDIUM' || v === 'HIGH' ? v : null;
+};
+
+/** Índices de todos os destinos possíveis (todos os dias menos a origem). */
+export const allDestinationIndexes = (dayCount: number, sourceIndex: number): number[] =>
+  Array.from({ length: Math.max(0, dayCount) }, (_, i) => i).filter((i) => i !== sourceIndex);
+
+/** Índices dos dias com o MESMO tipo da origem (nunca inclui a origem). */
+export const sameTypeDestinationIndexes = (
+  dayTypes: Array<string | null | undefined>,
+  sourceIndex: number,
+): number[] => {
+  const sourceType = normalizeDayType(dayTypes?.[sourceIndex]);
+  if (!sourceType) return [];
+  return dayTypes
+    .map((t, i) => (i !== sourceIndex && normalizeDayType(t) === sourceType ? i : -1))
+    .filter((i) => i >= 0);
+};
 
 /**
  * Simula a cópia em memória. Nunca muta o plano recebido; devolve um plano
@@ -104,6 +128,7 @@ export function simulateCopyDayToWeek<T extends { days?: any[] }>({
   sourceIndex,
   targetsByDay,
   foods,
+  destinationIndexes,
 }: SimulateCopyInput<T>): SimulateCopyOutput<T> {
   const results: CopyDayResult[] = [];
   const days = (plan as any)?.days ?? [];
@@ -113,10 +138,14 @@ export function simulateCopyDayToWeek<T extends { days?: any[] }>({
     return { plan, results, blocked: COPY_DAY_MESSAGES.unresolved };
   }
 
+  const allowed = destinationIndexes ? new Set(destinationIndexes) : null;
+
   let working: any = clone(plan);
 
   days.forEach((destDay: any, dayIndex: number) => {
     if (dayIndex === sourceIndex) return;
+    if (allowed && !allowed.has(dayIndex)) return;
+
     const target = targetsByDay?.[dayIndex] ?? null;
     const meta: CopyDayResult = {
       dayIndex,
