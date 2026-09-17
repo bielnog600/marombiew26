@@ -235,7 +235,7 @@ export const buildDietWhatsAppMessage = ({
   } else {
     const t = resolveLinearDietTargets(plan?.conteudo_json);
     if (t) {
-      parts.push(`🔥 Meta diária: ${t.kcal} kcal`);
+      parts.push(formatLinearTargets(t));
     }
     if (resendState === 'new') {
       parts.push(
