@@ -585,55 +585,156 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
         onApply={(nextPlan, withinTarget) => applyPreviewPlan(nextPlan as DietPlan, withinTarget)}
       />
 
-      <Dialog open={!!copySim} onOpenChange={(o) => !o && setCopySim(null)}>
+      <Dialog open={copyOpen} onOpenChange={(o) => !o && closeCopyDay()}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Copiar {copySim?.sourceLabel} para a semana</DialogTitle>
+            <DialogTitle>Copiar {dayName(day, activeIndex)} para:</DialogTitle>
           </DialogHeader>
-          <div className="space-y-2 text-xs">
-            <p className="text-muted-foreground">
-              O dia de origem não muda. Cada dia de destino recebe o mesmo cardápio como ponto
-              de partida e tem as porções ajustadas à meta dele.
-            </p>
-            {(copySim?.results ?? []).map((r) => (
-              <div
-                key={r.dayIndex}
-                className="flex items-center justify-between gap-2 rounded-lg border border-border px-2 py-1.5"
-              >
-                <span className="font-semibold text-foreground">
-                  {(r.weekday ?? r.label ?? `Dia ${r.dayIndex + 1}`).toString().toUpperCase()}
-                </span>
-                {r.status === 'ok' ? (
-                  <span className="text-green-600 dark:text-green-400">{line(r.totals)}</span>
-                ) : (
-                  <span className="text-yellow-600 dark:text-yellow-400">
-                    {r.message ?? COPY_DAY_MESSAGES.infeasible} — dia mantido como está
-                  </span>
+
+          {copyStep === 'select' ? (
+            <div className="space-y-2 text-xs">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[11px]"
+                  onClick={() => setCopySelected(new Set(allDestinationIndexes(days.length, activeIndex)))}
+                >
+                  Selecionar todos
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[11px]"
+                  onClick={() => setCopySelected(new Set())}
+                >
+                  Limpar
+                </Button>
+                {dayTypeAt(activeIndex) && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[11px]"
+                    onClick={() =>
+                      setCopySelected(
+                        new Set(
+                          sameTypeDestinationIndexes(
+                            days.map((_, i) => dayTypeAt(i)),
+                            activeIndex,
+                          ),
+                        ),
+                      )
+                    }
+                  >
+                    Selecionar mesmo tipo
+                  </Button>
                 )}
               </div>
-            ))}
-          </div>
+
+              <div className="space-y-1">
+                {days.map((d, i) => {
+                  const type = dayTypeAt(i);
+                  const isSource = i === activeIndex;
+                  return (
+                    <label
+                      key={`copy-dest-${i}`}
+                      className={`flex items-center gap-2 rounded-lg border border-border px-2 py-2 ${
+                        isSource ? 'opacity-60' : 'cursor-pointer'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-primary"
+                        disabled={isSource}
+                        checked={copySelected.has(i)}
+                        onChange={() => toggleCopyDestination(i)}
+                        aria-label={dayName(d, i)}
+                      />
+                      <span className="font-semibold text-foreground">{dayName(d, i)}</span>
+                      {isSource ? (
+                        <Badge variant="outline" className="text-[10px]">ORIGEM</Badge>
+                      ) : (
+                        type && (
+                          <Badge variant="outline" className="text-[10px]">{type}</Badge>
+                        )
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="text-muted-foreground">
+                O dia de origem não muda. Cada dia selecionado recebe o mesmo cardápio como ponto
+                de partida e tem as porções ajustadas à meta dele.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2 text-xs">
+              {(copySim?.results ?? []).map((r) => (
+                <div
+                  key={r.dayIndex}
+                  className="space-y-0.5 rounded-lg border border-border px-2 py-1.5"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-foreground">
+                      {(r.weekday ?? r.label ?? `Dia ${r.dayIndex + 1}`).toString().toUpperCase()}
+                    </span>
+                    {dayTypeAt(r.dayIndex) && (
+                      <Badge variant="outline" className="text-[10px]">{dayTypeAt(r.dayIndex)}</Badge>
+                    )}
+                  </div>
+                  <p className="text-muted-foreground">Meta: {line(r.target)}</p>
+                  {r.status === 'ok' ? (
+                    <p className="text-green-600 dark:text-green-400">
+                      Resultado: {line(r.totals)} · Dentro da meta
+                    </p>
+                  ) : (
+                    <p className="text-yellow-600 dark:text-yellow-400">
+                      {r.message ?? COPY_DAY_MESSAGES.infeasible} — dia mantido como está
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
           <DialogFooter className="gap-2">
-            <Button variant="outline" size="sm" onClick={() => setCopySim(null)}>
+            <Button variant="outline" size="sm" onClick={closeCopyDay}>
               Cancelar
             </Button>
-            <Button
-              size="sm"
-              disabled={!copySim?.results.some((r) => r.status === 'ok')}
-              onClick={() => {
-                if (!copySim) return;
-                setUndoSnapshot(clone(plan));
-                onChange(copySim.plan);
-                const okCount = copySim.results.filter((r) => r.status === 'ok').length;
-                setCopySim(null);
-                toast.success(`Cardápio copiado para ${okCount} dia(s).`);
-              }}
-            >
-              Aplicar aos dias válidos
-            </Button>
+            {copyStep === 'select' ? (
+              <Button size="sm" disabled={copySelected.size === 0} onClick={runCopySimulation}>
+                Calcular ajustes
+              </Button>
+            ) : (
+              <>
+                <Button variant="ghost" size="sm" onClick={() => setCopyStep('select')}>
+                  Voltar
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={!copySim?.results.some((r) => r.status === 'ok')}
+                  onClick={() => {
+                    if (!copySim) return;
+                    setUndoSnapshot(clone(plan));
+                    onChange(copySim.plan);
+                    const okCount = copySim.results.filter((r) => r.status === 'ok').length;
+                    const failed = copySim.results.length - okCount;
+                    closeCopyDay();
+                    toast.success(
+                      failed > 0
+                        ? `Cardápio copiado para ${okCount} dia(s). ${failed} dia(s) mantido(s) sem alterações.`
+                        : `Cardápio copiado para ${okCount} dia(s).`,
+                    );
+                  }}
+                >
+                  Aplicar aos {copySim?.results.filter((r) => r.status === 'ok').length ?? 0} dias válidos
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
 
       <CanonicalFoodPickerDialog
         open={!!picker}
