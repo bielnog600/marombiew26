@@ -67,6 +67,49 @@ describe('dietWhatsAppMessage', () => {
     expect(days.find(d => d.key === 'ter')).toMatchObject({ type: 'HIGH', kcal: 1930 });
   });
 
+  const rubinhoProtocols = {
+    carb_cycling: {
+      enabled: false,
+      assignments: { seg: 'medium', ter: 'high', qua: 'medium', qui: 'high', sex: 'medium', sab: 'medium', dom: 'medium' },
+    },
+    weekly_day_targets: null,
+    weekly_energy_schedule: { enabled: true },
+  };
+  const rubinhoPlan = {
+    titulo: 'Dieta',
+    conteudo_json: { targets: { kcal: 1770, p: 183, c: 111, g: 66 } },
+    protocols: rubinhoProtocols,
+  };
+
+  it('A–F. enabled=false com assignments residuais não vira Carb Cycling', () => {
+    expect(resolveCarbCycleWhatsAppDays(rubinhoProtocols)).toBeNull();
+    const msg = buildDietWhatsAppMessage({ firstName: 'Rubinho', plan: rubinhoPlan, resendState: 'new' });
+    expect(msg).not.toContain('Ciclo de Carboidratos');
+    expect(msg).not.toContain('HIGH');
+    expect(msg).not.toContain('MEDIUM');
+    expect(msg).not.toContain('LOW');
+    expect(msg).toContain('Sua nova Dieta já está disponível no app.');
+  });
+
+  it('G–J. linear mostra somente kcal', () => {
+    const msg = buildDietWhatsAppMessage({ firstName: 'Rubinho', plan: rubinhoPlan, resendState: 'new' });
+    expect(msg).toContain('🔥 Meta diária: 1770 kcal');
+    expect(msg).not.toContain('Proteína');
+    expect(msg).not.toContain('Carboidratos');
+    expect(msg).not.toContain('Gorduras');
+  });
+
+  it('K/L. Carb Cycling verdadeiro continua funcionando', () => {
+    expect(resolveCarbCycleWhatsAppDays({ carb_cycling: { enabled: true, assignments: { ter: 'high', qua: 'low' } } })).not.toBeNull();
+    const msg = buildDietWhatsAppMessage({ firstName: 'Izis', plan: { titulo: 'D', conteudo_json: null, protocols: izisProtocols }, resendState: 'new' });
+    expect(msg).toContain('Ciclo de Carboidratos');
+    expect(msg).toContain('🟢 Terça — HIGH · 1930 kcal');
+  });
+
+  it('M. weekly_energy_schedule sozinho não ativa Carb Cycling', () => {
+    expect(resolveCarbCycleWhatsAppDays({ weekly_energy_schedule: { enabled: true } })).toBeNull();
+  });
+
   it('I/J. fallback por assignments sem kcal não gera "0 kcal"', () => {
     const msg = buildDietWhatsAppMessage({
       firstName: 'Ana',
