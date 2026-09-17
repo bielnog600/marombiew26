@@ -80,6 +80,9 @@ const indexByWeekday = (table: unknown): Record<string, any> => {
 export const resolveCarbCycleWhatsAppDays = (
   protocols: any,
 ): CarbCycleWhatsAppDay[] | null => {
+  // enabled === false bloqueia IMEDIATAMENTE: resíduos nunca ativam ciclo.
+  if (protocols?.carb_cycling?.enabled === false) return null;
+
   const weekly = indexByWeekday(protocols?.weekly_day_targets);
   const assignments = indexByWeekday(protocols?.carb_cycling?.assignments);
   const enabled = protocols?.carb_cycling?.enabled === true;
@@ -91,7 +94,6 @@ export const resolveCarbCycleWhatsAppDays = (
   );
   const weeklyIsCycle = weeklyTypes.size >= 2;
 
-  // enabled === false tem PRIORIDADE: assignments residuais nunca ativam ciclo.
   const isCycle = enabled || weeklyIsCycle;
   if (!isCycle) return null;
 
@@ -99,11 +101,39 @@ export const resolveCarbCycleWhatsAppDays = (
     const row = weekly[key];
     const type = normalizeType(row?.type) ?? (enabled ? normalizeType(assignments[key]) : null);
     const kcal = positiveNumber(row?.kcal);
-    return { key, label: WEEKDAY_LABELS[key], type, kcal };
+    // assignments NUNCA são autoridade de macros — só weekly_day_targets.
+    const p = positiveNumber(row?.p ?? row?.protein);
+    const c = positiveNumber(row?.c ?? row?.carbs);
+    const g = positiveNumber(row?.g ?? row?.fat ?? row?.fats);
+    return { key, label: WEEKDAY_LABELS[key], type, kcal, p, c, g };
   });
 
   const meaningful = days.some((d) => d.type !== null || d.kcal !== null);
   return meaningful ? days : null;
+};
+
+/** Linha compacta de macros do dia: "🔥 1930 kcal · P 148g · C 168g · G 74g". */
+export const formatMacroDayLine = (day: {
+  kcal: number | null;
+  p?: number | null;
+  c?: number | null;
+  g?: number | null;
+}): string => {
+  const parts: string[] = [];
+  if (day.kcal !== null && day.kcal !== undefined) parts.push(`🔥 ${Math.round(day.kcal)} kcal`);
+  if (day.p !== null && day.p !== undefined) parts.push(`P ${Math.round(day.p)}g`);
+  if (day.c !== null && day.c !== undefined) parts.push(`C ${Math.round(day.c)}g`);
+  if (day.g !== null && day.g !== undefined) parts.push(`G ${Math.round(day.g)}g`);
+  return parts.join(' · ');
+};
+
+/** Bloco da meta diária da dieta linear. */
+export const formatLinearTargets = (t: DietWhatsAppTargets): string => {
+  const lines = [`📊 *Meta diária:*`, `🔥 ${Math.round(t.kcal)} kcal`];
+  if (t.p > 0) lines.push(`🥩 Proteína: ${Math.round(t.p)} g`);
+  if (t.c > 0) lines.push(`🍞 Carboidratos: ${Math.round(t.c)} g`);
+  if (t.g > 0) lines.push(`🥑 Gorduras: ${Math.round(t.g)} g`);
+  return lines.join('\n');
 };
 
 export interface DietWhatsAppTargets {
