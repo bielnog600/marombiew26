@@ -52,6 +52,9 @@ import {
   simulateCopyDayToWeek,
   dayIsFullyResolved,
   COPY_DAY_MESSAGES,
+  normalizeDayType,
+  allDestinationIndexes,
+  sameTypeDestinationIndexes,
   type CopyDayResult,
 } from '@/lib/dietCopyDay';
 import AutoAdjustPreviewDialog from './AutoAdjustPreviewDialog';
@@ -65,6 +68,8 @@ interface Props {
   foods?: FoodRecord[];
   /** Target FINAL por índice de dia (linear = global, carb cycling = weekday). */
   targetsByDay?: Array<DayTarget | null | undefined>;
+  /** LOW/MEDIUM/HIGH por índice de dia, quando existir (carb cycling). */
+  dayTypesByDay?: Array<string | null | undefined>;
   onChange: (plan: DietPlan) => void;
 }
 
@@ -83,7 +88,7 @@ const fmt = (n: number) => (Number.isInteger(n) ? String(n) : (Math.round(n * 10
 const line = (m: { kcal: number; p: number; c: number; g: number } | null | undefined) =>
   m ? `${Math.round(m.kcal)} kcal · ${Math.round(m.p)}P · ${Math.round(m.c)}C · ${Math.round(m.g)}G` : '—';
 
-const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onChange }) => {
+const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTypesByDay, onChange }) => {
   const [dayIndex, setDayIndex] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<AutoAdjustResult | null>(null);
@@ -91,10 +96,14 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
   const [picker, setPicker] = useState<
     { mode: 'add'; mealIdx: number } | { mode: 'replace'; mealIdx: number; itemIdx: number } | null
   >(null);
+  const [copyOpen, setCopyOpen] = useState(false);
+  const [copyStep, setCopyStep] = useState<'select' | 'preview'>('select');
+  const [copySelected, setCopySelected] = useState<Set<number>>(new Set());
   const [copySim, setCopySim] = useState<
     { plan: DietPlan; results: CopyDayResult[]; sourceLabel: string } | null
   >(null);
   const [aiMealIdx, setAiMealIdx] = useState<number | null>(null);
+
 
 
   const { data: loadedFoods } = useQuery({
