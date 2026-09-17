@@ -25,6 +25,7 @@ const food = (over: Partial<FoodRecord>): FoodRecord =>
     fats: 1,
     portion: '100g',
     portion_size: 100,
+    ...over,
   }) as FoodRecord;
 
 const FRANGO = food({ id: 'f1', name: 'Peito de Frango', calories: 156, protein: 31, carbs: 0, fats: 3.6 });
