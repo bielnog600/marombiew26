@@ -35,7 +35,15 @@ interface Props {
  *   como notificado, sumindo até a próxima edição.
  * - O reset automático em edições é feito por trigger no banco.
  */
-const WhatsAppNotifyPlanButton: React.FC<Props> = ({ plan, studentId, onNotified }) => {
+const WhatsAppNotifyPlanButton: React.FC<Props> = ({
+  plan,
+  studentId,
+  onNotified,
+  showLabel = false,
+  alwaysVisible = false,
+  variant = 'ghost',
+  className,
+}) => {
   const [phone, setPhone] = useState<string | null>(null);
   const [name, setName] = useState<string>('aluno');
 
