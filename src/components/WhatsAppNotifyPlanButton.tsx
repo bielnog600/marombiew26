@@ -200,13 +200,19 @@ const WhatsAppNotifyPlanButton: React.FC<Props> = ({
 
   return (
     <Button
-      variant="ghost"
+      variant={variant}
       size="sm"
-      className="h-7 gap-1 px-2 text-xs text-[#25D366] hover:text-[#25D366] hover:bg-[#25D366]/10"
+      className={
+        className ??
+        (showLabel
+          ? 'h-8 gap-1.5 rounded-xl px-3 text-xs text-[#25D366] hover:text-[#25D366] hover:bg-[#25D366]/10 border-[#25D366]/30'
+          : 'h-7 gap-1 px-2 text-xs text-[#25D366] hover:text-[#25D366] hover:bg-[#25D366]/10')
+      }
       title={isAdjust ? 'Avisar aluno sobre ajuste (WhatsApp)' : 'Avisar aluno que está liberado (WhatsApp)'}
       onClick={handleClick}
     >
-      <MessageCircle className="h-3 w-3" />
+      <MessageCircle className={showLabel ? 'h-3.5 w-3.5' : 'h-3 w-3'} />
+      {showLabel && 'WhatsApp'}
     </Button>
   );
 };
