@@ -103,6 +103,7 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
     { plan: DietPlan; results: CopyDayResult[]; sourceLabel: string } | null
   >(null);
   const [aiMealIdx, setAiMealIdx] = useState<number | null>(null);
+  const [substitution, setSubstitution] = useState<{ mealIdx: number; itemIdx: number } | null>(null);
 
 
 
@@ -283,6 +284,26 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
   };
 
   /** HOTFIX UX — aplica uma sugestão de IA apenas naquela refeição (draft). */
+  /** MICRO-HOTFIX UX — substituição canônica pelo nome clicável. */
+  const applySubstitution = (food: FoodRecord, qtyGrams: number) => {
+    if (!substitution) return;
+    const next = clone(plan);
+    const item: any =
+      next.days?.[activeIndex]?.meals?.[substitution.mealIdx]?.items?.[substitution.itemIdx];
+    if (!item) return;
+    setUndoSnapshot(clone(plan));
+    item.foodId = food.id;
+    item.name = food.name;
+    item.qtyGrams = qtyGrams;
+    item.resolutionStatus = 'resolved_by_id';
+    item.manualLocked = true;
+    item.macros = { kcal: 0, p: 0, c: 0, g: 0 };
+    delete item.nutritionSnapshot;
+    setSubstitution(null);
+    applyPlan(next);
+    toast.success('Alimento substituído.');
+  };
+
   const applyAiSuggestion = (mealIdx: number, items: Array<{ foodId: string; qtyGrams: number }>) => {
     const next = applyMealSuggestion<DietPlan>({
       plan,
