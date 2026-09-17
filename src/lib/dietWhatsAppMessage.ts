@@ -12,6 +12,9 @@ export interface CarbCycleWhatsAppDay {
   label: string;
   type: 'HIGH' | 'MEDIUM' | 'LOW' | null;
   kcal: number | null;
+  p: number | null;
+  c: number | null;
+  g: number | null;
 }
 
 const WEEKDAY_KEYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'] as const;
