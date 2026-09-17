@@ -20,6 +20,7 @@ import {
   Plus,
   Replace,
   Copy,
+  Sparkles,
 } from 'lucide-react';
 import {
   Dialog,
@@ -55,6 +56,8 @@ import {
 } from '@/lib/dietCopyDay';
 import AutoAdjustPreviewDialog from './AutoAdjustPreviewDialog';
 import CanonicalFoodPickerDialog from './CanonicalFoodPickerDialog';
+import MealAiSuggestionsDialog from './MealAiSuggestionsDialog';
+import { applyMealSuggestion } from '@/lib/mealAiSuggestions';
 
 interface Props {
   plan: DietPlan;
@@ -91,6 +94,7 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
   const [copySim, setCopySim] = useState<
     { plan: DietPlan; results: CopyDayResult[]; sourceLabel: string } | null
   >(null);
+  const [aiMealIdx, setAiMealIdx] = useState<number | null>(null);
 
 
   const { data: loadedFoods } = useQuery({
@@ -269,6 +273,21 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
     );
   };
 
+  /** HOTFIX UX — aplica uma sugestão de IA apenas naquela refeição (draft). */
+  const applyAiSuggestion = (mealIdx: number, items: Array<{ foodId: string; qtyGrams: number }>) => {
+    const next = applyMealSuggestion<DietPlan>({
+      plan,
+      dayIndex: activeIndex,
+      mealIndex: mealIdx,
+      items,
+      foods: foodRecords,
+    });
+    setUndoSnapshot(clone(plan));
+    onChange(next);
+    setAiMealIdx(null);
+    toast.success('Sugestão aplicada.');
+  };
+
   const dayName = (d: any, i: number) =>
     (d?.weekday ?? d?.label ?? `Dia ${i + 1}`).toString().toUpperCase();
 
@@ -392,9 +411,22 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
                 {meal.name}
                 {meal.time ? <span className="ml-2 text-muted-foreground">{meal.time}</span> : null}
               </p>
-              <span className="text-muted-foreground">
-                {line(computed?.meals[mealIdx]?.totals)}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">
+                  {line(computed?.meals[mealIdx]?.totals)}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 shrink-0 text-[11px]"
+                  onClick={() => setAiMealIdx(mealIdx)}
+                  title="Gerar 3 alternativas para esta refeição"
+                >
+                  <Sparkles className="h-3 w-3 sm:mr-1" />
+                  <span className="hidden sm:inline">Sugestão IA</span>
+                  <span className="ml-1 sm:hidden">IA</span>
+                </Button>
+              </div>
             </div>
             <div className="space-y-1">
               {(meal.items ?? []).map((item, itemIdx) => {
@@ -480,6 +512,22 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
           </CardContent>
         </Card>
       ))}
+
+      {aiMealIdx !== null && (
+        <MealAiSuggestionsDialog
+          open
+          onOpenChange={(o) => !o && setAiMealIdx(null)}
+          plan={plan}
+          dayIndex={activeIndex}
+          mealIndex={aiMealIdx}
+          mealName={String(day.meals?.[aiMealIdx]?.name ?? 'refeição')}
+          foods={foodRecords}
+          target={target}
+          dayType={(day as any)?.dayType ?? (day as any)?.type ?? null}
+          onApply={(items) => applyAiSuggestion(aiMealIdx, items)}
+        />
+      )}
+
 
       <AutoAdjustPreviewDialog
         open={!!preview}
