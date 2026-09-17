@@ -76,7 +76,7 @@ const WhatsAppNotifyPlanButton: React.FC<Props> = ({
     // Fetch fresh plan data to get full content for macro extraction if it's a diet
     const { data: freshPlan, error: fetchError } = await supabase
       .from('ai_plans')
-      .select('conteudo, conteudo_json, tipo, titulo, whatsapp_notified_count')
+      .select('conteudo, conteudo_json, protocols, tipo, titulo, whatsapp_notified_at, whatsapp_notified_count, is_draft, version, published_at')
       .eq('id', plan.id)
       .maybeSingle();
 
