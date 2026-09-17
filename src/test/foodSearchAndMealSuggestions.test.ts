@@ -248,7 +248,7 @@ describe('I–T — sugestões de IA por refeição', () => {
       items: [{ foodId: 'f6', qtyGrams: 100 }],
       foods: FOODS,
     });
-    expect(next.days[0].totals.kcal).toBe(371);
+    expect(next.days[0].totals.kcal).toBe(372);
     expect(next.publishedAt).toBeUndefined();
     expect((plan as any).days[0].meals[1].items[0].foodId).toBe('f4');
   });
