@@ -55,6 +55,8 @@ import {
 } from '@/lib/dietCopyDay';
 import AutoAdjustPreviewDialog from './AutoAdjustPreviewDialog';
 import CanonicalFoodPickerDialog from './CanonicalFoodPickerDialog';
+import MealAiSuggestionsDialog from './MealAiSuggestionsDialog';
+import { applyMealSuggestion } from '@/lib/mealAiSuggestions';
 
 interface Props {
   plan: DietPlan;
@@ -91,6 +93,7 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
   const [copySim, setCopySim] = useState<
     { plan: DietPlan; results: CopyDayResult[]; sourceLabel: string } | null
   >(null);
+  const [aiMealIdx, setAiMealIdx] = useState<number | null>(null);
 
 
   const { data: loadedFoods } = useQuery({
