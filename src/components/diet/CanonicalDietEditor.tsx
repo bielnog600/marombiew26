@@ -18,7 +18,6 @@ import {
   Undo2,
   AlertTriangle,
   Plus,
-  Replace,
   Copy,
   Sparkles,
 } from 'lucide-react';
@@ -59,6 +58,7 @@ import {
 } from '@/lib/dietCopyDay';
 import AutoAdjustPreviewDialog from './AutoAdjustPreviewDialog';
 import CanonicalFoodPickerDialog from './CanonicalFoodPickerDialog';
+import CanonicalFoodSubstitutionDialog from './CanonicalFoodSubstitutionDialog';
 import MealAiSuggestionsDialog from './MealAiSuggestionsDialog';
 import { applyMealSuggestion } from '@/lib/mealAiSuggestions';
 
