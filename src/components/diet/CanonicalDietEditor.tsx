@@ -300,9 +300,43 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
   const dayName = (d: any, i: number) =>
     (d?.weekday ?? d?.label ?? `Dia ${i + 1}`).toString().toUpperCase();
 
-  const runCopyDay = () => {
+  const dayTypeAt = (i: number) =>
+    normalizeDayType(
+      dayTypesByDay?.[i] ?? (days[i] as any)?.dayType ?? (days[i] as any)?.type ?? null,
+    );
+
+  const openCopyDay = () => {
     if (!dayIsFullyResolved(plan, activeIndex, foodRecords)) {
       toast.warning(COPY_DAY_MESSAGES.unresolved);
+      return;
+    }
+    setCopySelected(new Set());
+    setCopySim(null);
+    setCopyStep('select');
+    setCopyOpen(true);
+  };
+
+  const closeCopyDay = () => {
+    setCopyOpen(false);
+    setCopyStep('select');
+    setCopySelected(new Set());
+    setCopySim(null);
+  };
+
+  const toggleCopyDestination = (i: number) => {
+    if (i === activeIndex) return;
+    setCopySelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+  };
+
+  const runCopySimulation = () => {
+    const destinationIndexes = Array.from(copySelected).sort((a, b) => a - b);
+    if (!destinationIndexes.length) {
+      toast.warning('Selecione ao menos um dia.');
       return;
     }
     const sim = simulateCopyDayToWeek<DietPlan>({
@@ -310,13 +344,16 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
       sourceIndex: activeIndex,
       targetsByDay,
       foods: foodRecords,
+      destinationIndexes,
     });
     if (sim.blocked) {
       toast.warning(sim.blocked);
       return;
     }
     setCopySim({ plan: sim.plan, results: sim.results, sourceLabel: dayName(day, activeIndex) });
+    setCopyStep('preview');
   };
+
 
   if (!day) return null;
 
