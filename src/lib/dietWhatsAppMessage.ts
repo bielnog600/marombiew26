@@ -79,18 +79,22 @@ export const resolveCarbCycleWhatsAppDays = (
 ): CarbCycleWhatsAppDay[] | null => {
   const weekly = indexByWeekday(protocols?.weekly_day_targets);
   const assignments = indexByWeekday(protocols?.carb_cycling?.assignments);
+  const enabled = protocols?.carb_cycling?.enabled === true;
 
-  const hasWeekly = WEEKDAY_KEYS.some((k) => {
-    const row = weekly[k];
-    return !!row && (positiveNumber(row?.kcal) !== null || normalizeType(row?.type) !== null);
-  });
-  const hasAssignments = WEEKDAY_KEYS.some((k) => normalizeType(assignments[k]) !== null);
+  // weekly_day_targets só conta como ciclo quando está realmente materializado
+  // como tal: pelo menos 2 tipos diferentes entre HIGH/MEDIUM/LOW.
+  const weeklyTypes = new Set(
+    WEEKDAY_KEYS.map((k) => normalizeType(weekly[k]?.type)).filter(Boolean) as string[],
+  );
+  const weeklyIsCycle = weeklyTypes.size >= 2;
 
-  if (!hasWeekly && !hasAssignments) return null;
+  // enabled === false tem PRIORIDADE: assignments residuais nunca ativam ciclo.
+  const isCycle = enabled || weeklyIsCycle;
+  if (!isCycle) return null;
 
   const days = WEEKDAY_KEYS.map((key) => {
     const row = weekly[key];
-    const type = normalizeType(row?.type) ?? normalizeType(assignments[key]);
+    const type = normalizeType(row?.type) ?? (enabled ? normalizeType(assignments[key]) : null);
     const kcal = positiveNumber(row?.kcal);
     return { key, label: WEEKDAY_LABELS[key], type, kcal };
   });
