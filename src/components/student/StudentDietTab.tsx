@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { UtensilsCrossed, ChevronDown, ChevronUp, Pencil, Save, Loader2, Eye, Trash2, Percent, Wand2, Zap, RefreshCw, ClipboardCheck } from 'lucide-react';
+import { UtensilsCrossed, ChevronDown, ChevronUp, Pencil, Save, Loader2, Eye, Trash2, Percent, Wand2, RefreshCw, ClipboardCheck } from 'lucide-react';
 import { Copy, ClipboardCopy } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
@@ -639,18 +639,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         <Percent className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    {/* WhatsApp só para a última versão publicada da cadeia. */}
-                    {chain.latestPublished && plan.id === chain.latestPublished.id && (
-                      <WhatsAppNotifyPlanButton
-                        plan={plan}
-                        studentId={studentId}
-                        onNotified={(planId, notifiedAt, count) =>
-                          setPlans(prev => prev.map(p =>
-                            p.id === planId ? { ...p, whatsapp_notified_at: notifiedAt, whatsapp_notified_count: count } : p
-                          ))
-                        }
-                      />
-                    )}
+                    {/* WhatsApp agora fica na barra de ações da dieta expandida. */}
                     {plan.is_draft === false && isStructuredCanonicalPlan(parseDietPlanLoose(plan.conteudo_json)) ? (
                       <Button
                         variant="ghost"
@@ -829,19 +818,22 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         <ClipboardCopy className="h-3.5 w-3.5" />
                         Copiar dieta
                       </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="h-8 gap-1.5 text-xs rounded-xl bg-orange-500/5 border-orange-500/20 text-orange-600"
-                        onClick={async () => {
-                          const target = await ensureEditableDraft(plan);
-                          if (!target) return;
-                          navigate(`/dieta-ia/${studentId}?edit=${target.id}&mode=adjust`);
-                        }}
-                      >
-                        <Zap className="h-3.5 w-3.5" />
-                        Ajuste Rápido
-                      </Button>
+                      {/* WhatsApp: somente a última versão publicada da cadeia. */}
+                      {chain.latestPublished && plan.id === chain.latestPublished.id && (
+                        <WhatsAppNotifyPlanButton
+                          plan={plan}
+                          studentId={studentId}
+                          showLabel
+                          alwaysVisible
+                          variant="outline"
+                          className="h-8 gap-1.5 rounded-xl px-3 text-xs text-[#25D366] hover:text-[#25D366] hover:bg-[#25D366]/10 border-[#25D366]/30"
+                          onNotified={(planId, notifiedAt, count) =>
+                            setPlans(prev => prev.map(p =>
+                              p.id === planId ? { ...p, whatsapp_notified_at: notifiedAt, whatsapp_notified_count: count } : p
+                            ))
+                          }
+                        />
+                      )}
                       <Button 
                         size="sm" 
                         variant="outline" 

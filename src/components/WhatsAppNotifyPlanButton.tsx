@@ -6,6 +6,7 @@ import { MessageCircle } from 'lucide-react';
  import { parseSections } from '@/lib/dietResultParser';
  import { computeDayTotals } from '@/lib/dietMarkdownSerializer';
  import { normalizeWhatsAppPhone } from '@/lib/phone';
+ import { buildDietWhatsAppMessage, resolveDietWhatsAppState } from '@/lib/dietWhatsAppMessage';
 
 interface Props {
   plan: {
@@ -17,6 +18,12 @@ interface Props {
   };
   studentId: string;
   onNotified?: (planId: string, notifiedAt: string, count: number) => void;
+  /** Mostra o texto "WhatsApp" ao lado do ícone. */
+  showLabel?: boolean;
+  /** Mantém o botão visível mesmo depois do primeiro envio (reenvio). */
+  alwaysVisible?: boolean;
+  variant?: 'ghost' | 'outline';
+  className?: string;
 }
 
 /**
@@ -29,7 +36,15 @@ interface Props {
  *   como notificado, sumindo até a próxima edição.
  * - O reset automático em edições é feito por trigger no banco.
  */
-const WhatsAppNotifyPlanButton: React.FC<Props> = ({ plan, studentId, onNotified }) => {
+const WhatsAppNotifyPlanButton: React.FC<Props> = ({
+  plan,
+  studentId,
+  onNotified,
+  showLabel = false,
+  alwaysVisible = false,
+  variant = 'ghost',
+  className,
+}) => {
   const [phone, setPhone] = useState<string | null>(null);
   const [name, setName] = useState<string>('aluno');
 
@@ -54,7 +69,7 @@ const WhatsAppNotifyPlanButton: React.FC<Props> = ({ plan, studentId, onNotified
      setNotified(!!plan.whatsapp_notified_at);
    }, [plan.whatsapp_notified_at]);
  
-   if (notified) return null;
+   if (notified && !alwaysVisible) return null;
 
   const handleClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -62,7 +77,7 @@ const WhatsAppNotifyPlanButton: React.FC<Props> = ({ plan, studentId, onNotified
     // Fetch fresh plan data to get full content for macro extraction if it's a diet
     const { data: freshPlan, error: fetchError } = await supabase
       .from('ai_plans')
-      .select('conteudo, conteudo_json, tipo, titulo, whatsapp_notified_count')
+      .select('conteudo, conteudo_json, protocols, tipo, titulo, whatsapp_notified_at, whatsapp_notified_count, is_draft, version, published_at')
       .eq('id', plan.id)
       .maybeSingle();
 
@@ -128,7 +143,20 @@ const WhatsAppNotifyPlanButton: React.FC<Props> = ({ plan, studentId, onNotified
       }
     }
 
-    const msg = isAdjust
+    const msg = freshPlan.tipo === 'dieta'
+      ? buildDietWhatsAppMessage({
+          firstName,
+          plan: {
+            titulo: freshPlan.titulo,
+            conteudo_json: (freshPlan as any).conteudo_json,
+            protocols: (freshPlan as any).protocols,
+          },
+          resendState: resolveDietWhatsAppState(
+            freshPlan.whatsapp_notified_count,
+            (freshPlan as any).whatsapp_notified_at,
+          ),
+        })
+      : isAdjust
       ? `Oi ${firstName}! 💪\n\nFiz alguns ajustes na sua *${noun}* ("${freshPlan.titulo}") e ${verb}.${macroInfo}\n\nPode abrir o app pra conferir as novidades. Qualquer dúvida me chama por aqui! 🙌`
       : `Oi ${firstName}! 🚀\n\nSua nova *${noun}* ("${freshPlan.titulo}") ${verb}.${macroInfo}\n\nÉ só abrir o app pra começar! Bons treinos e qualquer dúvida me chama por aqui. 🙌`;
 
@@ -173,13 +201,19 @@ const WhatsAppNotifyPlanButton: React.FC<Props> = ({ plan, studentId, onNotified
 
   return (
     <Button
-      variant="ghost"
+      variant={variant}
       size="sm"
-      className="h-7 gap-1 px-2 text-xs text-[#25D366] hover:text-[#25D366] hover:bg-[#25D366]/10"
+      className={
+        className ??
+        (showLabel
+          ? 'h-8 gap-1.5 rounded-xl px-3 text-xs text-[#25D366] hover:text-[#25D366] hover:bg-[#25D366]/10 border-[#25D366]/30'
+          : 'h-7 gap-1 px-2 text-xs text-[#25D366] hover:text-[#25D366] hover:bg-[#25D366]/10')
+      }
       title={isAdjust ? 'Avisar aluno sobre ajuste (WhatsApp)' : 'Avisar aluno que está liberado (WhatsApp)'}
       onClick={handleClick}
     >
-      <MessageCircle className="h-3 w-3" />
+      <MessageCircle className={showLabel ? 'h-3.5 w-3.5' : 'h-3 w-3'} />
+      {showLabel && 'WhatsApp'}
     </Button>
   );
 };
