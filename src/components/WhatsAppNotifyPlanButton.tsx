@@ -142,7 +142,20 @@ const WhatsAppNotifyPlanButton: React.FC<Props> = ({
       }
     }
 
-    const msg = isAdjust
+    const msg = freshPlan.tipo === 'dieta'
+      ? buildDietWhatsAppMessage({
+          firstName,
+          plan: {
+            titulo: freshPlan.titulo,
+            conteudo_json: (freshPlan as any).conteudo_json,
+            protocols: (freshPlan as any).protocols,
+          },
+          resendState: resolveDietWhatsAppState(
+            freshPlan.whatsapp_notified_count,
+            (freshPlan as any).whatsapp_notified_at,
+          ),
+        })
+      : isAdjust
       ? `Oi ${firstName}! 💪\n\nFiz alguns ajustes na sua *${noun}* ("${freshPlan.titulo}") e ${verb}.${macroInfo}\n\nPode abrir o app pra conferir as novidades. Qualquer dúvida me chama por aqui! 🙌`
       : `Oi ${firstName}! 🚀\n\nSua nova *${noun}* ("${freshPlan.titulo}") ${verb}.${macroInfo}\n\nÉ só abrir o app pra começar! Bons treinos e qualquer dúvida me chama por aqui. 🙌`;
 
