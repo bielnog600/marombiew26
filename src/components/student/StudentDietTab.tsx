@@ -639,18 +639,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         <Percent className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    {/* WhatsApp só para a última versão publicada da cadeia. */}
-                    {chain.latestPublished && plan.id === chain.latestPublished.id && (
-                      <WhatsAppNotifyPlanButton
-                        plan={plan}
-                        studentId={studentId}
-                        onNotified={(planId, notifiedAt, count) =>
-                          setPlans(prev => prev.map(p =>
-                            p.id === planId ? { ...p, whatsapp_notified_at: notifiedAt, whatsapp_notified_count: count } : p
-                          ))
-                        }
-                      />
-                    )}
+                    {/* WhatsApp agora fica na barra de ações da dieta expandida. */}
                     {plan.is_draft === false && isStructuredCanonicalPlan(parseDietPlanLoose(plan.conteudo_json)) ? (
                       <Button
                         variant="ghost"
