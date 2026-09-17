@@ -18,7 +18,6 @@ import {
   Undo2,
   AlertTriangle,
   Plus,
-  Replace,
   Copy,
   Sparkles,
 } from 'lucide-react';
@@ -59,6 +58,7 @@ import {
 } from '@/lib/dietCopyDay';
 import AutoAdjustPreviewDialog from './AutoAdjustPreviewDialog';
 import CanonicalFoodPickerDialog from './CanonicalFoodPickerDialog';
+import CanonicalFoodSubstitutionDialog from './CanonicalFoodSubstitutionDialog';
 import MealAiSuggestionsDialog from './MealAiSuggestionsDialog';
 import { applyMealSuggestion } from '@/lib/mealAiSuggestions';
 
@@ -103,6 +103,7 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
     { plan: DietPlan; results: CopyDayResult[]; sourceLabel: string } | null
   >(null);
   const [aiMealIdx, setAiMealIdx] = useState<number | null>(null);
+  const [substitution, setSubstitution] = useState<{ mealIdx: number; itemIdx: number } | null>(null);
 
 
 
@@ -283,6 +284,26 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
   };
 
   /** HOTFIX UX — aplica uma sugestão de IA apenas naquela refeição (draft). */
+  /** MICRO-HOTFIX UX — substituição canônica pelo nome clicável. */
+  const applySubstitution = (food: FoodRecord, qtyGrams: number) => {
+    if (!substitution) return;
+    const next = clone(plan);
+    const item: any =
+      next.days?.[activeIndex]?.meals?.[substitution.mealIdx]?.items?.[substitution.itemIdx];
+    if (!item) return;
+    setUndoSnapshot(clone(plan));
+    item.foodId = food.id;
+    item.name = food.name;
+    item.qtyGrams = qtyGrams;
+    item.resolutionStatus = 'resolved_by_id';
+    item.manualLocked = true;
+    item.macros = { kcal: 0, p: 0, c: 0, g: 0 };
+    delete item.nutritionSnapshot;
+    setSubstitution(null);
+    applyPlan(next);
+    toast.success('Alimento substituído.');
+  };
+
   const applyAiSuggestion = (mealIdx: number, items: Array<{ foodId: string; qtyGrams: number }>) => {
     const next = applyMealSuggestion<DietPlan>({
       plan,
@@ -486,7 +507,15 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
                     className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background/60 px-2 py-1.5 text-xs"
                   >
                     <span className="min-w-[8rem] flex-1 text-foreground">
-                      {item.name}
+                      <button
+                        type="button"
+                        className="min-h-[32px] cursor-pointer rounded px-1 py-1 text-left underline-offset-2 hover:bg-primary/10 hover:underline"
+                        title="Clique para substituir este alimento"
+                        aria-label={`Substituir ${item.name}`}
+                        onClick={() => setSubstitution({ mealIdx, itemIdx })}
+                      >
+                        {item.name}
+                      </button>
                       {unresolved && (
                         <Badge variant="outline" className="ml-2 border-amber-500/50 text-[9px] text-amber-500">
                           NÃO VALIDADO
@@ -525,15 +554,6 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
                       ) : (
                         <LockOpen className="h-3.5 w-3.5 text-muted-foreground" />
                       )}
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7"
-                      title="Substituir alimento"
-                      onClick={() => setPicker({ mode: 'replace', mealIdx, itemIdx })}
-                    >
-                      <Replace className="h-3.5 w-3.5 text-muted-foreground" />
                     </Button>
                     <Button
                       size="icon"
@@ -735,6 +755,32 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
         </DialogContent>
       </Dialog>
 
+
+      {substitution && (
+        <CanonicalFoodSubstitutionDialog
+          open
+          onOpenChange={(o) => !o && setSubstitution(null)}
+          foods={foodRecords}
+          currentName={String(
+            day.meals?.[substitution.mealIdx]?.items?.[substitution.itemIdx]?.name ?? '',
+          )}
+          currentQtyGrams={
+            Number(day.meals?.[substitution.mealIdx]?.items?.[substitution.itemIdx]?.qtyGrams) || 0
+          }
+          currentMacros={
+            computed?.meals[substitution.mealIdx]?.items[substitution.itemIdx]?.macros ?? {
+              kcal: 0,
+              p: 0,
+              c: 0,
+              g: 0,
+            }
+          }
+          mealTotals={computed?.meals[substitution.mealIdx]?.totals ?? null}
+          dayTotals={computed?.totals ?? null}
+          dayTarget={target}
+          onSelect={applySubstitution}
+        />
+      )}
 
       <CanonicalFoodPickerDialog
         open={!!picker}
