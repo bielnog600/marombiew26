@@ -74,13 +74,117 @@ IMPORTANTE: Respeite restrições alimentares e preferências do aluno se fornec
 
 RETORNE APENAS O JSON. NADA MAIS.`;
 
+/** HOTFIX UX — modo somente-sugestão (não edita a dieta, não publica). */
+const SUGGESTIONS_SYSTEM_PROMPT = `Você é um assistente de planejamento alimentar para um treinador.
+
+Sua função é sugerir 3 alternativas para UMA refeição.
+
+REGRAS:
+- Use SOMENTE foodId presentes no catálogo enviado.
+- Não invente alimentos. Não invente IDs. Não use nome sem foodId.
+- Retorne EXATAMENTE 3 opções.
+- Cada item é { "foodId": "<id do catálogo>", "qtyGrams": <número > 0> }.
+- NÃO calcule macros como autoridade (serão recalculados pelo sistema).
+- Não altere outras refeições, metas (target) ou ciclagem de carboidratos.
+- Respeite restrições/alergias do aluno.
+- Considere os alimentos já usados no mesmo dia; com prioridade "varied", minimize repetições (a variedade é preferência, não regra absoluta — explique no "reason" quando repetir).
+- Com prioridade "similar", mantenha estilo, número de itens e macros próximos do original.
+- Com prioridade "simple", prefira alimentos comuns, poucos ingredientes e preparo fácil.
+- Considere horário/contexto da refeição e a meta do dia.
+
+RETORNE APENAS JSON VÁLIDO:
+{
+  "suggestions": [
+    { "title": "Opção 1 — ...", "reason": "...", "items": [ { "foodId": "...", "qtyGrams": 140 } ] }
+  ]
+}`;
+
+const jsonResponse = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
+async function handleMealSuggestions(payload: any, apiKey: string): Promise<Response> {
+  const catalog = Array.isArray(payload?.foodCatalog) ? payload.foodCatalog : [];
+  if (catalog.length === 0) {
+    return jsonResponse({ error: "Catálogo de alimentos vazio." }, 400);
+  }
+  const catalogBlock = catalog
+    .slice(0, 400)
+    .map(
+      (f: any) =>
+        `${f.id} | ${f.name} | ${f.portion_size || 100}g => ${f.calories}kcal P${f.protein} C${f.carbs} G${f.fats}`,
+    )
+    .join("\n");
+
+  const userMessage = [
+    `PRIORIDADE: ${payload?.priority ?? "varied"}`,
+    `\n=== REFEIÇÃO ALVO ===\n${JSON.stringify(payload?.meal ?? {})}`,
+    `\n=== OUTRAS REFEIÇÕES DO DIA ===\n${JSON.stringify(payload?.otherMeals ?? [])}`,
+    `\n=== ALIMENTOS JÁ USADOS NO DIA ===\n${JSON.stringify(payload?.usedFoods ?? [])}`,
+    `\n=== META DO DIA ===\n${JSON.stringify(payload?.dayTarget ?? null)} (tipo: ${payload?.dayType ?? "—"})`,
+    `\n=== TOTAIS ATUAIS DO DIA ===\n${JSON.stringify(payload?.dayTotals ?? null)}`,
+    payload?.studentContext ? `\n=== ALUNO (RESPEITAR) ===\n${JSON.stringify(payload.studentContext)}` : "",
+    payload?.trainingContext ? `\n=== TREINO ===\n${payload.trainingContext}` : "",
+    `\n=== CATÁLOGO (id | nome | porção) ===\n${catalogBlock}`,
+    `\nRetorne o JSON com exatamente 3 sugestões.`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "gpt-4o",
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: SUGGESTIONS_SYSTEM_PROMPT },
+        { role: "user", content: userMessage },
+      ],
+      max_tokens: 2000,
+      temperature: 0.7,
+    }),
+  });
+
+  if (!response.ok) {
+    const t = await response.text();
+    console.error("diet-edit-agent meal_suggestions OpenAI error:", response.status, t);
+    if (response.status === 429) {
+      return jsonResponse({ error: "Limite de requisições excedido. Tente novamente em alguns minutos." }, 429);
+    }
+    if (response.status === 402) {
+      return jsonResponse({ error: "Créditos insuficientes na conta OpenAI." }, 402);
+    }
+    return jsonResponse({ error: "Erro no gateway de IA" }, 500);
+  }
+
+  const data = await response.json();
+  const raw = data?.choices?.[0]?.message?.content || "{}";
+  try {
+    const parsed = JSON.parse(raw);
+    const suggestions = Array.isArray(parsed?.suggestions) ? parsed.suggestions : [];
+    return jsonResponse({ suggestions });
+  } catch {
+    console.error("diet-edit-agent meal_suggestions invalid JSON:", raw);
+    return jsonResponse({ error: "Resposta inválida da IA" }, 500);
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { currentMeals, instruction, foodCatalog, studentContext, dayTotals, trainingContext } = await req.json();
+    const payload = await req.json();
+    const { currentMeals, instruction, foodCatalog, studentContext, dayTotals, trainingContext } = payload;
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
+
+    if (payload?.mode === "meal_suggestions") {
+      return await handleMealSuggestions(payload, OPENAI_API_KEY);
+    }
+
 
     if (!instruction || typeof instruction !== "string") {
       return new Response(JSON.stringify({ error: "instruction é obrigatório" }), {
