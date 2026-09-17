@@ -37,11 +37,11 @@ describe('dietWhatsAppMessage', () => {
     expect(msg).not.toContain('Sua nova dieta');
   });
 
-  it('D. linear usa conteudo_json.targets', () => {
+  it('D. linear usa conteudo_json.targets e mostra apenas kcal', () => {
     expect(resolveLinearDietTargets(linearPlan.conteudo_json)).toEqual({ kcal: 1800, p: 150, c: 150, g: 60 });
     const msg = buildDietWhatsAppMessage({ firstName: 'Izis', plan: linearPlan, resendState: 'new' });
-    expect(msg).toContain('1800 kcal');
-    expect(msg).toContain('150g Proteína');
+    expect(msg).toContain('🔥 Meta diária: 1800 kcal');
+    expect(msg).not.toContain('Proteína');
   });
 
   it('E/F/G/K. carb cycling mostra ciclo em ordem SEG→DOM com metas do protocolo', () => {
