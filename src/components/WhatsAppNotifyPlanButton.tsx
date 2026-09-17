@@ -6,6 +6,7 @@ import { MessageCircle } from 'lucide-react';
  import { parseSections } from '@/lib/dietResultParser';
  import { computeDayTotals } from '@/lib/dietMarkdownSerializer';
  import { normalizeWhatsAppPhone } from '@/lib/phone';
+ import { buildDietWhatsAppMessage, resolveDietWhatsAppState } from '@/lib/dietWhatsAppMessage';
 
 interface Props {
   plan: {
