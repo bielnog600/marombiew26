@@ -756,6 +756,32 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
       </Dialog>
 
 
+      {substitution && (
+        <CanonicalFoodSubstitutionDialog
+          open
+          onOpenChange={(o) => !o && setSubstitution(null)}
+          foods={foodRecords}
+          currentName={String(
+            day.meals?.[substitution.mealIdx]?.items?.[substitution.itemIdx]?.name ?? '',
+          )}
+          currentQtyGrams={
+            Number(day.meals?.[substitution.mealIdx]?.items?.[substitution.itemIdx]?.qtyGrams) || 0
+          }
+          currentMacros={
+            computed?.meals[substitution.mealIdx]?.items[substitution.itemIdx]?.macros ?? {
+              kcal: 0,
+              p: 0,
+              c: 0,
+              g: 0,
+            }
+          }
+          mealTotals={computed?.meals[substitution.mealIdx]?.totals ?? null}
+          dayTotals={computed?.totals ?? null}
+          dayTarget={target}
+          onSelect={applySubstitution}
+        />
+      )}
+
       <CanonicalFoodPickerDialog
         open={!!picker}
         onOpenChange={(o) => !o && setPicker(null)}
