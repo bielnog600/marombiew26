@@ -513,6 +513,22 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, onCha
         </Card>
       ))}
 
+      {aiMealIdx !== null && (
+        <MealAiSuggestionsDialog
+          open
+          onOpenChange={(o) => !o && setAiMealIdx(null)}
+          plan={plan}
+          dayIndex={activeIndex}
+          mealIndex={aiMealIdx}
+          mealName={String(day.meals?.[aiMealIdx]?.name ?? 'refeição')}
+          foods={foodRecords}
+          target={target}
+          dayType={(day as any)?.dayType ?? (day as any)?.type ?? null}
+          onApply={(items) => applyAiSuggestion(aiMealIdx, items)}
+        />
+      )}
+
+
       <AutoAdjustPreviewDialog
         open={!!preview}
         onOpenChange={(o) => !o && setPreview(null)}
