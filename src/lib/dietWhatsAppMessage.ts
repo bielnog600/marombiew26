@@ -202,16 +202,20 @@ export const buildDietWhatsAppMessage = ({
   } else {
     const t = resolveLinearDietTargets(plan?.conteudo_json);
     if (t) {
-      parts.push(
-        `📊 Meta diária:\n🔥 ${t.kcal} kcal\n🥩 ${t.p}g Proteína\n🍞 ${t.c}g Carboidratos\n🥑 ${t.g}g Gorduras`,
-      );
+      parts.push(`🔥 Meta diária: ${t.kcal} kcal`);
     }
-    parts.push(
-      'Organizei o plano com as quantidades e refeições que você deve seguir no dia a dia.',
-    );
-    parts.push(
-      'Abra o app para conferir o cardápio completo, as quantidades e marcar suas refeições conforme for realizando.',
-    );
+    if (resendState === 'new') {
+      parts.push(
+        'Organizei o plano com as quantidades e refeições que você deve seguir no dia a dia.',
+      );
+      parts.push(
+        'Abra o app para conferir o cardápio completo, as quantidades e marcar suas refeições conforme for realizando.',
+      );
+    } else if (resendState === 'adjusted') {
+      parts.push('Abra o app para conferir as novas quantidades e refeições.');
+    } else {
+      parts.push('Abra o app para conferir o cardápio completo.');
+    }
   }
 
   parts.push('Qualquer dúvida ou dificuldade com algum alimento, me chama por aqui. 💪');
