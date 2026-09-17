@@ -486,7 +486,15 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
                     className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background/60 px-2 py-1.5 text-xs"
                   >
                     <span className="min-w-[8rem] flex-1 text-foreground">
-                      {item.name}
+                      <button
+                        type="button"
+                        className="min-h-[32px] cursor-pointer rounded px-1 py-1 text-left underline-offset-2 hover:bg-primary/10 hover:underline"
+                        title="Clique para substituir este alimento"
+                        aria-label={`Substituir ${item.name}`}
+                        onClick={() => setSubstitution({ mealIdx, itemIdx })}
+                      >
+                        {item.name}
+                      </button>
                       {unresolved && (
                         <Badge variant="outline" className="ml-2 border-amber-500/50 text-[9px] text-amber-500">
                           NÃO VALIDADO
@@ -525,15 +533,6 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
                       ) : (
                         <LockOpen className="h-3.5 w-3.5 text-muted-foreground" />
                       )}
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7"
-                      title="Substituir alimento"
-                      onClick={() => setPicker({ mode: 'replace', mealIdx, itemIdx })}
-                    >
-                      <Replace className="h-3.5 w-3.5 text-muted-foreground" />
                     </Button>
                     <Button
                       size="icon"
