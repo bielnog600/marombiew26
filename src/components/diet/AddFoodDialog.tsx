@@ -6,6 +6,7 @@ import { Search, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import type { ParsedFood } from '@/lib/dietResultParser';
+import { filterFoodsBySearch } from '@/lib/foodSearch';
 
 interface AddFoodDialogProps {
   open: boolean;
@@ -32,11 +33,10 @@ const AddFoodDialog: React.FC<AddFoodDialogProps> = ({ open, onOpenChange, onAdd
     staleTime: 5 * 60 * 1000,
   });
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return foods.slice(0, 60);
-    const q = search.toLowerCase();
-    return foods.filter((f) => f.name.toLowerCase().includes(q)).slice(0, 60);
-  }, [foods, search]);
+  const filtered = useMemo(
+    () => filterFoodsBySearch(foods, search).slice(0, 60),
+    [foods, search],
+  );
 
   const selected = foods.find((f) => f.id === selectedId) || null;
   const gramsNum = Number(grams.replace(',', '.'));

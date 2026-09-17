@@ -13,6 +13,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import type { FoodRecord } from '@/lib/nutritionEngine';
+import { filterFoodsBySearch } from '@/lib/foodSearch';
 
 interface Props {
   open: boolean;
@@ -31,11 +32,10 @@ const CanonicalFoodPickerDialog: React.FC<Props> = ({
 }) => {
   const [term, setTerm] = useState('');
 
-  const filtered = useMemo(() => {
-    const t = term.trim().toLowerCase();
-    const list = t ? foods.filter((f) => f.name.toLowerCase().includes(t)) : foods;
-    return list.slice(0, 80);
-  }, [foods, term]);
+  const filtered = useMemo(
+    () => filterFoodsBySearch(foods, term).slice(0, 80),
+    [foods, term],
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

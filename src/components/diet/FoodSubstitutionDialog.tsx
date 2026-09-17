@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import type { ParsedFood } from '@/lib/dietResultParser';
 import type { DietTargets } from '@/lib/dietSchema';
+import { filterFoodsBySearch } from '@/lib/foodSearch';
 
 interface FoodSubstitutionDialogProps {
   open: boolean;
@@ -73,11 +74,7 @@ const FoodSubstitutionDialog: React.FC<FoodSubstitutionDialogProps> = ({
   }, [origKcal, origP, origC, origG]);
 
   const filtered = useMemo(() => {
-    let list = foods;
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = foods.filter((f) => f.name.toLowerCase().includes(q));
-    }
+    const list = filterFoodsBySearch(foods, search);
     return [...list].sort((a, b) => macroScore(a) - macroScore(b));
   }, [foods, search, macroScore]);
 
