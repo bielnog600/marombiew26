@@ -225,7 +225,7 @@ export const buildDietWhatsAppMessage = ({
       const macroLine = formatMacroDayLine(d);
       return `${emoji} ${d.label}${typeLabel}${macroLine ? `\n${macroLine}` : ''}`;
     });
-    parts.push(`📅 Sua semana ficou assim:\n\n${lines.join('\n')}`);
+    parts.push(`📅 Sua semana ficou assim:\n\n${lines.join('\n\n')}`);
     parts.push(
       'As quantidades e o cardápio podem mudar de um dia para o outro, então siga sempre o dia correspondente no app.',
     );
