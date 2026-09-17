@@ -17,6 +17,12 @@ interface Props {
   };
   studentId: string;
   onNotified?: (planId: string, notifiedAt: string, count: number) => void;
+  /** Mostra o texto "WhatsApp" ao lado do ícone. */
+  showLabel?: boolean;
+  /** Mantém o botão visível mesmo depois do primeiro envio (reenvio). */
+  alwaysVisible?: boolean;
+  variant?: 'ghost' | 'outline';
+  className?: string;
 }
 
 /**
