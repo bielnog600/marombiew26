@@ -376,7 +376,7 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
             size="sm"
             variant="ghost"
             className="h-7 text-[11px]"
-            onClick={runCopyDay}
+            onClick={openCopyDay}
             title="Copiar este cardápio para os outros dias, ajustando cada um à sua meta."
           >
             <Copy className="mr-1 h-3 w-3" /> Copiar dia
