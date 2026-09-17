@@ -68,7 +68,7 @@ const WhatsAppNotifyPlanButton: React.FC<Props> = ({
      setNotified(!!plan.whatsapp_notified_at);
    }, [plan.whatsapp_notified_at]);
  
-   if (notified) return null;
+   if (notified && !alwaysVisible) return null;
 
   const handleClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
