@@ -225,6 +225,31 @@ Deno.serve(async (req) => {
         if (!Number.isFinite(n) || n <= 0) return json({ erro: "target_load_kg_invalido" }, 400);
         targetLoadKg = n;
       }
+
+      // carga alvo por série (prioridade sobre targetLoadKg quando enviada)
+      const rawPerSet = body.target_load_per_set;
+      let targetLoadPerSet: Array<{ set_number: number; load_kg: number }> | null = null;
+      if (rawPerSet !== null && rawPerSet !== undefined) {
+        if (!Array.isArray(rawPerSet)) return json({ erro: "target_load_per_set_invalido" }, 400);
+        const parsed: Array<{ set_number: number; load_kg: number }> = [];
+        for (let i = 0; i < rawPerSet.length; i++) {
+          const item = rawPerSet[i];
+          if (!item || typeof item !== "object") return json({ erro: "target_load_per_set_invalido" }, 400);
+          const o = item as Record<string, unknown>;
+          const load = Number(o.load_kg);
+          if (!Number.isFinite(load) || load <= 0) return json({ erro: "target_load_per_set_invalido" }, 400);
+          const sn = Number(o.set_number);
+          parsed.push({
+            set_number: Number.isFinite(sn) && sn > 0 ? Math.trunc(sn) : i + 1,
+            load_kg: load,
+          });
+        }
+        if (parsed.length > 0) {
+          parsed.sort((a, b) => a.set_number - b.set_number);
+          targetLoadPerSet = parsed;
+        }
+      }
+      if (targetLoadPerSet) targetLoadKg = null;
       if (!planId) return json({ erro: "plan_id_obrigatorio" }, 400);
       if (!dia) return json({ erro: "dia_obrigatorio" }, 400);
       if (!exercicio) return json({ erro: "exercicio_obrigatorio" }, 400);
@@ -285,7 +310,14 @@ Deno.serve(async (req) => {
       const exIdx = exMatches[0].i;
       const beforeExercise = { ...(exercises[exIdx] as Record<string, unknown>) };
       const antes = (beforeExercise.targetLoadKg ?? null) as number | null;
-      const afterExercise = { ...beforeExercise, targetLoadKg: targetLoadKg, targetLoadNote: targetLoadKg === null ? null : note };
+      const antesPerSet = (beforeExercise.targetLoadPerSet ?? null) as unknown;
+      const hasTarget = targetLoadPerSet !== null || targetLoadKg !== null;
+      const afterExercise = {
+        ...beforeExercise,
+        targetLoadKg: targetLoadPerSet ? null : targetLoadKg,
+        targetLoadPerSet: targetLoadPerSet,
+        targetLoadNote: hasTarget ? note : null,
+      };
 
       const nextExercises = exercises.slice();
       nextExercises[exIdx] = afterExercise;
@@ -303,7 +335,15 @@ Deno.serve(async (req) => {
       if (adminError) return json({ erro: adminError.message }, 500);
       const professorId = adminRole?.user_id ?? null;
 
-      const reason = `carga alvo ${exercicio}: ${antes ?? "null"} → ${targetLoadKg ?? "null"}`;
+      const depoisLabel = targetLoadPerSet
+        ? targetLoadPerSet.map((s2) => `S${s2.set_number} ${s2.load_kg}kg`).join(" / ")
+        : String(targetLoadKg ?? "null");
+      const antesLabel = Array.isArray(antesPerSet) && antesPerSet.length > 0
+        ? (antesPerSet as Array<{ set_number?: unknown; load_kg?: unknown }>)
+            .map((s2) => `S${s2.set_number} ${s2.load_kg}kg`)
+            .join(" / ")
+        : String(antes ?? "null");
+      const reason = `carga alvo ${exercicio}: ${antesLabel} → ${depoisLabel}`;
 
       const { error: versionError } = await supabase.from("workout_plan_versions").insert({
         plan_id: plan.id,
@@ -331,7 +371,10 @@ Deno.serve(async (req) => {
           action_origin: "manual",
           before_json: beforeExercise,
           after_json: afterExercise,
-          changes: { targetLoadKg: { from: antes, to: targetLoadKg } },
+          changes: {
+            targetLoadKg: { from: antes, to: afterExercise.targetLoadKg },
+            targetLoadPerSet: { from: antesPerSet ?? null, to: targetLoadPerSet },
+          },
           context_snapshot: { origin: "jarvis", channel: "voice", dia: dayObj.day, note },
         });
         if (editError) return json({ erro: editError.message }, 500);
@@ -347,7 +390,14 @@ Deno.serve(async (req) => {
       if (updateError) return json({ erro: updateError.message }, 500);
       if (!updated) return json({ erro: "revisao_desatualizada", content_revision: currentRevision }, 409);
 
-      return json({ ok: true, antes, depois: targetLoadKg, content_revision: updated.content_revision });
+      return json({
+        ok: true,
+        antes,
+        antes_por_serie: antesPerSet ?? null,
+        depois: afterExercise.targetLoadKg,
+        depois_por_serie: targetLoadPerSet,
+        content_revision: updated.content_revision,
+      });
     }
 
     if (operacao === "listar_exercicios") {

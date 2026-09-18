@@ -8,7 +8,7 @@ import { Dumbbell, Save, Loader2, Check, Timer, Plus, Minus, Trash2, X, Settings
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { ExercisePicker } from '@/components/tabata/ExercisePicker';
 import { ProgressionHintCard } from './ProgressionHintCard';
-import { getRecommendationFor, type ProgressionSnapshot } from '@/lib/sessionProgression';
+import { getRecommendationFor, targetLoadForSet, type ProgressionSnapshot } from '@/lib/sessionProgression';
 
 interface SetEntry {
   weight: string;
@@ -217,10 +217,10 @@ const ExerciseLogCard: React.FC<Props> = ({
         </div>
 
         <div className="space-y-2">
-          {(recommendation || ex?.targetLoadKg) && (
+          {(recommendation || ex?.targetLoadKg || ex?.targetLoadPerSet) && (
             <ProgressionHintCard
               recommendation={recommendation}
-              targetLoad={{ kg: ex?.targetLoadKg ?? null, note: ex?.targetLoadNote ?? null }}
+              targetLoad={{ kg: ex?.targetLoadKg ?? null, note: ex?.targetLoadNote ?? null, perSet: ex?.targetLoadPerSet ?? null }}
               variant="compact"
             />
           )}
@@ -388,7 +388,10 @@ const ExerciseLogCard: React.FC<Props> = ({
                 <Input
                   type="number"
                   inputMode="decimal"
-                  placeholder="kg"
+                  placeholder={(() => {
+                    const t = targetLoadForSet(ex?.targetLoadPerSet, setIdx + 1);
+                    return t != null ? `${t} kg` : 'kg';
+                  })()}
                   value={s.weight}
                   onChange={(e) => onUpdateSet(exIdx, setIdx, 'weight', e.target.value)}
                   className="h-8 text-xs"

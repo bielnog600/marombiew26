@@ -26,7 +26,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { fetchWithCache, getCached, setCache } from '@/lib/offlineCache';
 import { useRestTimer } from '@/hooks/useRestTimer';
 import { useSessionProgression } from '@/hooks/useSessionProgression';
-import { getRecommendationFor, type ProgressionSnapshot } from '@/lib/sessionProgression';
+import { getRecommendationFor, targetLoadForSet, type ProgressionSnapshot } from '@/lib/sessionProgression';
 import { ProgressionHintCard } from '@/components/training/ProgressionHintCard';
 
 
@@ -1227,7 +1227,11 @@ const TreinoExecucao = () => {
 
         <ProgressionHintCard
           recommendation={getRecommendationFor(progressionSnapshot, selectedExerciseName)}
-          targetLoad={{ kg: (exercise as any)?.targetLoadKg ?? null, note: (exercise as any)?.targetLoadNote ?? null }}
+          targetLoad={{
+            kg: (exercise as any)?.targetLoadKg ?? null,
+            note: (exercise as any)?.targetLoadNote ?? null,
+            perSet: (exercise as any)?.targetLoadPerSet ?? null,
+          }}
         />
 
         <div className="space-y-2">
@@ -1251,7 +1255,7 @@ const TreinoExecucao = () => {
                     {isRecognition && <span className="text-[8px] uppercase tracking-wider text-accent font-semibold mt-0.5">Rec</span>}
                   </div>
                   <Input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} placeholder={planned?.reps || '10'} className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
-                  <Input type="text" inputMode="decimal" value={set.weight} onChange={(e) => updateSet(i, 'weight', e.target.value)} placeholder="0" className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
+                  <Input type="text" inputMode="decimal" value={set.weight} onChange={(e) => updateSet(i, 'weight', e.target.value)} placeholder={(() => { const t = targetLoadForSet((exercise as any)?.targetLoadPerSet, i + 1); return t != null ? `${t}` : '0'; })()} className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
                   <Button size="icon" variant={set.completed ? 'default' : 'outline'} className={`h-9 w-9 mx-auto rounded-full ${isNextPending ? 'animate-pulse-glow' : ''}`} onClick={() => toggleSetComplete(i)}>
                     <Check className="h-4 w-4" />
                   </Button>

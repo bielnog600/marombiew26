@@ -14,10 +14,10 @@ export const ProgressionHintCard = ({
   variant = 'default',
 }: {
   recommendation: SessionRecommendation | null;
-  targetLoad?: { kg?: number | null; note?: string | null } | null;
+  targetLoad?: { kg?: number | null; note?: string | null; perSet?: unknown } | null;
   variant?: 'default' | 'compact';
 }) => {
-  const manual = formatTargetLoadHint(targetLoad?.kg ?? null, targetLoad?.note ?? null);
+  const manual = formatTargetLoadHint(targetLoad?.kg ?? null, targetLoad?.note ?? null, targetLoad?.perSet ?? null);
   const hint = manual ?? formatSessionHint(recommendation);
   if (!hint) return null;
   const Icon = manual ? Target : TrendingUp;

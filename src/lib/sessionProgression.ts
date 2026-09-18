@@ -504,12 +504,60 @@ export const formatSessionHint = (r: SessionRecommendation | null): SessionHint 
  * Quando existe, tem prioridade sobre a recomendação automática.
  * Função pura: não consulta histórico nem altera o motor de progressão.
  */
+export type TargetLoadPerSet = Array<{ set_number: number; load_kg: number }>;
+
+/** Normaliza/ordena a carga alvo por série, descartando entradas inválidas. */
+export const normalizeTargetLoadPerSet = (raw: unknown): TargetLoadPerSet | null => {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const out: TargetLoadPerSet = [];
+  raw.forEach((item, i) => {
+    if (!item || typeof item !== 'object') return;
+    const o = item as Record<string, unknown>;
+    const load = Number(o.load_kg);
+    if (!Number.isFinite(load) || load <= 0) return;
+    const n = Number(o.set_number);
+    out.push({ set_number: Number.isFinite(n) && n > 0 ? Math.trunc(n) : i + 1, load_kg: load });
+  });
+  if (out.length === 0) return null;
+  return out.sort((a, b) => a.set_number - b.set_number);
+};
+
+/** "S1 40 kg · S2–S3 65 kg" — agrupa séries consecutivas com a mesma carga. */
+export const formatTargetLoadPerSetText = (raw: unknown): string | null => {
+  const sets = normalizeTargetLoadPerSet(raw);
+  if (!sets) return null;
+  const groups: Array<{ from: number; to: number; load: number }> = [];
+  sets.forEach((s) => {
+    const last = groups[groups.length - 1];
+    if (last && last.load === s.load_kg && s.set_number === last.to + 1) {
+      last.to = s.set_number;
+    } else {
+      groups.push({ from: s.set_number, to: s.set_number, load: s.load_kg });
+    }
+  });
+  return groups
+    .map((g) => `${g.from === g.to ? `S${g.from}` : `S${g.from}–S${g.to}`} ${kg(g.load)} kg`)
+    .join(' · ');
+};
+
+/** Carga alvo da série `setNumber` (1-based), quando definida. */
+export const targetLoadForSet = (raw: unknown, setNumber: number): number | null => {
+  const sets = normalizeTargetLoadPerSet(raw);
+  if (!sets) return null;
+  return sets.find((s) => s.set_number === setNumber)?.load_kg ?? null;
+};
+
 export const formatTargetLoadHint = (
   targetLoadKg: number | null | undefined,
   targetLoadNote?: string | null,
+  targetLoadPerSet?: unknown,
 ): SessionHint | null => {
-  if (typeof targetLoadKg !== 'number' || !Number.isFinite(targetLoadKg) || targetLoadKg <= 0) return null;
   const note = targetLoadNote && String(targetLoadNote).trim() ? String(targetLoadNote).trim() : null;
+  const perSetText = formatTargetLoadPerSetText(targetLoadPerSet);
+  if (perSetText) {
+    return { label: 'Carga alvo', estimated: false, text: perSetText };
+  }
+  if (typeof targetLoadKg !== 'number' || !Number.isFinite(targetLoadKg) || targetLoadKg <= 0) return null;
   return {
     label: 'Carga alvo',
     estimated: false,
