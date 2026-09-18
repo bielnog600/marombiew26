@@ -190,6 +190,8 @@ export const parsedDaysToWorkoutPlan = (
       restSeconds: parsePauseToSeconds(e.pause),
       description: e.description || "",
       variation: e.variation || "",
+      targetLoadKg: e.targetLoadKg ?? null,
+      targetLoadNote: e.targetLoadNote ?? null,
       setScheme: e.setScheme,
     })),
   })),
@@ -211,6 +213,8 @@ export const workoutPlanToParsedDays = (plan: WorkoutPlan): ParsedTrainingDay[] 
       pause: e.pause || (e.restSeconds ? `${e.restSeconds}s` : ""),
       description: e.description || "",
       variation: e.variation || "",
+      targetLoadKg: e.targetLoadKg ?? null,
+      targetLoadNote: e.targetLoadNote ?? null,
       setScheme: e.setScheme as ParsedExercise["setScheme"],
     })),
   }));
@@ -258,6 +262,14 @@ export const normalizeWorkoutPlan = (raw: unknown): WorkoutPlan | null => {
                 variation: String(e.variation ?? "").trim(),
                 tempo: typeof e.tempo === "string" ? e.tempo : undefined,
                 notes: typeof e.notes === "string" ? e.notes : undefined,
+                targetLoadKg:
+                  typeof e.targetLoadKg === "number" && Number.isFinite(e.targetLoadKg) && e.targetLoadKg > 0
+                    ? e.targetLoadKg
+                    : null,
+                targetLoadNote:
+                  typeof e.targetLoadNote === "string" && e.targetLoadNote.trim()
+                    ? e.targetLoadNote.trim()
+                    : null,
                 setScheme: normalizeSetScheme(e.setScheme ?? e.set_scheme),
               }))
               .filter((e: WorkoutExercise) => e.exercise.length > 0)
