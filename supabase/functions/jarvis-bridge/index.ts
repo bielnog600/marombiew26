@@ -677,7 +677,21 @@ Deno.serve(async (req) => {
     }
 
 
+    if (operacao === "listar_alimentos") {
+      const busca = typeof body.busca === "string" ? body.busca.trim() : "";
+      let q = supabase
+        .from("foods")
+        .select("id, name, brand, portion, portion_size, calories, protein, carbs, fats")
+        .order("name")
+        .limit(30);
+      if (busca) q = q.ilike("name", `%${busca}%`);
+      const { data, error } = await q;
+      if (error) return json({ erro: error.message }, 500);
+      return json({ alimentos: data ?? [] });
+    }
+
     return json({ erro: "operacao_desconhecida" }, 400);
+
   } catch (e) {
     console.error("[jarvis-bridge] falha:", String((e as Error)?.message ?? e));
     return json({ erro: "erro_interno" }, 500);
