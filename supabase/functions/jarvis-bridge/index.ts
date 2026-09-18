@@ -690,7 +690,395 @@ Deno.serve(async (req) => {
       return json({ alimentos: data ?? [] });
     }
 
+    if (operacao === "editar_dieta") {
+      const planId = String(body.plan_id ?? "").trim();
+      const expectedRevision = Number(body.expected_revision);
+      const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : null;
+      const forcar = body.forcar === true;
+      const mudancas = Array.isArray(body.mudancas) ? (body.mudancas as Rec[]) : null;
+      if (!planId) return json({ erro: "plan_id_obrigatorio" }, 400);
+      if (!Number.isFinite(expectedRevision)) return json({ erro: "expected_revision_obrigatorio" }, 400);
+      if (!mudancas || mudancas.length === 0) return json({ erro: "mudancas_obrigatorias" }, 400);
+
+      const { data: plan, error: planError } = await supabase
+        .from("ai_plans")
+        .select("*")
+        .eq("id", planId)
+        .maybeSingle();
+      if (planError) return json({ erro: planError.message }, 500);
+      if (!plan) return json({ erro: "plano_nao_encontrado" }, 404);
+      if (plan.tipo !== "dieta" || !isStructuredPlan(plan.conteudo_json)) {
+        return json({ erro: "dieta_estruturada_obrigatoria" }, 400);
+      }
+
+      const currentRevision = Number(plan.content_revision ?? 1);
+      if (currentRevision !== expectedRevision) {
+        return json({ erro: "revisao_desatualizada", content_revision: currentRevision }, 409);
+      }
+
+      const catalog = await loadFoodCatalog(supabase);
+      const base = plan.is_draft === true
+        ? JSON.parse(JSON.stringify(plan.conteudo_json))
+        : stripPublicationSnapshots(plan.conteudo_json);
+      const working = JSON.parse(JSON.stringify(base)) as Rec;
+      const dias = Array.isArray(working.days) ? (working.days as Rec[]) : [];
+      if (dias.length === 0) return json({ erro: "plano_sem_dias" }, 400);
+
+      const nomesDias = dias.map((d) => d.weekday ?? d.label);
+      const findFood = (nome: string) => {
+        const alvo = normalizeName(nome);
+        const exatos = catalog.foods.filter((f) => normalizeName(f.name) === alvo);
+        if (exatos.length > 0) return { matches: exatos };
+        return { matches: [] as typeof catalog.foods };
+      };
+      const foodsSimilares = (nome: string) => {
+        const alvo = normalizeName(nome);
+        const palavras = alvo.split(" ").filter((w) => w.length > 2);
+        return catalog.foods
+          .filter((f) => {
+            const n = normalizeName(f.name);
+            return n.includes(alvo) || palavras.some((w) => n.includes(w));
+          })
+          .slice(0, 5)
+          .map((f) => f.name);
+      };
+
+      const totaisDe = (p: Rec) => {
+        let kcal = 0, pt = 0, c = 0, g = 0;
+        const ds = Array.isArray(p.days) ? (p.days as Rec[]) : [];
+        for (const d of ds) {
+          for (const meal of (Array.isArray(d.meals) ? (d.meals as Rec[]) : [])) {
+            for (const it of (Array.isArray(meal.items) ? (meal.items as Rec[]) : [])) {
+              const food = catalog.index.byId.get(String(it.foodId ?? ""));
+              const qty = Number(it.qtyGrams) || 0;
+              if (!food || qty <= 0) continue;
+              const bs = Number(food.portion_size) > 0 ? Number(food.portion_size) : 100;
+              const f = qty / bs;
+              kcal += Number(food.calories || 0) * f;
+              pt += Number(food.protein || 0) * f;
+              c += Number(food.carbs || 0) * f;
+              g += Number(food.fats || 0) * f;
+            }
+          }
+        }
+        const r = (n: number) => Math.round(n * 10) / 10;
+        return { kcal: r(kcal), p: r(pt), c: r(c), g: r(g) };
+      };
+
+      const totaisAntes = totaisDe(base as Rec);
+      const aplicadas: Rec[] = [];
+
+      for (let idx = 0; idx < mudancas.length; idx++) {
+        const m = mudancas[idx] ?? {};
+        const fail = (erro: string, extra: Rec = {}, status = 400) =>
+          json({ erro, indice: idx, ...extra }, status);
+        const tipo = String(m.tipo ?? "").trim();
+
+        if (tipo === "ajustar_metas") {
+          const alvo = (working.targets ?? {}) as Rec;
+          const antes = { ...alvo };
+          const setNum = (key: string, raw: unknown) => {
+            if (raw === undefined || raw === null || raw === "") return true;
+            const n = Number(raw);
+            if (!Number.isFinite(n) || n < 0) return false;
+            alvo[key] = n;
+            return true;
+          };
+          if (!setNum("kcal", m.calorias)) return fail("calorias_invalidas");
+          if (!setNum("p", m.proteina_g)) return fail("proteina_invalida");
+          if (!setNum("c", m.carbo_g)) return fail("carbo_invalido");
+          if (!setNum("g", m.gordura_g)) return fail("gordura_invalida");
+          working.targets = alvo;
+          aplicadas.push({ indice: idx, antes, depois: { ...alvo } });
+          continue;
+        }
+
+        // Demais mudanças operam sobre uma refeição de um dia.
+        const diaRaw = String(m.dia ?? "").trim();
+        let diaIdx = 0;
+        if (diaRaw) {
+          const ms = dias
+            .map((d, i) => ({ d, i }))
+            .filter(({ d }) =>
+              normalizeName(d.weekday) === normalizeName(diaRaw) ||
+              normalizeName(d.label) === normalizeName(diaRaw)
+            );
+          if (ms.length === 0) return fail("dia_nao_encontrado", { dias: nomesDias }, 404);
+          if (ms.length > 1) return fail("dia_ambiguo", { dias: nomesDias }, 404);
+          diaIdx = ms[0].i;
+        } else if (dias.length > 1) {
+          return fail("dia_obrigatorio", { dias: nomesDias });
+        }
+
+        const dayObj = dias[diaIdx] as Rec;
+        const meals = (Array.isArray(dayObj.meals) ? dayObj.meals : []) as Rec[];
+        const nomesRefeicoes = meals.map((r) => r.name);
+        const refeicao = String(m.refeicao ?? "").trim();
+        if (!refeicao) return fail("refeicao_obrigatoria", { refeicoes: nomesRefeicoes });
+        const refMatches = meals
+          .map((r, i) => ({ r, i }))
+          .filter(({ r }) => normalizeName(r.name) === normalizeName(refeicao));
+        if (refMatches.length === 0) return fail("refeicao_nao_encontrada", { refeicoes: nomesRefeicoes }, 404);
+        if (refMatches.length > 1) return fail("refeicao_ambigua", { refeicoes: nomesRefeicoes }, 404);
+        const meal = refMatches[0].r;
+        const items = (Array.isArray(meal.items) ? meal.items : []) as Rec[];
+        const nomesAlimentos = items.map((i2) => i2.name);
+
+        if (tipo === "observacao") {
+          const texto = String(m.texto ?? "").trim();
+          if (!texto) return fail("texto_obrigatorio");
+          const atual = String(meal.notes ?? "").trim();
+          meal.notes = atual ? `${atual} · ${texto}` : texto;
+          aplicadas.push({ indice: idx, antes: atual || null, depois: meal.notes });
+          continue;
+        }
+
+        if (tipo === "adicionar_alimento") {
+          const nome = String(m.alimento ?? "").trim();
+          const qty = Number(m.quantidade_g);
+          if (!nome) return fail("alimento_obrigatorio");
+          if (!Number.isFinite(qty) || qty <= 0) return fail("quantidade_g_invalida");
+          const { matches } = findFood(nome);
+          if (matches.length === 0) {
+            return fail("alimento_inexistente_na_base", { sugestoes: foodsSimilares(nome) }, 404);
+          }
+          if (matches.length > 1) {
+            return fail("alimento_ambiguo_na_base", { opcoes: matches.slice(0, 5).map((f) => ({ id: f.id, name: f.name, brand: f.brand })) }, 404);
+          }
+          const food = matches[0];
+          const novo: Rec = {
+            foodId: food.id,
+            name: food.name,
+            qtyGrams: qty,
+            portionLabel: `${Math.round(qty)} g`,
+            resolutionStatus: "resolved_by_id",
+            manualLocked: true,
+            macros: { kcal: 0, p: 0, c: 0, g: 0 },
+          };
+          items.push(novo);
+          meal.items = items;
+          aplicadas.push({ indice: idx, antes: null, depois: { alimento: food.name, quantidade_g: qty } });
+          continue;
+        }
+
+        const alimento = String(m.alimento ?? "").trim();
+        if (!alimento) return fail("alimento_obrigatorio", { alimentos: nomesAlimentos });
+        const itMatches = items
+          .map((i2, i) => ({ i2, i }))
+          .filter(({ i2 }) => normalizeName(i2.name) === normalizeName(alimento));
+        if (itMatches.length === 0) return fail("alimento_nao_encontrado", { alimentos: nomesAlimentos }, 404);
+        if (itMatches.length > 1) return fail("alimento_ambiguo", { alimentos: nomesAlimentos }, 404);
+        const itemIdx = itMatches[0].i;
+        const item = items[itemIdx];
+        const antesItem = { alimento: item.name, quantidade_g: Number(item.qtyGrams) || 0 };
+
+        if (tipo === "ajustar_quantidade") {
+          const qty = Number(m.quantidade_g);
+          if (!Number.isFinite(qty) || qty <= 0) return fail("quantidade_g_invalida");
+          item.qtyGrams = qty;
+          item.portionLabel = `${Math.round(qty)} g`;
+          item.manualLocked = true;
+          delete item.nutritionSnapshot;
+          aplicadas.push({ indice: idx, antes: antesItem, depois: { alimento: item.name, quantidade_g: qty } });
+          continue;
+        }
+
+        if (tipo === "substituir_alimento") {
+          const novoNome = String(m.novo_alimento ?? "").trim();
+          if (!novoNome) return fail("novo_alimento_obrigatorio");
+          const { matches } = findFood(novoNome);
+          if (matches.length === 0) {
+            return fail("alimento_inexistente_na_base", { sugestoes: foodsSimilares(novoNome) }, 404);
+          }
+          if (matches.length > 1) {
+            return fail("alimento_ambiguo_na_base", { opcoes: matches.slice(0, 5).map((f) => ({ id: f.id, name: f.name, brand: f.brand })) }, 404);
+          }
+          const food = matches[0];
+          const qtyRaw = m.quantidade_g;
+          const qty = qtyRaw === undefined || qtyRaw === null || qtyRaw === ""
+            ? Number(item.qtyGrams) || 0
+            : Number(qtyRaw);
+          if (!Number.isFinite(qty) || qty <= 0) return fail("quantidade_g_invalida");
+          item.foodId = food.id;
+          item.name = food.name;
+          item.qtyGrams = qty;
+          item.portionLabel = `${Math.round(qty)} g`;
+          item.resolutionStatus = "resolved_by_id";
+          item.manualLocked = true;
+          delete item.nutritionSnapshot;
+          aplicadas.push({ indice: idx, antes: antesItem, depois: { alimento: food.name, quantidade_g: qty } });
+          continue;
+        }
+
+        if (tipo === "remover_alimento") {
+          items.splice(itemIdx, 1);
+          meal.items = items;
+          aplicadas.push({ indice: idx, antes: antesItem, depois: null });
+          continue;
+        }
+
+        return fail("tipo_invalido", {
+          tipos: [
+            "ajustar_quantidade",
+            "substituir_alimento",
+            "adicionar_alimento",
+            "remover_alimento",
+            "ajustar_metas",
+            "observacao",
+          ],
+        });
+      }
+
+      const totaisDepois = totaisDe(working);
+      const variacao = totaisAntes.kcal > 0
+        ? Math.round(((totaisDepois.kcal - totaisAntes.kcal) / totaisAntes.kcal) * 1000) / 10
+        : 0;
+      if (!forcar && Math.abs(variacao) > 15) {
+        return json(
+          { erro: "variacao_calorica", antes: totaisAntes.kcal, depois: totaisDepois.kcal, percentual: variacao },
+          422,
+        );
+      }
+
+      // Rehidratação pela base: macros e totais nunca vêm do payload.
+      const hydrated = hydrateDietPlanFromFoods(working, catalog, "strict_id");
+      if (hydrated.requiresResolution) {
+        return json({ erro: "alimentos_nao_resolvidos", itens: hydrated.unresolvedItems.slice(0, 20) }, 422);
+      }
+      const blockers = collectPublicationBlockers(hydrated.plan, catalog);
+      if (blockers.length > 0) {
+        return json({ erro: "alimentos_nao_resolvidos", itens: blockers.slice(0, 20) }, 422);
+      }
+
+      // Admin responsável (autor da publicação).
+      const { data: adminRole, error: adminError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "admin")
+        .limit(1)
+        .maybeSingle();
+      if (adminError) return json({ erro: adminError.message }, 500);
+      const actorId = adminRole?.user_id ?? null;
+      if (!actorId) return json({ erro: "admin_nao_encontrado" }, 500);
+
+      // Histórico: versão anterior preservada antes de publicar.
+      const { error: histError } = await supabase.from("diet_plan_versions").insert({
+        plan_id: plan.id,
+        student_id: plan.student_id,
+        version: Number(plan.version ?? 1),
+        titulo: plan.titulo ?? "Dieta",
+        conteudo: plan.conteudo ?? "",
+        fase: plan.fase ?? null,
+        source: "jarvis",
+        archived_at: new Date().toISOString(),
+      });
+      if (histError) return json({ erro: histError.message }, 500);
+
+      // Dieta publicada é imutável: a edição vive numa nova linha em rascunho.
+      let draft: Rec | null = null;
+      if (plan.is_draft === true) {
+        draft = plan as Rec;
+      } else {
+        const { data: existing } = await supabase
+          .from("ai_plans")
+          .select("*")
+          .eq("parent_plan_id", plan.id)
+          .eq("tipo", "dieta")
+          .eq("is_draft", true)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        if (existing && existing.length > 0) {
+          draft = existing[0] as Rec;
+        } else {
+          const { data: inserted, error: insertError } = await supabase
+            .from("ai_plans")
+            .insert({
+              student_id: plan.student_id,
+              tipo: "dieta",
+              titulo: normalizeDietTitle(plan.titulo) || "Dieta",
+              conteudo: plan.conteudo ?? "",
+              conteudo_json: hydrated.plan,
+              protocols: plan.protocols,
+              fase: plan.fase,
+              diet_strategy: plan.diet_strategy,
+              strategy_source: plan.strategy_source,
+              generation_intent: plan.generation_intent,
+              viability_score: plan.viability_score,
+              viability_breakdown: plan.viability_breakdown,
+              parent_plan_id: plan.id,
+              version: Number(plan.version ?? 1) + 1,
+              is_draft: true,
+              migration_status: "completed",
+              whatsapp_notified_at: null,
+              whatsapp_notified_count: 0,
+            })
+            .select("*")
+            .single();
+          if (insertError) return json({ erro: insertError.message }, 500);
+          draft = inserted as Rec;
+        }
+      }
+
+      const draftId = String(draft!.id);
+      const draftRevision = Number(draft!.content_revision ?? 1);
+
+      const { plan: snapshotPlan } = buildPublishedSnapshotPlan(hydrated.plan, catalog);
+      const schema = validatePublicationPlan(snapshotPlan);
+      if (!schema.ok) return json({ erro: "plano_invalido", detalhes: schema.issues.slice(0, 20) }, 422);
+
+      const finalProtocols = draft!.protocols ?? plan.protocols ?? null;
+      const normalizedAdjustments =
+        (finalProtocols as Rec | null)?.weekly_energy_schedule &&
+        ((finalProtocols as Rec).weekly_energy_schedule as Rec)?.generated_adjustments
+          ? ((finalProtocols as Rec).weekly_energy_schedule as Rec).generated_adjustments
+          : null;
+
+      const markdown = canonicalDietPlanToMarkdown(snapshotPlan);
+      const assertions = collectFoodAssertions(snapshotPlan, catalog, normalizedAdjustments);
+      const integrity = validateSnapshotAssertionIntegrity(snapshotPlan, assertions, normalizedAdjustments);
+      if (!integrity.ok) return json({ erro: "plano_invalido", detalhes: integrity.issues.slice(0, 20) }, 422);
+
+      // Rascunho sincronizado antes do commit atômico (rascunho é mutável).
+      const { error: draftUpdateError } = await supabase
+        .from("ai_plans")
+        .update({ conteudo_json: hydrated.plan, conteudo: markdown, protocols: finalProtocols })
+        .eq("id", draftId)
+        .eq("is_draft", true);
+      if (draftUpdateError) return json({ erro: draftUpdateError.message }, 500);
+
+      const { data: published, error: rpcError } = await supabase.rpc("publish_diet_plan_atomic_actor", {
+        p_actor_id: actorId,
+        p_plan_id: draftId,
+        p_expected_revision: draftRevision,
+        p_final_plan: snapshotPlan,
+        p_final_markdown: markdown,
+        p_final_protocols: finalProtocols,
+        p_food_assertions: assertions,
+      });
+      if (rpcError) {
+        const msg = String(rpcError.message ?? "");
+        if (msg.includes("draft_changed_refresh_required")) {
+          return json({ erro: "revisao_desatualizada", content_revision: draftRevision }, 409);
+        }
+        return json({ erro: "publicacao_falhou", detalhes: msg }, 500);
+      }
+
+      const publishedRow = (published ?? {}) as Rec;
+      return json({
+        ok: true,
+        aplicadas,
+        totais_antes: totaisAntes,
+        totais_depois: totaisDepois,
+        percentual: variacao,
+        plan_id: publishedRow.id ?? draftId,
+        version: publishedRow.version ?? null,
+        content_revision: publishedRow.content_revision ?? draftRevision + 1,
+        note,
+      });
+    }
+
     return json({ erro: "operacao_desconhecida" }, 400);
+
 
   } catch (e) {
     console.error("[jarvis-bridge] falha:", String((e as Error)?.message ?? e));
