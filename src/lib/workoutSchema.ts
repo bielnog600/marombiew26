@@ -16,6 +16,24 @@ export const WORKOUT_PLAN_VERSION = "2.0" as const;
 
 const trimmedString = z.string().min(1).transform((v) => v.trim());
 
+/** Normaliza carga alvo por série (ordenada, sem entradas inválidas). */
+export const normalizeTargetLoadPerSetValue = (
+  raw: unknown,
+): Array<{ set_number: number; load_kg: number }> | null => {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const out: Array<{ set_number: number; load_kg: number }> = [];
+  raw.forEach((item, i) => {
+    if (!item || typeof item !== "object") return;
+    const o = item as Record<string, unknown>;
+    const load = Number(o.load_kg);
+    if (!Number.isFinite(load) || load <= 0) return;
+    const n = Number(o.set_number);
+    out.push({ set_number: Number.isFinite(n) && n > 0 ? Math.trunc(n) : i + 1, load_kg: load });
+  });
+  if (out.length === 0) return null;
+  return out.sort((a, b) => a.set_number - b.set_number);
+};
+
 const optionalString = z
   .union([z.string(), z.null(), z.undefined()])
   .transform((v): string => (v == null ? "" : String(v).trim()));
