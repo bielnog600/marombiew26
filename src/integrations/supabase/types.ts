@@ -3642,6 +3642,18 @@ export type Database = {
         }
         Returns: Json
       }
+      publish_diet_plan_atomic_actor: {
+        Args: {
+          p_actor_id: string
+          p_expected_revision: number
+          p_final_markdown: string
+          p_final_plan: Json
+          p_final_protocols: Json
+          p_food_assertions: Json
+          p_plan_id: string
+        }
+        Returns: Json
+      }
       reactivate_student_access: {
         Args: { _user_id: string }
         Returns: {

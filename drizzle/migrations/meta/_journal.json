@@ -43,6 +43,13 @@
       "when": 1789509813390,
       "tag": "0005_diet_publication_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789774504588,
+      "tag": "0006_jarvis_diet_publication_actor",
+      "breakpoints": true
     }
   ]
 }
