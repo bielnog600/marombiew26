@@ -498,3 +498,21 @@ export const formatSessionHint = (r: SessionRecommendation | null): SessionHint 
     }
   }
 };
+
+/**
+ * Carga alvo definida pelo professor (campo `targetLoadKg` do plano).
+ * Quando existe, tem prioridade sobre a recomendação automática.
+ * Função pura: não consulta histórico nem altera o motor de progressão.
+ */
+export const formatTargetLoadHint = (
+  targetLoadKg: number | null | undefined,
+  targetLoadNote?: string | null,
+): SessionHint | null => {
+  if (typeof targetLoadKg !== 'number' || !Number.isFinite(targetLoadKg) || targetLoadKg <= 0) return null;
+  const note = targetLoadNote && String(targetLoadNote).trim() ? String(targetLoadNote).trim() : null;
+  return {
+    label: 'Carga alvo',
+    estimated: false,
+    text: `${kg(targetLoadKg)} kg · ${note ?? 'definido pelo professor'}`,
+  };
+};

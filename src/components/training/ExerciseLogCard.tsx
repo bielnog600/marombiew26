@@ -217,8 +217,12 @@ const ExerciseLogCard: React.FC<Props> = ({
         </div>
 
         <div className="space-y-2">
-          {recommendation && (
-            <ProgressionHintCard recommendation={recommendation} variant="compact" />
+          {(recommendation || ex?.targetLoadKg) && (
+            <ProgressionHintCard
+              recommendation={recommendation}
+              targetLoad={{ kg: ex?.targetLoadKg ?? null, note: ex?.targetLoadNote ?? null }}
+              variant="compact"
+            />
           )}
           
           <div className="flex items-center gap-2 flex-wrap">

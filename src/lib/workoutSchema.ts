@@ -66,6 +66,19 @@ export const WorkoutExerciseSchema = z.object({
   variation: optionalString.optional(),
   tempo: optionalString.optional(),
   notes: optionalString.optional(),
+  /** Carga alvo definida pelo professor (kg). Ausente/null = sem alvo manual. */
+  targetLoadKg: z
+    .union([z.number(), z.string(), z.null(), z.undefined()])
+    .transform((v) => {
+      if (v == null || v === "") return null;
+      const n = typeof v === "number" ? v : Number(String(v).replace(",", "."));
+      return Number.isFinite(n) && n > 0 ? n : null;
+    })
+    .optional(),
+  targetLoadNote: z
+    .union([z.string(), z.null(), z.undefined()])
+    .transform((v) => (v == null || String(v).trim() === "" ? null : String(v).trim()))
+    .optional(),
   setScheme: SetSchemeSchema.optional(),
 });
 
@@ -177,6 +190,8 @@ export const parsedDaysToWorkoutPlan = (
       restSeconds: parsePauseToSeconds(e.pause),
       description: e.description || "",
       variation: e.variation || "",
+      targetLoadKg: e.targetLoadKg ?? null,
+      targetLoadNote: e.targetLoadNote ?? null,
       setScheme: e.setScheme,
     })),
   })),
@@ -198,6 +213,8 @@ export const workoutPlanToParsedDays = (plan: WorkoutPlan): ParsedTrainingDay[] 
       pause: e.pause || (e.restSeconds ? `${e.restSeconds}s` : ""),
       description: e.description || "",
       variation: e.variation || "",
+      targetLoadKg: e.targetLoadKg ?? null,
+      targetLoadNote: e.targetLoadNote ?? null,
       setScheme: e.setScheme as ParsedExercise["setScheme"],
     })),
   }));
@@ -245,6 +262,14 @@ export const normalizeWorkoutPlan = (raw: unknown): WorkoutPlan | null => {
                 variation: String(e.variation ?? "").trim(),
                 tempo: typeof e.tempo === "string" ? e.tempo : undefined,
                 notes: typeof e.notes === "string" ? e.notes : undefined,
+                targetLoadKg:
+                  typeof e.targetLoadKg === "number" && Number.isFinite(e.targetLoadKg) && e.targetLoadKg > 0
+                    ? e.targetLoadKg
+                    : null,
+                targetLoadNote:
+                  typeof e.targetLoadNote === "string" && e.targetLoadNote.trim()
+                    ? e.targetLoadNote.trim()
+                    : null,
                 setScheme: normalizeSetScheme(e.setScheme ?? e.set_scheme),
               }))
               .filter((e: WorkoutExercise) => e.exercise.length > 0)
