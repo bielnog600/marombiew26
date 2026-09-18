@@ -11,7 +11,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const BRIDGE_TOKEN = Deno.env.get("JARVIS_BRIDGE_TOKEN") ?? "";
+const BRIDGE_TOKEN = (Deno.env.get("JARVIS_BRIDGE_TOKEN") ?? "").trim();
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ erro: "method_not_allowed" }, 405);
 
-  const token = req.headers.get("X-Jarvis-Token") ?? req.headers.get("x-jarvis-token") ?? "";
+  const token = (req.headers.get("X-Jarvis-Token") ?? "").trim();
   if (!BRIDGE_TOKEN || !timingSafeEqual(token, BRIDGE_TOKEN)) {
     return json({ erro: "unauthorized" }, 401);
   }
