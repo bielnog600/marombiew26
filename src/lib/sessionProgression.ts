@@ -522,22 +522,11 @@ export const normalizeTargetLoadPerSet = (raw: unknown): TargetLoadPerSet | null
   return out.sort((a, b) => a.set_number - b.set_number);
 };
 
-/** "S1 40 kg · S2–S3 65 kg" — agrupa séries consecutivas com a mesma carga. */
+/** "1° set: 40 kg - 2° set: 65 kg - 3° set: 65 kg" — uma linha, sem agrupar. */
 export const formatTargetLoadPerSetText = (raw: unknown): string | null => {
   const sets = normalizeTargetLoadPerSet(raw);
   if (!sets) return null;
-  const groups: Array<{ from: number; to: number; load: number }> = [];
-  sets.forEach((s) => {
-    const last = groups[groups.length - 1];
-    if (last && last.load === s.load_kg && s.set_number === last.to + 1) {
-      last.to = s.set_number;
-    } else {
-      groups.push({ from: s.set_number, to: s.set_number, load: s.load_kg });
-    }
-  });
-  return groups
-    .map((g) => `${g.from === g.to ? `S${g.from}` : `S${g.from}–S${g.to}`} ${kg(g.load)} kg`)
-    .join(' · ');
+  return sets.map((s) => `${s.set_number}° set: ${kg(s.load_kg)} kg`).join(' - ');
 };
 
 /** Carga alvo da série `setNumber` (1-based), quando definida. */
