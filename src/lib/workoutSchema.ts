@@ -79,6 +79,15 @@ export const WorkoutExerciseSchema = z.object({
     .union([z.string(), z.null(), z.undefined()])
     .transform((v) => (v == null || String(v).trim() === "" ? null : String(v).trim()))
     .optional(),
+  /** Carga alvo por série. Quando presente, tem prioridade sobre targetLoadKg. */
+  targetLoadPerSet: z
+    .union([
+      z.array(z.object({ set_number: z.number(), load_kg: z.number() })),
+      z.null(),
+      z.undefined(),
+    ])
+    .transform((v) => normalizeTargetLoadPerSetValue(v))
+    .optional(),
   setScheme: SetSchemeSchema.optional(),
 });
 
