@@ -29,6 +29,94 @@ function timingSafeEqual(a: string, b: string): boolean {
 
 const TIPO_MAP: Record<string, string> = { treino: "treino", dieta: "dieta" };
 
+// ---------- helpers compartilhados (editar_treino) ----------
+type Rec = Record<string, unknown>;
+
+const normalizeName = (s: unknown) =>
+  String(s ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+// Campos editáveis — espelham WorkoutExerciseSchema (src/lib/workoutSchema.ts)
+const CAMPOS_VALIDOS = [
+  "series",
+  "series2",
+  "reps",
+  "rir",
+  "pause",
+  "restSeconds",
+  "variation",
+  "description",
+  "tempo",
+  "notes",
+  "setScheme",
+] as const;
+
+// Espelho de src/lib/workoutMarkdownSerializer.ts (edge functions não podem importar src/)
+const mdCell = (v: unknown): string => {
+  if (v == null) return "-";
+  const s = String(v).trim();
+  return s.length === 0 ? "-" : s.replace(/\|/g, "/");
+};
+
+const mdRest = (ex: Rec): string => {
+  const rs = ex.restSeconds;
+  if (typeof rs === "number" && rs > 0) return `${rs}s`;
+  return mdCell(ex.pause);
+};
+
+const setSchemeSets = (ex: Rec): Rec[] => {
+  const ss = ex.setScheme as { mode?: string; sets?: Rec[] } | undefined | null;
+  if (ss && ss.mode === "per_set" && Array.isArray(ss.sets) && ss.sets.length > 0) return ss.sets;
+  return [];
+};
+
+const mdReps = (ex: Rec): string => {
+  const sets = setSchemeSets(ex);
+  if (sets.length > 0) return sets.map((s) => s.target_reps).join(" / ");
+  return mdCell(ex.reps);
+};
+
+const mdSeries = (ex: Rec): string => {
+  const sets = setSchemeSets(ex);
+  if (sets.length > 0) return String(sets.length);
+  return mdCell(ex.series);
+};
+
+function workoutJsonToMarkdown(plan: Rec): string | null {
+  const days = Array.isArray(plan.days) ? (plan.days as Rec[]) : null;
+  if (!days) return null;
+  const metadata = (plan.metadata ?? null) as Rec | null;
+  const lines: string[] = [];
+  if (metadata?.goal) {
+    lines.push(`**Objetivo:** ${metadata.goal}`);
+    lines.push("");
+  }
+  lines.push(
+    "| TREINO DO DIA | EXERCÍCIO | SÉRIE | SÉRIE 2 | REPETIÇÕES | RIR | PAUSA | DESCRIÇÃO | VARIAÇÃO |",
+  );
+  lines.push("|---|---|---|---|---|---|---|---|---|");
+  for (const day of days) {
+    const exercises = Array.isArray(day.exercises) ? (day.exercises as Rec[]) : [];
+    for (const ex of exercises) {
+      lines.push(
+        `| ${mdCell(day.day)} | ${mdCell(ex.exercise)} | ${mdSeries(ex)} | ${mdCell(ex.series2)} | ${mdReps(ex)} | ${mdCell(ex.rir)} | ${mdRest(ex)} | ${mdCell(ex.description)} | ${mdCell(ex.variation)} |`,
+      );
+    }
+  }
+  lines.push("");
+  if (metadata?.notes) {
+    lines.push("");
+    lines.push(`> ${metadata.notes}`);
+  }
+  return lines.join("\n");
+}
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ erro: "method_not_allowed" }, 405);
