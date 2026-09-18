@@ -124,6 +124,144 @@ Deno.serve(async (req) => {
       return json({ cargas: data ?? [] });
     }
 
+    if (operacao === "definir_carga_alvo") {
+      const planId = String(body.plan_id ?? "").trim();
+      const dia = String(body.dia ?? "").trim();
+      const exercicio = String(body.exercicio ?? "").trim();
+      const expectedRevision = Number(body.expected_revision);
+      const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : null;
+      const rawTarget = body.target_load_kg;
+      let targetLoadKg: number | null = null;
+      if (rawTarget !== null && rawTarget !== undefined && rawTarget !== "") {
+        const n = Number(rawTarget);
+        if (!Number.isFinite(n) || n <= 0) return json({ erro: "target_load_kg_invalido" }, 400);
+        targetLoadKg = n;
+      }
+      if (!planId) return json({ erro: "plan_id_obrigatorio" }, 400);
+      if (!dia) return json({ erro: "dia_obrigatorio" }, 400);
+      if (!exercicio) return json({ erro: "exercicio_obrigatorio" }, 400);
+      if (!Number.isFinite(expectedRevision)) return json({ erro: "expected_revision_obrigatorio" }, 400);
+
+      const { data: plan, error: planError } = await supabase
+        .from("ai_plans")
+        .select("id, student_id, titulo, conteudo, conteudo_json, fase, version, content_revision, tipo")
+        .eq("id", planId)
+        .maybeSingle();
+      if (planError) return json({ erro: planError.message }, 500);
+      if (!plan) return json({ erro: "plano_nao_encontrado" }, 404);
+      if (plan.tipo !== "treino") return json({ erro: "plano_nao_e_treino" }, 400);
+
+      const currentRevision = Number(plan.content_revision ?? 0);
+      if (currentRevision !== expectedRevision) {
+        return json({ erro: "revisao_desatualizada", content_revision: currentRevision }, 409);
+      }
+
+      const planJson = plan.conteudo_json as Record<string, unknown> | null;
+      const days = Array.isArray((planJson as { days?: unknown })?.days)
+        ? ((planJson as { days: Record<string, unknown>[] }).days)
+        : null;
+      if (!days) return json({ erro: "plano_sem_conteudo_json" }, 400);
+
+      const norm = (s: unknown) =>
+        String(s ?? "")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+
+      const dayMatches = days
+        .map((d, i) => ({ d, i }))
+        .filter(({ d }) => norm((d as { day?: unknown }).day) === norm(dia));
+      if (dayMatches.length === 0) {
+        return json({ erro: "dia_nao_encontrado", dias: days.map((d) => (d as { day?: unknown }).day) }, 404);
+      }
+      if (dayMatches.length > 1) {
+        return json({ erro: "dia_ambiguo", dias: days.map((d) => (d as { day?: unknown }).day) }, 404);
+      }
+
+      const dayIdx = dayMatches[0].i;
+      const dayObj = days[dayIdx] as { day?: unknown; exercises?: Record<string, unknown>[] };
+      const exercises = Array.isArray(dayObj.exercises) ? dayObj.exercises : [];
+      const nomesDoDia = exercises.map((e) => e.exercise);
+      const exMatches = exercises
+        .map((e, i) => ({ e, i }))
+        .filter(({ e }) => norm(e.exercise) === norm(exercicio));
+      if (exMatches.length === 0) {
+        return json({ erro: "exercicio_nao_encontrado", exercicios: nomesDoDia }, 404);
+      }
+      if (exMatches.length > 1) {
+        return json({ erro: "exercicio_ambiguo", exercicios: nomesDoDia }, 404);
+      }
+
+      const exIdx = exMatches[0].i;
+      const beforeExercise = { ...(exercises[exIdx] as Record<string, unknown>) };
+      const antes = (beforeExercise.targetLoadKg ?? null) as number | null;
+      const afterExercise = { ...beforeExercise, targetLoadKg: targetLoadKg, targetLoadNote: targetLoadKg === null ? null : note };
+
+      const nextExercises = exercises.slice();
+      nextExercises[exIdx] = afterExercise;
+      const nextDays = days.slice();
+      nextDays[dayIdx] = { ...dayObj, exercises: nextExercises };
+      const nextJson = { ...(planJson as Record<string, unknown>), days: nextDays };
+
+      // admin (professor) responsável pelo registro de edição
+      const { data: adminRole, error: adminError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "admin")
+        .limit(1)
+        .maybeSingle();
+      if (adminError) return json({ erro: adminError.message }, 500);
+      const professorId = adminRole?.user_id ?? null;
+
+      const reason = `carga alvo ${exercicio}: ${antes ?? "null"} → ${targetLoadKg ?? "null"}`;
+
+      const { error: versionError } = await supabase.from("workout_plan_versions").insert({
+        plan_id: plan.id,
+        student_id: plan.student_id,
+        version_number: Number(plan.version ?? 1),
+        status: "archived",
+        generated_by: "jarvis",
+        titulo: plan.titulo ?? "Treino",
+        conteudo: plan.conteudo ?? "",
+        fase: plan.fase ?? null,
+        snapshot_json: planJson,
+        reason_summary: reason,
+        archived_at: new Date().toISOString(),
+      });
+      if (versionError) return json({ erro: versionError.message }, 500);
+
+      if (professorId) {
+        const { error: editError } = await supabase.from("workout_prescription_edits").insert({
+          professor_id: professorId,
+          student_id: plan.student_id,
+          plan_id: plan.id,
+          plan_version: Number(plan.version ?? 1),
+          // constraint do banco só aceita os valores manuais; origem real fica no snapshot
+          source: "manual_training_mode",
+          action_origin: "manual",
+          before_json: beforeExercise,
+          after_json: afterExercise,
+          changes: { targetLoadKg: { from: antes, to: targetLoadKg } },
+          context_snapshot: { origin: "jarvis", channel: "voice", dia: dayObj.day, note },
+        });
+        if (editError) return json({ erro: editError.message }, 500);
+      }
+
+      const { data: updated, error: updateError } = await supabase
+        .from("ai_plans")
+        .update({ conteudo_json: nextJson, content_revision: currentRevision + 1 })
+        .eq("id", plan.id)
+        .eq("content_revision", currentRevision)
+        .select("content_revision")
+        .maybeSingle();
+      if (updateError) return json({ erro: updateError.message }, 500);
+      if (!updated) return json({ erro: "revisao_desatualizada", content_revision: currentRevision }, 409);
+
+      return json({ ok: true, antes, depois: targetLoadKg, content_revision: updated.content_revision });
+    }
+
     return json({ erro: "operacao_desconhecida" }, 400);
   } catch (e) {
     console.error("[jarvis-bridge] falha:", String((e as Error)?.message ?? e));
