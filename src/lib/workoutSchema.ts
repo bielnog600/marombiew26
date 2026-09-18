@@ -66,6 +66,19 @@ export const WorkoutExerciseSchema = z.object({
   variation: optionalString.optional(),
   tempo: optionalString.optional(),
   notes: optionalString.optional(),
+  /** Carga alvo definida pelo professor (kg). Ausente/null = sem alvo manual. */
+  targetLoadKg: z
+    .union([z.number(), z.string(), z.null(), z.undefined()])
+    .transform((v) => {
+      if (v == null || v === "") return null;
+      const n = typeof v === "number" ? v : Number(String(v).replace(",", "."));
+      return Number.isFinite(n) && n > 0 ? n : null;
+    })
+    .optional(),
+  targetLoadNote: z
+    .union([z.string(), z.null(), z.undefined()])
+    .transform((v) => (v == null || String(v).trim() === "" ? null : String(v).trim()))
+    .optional(),
   setScheme: SetSchemeSchema.optional(),
 });
 
