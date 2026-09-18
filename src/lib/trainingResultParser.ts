@@ -14,6 +14,10 @@ export interface ParsedExercise {
   pause: string;
   description: string;
   variation: string;
+  /** Carga alvo definida pelo professor (kg). Ausente/null = sem alvo manual. */
+  targetLoadKg?: number | null;
+  /** Nota curta do alvo manual (ex.: "Fabiew · 18/09"). */
+  targetLoadNote?: string | null;
   /** Optional structured per-set prescription. When present, source of truth for the set list. */
   setScheme?: {
     mode: 'uniform' | 'recognition_work' | 'per_set';
@@ -162,6 +166,8 @@ export const parseTrainingTable = (tableLines: string[], fallbackTitle = ''): Pa
         pause: pauseCell,
         description: descCell,
         variation: variationCell,
+        targetLoadKg: null,
+        targetLoadNote: null,
       };
       // Detect per-set reps "12 / 10 / 6"
       const perSetMatch = repsCell.includes('/') && !repsCell.includes('+')
