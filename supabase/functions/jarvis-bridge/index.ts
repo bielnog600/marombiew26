@@ -2,6 +2,19 @@
 // Autenticação por header X-Jarvis-Token (secret JARVIS_BRIDGE_TOKEN).
 // Nunca registra o token em logs. Puramente aditivo: não altera nada do projeto.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { loadFoodCatalog } from "../_shared/foodCatalog.ts";
+import { hydrateDietPlanFromFoods } from "../_shared/dietHydration.ts";
+import { canonicalDietPlanToMarkdown } from "../_shared/canonicalDietMarkdown.ts";
+import { normalizeDietTitle } from "../_shared/dietTitle.ts";
+import {
+  buildPublishedSnapshotPlan,
+  collectFoodAssertions,
+  collectPublicationBlockers,
+  isStructuredPlan,
+  stripPublicationSnapshots,
+  validatePublicationPlan,
+  validateSnapshotAssertionIntegrity,
+} from "../_shared/dietPublication.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
