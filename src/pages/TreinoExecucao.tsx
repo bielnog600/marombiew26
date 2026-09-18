@@ -1227,7 +1227,11 @@ const TreinoExecucao = () => {
 
         <ProgressionHintCard
           recommendation={getRecommendationFor(progressionSnapshot, selectedExerciseName)}
-          targetLoad={{ kg: (exercise as any)?.targetLoadKg ?? null, note: (exercise as any)?.targetLoadNote ?? null }}
+          targetLoad={{
+            kg: (exercise as any)?.targetLoadKg ?? null,
+            note: (exercise as any)?.targetLoadNote ?? null,
+            perSet: (exercise as any)?.targetLoadPerSet ?? null,
+          }}
         />
 
         <div className="space-y-2">

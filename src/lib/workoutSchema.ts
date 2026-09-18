@@ -219,6 +219,7 @@ export const parsedDaysToWorkoutPlan = (
       variation: e.variation || "",
       targetLoadKg: e.targetLoadKg ?? null,
       targetLoadNote: e.targetLoadNote ?? null,
+      targetLoadPerSet: normalizeTargetLoadPerSetValue(e.targetLoadPerSet),
       setScheme: e.setScheme,
     })),
   })),
@@ -242,6 +243,7 @@ export const workoutPlanToParsedDays = (plan: WorkoutPlan): ParsedTrainingDay[] 
       variation: e.variation || "",
       targetLoadKg: e.targetLoadKg ?? null,
       targetLoadNote: e.targetLoadNote ?? null,
+      targetLoadPerSet: normalizeTargetLoadPerSetValue(e.targetLoadPerSet),
       setScheme: e.setScheme as ParsedExercise["setScheme"],
     })),
   }));
@@ -297,6 +299,7 @@ export const normalizeWorkoutPlan = (raw: unknown): WorkoutPlan | null => {
                   typeof e.targetLoadNote === "string" && e.targetLoadNote.trim()
                     ? e.targetLoadNote.trim()
                     : null,
+                targetLoadPerSet: normalizeTargetLoadPerSetValue(e.targetLoadPerSet),
                 setScheme: normalizeSetScheme(e.setScheme ?? e.set_scheme),
               }))
               .filter((e: WorkoutExercise) => e.exercise.length > 0)
