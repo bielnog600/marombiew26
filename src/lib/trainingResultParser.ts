@@ -18,6 +18,11 @@ export interface ParsedExercise {
   targetLoadKg?: number | null;
   /** Nota curta do alvo manual (ex.: "Fabiew · 18/09"). */
   targetLoadNote?: string | null;
+  /**
+   * Carga alvo por série (opcional). Quando presente, tem prioridade sobre
+   * `targetLoadKg`. Ausente/null = sem alvo por série.
+   */
+  targetLoadPerSet?: Array<{ set_number: number; load_kg: number }> | null;
   /** Optional structured per-set prescription. When present, source of truth for the set list. */
   setScheme?: {
     mode: 'uniform' | 'recognition_work' | 'per_set';
