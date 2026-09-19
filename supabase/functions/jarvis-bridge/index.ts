@@ -20,6 +20,14 @@ import {
   checkDietDataReadiness,
   loadDietStudentContext,
 } from "../_shared/dietGenerationContext.ts";
+import {
+  buildTrainerGenerationRequest,
+  checkTrainerDataReadiness,
+  loadTrainerStudentContext,
+  summarizeWorkoutPlan,
+  type TrainerGenerationInput,
+} from "../_shared/trainerGenerationContext.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -321,7 +329,7 @@ Deno.serve(async (req) => {
 
       const { data: plan, error: planError } = await supabase
         .from("ai_plans")
-        .select("id, student_id, titulo, conteudo, conteudo_json, fase, version, content_revision, tipo")
+        .select("id, student_id, titulo, conteudo, conteudo_json, fase, version, content_revision, tipo, is_draft, draft_source")
         .eq("id", planId)
         .maybeSingle();
       if (planError) return json({ erro: planError.message }, 500);
@@ -409,20 +417,24 @@ Deno.serve(async (req) => {
         : String(antes ?? "null");
       const reason = `carga alvo ${exercicio}: ${antesLabel} → ${depoisLabel}`;
 
-      const { error: versionError } = await supabase.from("workout_plan_versions").insert({
-        plan_id: plan.id,
-        student_id: plan.student_id,
-        version_number: Number(plan.version ?? 1),
-        status: "archived",
-        generated_by: "jarvis",
-        titulo: plan.titulo ?? "Treino",
-        conteudo: plan.conteudo ?? "",
-        fase: plan.fase ?? null,
-        snapshot_json: planJson,
-        reason_summary: reason,
-        archived_at: new Date().toISOString(),
-      });
-      if (versionError) return json({ erro: versionError.message }, 500);
+      // Rascunho (ainda não publicado): sem snapshot de histórico.
+      if (plan.is_draft !== true) {
+        const { error: versionError } = await supabase.from("workout_plan_versions").insert({
+          plan_id: plan.id,
+          student_id: plan.student_id,
+          version_number: Number(plan.version ?? 1),
+          status: "archived",
+          generated_by: "jarvis",
+          titulo: plan.titulo ?? "Treino",
+          conteudo: plan.conteudo ?? "",
+          fase: plan.fase ?? null,
+          snapshot_json: planJson,
+          reason_summary: reason,
+          archived_at: new Date().toISOString(),
+        });
+        if (versionError) return json({ erro: versionError.message }, 500);
+      }
+
 
       if (professorId) {
         const { error: editError } = await supabase.from("workout_prescription_edits").insert({
@@ -484,7 +496,7 @@ Deno.serve(async (req) => {
 
       const { data: plan, error: planError } = await supabase
         .from("ai_plans")
-        .select("id, student_id, titulo, conteudo, conteudo_json, fase, version, content_revision, tipo")
+        .select("id, student_id, titulo, conteudo, conteudo_json, fase, version, content_revision, tipo, is_draft, draft_source")
         .eq("id", planId)
         .maybeSingle();
       if (planError) return json({ erro: planError.message }, 500);
@@ -682,20 +694,25 @@ Deno.serve(async (req) => {
 
       const reason = `jarvis editar_treino: ${mudancas.length} mudança(s)`;
 
-      const { error: versionError } = await supabase.from("workout_plan_versions").insert({
-        plan_id: plan.id,
-        student_id: plan.student_id,
-        version_number: currentVersion,
-        status: "archived",
-        generated_by: "jarvis",
-        titulo: plan.titulo ?? "Treino",
-        conteudo: plan.conteudo ?? "",
-        fase: plan.fase ?? null,
-        snapshot_json: planJson,
-        reason_summary: reason,
-        archived_at: new Date().toISOString(),
-      });
-      if (versionError) return json({ erro: versionError.message }, 500);
+      // Rascunho ainda não publicado: ajustar antes de publicar não gera
+      // snapshot de histórico (o histórico nasce na publicação).
+      if (plan.is_draft !== true) {
+        const { error: versionError } = await supabase.from("workout_plan_versions").insert({
+          plan_id: plan.id,
+          student_id: plan.student_id,
+          version_number: currentVersion,
+          status: "archived",
+          generated_by: "jarvis",
+          titulo: plan.titulo ?? "Treino",
+          conteudo: plan.conteudo ?? "",
+          fase: plan.fase ?? null,
+          snapshot_json: planJson,
+          reason_summary: reason,
+          archived_at: new Date().toISOString(),
+        });
+        if (versionError) return json({ erro: versionError.message }, 500);
+      }
+
 
       if (professorId) {
         const { error: editError } = await supabase.from("workout_prescription_edits").insert({
@@ -1609,6 +1626,320 @@ Deno.serve(async (req) => {
         plan_id: publishedRow.id ?? draftId,
         version: publishedRow.version ?? null,
         content_revision: publishedRow.content_revision ?? draftRevision + 1,
+        arquivado: prev?.id ?? null,
+      });
+    }
+
+    // =================== TREINO (espelho das operações de dieta) ===================
+
+    if (operacao === "checar_dados_treino" || operacao === "gerar_treino") {
+      const studentId = String(body.student_id ?? "").trim();
+      if (!studentId) return json({ erro: "student_id_obrigatorio" }, 400);
+
+      const ctx = await loadTrainerStudentContext(supabase, studentId);
+      const readiness = checkTrainerDataReadiness(ctx);
+      if (!readiness.ok) {
+        return json({
+          erro: "dados_insuficientes",
+          faltando: readiness.faltando,
+          ultima_avaliacao: ctx.data_avaliacao,
+          dias_desde_avaliacao: readiness.dias_desde_avaliacao,
+        }, 422);
+      }
+
+      const ativo = ctx.activePlan;
+      const treinoAtivo = ativo
+        ? {
+            plan_id: ativo.id,
+            titulo: ativo.titulo,
+            publicado_em: ativo.published_at ?? ativo.created_at,
+            content_revision: ativo.content_revision ?? null,
+            dias: Array.isArray((ativo.conteudo_json as Rec | null)?.days)
+              ? ((ativo.conteudo_json as Rec).days as Rec[]).map((d) => d.day)
+              : [],
+            split: ((ativo.conteudo_json as Rec | null)?.metadata as Rec | undefined)?.goal ?? null,
+          }
+        : null;
+
+      if (operacao === "checar_dados_treino") {
+        return json({
+          ok: true,
+          peso: ctx.peso,
+          altura: ctx.altura,
+          data_avaliacao: ctx.data_avaliacao,
+          dias_desde_avaliacao: readiness.dias_desde_avaliacao,
+          nivel_sugerido: ctx.nivel_sugerido,
+          lesoes: ctx.lesoes,
+          restricoes: ctx.restricoes,
+          dores: ctx.dores,
+          desvios_posturais: ctx.desvios_posturais,
+          treino_ativo: treinoAtivo,
+          ultimo_questionario: formatQuestionario(ctx.questionario as Rec | null),
+        });
+      }
+
+      // ---------- gerar_treino ----------
+      const intentRaw = body.intent == null ? "new" : String(body.intent).trim();
+      if (!ALLOWED_GENERATION_INTENT.includes(intentRaw)) {
+        return json({
+          erro: "valor_invalido",
+          campo: "intent",
+          recebido: intentRaw,
+          valores_aceitos: ALLOWED_GENERATION_INTENT,
+        }, 400);
+      }
+
+      const built = buildTrainerGenerationRequest(ctx, {
+        nivel: String(body.nivel ?? ""),
+        dias_semana: Number(body.dias_semana),
+        split: String(body.split ?? ""),
+        grupos_por_dia: (body.grupos_por_dia as TrainerGenerationInput["grupos_por_dia"]) ?? null,
+        grupos_prioritarios: (body.grupos_prioritarios as string[]) ?? null,
+        semana: Number(body.semana),
+        equipamento: String(body.equipamento ?? ""),
+        equipamentos_disponiveis: (body.equipamentos_disponiveis as string[]) ?? null,
+        perfil_equipamento: (body.perfil_equipamento as string) ?? "mixed",
+        restricoes_estruturadas:
+          (body.restricoes_estruturadas as TrainerGenerationInput["restricoes_estruturadas"]) ?? null,
+        saude: (body.saude as TrainerGenerationInput["saude"]) ?? null,
+        referencia_treino: (body.referencia_treino as string) ?? null,
+        observacoes: (body.observacoes as string) ?? null,
+      });
+      if (!built.ok) {
+        return json({
+          erro: built.erro,
+          campo: built.campo ?? null,
+          recebido: built.recebido ?? null,
+          valores_aceitos: built.valores_aceitos ?? null,
+        }, 400);
+      }
+      const reqTreino = built.request;
+
+      // Preflight dos campos com CHECK constraint ANTES de gastar a geração.
+      const preflightTreino: Array<[string, string, string[]]> = [
+        ["fase", reqTreino.fase, ALLOWED_PLAN_FASE],
+        ["cycle_status", "em_dia", ALLOWED_CYCLE_STATUS],
+        ["tipo", "treino", ALLOWED_PLAN_TIPO],
+        ["draft_source", "jarvis", ALLOWED_DRAFT_SOURCE],
+        ["migration_status", "completed", ALLOWED_MIGRATION_STATUS],
+        ["generation_intent", intentRaw, ALLOWED_GENERATION_INTENT],
+      ];
+      for (const [campo, valor, aceitos] of preflightTreino) {
+        if (!aceitos.includes(valor)) {
+          return json({ erro: "valor_invalido", campo, recebido: valor, valores_aceitos: aceitos }, 400);
+        }
+      }
+
+      // Mesmo motor da página TreinoIA: trainer-agent com outputMode json.
+      // Esse motor é lento (pode parecer travado perto do fim) — só o timeout
+      // de 180s conta como falha.
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 180_000);
+      let agentStatus = 500;
+      let agentBody: Rec = {};
+      try {
+        const resp = await fetch(`${SUPABASE_URL}/functions/v1/trainer-agent`, {
+          method: "POST",
+          signal: controller.signal,
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_ROLE}` },
+          body: JSON.stringify({
+            messages: [{ role: "user", content: reqTreino.prompt }],
+            studentContext: reqTreino.studentContext,
+            outputMode: "json",
+            studentId,
+            split_slug: reqTreino.split_slug,
+            days_available: reqTreino.days_available,
+            periodization: reqTreino.periodization,
+            phase: reqTreino.phase,
+            exercise_profile: reqTreino.exercise_profile,
+            available_equipment: reqTreino.available_equipment,
+          }),
+        });
+        agentStatus = resp.status;
+        agentBody = (await resp.json().catch(() => ({}))) as Rec;
+      } catch (e) {
+        clearTimeout(timer);
+        const aborted = (e as Error)?.name === "AbortError";
+        return json({
+          erro: aborted ? "geracao_timeout" : "geracao_falhou",
+          error_code: aborted ? "timeout" : "fetch_error",
+        }, 504);
+      }
+      clearTimeout(timer);
+
+      if (agentStatus < 200 || agentStatus >= 300 || !agentBody?.json) {
+        return json({
+          erro: "geracao_falhou",
+          error_code: agentBody?.error_code ?? null,
+          detalhes: agentBody?.detail ?? agentBody?.error ?? null,
+          validation: agentBody?.validationReasons ?? null,
+        }, agentStatus >= 400 && agentStatus < 600 ? agentStatus : 502);
+      }
+
+      const planJsonTreino = agentBody.json as Rec;
+      const markdownTreino = typeof agentBody.markdown === "string" ? agentBody.markdown : "";
+      const titulo = `Treino - ${new Date().toLocaleDateString("pt-BR")}`;
+
+      const resumo = summarizeWorkoutPlan(
+        planJsonTreino,
+        {
+          volumeAudit: (agentBody.volumeAudit as Rec) ?? null,
+          restrictionGate: (agentBody.restrictionGate as Rec) ?? null,
+          exerciseProfileAudit: (agentBody.exerciseProfileAudit as Rec) ?? null,
+          similarity: (agentBody.similarity as Rec) ?? null,
+        },
+        titulo,
+        reqTreino.split_slug,
+      );
+
+      const dadosUsados = {
+        peso: ctx.peso,
+        altura: ctx.altura,
+        data_avaliacao: ctx.data_avaliacao,
+        objetivo: ctx.studentContext.objetivo ?? null,
+        config: reqTreino.config,
+        periodizacao: reqTreino.periodization.model,
+        plano_anterior: ctx.activePlan?.id ?? null,
+      };
+
+      const versionTreino = ctx.activePlan ? Number(ctx.activePlan.version ?? 1) + 1 : 1;
+      const { data: insertedTreino, error: insertTreinoError } = await supabase
+        .from("ai_plans")
+        .insert({
+          student_id: studentId,
+          tipo: "treino",
+          titulo,
+          conteudo: markdownTreino,
+          conteudo_json: planJsonTreino,
+          // `fase` = semana do ciclo (semana_1..deload), conforme a semana escolhida.
+          fase: reqTreino.fase,
+          fase_inicio_data: (ctx.activePlan?.fase_inicio_data as string) ??
+            new Date().toISOString().slice(0, 10),
+          generation_intent: intentRaw,
+          draft_source: "jarvis",
+          draft_reason: (body.observacoes as string) ?? null,
+          parent_plan_id: ctx.activePlan?.id ?? null,
+          version: versionTreino,
+          is_draft: true,
+          cycle_status: "em_dia",
+          migration_status: "completed",
+          ...reqTreino.periodizationColumns,
+        })
+        .select("id, content_revision")
+        .single();
+
+      if (insertTreinoError) {
+        return json({
+          ok: false,
+          erro: "falha_ao_salvar",
+          detalhes: insertTreinoError.message,
+          draft_plan_id: null,
+          resumo,
+          plano: planJsonTreino,
+          dados_usados: dadosUsados,
+        }, 500);
+      }
+
+      return json({
+        ok: true,
+        draft_plan_id: insertedTreino?.id ?? null,
+        content_revision: insertedTreino?.content_revision ?? 1,
+        resumo,
+        dados_usados: dadosUsados,
+      });
+    }
+
+    if (operacao === "descartar_rascunho_treino") {
+      const draftId = String(body.draft_plan_id ?? "").trim();
+      if (!draftId) return json({ erro: "draft_plan_id_obrigatorio" }, 400);
+      const { data: draft, error: readError } = await supabase
+        .from("ai_plans").select("id, tipo, is_draft, draft_source").eq("id", draftId).maybeSingle();
+      if (readError) return json({ erro: readError.message }, 500);
+      if (!draft) return json({ erro: "plano_nao_encontrado" }, 404);
+      if (draft.tipo !== "treino") return json({ erro: "plano_nao_e_treino" }, 400);
+      if (draft.is_draft !== true || draft.draft_source !== "jarvis") {
+        return json({ erro: "rascunho_jarvis_obrigatorio" }, 400);
+      }
+      const { error: delError } = await supabase
+        .from("ai_plans").delete().eq("id", draftId).eq("is_draft", true).eq("draft_source", "jarvis");
+      if (delError) return json({ erro: delError.message }, 500);
+      return json({ ok: true, descartado: draftId });
+    }
+
+    if (operacao === "publicar_rascunho_treino") {
+      const draftId = String(body.draft_plan_id ?? "").trim();
+      const expectedRevision = Number(body.expected_revision);
+      if (!draftId) return json({ erro: "draft_plan_id_obrigatorio" }, 400);
+      if (!Number.isFinite(expectedRevision)) return json({ erro: "expected_revision_obrigatorio" }, 400);
+
+      const { data: draft, error: draftError } = await supabase
+        .from("ai_plans").select("*").eq("id", draftId).maybeSingle();
+      if (draftError) return json({ erro: draftError.message }, 500);
+      if (!draft) return json({ erro: "plano_nao_encontrado" }, 404);
+      if (draft.tipo !== "treino" || draft.is_draft !== true) {
+        return json({ erro: "rascunho_obrigatorio" }, 400);
+      }
+      const draftRevision = Number(draft.content_revision ?? 1);
+      if (draftRevision !== expectedRevision) {
+        return json({ erro: "revisao_desatualizada", content_revision: draftRevision }, 409);
+      }
+      const draftDays = Array.isArray((draft.conteudo_json as Rec | null)?.days)
+        ? ((draft.conteudo_json as Rec).days as Rec[])
+        : [];
+      if (draftDays.length === 0) return json({ erro: "plano_sem_conteudo_json" }, 400);
+
+      // Histórico do treino ativo anterior antes de trocar (mesma rotina do app).
+      const { data: previousRows } = await supabase
+        .from("ai_plans")
+        .select("id, student_id, version, titulo, conteudo, fase, conteudo_json")
+        .eq("student_id", draft.student_id).eq("tipo", "treino").eq("is_draft", false)
+        .order("published_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false }).limit(1);
+      const prev = (previousRows as Rec[] | null)?.[0] ?? null;
+
+      if (prev && prev.id !== draftId) {
+        const { error: versionError } = await supabase.from("workout_plan_versions").insert({
+          plan_id: prev.id,
+          student_id: prev.student_id,
+          version_number: Number(prev.version ?? 1),
+          status: "archived",
+          generated_by: "jarvis",
+          titulo: prev.titulo ?? "Treino",
+          conteudo: prev.conteudo ?? "",
+          fase: prev.fase ?? null,
+          snapshot_json: prev.conteudo_json ?? null,
+          reason_summary: "jarvis publicar_rascunho_treino: plano anterior arquivado",
+          archived_at: new Date().toISOString(),
+        });
+        if (versionError) return json({ erro: versionError.message }, 500);
+      }
+
+      const { data: publishedTreino, error: publishError } = await supabase
+        .from("ai_plans")
+        .update({
+          is_draft: false,
+          draft_reason: null,
+          published_at: new Date().toISOString(),
+          cycle_status: "em_dia",
+          content_revision: draftRevision + 1,
+        })
+        .eq("id", draftId).eq("is_draft", true).eq("content_revision", draftRevision)
+        .select("id, version, content_revision")
+        .maybeSingle();
+      if (publishError) return json({ erro: publishError.message }, 500);
+      if (!publishedTreino) {
+        return json({ erro: "revisao_desatualizada", content_revision: draftRevision }, 409);
+      }
+
+      if (prev && prev.id !== draftId) {
+        await supabase.from("ai_plans").update({ cycle_status: "renovado" }).eq("id", prev.id);
+      }
+
+      return json({
+        ok: true,
+        plan_id: publishedTreino.id,
+        version: publishedTreino.version,
+        content_revision: publishedTreino.content_revision,
         arquivado: prev?.id ?? null,
       });
     }
