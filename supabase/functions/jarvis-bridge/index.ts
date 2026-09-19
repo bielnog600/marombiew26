@@ -1196,8 +1196,11 @@ Deno.serve(async (req) => {
       }
       const intent = intentRaw;
 
+      // `fase` é SEMPRE a semana do ciclo. A página DietaIA nem envia o campo
+      // (fica no default 'semana_1'); dieta nova/regenerada nasce em semana_1.
+      // Qualquer `fase` vinda no body é ignorada de propósito — objetivo NÃO vai aqui.
+      const faseRaw = DEFAULT_PLAN_FASE;
       // Validação dos campos com CHECK constraint ANTES de gastar a geração.
-      const faseRaw = body.fase == null ? DEFAULT_PLAN_FASE : String(body.fase).trim();
       const preflight: Array<[string, string, string[]]> = [
         ["fase", faseRaw, ALLOWED_PLAN_FASE],
         ["cycle_status", "em_dia", ALLOWED_CYCLE_STATUS],
@@ -1206,6 +1209,7 @@ Deno.serve(async (req) => {
         ["draft_source", "jarvis", ALLOWED_DRAFT_SOURCE],
         ["migration_status", "completed", ALLOWED_MIGRATION_STATUS],
       ];
+
       for (const [campo, valor, aceitos] of preflight) {
         if (!aceitos.includes(valor)) {
           return json({ erro: "valor_invalido", campo, recebido: valor, valores_aceitos: aceitos }, 400);
