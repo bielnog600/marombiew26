@@ -1249,32 +1249,8 @@ Deno.serve(async (req) => {
         try { return canonicalDietPlanToMarkdown(finalPlan); } catch { return ""; }
       })();
 
-      const version = ctx.activePlan ? ctx.activePlan.version + 1 : 1;
-      const { data: inserted, error: insertError } = await supabase
-        .from("ai_plans")
-        .insert({
-          student_id: studentId,
-          tipo: "dieta",
-          titulo: `Dieta - ${new Date().toLocaleDateString("pt-BR")}`,
-          conteudo: markdown,
-          conteudo_json: finalPlan,
-          fase: req.meta.phase,
-          diet_strategy: req.meta.strategy,
-          strategy_source: "jarvis",
-          generation_intent: intent,
-          draft_source: "jarvis",
-          draft_reason: (body.observacoes as string | null) ?? null,
-          parent_plan_id: ctx.activePlan?.id ?? null,
-          version,
-          is_draft: true,
-          cycle_status: "em_dia",
-          migration_status: "completed",
-        })
-        .select("id")
-        .single();
-      if (insertError) return json({ erro: insertError.message }, 500);
-
-      // Resumo do primeiro dia materializado.
+      // Resumo do primeiro dia materializado (calculado ANTES da gravação,
+      // para não perder o resultado se o insert falhar).
       const dias = Array.isArray(finalPlan.days) ? (finalPlan.days as Rec[]) : [];
       const dia0 = (dias[0] ?? {}) as Rec;
       const totals = (dia0.totals ?? {}) as Rec;
@@ -1290,26 +1266,68 @@ Deno.serve(async (req) => {
       const alvo = req.canonicalTargets;
       const desvio = alvo.kcal > 0 ? Math.abs((Number(totals.kcal) || 0) - alvo.kcal) / alvo.kcal : 1;
       const confianca = Math.max(0, Math.min(100, Math.round(100 - desvio * 300 - alertas.length * 15)));
+      const resumo = {
+        kcal: Math.round(Number(totals.kcal) || 0),
+        proteina_g: Math.round(Number(totals.p) || 0),
+        carbo_g: Math.round(Number(totals.c) || 0),
+        gordura_g: Math.round(Number(totals.g) || 0),
+        refeicoes,
+        alertas,
+        confianca,
+      };
+      const dadosUsados = {
+        peso: ctx.peso,
+        altura: ctx.altura,
+        data_avaliacao: ctx.data_avaliacao,
+        objetivo: String(body.objetivo ?? ""),
+      };
+
+      const version = ctx.activePlan ? ctx.activePlan.version + 1 : 1;
+      const { data: inserted, error: insertError } = await supabase
+        .from("ai_plans")
+        .insert({
+          student_id: studentId,
+          tipo: "dieta",
+          titulo: `Dieta - ${new Date().toLocaleDateString("pt-BR")}`,
+          conteudo: markdown,
+          conteudo_json: finalPlan,
+          // `fase` = fase do CICLO (semana_1..deload), igual à página DietaIA,
+          // que nem informa o campo e deixa o default 'semana_1'.
+          // O objetivo (cutting/bulking/...) vai em diet_strategy/conteudo_json.
+          fase: DEFAULT_PLAN_FASE,
+          diet_strategy: req.meta.strategy,
+          strategy_source: "manual",
+          generation_intent: intent,
+          draft_source: "jarvis",
+          draft_reason: (body.observacoes as string | null) ?? null,
+          parent_plan_id: ctx.activePlan?.id ?? null,
+          version,
+          is_draft: true,
+          cycle_status: "em_dia",
+          migration_status: "completed",
+        })
+        .select("id")
+        .single();
+      if (insertError) {
+        return json({
+          ok: false,
+          erro: "falha_ao_salvar",
+          detalhes: insertError.message,
+          draft_plan_id: null,
+          resumo,
+          plano: finalPlan,
+          metas: alvo,
+          dados_usados: dadosUsados,
+        }, 500);
+      }
 
       return json({
         ok: true,
         draft_plan_id: inserted?.id ?? null,
-        resumo: {
-          kcal: Math.round(Number(totals.kcal) || 0),
-          proteina_g: Math.round(Number(totals.p) || 0),
-          carbo_g: Math.round(Number(totals.c) || 0),
-          gordura_g: Math.round(Number(totals.g) || 0),
-          refeicoes,
-          alertas,
-          confianca,
-        },
+        resumo,
         metas: alvo,
-        dados_usados: {
-          peso: ctx.peso,
-          altura: ctx.altura,
-          data_avaliacao: ctx.data_avaliacao,
-          objetivo: String(body.objetivo ?? ""),
-        },
+        dados_usados: dadosUsados,
+
       });
     }
 
