@@ -1283,6 +1283,39 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Suplementação: mesmo mapeamento da página DietaIA —
+      // toggle enableSuplementos → extras.suplementos = true + instrução
+      // "INCLUIR SUPLEMENTAÇÃO COMPLETA" no prompt. Lista `suplementos` vira
+      // observação explícita com dose/horário quando informados.
+      const incluirSuplementacao = body.incluir_suplementacao === true;
+      const suplementos = Array.isArray(body.suplementos)
+        ? (body.suplementos as Rec[])
+            .map((s) => ({
+              nome: String(s?.nome ?? "").trim(),
+              dose: s?.dose != null ? String(s.dose).trim() : "",
+              horario: s?.horario != null ? String(s.horario).trim() : "",
+            }))
+            .filter((s) => s.nome.length > 0)
+        : [];
+      const observacoesParts: string[] = [];
+      if (typeof body.observacoes === "string" && body.observacoes.trim()) {
+        observacoesParts.push(body.observacoes.trim());
+      }
+      if (incluirSuplementacao) {
+        observacoesParts.push(
+          "- INCLUIR SUPLEMENTAÇÃO COMPLETA: Protocolo de suplementos com dosagem, horário e justificativa.",
+        );
+      }
+      if (suplementos.length > 0) {
+        const lista = suplementos
+          .map((s) => [s.nome, s.dose, s.horario].filter(Boolean).join(" "))
+          .join("; ");
+        observacoesParts.push(
+          `Suplementos escolhidos pelo professor: ${lista} — usar esses, com dose/horário quando informados, e completar o que faltar.`,
+        );
+      }
+      const observacoesFinal = observacoesParts.length > 0 ? observacoesParts.join("\n") : null;
+
       const built = buildDietGenerationRequest(ctx, {
         objetivo: String(body.objetivo ?? ""),
         calorias_alvo: body.calorias_alvo as number | null,
@@ -1292,7 +1325,7 @@ Deno.serve(async (req) => {
         refeicoes: body.refeicoes as number | null,
         estrategia: (body.estrategia as "linear" | "carb_cycle" | null) ?? null,
         estilo: (body.estilo as string | null) ?? null,
-        observacoes: (body.observacoes as string | null) ?? null,
+        observacoes: observacoesFinal,
       });
       if (!built.ok) return json({ erro: built.erro, detalhes: built.detalhes }, 400);
       const req = built.request;
