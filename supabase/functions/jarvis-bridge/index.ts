@@ -135,7 +135,20 @@ function workoutJsonToMarkdown(plan: Rec): string | null {
 }
 
 
+/* Valores aceitos pelas CHECK constraints / convenções de ai_plans. */
+const DEFAULT_PLAN_FASE = "semana_1";
+const ALLOWED_PLAN_FASE = ["semana_1", "semana_2", "semana_3", "deload"];
+const ALLOWED_GENERATION_INTENT = ["new", "regenerate", "update"];
+const ALLOWED_STRATEGY_SOURCE = ["ai", "manual"];
+const ALLOWED_PLAN_TIPO = ["treino", "dieta", "cardio", "tabata"];
+const ALLOWED_CYCLE_STATUS = [
+  "em_dia", "renovado", "renovacao_sugerida", "aguardando_dados", "pre_renovacao", "rascunho_gerado",
+];
+const ALLOWED_DRAFT_SOURCE = ["manual", "auto", "jarvis"];
+const ALLOWED_MIGRATION_STATUS = ["pending", "completed", "failed"];
+
 const SINTOMA_KEYS = [
+
   "fome_excessiva",
   "baixa_energia",
   "insonia",
@@ -1320,7 +1333,7 @@ Deno.serve(async (req) => {
           // `fase` = fase do CICLO (semana_1..deload), igual à página DietaIA,
           // que nem informa o campo e deixa o default 'semana_1'.
           // O objetivo (cutting/bulking/...) vai em diet_strategy/conteudo_json.
-          fase: DEFAULT_PLAN_FASE,
+          fase: faseRaw,
           diet_strategy: req.meta.strategy,
           strategy_source: "manual",
           generation_intent: intent,
