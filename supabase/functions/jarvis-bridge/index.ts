@@ -1447,7 +1447,13 @@ Deno.serve(async (req) => {
           strategy_source: "manual",
           generation_intent: intent,
           draft_source: "jarvis",
-          draft_reason: (body.observacoes as string | null) ?? null,
+          draft_reason: observacoesFinal,
+          // Mesmo lugar da página: protocols.extras.suplementos + coluna
+          // ai_plans.supplementation com o que o plano estruturado trouxer.
+          protocols: { extras: { suplementos: incluirSuplementacao } },
+          supplementation: incluirSuplementacao
+            ? ((finalPlan.supplementation as Rec | null) ?? null)
+            : null,
           parent_plan_id: ctx.activePlan?.id ?? null,
           version,
           is_draft: true,
