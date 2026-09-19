@@ -1128,6 +1128,24 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (operacao === "consultar_questionario_dieta") {
+      const studentId = String(body.student_id ?? "").trim();
+      if (!studentId) return json({ erro: "student_id_obrigatorio" }, 400);
+
+      const { data: questRows } = await supabase
+        .from("diet_questionnaires")
+        .select("*")
+        .eq("student_id", studentId)
+        .eq("status", "completed")
+        .order("responded_at", { ascending: false, nullsFirst: false })
+        .limit(1);
+
+      const quest = questRows?.[0] ?? null;
+      if (!quest) return json({ erro: "sem_questionario" }, 404);
+
+      return json({ ok: true, student_id: studentId, questionario: formatQuestionario(quest) });
+    }
+
     if (operacao === "checar_dados_dieta" || operacao === "gerar_dieta") {
       const studentId = String(body.student_id ?? "").trim();
       if (!studentId) return json({ erro: "student_id_obrigatorio" }, 400);
