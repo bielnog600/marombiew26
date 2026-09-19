@@ -135,7 +135,20 @@ function workoutJsonToMarkdown(plan: Rec): string | null {
 }
 
 
+/* Valores aceitos pelas CHECK constraints / convenções de ai_plans. */
+const DEFAULT_PLAN_FASE = "semana_1";
+const ALLOWED_PLAN_FASE = ["semana_1", "semana_2", "semana_3", "deload"];
+const ALLOWED_GENERATION_INTENT = ["new", "regenerate", "update"];
+const ALLOWED_STRATEGY_SOURCE = ["ai", "manual"];
+const ALLOWED_PLAN_TIPO = ["treino", "dieta", "cardio", "tabata"];
+const ALLOWED_CYCLE_STATUS = [
+  "em_dia", "renovado", "renovacao_sugerida", "aguardando_dados", "pre_renovacao", "rascunho_gerado",
+];
+const ALLOWED_DRAFT_SOURCE = ["manual", "auto", "jarvis"];
+const ALLOWED_MIGRATION_STATUS = ["pending", "completed", "failed"];
+
 const SINTOMA_KEYS = [
+
   "fome_excessiva",
   "baixa_energia",
   "insonia",
@@ -1172,7 +1185,33 @@ Deno.serve(async (req) => {
       }
 
       // ---------- gerar_dieta ----------
-      const intent = String(body.intent ?? "new") === "regenerate" ? "regenerate" : "new";
+      const intentRaw = body.intent == null ? "new" : String(body.intent).trim();
+      if (!ALLOWED_GENERATION_INTENT.includes(intentRaw)) {
+        return json({
+          erro: "valor_invalido",
+          campo: "intent",
+          recebido: intentRaw,
+          valores_aceitos: ALLOWED_GENERATION_INTENT,
+        }, 400);
+      }
+      const intent = intentRaw;
+
+      // Validação dos campos com CHECK constraint ANTES de gastar a geração.
+      const faseRaw = body.fase == null ? DEFAULT_PLAN_FASE : String(body.fase).trim();
+      const preflight: Array<[string, string, string[]]> = [
+        ["fase", faseRaw, ALLOWED_PLAN_FASE],
+        ["cycle_status", "em_dia", ALLOWED_CYCLE_STATUS],
+        ["strategy_source", "manual", ALLOWED_STRATEGY_SOURCE],
+        ["tipo", "dieta", ALLOWED_PLAN_TIPO],
+        ["draft_source", "jarvis", ALLOWED_DRAFT_SOURCE],
+        ["migration_status", "completed", ALLOWED_MIGRATION_STATUS],
+      ];
+      for (const [campo, valor, aceitos] of preflight) {
+        if (!aceitos.includes(valor)) {
+          return json({ erro: "valor_invalido", campo, recebido: valor, valores_aceitos: aceitos }, 400);
+        }
+      }
+
       const built = buildDietGenerationRequest(ctx, {
         objetivo: String(body.objetivo ?? ""),
         calorias_alvo: body.calorias_alvo as number | null,
@@ -1249,32 +1288,8 @@ Deno.serve(async (req) => {
         try { return canonicalDietPlanToMarkdown(finalPlan); } catch { return ""; }
       })();
 
-      const version = ctx.activePlan ? ctx.activePlan.version + 1 : 1;
-      const { data: inserted, error: insertError } = await supabase
-        .from("ai_plans")
-        .insert({
-          student_id: studentId,
-          tipo: "dieta",
-          titulo: `Dieta - ${new Date().toLocaleDateString("pt-BR")}`,
-          conteudo: markdown,
-          conteudo_json: finalPlan,
-          fase: req.meta.phase,
-          diet_strategy: req.meta.strategy,
-          strategy_source: "jarvis",
-          generation_intent: intent,
-          draft_source: "jarvis",
-          draft_reason: (body.observacoes as string | null) ?? null,
-          parent_plan_id: ctx.activePlan?.id ?? null,
-          version,
-          is_draft: true,
-          cycle_status: "em_dia",
-          migration_status: "completed",
-        })
-        .select("id")
-        .single();
-      if (insertError) return json({ erro: insertError.message }, 500);
-
-      // Resumo do primeiro dia materializado.
+      // Resumo do primeiro dia materializado (calculado ANTES da gravação,
+      // para não perder o resultado se o insert falhar).
       const dias = Array.isArray(finalPlan.days) ? (finalPlan.days as Rec[]) : [];
       const dia0 = (dias[0] ?? {}) as Rec;
       const totals = (dia0.totals ?? {}) as Rec;
@@ -1290,26 +1305,68 @@ Deno.serve(async (req) => {
       const alvo = req.canonicalTargets;
       const desvio = alvo.kcal > 0 ? Math.abs((Number(totals.kcal) || 0) - alvo.kcal) / alvo.kcal : 1;
       const confianca = Math.max(0, Math.min(100, Math.round(100 - desvio * 300 - alertas.length * 15)));
+      const resumo = {
+        kcal: Math.round(Number(totals.kcal) || 0),
+        proteina_g: Math.round(Number(totals.p) || 0),
+        carbo_g: Math.round(Number(totals.c) || 0),
+        gordura_g: Math.round(Number(totals.g) || 0),
+        refeicoes,
+        alertas,
+        confianca,
+      };
+      const dadosUsados = {
+        peso: ctx.peso,
+        altura: ctx.altura,
+        data_avaliacao: ctx.data_avaliacao,
+        objetivo: String(body.objetivo ?? ""),
+      };
+
+      const version = ctx.activePlan ? ctx.activePlan.version + 1 : 1;
+      const { data: inserted, error: insertError } = await supabase
+        .from("ai_plans")
+        .insert({
+          student_id: studentId,
+          tipo: "dieta",
+          titulo: `Dieta - ${new Date().toLocaleDateString("pt-BR")}`,
+          conteudo: markdown,
+          conteudo_json: finalPlan,
+          // `fase` = fase do CICLO (semana_1..deload), igual à página DietaIA,
+          // que nem informa o campo e deixa o default 'semana_1'.
+          // O objetivo (cutting/bulking/...) vai em diet_strategy/conteudo_json.
+          fase: faseRaw,
+          diet_strategy: req.meta.strategy,
+          strategy_source: "manual",
+          generation_intent: intent,
+          draft_source: "jarvis",
+          draft_reason: (body.observacoes as string | null) ?? null,
+          parent_plan_id: ctx.activePlan?.id ?? null,
+          version,
+          is_draft: true,
+          cycle_status: "em_dia",
+          migration_status: "completed",
+        })
+        .select("id")
+        .single();
+      if (insertError) {
+        return json({
+          ok: false,
+          erro: "falha_ao_salvar",
+          detalhes: insertError.message,
+          draft_plan_id: null,
+          resumo,
+          plano: finalPlan,
+          metas: alvo,
+          dados_usados: dadosUsados,
+        }, 500);
+      }
 
       return json({
         ok: true,
         draft_plan_id: inserted?.id ?? null,
-        resumo: {
-          kcal: Math.round(Number(totals.kcal) || 0),
-          proteina_g: Math.round(Number(totals.p) || 0),
-          carbo_g: Math.round(Number(totals.c) || 0),
-          gordura_g: Math.round(Number(totals.g) || 0),
-          refeicoes,
-          alertas,
-          confianca,
-        },
+        resumo,
         metas: alvo,
-        dados_usados: {
-          peso: ctx.peso,
-          altura: ctx.altura,
-          data_avaliacao: ctx.data_avaliacao,
-          objetivo: String(body.objetivo ?? ""),
-        },
+        dados_usados: dadosUsados,
+
       });
     }
 
