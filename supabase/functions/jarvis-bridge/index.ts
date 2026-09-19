@@ -428,7 +428,7 @@ Deno.serve(async (req) => {
           titulo: plan.titulo ?? "Treino",
           conteudo: plan.conteudo ?? "",
           fase: plan.fase ?? null,
-          snapshot_json: planJson,
+          snapshot_json: planJson ?? {},
           reason_summary: reason,
           archived_at: new Date().toISOString(),
         });
@@ -706,7 +706,7 @@ Deno.serve(async (req) => {
           titulo: plan.titulo ?? "Treino",
           conteudo: plan.conteudo ?? "",
           fase: plan.fase ?? null,
-          snapshot_json: planJson,
+          snapshot_json: planJson ?? {},
           reason_summary: reason,
           archived_at: new Date().toISOString(),
         });
@@ -1907,7 +1907,7 @@ Deno.serve(async (req) => {
           titulo: prev.titulo ?? "Treino",
           conteudo: prev.conteudo ?? "",
           fase: prev.fase ?? null,
-          snapshot_json: prev.conteudo_json ?? null,
+          snapshot_json: prev.conteudo_json ?? {},
           reason_summary: "jarvis publicar_rascunho_treino: plano anterior arquivado",
           archived_at: new Date().toISOString(),
         });
