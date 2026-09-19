@@ -754,6 +754,73 @@ Deno.serve(async (req) => {
       return json({ alimentos: data ?? [] });
     }
 
+    if (operacao === "cadastrar_alimento") {
+      const name = String(body.name ?? "").trim();
+      if (!name) return json({ erro: "name_obrigatorio" }, 400);
+      const num = (v: unknown): number | null => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+      };
+      const portionSize = num(body.portion_size);
+      const calories = num(body.calories) ?? 0;
+      const protein = num(body.protein) ?? 0;
+      const carbs = num(body.carbs) ?? 0;
+      const fats = num(body.fats) ?? 0;
+      if (portionSize == null || portionSize <= 0) {
+        return json({ erro: "valor_invalido", campo: "portion_size", recebido: body.portion_size, regra: "> 0" }, 400);
+      }
+      for (const [campo, valor] of [["calories", calories], ["protein", protein], ["carbs", carbs], ["fats", fats]] as Array<[string, number]>) {
+        if (valor < 0) return json({ erro: "valor_invalido", campo, recebido: valor, regra: ">= 0" }, 400);
+      }
+      // Coerência kcal ≈ P*4 + C*4 + G*9 (tolerância 15%). Alimentos sem calorias
+      // (ex.: creatina pura) passam quando ambos são ~0.
+      const esperado = protein * 4 + carbs * 4 + fats * 9;
+      if (esperado > 0 || calories > 0) {
+        const base = Math.max(esperado, calories, 1);
+        if (Math.abs(calories - esperado) / base > 0.15) {
+          return json({
+            erro: "calorias_incoerentes",
+            recebido: calories,
+            esperado: Math.round(esperado * 10) / 10,
+            tolerancia: "15%",
+            calculo: "P*4 + C*4 + G*9",
+          }, 400);
+        }
+      }
+
+      // Duplicata por nome normalizado (sem acento/caixa, ilike).
+      const norm = normalizeName(name);
+      const { data: candidatos, error: dupError } = await supabase
+        .from("foods")
+        .select("id, name, brand, portion, portion_size, calories, protein, carbs, fats, source")
+        .ilike("name", `%${name.replace(/[%_]/g, " ")}%`)
+        .limit(50);
+      if (dupError) return json({ erro: dupError.message }, 500);
+      const dup = (candidatos ?? []).find((f: Rec) => normalizeName(f.name) === norm);
+      if (dup) return json({ erro: "ja_existe", food: dup }, 409);
+
+      const { data: food, error: insertError } = await supabase
+        .from("foods")
+        .insert({
+          name,
+          brand: body.brand == null ? null : String(body.brand).trim() || null,
+          portion: body.portion == null ? null : String(body.portion).trim() || null,
+          portion_size: portionSize,
+          calories,
+          protein,
+          carbs,
+          fats,
+          source: "jarvis",
+          source_food_id: null,
+        })
+        .select("id, name, brand, portion, portion_size, calories, protein, carbs, fats, source")
+        .single();
+      if (insertError) return json({ erro: insertError.message }, 500);
+      console.log(`[jarvis-bridge] alimento cadastrado: ${food?.id} ${name}`);
+      return json({ ok: true, food });
+    }
+
+
     if (operacao === "editar_dieta") {
       const planId = String(body.plan_id ?? "").trim();
       const expectedRevision = Number(body.expected_revision);
