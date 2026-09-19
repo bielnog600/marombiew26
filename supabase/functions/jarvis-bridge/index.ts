@@ -1172,7 +1172,33 @@ Deno.serve(async (req) => {
       }
 
       // ---------- gerar_dieta ----------
-      const intent = String(body.intent ?? "new") === "regenerate" ? "regenerate" : "new";
+      const intentRaw = body.intent == null ? "new" : String(body.intent).trim();
+      if (!ALLOWED_GENERATION_INTENT.includes(intentRaw)) {
+        return json({
+          erro: "valor_invalido",
+          campo: "intent",
+          recebido: intentRaw,
+          valores_aceitos: ALLOWED_GENERATION_INTENT,
+        }, 400);
+      }
+      const intent = intentRaw;
+
+      // Validação dos campos com CHECK constraint ANTES de gastar a geração.
+      const faseRaw = body.fase == null ? DEFAULT_PLAN_FASE : String(body.fase).trim();
+      const preflight: Array<[string, string, string[]]> = [
+        ["fase", faseRaw, ALLOWED_PLAN_FASE],
+        ["cycle_status", "em_dia", ALLOWED_CYCLE_STATUS],
+        ["strategy_source", "manual", ALLOWED_STRATEGY_SOURCE],
+        ["tipo", "dieta", ALLOWED_PLAN_TIPO],
+        ["draft_source", "jarvis", ALLOWED_DRAFT_SOURCE],
+        ["migration_status", "completed", ALLOWED_MIGRATION_STATUS],
+      ];
+      for (const [campo, valor, aceitos] of preflight) {
+        if (!aceitos.includes(valor)) {
+          return json({ erro: "valor_invalido", campo, recebido: valor, valores_aceitos: aceitos }, 400);
+        }
+      }
+
       const built = buildDietGenerationRequest(ctx, {
         objetivo: String(body.objetivo ?? ""),
         calorias_alvo: body.calorias_alvo as number | null,
