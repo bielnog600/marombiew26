@@ -1288,6 +1288,11 @@ Deno.serve(async (req) => {
         alertas.push("Não foi possível rehidratar pela base: " + String((e as Error)?.message ?? e));
       }
 
+      // Objetivo (cutting/bulking/...) e estratégia moram no plano (dietConfig),
+      // como na página; em `ai_plans` a estratégia calórica vai em diet_strategy.
+      finalPlan.dietConfig = { ...((finalPlan.dietConfig as Rec) ?? {}), ...req.dietConfig };
+
+
       const markdown = (() => {
         try { return canonicalDietPlanToMarkdown(finalPlan); } catch { return ""; }
       })();
