@@ -1090,7 +1090,302 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (operacao === "checar_dados_dieta" || operacao === "gerar_dieta") {
+      const studentId = String(body.student_id ?? "").trim();
+      if (!studentId) return json({ erro: "student_id_obrigatorio" }, 400);
+
+      const ctx = await loadDietStudentContext(supabase, studentId);
+      const readiness = checkDietDataReadiness(ctx);
+      if (!readiness.ok) {
+        return json({
+          erro: "dados_insuficientes",
+          faltando: readiness.faltando,
+          ultima_avaliacao: ctx.data_avaliacao,
+        }, 422);
+      }
+
+      if (operacao === "checar_dados_dieta") {
+        return json({
+          ok: true,
+          peso: ctx.peso,
+          altura: ctx.altura,
+          data_avaliacao: ctx.data_avaliacao,
+          questionario_em: ctx.questionario_em,
+        });
+      }
+
+      // ---------- gerar_dieta ----------
+      const intent = String(body.intent ?? "new") === "regenerate" ? "regenerate" : "new";
+      const built = buildDietGenerationRequest(ctx, {
+        objetivo: String(body.objetivo ?? ""),
+        calorias_alvo: body.calorias_alvo as number | null,
+        proteina_g: body.proteina_g as number | null,
+        carbo_g: body.carbo_g as number | null,
+        gordura_g: body.gordura_g as number | null,
+        refeicoes: body.refeicoes as number | null,
+        estrategia: (body.estrategia as "linear" | "carb_cycle" | null) ?? null,
+        estilo: (body.estilo as string | null) ?? null,
+        observacoes: (body.observacoes as string | null) ?? null,
+      });
+      if (!built.ok) return json({ erro: built.erro, detalhes: built.detalhes }, 400);
+      const req = built.request;
+
+      // Mesmo motor da página DietaIA: diet-agent em mode "structured".
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 120_000);
+      let agentStatus = 500;
+      let agentBody: Rec = {};
+      try {
+        const resp = await fetch(`${SUPABASE_URL}/functions/v1/diet-agent`, {
+          method: "POST",
+          signal: controller.signal,
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_ROLE}` },
+          body: JSON.stringify({
+            mode: "structured",
+            progressStream: false,
+            messages: [{ role: "user", content: req.prompt }],
+            studentContext: ctx,
+            dietConfig: req.dietConfig,
+            trainingContext: req.trainingContext,
+            studentId,
+            intent,
+            regenerateIntent: intent === "regenerate",
+            canonicalTargets: req.canonicalTargets,
+            allowedUnresolvedFoods: [],
+          }),
+        });
+        agentStatus = resp.status;
+        agentBody = (await resp.json().catch(() => ({}))) as Rec;
+      } catch (e) {
+        clearTimeout(timer);
+        const aborted = (e as Error)?.name === "AbortError";
+        return json({ erro: aborted ? "geracao_timeout" : "geracao_falhou", error_code: aborted ? "timeout" : "fetch_error" }, 504);
+      }
+      clearTimeout(timer);
+
+      if (agentStatus < 200 || agentStatus >= 300 || !agentBody?.plan) {
+        return json({
+          erro: "geracao_falhou",
+          error_code: agentBody?.error_code ?? null,
+          detalhes: agentBody?.error ?? agentBody?.details ?? null,
+          validation: agentBody?.validationReasons ?? null,
+        }, agentStatus >= 400 && agentStatus < 600 ? agentStatus : 502);
+      }
+
+      const rawPlan = agentBody.plan as Rec;
+      rawPlan.targets = { ...(rawPlan.targets as Rec ?? {}), ...req.canonicalTargets };
+
+      const catalog = await loadFoodCatalog(supabase);
+      let finalPlan: Rec = rawPlan;
+      const alertas: string[] = [];
+      try {
+        const hydrated = hydrateDietPlanFromFoods(rawPlan, catalog, "strict_id");
+        finalPlan = hydrated.plan as Rec;
+        if (hydrated.requiresResolution) {
+          alertas.push(`${hydrated.unresolvedItems.length} alimento(s) não validado(s) — resolver no editor antes de publicar.`);
+        }
+      } catch (e) {
+        alertas.push("Não foi possível rehidratar pela base: " + String((e as Error)?.message ?? e));
+      }
+
+      const markdown = (() => {
+        try { return canonicalDietPlanToMarkdown(finalPlan); } catch { return ""; }
+      })();
+
+      const version = ctx.activePlan ? ctx.activePlan.version + 1 : 1;
+      const { data: inserted, error: insertError } = await supabase
+        .from("ai_plans")
+        .insert({
+          student_id: studentId,
+          tipo: "dieta",
+          titulo: `Dieta - ${new Date().toLocaleDateString("pt-BR")}`,
+          conteudo: markdown,
+          conteudo_json: finalPlan,
+          fase: req.meta.phase,
+          diet_strategy: req.meta.strategy,
+          strategy_source: "jarvis",
+          generation_intent: intent,
+          draft_source: "jarvis",
+          draft_reason: (body.observacoes as string | null) ?? null,
+          parent_plan_id: ctx.activePlan?.id ?? null,
+          version,
+          is_draft: true,
+          cycle_status: "em_dia",
+          migration_status: "completed",
+        })
+        .select("id")
+        .single();
+      if (insertError) return json({ erro: insertError.message }, 500);
+
+      // Resumo do primeiro dia materializado.
+      const dias = Array.isArray(finalPlan.days) ? (finalPlan.days as Rec[]) : [];
+      const dia0 = (dias[0] ?? {}) as Rec;
+      const totals = (dia0.totals ?? {}) as Rec;
+      const refeicoes = (Array.isArray(dia0.meals) ? (dia0.meals as Rec[]) : []).map((m) => ({
+        nome: m.name ?? null,
+        horario: m.time ?? null,
+        itens: (Array.isArray(m.items) ? (m.items as Rec[]) : []).map((it) => ({
+          alimento: it.name ?? null,
+          quantidade_g: Number(it.qtyGrams) || 0,
+        })),
+      }));
+
+      const alvo = req.canonicalTargets;
+      const desvio = alvo.kcal > 0 ? Math.abs((Number(totals.kcal) || 0) - alvo.kcal) / alvo.kcal : 1;
+      const confianca = Math.max(0, Math.min(100, Math.round(100 - desvio * 300 - alertas.length * 15)));
+
+      return json({
+        ok: true,
+        draft_plan_id: inserted?.id ?? null,
+        resumo: {
+          kcal: Math.round(Number(totals.kcal) || 0),
+          proteina_g: Math.round(Number(totals.p) || 0),
+          carbo_g: Math.round(Number(totals.c) || 0),
+          gordura_g: Math.round(Number(totals.g) || 0),
+          refeicoes,
+          alertas,
+          confianca,
+        },
+        metas: alvo,
+        dados_usados: {
+          peso: ctx.peso,
+          altura: ctx.altura,
+          data_avaliacao: ctx.data_avaliacao,
+          objetivo: String(body.objetivo ?? ""),
+        },
+      });
+    }
+
+    if (operacao === "descartar_rascunho_dieta") {
+      const draftId = String(body.draft_plan_id ?? "").trim();
+      if (!draftId) return json({ erro: "draft_plan_id_obrigatorio" }, 400);
+      const { data: draft, error: readError } = await supabase
+        .from("ai_plans").select("id, is_draft, draft_source").eq("id", draftId).maybeSingle();
+      if (readError) return json({ erro: readError.message }, 500);
+      if (!draft) return json({ erro: "plano_nao_encontrado" }, 404);
+      if (draft.is_draft !== true || draft.draft_source !== "jarvis") {
+        return json({ erro: "rascunho_jarvis_obrigatorio" }, 400);
+      }
+      const { error: delError } = await supabase
+        .from("ai_plans").delete().eq("id", draftId).eq("is_draft", true).eq("draft_source", "jarvis");
+      if (delError) return json({ erro: delError.message }, 500);
+      return json({ ok: true, descartado: draftId });
+    }
+
+    if (operacao === "publicar_rascunho_dieta") {
+      const draftId = String(body.draft_plan_id ?? "").trim();
+      const expectedRevision = Number(body.expected_revision);
+      if (!draftId) return json({ erro: "draft_plan_id_obrigatorio" }, 400);
+      if (!Number.isFinite(expectedRevision)) return json({ erro: "expected_revision_obrigatorio" }, 400);
+
+      const { data: draft, error: draftError } = await supabase
+        .from("ai_plans").select("*").eq("id", draftId).maybeSingle();
+      if (draftError) return json({ erro: draftError.message }, 500);
+      if (!draft) return json({ erro: "plano_nao_encontrado" }, 404);
+      if (draft.tipo !== "dieta" || draft.is_draft !== true) return json({ erro: "rascunho_obrigatorio" }, 400);
+      if (!isStructuredPlan(draft.conteudo_json)) return json({ erro: "dieta_estruturada_obrigatoria" }, 400);
+
+      const draftRevision = Number(draft.content_revision ?? 1);
+      if (draftRevision !== expectedRevision) {
+        return json({ erro: "revisao_desatualizada", content_revision: draftRevision }, 409);
+      }
+
+      const catalog = await loadFoodCatalog(supabase);
+      const hydrated = hydrateDietPlanFromFoods(
+        JSON.parse(JSON.stringify(draft.conteudo_json)),
+        catalog,
+        "strict_id",
+      );
+      if (hydrated.requiresResolution) {
+        return json({ erro: "alimentos_nao_resolvidos", itens: hydrated.unresolvedItems.slice(0, 20) }, 422);
+      }
+      const blockers = collectPublicationBlockers(hydrated.plan, catalog);
+      if (blockers.length > 0) {
+        return json({ erro: "alimentos_nao_resolvidos", itens: blockers.slice(0, 20) }, 422);
+      }
+
+      const { data: adminRole, error: adminError } = await supabase
+        .from("user_roles").select("user_id").eq("role", "admin").limit(1).maybeSingle();
+      if (adminError) return json({ erro: adminError.message }, 500);
+      const actorId = adminRole?.user_id ?? null;
+      if (!actorId) return json({ erro: "admin_nao_encontrado" }, 500);
+
+      const { plan: snapshotPlan } = buildPublishedSnapshotPlan(hydrated.plan, catalog);
+      const schema = validatePublicationPlan(snapshotPlan);
+      if (!schema.ok) return json({ erro: "plano_invalido", detalhes: schema.issues.slice(0, 20) }, 422);
+
+      const finalProtocols = draft.protocols ?? null;
+      const normalizedAdjustments =
+        (finalProtocols as Rec | null)?.weekly_energy_schedule &&
+        ((finalProtocols as Rec).weekly_energy_schedule as Rec)?.generated_adjustments
+          ? ((finalProtocols as Rec).weekly_energy_schedule as Rec).generated_adjustments
+          : null;
+
+      const markdown = canonicalDietPlanToMarkdown(snapshotPlan);
+      const assertions = collectFoodAssertions(snapshotPlan, catalog, normalizedAdjustments);
+      const integrity = validateSnapshotAssertionIntegrity(snapshotPlan, assertions, normalizedAdjustments);
+      if (!integrity.ok) return json({ erro: "plano_invalido", detalhes: integrity.issues.slice(0, 20) }, 422);
+
+      // Histórico do plano ativo anterior antes de trocar.
+      const { data: previous } = await supabase
+        .from("ai_plans")
+        .select("id, student_id, version, titulo, conteudo, fase")
+        .eq("student_id", draft.student_id).eq("tipo", "dieta").eq("is_draft", false)
+        .order("published_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false }).limit(1);
+      const prev = previous?.[0] ?? null;
+      if (prev) {
+        await supabase.from("diet_plan_versions").insert({
+          plan_id: prev.id,
+          student_id: prev.student_id,
+          version: Number(prev.version ?? 1),
+          titulo: prev.titulo ?? "Dieta",
+          conteudo: prev.conteudo ?? "",
+          fase: prev.fase ?? null,
+          source: "jarvis",
+          archived_at: new Date().toISOString(),
+        });
+      }
+
+      const { error: syncError } = await supabase
+        .from("ai_plans")
+        .update({ conteudo_json: hydrated.plan, conteudo: markdown, protocols: finalProtocols })
+        .eq("id", draftId).eq("is_draft", true);
+      if (syncError) return json({ erro: syncError.message }, 500);
+
+      const { data: published, error: rpcError } = await supabase.rpc("publish_diet_plan_atomic_actor", {
+        p_actor_id: actorId,
+        p_plan_id: draftId,
+        p_expected_revision: draftRevision,
+        p_final_plan: snapshotPlan,
+        p_final_markdown: markdown,
+        p_final_protocols: finalProtocols,
+        p_food_assertions: assertions,
+      });
+      if (rpcError) {
+        const msg = String(rpcError.message ?? "");
+        if (msg.includes("draft_changed_refresh_required")) {
+          return json({ erro: "revisao_desatualizada", content_revision: draftRevision }, 409);
+        }
+        return json({ erro: "publicacao_falhou", detalhes: msg }, 500);
+      }
+
+      if (prev && prev.id !== draftId) {
+        await supabase.from("ai_plans").update({ cycle_status: "renovado" }).eq("id", prev.id);
+      }
+
+      const publishedRow = (published ?? {}) as Rec;
+      return json({
+        ok: true,
+        plan_id: publishedRow.id ?? draftId,
+        version: publishedRow.version ?? null,
+        content_revision: publishedRow.content_revision ?? draftRevision + 1,
+        arquivado: prev?.id ?? null,
+      });
+    }
+
     return json({ erro: "operacao_desconhecida" }, 400);
+
 
 
   } catch (e) {
