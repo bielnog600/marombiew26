@@ -15,6 +15,11 @@ import {
   validatePublicationPlan,
   validateSnapshotAssertionIntegrity,
 } from "../_shared/dietPublication.ts";
+import {
+  buildDietGenerationRequest,
+  checkDietDataReadiness,
+  loadDietStudentContext,
+} from "../_shared/dietGenerationContext.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
