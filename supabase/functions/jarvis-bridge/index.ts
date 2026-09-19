@@ -754,6 +754,73 @@ Deno.serve(async (req) => {
       return json({ alimentos: data ?? [] });
     }
 
+    if (operacao === "cadastrar_alimento") {
+      const name = String(body.name ?? "").trim();
+      if (!name) return json({ erro: "name_obrigatorio" }, 400);
+      const num = (v: unknown): number | null => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+      };
+      const portionSize = num(body.portion_size);
+      const calories = num(body.calories) ?? 0;
+      const protein = num(body.protein) ?? 0;
+      const carbs = num(body.carbs) ?? 0;
+      const fats = num(body.fats) ?? 0;
+      if (portionSize == null || portionSize <= 0) {
+        return json({ erro: "valor_invalido", campo: "portion_size", recebido: body.portion_size, regra: "> 0" }, 400);
+      }
+      for (const [campo, valor] of [["calories", calories], ["protein", protein], ["carbs", carbs], ["fats", fats]] as Array<[string, number]>) {
+        if (valor < 0) return json({ erro: "valor_invalido", campo, recebido: valor, regra: ">= 0" }, 400);
+      }
+      // Coerência kcal ≈ P*4 + C*4 + G*9 (tolerância 15%). Alimentos sem calorias
+      // (ex.: creatina pura) passam quando ambos são ~0.
+      const esperado = protein * 4 + carbs * 4 + fats * 9;
+      if (esperado > 0 || calories > 0) {
+        const base = Math.max(esperado, calories, 1);
+        if (Math.abs(calories - esperado) / base > 0.15) {
+          return json({
+            erro: "calorias_incoerentes",
+            recebido: calories,
+            esperado: Math.round(esperado * 10) / 10,
+            tolerancia: "15%",
+            calculo: "P*4 + C*4 + G*9",
+          }, 400);
+        }
+      }
+
+      // Duplicata por nome normalizado (sem acento/caixa, ilike).
+      const norm = normalizeName(name);
+      const { data: candidatos, error: dupError } = await supabase
+        .from("foods")
+        .select("id, name, brand, portion, portion_size, calories, protein, carbs, fats, source")
+        .ilike("name", `%${name.replace(/[%_]/g, " ")}%`)
+        .limit(50);
+      if (dupError) return json({ erro: dupError.message }, 500);
+      const dup = (candidatos ?? []).find((f: Rec) => normalizeName(f.name) === norm);
+      if (dup) return json({ erro: "ja_existe", food: dup }, 409);
+
+      const { data: food, error: insertError } = await supabase
+        .from("foods")
+        .insert({
+          name,
+          brand: body.brand == null ? null : String(body.brand).trim() || null,
+          portion: body.portion == null ? null : String(body.portion).trim() || null,
+          portion_size: portionSize,
+          calories,
+          protein,
+          carbs,
+          fats,
+          source: "jarvis",
+          source_food_id: null,
+        })
+        .select("id, name, brand, portion, portion_size, calories, protein, carbs, fats, source")
+        .single();
+      if (insertError) return json({ erro: insertError.message }, 500);
+      console.log(`[jarvis-bridge] alimento cadastrado: ${food?.id} ${name}`);
+      return json({ ok: true, food });
+    }
+
+
     if (operacao === "editar_dieta") {
       const planId = String(body.plan_id ?? "").trim();
       const expectedRevision = Number(body.expected_revision);
@@ -1216,6 +1283,39 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Suplementação: mesmo mapeamento da página DietaIA —
+      // toggle enableSuplementos → extras.suplementos = true + instrução
+      // "INCLUIR SUPLEMENTAÇÃO COMPLETA" no prompt. Lista `suplementos` vira
+      // observação explícita com dose/horário quando informados.
+      const incluirSuplementacao = body.incluir_suplementacao === true;
+      const suplementos = Array.isArray(body.suplementos)
+        ? (body.suplementos as Rec[])
+            .map((s) => ({
+              nome: String(s?.nome ?? "").trim(),
+              dose: s?.dose != null ? String(s.dose).trim() : "",
+              horario: s?.horario != null ? String(s.horario).trim() : "",
+            }))
+            .filter((s) => s.nome.length > 0)
+        : [];
+      const observacoesParts: string[] = [];
+      if (typeof body.observacoes === "string" && body.observacoes.trim()) {
+        observacoesParts.push(body.observacoes.trim());
+      }
+      if (incluirSuplementacao) {
+        observacoesParts.push(
+          "- INCLUIR SUPLEMENTAÇÃO COMPLETA: Protocolo de suplementos com dosagem, horário e justificativa.",
+        );
+      }
+      if (suplementos.length > 0) {
+        const lista = suplementos
+          .map((s) => [s.nome, s.dose, s.horario].filter(Boolean).join(" "))
+          .join("; ");
+        observacoesParts.push(
+          `Suplementos escolhidos pelo professor: ${lista} — usar esses, com dose/horário quando informados, e completar o que faltar.`,
+        );
+      }
+      const observacoesFinal = observacoesParts.length > 0 ? observacoesParts.join("\n") : null;
+
       const built = buildDietGenerationRequest(ctx, {
         objetivo: String(body.objetivo ?? ""),
         calorias_alvo: body.calorias_alvo as number | null,
@@ -1225,7 +1325,7 @@ Deno.serve(async (req) => {
         refeicoes: body.refeicoes as number | null,
         estrategia: (body.estrategia as "linear" | "carb_cycle" | null) ?? null,
         estilo: (body.estilo as string | null) ?? null,
-        observacoes: (body.observacoes as string | null) ?? null,
+        observacoes: observacoesFinal,
       });
       if (!built.ok) return json({ erro: built.erro, detalhes: built.detalhes }, 400);
       const req = built.request;
@@ -1347,7 +1447,13 @@ Deno.serve(async (req) => {
           strategy_source: "manual",
           generation_intent: intent,
           draft_source: "jarvis",
-          draft_reason: (body.observacoes as string | null) ?? null,
+          draft_reason: observacoesFinal,
+          // Mesmo lugar da página: protocols.extras.suplementos + coluna
+          // ai_plans.supplementation com o que o plano estruturado trouxer.
+          protocols: { extras: { suplementos: incluirSuplementacao } },
+          supplementation: incluirSuplementacao
+            ? ((finalPlan.supplementation as Rec | null) ?? null)
+            : null,
           parent_plan_id: ctx.activePlan?.id ?? null,
           version,
           is_draft: true,
