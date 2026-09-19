@@ -1167,6 +1167,7 @@ Deno.serve(async (req) => {
           altura: ctx.altura,
           data_avaliacao: ctx.data_avaliacao,
           questionario_em: ctx.questionario_em,
+          questionario: formatQuestionario(ctx.questionario as Rec | null),
         });
       }
 
