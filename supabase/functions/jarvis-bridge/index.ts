@@ -135,6 +135,39 @@ function workoutJsonToMarkdown(plan: Rec): string | null {
 }
 
 
+const SINTOMA_KEYS = [
+  "fome_excessiva",
+  "baixa_energia",
+  "insonia",
+  "irritabilidade",
+  "fraqueza",
+  "dor_cabeca",
+  "pele_fina",
+  "reduziu_peso",
+] as const;
+
+function formatQuestionario(q: Rec | null): Rec | null {
+  if (!q) return null;
+  const sintomas = SINTOMA_KEYS.filter((k) => q[k] === true);
+  return {
+    estilo_dieta: q.estilo_dieta ?? null,
+    fase_atual: q.fase_atual ?? null,
+    num_refeicoes: q.num_refeicoes ?? null,
+    horario_treino: q.horario_treino ?? null,
+    dias_treino: q.dias_treino ?? null,
+    usa_hormonios: q.usa_hormonios ?? null,
+    restricoes_alimentares: q.restricoes_alimentares ?? null,
+    preferencias_alimentares: q.preferencias_alimentares ?? null,
+    alimentos_por_refeicao: q.alimentos_por_refeicao ?? null,
+    como_se_sente: q.como_se_sente ?? null,
+    sintomas,
+    dores_articulares: q.dores_articulares ?? null,
+    dores_observacoes: q.dores_observacoes ?? null,
+    observacoes: q.observacoes ?? null,
+    responded_at: q.responded_at ?? null,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ erro: "method_not_allowed" }, 405);
@@ -1095,6 +1128,24 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (operacao === "consultar_questionario_dieta") {
+      const studentId = String(body.student_id ?? "").trim();
+      if (!studentId) return json({ erro: "student_id_obrigatorio" }, 400);
+
+      const { data: questRows } = await supabase
+        .from("diet_questionnaires")
+        .select("*")
+        .eq("student_id", studentId)
+        .eq("status", "completed")
+        .order("responded_at", { ascending: false, nullsFirst: false })
+        .limit(1);
+
+      const quest = questRows?.[0] ?? null;
+      if (!quest) return json({ erro: "sem_questionario" }, 404);
+
+      return json({ ok: true, student_id: studentId, questionario: formatQuestionario(quest) });
+    }
+
     if (operacao === "checar_dados_dieta" || operacao === "gerar_dieta") {
       const studentId = String(body.student_id ?? "").trim();
       if (!studentId) return json({ erro: "student_id_obrigatorio" }, 400);
@@ -1116,6 +1167,7 @@ Deno.serve(async (req) => {
           altura: ctx.altura,
           data_avaliacao: ctx.data_avaliacao,
           questionario_em: ctx.questionario_em,
+          questionario: formatQuestionario(ctx.questionario as Rec | null),
         });
       }
 
