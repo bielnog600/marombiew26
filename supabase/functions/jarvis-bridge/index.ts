@@ -614,13 +614,132 @@ Deno.serve(async (req) => {
     }
 
     if (operacao === "listar_exercicios") {
+      const EX_FIELDS =
+        "id, nome, grupo_muscular, movement_pattern, equipment_type, primary_muscles, exercise_class";
       const busca = typeof body.busca === "string" ? body.busca.trim() : "";
-      let q = supabase.from("exercises").select("id, nome, grupo_muscular").order("nome").limit(30);
+      const grupoMuscular = typeof body.grupo_muscular === "string" ? body.grupo_muscular.trim() : "";
+      const movementPattern = typeof body.movement_pattern === "string" ? body.movement_pattern.trim() : "";
+      const equipmentType = typeof body.equipment_type === "string" ? body.equipment_type.trim() : "";
+      const familiaDe = typeof body.familia_de === "string" ? body.familia_de.trim() : "";
+      const excluir = Array.isArray(body.excluir)
+        ? (body.excluir as unknown[]).map((n) => normalizeName(n)).filter((n) => n.length > 0)
+        : [];
+      const limiteRaw = Number(body.limite);
+      const limite = Number.isFinite(limiteRaw) ? Math.max(1, Math.min(200, Math.trunc(limiteRaw))) : 30;
+
+      let refExercise: Rec | null = null;
+      let familyIds: string[] = [];
+      if (familiaDe) {
+        const { data: refExact } = await supabase
+          .from("exercises")
+          .select(EX_FIELDS)
+          .ilike("nome", familiaDe)
+          .limit(1);
+        let ref = (refExact ?? [])[0] as Rec | undefined;
+        if (!ref) {
+          const { data: refLike } = await supabase
+            .from("exercises")
+            .select(EX_FIELDS)
+            .ilike("nome", `%${familiaDe}%`)
+            .limit(1);
+          ref = (refLike ?? [])[0] as Rec | undefined;
+        }
+        if (!ref) return json({ erro: "exercicio_referencia_nao_encontrado", familia_de: familiaDe }, 404);
+        refExercise = ref;
+        const { data: groups } = await supabase
+          .from("exercise_variation_groups")
+          .select("id, nome, exercise_ids")
+          .contains("exercise_ids", [ref.id]);
+        for (const g of (groups ?? []) as Rec[]) {
+          for (const id of (Array.isArray(g.exercise_ids) ? g.exercise_ids : []) as unknown[]) {
+            familyIds.push(String(id));
+          }
+        }
+        familyIds = [...new Set(familyIds)].filter((id) => id !== String(ref!.id));
+      }
+
+      const rows: Rec[] = [];
+      const seenIds = new Set<string>();
+      const collect = (list: unknown) => {
+        for (const r of (list ?? []) as Rec[]) {
+          const id = String(r.id);
+          if (seenIds.has(id)) continue;
+          seenIds.add(id);
+          rows.push(r);
+        }
+      };
+
+      if (familyIds.length > 0) {
+        const { data: groupRows, error: groupError } = await supabase
+          .from("exercises")
+          .select(EX_FIELDS)
+          .in("id", familyIds)
+          .order("nome");
+        if (groupError) return json({ erro: groupError.message }, 500);
+        collect(groupRows);
+      }
+
+      let q = supabase.from("exercises").select(EX_FIELDS).order("nome").limit(limite + excluir.length + 5);
       if (busca) q = q.ilike("nome", `%${busca}%`);
+      if (grupoMuscular) q = q.ilike("grupo_muscular", `%${grupoMuscular}%`);
+      if (movementPattern) q = q.ilike("movement_pattern", `%${movementPattern}%`);
+      if (equipmentType) q = q.ilike("equipment_type", `%${equipmentType}%`);
+      if (refExercise) {
+        if (refExercise.grupo_muscular) q = q.eq("grupo_muscular", refExercise.grupo_muscular);
+        if (refExercise.movement_pattern) q = q.eq("movement_pattern", refExercise.movement_pattern);
+      }
       const { data, error } = await q;
       if (error) return json({ erro: error.message }, 500);
-      return json({ exercicios: data ?? [] });
+      collect(data);
+
+      const exercicios = rows
+        .filter((r) => !excluir.includes(normalizeName(r.nome)))
+        .slice(0, limite);
+
+      return json({
+        exercicios,
+        total: exercicios.length,
+        limite,
+        referencia: refExercise
+          ? {
+              id: refExercise.id,
+              nome: refExercise.nome,
+              grupo_muscular: refExercise.grupo_muscular,
+              movement_pattern: refExercise.movement_pattern,
+              equipment_type: refExercise.equipment_type,
+              grupos_de_variacao: familyIds.length,
+            }
+          : null,
+      });
     }
+
+    if (operacao === "avaliar_treino") {
+      const planId = String(body.plan_id ?? "").trim();
+      if (!planId) return json({ erro: "plan_id_obrigatorio" }, 400);
+      const { data: plan, error: planError } = await supabase
+        .from("ai_plans")
+        .select("id, student_id, titulo, tipo, fase, is_draft, draft_source, content_revision, version, conteudo_json, periodization_snapshot")
+        .eq("id", planId)
+        .maybeSingle();
+      if (planError) return json({ erro: planError.message }, 500);
+      if (!plan) return json({ erro: "plano_nao_encontrado" }, 404);
+      if (plan.tipo !== "treino") return json({ erro: "plano_nao_e_treino" }, 400);
+      const planJson = plan.conteudo_json as Rec | null;
+      if (!planJson || !Array.isArray((planJson as { days?: unknown }).days)) {
+        return json({ erro: "plano_sem_conteudo_json" }, 400);
+      }
+      const { alertas, resumo_semana } = buildTrainingAlerts(planJson, plan as Rec);
+      return json({
+        ok: true,
+        plan_id: plan.id,
+        titulo: plan.titulo,
+        is_draft: plan.is_draft === true,
+        content_revision: plan.content_revision,
+        alertas,
+        resumo_semana,
+      });
+    }
+
 
     if (operacao === "editar_treino") {
       const planId = String(body.plan_id ?? "").trim();
