@@ -32,6 +32,7 @@ import {
   normalizeVolumeTarget,
 } from "../_shared/volumeRedundancyAudit.ts";
 import { validateWorkoutRedundancy } from "../_shared/workoutRedundancy.ts";
+import { normFamilyName, variationFamilyOf } from "../_shared/variationFamilies.ts";
 
 
 
@@ -112,10 +113,48 @@ function countDietMacroAlerts(planJson: Rec | null): number | null {
   return alerts;
 }
 
+/**
+ * Exercícios de suporte (mobilidade, alongamento, liberação, ativação,
+ * respiração): não contam como série de trabalho, não geram alerta de
+ * variação vazia e ficam fora da redundância.
+ */
+const SUPPORT_NAME_RE =
+  /\b(MOBILIDADE|MOBILITY|ALONGAMENTO|STRETCH|LIBERACAO|LIBERACAO MIOFASCIAL|FOAM ROLL|ATIVACAO|ATIVACOES|RESPIRACAO|BREATHING|CAT COW|90 90)\b/;
+
+const isSupportExerciseName = (name: unknown): boolean =>
+  SUPPORT_NAME_RE.test(normFamilyName(String(name ?? "")));
+
+export interface CatalogExercise {
+  nome: string;
+  grupo_muscular?: string | null;
+  movement_pattern?: string | null;
+}
+
+/** true quando existe outro exercício da mesma família/grupo no catálogo. */
+function hasCatalogPeer(name: string, catalog: CatalogExercise[]): boolean {
+  const target = normFamilyName(name);
+  const fam = variationFamilyOf(name);
+  const grupo = (catalog.find((c) => normFamilyName(c.nome) === target)?.grupo_muscular ?? "")
+    .toString()
+    .trim()
+    .toUpperCase();
+  for (const c of catalog) {
+    const other = normFamilyName(c.nome);
+    if (!other || other === target) continue;
+    if (fam && variationFamilyOf(c.nome) === fam) return true;
+    if (
+      !fam && grupo &&
+      String(c.grupo_muscular ?? "").trim().toUpperCase() === grupo
+    ) return true;
+  }
+  return false;
+}
+
 function buildTrainingAlerts(
   planJson: Rec | null,
   plan: Rec | null,
-): { alertas: TrainingAlert[]; resumo_semana: Rec } {
+  catalog: CatalogExercise[] | null = null,
+): { alertas: TrainingAlert[]; resumo_semana: Rec; sem_par_no_catalogo: string[] } {
   const days = Array.isArray((planJson as { days?: unknown } | null)?.days)
     ? ((planJson as { days: Rec[] }).days)
     : null;
