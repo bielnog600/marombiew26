@@ -140,12 +140,21 @@ export interface DietStudentContext {
   percentual_gordura: number | null;
   massa_magra: number | null;
   massa_gorda: number | null;
+  peso_fonte: string | null;
+  peso_em: string | null;
   data_avaliacao: string | null;
+  avaliacao_fonte: string | null;
+  avaliacao_id: string | null;
+  dias_desde_avaliacao: number | null;
+  avaliacao_recente: boolean;
+  desvios_posturais: string[];
+  dores: string | null;
   questionario: Rec | null;
   questionario_em: string | null;
   anamnese: Rec | null;
   trainingMarkdown: string | null;
   activePlan: { id: string; version: number } | null;
+
 }
 
 export async function loadDietStudentContext(
