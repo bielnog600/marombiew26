@@ -242,17 +242,8 @@ export async function loadTrainerStudentContext(
     fotos_perfil: sp?.fotos ?? null,
   };
 
-  // Desvios posturais — mesma regra de auto-preenchimento da página.
-  const desvios: string[] = [];
-  const attention = Array.isArray(scan?.attention_points_json)
-    ? (scan!.attention_points_json as Rec[])
-    : [];
-  const labels = attention.map((p) => String(p.label ?? p.name ?? "").toLowerCase());
-  if (labels.some((l) => l.includes("cifose") || l.includes("kyphosis"))) desvios.push("hipercifose");
-  if (labels.some((l) => l.includes("escoliose") || l.includes("scoliosis"))) desvios.push("escoliose");
-  if (labels.some((l) => l.includes("lordose") || l.includes("lordosis"))) desvios.push("hiperlordose");
-  if (labels.some((l) => l.includes("ombro") || l.includes("shoulder"))) desvios.push("protrusao");
-  if (labels.some((l) => l.includes("valgo") || l.includes("valgus"))) desvios.push("valgo");
+  // Desvios posturais — derivados do scan de IA (attention points / region scores).
+  const desvios = derivePosturalDeviations(scan ?? avaliacao.postureScan);
 
   // Nível sugerido — heurística leve a partir do treino atual da anamnese.
   const treinoAtual = String(anamnese?.treino_atual ?? "").toLowerCase();
@@ -267,25 +258,36 @@ export async function loadTrainerStudentContext(
     }
   }
 
-  const { data: lastPlan } = await supabase
-    .from("ai_plans")
-    .select("*")
-    .eq("student_id", studentId).eq("tipo", "treino").eq("is_draft", false)
-    .order("created_at", { ascending: false }).limit(1);
+  const [pesoRes, lastPlanRes, questRes] = await Promise.all([
+    resolveLatestWeight(supabase, studentId, {
+      assessmentId: assessmentId ?? null,
+      assessmentDate: avaliacao.data_avaliacao,
+    }),
+    supabase.from("ai_plans").select("*")
+      .eq("student_id", studentId).eq("tipo", "treino").eq("is_draft", false)
+      .order("created_at", { ascending: false }).limit(1),
+    supabase.from("diet_questionnaires").select("*")
+      .eq("student_id", studentId).eq("status", "completed")
+      .order("responded_at", { ascending: false }).limit(1),
+  ]);
 
-  const { data: quest } = await supabase
-    .from("diet_questionnaires")
-    .select("*").eq("student_id", studentId).eq("status", "completed")
-    .order("responded_at", { ascending: false }).limit(1);
+  const lastPlan = lastPlanRes.data;
+  const quest = questRes.data;
+  if (pesoRes.peso != null) studentContext.peso = pesoRes.peso;
 
   return {
     studentId,
     nome: (profile?.nome as string) ?? null,
     studentContext,
-    peso: num(anthro?.peso),
+    peso: pesoRes.peso,
+    peso_fonte: pesoRes.peso_fonte,
+    peso_em: pesoRes.peso_em,
     altura: num(sp?.altura ?? anthro?.altura),
-    data_avaliacao: (assessment?.data_avaliacao as string) ??
-      (assessment?.created_at ? String(assessment.created_at).slice(0, 10) : null),
+    data_avaliacao: avaliacao.data_avaliacao,
+    avaliacao_fonte: avaliacao.avaliacao_fonte,
+    avaliacao_id: avaliacao.avaliacao_id,
+    dias_desde_avaliacao: avaliacao.dias_desde_avaliacao,
+    avaliacao_recente: avaliacao.recente,
     lesoes: (sp?.lesoes as string) ?? null,
     restricoes: (sp?.restricoes as string) ?? null,
     dores: (anamnese?.dores as string) ?? null,
@@ -296,24 +298,25 @@ export async function loadTrainerStudentContext(
   };
 }
 
-/** Prontidão de dados: avaliação em até 90 dias + peso + altura. */
+/**
+ * Prontidão de dados. Bloqueia SÓ quando não há peso em nenhuma fonte ou
+ * nenhuma avaliação (manual, postural IA ou composição IA). Avaliação com mais
+ * de 90 dias vira aviso, não bloqueio.
+ */
 export function checkTrainerDataReadiness(
   ctx: TrainerStudentContext,
-): { ok: boolean; faltando: string[]; dias_desde_avaliacao: number | null } {
+): { ok: boolean; faltando: string[]; avisos: string[]; dias_desde_avaliacao: number | null } {
   const faltando: string[] = [];
-  let dias: number | null = null;
-  if (!ctx.data_avaliacao) {
-    faltando.push("avaliacao_fisica");
-  } else {
-    const d = new Date(ctx.data_avaliacao);
-    dias = Math.floor((Date.now() - d.getTime()) / 86_400_000);
-    if (!Number.isFinite(dias)) dias = null;
-    else if (dias > 90) faltando.push("avaliacao_recente_90_dias");
+  const avisos: string[] = [];
+  if (!ctx.data_avaliacao) faltando.push("avaliacao_fisica");
+  else if (!ctx.avaliacao_recente) {
+    avisos.push(`avaliação de ${ctx.data_avaliacao}, mais de 90 dias`);
   }
   if (!ctx.peso) faltando.push("peso");
-  if (!ctx.altura) faltando.push("altura");
-  return { ok: faltando.length === 0, faltando, dias_desde_avaliacao: dias };
+  if (!ctx.altura) avisos.push("altura não informada no cadastro");
+  return { ok: faltando.length === 0, faltando, avisos, dias_desde_avaliacao: ctx.dias_desde_avaliacao };
 }
+
 
 // ---------------------------------------------------------------- request
 
