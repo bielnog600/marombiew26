@@ -1215,7 +1215,14 @@ Deno.serve(async (req) => {
       if (updateError) return json({ erro: updateError.message }, 500);
       if (!updated) return json({ erro: "revisao_desatualizada", content_revision: currentRevision }, 409);
 
-      const posEdicao = buildTrainingAlerts(working, plan as Rec);
+      const { data: catalogRowsEdit } = await supabase
+        .from("exercises")
+        .select("nome, grupo_muscular, movement_pattern");
+      const posEdicao = buildTrainingAlerts(
+        working,
+        plan as Rec,
+        (catalogRowsEdit ?? []) as CatalogExercise[],
+      );
 
       return json({
         ok: true,
@@ -1224,6 +1231,7 @@ Deno.serve(async (req) => {
         version: updated.version,
         alertas: posEdicao.alertas,
         resumo_semana: posEdicao.resumo_semana,
+        sem_par_no_catalogo: posEdicao.sem_par_no_catalogo,
         markdown_regenerado: Boolean(novoMarkdown),
       });
     }
