@@ -2101,11 +2101,13 @@ Deno.serve(async (req) => {
           parent_plan_id: ctx.activePlan?.id ?? null,
           version: versionTreino,
           is_draft: true,
+          published_at: null,
+          published_by: null,
           cycle_status: "em_dia",
           migration_status: "completed",
           ...reqTreino.periodizationColumns,
         })
-        .select("id, content_revision")
+        .select("id, content_revision, is_draft, draft_source, published_at")
         .single();
 
       if (insertTreinoError) {
@@ -2123,6 +2125,9 @@ Deno.serve(async (req) => {
       return json({
         ok: true,
         draft_plan_id: insertedTreino?.id ?? null,
+        is_draft: insertedTreino?.is_draft ?? true,
+        draft_source: insertedTreino?.draft_source ?? "jarvis",
+        published_at: insertedTreino?.published_at ?? null,
         content_revision: insertedTreino?.content_revision ?? 1,
         resumo,
         dados_usados: dadosUsados,
