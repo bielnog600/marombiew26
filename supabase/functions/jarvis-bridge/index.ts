@@ -80,6 +80,38 @@ export interface TrainingAlert {
   series_esperado?: number | null;
 }
 
+// Validação barata de macros da dieta: compara o total do dia com as metas do dia.
+// Tolerâncias oficiais do app: kcal ±50, proteína ±10, carbo ±15, gordura ±8.
+function countDietMacroAlerts(planJson: Rec | null): number | null {
+  const days = Array.isArray((planJson as { days?: unknown } | null)?.days)
+    ? ((planJson as { days: Rec[] }).days)
+    : null;
+  if (!days || days.length === 0) return null;
+  let alerts = 0;
+  for (const day of days) {
+    const targets = (day.targets ?? null) as Rec | null;
+    if (!targets) continue;
+    let kcal = 0, p = 0, c = 0, g = 0;
+    const meals = Array.isArray(day.meals) ? (day.meals as Rec[]) : [];
+    for (const meal of meals) {
+      const items = Array.isArray(meal.items) ? (meal.items as Rec[]) : [];
+      for (const item of items) {
+        const m = (item.macros ?? {}) as Rec;
+        kcal += Number(m.kcal ?? 0) || 0;
+        p += Number(m.p ?? 0) || 0;
+        c += Number(m.c ?? 0) || 0;
+        g += Number(m.g ?? 0) || 0;
+        if (item.resolutionStatus && item.resolutionStatus !== "resolved") alerts += 1;
+      }
+    }
+    if (Math.abs(kcal - (Number(targets.kcal) || 0)) > 50) alerts += 1;
+    if (Math.abs(p - (Number(targets.p) || 0)) > 10) alerts += 1;
+    if (Math.abs(c - (Number(targets.c) || 0)) > 15) alerts += 1;
+    if (Math.abs(g - (Number(targets.g) || 0)) > 8) alerts += 1;
+  }
+  return alerts;
+}
+
 function buildTrainingAlerts(
   planJson: Rec | null,
   plan: Rec | null,
@@ -739,6 +771,114 @@ Deno.serve(async (req) => {
         resumo_semana,
       });
     }
+
+    if (operacao === "listar_rascunhos") {
+      const studentId = String(body.student_id ?? "").trim();
+      const PLAN_FIELDS =
+        "id, student_id, tipo, titulo, is_draft, draft_source, created_at, published_at, content_revision, version, conteudo_json, periodization_snapshot, viability_score";
+
+      let draftQuery = supabase
+        .from("ai_plans")
+        .select(PLAN_FIELDS)
+        .eq("is_draft", true)
+        .eq("draft_source", "jarvis")
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (studentId) draftQuery = draftQuery.eq("student_id", studentId);
+      const { data: drafts, error: draftsError } = await draftQuery;
+      if (draftsError) return json({ erro: draftsError.message }, 500);
+
+      // Planos ATIVOS tocados pelo Jarvis hoje (geração ou edição) — entram se ainda tiverem alertas.
+      const todayStart = new Date();
+      todayStart.setUTCHours(0, 0, 0, 0);
+      const todayIso = todayStart.toISOString();
+
+      const touchedIds = new Set<string>();
+      let versionsQuery = supabase
+        .from("workout_plan_versions")
+        .select("plan_id, student_id, created_at, generated_by")
+        .eq("generated_by", "jarvis")
+        .gte("created_at", todayIso)
+        .limit(100);
+      if (studentId) versionsQuery = versionsQuery.eq("student_id", studentId);
+      const { data: versions } = await versionsQuery;
+      for (const v of versions ?? []) if (v.plan_id) touchedIds.add(String(v.plan_id));
+
+      let activeQuery = supabase
+        .from("ai_plans")
+        .select("id")
+        .eq("is_draft", false)
+        .eq("draft_source", "jarvis")
+        .gte("created_at", todayIso)
+        .limit(100);
+      if (studentId) activeQuery = activeQuery.eq("student_id", studentId);
+      const { data: activeToday } = await activeQuery;
+      for (const p of activeToday ?? []) touchedIds.add(String(p.id));
+
+      const draftIds = new Set((drafts ?? []).map((d) => String(d.id)));
+      const extraIds = [...touchedIds].filter((id) => !draftIds.has(id));
+      let extras: Rec[] = [];
+      if (extraIds.length > 0) {
+        const { data: extraPlans, error: extraError } = await supabase
+          .from("ai_plans")
+          .select(PLAN_FIELDS)
+          .in("id", extraIds)
+          .limit(100);
+        if (extraError) return json({ erro: extraError.message }, 500);
+        extras = (extraPlans ?? []) as Rec[];
+      }
+
+      const allPlans = [...((drafts ?? []) as Rec[]), ...extras];
+      const studentIds = [...new Set(allPlans.map((p) => String(p.student_id)))];
+      let nomes: Record<string, string> = {};
+      if (studentIds.length > 0) {
+        const { data: perfis } = await supabase
+          .from("profiles")
+          .select("user_id, nome")
+          .in("user_id", studentIds);
+        nomes = Object.fromEntries((perfis ?? []).map((p) => [String(p.user_id), String(p.nome ?? "")]));
+      }
+
+      const itens: Rec[] = [];
+      for (const plan of allPlans) {
+        const planJson = (plan.conteudo_json ?? null) as Rec | null;
+        let alertasTotal: number | null = null;
+        if (plan.tipo === "treino") {
+          alertasTotal = buildTrainingAlerts(planJson, plan).alertas.length;
+        } else if (plan.tipo === "dieta") {
+          alertasTotal = countDietMacroAlerts(planJson);
+        }
+
+        const isDraft = plan.is_draft === true;
+        if (!isDraft && !(alertasTotal && alertasTotal > 0)) continue;
+
+        const confRaw = (planJson as Rec | null)?.confidence ??
+          (planJson as Rec | null)?.confianca ??
+          plan.viability_score ?? null;
+        const conf = Number(confRaw);
+
+        itens.push({
+          plan_id: plan.id,
+          tipo: plan.tipo,
+          aluno_nome: nomes[String(plan.student_id)] ?? null,
+          student_id: plan.student_id,
+          titulo: plan.titulo,
+          criado_em: plan.created_at,
+          content_revision: plan.content_revision,
+          version: plan.version,
+          alertas_total: alertasTotal,
+          confianca: Number.isFinite(conf) ? conf : null,
+          is_draft: isDraft,
+          publicado_em: isDraft ? null : (plan.published_at ?? null),
+          status: isDraft ? "rascunho" : `publicado, ainda com ${alertasTotal} alerta(s)`,
+        });
+      }
+
+      itens.sort((a, b) => String(b.criado_em ?? "").localeCompare(String(a.criado_em ?? "")));
+
+      return json({ ok: true, total: itens.length, rascunhos: itens.slice(0, 20) });
+    }
+
 
 
     if (operacao === "editar_treino") {
