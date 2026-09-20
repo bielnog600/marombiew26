@@ -80,6 +80,38 @@ export interface TrainingAlert {
   series_esperado?: number | null;
 }
 
+// Validação barata de macros da dieta: compara o total do dia com as metas do dia.
+// Tolerâncias oficiais do app: kcal ±50, proteína ±10, carbo ±15, gordura ±8.
+function countDietMacroAlerts(planJson: Rec | null): number | null {
+  const days = Array.isArray((planJson as { days?: unknown } | null)?.days)
+    ? ((planJson as { days: Rec[] }).days)
+    : null;
+  if (!days || days.length === 0) return null;
+  let alerts = 0;
+  for (const day of days) {
+    const targets = (day.targets ?? null) as Rec | null;
+    if (!targets) continue;
+    let kcal = 0, p = 0, c = 0, g = 0;
+    const meals = Array.isArray(day.meals) ? (day.meals as Rec[]) : [];
+    for (const meal of meals) {
+      const items = Array.isArray(meal.items) ? (meal.items as Rec[]) : [];
+      for (const item of items) {
+        const m = (item.macros ?? {}) as Rec;
+        kcal += Number(m.kcal ?? 0) || 0;
+        p += Number(m.p ?? 0) || 0;
+        c += Number(m.c ?? 0) || 0;
+        g += Number(m.g ?? 0) || 0;
+        if (item.resolutionStatus && item.resolutionStatus !== "resolved") alerts += 1;
+      }
+    }
+    if (Math.abs(kcal - (Number(targets.kcal) || 0)) > 50) alerts += 1;
+    if (Math.abs(p - (Number(targets.p) || 0)) > 10) alerts += 1;
+    if (Math.abs(c - (Number(targets.c) || 0)) > 15) alerts += 1;
+    if (Math.abs(g - (Number(targets.g) || 0)) > 8) alerts += 1;
+  }
+  return alerts;
+}
+
 function buildTrainingAlerts(
   planJson: Rec | null,
   plan: Rec | null,
