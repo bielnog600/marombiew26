@@ -119,8 +119,14 @@ export interface TrainerStudentContext {
   /** Objeto enviado como `studentContext` ao trainer-agent (formato da página). */
   studentContext: Rec;
   peso: number | null;
+  peso_fonte: string | null;
+  peso_em: string | null;
   altura: number | null;
   data_avaliacao: string | null;
+  avaliacao_fonte: string | null;
+  avaliacao_id: string | null;
+  dias_desde_avaliacao: number | null;
+  avaliacao_recente: boolean;
   lesoes: string | null;
   restricoes: string | null;
   dores: string | null;
@@ -140,17 +146,17 @@ export async function loadTrainerStudentContext(
   supabase: Any,
   studentId: string,
 ): Promise<TrainerStudentContext> {
-  const [profileRes, spRes, assessRes] = await Promise.all([
+  const [profileRes, spRes, avaliacao] = await Promise.all([
     supabase.from("profiles").select("*").eq("user_id", studentId).maybeSingle(),
     supabase.from("students_profile").select("*").eq("user_id", studentId).maybeSingle(),
-    supabase.from("assessments").select("id, data_avaliacao, created_at")
-      .eq("student_id", studentId).order("created_at", { ascending: false }).limit(1),
+    resolveLatestAssessment(supabase, studentId),
   ]);
 
   const profile = profileRes.data as Rec | null;
   const sp = spRes.data as Rec | null;
-  const assessment = (assessRes.data as Rec[] | null)?.[0] ?? null;
-  const assessmentId = assessment?.id as string | undefined;
+  const assessmentId = avaliacao.assessment_id ?? undefined;
+  const assessment: Rec | null = assessmentId ? { id: assessmentId } : null;
+
 
   let anthro: Rec | null = null, comp: Rec | null = null, vitals: Rec | null = null;
   let anamnese: Rec | null = null, skinfolds: Rec | null = null;
