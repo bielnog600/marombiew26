@@ -27,6 +27,12 @@ import {
   summarizeWorkoutPlan,
   type TrainerGenerationInput,
 } from "../_shared/trainerGenerationContext.ts";
+import {
+  auditVolumeRedundancy,
+  normalizeVolumeTarget,
+} from "../_shared/volumeRedundancyAudit.ts";
+import { validateWorkoutRedundancy } from "../_shared/workoutRedundancy.ts";
+
 
 
 const corsHeaders = {
