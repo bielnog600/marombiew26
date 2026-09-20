@@ -14,7 +14,14 @@
  * Nenhum arquivo do app foi alterado.
  */
 
+import {
+  derivePosturalDeviations,
+  resolveLatestAssessment,
+  resolveLatestWeight,
+} from "./studentDataSources.ts";
+
 export type Rec = Record<string, unknown>;
+
 
 export const ACTIVITY_FACTORS = [1.2, 1.3, 1.375, 1.55, 1.725, 1.9];
 
