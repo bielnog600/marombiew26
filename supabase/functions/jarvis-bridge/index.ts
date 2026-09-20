@@ -162,8 +162,21 @@ function buildTrainingAlerts(
     return {
       alertas: [],
       resumo_semana: { classificacao: null, esperado: null, series_semana: 0, status: "PASS" },
+      sem_par_no_catalogo: [],
     };
   }
+
+  // Plano sem os exercícios de suporte — mobilidade & cia não entram na
+  // contagem de volume nem na redundância.
+  const planSemSuporte = {
+    ...planJson,
+    days: days.map((d) => ({
+      ...d,
+      exercises: (Array.isArray(d?.exercises) ? (d.exercises as Rec[]) : []).filter(
+        (ex) => !isSupportExerciseName(ex?.exercise),
+      ),
+    })),
+  };
 
   const snap = (plan?.periodization_snapshot ?? null) as Rec | null;
   const sessionProfiles = Array.isArray(snap?.sessionProfiles)
@@ -173,7 +186,7 @@ function buildTrainingAlerts(
   const weekStrategy = (snap?.week_strategy ?? snap?.weekStrategy ?? null) as string | null;
   const weekNumber = firstInt(String(plan?.fase ?? ""));
 
-  const audit = auditVolumeRedundancy(planJson, {
+  const audit = auditVolumeRedundancy(planSemSuporte, {
     sessionProfiles,
     volumeTarget,
     weekStrategy,
@@ -181,9 +194,12 @@ function buildTrainingAlerts(
   });
 
   const alertas: TrainingAlert[] = [];
+  const semPar: string[] = [];
   const seen = new Set<string>();
   const push = (a: TrainingAlert) => {
-    const key = `${a.tipo}|${a.dia ?? ""}|${(a.exercicios ?? []).join(",")}|${a.mensagem}`;
+    const exs = a.exercicios ?? [];
+    if (exs.length > 0 && exs.every((n) => isSupportExerciseName(n))) return;
+    const key = `${a.tipo}|${a.dia ?? ""}|${exs.join(",")}|${a.mensagem}`;
     if (seen.has(key)) return;
     seen.add(key);
     alertas.push(a);
@@ -218,7 +234,7 @@ function buildTrainingAlerts(
     }
   }
 
-  const redundancy = validateWorkoutRedundancy(planJson);
+  const redundancy = validateWorkoutRedundancy(planSemSuporte);
   for (const issue of redundancy.issues) {
     push({
       dia: issue.day ?? null,
@@ -236,7 +252,12 @@ function buildTrainingAlerts(
       const nome = String(ex?.exercise ?? "").trim();
       const variacao = ex?.variation;
       if (!nome) continue;
+      if (isSupportExerciseName(nome)) continue;
       if (variacao === null || variacao === undefined || String(variacao).trim() === "") {
+        if (catalog && catalog.length > 0 && !hasCatalogPeer(nome, catalog)) {
+          if (!semPar.includes(nome)) semPar.push(nome);
+          continue;
+        }
         push({
           dia,
           tipo: "variacao_vazia",
@@ -247,6 +268,7 @@ function buildTrainingAlerts(
       }
     }
   });
+
 
   return {
     alertas,
