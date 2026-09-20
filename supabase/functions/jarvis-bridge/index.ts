@@ -27,6 +27,12 @@ import {
   summarizeWorkoutPlan,
   type TrainerGenerationInput,
 } from "../_shared/trainerGenerationContext.ts";
+import {
+  auditVolumeRedundancy,
+  normalizeVolumeTarget,
+} from "../_shared/volumeRedundancyAudit.ts";
+import { validateWorkoutRedundancy } from "../_shared/workoutRedundancy.ts";
+
 
 
 const corsHeaders = {
@@ -57,6 +63,137 @@ const TIPO_MAP: Record<string, string> = { treino: "treino", dieta: "dieta" };
 
 // ---------- helpers compartilhados (editar_treino) ----------
 type Rec = Record<string, unknown>;
+
+// ---------- alertas de treino (mesma auditoria que o app roda ao salvar) ----------
+const firstInt = (v: unknown): number | null => {
+  const m = String(v ?? "").match(/\d+/);
+  return m ? Number(m[0]) : null;
+};
+
+export interface TrainingAlert {
+  dia: string | null;
+  tipo: "volume" | "redundancia" | "variacao_vazia" | "semana";
+  severidade: string;
+  mensagem: string;
+  exercicios?: string[];
+  series_atual?: number | null;
+  series_esperado?: number | null;
+}
+
+function buildTrainingAlerts(
+  planJson: Rec | null,
+  plan: Rec | null,
+): { alertas: TrainingAlert[]; resumo_semana: Rec } {
+  const days = Array.isArray((planJson as { days?: unknown } | null)?.days)
+    ? ((planJson as { days: Rec[] }).days)
+    : null;
+  if (!planJson || !days) {
+    return {
+      alertas: [],
+      resumo_semana: { classificacao: null, esperado: null, series_semana: 0, status: "PASS" },
+    };
+  }
+
+  const snap = (plan?.periodization_snapshot ?? null) as Rec | null;
+  const sessionProfiles = Array.isArray(snap?.sessionProfiles)
+    ? (snap!.sessionProfiles as Array<{ sessionIndex: number; profile: string }>)
+    : [];
+  const volumeTarget = (snap?.volume_target ?? snap?.volumeTarget ?? null) as string | null;
+  const weekStrategy = (snap?.week_strategy ?? snap?.weekStrategy ?? null) as string | null;
+  const weekNumber = firstInt(String(plan?.fase ?? ""));
+
+  const audit = auditVolumeRedundancy(planJson, {
+    sessionProfiles,
+    volumeTarget,
+    weekStrategy,
+    weekNumber,
+  });
+
+  const alertas: TrainingAlert[] = [];
+  const seen = new Set<string>();
+  const push = (a: TrainingAlert) => {
+    const key = `${a.tipo}|${a.dia ?? ""}|${(a.exercicios ?? []).join(",")}|${a.mensagem}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    alertas.push(a);
+  };
+
+  for (const r of audit.reasons) {
+    const exercicios = (r.exercises ?? []).map(String);
+    if (r.code === "EXCESSIVE_SAME_FAMILY" || r.code === "REDUNDANT_FAMILY_PAIR") {
+      push({
+        dia: r.day ?? null,
+        tipo: "redundancia",
+        severidade: r.severity,
+        mensagem: `${r.day ?? "Semana"}: ${exercicios.join(", ")} — mesma família funcional (${r.family})`,
+        exercicios,
+      });
+    } else if (r.code === "VOLUME_ABOVE_PERIODIZATION_TARGET") {
+      push({
+        dia: null,
+        tipo: "semana",
+        severidade: r.severity,
+        mensagem: `Volume semanal ${r.observed} — esperado ${r.expected}`,
+      });
+    } else {
+      push({
+        dia: r.day ?? null,
+        tipo: "volume",
+        severidade: r.severity,
+        mensagem: `${r.day ?? "Semana"}: ${r.observed} — esperado ${r.expected}`,
+        series_atual: firstInt(r.observed),
+        series_esperado: firstInt(r.expected),
+      });
+    }
+  }
+
+  const redundancy = validateWorkoutRedundancy(planJson);
+  for (const issue of redundancy.issues) {
+    push({
+      dia: issue.day ?? null,
+      tipo: "redundancia",
+      severidade: issue.severity === "high" ? "FAIL" : "WARN",
+      mensagem: `${issue.day}: ${issue.exercises.join(", ")} — ${issue.family}`,
+      exercicios: issue.exercises,
+    });
+  }
+
+  days.forEach((d, idx) => {
+    const dia = String(d?.day ?? d?.label ?? `Dia ${idx + 1}`);
+    const exercises = Array.isArray(d?.exercises) ? (d.exercises as Rec[]) : [];
+    for (const ex of exercises) {
+      const nome = String(ex?.exercise ?? "").trim();
+      const variacao = ex?.variation;
+      if (!nome) continue;
+      if (variacao === null || variacao === undefined || String(variacao).trim() === "") {
+        push({
+          dia,
+          tipo: "variacao_vazia",
+          severidade: "WARN",
+          mensagem: `${dia}: ${nome} sem variação definida`,
+          exercicios: [nome],
+        });
+      }
+    }
+  });
+
+  return {
+    alertas,
+    resumo_semana: {
+      classificacao: audit.weeklyBucket,
+      esperado: normalizeVolumeTarget(volumeTarget),
+      series_semana: audit.weeklyWorkingSets,
+      status: audit.status,
+      sessoes: audit.sessions.map((s) => ({
+        dia: s.day,
+        perfil: s.profile,
+        series_trabalho: s.workingSets,
+        exercicios_trabalho: s.workExercises,
+      })),
+    },
+  };
+}
+
 
 const normalizeName = (s: unknown) =>
   String(s ?? "")
@@ -477,13 +614,132 @@ Deno.serve(async (req) => {
     }
 
     if (operacao === "listar_exercicios") {
+      const EX_FIELDS =
+        "id, nome, grupo_muscular, movement_pattern, equipment_type, primary_muscles, exercise_class";
       const busca = typeof body.busca === "string" ? body.busca.trim() : "";
-      let q = supabase.from("exercises").select("id, nome, grupo_muscular").order("nome").limit(30);
+      const grupoMuscular = typeof body.grupo_muscular === "string" ? body.grupo_muscular.trim() : "";
+      const movementPattern = typeof body.movement_pattern === "string" ? body.movement_pattern.trim() : "";
+      const equipmentType = typeof body.equipment_type === "string" ? body.equipment_type.trim() : "";
+      const familiaDe = typeof body.familia_de === "string" ? body.familia_de.trim() : "";
+      const excluir = Array.isArray(body.excluir)
+        ? (body.excluir as unknown[]).map((n) => normalizeName(n)).filter((n) => n.length > 0)
+        : [];
+      const limiteRaw = Number(body.limite);
+      const limite = Number.isFinite(limiteRaw) ? Math.max(1, Math.min(200, Math.trunc(limiteRaw))) : 30;
+
+      let refExercise: Rec | null = null;
+      let familyIds: string[] = [];
+      if (familiaDe) {
+        const { data: refExact } = await supabase
+          .from("exercises")
+          .select(EX_FIELDS)
+          .ilike("nome", familiaDe)
+          .limit(1);
+        let ref = (refExact ?? [])[0] as Rec | undefined;
+        if (!ref) {
+          const { data: refLike } = await supabase
+            .from("exercises")
+            .select(EX_FIELDS)
+            .ilike("nome", `%${familiaDe}%`)
+            .limit(1);
+          ref = (refLike ?? [])[0] as Rec | undefined;
+        }
+        if (!ref) return json({ erro: "exercicio_referencia_nao_encontrado", familia_de: familiaDe }, 404);
+        refExercise = ref;
+        const { data: groups } = await supabase
+          .from("exercise_variation_groups")
+          .select("id, nome, exercise_ids")
+          .contains("exercise_ids", [ref.id]);
+        for (const g of (groups ?? []) as Rec[]) {
+          for (const id of (Array.isArray(g.exercise_ids) ? g.exercise_ids : []) as unknown[]) {
+            familyIds.push(String(id));
+          }
+        }
+        familyIds = [...new Set(familyIds)].filter((id) => id !== String(ref!.id));
+      }
+
+      const rows: Rec[] = [];
+      const seenIds = new Set<string>();
+      const collect = (list: unknown) => {
+        for (const r of (list ?? []) as Rec[]) {
+          const id = String(r.id);
+          if (seenIds.has(id)) continue;
+          seenIds.add(id);
+          rows.push(r);
+        }
+      };
+
+      if (familyIds.length > 0) {
+        const { data: groupRows, error: groupError } = await supabase
+          .from("exercises")
+          .select(EX_FIELDS)
+          .in("id", familyIds)
+          .order("nome");
+        if (groupError) return json({ erro: groupError.message }, 500);
+        collect(groupRows);
+      }
+
+      let q = supabase.from("exercises").select(EX_FIELDS).order("nome").limit(limite + excluir.length + 5);
       if (busca) q = q.ilike("nome", `%${busca}%`);
+      if (grupoMuscular) q = q.ilike("grupo_muscular", `%${grupoMuscular}%`);
+      if (movementPattern) q = q.ilike("movement_pattern", `%${movementPattern}%`);
+      if (equipmentType) q = q.ilike("equipment_type", `%${equipmentType}%`);
+      if (refExercise) {
+        if (refExercise.grupo_muscular) q = q.eq("grupo_muscular", refExercise.grupo_muscular);
+        if (refExercise.movement_pattern) q = q.eq("movement_pattern", refExercise.movement_pattern);
+      }
       const { data, error } = await q;
       if (error) return json({ erro: error.message }, 500);
-      return json({ exercicios: data ?? [] });
+      collect(data);
+
+      const exercicios = rows
+        .filter((r) => !excluir.includes(normalizeName(r.nome)))
+        .slice(0, limite);
+
+      return json({
+        exercicios,
+        total: exercicios.length,
+        limite,
+        referencia: refExercise
+          ? {
+              id: refExercise.id,
+              nome: refExercise.nome,
+              grupo_muscular: refExercise.grupo_muscular,
+              movement_pattern: refExercise.movement_pattern,
+              equipment_type: refExercise.equipment_type,
+              grupos_de_variacao: familyIds.length,
+            }
+          : null,
+      });
     }
+
+    if (operacao === "avaliar_treino") {
+      const planId = String(body.plan_id ?? "").trim();
+      if (!planId) return json({ erro: "plan_id_obrigatorio" }, 400);
+      const { data: plan, error: planError } = await supabase
+        .from("ai_plans")
+        .select("id, student_id, titulo, tipo, fase, is_draft, draft_source, content_revision, version, conteudo_json, periodization_snapshot")
+        .eq("id", planId)
+        .maybeSingle();
+      if (planError) return json({ erro: planError.message }, 500);
+      if (!plan) return json({ erro: "plano_nao_encontrado" }, 404);
+      if (plan.tipo !== "treino") return json({ erro: "plano_nao_e_treino" }, 400);
+      const planJson = plan.conteudo_json as Rec | null;
+      if (!planJson || !Array.isArray((planJson as { days?: unknown }).days)) {
+        return json({ erro: "plano_sem_conteudo_json" }, 400);
+      }
+      const { alertas, resumo_semana } = buildTrainingAlerts(planJson, plan as Rec);
+      return json({
+        ok: true,
+        plan_id: plan.id,
+        titulo: plan.titulo,
+        is_draft: plan.is_draft === true,
+        content_revision: plan.content_revision,
+        alertas,
+        resumo_semana,
+      });
+    }
+
 
     if (operacao === "editar_treino") {
       const planId = String(body.plan_id ?? "").trim();
@@ -748,11 +1004,15 @@ Deno.serve(async (req) => {
       if (updateError) return json({ erro: updateError.message }, 500);
       if (!updated) return json({ erro: "revisao_desatualizada", content_revision: currentRevision }, 409);
 
+      const posEdicao = buildTrainingAlerts(working, plan as Rec);
+
       return json({
         ok: true,
         aplicadas,
         content_revision: updated.content_revision,
         version: updated.version,
+        alertas: posEdicao.alertas,
+        resumo_semana: posEdicao.resumo_semana,
         markdown_regenerado: Boolean(novoMarkdown),
       });
     }
