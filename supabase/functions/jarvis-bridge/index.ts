@@ -284,6 +284,7 @@ function buildTrainingAlerts(
         exercicios_trabalho: s.workExercises,
       })),
     },
+    sem_par_no_catalogo: semPar,
   };
 }
 
