@@ -1253,7 +1253,9 @@ Deno.serve(async (req) => {
         return json({
           erro: "dados_insuficientes",
           faltando: readiness.faltando,
+          avisos: readiness.avisos,
           ultima_avaliacao: ctx.data_avaliacao,
+          avaliacao_fonte: ctx.avaliacao_fonte,
         }, 422);
       }
 
@@ -1261,12 +1263,22 @@ Deno.serve(async (req) => {
         return json({
           ok: true,
           peso: ctx.peso,
+          peso_fonte: ctx.peso_fonte,
+          peso_em: ctx.peso_em,
           altura: ctx.altura,
           data_avaliacao: ctx.data_avaliacao,
+          avaliacao_fonte: ctx.avaliacao_fonte,
+          avaliacao_id: ctx.avaliacao_id,
+          dias_desde_avaliacao: ctx.dias_desde_avaliacao,
+          avisos: readiness.avisos,
+          dores: ctx.dores,
+          lesoes: ctx.lesoes,
+          desvios_posturais: ctx.desvios_posturais,
           questionario_em: ctx.questionario_em,
           questionario: formatQuestionario(ctx.questionario as Rec | null),
         });
       }
+
 
       // ---------- gerar_dieta ----------
       const intentRaw = body.intent == null ? "new" : String(body.intent).trim();
@@ -1642,7 +1654,9 @@ Deno.serve(async (req) => {
         return json({
           erro: "dados_insuficientes",
           faltando: readiness.faltando,
+          avisos: readiness.avisos,
           ultima_avaliacao: ctx.data_avaliacao,
+          avaliacao_fonte: ctx.avaliacao_fonte,
           dias_desde_avaliacao: readiness.dias_desde_avaliacao,
         }, 422);
       }
@@ -1665,9 +1679,14 @@ Deno.serve(async (req) => {
         return json({
           ok: true,
           peso: ctx.peso,
+          peso_fonte: ctx.peso_fonte,
+          peso_em: ctx.peso_em,
           altura: ctx.altura,
           data_avaliacao: ctx.data_avaliacao,
+          avaliacao_fonte: ctx.avaliacao_fonte,
+          avaliacao_id: ctx.avaliacao_id,
           dias_desde_avaliacao: readiness.dias_desde_avaliacao,
+          avisos: readiness.avisos,
           nivel_sugerido: ctx.nivel_sugerido,
           lesoes: ctx.lesoes,
           restricoes: ctx.restricoes,
@@ -1677,6 +1696,7 @@ Deno.serve(async (req) => {
           ultimo_questionario: formatQuestionario(ctx.questionario as Rec | null),
         });
       }
+
 
       // ---------- gerar_treino ----------
       const intentRaw = body.intent == null ? "new" : String(body.intent).trim();

@@ -14,7 +14,14 @@
  * Nenhum arquivo do app foi alterado.
  */
 
+import {
+  derivePosturalDeviations,
+  resolveLatestAssessment,
+  resolveLatestWeight,
+} from "./studentDataSources.ts";
+
 export type Rec = Record<string, unknown>;
+
 
 export const ACTIVITY_FACTORS = [1.2, 1.3, 1.375, 1.55, 1.725, 1.9];
 
@@ -140,23 +147,31 @@ export interface DietStudentContext {
   percentual_gordura: number | null;
   massa_magra: number | null;
   massa_gorda: number | null;
+  peso_fonte: string | null;
+  peso_em: string | null;
   data_avaliacao: string | null;
+  avaliacao_fonte: string | null;
+  avaliacao_id: string | null;
+  dias_desde_avaliacao: number | null;
+  avaliacao_recente: boolean;
+  desvios_posturais: string[];
+  dores: string | null;
   questionario: Rec | null;
   questionario_em: string | null;
   anamnese: Rec | null;
   trainingMarkdown: string | null;
   activePlan: { id: string; version: number } | null;
+
 }
 
 export async function loadDietStudentContext(
   supabase: any,
   studentId: string,
 ): Promise<DietStudentContext> {
-  const [profileRes, spRes, assessRes, questRes, trainRes, dietRes] = await Promise.all([
+  const [profileRes, spRes, avaliacao, questRes, trainRes, dietRes] = await Promise.all([
     supabase.from("profiles").select("nome").eq("user_id", studentId).maybeSingle(),
     supabase.from("students_profile").select("*").eq("user_id", studentId).maybeSingle(),
-    supabase.from("assessments").select("id, created_at").eq("student_id", studentId)
-      .order("created_at", { ascending: false }).limit(1),
+    resolveLatestAssessment(supabase, studentId),
     supabase.from("diet_questionnaires").select("*").eq("student_id", studentId)
       .eq("status", "completed").order("created_at", { ascending: false }).limit(1),
     supabase.from("ai_plans").select("conteudo").eq("student_id", studentId).eq("tipo", "treino")
@@ -167,34 +182,28 @@ export async function loadDietStudentContext(
   ]);
 
   const sp = (spRes.data ?? {}) as Rec;
-  const assessment = assessRes.data?.[0] ?? null;
+  const assessmentId = avaliacao.assessment_id;
   const quest = (questRes.data?.[0] ?? null) as Rec | null;
 
   let anthro: Rec | null = null;
   let comp: Rec | null = null;
   let anamnese: Rec | null = null;
-  if (assessment?.id) {
+  if (assessmentId) {
     const [a, c, an] = await Promise.all([
-      supabase.from("anthropometrics").select("*").eq("assessment_id", assessment.id).maybeSingle(),
-      supabase.from("composition").select("*").eq("assessment_id", assessment.id).maybeSingle(),
-      supabase.from("anamnese").select("*").eq("assessment_id", assessment.id).maybeSingle(),
+      supabase.from("anthropometrics").select("*").eq("assessment_id", assessmentId).maybeSingle(),
+      supabase.from("composition").select("*").eq("assessment_id", assessmentId).maybeSingle(),
+      supabase.from("anamnese").select("*").eq("assessment_id", assessmentId).maybeSingle(),
     ]);
     anthro = a.data ?? null;
     comp = c.data ?? null;
     anamnese = an.data ?? null;
   }
 
-  // Peso mais recente: weight_logs vence a avaliação quando é mais novo.
-  let peso = num(anthro?.peso);
-  try {
-    const { data: wl } = await supabase
-      .from("weight_logs").select("peso, data").eq("student_id", studentId)
-      .order("data", { ascending: false }).limit(1).maybeSingle();
-    if (wl?.peso != null) {
-      const assessDate = assessment?.created_at ? String(assessment.created_at).slice(0, 10) : null;
-      if (!assessDate || String(wl.data) >= assessDate) peso = num(wl.peso) ?? peso;
-    }
-  } catch { /* ignora */ }
+  // Peso: mais recente entre weight_logs, avaliação, check-in e reajuste.
+  const pesoRes = await resolveLatestWeight(supabase, studentId, {
+    assessmentId,
+    assessmentDate: avaliacao.data_avaliacao,
+  });
 
   const activePlanRow = dietRes.data?.[0] ?? null;
 
@@ -207,13 +216,21 @@ export async function loadDietStudentContext(
     restricoes: (sp.restricoes as string) ?? null,
     lesoes: (sp.lesoes as string) ?? null,
     observacoes: (sp.observacoes as string) ?? null,
-    peso,
+    peso: pesoRes.peso,
+    peso_fonte: pesoRes.peso_fonte,
+    peso_em: pesoRes.peso_em,
     altura: num(sp.altura) ?? num(anthro?.altura),
     imc: num(anthro?.imc),
     percentual_gordura: num(comp?.percentual_gordura),
     massa_magra: num(comp?.massa_magra),
     massa_gorda: num(comp?.massa_gorda),
-    data_avaliacao: assessment?.created_at ?? null,
+    data_avaliacao: avaliacao.data_avaliacao,
+    avaliacao_fonte: avaliacao.avaliacao_fonte,
+    avaliacao_id: avaliacao.avaliacao_id,
+    dias_desde_avaliacao: avaliacao.dias_desde_avaliacao,
+    avaliacao_recente: avaliacao.recente,
+    desvios_posturais: derivePosturalDeviations(avaliacao.postureScan),
+    dores: (anamnese?.dores as string) ?? null,
     questionario: quest,
     questionario_em: (quest?.responded_at as string) ?? (quest?.created_at as string) ?? null,
     anamnese,
@@ -224,19 +241,24 @@ export async function loadDietStudentContext(
   };
 }
 
-/** Pré-checagem: avaliação recente (90 dias) + questionário respondido. */
-export function checkDietDataReadiness(ctx: DietStudentContext, now = new Date()) {
+/**
+ * Pré-checagem. Bloqueia só por falta de peso (todas as fontes), falta de
+ * avaliação (manual, postural IA ou composição IA) ou questionário/altura.
+ * Avaliação com mais de 90 dias vira aviso.
+ */
+export function checkDietDataReadiness(ctx: DietStudentContext, _now = new Date()) {
   const faltando: string[] = [];
-  const dt = ctx.data_avaliacao ? new Date(ctx.data_avaliacao) : null;
-  const recente =
-    dt != null && !Number.isNaN(dt.getTime()) &&
-    (now.getTime() - dt.getTime()) / (1000 * 3600 * 24) <= 90;
-  if (!recente) faltando.push("avaliacao_recente");
+  const avisos: string[] = [];
+  if (!ctx.data_avaliacao) faltando.push("avaliacao_fisica");
+  else if (!ctx.avaliacao_recente) {
+    avisos.push(`avaliação de ${ctx.data_avaliacao}, mais de 90 dias`);
+  }
   if (!ctx.questionario) faltando.push("questionario");
   if (!ctx.peso) faltando.push("peso");
   if (!ctx.altura) faltando.push("altura");
-  return { ok: faltando.length === 0, faltando };
+  return { ok: faltando.length === 0, faltando, avisos };
 }
+
 
 /* ---------------------------------------------------------------- */
 /* trainingContext mínimo (dias de treino a partir do markdown)      */
