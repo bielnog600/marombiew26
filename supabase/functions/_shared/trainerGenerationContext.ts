@@ -14,6 +14,12 @@ import {
   type PeriodizationSelection,
   type PeriodizationSnapshot,
 } from "./periodization.ts";
+import {
+  derivePosturalDeviations,
+  resolveLatestAssessment,
+  resolveLatestWeight,
+} from "./studentDataSources.ts";
+
 
 // deno-lint-ignore no-explicit-any
 type Any = any;
