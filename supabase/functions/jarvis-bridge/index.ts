@@ -1004,11 +1004,15 @@ Deno.serve(async (req) => {
       if (updateError) return json({ erro: updateError.message }, 500);
       if (!updated) return json({ erro: "revisao_desatualizada", content_revision: currentRevision }, 409);
 
+      const posEdicao = buildTrainingAlerts(working, plan as Rec);
+
       return json({
         ok: true,
         aplicadas,
         content_revision: updated.content_revision,
         version: updated.version,
+        alertas: posEdicao.alertas,
+        resumo_semana: posEdicao.resumo_semana,
         markdown_regenerado: Boolean(novoMarkdown),
       });
     }
