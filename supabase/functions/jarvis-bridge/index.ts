@@ -64,6 +64,137 @@ const TIPO_MAP: Record<string, string> = { treino: "treino", dieta: "dieta" };
 // ---------- helpers compartilhados (editar_treino) ----------
 type Rec = Record<string, unknown>;
 
+// ---------- alertas de treino (mesma auditoria que o app roda ao salvar) ----------
+const firstInt = (v: unknown): number | null => {
+  const m = String(v ?? "").match(/\d+/);
+  return m ? Number(m[0]) : null;
+};
+
+export interface TrainingAlert {
+  dia: string | null;
+  tipo: "volume" | "redundancia" | "variacao_vazia" | "semana";
+  severidade: string;
+  mensagem: string;
+  exercicios?: string[];
+  series_atual?: number | null;
+  series_esperado?: number | null;
+}
+
+function buildTrainingAlerts(
+  planJson: Rec | null,
+  plan: Rec | null,
+): { alertas: TrainingAlert[]; resumo_semana: Rec } {
+  const days = Array.isArray((planJson as { days?: unknown } | null)?.days)
+    ? ((planJson as { days: Rec[] }).days)
+    : null;
+  if (!planJson || !days) {
+    return {
+      alertas: [],
+      resumo_semana: { classificacao: null, esperado: null, series_semana: 0, status: "PASS" },
+    };
+  }
+
+  const snap = (plan?.periodization_snapshot ?? null) as Rec | null;
+  const sessionProfiles = Array.isArray(snap?.sessionProfiles)
+    ? (snap!.sessionProfiles as Array<{ sessionIndex: number; profile: string }>)
+    : [];
+  const volumeTarget = (snap?.volume_target ?? snap?.volumeTarget ?? null) as string | null;
+  const weekStrategy = (snap?.week_strategy ?? snap?.weekStrategy ?? null) as string | null;
+  const weekNumber = firstInt(String(plan?.fase ?? ""));
+
+  const audit = auditVolumeRedundancy(planJson, {
+    sessionProfiles,
+    volumeTarget,
+    weekStrategy,
+    weekNumber,
+  });
+
+  const alertas: TrainingAlert[] = [];
+  const seen = new Set<string>();
+  const push = (a: TrainingAlert) => {
+    const key = `${a.tipo}|${a.dia ?? ""}|${(a.exercicios ?? []).join(",")}|${a.mensagem}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    alertas.push(a);
+  };
+
+  for (const r of audit.reasons) {
+    const exercicios = (r.exercises ?? []).map(String);
+    if (r.code === "EXCESSIVE_SAME_FAMILY" || r.code === "REDUNDANT_FAMILY_PAIR") {
+      push({
+        dia: r.day ?? null,
+        tipo: "redundancia",
+        severidade: r.severity,
+        mensagem: `${r.day ?? "Semana"}: ${exercicios.join(", ")} — mesma família funcional (${r.family})`,
+        exercicios,
+      });
+    } else if (r.code === "VOLUME_ABOVE_PERIODIZATION_TARGET") {
+      push({
+        dia: null,
+        tipo: "semana",
+        severidade: r.severity,
+        mensagem: `Volume semanal ${r.observed} — esperado ${r.expected}`,
+      });
+    } else {
+      push({
+        dia: r.day ?? null,
+        tipo: "volume",
+        severidade: r.severity,
+        mensagem: `${r.day ?? "Semana"}: ${r.observed} — esperado ${r.expected}`,
+        series_atual: firstInt(r.observed),
+        series_esperado: firstInt(r.expected),
+      });
+    }
+  }
+
+  const redundancy = validateWorkoutRedundancy(planJson);
+  for (const issue of redundancy.issues) {
+    push({
+      dia: issue.day ?? null,
+      tipo: "redundancia",
+      severidade: issue.severity === "high" ? "FAIL" : "WARN",
+      mensagem: `${issue.day}: ${issue.exercises.join(", ")} — ${issue.family}`,
+      exercicios: issue.exercises,
+    });
+  }
+
+  days.forEach((d, idx) => {
+    const dia = String(d?.day ?? d?.label ?? `Dia ${idx + 1}`);
+    const exercises = Array.isArray(d?.exercises) ? (d.exercises as Rec[]) : [];
+    for (const ex of exercises) {
+      const nome = String(ex?.exercise ?? "").trim();
+      const variacao = ex?.variation;
+      if (!nome) continue;
+      if (variacao === null || variacao === undefined || String(variacao).trim() === "") {
+        push({
+          dia,
+          tipo: "variacao_vazia",
+          severidade: "WARN",
+          mensagem: `${dia}: ${nome} sem variação definida`,
+          exercicios: [nome],
+        });
+      }
+    }
+  });
+
+  return {
+    alertas,
+    resumo_semana: {
+      classificacao: audit.weeklyBucket,
+      esperado: normalizeVolumeTarget(volumeTarget),
+      series_semana: audit.weeklyWorkingSets,
+      status: audit.status,
+      sessoes: audit.sessions.map((s) => ({
+        dia: s.day,
+        perfil: s.profile,
+        series_trabalho: s.workingSets,
+        exercicios_trabalho: s.workExercises,
+      })),
+    },
+  };
+}
+
+
 const normalizeName = (s: unknown) =>
   String(s ?? "")
     .toLowerCase()
