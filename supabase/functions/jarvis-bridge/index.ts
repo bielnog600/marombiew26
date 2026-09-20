@@ -822,7 +822,15 @@ Deno.serve(async (req) => {
       if (!planJson || !Array.isArray((planJson as { days?: unknown }).days)) {
         return json({ erro: "plano_sem_conteudo_json" }, 400);
       }
-      const { alertas, resumo_semana } = buildTrainingAlerts(planJson, plan as Rec);
+      const { data: catalogRows } = await supabase
+        .from("exercises")
+        .select("nome, grupo_muscular, movement_pattern");
+      const catalog = (catalogRows ?? []) as CatalogExercise[];
+      const { alertas, resumo_semana, sem_par_no_catalogo } = buildTrainingAlerts(
+        planJson,
+        plan as Rec,
+        catalog,
+      );
       return json({
         ok: true,
         plan_id: plan.id,
@@ -831,6 +839,7 @@ Deno.serve(async (req) => {
         content_revision: plan.content_revision,
         alertas,
         resumo_semana,
+        sem_par_no_catalogo,
       });
     }
 
