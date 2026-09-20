@@ -2107,7 +2107,7 @@ Deno.serve(async (req) => {
           migration_status: "completed",
           ...reqTreino.periodizationColumns,
         })
-        .select("id, content_revision")
+        .select("id, content_revision, is_draft, draft_source, published_at")
         .single();
 
       if (insertTreinoError) {
