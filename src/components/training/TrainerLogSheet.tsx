@@ -994,6 +994,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                         HistoryPopover={HistoryPopover}
                         parsePauseSeconds={parsePauseSeconds}
                         progressionSnapshot={snapshot}
+                        dayExercises={currentExercises}
                       />
                     </SortableExerciseRow>
                   ) : null)}
