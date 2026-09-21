@@ -239,6 +239,7 @@ export const parsedDaysToWorkoutPlan = (
       targetLoadNote: e.targetLoadNote ?? null,
       targetLoadPerSet: normalizeTargetLoadPerSetValue(e.targetLoadPerSet),
       setScheme: e.setScheme,
+      method: normalizeWorkoutMethod(e.method),
     })),
   })),
 });
@@ -263,6 +264,7 @@ export const workoutPlanToParsedDays = (plan: WorkoutPlan): ParsedTrainingDay[] 
       targetLoadNote: e.targetLoadNote ?? null,
       targetLoadPerSet: normalizeTargetLoadPerSetValue(e.targetLoadPerSet),
       setScheme: e.setScheme as ParsedExercise["setScheme"],
+      method: e.method,
     })),
   }));
 
