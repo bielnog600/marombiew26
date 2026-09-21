@@ -127,9 +127,7 @@ export const WorkoutExerciseSchema = z.object({
   method: WorkoutMethodSchema.optional(),
 });
 
-export type WorkoutExercise = Omit<z.infer<typeof WorkoutExerciseSchema>, "method"> & {
-  method?: WorkoutMethod;
-};
+export type WorkoutExercise = z.infer<typeof WorkoutExerciseSchema>;
 
 export const WorkoutDaySchema = z.object({
   id: z.string().min(1),
