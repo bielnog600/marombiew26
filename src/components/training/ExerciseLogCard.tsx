@@ -200,6 +200,11 @@ const ExerciseLogCard: React.FC<Props> = ({
                 {ex.rir && ` · RIR ${ex.rir}`}
                 {ex.pause && ` · pausa ${ex.pause}`}
               </p>
+              {ex?.method?.slug && (
+                <div className="mt-1">
+                  <MethodBadge method={ex.method} dayExercises={dayExercises} />
+                </div>
+              )}
             </div>
           </div>
           {st.exerciseName && (
