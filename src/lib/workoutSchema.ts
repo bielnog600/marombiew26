@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ParsedTrainingDay, ParsedExercise } from "./trainingResultParser";
+import { normalizeWorkoutMethod } from "./trainingMethods";
 
 /**
  * Workout plan v2 — JSON-first source of truth.
@@ -107,6 +108,12 @@ export const WorkoutExerciseSchema = z.object({
     .transform((v) => normalizeTargetLoadPerSetValue(v))
     .optional(),
   setScheme: SetSchemeSchema.optional(),
+  /**
+   * Método de treino aplicado ao exercício. `slug` deve existir e estar ativo
+   * em `training_methods`; a validação contra o catálogo é feita por
+   * `validateWorkoutMethod` (precisa do banco) — aqui validamos só a forma.
+   */
+  method: WorkoutMethodSchema.optional(),
 });
 
 export type WorkoutExercise = z.infer<typeof WorkoutExerciseSchema>;
