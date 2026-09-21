@@ -396,9 +396,17 @@ function workoutJsonToMarkdown(plan: Rec, methodLabels: Record<string, string> =
   lines.push("|---|---|---|---|---|---|---|---|---|");
   for (const day of days) {
     const exercises = Array.isArray(day.exercises) ? (day.exercises as Rec[]) : [];
+    const resolvePair = (v: string) => {
+      const found = exercises.find((e) => e.id === v || e.exerciseId === v);
+      return String(found?.exercise ?? v);
+    };
     for (const ex of exercises) {
+      const metodo = methodText(ex.method as MethodRef | null, methodLabels, resolvePair);
+      const desc = [metodo, String(ex.description ?? "").trim()]
+        .filter((s) => s && s !== "-")
+        .join(" · ");
       lines.push(
-        `| ${mdCell(day.day)} | ${mdCell(ex.exercise)} | ${mdSeries(ex)} | ${mdCell(ex.series2)} | ${mdReps(ex)} | ${mdCell(ex.rir)} | ${mdRest(ex)} | ${mdCell(ex.description)} | ${mdCell(ex.variation)} |`,
+        `| ${mdCell(day.day)} | ${mdCell(ex.exercise)} | ${mdSeries(ex)} | ${mdCell(ex.series2)} | ${mdReps(ex)} | ${mdCell(ex.rir)} | ${mdRest(ex)} | ${mdCell(desc)} | ${mdCell(ex.variation)} |`,
       );
     }
   }
