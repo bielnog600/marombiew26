@@ -94,6 +94,7 @@ const ExerciseLogCard: React.FC<Props> = ({
   HistoryPopover,
   parsePauseSeconds,
   progressionSnapshot,
+  dayExercises,
 }) => {
   const [editOpen, setEditOpen] = useState(false);
   const mode: StructureMode = detectMode(ex);
