@@ -67,7 +67,7 @@ export const WorkoutMethodSchema = z.object({
   params: z.record(z.union([z.string(), z.number()])).optional(),
 });
 
-export type WorkoutMethod = z.infer<typeof WorkoutMethodSchema>;
+export type WorkoutMethod = { slug: string; params?: Record<string, string | number> };
 
 /**
  * Reps / load are kept as strings because trainers use ranges ("8-12"),
