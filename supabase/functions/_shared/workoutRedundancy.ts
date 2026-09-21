@@ -25,6 +25,13 @@ const norm = (s: string): string =>
     .replace(/[^A-Z0-9]+/g, " ")
     .trim();
 
+/** Exercícios de suporte: não contam para redundância nem para volume. */
+const SUPPORT_NAME_RE =
+  /\b(MOBILIDADE|MOBILITY|ALONGAMENTO|STRETCH|LIBERACAO|FOAM ROLL|ATIVACAO|ATIVACOES|RESPIRACAO|BREATHING|CAT COW|90 90)\b/;
+
+export const isSupportExerciseName = (name: unknown): boolean =>
+  SUPPORT_NAME_RE.test(norm(String(name ?? "")));
+
 /**
  * STRONG functional equivalence families — conservative on purpose.
  *
@@ -133,7 +140,11 @@ export function validateWorkoutRedundancy(plan: any): RedundancyResult {
 
   for (const day of plan.days) {
     const dayLabel = day.day || day.label || day.focus || "Dia";
-    const exercises = day.exercises || [];
+    // Mobilidade/alongamento/liberação/ativação/respiração não entram na
+    // redundância (mesma regra já aplicada ao volume de trabalho).
+    const exercises = (day.exercises || []).filter(
+      (ex: any) => !isSupportExerciseName(ex?.exercise),
+    );
 
     // 1. Exact nominal duplicate check (count >= 2 is hard reject)
     const nameCounts = new Map<string, string[]>();
