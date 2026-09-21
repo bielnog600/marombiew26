@@ -344,7 +344,44 @@ const mdSeries = (ex: Rec): string => {
   return mdCell(ex.series);
 };
 
-function workoutJsonToMarkdown(plan: Rec): string | null {
+// ---------- métodos de treino (training_methods) ----------
+type MethodRef = { slug: string; params?: Record<string, string | number> };
+
+const methodParamText = (
+  params: Record<string, string | number> | undefined,
+  resolvePair?: (v: string) => string,
+): string => {
+  if (!params) return "";
+  const plural = (v: unknown, one: string, many: string) =>
+    `${v} ${Number(v) === 1 ? one : many}`;
+  const parts: string[] = [];
+  for (const [k, v] of Object.entries(params)) {
+    if (v === null || v === undefined || v === "") continue;
+    if (k === "com") { parts.push(`↔ ${resolvePair ? resolvePair(String(v)) : v}`); continue; }
+    if (k === "drops") parts.push(plural(v, "queda", "quedas"));
+    else if (k === "reducao_pct") parts.push(`−${v}%`);
+    else if (k === "pausa_s") parts.push(`pausa ${v}s`);
+    else if (k === "minis") parts.push(plural(v, "mini", "minis"));
+    else if (k === "intra_s") parts.push(`intra ${v}s`);
+    else if (k === "direcao") parts.push(String(v));
+    else parts.push(`${k.replace(/_/g, " ")}: ${v}`);
+  }
+  return parts.join(", ");
+};
+
+/** "DROP SET (2 quedas, −20%)" */
+const methodText = (
+  method: MethodRef | null | undefined,
+  labels: Record<string, string>,
+  resolvePair?: (v: string) => string,
+): string => {
+  if (!method?.slug) return "";
+  const label = (labels[method.slug] ?? method.slug.replace(/_/g, " ")).toUpperCase();
+  const p = methodParamText(method.params, resolvePair);
+  return p ? `${label} (${p})` : label;
+};
+
+function workoutJsonToMarkdown(plan: Rec, methodLabels: Record<string, string> = {}): string | null {
   const days = Array.isArray(plan.days) ? (plan.days as Rec[]) : null;
   if (!days) return null;
   const metadata = (plan.metadata ?? null) as Rec | null;
