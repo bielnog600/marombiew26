@@ -45,9 +45,15 @@ export const workoutPlanToMarkdown = (plan: WorkoutPlan): string => {
   );
   lines.push("|---|---|---|---|---|---|---|---|---|");
   for (const day of plan.days) {
+    const resolvePair = (idOrName: string): string | null => {
+      const found = day.exercises.find((e) => e.id === idOrName || e.exerciseId === idOrName);
+      return found?.exercise ?? idOrName;
+    };
     for (const ex of day.exercises) {
+      const metodo = formatMethodForMarkdown(ex.method, resolvePair);
+      const desc = [metodo, (ex.description || "").trim()].filter((s) => s && s !== "-").join(" · ");
       lines.push(
-        `| ${cell(day.day)} | ${cell(ex.exercise)} | ${seriesForMarkdown(ex)} | ${cell(ex.series2)} | ${repsForMarkdown(ex)} | ${cell(ex.rir)} | ${restCell(ex.restSeconds, ex.pause)} | ${cell(ex.description)} | ${cell(ex.variation)} |`,
+        `| ${cell(day.day)} | ${cell(ex.exercise)} | ${seriesForMarkdown(ex)} | ${cell(ex.series2)} | ${repsForMarkdown(ex)} | ${cell(ex.rir)} | ${restCell(ex.restSeconds, ex.pause)} | ${cell(desc)} | ${cell(ex.variation)} |`,
       );
     }
   }
