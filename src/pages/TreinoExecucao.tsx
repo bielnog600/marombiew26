@@ -1177,6 +1177,13 @@ const TreinoExecucao = () => {
                 {!summary && repsLabel && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{repsLabel}</span>}
                 {rirLabel && <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">{rirLabel}</span>}
                 {isReal(exercise.pause) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.pause} descanso</span>}
+                {(exercise as { method?: { slug: string; params?: Record<string, string | number> } }).method?.slug && (
+                  <MethodBadge
+                    method={(exercise as { method?: { slug: string; params?: Record<string, string | number> } }).method}
+                    dayExercises={exercises}
+                    className="py-1"
+                  />
+                )}
               </div>
             );
           })()}
