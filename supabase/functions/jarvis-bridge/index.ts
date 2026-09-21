@@ -1370,6 +1370,82 @@ Deno.serve(async (req) => {
         const exIdx = ms[0].i;
         const before = JSON.parse(JSON.stringify(exercises[exIdx])) as Rec;
 
+        if (tipo === "aplicar_metodo") {
+          const slugRaw = m.metodo ?? m.method ?? null;
+          const after: Rec = { ...before };
+          if (slugRaw === null || slugRaw === undefined || String(slugRaw).trim() === "") {
+            delete after.method;
+          } else {
+            const slug = String(slugRaw).trim();
+            const found = metodosAtivos.find((mm) => mm.slug === slug);
+            if (!found) {
+              return fail(
+                "metodo_invalido",
+                { recebido: slug, valores_aceitos: metodosAtivos.map((mm) => mm.slug) },
+                404,
+              );
+            }
+            const params = (m.params ?? {}) as Rec;
+            const defaults = (found.default_parameters ?? null) as Rec | null;
+            const chavesValidas = defaults ? Object.keys(defaults) : null;
+            if (chavesValidas && chavesValidas.length > 0) {
+              const invalidas = Object.keys(params).filter(
+                (k) => k !== "com" && !chavesValidas.includes(k),
+              );
+              if (invalidas.length > 0) {
+                return fail("params_invalidos", { invalidas, validos: [...chavesValidas, "com"] });
+              }
+            }
+            const finalParams: Record<string, string | number> = {};
+            for (const [k, v] of Object.entries(params)) {
+              if (v === null || v === undefined || v === "") continue;
+              if (k === "com") {
+                const ref = String(v).trim();
+                const par = exercises.find(
+                  (e, i) =>
+                    i !== exIdx &&
+                    (e.id === ref ||
+                      e.exerciseId === ref ||
+                      normalizeName(e.exercise) === normalizeName(ref)),
+                );
+                if (!par) {
+                  return fail("par_nao_encontrado", { referencia: ref, exercicios: nomesDoDia }, 404);
+                }
+                finalParams.com = String(par.id ?? par.exercise);
+                continue;
+              }
+              finalParams[k] = typeof v === "number" ? v : String(v);
+            }
+            after.method = Object.keys(finalParams).length > 0
+              ? { slug, params: finalParams }
+              : { slug };
+          }
+          exercises[exIdx] = after;
+          touchedBefore.push({ dia: dayObj.day, ...before });
+          touchedAfter.push({ dia: dayObj.day, ...after });
+          aplicadas.push({ indice: idx, tipo, antes: before, depois: after });
+          continue;
+        }
+
+        if (tipo === "mover_exercicio") {
+          const pos = resolvePosicao(
+            exercises.filter((_, i) => i !== exIdx),
+            m.posicao,
+          );
+          if ("erro" in pos) return fail(pos.erro, pos.extra);
+          const [movido] = exercises.splice(exIdx, 1);
+          exercises.splice(pos.index, 0, movido);
+          touchedBefore.push({ dia: dayObj.day, ...before });
+          touchedAfter.push({ dia: dayObj.day, ...movido });
+          aplicadas.push({
+            indice: idx,
+            tipo,
+            antes: { exercicio: movido.exercise, posicao: exIdx + 1 },
+            depois: { exercicio: movido.exercise, posicao: pos.index + 1 },
+          });
+          continue;
+        }
+
         if (tipo === "ajustar_exercicio") {
           const campos = (m.campos ?? {}) as Rec;
           const keys = Object.keys(campos);
