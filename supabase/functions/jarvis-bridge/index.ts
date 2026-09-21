@@ -1508,11 +1508,16 @@ Deno.serve(async (req) => {
         }
 
         return fail("tipo_invalido", {
-          tipos: ["ajustar_exercicio", "trocar_exercicio", "adicionar_exercicio", "remover_exercicio", "observacao"],
+          tipos: [
+            "ajustar_exercicio", "trocar_exercicio", "adicionar_exercicio", "remover_exercicio",
+            "observacao", "aplicar_metodo", "mover_exercicio", "mover_exercicio_entre_dias",
+            "renomear_dia", "mover_dia", "trocar_dias", "adicionar_dia", "remover_dia",
+            "reordenar_dias",
+          ],
         });
       }
 
-      const novoMarkdown = workoutJsonToMarkdown(working);
+      const novoMarkdown = workoutJsonToMarkdown(working, methodLabels);
       const currentVersion = Number(plan.version ?? 1);
 
       const { data: adminRole, error: adminError } = await supabase
@@ -1592,6 +1597,7 @@ Deno.serve(async (req) => {
       return json({
         ok: true,
         aplicadas,
+        dias_removidos: diasRemovidos,
         content_revision: updated.content_revision,
         version: updated.version,
         alertas: posEdicao.alertas,
