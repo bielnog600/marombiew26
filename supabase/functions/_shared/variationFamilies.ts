@@ -99,13 +99,15 @@ const FAMILY_RULES: FamilyRule[] = [
   { family: "horizontal_row", match: (n) => /\b(REMADA|ROW|SERROTE)\b/.test(n) },
   { family: "shrug", match: (n) => /\b(ENCOLHIMENTO|SHRUG)\b/.test(n) },
 
+  // ---- Ombros (posterior ANTES de peito: "CRUCIFIXO INVERSO", "REAR DELT
+  // FLY" e "FACE PULL" são deltoide posterior, não crucifixo de peito)
+  { family: "rear_delt", match: (n) => /\b(REAR DELT|POSTERIOR DE OMBRO|CRUCIFIXO INVERSO|CRUCIFIXO INVERTIDO|DELTOIDE POSTERIOR|FACE PULL|INVERTIDO)\b/.test(n) },
+
   // ---- Peito
   { family: "chest_fly", match: (n) => /\b(CRUCIFIXO|VOADOR|PECK DECK|PEC DECK|FLY|CROSS OVER|CROSSOVER)\b/.test(n) },
   { family: "chest_press_incline", match: (n) => /\bSUPINO\b/.test(n) && /\bINCLINAD/.test(n) },
   { family: "chest_press_horizontal", match: (n) => /\b(SUPINO|CHEST PRESS|FLEXAO DE BRACO)\b/.test(n) },
 
-  // ---- Ombros
-  { family: "rear_delt", match: (n) => /\b(REAR DELT|POSTERIOR DE OMBRO|CRUCIFIXO INVERSO|DELTOIDE POSTERIOR|INVERTIDO)\b/.test(n) },
   { family: "lateral_raise", match: (n) => /\bELEVACAO LATERAL\b/.test(n) },
   { family: "front_raise", match: (n) => /\bELEVACAO FRONTAL\b/.test(n) },
   { family: "shoulder_press", match: (n) => /\b(DESENVOLVIMENTO|ARNOLD|MILITARY|OVERHEAD PRESS)\b/.test(n) },
