@@ -539,7 +539,25 @@ Deno.serve(async (req) => {
         .limit(1);
       if (error) return json({ erro: error.message }, 500);
 
-      return json({ plano: data?.[0] ?? null });
+      const plano = (data?.[0] ?? null) as Rec | null;
+      if (plano && tipo === "treino") {
+        const pj = (plano.conteudo_json ?? null) as Rec | null;
+        const dias = Array.isArray(pj?.days) ? (pj!.days as Rec[]) : [];
+        plano.dias = dias.map((d) => ({
+          dia: d.day,
+          focus: d.focus ?? null,
+          exercicios: (Array.isArray(d.exercises) ? (d.exercises as Rec[]) : []).map((e) => ({
+            exercicio: e.exercise,
+            variacao: e.variation ?? null,
+            series: e.series ?? null,
+            reps: e.reps ?? null,
+            rir: e.rir ?? null,
+            pausa: e.pause ?? null,
+            method: e.method ?? null,
+          })),
+        }));
+      }
+      return json({ plano });
     }
 
     if (operacao === "consultar_cargas") {
