@@ -788,6 +788,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                                   ExerciseNamePicker={ExerciseNamePicker}
                                   HistoryPopover={HistoryPopover}
                                   parsePauseSeconds={parsePauseSeconds}
+                                  dayExercises={studentA.days[studentA.activeDayIdx].exercises}
                                   progressionSnapshot={snapshotA}
                                 />
                               </SortableExerciseRow>
@@ -887,6 +888,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                                   ExerciseNamePicker={ExerciseNamePicker}
                                   HistoryPopover={HistoryPopover}
                                   parsePauseSeconds={(p) => 60}
+                                  dayExercises={studentB.days[studentB.activeDayIdx].exercises}
                                   progressionSnapshot={snapshotB}
                                 />
                               </SortableExerciseRow>

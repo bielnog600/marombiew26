@@ -28,6 +28,8 @@ export interface ParsedExercise {
     mode: 'uniform' | 'recognition_work' | 'per_set';
     sets: Array<{ set_number: number; set_type: 'work' | 'recognition'; target_reps: string }>;
   };
+  /** Método de treino aplicado (slug de `training_methods` + params opcionais). */
+  method?: { slug: string; params?: Record<string, string | number> };
 }
 
 export interface ParsedTrainingDay {

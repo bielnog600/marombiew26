@@ -344,7 +344,44 @@ const mdSeries = (ex: Rec): string => {
   return mdCell(ex.series);
 };
 
-function workoutJsonToMarkdown(plan: Rec): string | null {
+// ---------- métodos de treino (training_methods) ----------
+type MethodRef = { slug: string; params?: Record<string, string | number> };
+
+const methodParamText = (
+  params: Record<string, string | number> | undefined,
+  resolvePair?: (v: string) => string,
+): string => {
+  if (!params) return "";
+  const plural = (v: unknown, one: string, many: string) =>
+    `${v} ${Number(v) === 1 ? one : many}`;
+  const parts: string[] = [];
+  for (const [k, v] of Object.entries(params)) {
+    if (v === null || v === undefined || v === "") continue;
+    if (k === "com") { parts.push(`↔ ${resolvePair ? resolvePair(String(v)) : v}`); continue; }
+    if (k === "drops") parts.push(plural(v, "queda", "quedas"));
+    else if (k === "reducao_pct") parts.push(`−${v}%`);
+    else if (k === "pausa_s") parts.push(`pausa ${v}s`);
+    else if (k === "minis") parts.push(plural(v, "mini", "minis"));
+    else if (k === "intra_s") parts.push(`intra ${v}s`);
+    else if (k === "direcao") parts.push(String(v));
+    else parts.push(`${k.replace(/_/g, " ")}: ${v}`);
+  }
+  return parts.join(", ");
+};
+
+/** "DROP SET (2 quedas, −20%)" */
+const methodText = (
+  method: MethodRef | null | undefined,
+  labels: Record<string, string>,
+  resolvePair?: (v: string) => string,
+): string => {
+  if (!method?.slug) return "";
+  const label = (labels[method.slug] ?? method.slug.replace(/_/g, " ")).toUpperCase();
+  const p = methodParamText(method.params, resolvePair);
+  return p ? `${label} (${p})` : label;
+};
+
+function workoutJsonToMarkdown(plan: Rec, methodLabels: Record<string, string> = {}): string | null {
   const days = Array.isArray(plan.days) ? (plan.days as Rec[]) : null;
   if (!days) return null;
   const metadata = (plan.metadata ?? null) as Rec | null;
@@ -359,9 +396,17 @@ function workoutJsonToMarkdown(plan: Rec): string | null {
   lines.push("|---|---|---|---|---|---|---|---|---|");
   for (const day of days) {
     const exercises = Array.isArray(day.exercises) ? (day.exercises as Rec[]) : [];
+    const resolvePair = (v: string) => {
+      const found = exercises.find((e) => e.id === v || e.exerciseId === v);
+      return String(found?.exercise ?? v);
+    };
     for (const ex of exercises) {
+      const metodo = methodText(ex.method as MethodRef | null, methodLabels, resolvePair);
+      const desc = [metodo, String(ex.description ?? "").trim()]
+        .filter((s) => s && s !== "-")
+        .join(" · ");
       lines.push(
-        `| ${mdCell(day.day)} | ${mdCell(ex.exercise)} | ${mdSeries(ex)} | ${mdCell(ex.series2)} | ${mdReps(ex)} | ${mdCell(ex.rir)} | ${mdRest(ex)} | ${mdCell(ex.description)} | ${mdCell(ex.variation)} |`,
+        `| ${mdCell(day.day)} | ${mdCell(ex.exercise)} | ${mdSeries(ex)} | ${mdCell(ex.series2)} | ${mdReps(ex)} | ${mdCell(ex.rir)} | ${mdRest(ex)} | ${mdCell(desc)} | ${mdCell(ex.variation)} |`,
       );
     }
   }
@@ -494,7 +539,25 @@ Deno.serve(async (req) => {
         .limit(1);
       if (error) return json({ erro: error.message }, 500);
 
-      return json({ plano: data?.[0] ?? null });
+      const plano = (data?.[0] ?? null) as Rec | null;
+      if (plano && tipo === "treino") {
+        const pj = (plano.conteudo_json ?? null) as Rec | null;
+        const dias = Array.isArray(pj?.days) ? (pj!.days as Rec[]) : [];
+        plano.dias = dias.map((d) => ({
+          dia: d.day,
+          focus: d.focus ?? null,
+          exercicios: (Array.isArray(d.exercises) ? (d.exercises as Rec[]) : []).map((e) => ({
+            exercicio: e.exercise,
+            variacao: e.variation ?? null,
+            series: e.series ?? null,
+            reps: e.reps ?? null,
+            rir: e.rir ?? null,
+            pausa: e.pause ?? null,
+            method: e.method ?? null,
+          })),
+        }));
+      }
+      return json({ plano });
     }
 
     if (operacao === "consultar_cargas") {
@@ -1012,9 +1075,65 @@ Deno.serve(async (req) => {
         return matches;
       };
 
+      // catálogo de métodos ativos (aplicar_metodo + rótulos do markdown)
+      const { data: methodRows, error: methodError } = await supabase
+        .from("training_methods")
+        .select("slug, name, default_parameters, active")
+        .eq("active", true);
+      if (methodError) return json({ erro: methodError.message }, 500);
+      const metodosAtivos = (methodRows ?? []) as Array<{
+        slug: string;
+        name: string;
+        default_parameters: Rec | null;
+      }>;
+      const methodLabels: Record<string, string> = Object.fromEntries(
+        metodosAtivos.map((m) => [m.slug, m.name]),
+      );
+
+      const nomesDosDias = () => days.map((d) => (d as Rec).day);
+      const novoDiaId = (i: number) => `day-jarvis-${Date.now()}-${i}`;
+
+      /** Resolve `posicao` (1-based | "inicio" | "fim" | {antes_de} | {depois_de}). */
+      const resolvePosicao = (
+        lista: Rec[],
+        posicao: unknown,
+      ): { index: number } | { erro: string; extra: Rec } => {
+        if (posicao === null || posicao === undefined || posicao === "") {
+          return { index: lista.length };
+        }
+        if (typeof posicao === "number" || /^\d+$/.test(String(posicao))) {
+          const n = Math.trunc(Number(posicao));
+          if (!Number.isFinite(n) || n < 1 || n > lista.length + 1) {
+            return { erro: "posicao_invalida", extra: { maximo: lista.length + 1 } };
+          }
+          return { index: n - 1 };
+        }
+        if (typeof posicao === "string") {
+          const p = normalizeName(posicao);
+          if (p === "inicio") return { index: 0 };
+          if (p === "fim") return { index: lista.length };
+          return { erro: "posicao_invalida", extra: { aceitos: ["inicio", "fim", "número", "antes_de", "depois_de"] } };
+        }
+        if (typeof posicao === "object") {
+          const o = posicao as Rec;
+          const ref = String(o.antes_de ?? o.depois_de ?? "").trim();
+          if (!ref) return { erro: "posicao_invalida", extra: {} };
+          const i = lista.findIndex((e) => normalizeName(e.exercise) === normalizeName(ref));
+          if (i < 0) {
+            return {
+              erro: "referencia_nao_encontrada",
+              extra: { referencia: ref, exercicios: lista.map((e) => e.exercise) },
+            };
+          }
+          return { index: o.antes_de ? i : i + 1 };
+        }
+        return { erro: "posicao_invalida", extra: {} };
+      };
+
       const aplicadas: Rec[] = [];
       const touchedBefore: Rec[] = [];
       const touchedAfter: Rec[] = [];
+      const diasRemovidos: Rec[] = [];
 
       for (let idx = 0; idx < mudancas.length; idx++) {
         const m = mudancas[idx] ?? {};
@@ -1024,6 +1143,194 @@ Deno.serve(async (req) => {
         const tipo = String(m.tipo ?? "").trim();
         const dia = String(m.dia ?? "").trim();
         const exercicio = String(m.exercicio ?? "").trim();
+
+        // ---------- operações no nível do DIA ----------
+        if (tipo === "renomear_dia") {
+          if (!dia) return fail("dia_obrigatorio");
+          const dm = findDay(dia);
+          if (dm.length === 0) return fail("dia_nao_encontrado", { dias: nomesDosDias() }, 404);
+          if (dm.length > 1) return fail("dia_ambiguo", { dias: nomesDosDias() }, 404);
+          const novoNome = String(m.novo_nome ?? "").trim();
+          if (!novoNome) return fail("novo_nome_obrigatorio");
+          const alvo = dm[0].d as Rec;
+          const antes = { day: alvo.day, focus: alvo.focus ?? null };
+          alvo.day = novoNome;
+          if (typeof m.focus === "string") alvo.focus = m.focus.trim();
+          aplicadas.push({ indice: idx, tipo, antes, depois: { day: alvo.day, focus: alvo.focus ?? null } });
+          continue;
+        }
+
+        if (tipo === "mover_dia") {
+          if (!dia) return fail("dia_obrigatorio");
+          const dm = findDay(dia);
+          if (dm.length === 0) return fail("dia_nao_encontrado", { dias: nomesDosDias() }, 404);
+          if (dm.length > 1) return fail("dia_ambiguo", { dias: nomesDosDias() }, 404);
+          const destino = String(m.novo_dia_semana ?? "").trim();
+          if (!destino) return fail("novo_dia_semana_obrigatorio");
+          const ocupado = days.some(
+            (d, i) => i !== dm[0].i && normalizeName((d as Rec).day) === normalizeName(destino),
+          );
+          if (ocupado) {
+            return fail(
+              "dia_ocupado",
+              { destino, sugestao: { tipo: "trocar_dias", dia_a: dia, dia_b: destino } },
+              409,
+            );
+          }
+          const alvo = dm[0].d as Rec;
+          const antes = { day: alvo.day };
+          alvo.day = destino;
+          aplicadas.push({ indice: idx, tipo, antes, depois: { day: alvo.day } });
+          continue;
+        }
+
+        if (tipo === "trocar_dias") {
+          const diaA = String(m.dia_a ?? "").trim();
+          const diaB = String(m.dia_b ?? "").trim();
+          if (!diaA || !diaB) return fail("dia_a_e_dia_b_obrigatorios");
+          const a = findDay(diaA);
+          const b = findDay(diaB);
+          if (a.length === 0 || b.length === 0) {
+            return fail("dia_nao_encontrado", { dias: nomesDosDias() }, 404);
+          }
+          if (a.length > 1 || b.length > 1) return fail("dia_ambiguo", { dias: nomesDosDias() }, 404);
+          const da = a[0].d as Rec;
+          const db = b[0].d as Rec;
+          const tmp = da.day;
+          da.day = db.day;
+          db.day = tmp;
+          aplicadas.push({
+            indice: idx,
+            tipo,
+            antes: { dia_a: db.day, dia_b: da.day },
+            depois: { dia_a: da.day, dia_b: db.day },
+          });
+          continue;
+        }
+
+        if (tipo === "adicionar_dia") {
+          const nome = String(m.nome ?? "").trim();
+          const diaSemana = String(m.dia_semana ?? "").trim();
+          const label = diaSemana || nome;
+          if (!label) return fail("nome_ou_dia_semana_obrigatorio");
+          if (days.some((d) => normalizeName((d as Rec).day) === normalizeName(label))) {
+            return fail("dia_ocupado", { destino: label, dias: nomesDosDias() }, 409);
+          }
+          const exerciciosRaw = Array.isArray(m.exercicios) ? (m.exercicios as Rec[]) : [];
+          const novosExercicios: Rec[] = [];
+          for (let j = 0; j < exerciciosRaw.length; j++) {
+            const e = exerciciosRaw[j] ?? {};
+            const nomeEx = String(e.exercicio ?? "").trim();
+            if (!nomeEx) return fail("exercicio_obrigatorio", { posicao_lista: j });
+            const cat = findCatalog(nomeEx);
+            if (cat.length === 0) {
+              return fail(
+                "exercicio_inexistente_na_base",
+                { exercicio: nomeEx, sugestoes: similares(nomeEx) },
+                404,
+              );
+            }
+            novosExercicios.push({
+              id: `ex-jarvis-${Date.now()}-${idx}-${j}`,
+              exercise: cat[0].nome,
+              exerciseId: cat[0].id,
+              series: String(e.series ?? ""),
+              reps: String(e.reps ?? ""),
+              rir: String(e.rir ?? ""),
+              pause: String(e.pause ?? ""),
+            });
+          }
+          const novoDia: Rec = {
+            id: novoDiaId(idx),
+            day: label,
+            focus: typeof m.focus === "string" ? m.focus.trim() : (nome && nome !== label ? nome : ""),
+            exercises: novosExercicios,
+          };
+          days.push(novoDia);
+          aplicadas.push({ indice: idx, tipo, antes: null, depois: novoDia });
+          continue;
+        }
+
+        if (tipo === "remover_dia") {
+          if (!dia) return fail("dia_obrigatorio");
+          const dm = findDay(dia);
+          if (dm.length === 0) return fail("dia_nao_encontrado", { dias: nomesDosDias() }, 404);
+          if (dm.length > 1) return fail("dia_ambiguo", { dias: nomesDosDias() }, 404);
+          if (days.length <= 1) return fail("ultimo_dia_nao_pode_ser_removido");
+          const [removido] = days.splice(dm[0].i, 1) as Rec[];
+          const exsRemovidos = Array.isArray(removido.exercises) ? (removido.exercises as Rec[]) : [];
+          diasRemovidos.push({ dia: removido.day, exercicios: exsRemovidos });
+          aplicadas.push({ indice: idx, tipo, antes: removido, depois: null });
+          continue;
+        }
+
+        if (tipo === "reordenar_dias") {
+          const ordem = Array.isArray(m.ordem) ? (m.ordem as unknown[]).map((v) => String(v).trim()) : null;
+          if (!ordem || ordem.length === 0) return fail("ordem_obrigatoria", { dias: nomesDosDias() });
+          if (ordem.length !== days.length) {
+            return fail("ordem_incompleta", { dias: nomesDosDias(), recebidos: ordem });
+          }
+          const restantes = days.slice();
+          const nova: Rec[] = [];
+          for (const nome of ordem) {
+            const i = restantes.findIndex((d) => normalizeName((d as Rec).day) === normalizeName(nome));
+            if (i < 0) return fail("dia_nao_encontrado", { dia: nome, dias: nomesDosDias() }, 404);
+            nova.push(restantes.splice(i, 1)[0]);
+          }
+          const antes = nomesDosDias();
+          days.length = 0;
+          days.push(...nova);
+          aplicadas.push({ indice: idx, tipo, antes, depois: nomesDosDias() });
+          continue;
+        }
+
+        if (tipo === "mover_exercicio_entre_dias") {
+          const diaOrigem = String(m.dia_origem ?? dia).trim();
+          const diaDestino = String(m.dia_destino ?? "").trim();
+          if (!diaOrigem) return fail("dia_origem_obrigatorio");
+          if (!diaDestino) return fail("dia_destino_obrigatorio");
+          if (!exercicio) return fail("exercicio_obrigatorio");
+          const origem = findDay(diaOrigem);
+          const destino = findDay(diaDestino);
+          if (origem.length === 0 || destino.length === 0) {
+            return fail("dia_nao_encontrado", { dias: nomesDosDias() }, 404);
+          }
+          if (origem.length > 1 || destino.length > 1) {
+            return fail("dia_ambiguo", { dias: nomesDosDias() }, 404);
+          }
+          const dOrigem = origem[0].d as { day?: unknown; exercises?: Rec[] };
+          const dDestino = destino[0].d as { day?: unknown; exercises?: Rec[] };
+          if (!Array.isArray(dOrigem.exercises)) dOrigem.exercises = [];
+          if (!Array.isArray(dDestino.exercises)) dDestino.exercises = [];
+          const listaOrigem = dOrigem.exercises as Rec[];
+          const listaDestino = dDestino.exercises as Rec[];
+          const achados = listaOrigem
+            .map((e, i) => ({ e, i }))
+            .filter(({ e }) => normalizeName(e.exercise) === normalizeName(exercicio));
+          if (achados.length === 0) {
+            return fail("exercicio_nao_encontrado", { exercicios: listaOrigem.map((e) => e.exercise) }, 404);
+          }
+          if (achados.length > 1) {
+            return fail("exercicio_ambiguo", { exercicios: listaOrigem.map((e) => e.exercise) }, 404);
+          }
+          const [movido] = listaOrigem.splice(achados[0].i, 1);
+          const pos = resolvePosicao(listaDestino, m.posicao);
+          if ("erro" in pos) {
+            listaOrigem.splice(achados[0].i, 0, movido);
+            return fail(pos.erro, pos.extra);
+          }
+          listaDestino.splice(pos.index, 0, movido);
+          touchedBefore.push({ dia: dOrigem.day, ...movido });
+          touchedAfter.push({ dia: dDestino.day, ...movido });
+          aplicadas.push({
+            indice: idx,
+            tipo,
+            antes: { dia: dOrigem.day, exercicio: movido.exercise },
+            depois: { dia: dDestino.day, exercicio: movido.exercise, posicao: pos.index + 1 },
+          });
+          continue;
+        }
+
         if (!dia) return fail("dia_obrigatorio");
         if (!exercicio) return fail("exercicio_obrigatorio");
 
@@ -1080,6 +1387,82 @@ Deno.serve(async (req) => {
         if (ms.length > 1) return fail("exercicio_ambiguo", { exercicios: nomesDoDia }, 404);
         const exIdx = ms[0].i;
         const before = JSON.parse(JSON.stringify(exercises[exIdx])) as Rec;
+
+        if (tipo === "aplicar_metodo") {
+          const slugRaw = m.metodo ?? m.method ?? null;
+          const after: Rec = { ...before };
+          if (slugRaw === null || slugRaw === undefined || String(slugRaw).trim() === "") {
+            delete after.method;
+          } else {
+            const slug = String(slugRaw).trim();
+            const found = metodosAtivos.find((mm) => mm.slug === slug);
+            if (!found) {
+              return fail(
+                "metodo_invalido",
+                { recebido: slug, valores_aceitos: metodosAtivos.map((mm) => mm.slug) },
+                404,
+              );
+            }
+            const params = (m.params ?? {}) as Rec;
+            const defaults = (found.default_parameters ?? null) as Rec | null;
+            const chavesValidas = defaults ? Object.keys(defaults) : null;
+            if (chavesValidas && chavesValidas.length > 0) {
+              const invalidas = Object.keys(params).filter(
+                (k) => k !== "com" && !chavesValidas.includes(k),
+              );
+              if (invalidas.length > 0) {
+                return fail("params_invalidos", { invalidas, validos: [...chavesValidas, "com"] });
+              }
+            }
+            const finalParams: Record<string, string | number> = {};
+            for (const [k, v] of Object.entries(params)) {
+              if (v === null || v === undefined || v === "") continue;
+              if (k === "com") {
+                const ref = String(v).trim();
+                const par = exercises.find(
+                  (e, i) =>
+                    i !== exIdx &&
+                    (e.id === ref ||
+                      e.exerciseId === ref ||
+                      normalizeName(e.exercise) === normalizeName(ref)),
+                );
+                if (!par) {
+                  return fail("par_nao_encontrado", { referencia: ref, exercicios: nomesDoDia }, 404);
+                }
+                finalParams.com = String(par.id ?? par.exercise);
+                continue;
+              }
+              finalParams[k] = typeof v === "number" ? v : String(v);
+            }
+            after.method = Object.keys(finalParams).length > 0
+              ? { slug, params: finalParams }
+              : { slug };
+          }
+          exercises[exIdx] = after;
+          touchedBefore.push({ dia: dayObj.day, ...before });
+          touchedAfter.push({ dia: dayObj.day, ...after });
+          aplicadas.push({ indice: idx, tipo, antes: before, depois: after });
+          continue;
+        }
+
+        if (tipo === "mover_exercicio") {
+          const pos = resolvePosicao(
+            exercises.filter((_, i) => i !== exIdx),
+            m.posicao,
+          );
+          if ("erro" in pos) return fail(pos.erro, pos.extra);
+          const [movido] = exercises.splice(exIdx, 1);
+          exercises.splice(pos.index, 0, movido);
+          touchedBefore.push({ dia: dayObj.day, ...before });
+          touchedAfter.push({ dia: dayObj.day, ...movido });
+          aplicadas.push({
+            indice: idx,
+            tipo,
+            antes: { exercicio: movido.exercise, posicao: exIdx + 1 },
+            depois: { exercicio: movido.exercise, posicao: pos.index + 1 },
+          });
+          continue;
+        }
 
         if (tipo === "ajustar_exercicio") {
           const campos = (m.campos ?? {}) as Rec;
@@ -1143,11 +1526,16 @@ Deno.serve(async (req) => {
         }
 
         return fail("tipo_invalido", {
-          tipos: ["ajustar_exercicio", "trocar_exercicio", "adicionar_exercicio", "remover_exercicio", "observacao"],
+          tipos: [
+            "ajustar_exercicio", "trocar_exercicio", "adicionar_exercicio", "remover_exercicio",
+            "observacao", "aplicar_metodo", "mover_exercicio", "mover_exercicio_entre_dias",
+            "renomear_dia", "mover_dia", "trocar_dias", "adicionar_dia", "remover_dia",
+            "reordenar_dias",
+          ],
         });
       }
 
-      const novoMarkdown = workoutJsonToMarkdown(working);
+      const novoMarkdown = workoutJsonToMarkdown(working, methodLabels);
       const currentVersion = Number(plan.version ?? 1);
 
       const { data: adminRole, error: adminError } = await supabase
@@ -1227,6 +1615,7 @@ Deno.serve(async (req) => {
       return json({
         ok: true,
         aplicadas,
+        dias_removidos: diasRemovidos,
         content_revision: updated.content_revision,
         version: updated.version,
         alertas: posEdicao.alertas,

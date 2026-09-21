@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ParsedTrainingDay, ParsedExercise } from "./trainingResultParser";
+import { normalizeWorkoutMethod } from "./trainingMethods";
 
 /**
  * Workout plan v2 — JSON-first source of truth.
@@ -58,6 +59,17 @@ export type SetSchemeSet = z.infer<typeof SetSchemeSetSchema>;
 export type SetScheme = z.infer<typeof SetSchemeSchema>;
 
 /**
+ * Método de treino do exercício (drop set, rest-pause, supersérie…).
+ * `slug` referencia `training_methods.slug` ativo.
+ */
+export const WorkoutMethodSchema = z.object({
+  slug: z.string().min(1),
+  params: z.record(z.union([z.string(), z.number()])).optional(),
+});
+
+export type WorkoutMethod = { slug: string; params?: Record<string, string | number> };
+
+/**
  * Reps / load are kept as strings because trainers use ranges ("8-12"),
  * tempos ("3-1-1"), or letters ("AMRAP"). We do, however, validate that
  * it is a string and trim it so consumers can rely on the shape.
@@ -107,6 +119,12 @@ export const WorkoutExerciseSchema = z.object({
     .transform((v) => normalizeTargetLoadPerSetValue(v))
     .optional(),
   setScheme: SetSchemeSchema.optional(),
+  /**
+   * Método de treino aplicado ao exercício. `slug` deve existir e estar ativo
+   * em `training_methods`; a validação contra o catálogo é feita por
+   * `validateWorkoutMethod` (precisa do banco) — aqui validamos só a forma.
+   */
+  method: WorkoutMethodSchema.optional(),
 });
 
 export type WorkoutExercise = z.infer<typeof WorkoutExerciseSchema>;
@@ -221,6 +239,7 @@ export const parsedDaysToWorkoutPlan = (
       targetLoadNote: e.targetLoadNote ?? null,
       targetLoadPerSet: normalizeTargetLoadPerSetValue(e.targetLoadPerSet),
       setScheme: e.setScheme,
+      method: normalizeWorkoutMethod(e.method),
     })),
   })),
 });
@@ -245,6 +264,7 @@ export const workoutPlanToParsedDays = (plan: WorkoutPlan): ParsedTrainingDay[] 
       targetLoadNote: e.targetLoadNote ?? null,
       targetLoadPerSet: normalizeTargetLoadPerSetValue(e.targetLoadPerSet),
       setScheme: e.setScheme as ParsedExercise["setScheme"],
+      method: e.method as ParsedExercise["method"],
     })),
   }));
 
@@ -301,6 +321,7 @@ export const normalizeWorkoutPlan = (raw: unknown): WorkoutPlan | null => {
                     : null,
                 targetLoadPerSet: normalizeTargetLoadPerSetValue(e.targetLoadPerSet),
                 setScheme: normalizeSetScheme(e.setScheme ?? e.set_scheme),
+                method: normalizeWorkoutMethod(e.method ?? e.metodo),
               }))
               .filter((e: WorkoutExercise) => e.exercise.length > 0)
           : [],
