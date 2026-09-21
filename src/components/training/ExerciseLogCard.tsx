@@ -8,6 +8,7 @@ import { Dumbbell, Save, Loader2, Check, Timer, Plus, Minus, Trash2, X, Settings
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { ExercisePicker } from '@/components/tabata/ExercisePicker';
 import { ProgressionHintCard } from './ProgressionHintCard';
+import MethodBadge from './MethodBadge';
 import { getRecommendationFor, targetLoadForSet, type ProgressionSnapshot } from '@/lib/sessionProgression';
 
 interface SetEntry {
@@ -59,6 +60,8 @@ interface Props {
   HistoryPopover: React.FC<any>;
   parsePauseSeconds: (raw?: string | null) => number;
   progressionSnapshot?: ProgressionSnapshot | null;
+  /** Exercícios do dia — usados para nomear o par de bi-set/tri-set no badge. */
+  dayExercises?: any[];
 }
 
 type StructureMode = 'standard' | 'recognition' | 'per_set';
