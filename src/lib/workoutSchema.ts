@@ -59,6 +59,17 @@ export type SetSchemeSet = z.infer<typeof SetSchemeSetSchema>;
 export type SetScheme = z.infer<typeof SetSchemeSchema>;
 
 /**
+ * Método de treino do exercício (drop set, rest-pause, supersérie…).
+ * `slug` referencia `training_methods.slug` ativo.
+ */
+export const WorkoutMethodSchema = z.object({
+  slug: z.string().min(1),
+  params: z.record(z.union([z.string(), z.number()])).optional(),
+});
+
+export type WorkoutMethod = z.infer<typeof WorkoutMethodSchema>;
+
+/**
  * Reps / load are kept as strings because trainers use ranges ("8-12"),
  * tempos ("3-1-1"), or letters ("AMRAP"). We do, however, validate that
  * it is a string and trim it so consumers can rely on the shape.
