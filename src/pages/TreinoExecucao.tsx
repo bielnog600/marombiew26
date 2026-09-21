@@ -28,6 +28,7 @@ import { useRestTimer } from '@/hooks/useRestTimer';
 import { useSessionProgression } from '@/hooks/useSessionProgression';
 import { getRecommendationFor, targetLoadForSet, type ProgressionSnapshot } from '@/lib/sessionProgression';
 import { ProgressionHintCard } from '@/components/training/ProgressionHintCard';
+import MethodBadge from '@/components/training/MethodBadge';
 
 
 import {
