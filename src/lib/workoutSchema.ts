@@ -321,6 +321,7 @@ export const normalizeWorkoutPlan = (raw: unknown): WorkoutPlan | null => {
                     : null,
                 targetLoadPerSet: normalizeTargetLoadPerSetValue(e.targetLoadPerSet),
                 setScheme: normalizeSetScheme(e.setScheme ?? e.set_scheme),
+                method: normalizeWorkoutMethod(e.method ?? e.metodo),
               }))
               .filter((e: WorkoutExercise) => e.exercise.length > 0)
           : [],

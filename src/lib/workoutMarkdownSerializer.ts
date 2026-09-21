@@ -1,5 +1,6 @@
 import type { WorkoutPlan } from "./workoutSchema";
 import { workoutPlanToParsedDays } from "./workoutSchema";
+import { formatMethodForMarkdown } from "./trainingMethods";
 
 /**
  * JSON -> markdown serializer. The markdown is a derived artifact used for
