@@ -5,6 +5,7 @@
  *   consultar_treino_hoje   { student_id }
  *   agendar_treino          { student_id, data: "YYYY-MM-DD", hora: "HH:MM", duracao_min?, observacao?, forcar? }
  *   remarcar_treino         { agendamento_id, nova_data: "YYYY-MM-DD", nova_hora?, forcar? }
+ *   resumo_do_dia           { data?: "YYYY-MM-DD", student_id? }  → agenda do dia + treinos realizados
  *
  * Usa as mesmas tabelas e o mesmo jeito de gravar da tela Agenda:
  * calendar_events (o horário) + calendar_event_students (o aluno).
@@ -212,6 +213,7 @@ export async function tratarAgenda(
       "consultar_treino_hoje",
       "agendar_treino",
       "remarcar_treino",
+      "resumo_do_dia",
     ].includes(operacao)
   ) {
     return null;
@@ -238,6 +240,10 @@ export async function tratarAgenda(
     );
     const itens = eventos.map(mapearEvento);
     return json({ tem_treino: itens.length > 0, itens, hoje });
+  }
+
+  if (operacao === "resumo_do_dia") {
+    return json(await resumoDoDia(supabase, dataValida(body.data) ?? hoje, String(body.student_id ?? "").trim() || null));
   }
 
   if (operacao === "agendar_treino") {
@@ -381,4 +387,170 @@ export async function tratarAgenda(
     .eq("id", agendamentoId);
 
   return json({ agendamento: mapearEvento(novo) });
+}
+
+/* ─────────────── resumo do dia: agenda + treinos realizados ─────────────── */
+
+function horaLisboa(valor: unknown): string | null {
+  if (typeof valor !== "string" || !valor) return null;
+  const d = new Date(valor);
+  return Number.isNaN(d.getTime()) ? null : partesNoFuso(d).hora;
+}
+
+function numero(valor: unknown): number | null {
+  const n = typeof valor === "string" ? Number(valor) : valor;
+  return typeof n === "number" && Number.isFinite(n) ? n : null;
+}
+
+async function nomesDosAlunos(supabase: Db, ids: string[]): Promise<Map<string, string>> {
+  const unicos = [...new Set(ids.filter(Boolean))];
+  if (unicos.length === 0) return new Map();
+  const { data } = await supabase.from("profiles").select("user_id, nome").in("user_id", unicos);
+  return new Map(((data ?? []) as Rec[]).map((p) => [String(p.user_id), String(p.nome ?? "").trim()]));
+}
+
+async function resumoDoDia(supabase: Db, data: string, studentId: string | null) {
+  const de = lisboaParaUtc(data, "00:00").toISOString();
+  const ate = lisboaParaUtc(somarDias(data, 1), "00:00").toISOString();
+
+  // Agenda do dia (todos os horários do Fabiew, ou só do aluno pedido).
+  const { data: eventosBrutos, error: erroEventos } = await supabase
+    .from("calendar_events")
+    .select(
+      "id, title, event_type, start_datetime, end_datetime, status, calendar_event_students(student_id, attendance_status)",
+    )
+    .gte("start_datetime", de)
+    .lt("start_datetime", ate)
+    .order("start_datetime", { ascending: true });
+  if (erroEventos) throw new Error(erroEventos.message);
+  const eventos = ((eventosBrutos ?? []) as Rec[])
+    .filter((ev) => !STATUS_IGNORADOS.includes(String(ev.status)))
+    .filter(
+      (ev) =>
+        !studentId ||
+        ((ev.calendar_event_students ?? []) as Rec[]).some((s) => s.student_id === studentId),
+    );
+
+  // Treinos do dia (sessões iniciadas no dia, no horário de Lisboa).
+  let consulta = supabase
+    .from("workout_sessions")
+    .select(
+      "id, student_id, day_name, phase, status, duration_minutes, exercises_completed, total_exercises, total_sets, total_volume_kg, avg_rpe, started_at, started_at_real, completed_at, completed_at_real, executed_by, session_mode, created_at",
+    )
+    .or(
+      `and(started_at.gte.${de},started_at.lt.${ate}),and(started_at.is.null,created_at.gte.${de},created_at.lt.${ate})`,
+    )
+    .order("started_at", { ascending: true });
+  if (studentId) consulta = consulta.eq("student_id", studentId);
+  const { data: sessoesBrutas, error: erroSessoes } = await consulta;
+  if (erroSessoes) throw new Error(erroSessoes.message);
+  const todas = (sessoesBrutas ?? []) as Rec[];
+  const sessoes = todas.filter((s) => s.status !== "abandoned");
+  const abandonadas = todas.length - sessoes.length;
+
+  // Séries registradas das sessões (para exercícios, volume e melhor série).
+  const idsSessao = sessoes.map((s) => String(s.id));
+  const logsPorSessao = new Map<string, Rec[]>();
+  if (idsSessao.length > 0) {
+    const { data: logs } = await supabase
+      .from("exercise_set_logs")
+      .select("session_id, exercise_name, set_number, reps, weight_kg, rpe, rir")
+      .in("session_id", idsSessao)
+      .order("set_number", { ascending: true });
+    for (const log of (logs ?? []) as Rec[]) {
+      const chave = String(log.session_id);
+      logsPorSessao.set(chave, [...(logsPorSessao.get(chave) ?? []), log]);
+    }
+  }
+
+  const nomes = await nomesDosAlunos(supabase, [
+    ...sessoes.map((s) => String(s.student_id)),
+    ...eventos.flatMap((ev) =>
+      ((ev.calendar_event_students ?? []) as Rec[]).map((s) => String(s.student_id)),
+    ),
+  ]);
+
+  const agenda = eventos.map((ev) => {
+    const alunos = ((ev.calendar_event_students ?? []) as Rec[]).map((s) => ({
+      student_id: s.student_id,
+      nome: nomes.get(String(s.student_id)) ?? null,
+      presenca: s.attendance_status ?? null,
+    }));
+    return {
+      agendamento_id: ev.id,
+      hora: horaLisboa(ev.start_datetime),
+      hora_fim: horaLisboa(ev.end_datetime),
+      titulo: ev.title ?? null,
+      tipo: ev.event_type ?? null,
+      status: ev.status ?? null,
+      realizado: ev.status === "concluido",
+      alunos,
+    };
+  });
+
+  const realizados = sessoes.map((s) => {
+    const logs = logsPorSessao.get(String(s.id)) ?? [];
+    const porExercicio = new Map<string, { series: number; volume: number; melhor: Rec | null }>();
+    for (const log of logs) {
+      const nome = String(log.exercise_name ?? "-");
+      const atual = porExercicio.get(nome) ?? { series: 0, volume: 0, melhor: null };
+      const peso = numero(log.weight_kg) ?? 0;
+      const reps = numero(log.reps) ?? 0;
+      atual.series += 1;
+      atual.volume += peso * reps;
+      const melhorPeso = numero(atual.melhor?.weight_kg) ?? -1;
+      if (!atual.melhor || peso > melhorPeso) atual.melhor = log;
+      porExercicio.set(nome, atual);
+    }
+    const exercicios = [...porExercicio.entries()].map(([nome, info]) => {
+      const peso = numero(info.melhor?.weight_kg);
+      const reps = numero(info.melhor?.reps);
+      return {
+        exercicio: nome,
+        series: info.series,
+        melhor_serie:
+          peso !== null && peso > 0
+            ? `${peso} kg x ${reps ?? "?"}`
+            : reps !== null
+              ? `${reps} reps`
+              : null,
+        volume_kg: Math.round(info.volume),
+      };
+    });
+    const volumeLogs = exercicios.reduce((acc, e) => acc + e.volume_kg, 0);
+    const inicio = (s.started_at_real ?? s.started_at ?? s.created_at) as string | null;
+    const fim = (s.completed_at_real ?? s.completed_at) as string | null;
+    const duracao =
+      numero(s.duration_minutes) ||
+      (inicio && fim
+        ? Math.max(0, Math.round((new Date(fim).getTime() - new Date(inicio).getTime()) / 60000))
+        : null);
+    return {
+      sessao_id: s.id,
+      student_id: s.student_id,
+      aluno_nome: nomes.get(String(s.student_id)) ?? null,
+      dia_treino: s.day_name ?? null,
+      fase: s.phase ?? null,
+      status: s.status,
+      inicio: horaLisboa(inicio),
+      fim: s.status === "in_progress" ? null : horaLisboa(fim),
+      duracao_min: s.status === "in_progress" ? null : duracao,
+      exercicios_feitos: numero(s.exercises_completed),
+      exercicios_total: numero(s.total_exercises),
+      series: numero(s.total_sets) || logs.length,
+      volume_kg: Math.round(numero(s.total_volume_kg) || volumeLogs) || null,
+      rpe_medio: numero(s.avg_rpe),
+      feito_com: s.executed_by === "coach" ? "com o Fabiew" : "sozinho(a) no app",
+      modo: s.session_mode ?? null,
+      exercicios,
+    };
+  });
+
+  return {
+    data,
+    dia: diaDaSemana(data),
+    agenda,
+    realizados,
+    abandonados: abandonadas,
+  };
 }
