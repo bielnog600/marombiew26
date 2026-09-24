@@ -2,6 +2,7 @@
 // Autenticação por header X-Jarvis-Token (secret JARVIS_BRIDGE_TOKEN).
 // Nunca registra o token em logs. Puramente aditivo: não altera nada do projeto.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { tratarAgenda } from "./agenda.ts";
 import { loadFoodCatalog } from "../_shared/foodCatalog.ts";
 import { hydrateDietPlanFromFoods } from "../_shared/dietHydration.ts";
 import { canonicalDietPlanToMarkdown } from "../_shared/canonicalDietMarkdown.ts";
@@ -487,6 +488,9 @@ Deno.serve(async (req) => {
   });
 
   try {
+    const respostaAgenda = await tratarAgenda(operacao, body, supabase);
+    if (respostaAgenda) return respostaAgenda;
+
     if (operacao === "buscar_aluno") {
       const nome = String(body.nome ?? "").trim();
       if (!nome) return json({ erro: "nome_obrigatorio" }, 400);
