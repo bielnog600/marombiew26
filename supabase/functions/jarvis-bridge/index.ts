@@ -1377,9 +1377,9 @@ Deno.serve(async (req) => {
             reps: "",
             ...campos,
           };
-          const posicao = String(m.posicao ?? "fim").trim().toLowerCase();
-          if (posicao === "inicio" || posicao === "início") exercises.unshift(novo);
-          else exercises.push(novo);
+          const pos = resolvePosicao(exercises, m.posicao ?? "fim");
+          if ("erro" in pos) return fail(pos.erro, pos.extra);
+          exercises.splice(pos.index, 0, novo);
           touchedBefore.push({ dia: dayObj.day, exercise: null });
           touchedAfter.push({ dia: dayObj.day, ...novo });
           aplicadas.push({ indice: idx, antes: null, depois: novo });
