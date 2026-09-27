@@ -4,6 +4,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { tratarAgenda } from "./agenda.ts";
 import { checarMetaDoPlano, tratarMeta } from "./meta.ts";
+import { tratarRefeicao } from "./refeicao.ts";
 import { loadFoodCatalog } from "../_shared/foodCatalog.ts";
 import { hydrateDietPlanFromFoods } from "../_shared/dietHydration.ts";
 import { canonicalDietPlanToMarkdown } from "../_shared/canonicalDietMarkdown.ts";
@@ -494,6 +495,9 @@ Deno.serve(async (req) => {
 
     const respostaMeta = await tratarMeta(operacao, body, supabase);
     if (respostaMeta) return respostaMeta;
+
+    const respostaRefeicao = await tratarRefeicao(operacao, body, supabase);
+    if (respostaRefeicao) return respostaRefeicao;
 
     if (operacao === "buscar_aluno") {
       const nome = String(body.nome ?? "").trim();
@@ -1863,9 +1867,13 @@ Deno.serve(async (req) => {
         if (tipo === "adicionar_alimento") {
           const nome = String(m.alimento ?? "").trim();
           const qty = Number(m.quantidade_g);
-          if (!nome) return fail("alimento_obrigatorio");
+          // food_id (opcional) vence o nome: evita alimento com nome repetido no catálogo.
+          const foodIdPedido = String(m.food_id ?? "").trim();
+          const porId = foodIdPedido ? catalog.index.byId.get(foodIdPedido) : undefined;
+          if (foodIdPedido && !porId) return fail("food_id_inexistente", {}, 404);
+          if (!nome && !porId) return fail("alimento_obrigatorio");
           if (!Number.isFinite(qty) || qty <= 0) return fail("quantidade_g_invalida");
-          const { matches } = findFood(nome);
+          const { matches } = porId ? { matches: [porId] } : findFood(nome);
           if (matches.length === 0) {
             return fail("alimento_inexistente_na_base", { sugestoes: foodsSimilares(nome) }, 404);
           }
