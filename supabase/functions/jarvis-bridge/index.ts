@@ -3,6 +3,7 @@
 // Nunca registra o token em logs. Puramente aditivo: não altera nada do projeto.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { tratarAgenda } from "./agenda.ts";
+import { checarMetaDoPlano, tratarMeta } from "./meta.ts";
 import { loadFoodCatalog } from "../_shared/foodCatalog.ts";
 import { hydrateDietPlanFromFoods } from "../_shared/dietHydration.ts";
 import { canonicalDietPlanToMarkdown } from "../_shared/canonicalDietMarkdown.ts";
@@ -491,6 +492,9 @@ Deno.serve(async (req) => {
     const respostaAgenda = await tratarAgenda(operacao, body, supabase);
     if (respostaAgenda) return respostaAgenda;
 
+    const respostaMeta = await tratarMeta(operacao, body, supabase);
+    if (respostaMeta) return respostaMeta;
+
     if (operacao === "buscar_aluno") {
       const nome = String(body.nome ?? "").trim();
       if (!nome) return json({ erro: "nome_obrigatorio" }, 400);
@@ -532,12 +536,15 @@ Deno.serve(async (req) => {
       if (!studentId) return json({ erro: "student_id_obrigatorio" }, 400);
       if (!tipo) return json({ erro: "tipo_invalido" }, 400);
 
-      const { data, error } = await supabase
+      // plan_id opcional: lê aquele plano (inclusive rascunho) do aluno; sem ele, o ativo.
+      const planIdFiltro = String(body.plan_id ?? "").trim();
+      let consulta = supabase
         .from("ai_plans")
-        .select("id, tipo, titulo, fase, version, content_revision, published_at, created_at, conteudo_json, conteudo")
+        .select("id, tipo, titulo, fase, version, content_revision, published_at, created_at, is_draft, conteudo_json, conteudo")
         .eq("student_id", studentId)
-        .eq("tipo", tipo)
-        .eq("is_draft", false)
+        .eq("tipo", tipo);
+      consulta = planIdFiltro ? consulta.eq("id", planIdFiltro) : consulta.eq("is_draft", false);
+      const { data, error } = await consulta
         .order("published_at", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false })
         .limit(1);
@@ -2432,6 +2439,12 @@ Deno.serve(async (req) => {
       const blockers = collectPublicationBlockers(hydrated.plan, catalog);
       if (blockers.length > 0) {
         return json({ erro: "alimentos_nao_resolvidos", itens: blockers.slice(0, 20) }, 422);
+      }
+
+      // Mesma checagem de meta do botão Publicar do app (publish-diet-plan): fora da meta não publica.
+      const meta = await checarMetaDoPlano(draft, supabase, catalog);
+      if (!meta.dentro_da_meta) {
+        return json({ erro: "fora_da_meta", modo: meta.modo, detalhes: meta.problemas }, 422);
       }
 
       const { data: adminRole, error: adminError } = await supabase
