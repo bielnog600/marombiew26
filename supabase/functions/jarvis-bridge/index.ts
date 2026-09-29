@@ -5,6 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { tratarAgenda } from "./agenda.ts";
 import { checarMetaDoPlano, tratarMeta } from "./meta.ts";
 import { tratarRefeicao } from "./refeicao.ts";
+import { tratarVencimentos } from "./vencimentos.ts";
 import { loadFoodCatalog } from "../_shared/foodCatalog.ts";
 import { hydrateDietPlanFromFoods } from "../_shared/dietHydration.ts";
 import { canonicalDietPlanToMarkdown } from "../_shared/canonicalDietMarkdown.ts";
@@ -498,6 +499,9 @@ Deno.serve(async (req) => {
 
     const respostaRefeicao = await tratarRefeicao(operacao, body, supabase);
     if (respostaRefeicao) return respostaRefeicao;
+
+    const respostaVencimentos = await tratarVencimentos(operacao, body, supabase);
+    if (respostaVencimentos) return respostaVencimentos;
 
     if (operacao === "buscar_aluno") {
       const nome = String(body.nome ?? "").trim();
