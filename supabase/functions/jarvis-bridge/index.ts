@@ -6,6 +6,7 @@ import { tratarAgenda } from "./agenda.ts";
 import { checarMetaDoPlano, tratarMeta } from "./meta.ts";
 import { tratarRefeicao } from "./refeicao.ts";
 import { tratarVencimentos } from "./vencimentos.ts";
+import { tratarTreinoIa } from "./treino-ia.ts";
 import { loadFoodCatalog } from "../_shared/foodCatalog.ts";
 import { hydrateDietPlanFromFoods } from "../_shared/dietHydration.ts";
 import { canonicalDietPlanToMarkdown } from "../_shared/canonicalDietMarkdown.ts";
@@ -502,6 +503,9 @@ Deno.serve(async (req) => {
 
     const respostaVencimentos = await tratarVencimentos(operacao, body, supabase);
     if (respostaVencimentos) return respostaVencimentos;
+
+    const respostaTreinoIa = await tratarTreinoIa(operacao, body, supabase);
+    if (respostaTreinoIa) return respostaTreinoIa;
 
     if (operacao === "buscar_aluno") {
       const nome = String(body.nome ?? "").trim();
@@ -1249,14 +1253,20 @@ Deno.serve(async (req) => {
                 404,
               );
             }
+            // Campos podem vir soltos ou dentro de "campos" (formato do Jarvis).
+            const cp = (e.campos && typeof e.campos === "object" ? e.campos : e) as Rec;
             novosExercicios.push({
               id: `ex-jarvis-${Date.now()}-${idx}-${j}`,
               exercise: cat[0].nome,
               exerciseId: cat[0].id,
-              series: String(e.series ?? ""),
-              reps: String(e.reps ?? ""),
-              rir: String(e.rir ?? ""),
-              pause: String(e.pause ?? ""),
+              series: String(cp.series ?? ""),
+              ...(cp.series2 ? { series2: String(cp.series2) } : {}),
+              reps: String(cp.reps ?? ""),
+              rir: String(cp.rir ?? ""),
+              pause: String(cp.pause ?? ""),
+              ...(cp.restSeconds !== undefined ? { restSeconds: Number(cp.restSeconds) } : {}),
+              ...(cp.description ? { description: String(cp.description) } : {}),
+              ...(cp.variation ? { variation: String(cp.variation) } : {}),
             });
           }
           const novoDia: Rec = {
