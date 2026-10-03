@@ -7,6 +7,8 @@ import { checarMetaDoPlano, tratarMeta } from "./meta.ts";
 import { tratarRefeicao } from "./refeicao.ts";
 import { tratarVencimentos } from "./vencimentos.ts";
 import { tratarTreinoIa } from "./treino-ia.ts";
+import { tratarCicloCarbo } from "./ciclo-carbo.ts";
+import { montarPedidoGeracao } from "./geracao-completa.ts";
 import { loadFoodCatalog } from "../_shared/foodCatalog.ts";
 import { hydrateDietPlanFromFoods } from "../_shared/dietHydration.ts";
 import { canonicalDietPlanToMarkdown } from "../_shared/canonicalDietMarkdown.ts";
@@ -506,6 +508,9 @@ Deno.serve(async (req) => {
 
     const respostaTreinoIa = await tratarTreinoIa(operacao, body, supabase);
     if (respostaTreinoIa) return respostaTreinoIa;
+
+    const respostaCiclo = await tratarCicloCarbo(operacao, body, supabase);
+    if (respostaCiclo) return respostaCiclo;
 
     if (operacao === "buscar_aluno") {
       const nome = String(body.nome ?? "").trim();
@@ -2246,23 +2251,14 @@ Deno.serve(async (req) => {
       }
       const observacoesFinal = observacoesParts.length > 0 ? observacoesParts.join("\n") : null;
 
-      const built = buildDietGenerationRequest(ctx, {
-        objetivo: String(body.objetivo ?? ""),
-        calorias_alvo: body.calorias_alvo as number | null,
-        proteina_g: body.proteina_g as number | null,
-        carbo_g: body.carbo_g as number | null,
-        gordura_g: body.gordura_g as number | null,
-        refeicoes: body.refeicoes as number | null,
-        estrategia: (body.estrategia as "linear" | "carb_cycle" | null) ?? null,
-        estilo: (body.estilo as string | null) ?? null,
-        observacoes: observacoesFinal,
-      });
-      if (!built.ok) return json({ erro: built.erro, detalhes: built.detalhes }, 400);
-      const req = built.request;
+      // Todos os campos da entrevista + ciclo de carboidrato (geracao-completa.ts).
+      const montado = await montarPedidoGeracao(supabase, ctx, body, observacoesFinal);
+      if (!montado.ok) return json({ erro: montado.erro, detalhes: montado.detalhes ?? null }, 400);
+      const req = montado.request;
 
       // Mesmo motor da página DietaIA: diet-agent em mode "structured".
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 120_000);
+      const timer = setTimeout(() => controller.abort(), montado.timeoutMs);
       let agentStatus = 500;
       let agentBody: Rec = {};
       try {
@@ -2321,6 +2317,8 @@ Deno.serve(async (req) => {
       // Objetivo (cutting/bulking/...) e estratégia moram no plano (dietConfig),
       // como na página; em `ai_plans` a estratégia calórica vai em diet_strategy.
       finalPlan.dietConfig = { ...((finalPlan.dietConfig as Rec) ?? {}), ...req.dietConfig };
+      // O schedule semanal mora em protocols.weekly_energy_schedule (igual à DietaIA).
+      delete (finalPlan.dietConfig as Rec).weeklyEnergySchedule;
 
 
       const markdown = (() => {
@@ -2342,7 +2340,30 @@ Deno.serve(async (req) => {
       }));
 
       const alvo = req.canonicalTargets;
-      const desvio = alvo.kcal > 0 ? Math.abs((Number(totals.kcal) || 0) - alvo.kcal) / alvo.kcal : 1;
+      // Ciclo: cada dia contra a meta DELE (LOW contra LOW, HIGH contra HIGH).
+      const porDia = montado.metasPorDia
+        ? dias.map((d) => {
+            const wd = String(d.weekday ?? "").toLowerCase();
+            const meta = (montado.metasPorDia as Record<string, Rec>)[wd] ?? null;
+            const t = (d.totals ?? {}) as Rec;
+            return {
+              dia: wd || String(d.label ?? ""),
+              label: d.label ?? null,
+              tipo: meta?.type ?? null,
+              meta,
+              kcal: Math.round(Number(t.kcal) || 0),
+              proteina_g: Math.round(Number(t.p) || 0),
+              carbo_g: Math.round(Number(t.c) || 0),
+              gordura_g: Math.round(Number(t.g) || 0),
+            };
+          })
+        : null;
+      const desvio = porDia && porDia.length > 0
+        ? Math.max(...porDia.map((d) => {
+            const k = Number((d.meta as Rec | null)?.kcal) || 0;
+            return k > 0 ? Math.abs(d.kcal - k) / k : 1;
+          }))
+        : alvo.kcal > 0 ? Math.abs((Number(totals.kcal) || 0) - alvo.kcal) / alvo.kcal : 1;
       const confianca = Math.max(0, Math.min(100, Math.round(100 - desvio * 300 - alertas.length * 15)));
       const resumo = {
         kcal: Math.round(Number(totals.kcal) || 0),
@@ -2352,12 +2373,19 @@ Deno.serve(async (req) => {
         refeicoes,
         alertas,
         confianca,
+        ...(porDia ? { dias: porDia } : {}),
       };
       const dadosUsados = {
         peso: ctx.peso,
         altura: ctx.altura,
         data_avaliacao: ctx.data_avaliacao,
         objetivo: String(body.objetivo ?? ""),
+        fase: montado.base.phase,
+        estrategia: montado.base.strategy,
+        fator_atividade: montado.base.fator,
+        tmb: montado.base.bmr,
+        get: montado.base.tdee,
+        dieta_modelo: montado.usouModelo,
       };
 
       const version = ctx.activePlan ? ctx.activePlan.version + 1 : 1;
@@ -2380,7 +2408,7 @@ Deno.serve(async (req) => {
           draft_reason: observacoesFinal,
           // Mesmo lugar da página: protocols.extras.suplementos + coluna
           // ai_plans.supplementation com o que o plano estruturado trouxer.
-          protocols: { extras: { suplementos: incluirSuplementacao } },
+          protocols: { extras: { suplementos: incluirSuplementacao }, ...montado.protocolos },
           supplementation: incluirSuplementacao
             ? ((finalPlan.supplementation as Rec | null) ?? null)
             : null,
@@ -2411,7 +2439,7 @@ Deno.serve(async (req) => {
         resumo,
         metas: alvo,
         dados_usados: dadosUsados,
-
+        ciclo_carbo: montado.ciclo,
       });
     }
 
