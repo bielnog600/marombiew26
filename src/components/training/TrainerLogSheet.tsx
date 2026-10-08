@@ -33,6 +33,7 @@ import { useRestTimer } from '@/hooks/useRestTimer';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ExerciseLogCard from './ExerciseLogCard';
+import TrainingWeekCard, { type TrainingWeekPlanMeta } from './TrainingWeekCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSessionProgression } from '@/hooks/useSessionProgression';
 import { readProgressionSnapshot } from '@/lib/sessionProgression';
@@ -376,25 +377,54 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   const dndSensors = useExerciseDndSensors();
 
   const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer, setTimerExerciseIndex } = useRestTimer();
-  
+
   const student = active?.students.find(s => s.id === studentId);
-  const effectivePhase = (student?.phase as any) || phase || null;
+  // Semana ajustada no card da semana durante esta sessão (vence a do início).
+  const [faseAjustada, setFaseAjustada] = useState<string | null>(null);
+  const effectivePhase = (faseAjustada as any) || (student?.phase as any) || phase || null;
   const effectivePlanId = student?.planId || planId || null;
+
+  // Plano da sessão: semana do ciclo (card) e início do plano (histórico sem plan_id).
+  const [planMeta, setPlanMeta] = useState<(TrainingWeekPlanMeta & { published_at?: string | null; created_at?: string | null }) | null>(null);
+  useEffect(() => {
+    if (!effectivePlanId) { setPlanMeta(null); return; }
+    let cancel = false;
+    (async () => {
+      const { data } = await supabase
+        .from('ai_plans')
+        .select('id, fase, fase_inicio_data, published_at, created_at')
+        .eq('id', effectivePlanId)
+        .maybeSingle();
+      if (!cancel) setPlanMeta((data as any) ?? null);
+    })();
+    return () => { cancel = true; };
+  }, [effectivePlanId]);
+
+  // Todos os exercícios do plano: a sugestão já nasce pronta para qualquer dia.
+  const allPlanExercises = React.useMemo(() => (days || []).flatMap((d) => d.exercises || []), [days]);
 
   const { snapshot } = useSessionProgression({
     studentId,
     sessionId: active?.id ?? null,
     exercises: currentExercises,
+    allExercises: allPlanExercises,
     phase: effectivePhase,
     planId: effectivePlanId,
+    planStartedAt: planMeta?.published_at ?? planMeta?.created_at ?? null,
     restoredSnapshot: readProgressionSnapshot(active?.sessionState)
   });
 
-  // Salvar snapshot no session_state para retomada/offline (idempotente)
+  // Salvar snapshot no session_state para retomada/offline. Regrava quando ele
+  // é completado (troca de dia, exercício novo) ou recalculado (semana ajustada).
   useEffect(() => {
     if (!active?.id || !snapshot) return;
     const existing = readProgressionSnapshot(active.sessionState);
-    if (!existing) {
+    const mudou =
+      !existing ||
+      existing.updatedAt !== snapshot.updatedAt ||
+      existing.phase !== snapshot.phase ||
+      (existing.coveredKeys?.length ?? -1) !== (snapshot.coveredKeys?.length ?? -1);
+    if (mudou) {
       patchSessionState((prev: any) => ({
         ...prev,
         progressionRecommendations: snapshot
@@ -440,7 +470,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    return hrs > 0 
+    return hrs > 0
       ? `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
       : `${mins}:${String(secs).padStart(2, '0')}`;
   };
@@ -515,15 +545,24 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
           if (!name) return;
           const { data } = await supabase
             .from('exercise_set_logs')
-            .select('weight_kg, reps, performed_at')
+            .select('weight_kg, reps, performed_at, session_id, set_type')
             .eq('student_id', studentId)
             .ilike('exercise_name', normalizeExName(name))
             .order('performed_at', { ascending: false })
-            .limit(1);
-          if (data?.[0]) {
-            initial[i].lastWeight = data[0].weight_kg;
-            initial[i].lastReps = data[0].reps;
-            initial[i].lastDate = data[0].performed_at;
+            .limit(30);
+          // Última sessão do exercício → maior carga das séries de trabalho
+          // (antes vinha a primeira linha, às vezes o reconhecimento).
+          const linhas = (data as any[]) || [];
+          if (linhas.length > 0) {
+            const sessaoDe = (r: any) => r.session_id || String(r.performed_at).slice(0, 10);
+            const ultima = sessaoDe(linhas[0]);
+            const daSessao = linhas.filter((r) => sessaoDe(r) === ultima);
+            const trabalho = daSessao.filter((r) => r.set_type !== 'recognition' && r.set_type !== 'warmup');
+            const pool = trabalho.length > 0 ? trabalho : daSessao;
+            const melhor = pool.reduce((a, b) => (Number(b.weight_kg) || 0) > (Number(a.weight_kg) || 0) ? b : a, pool[0]);
+            initial[i].lastWeight = melhor.weight_kg;
+            initial[i].lastReps = melhor.reps;
+            initial[i].lastDate = melhor.performed_at;
           }
         })
       );
@@ -931,6 +970,16 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
             ))}
           </div>
         )}
+
+        <TrainingWeekCard
+          plan={planMeta}
+          sessionPhase={effectivePhase}
+          sessionId={active?.id ?? null}
+          onPhaseChange={(nova, atualizado) => {
+            setFaseAjustada(nova);
+            setPlanMeta((prev) => (prev ? { ...prev, ...atualizado } : prev));
+          }}
+        />
 
         {loading ? <div className="flex justify-center py-12"><Loader2 className="animate-spin" /></div> : (
           <div className="space-y-3 mt-4">

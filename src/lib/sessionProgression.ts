@@ -61,6 +61,8 @@ export interface SessionRecommendation {
   legacyFallback?: boolean;
   /** Telemetria futura: comparar recomendado x executado. Nunca vira log. */
   executedLoadKg?: number | null;
+  /** Cargas do histórico ignoradas por parecerem erro de digitação (ex.: 275 em vez de 27,5). */
+  ignoredOutliersKg?: number[];
 }
 
 export interface ProgressionSnapshot {
@@ -71,6 +73,15 @@ export interface ProgressionSnapshot {
   /** Plano usado como contexto de comparabilidade (null = desconhecido). */
   planId?: string | null;
   recommendations: Record<string, SessionRecommendation>;
+  /**
+   * Chaves de exercício já avaliadas (com ou sem recomendação). Permite
+   * completar o snapshot quando o treinador troca de dia, renomeia ou adiciona
+   * exercício, sem recalcular o que já foi avaliado. Ausente = snapshot antigo:
+   * vale `Object.keys(recommendations)`.
+   */
+  coveredKeys?: string[];
+  /** Última vez que o snapshot foi completado. */
+  updatedAt?: string;
 }
 
 /** Metadados de sessões anteriores (workout_sessions), buscados em lote. */
@@ -92,6 +103,11 @@ export interface BuildSessionRecommendationsInput {
   sessionMeta?: Record<string, SessionMetaRow>;
   /** Plano da sessão atual; null = desconhecido (sem filtro por plano). */
   currentPlanId?: string | null;
+  /**
+   * Início do plano atual (published_at/created_at). Sessões SEM plan_id feitas
+   * a partir dessa data são do plano atual (o app do aluno não grava plan_id).
+   */
+  currentPlanStartedAt?: string | null;
 }
 
 /** Remove explicitamente qualquer log pertencente à sessão em andamento. */
@@ -111,6 +127,8 @@ export interface ComparableHistoryResult {
   logs: SessionLog[];
   /** Alguma sessão usada não tem plan_id conhecido (histórico legado). */
   legacyFallback: boolean;
+  /** Sessões (sessionGroupKey) legadas: sem plano e de antes do plano atual. */
+  legacySessionKeys: Set<string>;
   excludedDeloadSessions: number;
   excludedOtherPlanSessions: number;
 }
@@ -136,6 +154,7 @@ export const filterComparableSessionHistory = (input: {
   currentSessionId: string | null;
   currentPlanId?: string | null;
   sessionMeta?: Record<string, SessionMetaRow>;
+  currentPlanStartedAt?: string | null;
 }): ComparableHistoryResult => {
   const logs = excludeCurrentSessionLogs(input.logs ?? [], input.currentSessionId);
   const meta = input.sessionMeta ?? {};
@@ -149,6 +168,8 @@ export const filterComparableSessionHistory = (input: {
   });
 
   const kept: SessionLog[] = [];
+  const legacySessionKeys = new Set<string>();
+  const planStart = input.currentPlanStartedAt ? Date.parse(input.currentPlanStartedAt) : NaN;
   let excludedDeloadSessions = 0;
   let excludedOtherPlanSessions = 0;
   let legacyFallback = false;
@@ -166,11 +187,20 @@ export const filterComparableSessionHistory = (input: {
       excludedOtherPlanSessions += 1;
       return;
     }
-    if (currentPlanId && !planId) legacyFallback = true;
+    if (currentPlanId && !planId) {
+      // Sessão sem plan_id (o app do aluno não grava): se foi feita depois do
+      // início do plano atual, é deste plano — não é legado.
+      const quando = Math.min(...rows.map((r) => Date.parse(String(r.performed_at)) || Infinity));
+      const dentroDoPlano = Number.isFinite(planStart) && Number.isFinite(quando) && quando >= planStart;
+      if (!dentroDoPlano) {
+        legacyFallback = true;
+        legacySessionKeys.add(key);
+      }
+    }
     kept.push(...rows);
   });
 
-  return { logs: kept, legacyFallback, excludedDeloadSessions, excludedOtherPlanSessions };
+  return { logs: kept, legacyFallback, legacySessionKeys, excludedDeloadSessions, excludedOtherPlanSessions };
 };
 
 /**
@@ -199,8 +229,69 @@ export const splitLastTwoSessions = (
   };
 };
 
-const plannedRepsTextOf = (ex: ParsedExercise): string =>
-  ex.setScheme?.sets?.map((s) => s.target_reps).filter(Boolean).join('/') || ex.reps || '';
+/** Prescrição por tempo ("15s", "30 seg", "1 min"): não existe faixa de reps. */
+export const isTimeBasedReps = (txt: string): boolean =>
+  /\d+\s*(s|seg|segs|segundos|")(?![a-z])/i.test(txt) || /\bmin(uto)?s?\b/i.test(txt);
+
+/**
+ * Metas de reps das séries de TRABALHO (o reconhecimento nunca entra, porque
+ * o histórico usado também não tem reconhecimento). "12 + 8-10" → ["8-10"];
+ * setScheme com 3 séries iguais → ["8-10"] (uma meta só, não é esquema complexo).
+ */
+export const workRepTargetsOf = (ex: ParsedExercise): string[] => {
+  const sets = (ex.setScheme?.sets ?? []) as Array<{ target_reps?: string | null; set_type?: string | null }>;
+  const work = sets
+    .filter((s) => String(s?.set_type ?? '') !== 'recognition')
+    .map((s) => String(s?.target_reps ?? '').trim())
+    .filter(Boolean);
+  if (work.length > 0) return [...new Set(work)];
+  const raw = String(ex.reps ?? '').trim();
+  if (!raw) return [];
+  if (raw.includes('+')) {
+    const ultimo = raw.split('+').pop()?.trim();
+    return ultimo ? [ultimo] : [];
+  }
+  return [raw];
+};
+
+const plannedRepsTextOf = (ex: ParsedExercise): string => workRepTargetsOf(ex).join('/');
+
+/** Faixa de reps das séries de trabalho (null para prescrição por tempo). */
+export const workRepRangeOf = (ex: ParsedExercise): RepRange | null => {
+  const alvos = workRepTargetsOf(ex);
+  if (alvos.length === 0 || alvos.some(isTimeBasedReps)) return null;
+  return parseRepRange(alvos.join('-'));
+};
+
+/** Mediana simples. */
+const median = (vals: number[]): number => {
+  const v = [...vals].sort((a, b) => a - b);
+  const m = Math.floor(v.length / 2);
+  return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+};
+
+/**
+ * Remove cargas que destoam demais do histórico do próprio exercício (erro de
+ * digitação: 275 em vez de 27,5; 5 em vez de 50). Só age com 4+ séries com carga;
+ * fora de [0,4× ; 2,5×] da mediana = ignorada.
+ */
+export const dropLoadOutliers = (logs: SessionLog[]): { logs: SessionLog[]; ignoredKg: number[] } => {
+  const cargas = logs.map((l) => Number(l.weight_kg)).filter((w) => Number.isFinite(w) && w > 0);
+  if (cargas.length < 4) return { logs, ignoredKg: [] };
+  const m = median(cargas);
+  if (!(m > 0)) return { logs, ignoredKg: [] };
+  const ignored: number[] = [];
+  const kept = logs.filter((l) => {
+    const w = Number(l.weight_kg);
+    if (!Number.isFinite(w) || w <= 0) return true;
+    if (w > m * 2.5 || w < m * 0.4) {
+      ignored.push(w);
+      return false;
+    }
+    return true;
+  });
+  return { logs: kept, ignoredKg: [...new Set(ignored)] };
+};
 
 /**
  * Ajuste conservador quando a evidência é fraca:
@@ -253,6 +344,7 @@ export const buildSessionProgressionRecommendations = (
     currentSessionId: input.currentSessionId,
     currentPlanId: input.currentPlanId ?? null,
     sessionMeta: input.sessionMeta,
+    currentPlanStartedAt: input.currentPlanStartedAt ?? null,
   });
 
   const byKey = new Map<string, SessionLog[]>();
@@ -264,17 +356,24 @@ export const buildSessionProgressionRecommendations = (
   });
 
   const recommendations: Record<string, SessionRecommendation> = {};
+  const coveredKeys = new Set<string>();
 
   (input.exercises ?? []).forEach((ex) => {
     const name = (ex?.exercise || '').trim();
     const key = normalizeExerciseKey(name);
-    if (!key || recommendations[key]) return;
-    const history = byKey.get(key) ?? [];
+    if (!key || recommendations[key] || coveredKeys.has(key)) return;
+    coveredKeys.add(key);
+    const { logs: history, ignoredKg } = dropLoadOutliers(byKey.get(key) ?? []);
     // Aluno sem histórico comparável: não inventamos recomendação (regra 21/22).
     if (history.length === 0) return;
 
     const { current, previous } = splitLastTwoSessions(history);
-    const repRange: RepRange | null = repRangeFromPlanned(ex) ?? parseRepRange(ex?.reps);
+    // Legado POR EXERCÍCIO: só as duas sessões usadas contam.
+    const legacyDoExercicio = [...current, ...previous].some((l) =>
+      comparable.legacySessionKeys.has(sessionGroupKey(l)),
+    );
+    // Faixa das séries de TRABALHO ("12 + 8-10" → 8–10; "15s" → sem faixa).
+    const repRange: RepRange | null = workRepRangeOf(ex);
     const performance = buildExercisePerformance(name, current, previous, repRange);
 
     const quant: QuantitativeRecommendation = buildQuantitativeProgressionRecommendation({
@@ -284,7 +383,7 @@ export const buildSessionProgressionRecommendations = (
       configuredIncrementKg: input.configuredIncrements?.[key] ?? null,
       activePhase: input.activePhase,
       setSchemeMode: ex.setScheme?.mode ?? null,
-      setSchemeTargets: ex.setScheme?.sets?.map((s) => s.target_reps) ?? null,
+      setSchemeTargets: workRepTargetsOf(ex),
       plannedRepsText: plannedRepsTextOf(ex),
     });
 
@@ -322,8 +421,9 @@ export const buildSessionProgressionRecommendations = (
           singlePerformance,
           legacyFallback: false,
           executedLoadKg: null,
+          ...(ignoredKg.length ? { ignoredOutliersKg: ignoredKg } : {}),
         },
-        { singlePerformance, legacyFallback: comparable.legacyFallback },
+        { singlePerformance, legacyFallback: legacyDoExercicio },
       );
       return;
     }
@@ -350,11 +450,12 @@ export const buildSessionProgressionRecommendations = (
       singlePerformance: previous.length === 0,
       legacyFallback: false,
       executedLoadKg: null,
+      ...(ignoredKg.length ? { ignoredOutliersKg: ignoredKg } : {}),
     };
 
     recommendations[key] = applyEvidencePolicy(base, {
       singlePerformance: previous.length === 0,
-      legacyFallback: comparable.legacyFallback,
+      legacyFallback: legacyDoExercicio,
     });
   });
 
@@ -365,15 +466,44 @@ export const buildSessionProgressionRecommendations = (
     phase: input.activePhase ?? null,
     planId: input.currentPlanId ?? null,
     recommendations,
+    coveredKeys: [...coveredKeys],
+    updatedAt: new Date().toISOString(),
   };
 };
+
+/** Chaves já avaliadas de um snapshot (snapshots antigos: as recomendações). */
+export const coveredKeysOf = (snapshot: ProgressionSnapshot | null): Set<string> =>
+  new Set(snapshot ? (snapshot.coveredKeys ?? Object.keys(snapshot.recommendations ?? {})) : []);
+
+/** Exercícios que ainda não foram avaliados no snapshot. */
+export const missingExercisesFor = (snapshot: ProgressionSnapshot | null, exercises: ParsedExercise[]): ParsedExercise[] => {
+  const cobertos = coveredKeysOf(snapshot);
+  const vistos = new Set<string>();
+  return (exercises ?? []).filter((ex) => {
+    const k = normalizeExerciseKey(ex?.exercise || '');
+    if (!k || cobertos.has(k) || vistos.has(k)) return false;
+    vistos.add(k);
+    return true;
+  });
+};
+
+/** Completa um snapshot com as recomendações de exercícios novos (nunca sobrescreve as antigas). */
+export const mergeProgressionSnapshots = (
+  base: ProgressionSnapshot,
+  extra: ProgressionSnapshot,
+): ProgressionSnapshot => ({
+  ...base,
+  recommendations: { ...extra.recommendations, ...base.recommendations },
+  coveredKeys: [...new Set([...coveredKeysOf(base), ...coveredKeysOf(extra)])],
+  updatedAt: new Date().toISOString(),
+});
 
 /** Lê um snapshot já persistido no session_state (tolerante a formatos antigos e Duo). */
 export const readProgressionSnapshot = (stateOrSnapshot: any): ProgressionSnapshot | null => {
   if (!stateOrSnapshot || typeof stateOrSnapshot !== 'object') return null;
-  
+
   // Regra 2: readProgressionSnapshotValue logic — tolerante a ProgressionSnapshot direto ou session_state
-  
+
   // 1. Caso: objeto é o próprio snapshot (Duo ou retorno direto)
   if (stateOrSnapshot.recommendations && typeof stateOrSnapshot.recommendations === 'object') {
     const v = Number(stateOrSnapshot.version);
@@ -390,7 +520,7 @@ export const readProgressionSnapshot = (stateOrSnapshot: any): ProgressionSnapsh
       return snap as ProgressionSnapshot;
     }
   }
-  
+
   return null;
 };
 
@@ -422,10 +552,22 @@ export interface SessionHint {
   text: string;
   /** Incremento inferido do histórico (medium) — indicar discretamente. */
   estimated: boolean;
+  /** Observação curta (incremento padrão usado, carga do histórico ignorada). */
+  note?: string;
 }
 
 /** Texto curto da sugestão. Retorna null quando não há nada útil a mostrar. */
 export const formatSessionHint = (r: SessionRecommendation | null): SessionHint | null => {
+  const hint = formatSessionHintBase(r);
+  if (!hint || !r) return hint;
+  const notas: string[] = [];
+  if (r.ignoredOutliersKg && r.ignoredOutliersKg.length > 0) {
+    notas.push(`Ignorei ${r.ignoredOutliersKg.map((v) => `${kg(v)} kg`).join(', ')} do histórico (parece erro de digitação).`);
+  }
+  return notas.length ? { ...hint, note: notas.join(' ') } : hint;
+};
+
+const formatSessionHintBase = (r: SessionRecommendation | null): SessionHint | null => {
   if (!r) return null;
   const estimated = r.incrementSource === 'inferred_history';
   const label = SESSION_ACTION_LABEL[r.action] ?? 'Sugestão';
