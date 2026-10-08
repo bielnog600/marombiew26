@@ -285,7 +285,7 @@ describe('queries de histórico (lote, ordenação, erro)', () => {
     return calls;
   };
 
-  it('14b/16b. histórico usa ordenação cronológica explícita, filtro por nome e lote', async () => {
+  it('14b/16b. histórico usa ordenação cronológica explícita, filtro por chave normalizada e lote', async () => {
     vi.resetModules();
     const calls = mockSupabase({});
     const { renderHook, waitFor } = await import('@testing-library/react');
@@ -304,7 +304,9 @@ describe('queries de histórico (lote, ordenação, erro)', () => {
     const logCalls = calls.filter((c) => c.table === 'exercise_set_logs');
     expect(logCalls).toHaveLength(1); // 2 exercícios → 1 query (zero N+1)
     expect(logCalls[0].ordered[0]).toBe('performed_at');
-    expect(logCalls[0].filteredByName).toBe(true);
+    // Uma busca por aluno; o filtro por exercício é feito pela chave normalizada
+    // (acento/caixa não separam histórico), não mais por exercise_name IN (...).
+    expect(logCalls[0].filteredByName).toBe(false);
     expect(calls.filter((c) => c.table === 'student_load_increments')).toHaveLength(1);
     // Snapshot vazio é gravado como snapshot.
     expect(result.current.snapshot?.recommendations).toEqual({});

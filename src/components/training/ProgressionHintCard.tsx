@@ -36,6 +36,7 @@ export const ProgressionHintCard = ({
           )}
         </div>
         <p className="text-[11px] text-foreground mt-0.5 leading-tight">{hint.text}</p>
+        {hint.note && <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{hint.note}</p>}
       </div>
     );
   }
@@ -52,6 +53,7 @@ export const ProgressionHintCard = ({
         )}
       </div>
       <p className="text-sm text-foreground mt-0.5 leading-snug">{hint.text}</p>
+      {hint.note && <p className="text-[11px] text-muted-foreground mt-1 leading-snug">{hint.note}</p>}
     </div>
   );
 };
