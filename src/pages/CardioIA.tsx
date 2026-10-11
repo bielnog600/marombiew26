@@ -400,6 +400,7 @@ const CardioIA = () => {
                 </label>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <EqSelect label="Posição" value={eq.bPosition} onChange={v => setEqField('bPosition', v)} options={BIKE_POSITIONS} fmt={fmtBikePos} />
                 <EqSelect label="Tempo em pé" value={eq.bStandSec} onChange={v => setEqField('bStandSec', v)} options={TIMES} fmt={fmtSec} />
                 <EqSelect label="Tempo sentado" value={eq.bSeatSec} onChange={v => setEqField('bSeatSec', v)} options={TIMES} fmt={fmtSec} />
                 <EqSelect label="Tempo mais carga" value={eq.bHardSec} onChange={v => setEqField('bHardSec', v)} options={TIMES} fmt={fmtSec} />
@@ -569,6 +570,8 @@ const INCLINES = ['0','1','2','3','4','5','6','7','8','9','10','12','15'];
 const TIMES = ['10','15','20','30','40','45','60','90','120','180','240','300'];
 const LEVELS = Array.from({ length: 20 }, (_, i) => String(i + 1));
 const ROUNDS = ['4','5','6','8','10','12','15','20'];
+const BIKE_POSITIONS = ['auto', 'alternado', 'sentado', 'em_pe'];
+const fmtBikePos = (v: string) => ({ auto: 'Auto (IA)', alternado: 'Em pé e sentado', sentado: 'Apenas sentado', em_pe: 'Apenas em pé' }[v] || v);
 const fmtSec = (v: string) => { const n = +v; return n < 60 ? `${n}s` : n % 60 ? `${Math.floor(n/60)}min ${n%60}s` : `${n/60} min`; };
 
 const EqSelect: React.FC<{ label: string; value?: string; onChange: (v: string) => void; options: string[]; suffix?: string; fmt?: (v: string) => string }> = ({ label, value, onChange, options, suffix = '', fmt }) => (
@@ -588,7 +591,7 @@ function buildEquipment(eq: Record<string, string>) {
   const n = (k: string) => (eq[k] && eq[k] !== 'auto' ? Number(eq[k]) : undefined);
   return {
     treadmill: { speedEasy: n('tSpeedEasy'), speedHard: n('tSpeedHard'), inclineEasy: n('tInclineEasy'), inclineHard: n('tInclineHard'), workSec: n('tWorkSec'), restSec: n('tRestSec') },
-    bike: { hiit: eq.bHiit === 'sim', standSec: n('bStandSec'), seatSec: n('bSeatSec'), hardSec: n('bHardSec'), easySec: n('bEasySec'), hardLevel: n('bHardLevel'), easyLevel: n('bEasyLevel') },
+    bike: { hiit: eq.bHiit === 'sim', position: eq.bPosition && eq.bPosition !== 'auto' ? eq.bPosition : undefined, standSec: n('bStandSec'), seatSec: n('bSeatSec'), hardSec: n('bHardSec'), easySec: n('bEasySec'), hardLevel: n('bHardLevel'), easyLevel: n('bEasyLevel') },
     rounds: n('rounds'),
   };
 }
