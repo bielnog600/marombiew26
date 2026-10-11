@@ -223,16 +223,25 @@ serve(async (req) => {
       if (t.restSec) eqLines.push(`- Duração de cada bloco de recuperação entre picos: durationSec=${t.restSec}`);
     }
     const b = eq.bike || {};
-    if (b.hiit || b.standSec || b.seatSec || b.hardSec || b.easySec || b.hardLevel || b.easyLevel) {
+    const seatedOnly = b.position === "sentado";
+    const standingOnly = b.position === "em_pe";
+    if (b.hiit || b.standSec || b.seatSec || b.hardSec || b.easySec || b.hardLevel || b.easyLevel || b.position) {
       eqLines.push(`BIKE (OBRIGATÓRIO nos blocos de bike):`);
+      if (seatedOnly) {
+        eqLines.push(`- POSIÇÃO OBRIGATÓRIA: TODOS os blocos de bike devem usar bikePosition="sentado" — O ALUNO NÃO PODE PEDALAR EM PÉ (restrição física). NUNCA use bikePosition="em_pe" ou "alternado".`);
+        eqLines.push(`- Os picos de HIIT são feitos SENTADO, com carga alta (maior resistanceLevel) e cadência firme; as recuperações sentado com carga baixa.`);
+      } else if (standingOnly) {
+        eqLines.push(`- POSIÇÃO OBRIGATÓRIA: TODOS os blocos de bike devem usar bikePosition="em_pe". NUNCA use bikePosition="sentado" ou "alternado".`);
+      }
       if (b.hiit) eqLines.push(`- Pelo menos uma sessão de bike deve ser HIIT (structure="hiit") com blocos alternados pico/recuperação.`);
-      if (b.standSec) eqLines.push(`- Blocos EM PÉ: bikePosition="em_pe", durationSec=${b.standSec}, intensityLabel forte/maxima.`);
-      if (b.seatSec) eqLines.push(`- Blocos SENTADO entre os em pé: bikePosition="sentado", durationSec=${b.seatSec}.`);
+      if (b.standSec && !seatedOnly) eqLines.push(`- Blocos EM PÉ: bikePosition="em_pe", durationSec=${b.standSec}, intensityLabel forte/maxima.`);
+      if (b.seatSec && !standingOnly) eqLines.push(`- Blocos SENTADO${seatedOnly ? " (todos os blocos)" : " entre os em pé"}: bikePosition="sentado", durationSec=${b.seatSec}.`);
       if (b.hardSec) eqLines.push(`- Blocos de MAIS CARGA: durationSec=${b.hardSec}${b.hardLevel ? `, resistanceLevel=${b.hardLevel}` : ""}.`);
       if (b.easySec) eqLines.push(`- Blocos de MENOS CARGA: durationSec=${b.easySec}${b.easyLevel ? `, resistanceLevel=${b.easyLevel}` : ""}.`);
       if (!b.hardSec && b.hardLevel) eqLines.push(`- Carga alta: resistanceLevel=${b.hardLevel}.`);
       if (!b.easySec && b.easyLevel) eqLines.push(`- Carga baixa: resistanceLevel=${b.easyLevel}.`);
-      eqLines.push(`- Em cada bloco, escreva em "notes" a instrução exata (ex.: "30s em pé carga 8").`);
+      if (seatedOnly) eqLines.push(`- Em cada bloco, escreva em "notes" a instrução exata (ex.: "30s sentado carga 8") e reforce que é tudo sentado.`);
+      else eqLines.push(`- Em cada bloco, escreva em "notes" a instrução exata (ex.: "30s em pé carga 8").`);
     }
     if (eq.rounds) eqLines.push(`NÚMERO DE CICLOS (pico+recuperação) nas sessões intervaladas/HIIT: ${eq.rounds}.`);
     const equipmentInstr = eqLines.length ? `\n=== CONFIGURAÇÃO DE EQUIPAMENTO DEFINIDA PELO COACH ===\n${eqLines.join("\n")}\nAjuste aquecimento/desaceleração para manter a duração total coerente.\n` : "";
