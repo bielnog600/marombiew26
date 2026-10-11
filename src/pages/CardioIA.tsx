@@ -68,6 +68,8 @@ const CardioIA = () => {
   const [style, setStyle] = useState('auto');
   const [duration, setDuration] = useState('auto');
   const [notes, setNotes] = useState('');
+  const [eq, setEq] = useState<Record<string, string>>({});
+  const setEqField = (k: string, v: string) => setEq(prev => ({ ...prev, [k]: v }));
   const [generating, setGenerating] = useState(false);
   const [payload, setPayload] = useState<CardioPayload | null>(null);
   const [saving, setSaving] = useState(false);
@@ -177,6 +179,7 @@ const CardioIA = () => {
             durationMinutes: duration === 'auto' ? 'auto' : parseInt(duration, 10),
             notes,
             hrZones,
+            equipment: buildEquipment(eq),
           }),
         }
       );
@@ -372,6 +375,46 @@ const CardioIA = () => {
         </div>
               )}
 
+              {currentStep === 2 && (
+        <div className="space-y-4 mt-4">
+          {(modalities.length === 0 || modalities.includes('passadeira')) && (
+            <div className="rounded-xl border border-border p-3 space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">Passadeira / Esteira</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <EqSelect label="Velocidade leve" value={eq.tSpeedEasy} onChange={v => setEqField('tSpeedEasy', v)} options={SPEEDS} suffix=" km/h" />
+                <EqSelect label="Velocidade forte" value={eq.tSpeedHard} onChange={v => setEqField('tSpeedHard', v)} options={SPEEDS} suffix=" km/h" />
+                <EqSelect label="Inclinação leve" value={eq.tInclineEasy} onChange={v => setEqField('tInclineEasy', v)} options={INCLINES} suffix="%" />
+                <EqSelect label="Inclinação forte" value={eq.tInclineHard} onChange={v => setEqField('tInclineHard', v)} options={INCLINES} suffix="%" />
+                <EqSelect label="Tempo forte" value={eq.tWorkSec} onChange={v => setEqField('tWorkSec', v)} options={TIMES} fmt={fmtSec} />
+                <EqSelect label="Tempo recuperação" value={eq.tRestSec} onChange={v => setEqField('tRestSec', v)} options={TIMES} fmt={fmtSec} />
+              </div>
+            </div>
+          )}
+          {(modalities.length === 0 || modalities.includes('bike')) && (
+            <div className="rounded-xl border border-border p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">Bike</p>
+                <label className="flex items-center gap-2 text-xs">
+                  <input type="checkbox" checked={eq.bHiit === 'sim'} onChange={e => setEqField('bHiit', e.target.checked ? 'sim' : 'auto')} />
+                  HIIT na bike
+                </label>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <EqSelect label="Tempo em pé" value={eq.bStandSec} onChange={v => setEqField('bStandSec', v)} options={TIMES} fmt={fmtSec} />
+                <EqSelect label="Tempo sentado" value={eq.bSeatSec} onChange={v => setEqField('bSeatSec', v)} options={TIMES} fmt={fmtSec} />
+                <EqSelect label="Tempo mais carga" value={eq.bHardSec} onChange={v => setEqField('bHardSec', v)} options={TIMES} fmt={fmtSec} />
+                <EqSelect label="Tempo menos carga" value={eq.bEasySec} onChange={v => setEqField('bEasySec', v)} options={TIMES} fmt={fmtSec} />
+                <EqSelect label="Carga alta (nível)" value={eq.bHardLevel} onChange={v => setEqField('bHardLevel', v)} options={LEVELS} />
+                <EqSelect label="Carga baixa (nível)" value={eq.bEasyLevel} onChange={v => setEqField('bEasyLevel', v)} options={LEVELS} />
+              </div>
+            </div>
+          )}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <EqSelect label="Nº de ciclos (intervalado)" value={eq.rounds} onChange={v => setEqField('rounds', v)} options={ROUNDS} suffix="x" />
+          </div>
+        </div>
+              )}
+
               {currentStep === 3 && (
         <div className="space-y-2">
           <Label htmlFor="notes" className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -520,5 +563,34 @@ const BlockParameters: React.FC<{ block: any; modality: CardioModality }> = ({ b
     </p>
   );
 };
+
+const SPEEDS = ['3','4','5','5.5','6','6.5','7','7.5','8','8.5','9','10','11','12','13','14','15','16'];
+const INCLINES = ['0','1','2','3','4','5','6','7','8','9','10','12','15'];
+const TIMES = ['10','15','20','30','40','45','60','90','120','180','240','300'];
+const LEVELS = Array.from({ length: 20 }, (_, i) => String(i + 1));
+const ROUNDS = ['4','5','6','8','10','12','15','20'];
+const fmtSec = (v: string) => { const n = +v; return n < 60 ? `${n}s` : n % 60 ? `${Math.floor(n/60)}min ${n%60}s` : `${n/60} min`; };
+
+const EqSelect: React.FC<{ label: string; value?: string; onChange: (v: string) => void; options: string[]; suffix?: string; fmt?: (v: string) => string }> = ({ label, value, onChange, options, suffix = '', fmt }) => (
+  <div className="space-y-1">
+    <Label className="text-[11px] text-muted-foreground">{label}</Label>
+    <Select value={value || 'auto'} onValueChange={onChange}>
+      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+      <SelectContent className="bg-popover z-50">
+        <SelectItem value="auto">Auto (IA)</SelectItem>
+        {options.map(o => <SelectItem key={o} value={o}>{fmt ? fmt(o) : `${o}${suffix}`}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  </div>
+);
+
+function buildEquipment(eq: Record<string, string>) {
+  const n = (k: string) => (eq[k] && eq[k] !== 'auto' ? Number(eq[k]) : undefined);
+  return {
+    treadmill: { speedEasy: n('tSpeedEasy'), speedHard: n('tSpeedHard'), inclineEasy: n('tInclineEasy'), inclineHard: n('tInclineHard'), workSec: n('tWorkSec'), restSec: n('tRestSec') },
+    bike: { hiit: eq.bHiit === 'sim', standSec: n('bStandSec'), seatSec: n('bSeatSec'), hardSec: n('bHardSec'), easySec: n('bEasySec'), hardLevel: n('bHardLevel'), easyLevel: n('bEasyLevel') },
+    rounds: n('rounds'),
+  };
+}
 
 export default CardioIA;
