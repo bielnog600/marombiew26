@@ -1994,7 +1994,7 @@ const DietaIA = () => {
         plan: null,
         status: resp.status,
         errorCode: parsedBody?.error_code || undefined,
-        message: parsedBody?.error || undefined,
+        message: parsedBody?.error || (!parsedBody ? 'A conexão com a IA foi interrompida antes da resposta final.' : undefined),
         details: parsedBody?.details,
         validationReasons: parsedBody?.validationReasons,
         missingDays: parsedBody?.missing_days,
@@ -2096,6 +2096,7 @@ const DietaIA = () => {
     scrollToResultAfterGenerationRef.current = true;
     setGenerating(true);
     setGenOutcome(null);
+    setGenErrorDetail(null);
     setGenProgress({ label: 'Preparando dados do aluno...', ratio: 0.03 });
     setResult('');
     setMacroReport(null);
@@ -2530,18 +2531,18 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
       // não pode exibir um plano sem os ajustes por dia.
       if (weeklySchedule && structuredError) {
         console.error('[DietaIA] structured_failed_with_schedule', structuredError);
-        const TOAST_BY_CODE: Record<string, string> = {
-          daily_adjustments_invalid: 'Falha nos ajustes diários da dieta.',
-          food_contract_invalid: 'Alguns alimentos da dieta modelo não foram encontrados na base.',
-          canonical_targets_missing: 'As metas nutricionais não foram enviadas corretamente.',
-          day_targets_invalid: 'Um ou mais dias ficaram fora da meta.',
-          review_required: 'O plano precisa de revisão antes de ser aceito.',
+        const errorDetail: DietAgentErrorDetail = {
+          code: structuredError.code,
+          message: structuredError.message,
+          details: structuredError.details,
+          validationReasons: structuredError.validationReasons,
+          missingDays: structuredError.missingDays,
+          dayTargetIssues: structuredError.dayTargetIssues,
         };
-        toast.error(
-          (structuredError.code && TOAST_BY_CODE[structuredError.code]) ||
-            structuredError.message ||
-            'Falha ao gerar dieta estruturada. Regere o plano.',
-        );
+        const errorLines = formatDietAgentError(errorDetail);
+        setGenErrorDetail(errorDetail);
+        setGenOutcome({ status: 'error', message: errorLines[0] });
+        toast.error(errorLines[0]);
         return;
       }
 
@@ -2593,8 +2594,10 @@ ${generated}`;
       }
     } catch (e: any) {
       console.error(e);
-      setGenOutcome({ status: 'error', message: e?.message || 'Erro ao gerar dieta' });
-      toast.error(e.message || 'Erro ao gerar dieta');
+      const friendlyMessage = describeNetworkError(e);
+      setGenErrorDetail({ message: friendlyMessage });
+      setGenOutcome({ status: 'error', message: friendlyMessage });
+      toast.error(friendlyMessage);
     } finally {
       setGenerating(false);
       setGenProgress(null);
@@ -3621,6 +3624,23 @@ ${generated}`;
             </AiWizard>
           );
         })()}
+
+        {/* Card de erro detalhado: visível até a próxima tentativa de geração. */}
+        {genErrorDetail && !generating && (
+          <Card className="glass-card border-destructive/40">
+            <CardContent className="p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
+                <h3 className="text-sm font-bold uppercase tracking-wide">Falha na geração do plano</h3>
+              </div>
+              <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                {formatDietAgentError(genErrorDetail).map((line, i) => (
+                  <li key={i}>{line}</li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
 
 
         {result && generating && (
