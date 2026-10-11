@@ -390,6 +390,92 @@ function parseWeekdayWorkouts(md: string): Partial<Record<EnergyWeekday, DayWork
   }
 }
 
+// ─── Exibição legível de erros do diet-agent (422 review_required etc.) ───
+// Apenas formatação/tradução: nenhuma lógica de geração ou validação muda aqui.
+const DIET_AGENT_CODE_TEXT: Record<string, string> = {
+  nutrition_invalid: 'proteína/estrutura das refeições insuficiente',
+  day_targets_invalid: 'totais de algum dia fora da meta diária',
+  daily_adjustments_invalid: 'ajustes por dia não devolvidos corretamente',
+  food_targets_invalid: 'macros fora da tolerância',
+  food_contract_invalid: 'alimento fora do catálogo',
+  high_similarity: 'muito parecido com a dieta anterior',
+  portion_only: 'muito parecido com a dieta anterior',
+  source_repetition: 'muito parecido com a dieta anterior',
+  review_required: 'o plano precisa de revisão antes de ser aceito',
+  canonical_targets_missing: 'as metas nutricionais não foram enviadas corretamente',
+  schema_rejected: 'a resposta da IA não seguiu o formato esperado',
+};
+
+const WEEKDAY_PT: Record<string, string> = {
+  SEG: 'Segunda', TER: 'Terça', QUA: 'Quarta', QUI: 'Quinta',
+  SEX: 'Sexta', SAB: 'Sábado', DOM: 'Domingo',
+};
+
+/** Converte motivos/issues estruturados (string, array ou objeto) em linhas legíveis. */
+const toReadableDietErrorLine = (value: unknown): string | null => {
+  if (value == null) return null;
+  if (typeof value === 'string') { const s = value.trim(); return s || null; }
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) {
+    const parts = value.map(toReadableDietErrorLine).filter(Boolean) as string[];
+    return parts.length ? parts.join(' · ') : null;
+  }
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    const weekdayKey = obj.weekday ?? obj.dia ?? obj.day;
+    const weekday = weekdayKey != null
+      ? (WEEKDAY_PT[String(weekdayKey).toUpperCase()] ?? String(weekdayKey))
+      : null;
+    const message = [obj.message, obj.issue, obj.reason, obj.error]
+      .filter((v) => typeof v === 'string' && v.trim())
+      .map(String);
+    const extra = Object.entries(obj)
+      .filter(([k, v]) => !['weekday', 'dia', 'day', 'message', 'issue', 'reason', 'error'].includes(k)
+        && v != null && (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean'))
+      .map(([k, v]) => `${k}: ${String(v)}`);
+    const rest = [...message, ...extra].join(' · ');
+    const line = weekday ? (rest ? `${weekday}: ${rest}` : weekday) : rest;
+    return line.trim() || null;
+  }
+  return null;
+};
+
+export interface DietAgentErrorDetail {
+  code?: string;
+  message?: string;
+  details?: string;
+  validationReasons?: unknown;
+  missingDays?: unknown;
+  dayTargetIssues?: unknown;
+}
+
+/** Linhas legíveis (em PT-BR) para o card de erro, na ordem de relevância. */
+export const formatDietAgentError = (detail: DietAgentErrorDetail): string[] => {
+  const lines: string[] = [];
+  const codeText = detail.code ? DIET_AGENT_CODE_TEXT[detail.code] : undefined;
+  const head = codeText
+    ? `${codeText} (${detail.code})`
+    : detail.message || 'O plano precisa de revisão antes de ser aceito.';
+  lines.push(head);
+  const rawDetails = toReadableDietErrorLine(detail.details);
+  if (rawDetails) lines.push(rawDetails);
+  const reasons = toReadableDietErrorLine(detail.validationReasons);
+  if (reasons && reasons !== rawDetails) lines.push(`Motivos da validação: ${reasons}`);
+  const dayIssues = toReadableDietErrorLine(detail.dayTargetIssues);
+  if (dayIssues) lines.push(`Dias fora da meta: ${dayIssues}`);
+  const missing = toReadableDietErrorLine(detail.missingDays);
+  if (missing) lines.push(`Dias sem ajuste devolvido: ${missing}`);
+  return lines;
+};
+
+/** Mensagem amigável para falha de rede/timeout/stream interrompido. */
+export const describeNetworkError = (e: unknown): string => {
+  const msg = e instanceof Error ? e.message : String(e ?? '');
+  if (/abort|timeout|timed out/i.test(msg)) return 'A geração demorou demais e a conexão foi interrompida. Tente gerar novamente.';
+  if (/failed to fetch|networkerror|load failed|fetch failed/i.test(msg)) return 'Não foi possível conectar à IA. Verifique a internet e tente novamente.';
+  return msg || 'A conexão com a IA foi interrompida antes da resposta.';
+};
+
 const DietaIA = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
@@ -454,6 +540,7 @@ const DietaIA = () => {
   const [generating, setGenerating] = useState(false);
   const [genProgress, setGenProgress] = useState<{ label: string; detail?: string; ratio: number } | null>(null);
   const [genOutcome, setGenOutcome] = useState<{ status: 'success' | 'error'; message?: string } | null>(null);
+  const [genErrorDetail, setGenErrorDetail] = useState<DietAgentErrorDetail | null>(null);
   const genPanelRef = useScrollToOnStart(generating);
   // Mantém o sucesso brevemente e depois revela o resultado.
   useEffect(() => {
