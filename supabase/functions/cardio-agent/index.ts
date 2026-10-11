@@ -102,6 +102,7 @@ serve(async (req) => {
       durationMinutes = "auto",
       notes = "",
       hrZones = null,
+      equipment = null,
     } = await req.json();
 
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
@@ -208,6 +209,34 @@ serve(async (req) => {
         ? "Duração total entre 20 e 45 min por sessão, conforme objetivo e nível. Varie entre as sessões."
         : `Duração total alvo por sessão: aproximadamente ${durationMinutes} minutos.`;
 
+    // Configurações de equipamento escolhidas pelo coach (obrigatórias quando informadas)
+    const eq = (equipment && typeof equipment === "object") ? equipment : {};
+    const eqLines: string[] = [];
+    const t = eq.treadmill || {};
+    if (t.speedEasy || t.speedHard || t.inclineEasy || t.inclineHard || t.workSec || t.restSec) {
+      eqLines.push(`PASSADEIRA (OBRIGATÓRIO usar exatamente nos blocos de passadeira):`);
+      if (t.speedEasy) eqLines.push(`- Velocidade blocos leves/recuperação: speedKmh=${t.speedEasy}`);
+      if (t.speedHard) eqLines.push(`- Velocidade blocos fortes/pico: speedKmh=${t.speedHard}`);
+      if (t.inclineEasy) eqLines.push(`- Inclinação blocos leves/recuperação: inclinePct=${t.inclineEasy}`);
+      if (t.inclineHard) eqLines.push(`- Inclinação blocos fortes/pico: inclinePct=${t.inclineHard}`);
+      if (t.workSec) eqLines.push(`- Duração de cada bloco forte/pico: durationSec=${t.workSec}`);
+      if (t.restSec) eqLines.push(`- Duração de cada bloco de recuperação entre picos: durationSec=${t.restSec}`);
+    }
+    const b = eq.bike || {};
+    if (b.hiit || b.standSec || b.seatSec || b.hardSec || b.easySec || b.hardLevel || b.easyLevel) {
+      eqLines.push(`BIKE (OBRIGATÓRIO nos blocos de bike):`);
+      if (b.hiit) eqLines.push(`- Pelo menos uma sessão de bike deve ser HIIT (structure="hiit") com blocos alternados pico/recuperação.`);
+      if (b.standSec) eqLines.push(`- Blocos EM PÉ: bikePosition="em_pe", durationSec=${b.standSec}, intensityLabel forte/maxima.`);
+      if (b.seatSec) eqLines.push(`- Blocos SENTADO entre os em pé: bikePosition="sentado", durationSec=${b.seatSec}.`);
+      if (b.hardSec) eqLines.push(`- Blocos de MAIS CARGA: durationSec=${b.hardSec}${b.hardLevel ? `, resistanceLevel=${b.hardLevel}` : ""}.`);
+      if (b.easySec) eqLines.push(`- Blocos de MENOS CARGA: durationSec=${b.easySec}${b.easyLevel ? `, resistanceLevel=${b.easyLevel}` : ""}.`);
+      if (!b.hardSec && b.hardLevel) eqLines.push(`- Carga alta: resistanceLevel=${b.hardLevel}.`);
+      if (!b.easySec && b.easyLevel) eqLines.push(`- Carga baixa: resistanceLevel=${b.easyLevel}.`);
+      eqLines.push(`- Em cada bloco, escreva em "notes" a instrução exata (ex.: "30s em pé carga 8").`);
+    }
+    if (eq.rounds) eqLines.push(`NÚMERO DE CICLOS (pico+recuperação) nas sessões intervaladas/HIIT: ${eq.rounds}.`);
+    const equipmentInstr = eqLines.length ? `\n=== CONFIGURAÇÃO DE EQUIPAMENTO DEFINIDA PELO COACH ===\n${eqLines.join("\n")}\nAjuste aquecimento/desaceleração para manter a duração total coerente.\n` : "";
+
     const userPrompt = `Gere o PLANO SEMANAL DE CARDIO agora.
 
 ${modalityInstr}
@@ -216,6 +245,7 @@ INTENSIDADE: ${intensity.toUpperCase()} — ${intensityInstr}
 ESTILO: ${style.toUpperCase()} — ${styleInstr}
 DURAÇÃO: ${durationInstr}
 ${notes ? `\nOBSERVAÇÕES ADICIONAIS DO COACH: ${notes}\n` : ""}
+${equipmentInstr}
 
 Lembre-se:
 - VARIE modalidade entre sessões (quando houver mais de uma permitida)
