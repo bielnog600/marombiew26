@@ -390,6 +390,92 @@ function parseWeekdayWorkouts(md: string): Partial<Record<EnergyWeekday, DayWork
   }
 }
 
+// ─── Exibição legível de erros do diet-agent (422 review_required etc.) ───
+// Apenas formatação/tradução: nenhuma lógica de geração ou validação muda aqui.
+const DIET_AGENT_CODE_TEXT: Record<string, string> = {
+  nutrition_invalid: 'proteína/estrutura das refeições insuficiente',
+  day_targets_invalid: 'totais de algum dia fora da meta diária',
+  daily_adjustments_invalid: 'ajustes por dia não devolvidos corretamente',
+  food_targets_invalid: 'macros fora da tolerância',
+  food_contract_invalid: 'alimento fora do catálogo',
+  high_similarity: 'muito parecido com a dieta anterior',
+  portion_only: 'muito parecido com a dieta anterior',
+  source_repetition: 'muito parecido com a dieta anterior',
+  review_required: 'o plano precisa de revisão antes de ser aceito',
+  canonical_targets_missing: 'as metas nutricionais não foram enviadas corretamente',
+  schema_rejected: 'a resposta da IA não seguiu o formato esperado',
+};
+
+const WEEKDAY_PT: Record<string, string> = {
+  SEG: 'Segunda', TER: 'Terça', QUA: 'Quarta', QUI: 'Quinta',
+  SEX: 'Sexta', SAB: 'Sábado', DOM: 'Domingo',
+};
+
+/** Converte motivos/issues estruturados (string, array ou objeto) em linhas legíveis. */
+const toReadableDietErrorLine = (value: unknown): string | null => {
+  if (value == null) return null;
+  if (typeof value === 'string') { const s = value.trim(); return s || null; }
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) {
+    const parts = value.map(toReadableDietErrorLine).filter(Boolean) as string[];
+    return parts.length ? parts.join(' · ') : null;
+  }
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    const weekdayKey = obj.weekday ?? obj.dia ?? obj.day;
+    const weekday = weekdayKey != null
+      ? (WEEKDAY_PT[String(weekdayKey).toUpperCase()] ?? String(weekdayKey))
+      : null;
+    const message = [obj.message, obj.issue, obj.reason, obj.error]
+      .filter((v) => typeof v === 'string' && v.trim())
+      .map(String);
+    const extra = Object.entries(obj)
+      .filter(([k, v]) => !['weekday', 'dia', 'day', 'message', 'issue', 'reason', 'error'].includes(k)
+        && v != null && (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean'))
+      .map(([k, v]) => `${k}: ${String(v)}`);
+    const rest = [...message, ...extra].join(' · ');
+    const line = weekday ? (rest ? `${weekday}: ${rest}` : weekday) : rest;
+    return line.trim() || null;
+  }
+  return null;
+};
+
+export interface DietAgentErrorDetail {
+  code?: string;
+  message?: string;
+  details?: string;
+  validationReasons?: unknown;
+  missingDays?: unknown;
+  dayTargetIssues?: unknown;
+}
+
+/** Linhas legíveis (em PT-BR) para o card de erro, na ordem de relevância. */
+export const formatDietAgentError = (detail: DietAgentErrorDetail): string[] => {
+  const lines: string[] = [];
+  const codeText = detail.code ? DIET_AGENT_CODE_TEXT[detail.code] : undefined;
+  const head = codeText
+    ? `${codeText} (${detail.code})`
+    : detail.message || 'O plano precisa de revisão antes de ser aceito.';
+  lines.push(head);
+  const rawDetails = toReadableDietErrorLine(detail.details);
+  if (rawDetails) lines.push(rawDetails);
+  const reasons = toReadableDietErrorLine(detail.validationReasons);
+  if (reasons && reasons !== rawDetails) lines.push(`Motivos da validação: ${reasons}`);
+  const dayIssues = toReadableDietErrorLine(detail.dayTargetIssues);
+  if (dayIssues) lines.push(`Dias fora da meta: ${dayIssues}`);
+  const missing = toReadableDietErrorLine(detail.missingDays);
+  if (missing) lines.push(`Dias sem ajuste devolvido: ${missing}`);
+  return lines;
+};
+
+/** Mensagem amigável para falha de rede/timeout/stream interrompido. */
+export const describeNetworkError = (e: unknown): string => {
+  const msg = e instanceof Error ? e.message : String(e ?? '');
+  if (/abort|timeout|timed out/i.test(msg)) return 'A geração demorou demais e a conexão foi interrompida. Tente gerar novamente.';
+  if (/failed to fetch|networkerror|load failed|fetch failed/i.test(msg)) return 'Não foi possível conectar à IA. Verifique a internet e tente novamente.';
+  return msg || 'A conexão com a IA foi interrompida antes da resposta.';
+};
+
 const DietaIA = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
@@ -454,6 +540,7 @@ const DietaIA = () => {
   const [generating, setGenerating] = useState(false);
   const [genProgress, setGenProgress] = useState<{ label: string; detail?: string; ratio: number } | null>(null);
   const [genOutcome, setGenOutcome] = useState<{ status: 'success' | 'error'; message?: string } | null>(null);
+  const [genErrorDetail, setGenErrorDetail] = useState<DietAgentErrorDetail | null>(null);
   const genPanelRef = useScrollToOnStart(generating);
   // Mantém o sucesso brevemente e depois revela o resultado.
   useEffect(() => {
@@ -1907,7 +1994,7 @@ const DietaIA = () => {
         plan: null,
         status: resp.status,
         errorCode: parsedBody?.error_code || undefined,
-        message: parsedBody?.error || undefined,
+        message: parsedBody?.error || (!parsedBody ? 'A conexão com a IA foi interrompida antes da resposta final.' : undefined),
         details: parsedBody?.details,
         validationReasons: parsedBody?.validationReasons,
         missingDays: parsedBody?.missing_days,
@@ -2009,6 +2096,7 @@ const DietaIA = () => {
     scrollToResultAfterGenerationRef.current = true;
     setGenerating(true);
     setGenOutcome(null);
+    setGenErrorDetail(null);
     setGenProgress({ label: 'Preparando dados do aluno...', ratio: 0.03 });
     setResult('');
     setMacroReport(null);
@@ -2443,18 +2531,18 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
       // não pode exibir um plano sem os ajustes por dia.
       if (weeklySchedule && structuredError) {
         console.error('[DietaIA] structured_failed_with_schedule', structuredError);
-        const TOAST_BY_CODE: Record<string, string> = {
-          daily_adjustments_invalid: 'Falha nos ajustes diários da dieta.',
-          food_contract_invalid: 'Alguns alimentos da dieta modelo não foram encontrados na base.',
-          canonical_targets_missing: 'As metas nutricionais não foram enviadas corretamente.',
-          day_targets_invalid: 'Um ou mais dias ficaram fora da meta.',
-          review_required: 'O plano precisa de revisão antes de ser aceito.',
+        const errorDetail: DietAgentErrorDetail = {
+          code: structuredError.code,
+          message: structuredError.message,
+          details: structuredError.details,
+          validationReasons: structuredError.validationReasons,
+          missingDays: structuredError.missingDays,
+          dayTargetIssues: structuredError.dayTargetIssues,
         };
-        toast.error(
-          (structuredError.code && TOAST_BY_CODE[structuredError.code]) ||
-            structuredError.message ||
-            'Falha ao gerar dieta estruturada. Regere o plano.',
-        );
+        const errorLines = formatDietAgentError(errorDetail);
+        setGenErrorDetail(errorDetail);
+        setGenOutcome({ status: 'error', message: errorLines[0] });
+        toast.error(errorLines[0]);
         return;
       }
 
@@ -2506,8 +2594,10 @@ ${generated}`;
       }
     } catch (e: any) {
       console.error(e);
-      setGenOutcome({ status: 'error', message: e?.message || 'Erro ao gerar dieta' });
-      toast.error(e.message || 'Erro ao gerar dieta');
+      const friendlyMessage = describeNetworkError(e);
+      setGenErrorDetail({ message: friendlyMessage });
+      setGenOutcome({ status: 'error', message: friendlyMessage });
+      toast.error(friendlyMessage);
     } finally {
       setGenerating(false);
       setGenProgress(null);
@@ -3534,6 +3624,23 @@ ${generated}`;
             </AiWizard>
           );
         })()}
+
+        {/* Card de erro detalhado: visível até a próxima tentativa de geração. */}
+        {genErrorDetail && !generating && (
+          <Card className="glass-card border-destructive/40">
+            <CardContent className="p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
+                <h3 className="text-sm font-bold uppercase tracking-wide">Falha na geração do plano</h3>
+              </div>
+              <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                {formatDietAgentError(genErrorDetail).map((line, i) => (
+                  <li key={i}>{line}</li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
 
 
         {result && generating && (
