@@ -12,6 +12,8 @@ import { Dumbbell, Play, Target } from 'lucide-react';
 import { X, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
+import { isSameWorkoutDay } from '@/lib/activeWorkoutSession';
+import { cancelWorkoutSession } from '@/lib/workoutSessionResolution';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { useLanguage } from '@/i18n';
 import { translatePlanMarkdown } from '@/lib/planTranslation';
@@ -85,8 +87,8 @@ const MeusTreinos = () => {
   const handleCancelActive = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!activeSession) return;
-    if (!window.confirm('Cancelar o treino em andamento? O progresso será descartado.')) return;
-    await supabase.from('workout_sessions').update({ status: 'abandoned' }).eq('id', activeSession.id);
+    if (!window.confirm('Cancelar o treino em andamento? Ele não vai contar como feito, mas as séries registradas ficam no histórico.')) return;
+    await cancelWorkoutSession(activeSession.id);
     clearActiveSession();
     toast.success('Treino cancelado.');
   };
@@ -346,7 +348,7 @@ const MeusTreinos = () => {
             {
           trainingDays.map((day, i) => {
             const isToday = i === todayIndex;
-            const isActiveDay = isToday && !!activeSession;
+            const isActiveDay = !!activeSession && isSameWorkoutDay(day.day, activeSession.day_name);
             const muscles = getMuscleGroups(day);
             const heroImage = (() => {
               const start = Math.min(2, day.exercises.length - 1);
