@@ -7,7 +7,7 @@ import { Copy, ClipboardCopy } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import DietResultCards from '@/components/DietResultCards';
+import DietWeekView from '@/components/diet/DietWeekView';
 import DietPlanEditor from '@/components/diet/DietPlanEditor';
 import CanonicalDietEditor from '@/components/diet/CanonicalDietEditor';
 import AiEditDietDialog from '@/components/diet/AiEditDietDialog';
@@ -898,7 +898,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         );
                       })()
                     ) : (
-                      <DietResultCards markdown={cleanedMarkdown} />
+                      <DietWeekView markdown={cleanedMarkdown} plan={plan.conteudo_json} />
                     )}
                   </div>
                 )}

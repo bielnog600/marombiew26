@@ -1,5 +1,9 @@
 # Roadmap
 
+## Dieta admin — leitura por dia
+- [x] Organizar dias em abas, condensar sete dias idênticos e preservar fallback e demais seções.
+- [x] Testar a apresentação e conferir a compilação, sem alterar edição, aluno ou geração (20 testes passaram; exemplos reais conferidos no admin).
+
 ## Execução do aluno — tela do iPhone
 - [x] Encostar rodapé na base e destacar histórico/sugestão/alvo no card.
 - [x] Conferir 3 e 8 séries em 390×844 com safe-area inferior de 34px simulada e executar testes (1.171 passaram).
