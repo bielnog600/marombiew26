@@ -21,7 +21,7 @@ import { validateDietJSON } from '@/lib/planMigrationUtils';
 import { markdownToDietPlan } from '@/lib/dietPlanAdapter';
 import { finalizeDietPlan } from '@/lib/dietValidation';
 import { parseDietPlanStrict, parseDietPlanLoose, type DietPlan } from '@/lib/dietSchema';
-import { buildAllowedUnresolvedFromModelDiet, modelDietMentionsLinearTargets } from '@/lib/modelDietFoods';
+import { buildAllowedUnresolvedFromModelDiet, extractModelDietFoodNames, matchFoodNamesToCatalog, modelDietMentionsLinearTargets } from '@/lib/modelDietFoods';
 import { buildStructuredDietPrompt } from '@/lib/structuredDietPrompt';
 import {
   validateCanonicalDietTarget,
@@ -1883,13 +1883,34 @@ const DietaIA = () => {
     // Alimentos da dieta modelo sem correspondência única na base: só eles podem
     // voltar sem foodId (source model_diet). Calculado ANTES da geração.
     let allowedUnresolvedFoods: { name: string; source: string }[] = [];
-    if (modelDiet.trim()) {
-      try {
-        const foodsForCheck = await loadFoodMacroRecords();
+    // Nomes livres (preferências / lista de alimentos) associados ao alimento do banco.
+    let foodAliasBlock = '';
+    try {
+      const foodsForCheck = await loadFoodMacroRecords();
+      if (modelDiet.trim()) {
         allowedUnresolvedFoods = buildAllowedUnresolvedFromModelDiet(modelDiet, foodsForCheck);
-      } catch (e) {
-        console.warn('structured: failed to build allowed unresolved foods', e);
       }
+      const freeNames = [
+        ...getPreferencesText().split(/[,;\n]/),
+        ...extractModelDietFoodNames(modelDiet),
+        ...modelDiet.split(/[,;\n]/).filter((x) => x.trim().length <= 40 && !/\d/.test(x)),
+      ].map((x) => x.replace(/^\s*[-*•]\s*/, '').trim()).filter((x) => x.length >= 3);
+      const { matched, unmatched } = matchFoodNamesToCatalog(freeNames, foodsForCheck);
+      if (matched.length) {
+        const matchedKeys = new Set(matched.map((m) => m.from.toLowerCase()));
+        allowedUnresolvedFoods = allowedUnresolvedFoods.filter((a) => !matchedKeys.has(a.name.toLowerCase()));
+        foodAliasBlock = `\n\n=== ALIMENTOS CITADOS → USE ESTES DO CATÁLOGO ===\n${matched
+          .map((m) => `- "${m.from}" = ${m.to}${m.id ? ` [id=${m.id}]` : ''}`)
+          .join('\n')}\nUse SEMPRE o foodId indicado para esses alimentos.`;
+        toast.info('Alimentos associados ao banco', { description: matched.map((m) => `${m.from} → ${m.to}`).join(' · ') });
+      }
+      const modelNames = new Set(extractModelDietFoodNames(modelDiet).map((n) => n.toLowerCase()));
+      const unmatchedModel = unmatched.filter((n) => modelNames.has(n.toLowerCase()));
+      if (unmatchedModel.length) {
+        toast.warning('Alimentos sem cadastro', { description: `Sem correspondência no banco: ${unmatchedModel.join(', ')}. Cadastre-os ou troque por um alimento existente.` });
+      }
+    } catch (e) {
+      console.warn('structured: failed to build allowed unresolved foods', e);
     }
 
     const streamResp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/diet-agent`, {
@@ -1902,7 +1923,7 @@ const DietaIA = () => {
         mode: 'structured',
         // Progresso em tempo real: a função devolve SSE com fases + resultado final.
         progressStream: true,
-        messages: [{ role: 'user', content: userPrompt }],
+        messages: [{ role: 'user', content: userPrompt + foodAliasBlock }],
         studentContext: studentCtx,
         dietConfig,
         trainingContext,
