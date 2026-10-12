@@ -1,6 +1,8 @@
 # Roadmap
 
 ## Execução do aluno — tela do iPhone
+- [x] Encostar rodapé na base e destacar histórico/sugestão/alvo no card.
+- [x] Conferir 3 e 8 séries em 390×844 com safe-area inferior de 34px simulada e executar testes (1.171 passaram).
 - [x] Ajustar altura visível e rolagem exclusiva da lista, com descrição limitada.
 - [x] Mostrar histórico/sugestão e carga vazia com placeholder sem alterar salvamento.
 - [x] Testar campos e conferir visualmente 3 e 8 séries em 390×844 (dados simulados, sem gravação real).

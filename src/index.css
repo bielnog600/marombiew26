@@ -148,7 +148,6 @@
   .student-workout-screen {
     position: fixed;
     inset: 0;
-    height: 100vh;
     box-sizing: border-box;
     overflow: hidden;
     padding-top: env(safe-area-inset-top, 0px);
@@ -159,11 +158,10 @@
     height: clamp(220px, 32vh, 360px);
   }
   @supports (height: 100dvh) {
-    .student-workout-screen { height: 100dvh; }
     .student-workout-media { height: clamp(220px, 32dvh, 360px); }
   }
   .student-workout-footer {
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px);
   }
   @keyframes splash-logo-in {
     0% { opacity: 0; transform: scale(0.6); }
