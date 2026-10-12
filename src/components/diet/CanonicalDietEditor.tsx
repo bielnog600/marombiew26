@@ -61,6 +61,8 @@ import CanonicalFoodPickerDialog from './CanonicalFoodPickerDialog';
 import CanonicalFoodSubstitutionDialog from './CanonicalFoodSubstitutionDialog';
 import MealAiSuggestionsDialog from './MealAiSuggestionsDialog';
 import { applyMealSuggestion } from '@/lib/mealAiSuggestions';
+import MealTimePopover from './MealTimePopover';
+import { applyMealTime, mealTimesOutOfOrder } from '@/lib/dietMealTime';
 
 interface Props {
   plan: DietPlan;
@@ -474,10 +476,23 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
         <Card key={meal.id ?? mealIdx} className="border-border">
           <CardContent className="space-y-2 p-4">
             <div className="flex items-center justify-between text-xs">
-              <p className="text-sm font-bold">
-                {meal.name}
-                {meal.time ? <span className="ml-2 text-muted-foreground">{meal.time}</span> : null}
-              </p>
+              <div className="flex flex-wrap items-center gap-1">
+                <p className="text-sm font-bold">{meal.name}</p>
+                <MealTimePopover
+                  time={meal.time}
+                  mealName={meal.name}
+                  onApply={(t, only) => {
+                    const next = clone(plan);
+                    next.days = applyMealTime(next.days, activeIndex, mealIdx, t, only);
+                    onChange(next);
+                  }}
+                />
+                {mealIdx === 0 && mealTimesOutOfOrder(day.meals ?? []) && (
+                  <span className="flex items-center gap-1 text-[10px] text-yellow-600 dark:text-yellow-400">
+                    <AlertTriangle className="h-3 w-3" /> Horário fora da ordem das refeições
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground">
                   {line(computed?.meals[mealIdx]?.totals)}
