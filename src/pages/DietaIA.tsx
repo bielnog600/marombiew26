@@ -1902,10 +1902,10 @@ const DietaIA = () => {
         foodAliasBlock = `\n\n=== ALIMENTOS CITADOS → USE ESTES DO CATÁLOGO ===\n${matched
           .map((m) => `- "${m.from}" = ${m.to}${m.id ? ` [id=${m.id}]` : ''}`)
           .join('\n')}\nUse SEMPRE o foodId indicado para esses alimentos.`;
-        toast({ title: 'Alimentos associados ao banco', description: matched.map((m) => `${m.from} → ${m.to}`).join(' · ') });
+        toast.info('Alimentos associados ao banco', { description: matched.map((m) => `${m.from} → ${m.to}`).join(' · ') });
       }
       if (unmatched.length) {
-        toast({ title: 'Alimentos sem cadastro', description: `Sem correspondência no banco: ${unmatched.join(', ')}. Cadastre-os ou troque por um alimento existente.`, variant: 'destructive' });
+        toast.warning('Alimentos sem cadastro', { description: `Sem correspondência no banco: ${unmatched.join(', ')}. Cadastre-os ou troque por um alimento existente.` });
       }
     } catch (e) {
       console.warn('structured: failed to build allowed unresolved foods', e);
