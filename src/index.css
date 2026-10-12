@@ -138,6 +138,33 @@
 }
 
 @layer utilities {
+  /* Scoped to the student's player; other pages and the admin retain their layout. */
+  body.student-workout-open, body.student-workout-open #root {
+    height: 100%;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  .student-workout-screen {
+    position: fixed;
+    inset: 0;
+    height: 100vh;
+    box-sizing: border-box;
+    overflow: hidden;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  .student-workout-media {
+    height: clamp(220px, 32vh, 360px);
+  }
+  @supports (height: 100dvh) {
+    .student-workout-screen { height: 100dvh; }
+    .student-workout-media { height: clamp(220px, 32dvh, 360px); }
+  }
+  .student-workout-footer {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  }
   @keyframes splash-logo-in {
     0% { opacity: 0; transform: scale(0.6); }
     60% { opacity: 1; transform: scale(1.08); }

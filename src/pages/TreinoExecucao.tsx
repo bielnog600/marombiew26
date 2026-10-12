@@ -33,8 +33,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { fetchWithCache, getCached, setCache } from '@/lib/offlineCache';
 import { useRestTimer } from '@/hooks/useRestTimer';
 import { useSessionProgression } from '@/hooks/useSessionProgression';
-import { getRecommendationFor, targetLoadForSet, type ProgressionSnapshot } from '@/lib/sessionProgression';
-import { ProgressionHintCard } from '@/components/training/ProgressionHintCard';
+import { getRecommendationFor, type ProgressionSnapshot } from '@/lib/sessionProgression';
+import { StudentWeightInput } from '@/components/training/StudentWeightInput';
+import { lastWorkSetLine, studentSuggestionLine, studentWeightPlaceholder, type PreviousExerciseSet } from '@/lib/studentExerciseLoadPresentation';
 import MethodBadge from '@/components/training/MethodBadge';
 
 
@@ -209,7 +210,12 @@ const TreinoExecucaoInner = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [sets, setSets] = useState<Record<number, ExerciseSet[]>>({});
   // Cache of last performed values per exercise name (from previous sessions)
-  const [lastLogsByExercise, setLastLogsByExercise] = useState<Record<string, ExerciseSet[]>>({});
+  const [lastLogsByExercise, setLastLogsByExercise] = useState<Record<string, PreviousExerciseSet[]>>({});
+  const [descriptionOpen, setDescriptionOpen] = useState(false);
+  useEffect(() => {
+    document.body.classList.add('student-workout-open');
+    return () => document.body.classList.remove('student-workout-open');
+  }, []);
   const [loadedLogsForIndex, setLoadedLogsForIndex] = useState<Set<number>>(new Set());
   const [exerciseDB, setExerciseDB] = useState<ExerciseDBData[]>([]);
   const { restTimer, startTimer: startRestTimer, stopTimer: stopRestTimer } = useRestTimer();
@@ -825,10 +831,9 @@ const TreinoExecucaoInner = () => {
   };
 
   useEffect(() => {
-    if (!exercise || !user) return;
-    if (loadedLogsForIndex.has(currentIndex)) return;
+    if (!exercise || !user || !sessionId) return;
 
-    const exName = exercise.exercise;
+    const exName = selectedExerciseName;
     const cached = lastLogsByExercise[exName.toUpperCase().trim()];
 
     const buildEmpty = (): ExerciseSet[] =>
@@ -836,21 +841,21 @@ const TreinoExecucaoInner = () => {
         ? setPlan.map((p) => ({ reps: p.reps || exercise?.reps || '', weight: '', completed: false }))
         : Array.from({ length: totalSeries }, () => ({ reps: exercise?.reps || '', weight: '', completed: false }));
 
-    const applyPrefill = (prevSets: ExerciseSet[] | undefined) => {
+    const applyPrefill = (prevSets: PreviousExerciseSet[] | undefined) => {
       const base = buildEmpty();
       if (!prevSets || prevSets.length === 0) return base;
       return base.map((s, i) => {
-        const prev = prevSets[i];
+        const prev = prevSets.find((row) => row.set_number === i + 1);
         if (!prev) return s;
         return {
-          reps: prev.reps || s.reps,
-          weight: prev.weight || '',
+          reps: prev.reps != null ? String(prev.reps) : s.reps,
+          weight: '',
           completed: false,
         };
       });
     };
 
-    const ensureSets = (prefill?: ExerciseSet[]) => {
+    const ensureSets = (prefill?: PreviousExerciseSet[]) => {
       setSets((prev) => {
         if (prev[currentIndex]) return prev;
         return { ...prev, [currentIndex]: applyPrefill(prefill) };
@@ -873,35 +878,32 @@ const TreinoExecucaoInner = () => {
         .from('exercise_set_logs')
         .select('session_id, performed_at')
         .eq('student_id', user.id)
+        .neq('session_id', sessionId)
         .ilike('exercise_name', normalizeExName(exName))
         .order('performed_at', { ascending: false })
         .limit(1);
 
       if (!lastSession || lastSession.length === 0) {
+        setLastLogsByExercise((prev) => ({ ...prev, [exName.toUpperCase().trim()]: [] }));
         ensureSets();
         return;
       }
 
-      const sessionId = lastSession[0].session_id;
+      const previousSessionId = lastSession[0].session_id;
       const { data: rows } = await supabase
         .from('exercise_set_logs')
-        .select('set_number, reps, weight_kg, rpe')
+        .select('set_number, reps, weight_kg, set_type, performed_at')
         .eq('student_id', user.id)
         .ilike('exercise_name', normalizeExName(exName))
-        .eq('session_id', sessionId)
+        .eq('session_id', previousSessionId)
         .order('set_number', { ascending: true });
 
-      const prefill: ExerciseSet[] = (rows || []).map((r) => ({
-        reps: r.reps != null ? String(r.reps) : '',
-        weight: r.weight_kg != null ? String(r.weight_kg) : '',
-        rpe: r.rpe != null ? String(r.rpe) : '',
-        completed: false,
-      }));
+      const prefill: PreviousExerciseSet[] = rows || [];
 
       setLastLogsByExercise((prev) => ({ ...prev, [exName.toUpperCase().trim()]: prefill }));
       ensureSets(prefill);
     })();
-  }, [currentIndex, totalSeries, exercise, user, lastLogsByExercise, loadedLogsForIndex]);
+  }, [currentIndex, totalSeries, exercise, user, lastLogsByExercise, sessionId, selectedExerciseName]);
 
   const updateSet = (setIndex: number, field: 'reps' | 'weight' | 'rir', value: string) => {
     setSets((prev) => {
@@ -947,6 +949,11 @@ const TreinoExecucaoInner = () => {
   };
 
   const currentSets = sets[currentIndex] || [];
+  const previousSets = lastLogsByExercise[selectedExerciseName.toUpperCase().trim()] ?? [];
+  const recommendation = getRecommendationFor(progressionSnapshot, selectedExerciseName);
+  const loadTarget = { kg: exercise?.targetLoadKg, note: exercise?.targetLoadNote, perSet: exercise?.targetLoadPerSet };
+  const previousLine = lastWorkSetLine(previousSets, setPlan.map((set) => set.type));
+  const suggestionLine = studentSuggestionLine(loadTarget, recommendation, exercise?.reps ?? '');
 
   const streamVideoId = extractStreamVideoId(activeExercise?.video_embed);
   const imageUrl = activeExercise?.imagem_url;
@@ -1060,7 +1067,7 @@ const TreinoExecucaoInner = () => {
 
   if (shouldShowWorkoutLoading(planLoading, !!exercise)) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="student-workout-screen bg-background flex items-center justify-center">
         {sessionDialogs}
         <div className="w-full max-w-sm space-y-3 px-6">
           <Skeleton className="h-4 w-28" />
@@ -1076,7 +1083,7 @@ const TreinoExecucaoInner = () => {
   if (!exercise) {
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="student-workout-screen bg-background flex items-center justify-center">
         {sessionDialogs}
         <div className="text-center space-y-4 px-6 max-w-sm">
           {isOffline ? (
@@ -1099,7 +1106,7 @@ const TreinoExecucaoInner = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="student-workout-screen bg-background flex flex-col" data-testid="student-workout-screen">
       {sessionDialogs}
       {zoomOpen && (
         <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center">
@@ -1165,7 +1172,7 @@ const TreinoExecucaoInner = () => {
         />
       )}
 
-      <div className="relative w-full bg-secondary/30 overflow-hidden" style={{ aspectRatio: '16/11' }}>
+      <div className="student-workout-media relative w-full shrink-0 bg-secondary/30 overflow-hidden" data-testid="workout-header">
         {hlsUrl ? (
           <>
             <video
@@ -1198,9 +1205,9 @@ const TreinoExecucaoInner = () => {
 
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent pointer-events-none" />
 
-        <button onClick={() => navigate('/minha-area')} className="absolute top-4 left-4 z-30 h-10 w-10 rounded-full bg-background/80 backdrop-blur flex items-center justify-center">
+        <Button variant="ghost" size="icon" aria-label="Voltar para o início" onClick={() => navigate('/minha-area')} className="absolute top-4 left-4 z-30 h-10 w-10 rounded-full bg-background/80 backdrop-blur flex items-center justify-center">
           <ArrowLeft className="h-5 w-5 text-foreground" />
-        </button>
+        </Button>
 
         <div className="absolute top-4 right-4 z-30 flex items-center gap-2">
           <span className="bg-background/80 backdrop-blur rounded-full px-2.5 py-1 text-xs font-mono font-semibold text-primary tabular-nums flex items-center gap-1">
@@ -1217,7 +1224,10 @@ const TreinoExecucaoInner = () => {
                 <p className="text-[10px] uppercase tracking-widest text-primary font-semibold" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{activeExercise?.grupo_muscular || dayName}</p>
               </div>
               <h1 className="text-xl font-bold text-foreground leading-tight" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}>{selectedExerciseName}</h1>
-              {exercise.description && <p className="text-xs text-foreground/90 mt-1" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>{exercise.description}</p>}
+              {exercise.description && <>
+                <p className="text-xs text-foreground/90 mt-1 line-clamp-3">{exercise.description}</p>
+                <Button variant="link" className="h-auto p-0 text-xs text-primary" onClick={() => setDescriptionOpen(true)}>Ver mais</Button>
+              </>}
             </div>
             <div className="relative z-10 shrink-0 mt-1 flex flex-col items-end gap-1.5">
               {exercise.variation && (
@@ -1307,7 +1317,7 @@ const TreinoExecucaoInner = () => {
         </div>
       </div>
 
-      <div className="flex-1 p-4 space-y-4 pb-28">
+      <div className="shrink-0 px-4 py-3">
         <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
@@ -1349,15 +1359,8 @@ const TreinoExecucaoInner = () => {
           )}
         </div>
 
-        <ProgressionHintCard
-          recommendation={getRecommendationFor(progressionSnapshot, selectedExerciseName)}
-          targetLoad={{
-            kg: (exercise as any)?.targetLoadKg ?? null,
-            note: (exercise as any)?.targetLoadNote ?? null,
-            perSet: (exercise as any)?.targetLoadPerSet ?? null,
-          }}
-        />
-
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3" data-testid="workout-set-list">
         <div className="space-y-2">
           <div className="grid grid-cols-[36px_1fr_1fr_44px] gap-1.5 px-2">
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Série</span>
@@ -1379,8 +1382,8 @@ const TreinoExecucaoInner = () => {
                     {isRecognition && <span className="text-[8px] uppercase tracking-wider text-accent font-semibold mt-0.5">Rec</span>}
                   </div>
                   <Input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} placeholder={planned?.reps || '10'} className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
-                  <Input type="text" inputMode="decimal" value={set.weight} onChange={(e) => updateSet(i, 'weight', e.target.value)} placeholder={(() => { const t = targetLoadForSet((exercise as any)?.targetLoadPerSet, i + 1); return t != null ? `${t}` : '0'; })()} className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
-                  <Button size="icon" variant={set.completed ? 'default' : 'outline'} className={`h-9 w-9 mx-auto rounded-full ${isNextPending ? 'animate-pulse-glow' : ''}`} onClick={() => toggleSetComplete(i)}>
+                  <StudentWeightInput setNumber={i + 1} value={set.weight} onChange={(value) => updateSet(i, 'weight', value)} placeholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation)} disabled={set.completed} />
+                  <Button size="icon" aria-label={`Confirmar série ${i + 1}`} variant={set.completed ? 'default' : 'outline'} className={`h-9 w-9 mx-auto rounded-full ${isNextPending ? 'animate-pulse-glow' : ''}`} onClick={() => toggleSetComplete(i)}>
                     <Check className="h-4 w-4" />
                   </Button>
                 </div>
@@ -1416,8 +1419,18 @@ const TreinoExecucaoInner = () => {
             });
           })()}
         </div>
-
+        {(previousLine || suggestionLine) && <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+          {previousLine && <p>{previousLine}</p>}
+          {suggestionLine && <p>{suggestionLine}</p>}
+        </div>}
       </div>
+
+      <Dialog open={descriptionOpen} onOpenChange={setDescriptionOpen}>
+        <DialogContent className="max-w-md max-h-[80dvh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{selectedExerciseName}</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground whitespace-pre-wrap">{exercise.description}</p>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showVideoCapture} onOpenChange={setShowVideoCapture}>
         <DialogContent className="max-w-md">
@@ -1443,7 +1456,7 @@ const TreinoExecucaoInner = () => {
         </DialogContent>
       </Dialog>
 
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-t border-border p-3" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}>
+      <div className="student-workout-footer shrink-0 z-50 bg-background/95 backdrop-blur border-t border-border p-3" data-testid="workout-footer">
         <div className="flex items-center justify-between gap-3">
           <Button variant="outline" className="flex-1" onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))} disabled={currentIndex === 0}>
             <ChevronLeft className="h-4 w-4 mr-1" />
