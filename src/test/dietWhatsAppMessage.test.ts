@@ -29,7 +29,7 @@ const linearPlan = {
 describe('dietWhatsAppMessage', () => {
   it('A. primeiro envio contém "Sua nova Dieta"', () => {
     const msg = buildDietWhatsAppMessage({ firstName: 'Izis', plan: linearPlan, resendState: 'new' });
-    expect(msg).toContain('Sua nova Dieta já está disponível no app.');
+    expect(msg).toContain('Sua nova *Dieta* ("Dieta Cutting") já está disponível no app.');
   });
 
   it('B/C. nunca contém "seu nova" nem "Sua nova dieta"', () => {
@@ -89,7 +89,7 @@ describe('dietWhatsAppMessage', () => {
     expect(msg).not.toContain('HIGH');
     expect(msg).not.toContain('MEDIUM');
     expect(msg).not.toContain('LOW');
-    expect(msg).toContain('Sua nova Dieta já está disponível no app.');
+    expect(msg).toContain('Sua nova *Dieta* ("Dieta") já está disponível no app.');
   });
 
   it('G–J. linear mostra somente kcal', () => {
@@ -160,9 +160,9 @@ describe('dietWhatsAppMessage', () => {
     expect(resolveDietWhatsAppState(2, null)).toBe('adjusted');
     expect(resolveDietWhatsAppState(2, '2026-01-01T00:00:00Z')).toBe('resend');
     expect(buildDietWhatsAppMessage({ firstName: 'Izis', plan: linearPlan, resendState: 'adjusted' }))
-      .toContain('Atualizei a sua Dieta');
+      .toContain('Atualizei a sua *Dieta*');
     expect(buildDietWhatsAppMessage({ firstName: 'Izis', plan: linearPlan, resendState: 'resend' }))
-      .toContain('Estou te reenviando as informações da sua Dieta');
+      .toContain('Estou te reenviando as informações da sua *Dieta*');
   });
 
   it('dieta linear sem targets não inventa meta', () => {
