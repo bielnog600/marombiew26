@@ -44,6 +44,7 @@ import {
   type DietCandidateSignals,
 } from "../_shared/dietRoutingPolicy.ts";
 import { sanitizeStructuredPrompt } from "../_shared/structuredPromptSanitizer.ts";
+import { rebalanceDayCarbs } from "../_shared/dayCarbRebalance.ts";
 import { scheduleHasDailyMacroTargets, validateDayTargets, hasMeaningfulDailyTargetVariation, hasManualWeeklyAdjustment } from "../_shared/dayTargets.ts";
 import {
   formatFoodCatalogPrompt,
@@ -606,6 +607,11 @@ serve(async (req) => {
     const canonicalTargets = rawCanonicalTargets && typeof rawCanonicalTargets === "object"
       ? rawCanonicalTargets as GlobalDietTarget
       : null;
+    // Piso de proteína proporcional à meta diária (alunos leves / meta baixa).
+    const dailyProteinTarget = Number((canonicalTargets as any)?.p) || 0;
+    const MAIN_MEAL_PROTEIN_FLOOR = dailyProteinTarget > 0 ? Math.min(30, Math.round(dailyProteinTarget * 0.25)) : 30;
+    const BREAKFAST_PROTEIN_FLOOR = dailyProteinTarget > 0 ? Math.min(15, Math.round(dailyProteinTarget * 0.12)) : 15;
+    const proteinFloorOpts = { mainMealProteinFloor: MAIN_MEAL_PROTEIN_FLOOR, breakfastProteinFloor: BREAKFAST_PROTEIN_FLOOR };
     const unresolvedBlock = allowedUnresolvedNames.length
       ? `\nALIMENTOS SEM CADASTRO AUTORIZADOS (use "foodId": null e o nome exato):\n${allowedUnresolvedNames.map((n) => `- ${n}`).join("\n")}\n`
       : "";
@@ -1117,10 +1123,10 @@ serve(async (req) => {
           intensity,
           historySummary,
           dailyAdjustmentMode
-            ? "CANDIDATA DE SEGURANÇA: valide rigorosamente o contrato completo, os 7 dailyAdjustments, os targets por dia e os pisos de proteína (30g no almoço/jantar e 15g no café da manhã). Corrija qualquer risco nutricional antes de concluir."
+            ? "CANDIDATA DE SEGURANÇA: valide rigorosamente o contrato completo, os 7 dailyAdjustments, os targets por dia e os pisos de proteína (${MAIN_MEAL_PROTEIN_FLOOR}g no almoço/jantar e ${BREAKFAST_PROTEIN_FLOOR}g no café da manhã). Corrija qualquer risco nutricional antes de concluir."
             : weekdayTargetMode
-              ? "CANDIDATA DE SEGURANÇA: valide rigorosamente o contrato completo, os 7 targets por weekday e os pisos de proteína (30g no almoço/jantar e 15g no café da manhã). NÃO gere dailyAdjustments. Corrija qualquer risco nutricional antes de concluir."
-              : "CANDIDATA DE SEGURANÇA: valide rigorosamente o contrato completo, a meta global e os pisos de proteína (30g no almoço/jantar e 15g no café da manhã). Corrija qualquer risco nutricional antes de concluir.",
+              ? "CANDIDATA DE SEGURANÇA: valide rigorosamente o contrato completo, os 7 targets por weekday e os pisos de proteína (${MAIN_MEAL_PROTEIN_FLOOR}g no almoço/jantar e ${BREAKFAST_PROTEIN_FLOOR}g no café da manhã). NÃO gere dailyAdjustments. Corrija qualquer risco nutricional antes de concluir."
+              : "CANDIDATA DE SEGURANÇA: valide rigorosamente o contrato completo, a meta global e os pisos de proteína (${MAIN_MEAL_PROTEIN_FLOOR}g no almoço/jantar e ${BREAKFAST_PROTEIN_FLOOR}g no café da manhã). Corrija qualquer risco nutricional antes de concluir.",
           requireMenuVariation,
         ),
         AI_MODELS.fallback,
@@ -1184,7 +1190,14 @@ serve(async (req) => {
       // nome, macros e totais a partir da tabela `foods`. Qualquer valor
       // nutricional devolvido pelo modelo é descartado ANTES de qualquer validação.
       const hasDailyTargets = weekdayTargetMode;
-      const prepareCandidate = (rawPlan: any) => {
+      const prepareCandidate = (inputPlan: any) => {
+        // Metas por dia: encaixa o carboidrato de cada weekday pela base antes de validar.
+        let rawPlan = inputPlan;
+        if (hasDailyTargets && schedule) {
+          const rb = rebalanceDayCarbs(inputPlan, schedule, foodCatalog);
+          rawPlan = rb.plan;
+          if (rb.adjustedDays.length) console.log("[diet-agent] day_carb_rebalance", { days: rb.adjustedDays });
+        }
         const contract = validateFoodContract(rawPlan, foodCatalog, {
           mode: "fresh",
           allowedUnresolved: allowedUnresolvedFoodsForContract,
@@ -1234,7 +1247,7 @@ serve(async (req) => {
       let finalPlan = candidatePlan;
       let regenerated = false;
       let warning: string | null = null;
-      let nutrition: DietNutritionValidation = validateDietNutrition(finalPlan);
+      let nutrition: DietNutritionValidation = validateDietNutrition(finalPlan, proteinFloorOpts);
       console.log("[diet-agent] nutrition_validation", {
         model: selectedModel,
         ok: nutrition.ok,
@@ -1414,13 +1427,13 @@ serve(async (req) => {
               ? [`• Refeições principais SEM proteína principal: ${missing.join(", ")}. Inclua OBRIGATORIAMENTE uma fonte de proteína principal (frango, peixe, carne, ovos, vísceras, laticínios ou vegetal proteica) em cada uma.`]
               : []),
             ...(lowProt.length
-              ? [`• Almoço/Jantar com proteína abaixo do piso (mín 30g): ${lowProt.join(", ")}. Aumente a porção da proteína principal até atingir o piso, ajustando carbo/gordura para manter as metas.`]
+              ? [`• Almoço/Jantar com proteína abaixo do piso (mín ${MAIN_MEAL_PROTEIN_FLOOR}g): ${lowProt.join(", ")}. Aumente a porção da proteína principal até atingir o piso, ajustando carbo/gordura para manter as metas.`]
               : []),
             ...(bfMissing.length
               ? [`• Café da manhã SEM fonte proteica: ${bfMissing.join(", ")}. Inclua OBRIGATORIAMENTE uma fonte proteica (ovos, whey, iogurte, queijo, leite ou similar da lista do aluno).`]
               : []),
             ...(bfLow.length
-              ? [`• Café da manhã com proteína abaixo do piso (mín 15g): ${bfLow.join(", ")}. Aumente a porção da fonte proteica.`]
+              ? [`• Café da manhã com proteína abaixo do piso (mín ${BREAKFAST_PROTEIN_FLOOR}g): ${bfLow.join(", ")}. Aumente a porção da fonte proteica.`]
               : []),
             ...(lowShare.length
               ? [`• Refeições com participação de proteína muito baixa: ${lowShare.join(", ")}. Acrescente uma fonte proteica adequada.`]
@@ -1502,7 +1515,7 @@ serve(async (req) => {
           const prepared2 = prepareCandidate(second.plan);
           const secondPlan = prepared2.plan;
           const sim2 = computeDietSimilarity(secondPlan, historyJsons);
-          const nut2 = validateDietNutrition(secondPlan);
+          const nut2 = validateDietNutrition(secondPlan, proteinFloorOpts);
           console.log("[diet-agent] nutrition_validation", {
             model: AI_MODELS.fallback,
             ok: nut2.ok,
