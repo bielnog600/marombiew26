@@ -1,5 +1,10 @@
 # Roadmap
 
+## WhatsApp — avisos de planos
+- [ ] Corrigir concordância e criar variações puras para planos genéricos.
+- [ ] Variar aberturas da dieta, preservando macros/ciclo, e evitar repetição por aluno/tipo.
+- [ ] Executar testes de mensagens e verificar a aplicação.
+
 ## Dietas — macros confiáveis
 Escopo atual: SOMENTE Fase 1 + Fase 2. Parar ao terminar e apresentar o relatório final.
 
