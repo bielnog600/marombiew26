@@ -25,6 +25,8 @@ import { finalizeDietPlan } from '@/lib/dietValidation';
 import DietValidationBadge from './DietValidationBadge';
 import TrainingContextSummary from './TrainingContextSummary';
 import { buildCarbCycleDays } from '@/lib/dietAiActions';
+import MealTimePopover from './MealTimePopover';
+import { applyMealTime, mealTimesOutOfOrder } from '@/lib/dietMealTime';
 
 interface DietPlanEditorProps {
   markdown: string;
@@ -798,9 +800,16 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
                     ))}
                   </SelectContent>
                 </Select>
-                {meal.time && (
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-normal">
-                    <Clock className="h-3 w-3" /> {meal.time}
+                <MealTimePopover
+                  time={meal.time}
+                  mealName={meal.name}
+                  onApply={(t, only) =>
+                    commitDays(applyMealTime(daysRef.current, activeDayIdxRef.current, mealIdx, t, only))
+                  }
+                />
+                {mealIdx === 0 && mealTimesOutOfOrder(meals) && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-normal text-yellow-600 dark:text-yellow-400">
+                    <AlertTriangle className="h-3 w-3" /> Horário fora da ordem das refeições
                   </span>
                 )}
               </div>
