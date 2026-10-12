@@ -2,7 +2,7 @@
  * Edição de horário de refeição — puro, sem tocar em alimentos/macros.
  */
 export interface TimedMeal { name?: string | null; time?: string | null }
-export interface TimedDay<M extends TimedMeal = TimedMeal> { meals: M[] }
+export interface TimedDay<M extends TimedMeal = TimedMeal> { meals?: M[] }
 
 const TIME_RE = /^(\d{1,2}):(\d{2})$/;
 
@@ -43,7 +43,7 @@ export function applyMealTime<D extends TimedDay>(
   if (!source) return days;
   const value = normalizeTime(time);
   const srcName = norm(source.name);
-  const srcCount = days[dayIdx].meals.length;
+  const srcCount = days[dayIdx].meals?.length ?? 0;
   const setTime = <M extends TimedMeal>(m: M): M => {
     const next = { ...m } as M;
     if (value) next.time = value; else delete (next as any).time;
@@ -55,9 +55,9 @@ export function applyMealTime<D extends TimedDay>(
       const target = d.meals?.[mealIdx];
       if (!target) return d;
       const nameOk = norm(target.name) === srcName;
-      if (!nameOk && d.meals.length !== srcCount) return d;
+      if (!nameOk && (d.meals?.length ?? 0) !== srcCount) return d;
     }
-    return { ...d, meals: d.meals.map((m, mi) => (mi === mealIdx ? setTime(m) : m)) };
+    return { ...d, meals: (d.meals ?? []).map((m, mi) => (mi === mealIdx ? setTime(m) : m)) };
   });
 }
 
