@@ -34,7 +34,7 @@ const dayType = (day: DietDay) => {
   if (label === 'off' || label === 'descanso') return 'Descanso';
   return day.trainingDay === true ? 'Treino' : day.trainingDay === false ? 'Descanso' : '';
 };
-const fmt = (value?: number) => value == null ? '—' : value.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+const fmt = (value?: number) => value == null ? '—' : value.toLocaleString('pt-BR', { maximumFractionDigits: 1, useGrouping: false });
 
 /** Read-only: pairs markdown meal sections with persisted days before sorting. */
 export const buildDietWeekView = (markdown: string, plan: { days?: DietDay[] } | null | undefined) => {
