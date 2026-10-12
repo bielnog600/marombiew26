@@ -32,6 +32,9 @@ import HomeCardsCarousel from '@/components/home/HomeCardsCarousel';
 import StudentWeightCard from '@/components/home/StudentWeightCard';
 import { useEventTracking } from '@/hooks/useEventTracking';
 import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
+import { resolveHomeTrainingCard } from '@/lib/activeWorkoutSession';
+import { cancelWorkoutSession } from '@/lib/workoutSessionResolution';
+import CancelWorkoutDialog from '@/components/training/CancelWorkoutDialog';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { fetchWithCache } from '@/lib/offlineCache';
 import WorkoutCheckinDialog from '@/components/consultoria/WorkoutCheckinDialog';
@@ -75,16 +78,17 @@ const MinhaArea = () => {
   const { session: activeSession, clear: clearActiveSession } = useActiveWorkoutSession();
   const [historyExercise, setHistoryExercise] = useState<string | null>(null);
 
-  const handleCancelActiveSession = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
+  const handleCancelActiveSession = async () => {
     if (!activeSession) return;
-    if (!window.confirm('Cancelar o treino em andamento? O progresso será descartado.')) return;
-    await supabase
-      .from('workout_sessions')
-      .update({ status: 'abandoned' })
-      .eq('id', activeSession.id);
+    const ok = await cancelWorkoutSession(activeSession.id);
+    setConfirmCancelOpen(false);
+    if (!ok) {
+      toast.error('Não foi possível cancelar o treino agora.');
+      return;
+    }
     clearActiveSession();
-    toast.success('Treino cancelado.');
+    toast.success('Treino cancelado. As séries registradas ficaram no histórico.');
   };
   const [activeElapsed, setActiveElapsed] = useState(0);
 
@@ -295,6 +299,13 @@ const MinhaArea = () => {
     return trainingDays.find(d => todayNames.some(n => d.day.toLowerCase().includes(n)));
   }, [trainingDays]);
 
+  // Card "Hoje": sessão em andamento (de qualquer dia) tem prioridade.
+  const homeTrainingCard = resolveHomeTrainingCard({
+    activeSession,
+    todayTraining,
+    trainingDays,
+  });
+
   // Detecta se hoje é dia de treino agendado (match real pelo nome do dia)
   useEffect(() => {
     if (trainingDays.length === 0) {
@@ -403,28 +414,47 @@ const MinhaArea = () => {
 
         {/* Today's Training + Cardio + TABATA (carrossel horizontal) */}
         <HomeCardsCarousel>
-          {todayTraining ? (
+          {homeTrainingCard.mode === 'active' ? (
             <Card
               key="treino"
-              className={`glass-card overflow-hidden cursor-pointer group ${activeSession ? 'ring-2 ring-primary/60 shadow-lg shadow-primary/10' : ''}`}
+              className="glass-card overflow-hidden ring-2 ring-primary/60 shadow-lg shadow-primary/10"
+            >
+              <div className="relative h-40 overflow-hidden">
+                <img src={todayHeroImage} alt="Treino em andamento" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-card via-card/60 to-transparent" />
+                <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-primary/90 backdrop-blur rounded-full px-2.5 py-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary-foreground animate-pulse" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-primary-foreground">Em andamento</span>
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 p-4">
+                  <p className="text-[10px] uppercase tracking-widest text-primary font-semibold" data-testid="home-active-workout-title">
+                    {homeTrainingCard.title}
+                  </p>
+                  <h3 className="text-base font-bold text-foreground mt-0.5 uppercase">Treino de {homeTrainingCard.dayLabel}</h3>
+                  <p className="text-xs text-primary font-mono font-bold mt-0.5 tabular-nums">⏱ {formatActiveElapsed(activeElapsed)}</p>
+                </div>
+              </div>
+              <CardContent className="p-3 flex gap-2">
+                <Button className="flex-1" onClick={() => navigate('/treino-execucao')}>
+                  <Play className="h-4 w-4 mr-1" /> Continuar
+                </Button>
+                <Button variant="outline" className="flex-1" onClick={() => setConfirmCancelOpen(true)}>
+                  <X className="h-4 w-4 mr-1" /> Cancelar treino
+                </Button>
+              </CardContent>
+            </Card>
+          ) : todayTraining ? (
+            <Card
+              key="treino"
+              className="glass-card overflow-hidden cursor-pointer group"
               onClick={() => {
-                if (activeSession) {
-                  navigate('/treino-execucao', {
-                    state: {
-                      exercises: todayTraining.exercises,
-                      dayName: todayTraining.day,
-                      exerciseMedia,
-                    },
-                  });
-                } else {
-                  navigate('/treino-preview', {
-                    state: {
-                      exercises: todayTraining.exercises,
-                      dayName: todayTraining.day,
-                      exerciseMedia,
-                    },
-                  });
-                }
+                navigate('/treino-preview', {
+                  state: {
+                    exercises: todayTraining.exercises,
+                    dayName: todayTraining.day,
+                    exerciseMedia,
+                  },
+                });
               }}
             >
                 <div className="relative h-40 overflow-hidden">
@@ -434,41 +464,15 @@ const MinhaArea = () => {
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-card via-card/60 to-transparent" />
-                  {activeSession && (
-                    <>
-                      <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-primary/90 backdrop-blur rounded-full px-2.5 py-1">
-                        <span className="h-1.5 w-1.5 rounded-full bg-primary-foreground animate-pulse" />
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-primary-foreground">Em andamento</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleCancelActiveSession}
-                        aria-label="Cancelar treino em andamento"
-                        className="absolute top-3 right-3 z-10 h-8 w-8 rounded-full bg-background/80 backdrop-blur flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground transition-colors"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </>
-                  )}
                   <div className="absolute bottom-0 left-0 right-0 p-4">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-[10px] uppercase tracking-widest text-primary font-semibold">{todayTraining.day}</p>
-                        <h3 className="text-base font-bold text-foreground mt-0.5 uppercase">
-                          {activeSession ? 'Continuar Treino' : 'Treino de Hoje'}
-                        </h3>
-                        {activeSession ? (
-                          <p className="text-xs text-primary font-mono font-bold mt-0.5 tabular-nums">
-                            ⏱ {formatActiveElapsed(activeElapsed)}
-                          </p>
-                        ) : (
-                          <>
-                            {todayMuscleGroups && (
-                              <p className="text-[10px] text-primary/80 font-medium mt-0.5">{todayMuscleGroups}</p>
-                            )}
-                            <p className="text-xs text-muted-foreground mt-0.5">{todayTraining.exercises.length} exercícios</p>
-                          </>
+                        <h3 className="text-base font-bold text-foreground mt-0.5 uppercase">Treino de Hoje</h3>
+                        {todayMuscleGroups && (
+                          <p className="text-[10px] text-primary/80 font-medium mt-0.5">{todayMuscleGroups}</p>
                         )}
+                        <p className="text-xs text-muted-foreground mt-0.5">{todayTraining.exercises.length} exercícios</p>
                       </div>
                       <div className="h-12 w-12 rounded-full bg-primary flex items-center justify-center shadow-lg">
                         <Play className="h-5 w-5 text-primary-foreground ml-0.5" />
@@ -485,7 +489,7 @@ const MinhaArea = () => {
         </HomeCardsCarousel>
 
         {/* Rest day card - when student has a training plan but today is not a scheduled training day */}
-        {!todayTraining && trainingDays.length > 0 && (
+        {!todayTraining && !activeSession && trainingDays.length > 0 && (
           <Card className="glass-card overflow-hidden">
             <CardContent className="p-5 flex items-center gap-4">
               <div className="h-14 w-14 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
@@ -573,6 +577,12 @@ const MinhaArea = () => {
           />
         )}
       </div>
+      <CancelWorkoutDialog
+        open={confirmCancelOpen}
+        dayName={activeSession?.day_name ?? null}
+        onOpenChange={setConfirmCancelOpen}
+        onConfirm={handleCancelActiveSession}
+      />
     </AppLayout>
   );
 };

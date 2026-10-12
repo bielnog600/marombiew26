@@ -1,11 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import {
-  isSessionStale,
-  resolveStaleWorkoutSessions,
-  STALE_INACTIVITY_MINUTES,
-} from '@/lib/workoutSessionResolution';
+import { isSessionForgotten } from '@/lib/activeWorkoutSession';
 
 export interface ActiveWorkoutSession {
   id: string;
@@ -14,30 +10,41 @@ export interface ActiveWorkoutSession {
   phase: string | null;
   plan_id: string | null;
   started_at: string;
+  last_active_at?: string | null;
   session_state: any | null;
 }
 
 const LOCAL_KEY = 'mw_active_workout_session';
-// Retomada é baseada em INATIVIDADE (não no tempo total desde o início).
-const MAX_SESSION_AGE_MS = STALE_INACTIVITY_MINUTES * 60 * 1000;
+const CHANGE_EVENT = 'mw-active-workout-session-changed';
 
+const readLocal = (): ActiveWorkoutSession | null => {
+  try {
+    const cached = localStorage.getItem(LOCAL_KEY);
+    return cached ? (JSON.parse(cached) as ActiveWorkoutSession) : null;
+  } catch {
+    return null;
+  }
+};
+
+const notify = () => {
+  try { window.dispatchEvent(new Event(CHANGE_EVENT)); } catch { /* noop */ }
+};
+
+/**
+ * Sessão de treino em andamento do aluno — de QUALQUER dia do plano.
+ * - `session`: em andamento e retomável (mostrada no card "Hoje").
+ * - `forgotten`: parada há mais de 6 h sem atividade; a UI pergunta se o
+ *   aluno quer finalizar com o que registrou ou cancelar.
+ * Nunca descarta o rascunho local da mesma sessão.
+ */
 export function useActiveWorkoutSession() {
   const { user } = useAuth();
   const [session, setSession] = useState<ActiveWorkoutSession | null>(() => {
-    try {
-      const cached = localStorage.getItem(LOCAL_KEY);
-      if (!cached) return null;
-      const parsed = JSON.parse(cached) as ActiveWorkoutSession;
-      const age = Date.now() - new Date(parsed.started_at).getTime();
-      if (age > MAX_SESSION_AGE_MS) {
-        localStorage.removeItem(LOCAL_KEY);
-        return null;
-      }
-      return parsed;
-    } catch {
-      return null;
-    }
+    const parsed = readLocal();
+    if (!parsed) return null;
+    return isSessionForgotten(parsed) ? null : parsed;
   });
+  const [forgotten, setForgotten] = useState<ActiveWorkoutSession | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -61,39 +68,31 @@ export function useActiveWorkoutSession() {
     }
 
     if (data && data.started_at) {
-      if (isSessionStale(data as any)) {
-        // Sessão parada: classifica automaticamente (completed/partial/abandoned)
-        await resolveStaleWorkoutSessions(user.id);
-        localStorage.removeItem(LOCAL_KEY);
+      // Preserva session_state local da MESMA sessão (edições ainda não persistidas).
+      const local = readLocal();
+      const cachedState = local && local.id === data.id ? local.session_state : null;
+      const active: ActiveWorkoutSession = {
+        id: data.id,
+        student_id: data.student_id,
+        plan_id: data.plan_id,
+        day_name: data.day_name,
+        phase: data.phase,
+        started_at: data.started_at,
+        last_active_at: data.last_active_at,
+        session_state: cachedState ?? data.session_state,
+      };
+      if (isSessionForgotten(data as any)) {
+        setForgotten(active);
         setSession(null);
       } else {
-        // Preserva session_state local se for da MESMA sessão — pode conter
-        // edições recentes ainda não persistidas no banco (debounce / app fechado).
-        let cachedState: any = null;
-        try {
-          const raw = localStorage.getItem(LOCAL_KEY);
-          if (raw) {
-            const parsed = JSON.parse(raw) as ActiveWorkoutSession;
-            if (parsed.id === data.id && parsed.session_state) {
-              cachedState = parsed.session_state;
-            }
-          }
-        } catch {}
-        const active: ActiveWorkoutSession = {
-          id: data.id,
-          student_id: data.student_id,
-          plan_id: data.plan_id,
-          day_name: data.day_name,
-          phase: data.phase,
-          started_at: data.started_at,
-          session_state: cachedState ?? data.session_state,
-        };
+        setForgotten(null);
         setSession(active);
         localStorage.setItem(LOCAL_KEY, JSON.stringify(active));
       }
     } else {
       localStorage.removeItem(LOCAL_KEY);
       setSession(null);
+      setForgotten(null);
     }
     setLoading(false);
   }, [user]);
@@ -102,9 +101,22 @@ export function useActiveWorkoutSession() {
     refresh();
   }, [refresh]);
 
+  // Mantém várias instâncias do hook (Home, Treinos, avisos) sincronizadas.
+  useEffect(() => {
+    const onChange = () => {
+      const local = readLocal();
+      setSession(local && !isSessionForgotten(local) ? local : null);
+      if (!local) setForgotten(null);
+    };
+    window.addEventListener(CHANGE_EVENT, onChange);
+    return () => window.removeEventListener(CHANGE_EVENT, onChange);
+  }, []);
+
   const clear = useCallback(() => {
     localStorage.removeItem(LOCAL_KEY);
     setSession(null);
+    setForgotten(null);
+    notify();
   }, []);
 
   const setLocal = useCallback((s: ActiveWorkoutSession | null) => {
@@ -113,5 +125,5 @@ export function useActiveWorkoutSession() {
     setSession(s);
   }, []);
 
-  return { session, loading, refresh, clear, setLocal };
+  return { session, forgotten, loading, refresh, clear, setLocal };
 }
