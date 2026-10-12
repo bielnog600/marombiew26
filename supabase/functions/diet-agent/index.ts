@@ -45,7 +45,7 @@ import {
 } from "../_shared/dietRoutingPolicy.ts";
 import { sanitizeStructuredPrompt } from "../_shared/structuredPromptSanitizer.ts";
 import { rebalanceDayCarbs } from "../_shared/dayCarbRebalance.ts";
-import { enforceProteinFloors, normalizeScheduleMacros, repairInvalidFoodIds } from "../_shared/dietAutoRepair.ts";
+import { enforceProteinFloors, normalizeScheduleMacros, repairInvalidFoodIds, trimDayProtein } from "../_shared/dietAutoRepair.ts";
 import { scheduleHasDailyMacroTargets, validateDayTargets, hasMeaningfulDailyTargetVariation, hasManualWeeklyAdjustment } from "../_shared/dayTargets.ts";
 import {
   formatFoodCatalogPrompt,
@@ -1216,11 +1216,14 @@ serve(async (req) => {
         fitDays();
         const protFix = enforceProteinFloors(rawPlan, foodCatalog, floors);
         rawPlan = protFix.plan;
-        if (protFix.adjusted.length) {
-          console.log("[diet-agent] protein_floor_repair", protFix.adjusted.slice(0, 20));
-          fitDays();
-          rawPlan = enforceProteinFloors(rawPlan, foodCatalog, floors).plan;
+        if (protFix.adjusted.length) console.log("[diet-agent] protein_floor_repair", protFix.adjusted.slice(0, 20));
+        if (hasDailyTargets && schedule) {
+          const trim = trimDayProtein(rawPlan, foodCatalog, schedule, floors);
+          rawPlan = trim.plan;
+          if (trim.trimmedDays.length) console.log("[diet-agent] day_protein_trim", { days: trim.trimmedDays });
         }
+        fitDays();
+        rawPlan = enforceProteinFloors(rawPlan, foodCatalog, floors).plan;
         const contract = validateFoodContract(rawPlan, foodCatalog, {
           mode: "fresh",
           allowedUnresolved: allowedUnresolvedFoodsForContract,

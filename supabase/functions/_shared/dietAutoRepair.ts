@@ -175,3 +175,51 @@ export function enforceProteinFloors(
   }
   return { plan: out, adjusted };
 }
+
+/** Proteína do dia acima da meta: reduz fontes proteicas dos lanches e, depois, das principais acima do piso. */
+export function trimDayProtein(
+  plan: any,
+  catalog: FoodCatalog,
+  schedule: any,
+  floors: { main: number; breakfast: number },
+): { plan: any; trimmedDays: string[] } {
+  const out = clone(plan);
+  const trimmedDays: string[] = [];
+  const foodOf = (item: any) => (item?.foodId ? catalog.index.byId.get(String(item.foodId)) ?? null : null);
+  const protOf = (items: any[]) =>
+    items.reduce((s, it) => {
+      const f = foodOf(it);
+      return s + (f ? perGram(f, "protein") * num(it.qtyGrams) : 0);
+    }, 0);
+  for (const day of out?.days ?? []) {
+    const wd = String(day?.weekday || "").toLowerCase();
+    const targetP = optNum(schedule?.days?.[wd]?.protein_g);
+    if (targetP === null) continue;
+    const meals: any[] = day?.meals ?? [];
+    let excess = protOf(meals.flatMap((m) => m.items ?? [])) - (targetP + 5);
+    if (excess <= 0) continue;
+    const ordered = [...meals.filter((m) => mealKind(m) === "other"), ...meals.filter((m) => mealKind(m) !== "other")];
+    for (const meal of ordered) {
+      if (excess <= 0) break;
+      const kind = mealKind(meal);
+      const floor = kind === "main" ? floors.main + 2 : kind === "breakfast" ? floors.breakfast + 1 : 0;
+      for (const it of meal.items ?? []) {
+        if (excess <= 0) break;
+        const f = foodOf(it);
+        if (!f || !isProteinFood(f)) continue;
+        const pg = perGram(f, "protein");
+        if (pg <= 0) continue;
+        const slack = protOf(meal.items) - floor;
+        const maxByFloor = slack > 0 ? slack / pg : 0;
+        const maxByQty = num(it.qtyGrams) * 0.5;
+        const removeG = Math.floor(Math.min(maxByFloor, maxByQty, excess / pg) / 5) * 5;
+        if (removeG <= 0) continue;
+        it.qtyGrams = round5(num(it.qtyGrams) - removeG);
+        it.portionLabel = `${it.qtyGrams} g`;
+        excess -= removeG * pg;
+      }
+    }
+    trimmedDays.push(wd);
+  }
+  return { plan: out, trimmedDays };
+}
