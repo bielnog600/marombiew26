@@ -1204,13 +1204,22 @@ serve(async (req) => {
         // Reparos determinísticos pela base, antes de qualquer validação.
         const idFix = repairInvalidFoodIds(inputPlan, foodCatalog);
         if (idFix.repairs.length) console.log("[diet-agent] food_id_repair", idFix.repairs.slice(0, 20));
-        const protFix = enforceProteinFloors(idFix.plan, foodCatalog, { main: MAIN_MEAL_PROTEIN_FLOOR, breakfast: BREAKFAST_PROTEIN_FLOOR });
-        if (protFix.adjusted.length) console.log("[diet-agent] protein_floor_repair", protFix.adjusted.slice(0, 20));
-        let rawPlan = protFix.plan;
-        if (hasDailyTargets && schedule) {
+        // Ordem: metas do dia → piso de proteína → metas do dia (o piso mexe pouco na caloria).
+        const floors = { main: MAIN_MEAL_PROTEIN_FLOOR, breakfast: BREAKFAST_PROTEIN_FLOOR };
+        let rawPlan = idFix.plan;
+        const fitDays = () => {
+          if (!(hasDailyTargets && schedule)) return;
           const rb = rebalanceDayCarbs(rawPlan, schedule, foodCatalog);
           rawPlan = rb.plan;
           if (rb.adjustedDays.length) console.log("[diet-agent] day_carb_rebalance", { days: rb.adjustedDays });
+        };
+        fitDays();
+        const protFix = enforceProteinFloors(rawPlan, foodCatalog, floors);
+        rawPlan = protFix.plan;
+        if (protFix.adjusted.length) {
+          console.log("[diet-agent] protein_floor_repair", protFix.adjusted.slice(0, 20));
+          fitDays();
+          rawPlan = enforceProteinFloors(rawPlan, foodCatalog, floors).plan;
         }
         const contract = validateFoodContract(rawPlan, foodCatalog, {
           mode: "fresh",
