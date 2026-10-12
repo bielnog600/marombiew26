@@ -8,8 +8,9 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import ForgottenWorkoutDialog from '@/components/training/ForgottenWorkoutDialog';
-import { decideWorkoutStart, isSessionForgotten, isSameWorkoutDay, workoutDayLabel } from '@/lib/activeWorkoutSession';
+import { decideWorkoutStart, isSessionForgotten, isSameWorkoutDay, shouldShowWorkoutLoading, workoutDayLabel } from '@/lib/activeWorkoutSession';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
@@ -197,6 +198,9 @@ const TreinoExecucaoInner = () => {
   // Item 4: Flag explícita para aguardar o contexto do treino antes de criar uma nova sessão
   const workoutContextReady = stateData?.exercises ? true : false;
   const [contextReady, setContextReady] = useState(workoutContextReady);
+  // Plano/sessão/dia ainda carregando (retomada ou link direto): bloqueia o
+  // estado vazio até tudo terminar de carregar.
+  const [planLoading, setPlanLoading] = useState(!stateData?.exercises);
 
   const exercises = loadedExercises;
   const dayName = loadedDayName;
@@ -550,7 +554,10 @@ const TreinoExecucaoInner = () => {
 
   // Auto-load training plan from DB when accessed directly (no state)
   useEffect(() => {
-    if (loadedExercises.length > 0 || !user) return;
+    if (loadedExercises.length > 0 || !user) {
+      setPlanLoading(false);
+      return;
+    }
     const loadPlan = async () => {
       // Usa o mesmo cache offline da lista de treinos: se estiver sem internet,
       // o plano vem do IndexedDB em vez de falhar.
@@ -651,7 +658,7 @@ const TreinoExecucaoInner = () => {
         setContextReady(true);
       }
     };
-    loadPlan();
+    loadPlan().finally(() => setPlanLoading(false));
   }, [user, loadedExercises.length, activeSession?.day_name]);
 
   // Guarda o treino atual para permitir retomar totalmente offline.
@@ -1050,6 +1057,21 @@ const TreinoExecucaoInner = () => {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [zoomOpen]);
+
+  if (shouldShowWorkoutLoading(planLoading, !!exercise)) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        {sessionDialogs}
+        <div className="w-full max-w-sm space-y-3 px-6">
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-2/3" />
+          <Skeleton className="h-12 w-full rounded-md" />
+        </div>
+      </div>
+    );
+  }
 
   if (!exercise) {
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
