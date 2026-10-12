@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useEventTracking } from '@/hooks/useEventTracking';
 import { useAuth } from '@/contexts/AuthContext';
 import { resolveStaleWorkoutSessionsThrottled } from '@/lib/workoutSessionResolution';
+import ForgottenWorkoutPrompt from '@/components/training/ForgottenWorkoutPrompt';
 
 /**
  * Registra "app_opened" para o aluno em qualquer rota (não só na Home),
@@ -27,7 +28,8 @@ const StudentAppOpenTracker = () => {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [user, role, trackEvent]);
 
-  return null;
+  if (!user || role !== 'aluno') return null;
+  return <ForgottenWorkoutPrompt />;
 };
 
 export default StudentAppOpenTracker;

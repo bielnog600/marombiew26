@@ -304,7 +304,6 @@ const MinhaArea = () => {
     activeSession,
     todayTraining,
     trainingDays,
-    now: Date.now() + 0 * activeElapsed,
   });
 
   // Detecta se hoje é dia de treino agendado (match real pelo nome do dia)
@@ -578,6 +577,12 @@ const MinhaArea = () => {
           />
         )}
       </div>
+      <CancelWorkoutDialog
+        open={confirmCancelOpen}
+        dayName={activeSession?.day_name ?? null}
+        onOpenChange={setConfirmCancelOpen}
+        onConfirm={handleCancelActiveSession}
+      />
     </AppLayout>
   );
 };
