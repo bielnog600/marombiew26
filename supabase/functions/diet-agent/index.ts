@@ -1123,10 +1123,10 @@ serve(async (req) => {
           intensity,
           historySummary,
           dailyAdjustmentMode
-            ? "CANDIDATA DE SEGURANÇA: valide rigorosamente o contrato completo, os 7 dailyAdjustments, os targets por dia e os pisos de proteína (${MAIN_MEAL_PROTEIN_FLOOR}g no almoço/jantar e ${BREAKFAST_PROTEIN_FLOOR}g no café da manhã). Corrija qualquer risco nutricional antes de concluir."
+            ? `CANDIDATA DE SEGURANÇA: valide rigorosamente o contrato completo, os 7 dailyAdjustments, os targets por dia e os pisos de proteína (${MAIN_MEAL_PROTEIN_FLOOR}g no almoço/jantar e ${BREAKFAST_PROTEIN_FLOOR}g no café da manhã). Corrija qualquer risco nutricional antes de concluir.`
             : weekdayTargetMode
-              ? "CANDIDATA DE SEGURANÇA: valide rigorosamente o contrato completo, os 7 targets por weekday e os pisos de proteína (${MAIN_MEAL_PROTEIN_FLOOR}g no almoço/jantar e ${BREAKFAST_PROTEIN_FLOOR}g no café da manhã). NÃO gere dailyAdjustments. Corrija qualquer risco nutricional antes de concluir."
-              : "CANDIDATA DE SEGURANÇA: valide rigorosamente o contrato completo, a meta global e os pisos de proteína (${MAIN_MEAL_PROTEIN_FLOOR}g no almoço/jantar e ${BREAKFAST_PROTEIN_FLOOR}g no café da manhã). Corrija qualquer risco nutricional antes de concluir.",
+              ? `CANDIDATA DE SEGURANÇA: valide rigorosamente o contrato completo, os 7 targets por weekday e os pisos de proteína (${MAIN_MEAL_PROTEIN_FLOOR}g no almoço/jantar e ${BREAKFAST_PROTEIN_FLOOR}g no café da manhã). NÃO gere dailyAdjustments. Corrija qualquer risco nutricional antes de concluir.`
+              : `CANDIDATA DE SEGURANÇA: valide rigorosamente o contrato completo, a meta global e os pisos de proteína (${MAIN_MEAL_PROTEIN_FLOOR}g no almoço/jantar e ${BREAKFAST_PROTEIN_FLOOR}g no café da manhã). Corrija qualquer risco nutricional antes de concluir.`,
           requireMenuVariation,
         ),
         AI_MODELS.fallback,
