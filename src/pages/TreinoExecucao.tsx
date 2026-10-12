@@ -35,6 +35,7 @@ import { useRestTimer } from '@/hooks/useRestTimer';
 import { useSessionProgression } from '@/hooks/useSessionProgression';
 import { getRecommendationFor, type ProgressionSnapshot } from '@/lib/sessionProgression';
 import { StudentWeightInput } from '@/components/training/StudentWeightInput';
+import { StudentLoadSummaryCard } from '@/components/training/StudentLoadSummaryCard';
 import { lastWorkSetLine, studentSuggestionLine, studentWeightPlaceholder, type PreviousExerciseSet } from '@/lib/studentExerciseLoadPresentation';
 import MethodBadge from '@/components/training/MethodBadge';
 
@@ -1419,10 +1420,7 @@ const TreinoExecucaoInner = () => {
             });
           })()}
         </div>
-        {(previousLine || suggestionLine) && <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-          {previousLine && <p>{previousLine}</p>}
-          {suggestionLine && <p>{suggestionLine}</p>}
-        </div>}
+        <StudentLoadSummaryCard previousLine={previousLine} suggestionLine={suggestionLine} perSet={loadTarget.perSet} />
       </div>
 
       <Dialog open={descriptionOpen} onOpenChange={setDescriptionOpen}>
