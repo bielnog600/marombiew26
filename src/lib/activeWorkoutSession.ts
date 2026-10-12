@@ -91,7 +91,10 @@ export const resolveHomeTrainingCard = <D extends { day: string }>(params: {
 }): HomeTrainingCard<D> => {
   const { activeSession, todayTraining, trainingDays, now = Date.now() } = params;
   if (activeSession) {
-    const day = trainingDays.find((d) => isSameWorkoutDay(d.day, activeSession.day_name)) ?? null;
+    const day =
+      trainingDays.find((d) => isSameWorkoutDay(d.day, activeSession.day_name)) ??
+      trainingDays.find((d) => workoutDayLabel(d.day) === workoutDayLabel(activeSession.day_name)) ??
+      null;
     const dayLabel = workoutDayLabel(activeSession.day_name ?? day?.day);
     const minutes = Math.floor(elapsedSecondsSince(activeSession.started_at, now) / 60);
     return {
