@@ -28,6 +28,13 @@ export type CompletionSource = 'manual' | 'automatic';
 /** Minutos sem atividade real para considerar a sessão parada. */
 export const STALE_INACTIVITY_MINUTES = 90;
 
+/**
+ * Resolução automática em segundo plano (sem perguntar ao aluno). Só atua
+ * depois de muito tempo parado, para que um treino em andamento possa ser
+ * retomado mesmo com o app fechado por algumas horas.
+ */
+export const AUTO_RESOLVE_INACTIVITY_MINUTES = 24 * 60;
+
 /** Limiares de classificação automática (0..1). */
 export const COMPLETION_THRESHOLDS = {
   completed: 0.7,
@@ -136,7 +143,8 @@ export const getEffectiveLastActivity = (row: {
 export const isSessionStale = (
   row: { last_active_at?: string | null; started_at?: string | null; created_at?: string },
   now: number = Date.now(),
-): boolean => now - getEffectiveLastActivity(row) >= STALE_INACTIVITY_MINUTES * 60 * 1000;
+  thresholdMinutes: number = STALE_INACTIVITY_MINUTES,
+): boolean => now - getEffectiveLastActivity(row) >= thresholdMinutes * 60 * 1000;
 
 /** Extrai execução real a partir do session_state persistido. */
 export const summarizeSessionState = (
@@ -290,16 +298,67 @@ export interface ResolvedSession {
  * Idempotente: sessões já resolvidas não são tocadas (o filtro é feito na
  * própria query por status = 'in_progress').
  */
+const SESSION_RESOLUTION_COLUMNS =
+  'id, student_id, status, started_at, created_at, last_active_at, completed_at, day_name, phase, total_exercises, session_state';
+
+/**
+ * Classifica e fecha UMA sessão em andamento com o que já foi registrado
+ * (séries do session_state são gravadas em exercise_set_logs antes).
+ */
+export const resolveWorkoutSessionRow = async (
+  raw: StaleSessionRow,
+  source: CompletionSource = 'automatic',
+): Promise<ResolvedSession | null> => {
+  const state = (raw.session_state ?? null) as WorkoutSessionState | null;
+  const completion = computeCompletion(summarizeSessionState(state, raw.total_exercises ?? 0));
+
+  const lastActivityMs = getEffectiveLastActivity(raw);
+  const completedAtIso = new Date(lastActivityMs).toISOString();
+  const startedMs = raw.started_at ? new Date(raw.started_at).getTime() : lastActivityMs;
+  const durationMinutes = Math.max(0, Math.round((lastActivityMs - startedMs) / 60000));
+
+  const { totalSets, totalVolumeKg } = await flushSessionStateLogs(raw, state, completedAtIso);
+
+  const { error: updErr } = await supabase
+    .from('workout_sessions')
+    .update({
+      status: completion.status,
+      completion_source: source,
+      completion_score: Number(completion.completionScore.toFixed(4)),
+      completed_at: completedAtIso,
+      last_active_at: completedAtIso,
+      duration_minutes: durationMinutes,
+      exercises_completed: completion.executedExercises,
+      total_sets: totalSets || completion.executedSets || null,
+      total_volume_kg: totalVolumeKg || null,
+      session_state: null,
+    })
+    .eq('id', raw.id)
+    .eq('status', 'in_progress'); // guarda de concorrência: mantém idempotência
+
+  if (updErr) return null;
+  return {
+    id: raw.id,
+    status: completion.status,
+    completionScore: completion.completionScore,
+    completedAt: completedAtIso,
+  };
+};
+
+/**
+ * Resolve todas as sessões `in_progress` paradas de um aluno.
+ * Idempotente: sessões já resolvidas não são tocadas (o filtro é feito na
+ * própria query por status = 'in_progress').
+ */
 export const resolveStaleWorkoutSessions = async (
   studentId: string,
+  thresholdMinutes: number = AUTO_RESOLVE_INACTIVITY_MINUTES,
 ): Promise<ResolvedSession[]> => {
   if (!studentId) return [];
 
   const { data, error } = await supabase
     .from('workout_sessions')
-    .select(
-      'id, student_id, status, started_at, created_at, last_active_at, completed_at, day_name, phase, total_exercises, session_state',
-    )
+    .select(SESSION_RESOLUTION_COLUMNS)
     .eq('student_id', studentId)
     .eq('status', 'in_progress')
     .limit(20);
@@ -308,48 +367,55 @@ export const resolveStaleWorkoutSessions = async (
 
   const now = Date.now();
   const resolved: ResolvedSession[] = [];
-
   for (const raw of data as unknown as StaleSessionRow[]) {
-    if (!isSessionStale(raw, now)) continue;
+    if (!isSessionStale(raw, now, thresholdMinutes)) continue;
+    const r = await resolveWorkoutSessionRow(raw, 'automatic');
+    if (r) resolved.push(r);
+  }
+  return resolved;
+};
 
+/** Finaliza a sessão com o que já foi registrado (escolha do aluno). */
+export const finishWorkoutSessionWithRecorded = async (
+  sessionId: string,
+): Promise<ResolvedSession | null> => {
+  const { data } = await supabase
+    .from('workout_sessions')
+    .select(SESSION_RESOLUTION_COLUMNS)
+    .eq('id', sessionId)
+    .eq('status', 'in_progress')
+    .maybeSingle();
+  if (!data) return null;
+  return resolveWorkoutSessionRow(data as unknown as StaleSessionRow, 'manual');
+};
+
+/**
+ * Cancela a sessão: status 'abandoned' (não conta como treino feito). As
+ * séries já concluídas continuam no histórico (exercise_set_logs), inclusive
+ * as que estavam só no rascunho da sessão.
+ */
+export const cancelWorkoutSession = async (sessionId: string): Promise<boolean> => {
+  const { data } = await supabase
+    .from('workout_sessions')
+    .select(SESSION_RESOLUTION_COLUMNS)
+    .eq('id', sessionId)
+    .maybeSingle();
+  const nowIso = new Date().toISOString();
+  if (data) {
+    const raw = data as unknown as StaleSessionRow;
     const state = (raw.session_state ?? null) as WorkoutSessionState | null;
-    const completion = computeCompletion(summarizeSessionState(state, raw.total_exercises ?? 0));
-
-    const lastActivityMs = getEffectiveLastActivity(raw);
-    const completedAtIso = new Date(lastActivityMs).toISOString();
-    const startedMs = raw.started_at ? new Date(raw.started_at).getTime() : lastActivityMs;
-    const durationMinutes = Math.max(0, Math.round((lastActivityMs - startedMs) / 60000));
-
-    const { totalSets, totalVolumeKg } = await flushSessionStateLogs(raw, state, completedAtIso);
-
-    const { error: updErr } = await supabase
-      .from('workout_sessions')
-      .update({
-        status: completion.status,
-        completion_source: 'automatic' satisfies CompletionSource,
-        completion_score: Number(completion.completionScore.toFixed(4)),
-        completed_at: completedAtIso,
-        last_active_at: completedAtIso,
-        duration_minutes: durationMinutes,
-        exercises_completed: completion.executedExercises,
-        total_sets: totalSets || completion.executedSets || null,
-        total_volume_kg: totalVolumeKg || null,
-        session_state: null,
-      })
-      .eq('id', raw.id)
-      .eq('status', 'in_progress'); // guarda de concorrência: mantém idempotência
-
-    if (!updErr) {
-      resolved.push({
-        id: raw.id,
-        status: completion.status,
-        completionScore: completion.completionScore,
-        completedAt: completedAtIso,
-      });
+    try {
+      await flushSessionStateLogs(raw, state, nowIso);
+    } catch {
+      /* best-effort: nunca impede o cancelamento */
     }
   }
-
-  return resolved;
+  const { error } = await supabase
+    .from('workout_sessions')
+    .update({ status: 'abandoned', completion_source: 'manual', completed_at: nowIso })
+    .eq('id', sessionId)
+    .eq('status', 'in_progress');
+  return !error;
 };
 
 /** Marca atividade real na sessão (best-effort, não bloqueia a UI). */
