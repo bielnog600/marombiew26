@@ -1,4 +1,4 @@
-import { formatSessionHint, formatTargetLoadHint, targetLoadForSet, type SessionRecommendation } from './sessionProgression';
+import { formatSessionHint, formatTargetLoadHint, normalizeTargetLoadPerSet, targetLoadForSet, type SessionRecommendation } from './sessionProgression';
 
 export interface PreviousExerciseSet {
   set_number: number;
@@ -48,7 +48,7 @@ export const lastWorkSetLine = (previous: PreviousExerciseSet[], plannedTypes: s
 
 export const studentSuggestionLine = (target: StudentLoadTarget, recommendation: SessionRecommendation | null, reps: string): string | null => {
   const manual = formatTargetLoadHint(target.kg, target.note, target.perSet);
-  if (manual && targetLoadForSet(target.perSet, 1) != null) return `Carga alvo: ${manual.text}`;
+  if (manual && normalizeTargetLoadPerSet(target.perSet)) return `Carga alvo: ${manual.text}`;
   const load = positive(target.kg) ?? recommendationLoad(recommendation);
   const hint = manual ?? formatSessionHint(recommendation);
   if (!hint) return null;

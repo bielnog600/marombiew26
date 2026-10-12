@@ -1,9 +1,9 @@
 # Roadmap
 
 ## Execução do aluno — tela do iPhone
-- [ ] Ajustar altura visível e rolagem exclusiva da lista, com descrição limitada.
-- [ ] Mostrar histórico/sugestão e carga vazia com placeholder sem alterar salvamento.
-- [ ] Testar campos e conferir visualmente 3 e 8 séries em 390×844.
+- [x] Ajustar altura visível e rolagem exclusiva da lista, com descrição limitada.
+- [x] Mostrar histórico/sugestão e carga vazia com placeholder sem alterar salvamento.
+- [x] Testar campos e conferir visualmente 3 e 8 séries em 390×844 (dados simulados, sem gravação real).
 
 ## WhatsApp — avisos de planos
 - [x] Corrigir concordância e criar variações puras para planos genéricos.
