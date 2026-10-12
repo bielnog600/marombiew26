@@ -1055,6 +1055,7 @@ const TreinoExecucaoInner = () => {
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
+        {sessionDialogs}
         <div className="text-center space-y-4 px-6 max-w-sm">
           {isOffline ? (
             <>
@@ -1077,6 +1078,7 @@ const TreinoExecucaoInner = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      {sessionDialogs}
       {zoomOpen && (
         <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center">
           {hlsUrl ? (
