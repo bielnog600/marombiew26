@@ -1496,14 +1496,42 @@ serve(async (req) => {
         const criticalRetry =
           !foodContract.valid || !nutritionOkForGate() || !initialAdjValidation.ok ||
           !dayTargetsOkForGate() || !foodTargetsOkForGate();
-        const reviewRequired = (reason: string) => {
+        const WD_PT: Record<string, string> = { seg: "SEG", ter: "TER", qua: "QUA", qui: "QUI", sex: "SEX", sab: "SÁB", dom: "DOM" };
+        const buildReviewDetails = (src: { contract: any; nutrition: any; dayTargets: any; label: string }) => {
+          const lines: string[] = [];
+          const nameOf = (id: string) => foodCatalog.index.byId.get(String(id))?.name ?? id;
+          if (src.contract && !src.contract.valid) {
+            if (src.contract.invalidFoodIds?.length) lines.push(`${src.label}: alimento com ID inexistente no catálogo (${src.contract.invalidFoodIds.slice(0, 6).join(", ")})`);
+            if (src.contract.missingFoodIds?.length) lines.push(`${src.label}: alimento fora do catálogo — ${src.contract.missingFoodIds.slice(0, 6).map(nameOf).join(", ")}`);
+          }
+          if (src.nutrition && !src.nutrition.ok) {
+            const uniq = new Map<string, number>();
+            for (const i of src.nutrition.issues ?? []) {
+              const k = `${i.meal}`;
+              uniq.set(k, Math.min(uniq.get(k) ?? Infinity, Number(i.proteinG) || 0));
+            }
+            const parts = [...uniq.entries()].map(([m, p]) => `${m} ${Math.round(p)} g`);
+            if (parts.length) lines.push(`${src.label}: proteína abaixo do mínimo (almoço/jantar ${MAIN_MEAL_PROTEIN_FLOOR} g, café ${BREAKFAST_PROTEIN_FLOOR} g) — ${parts.join(", ")}`);
+          }
+          if (src.dayTargets && !src.dayTargets.ok) {
+            const parts = (src.dayTargets.issues ?? []).map((i: any) => `${WD_PT[i.weekday] ?? i.weekday} ${i.reasons.join(" ")}`);
+            if (parts.length) lines.push(`${src.label}: dias fora da meta — ${parts.join("; ")}`);
+            if (src.dayTargets.missingDays?.length) lines.push(`${src.label}: dias ausentes — ${src.dayTargets.missingDays.join(", ")}`);
+          }
+          return lines;
+        };
+        const firstDetails = buildReviewDetails({ contract: foodContract, nutrition: requiresResolution ? null : nutrition, dayTargets: requiresResolution ? null : initialDayTargets, label: "1ª tentativa" });
+        const reviewRequired = (reason: string, secondDetails: string[] = []) => {
           fallbackReasons.push(reason);
+          const allDetails = [...firstDetails, ...secondDetails];
+          console.log("[diet-agent] review_required_details", allDetails);
           const meta = createRoutingMetadata(modelAttempts, fallbackReason, fallbackReasons, null);
           return new Response(
             JSON.stringify({
               error: "Plano gerado não passou na validação crítica. Revisão necessária.",
               error_code: "review_required",
               validationReasons: fallbackReasons,
+              details: allDetails.join(" · ") || undefined,
               aiRouting: meta.routing,
               aiUsage: meta.usage,
             }),
@@ -1538,7 +1566,18 @@ serve(async (req) => {
           if (criticalRetry) {
             // Terra is only acceptable when critically valid; otherwise 422.
             if (!criticalValid) {
-              return reviewRequired(validity2.reason as string);
+              console.log("[diet-agent] food_contract", {
+                model: AI_MODELS.fallback,
+                ok: prepared2.contract.valid,
+                invalidFoodIds: prepared2.contract.invalidFoodIds,
+                missingFoodIds: prepared2.contract.missingFoodIds,
+              });
+              return reviewRequired(validity2.reason as string, buildReviewDetails({
+                contract: prepared2.contract,
+                nutrition: rr2 ? null : nut2,
+                dayTargets: rr2 ? null : checkDayTargets(secondPlan),
+                label: "2ª tentativa",
+              }));
             }
             finalPlan = secondPlan;
             foodContract = prepared2.contract;
