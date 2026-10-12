@@ -3,6 +3,12 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import Hls from 'hls.js';
 import { ArrowLeft, Play, Pause, Check, ChevronLeft, ChevronRight, X, Clock } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import ForgottenWorkoutDialog from '@/components/training/ForgottenWorkoutDialog';
+import { decideWorkoutStart, isSessionForgotten, isSameWorkoutDay, workoutDayLabel } from '@/lib/activeWorkoutSession';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
@@ -33,7 +39,8 @@ import MethodBadge from '@/components/training/MethodBadge';
 
 import {
   resolveStaleWorkoutSessionsThrottled,
-  isSessionStale,
+  cancelWorkoutSession,
+  finishWorkoutSessionWithRecorded,
 } from '@/lib/workoutSessionResolution';
 
 const normalizeExName = (name: string) => name.trim().replace(/\s+/g, ' ').toUpperCase();
@@ -168,7 +175,7 @@ const RestTimerOverlay = ({ timeLeft, totalSeconds, onClose }: { timeLeft: numbe
   );
 };
 
-const TreinoExecucao = () => {
+const TreinoExecucaoInner = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -250,17 +257,24 @@ const TreinoExecucao = () => {
     };
   }, [sessionStartAt]);
 
-  // Cria ou retoma sessão em andamento ao montar (uma vez)
+  // Diálogos de sessão: outro dia em andamento ou sessão esquecida (> 6 h).
+  const [sessionConflict, setSessionConflict] = useState<{ id: string; message: string; dayName: string | null } | null>(null);
+  const [forgottenSession, setForgottenSession] = useState<{ id: string; day_name: string | null; started_at: string } | null>(null);
+  const [sessionDialogBusy, setSessionDialogBusy] = useState(false);
+
+  // Cria ou retoma a sessão em andamento (de QUALQUER dia do plano). A sessão
+  // in_progress no banco é a fonte de verdade: nunca é encerrada sozinha aqui.
   const sessionInitRef = useRef(false);
+  const sessionInitRunningRef = useRef(false);
   useEffect(() => {
-    if (!user || sessionInitRef.current) return;
-    sessionInitRef.current = true;
+    if (!user || sessionInitRef.current || sessionInitRunningRef.current) return;
+    sessionInitRunningRef.current = true;
     (async () => {
+      try {
       const applyState = (state: any, existingSession?: any) => {
         if (state?.currentIndex != null) {
-          const maxIdx = Math.max(0, exercises.length - 1);
-          const safeIdx = Math.min(Math.max(0, state.currentIndex), maxIdx);
-          setCurrentIndex(safeIdx);
+          // O índice é limitado ao tamanho do treino quando os exercícios carregarem.
+          setCurrentIndex(Math.max(0, state.currentIndex));
         }
         if (state?.sets) {
           setSets(state.sets);
@@ -276,9 +290,10 @@ const TreinoExecucao = () => {
         if (existingSession?.plan_id) setSessionPlanId(existingSession.plan_id);
         resumedSessionRef.current = true;
       };
+      // Dia pedido explicitamente (veio da prévia/lista). Sem state = retomar.
+      const requestedDay = stateData?.dayName ?? null;
 
-
-      // 0. Resolve sessões antigas que ficaram abertas (aluno não finalizou).
+      // 0. Fecha só sessões abandonadas há muito tempo (resolução de segundo plano).
       await resolveStaleWorkoutSessionsThrottled(user.id, true);
 
       // 1. Verifica se já existe sessão em andamento
@@ -291,54 +306,54 @@ const TreinoExecucao = () => {
         .limit(1)
         .maybeSingle();
 
+      const resume = (row: any, state: any) => {
+        setSessionId(row.id);
+        setSessionStartAt(new Date(row.started_at).getTime());
+        if (row.day_name) setLoadedDayName((cur) => (stateData?.dayName ? cur : row.day_name));
+        applyState(state, row);
+        setLocalActiveSession({
+          id: row.id,
+          student_id: user.id,
+          plan_id: row.plan_id,
+          day_name: row.day_name,
+          phase: row.phase,
+          started_at: row.started_at,
+          last_active_at: row.last_active_at ?? null,
+          session_state: state,
+        });
+        sessionInitRef.current = true;
+      };
+
       if (existing && existing.started_at) {
-        // Retomada depende de INATIVIDADE, não do tempo total desde o início.
-        const stale = isSessionStale(existing as any);
-        const sameDay = !dayName || !existing.day_name || existing.day_name === dayName;
-        if (!stale && sameDay) {
-          const state = (activeSession?.id === existing.id ? activeSession.session_state : null) ?? existing.session_state;
-          setSessionId(existing.id);
-          setSessionStartAt(new Date(existing.started_at).getTime());
-          applyState(state, existing);
-          setLocalActiveSession({
-            id: existing.id,
-            student_id: user.id,
-            plan_id: existing.plan_id,
-            day_name: existing.day_name,
-            phase: existing.phase,
-            started_at: existing.started_at,
-            session_state: state,
-          });
+        if (isSessionForgotten(existing as any)) {
+          setForgottenSession({ id: existing.id, day_name: existing.day_name, started_at: existing.started_at });
+          sessionInitRef.current = true;
           return;
-        } else {
-          // Sessão parada ou de outro dia: resolve com a regra centralizada
-          // (classifica em completed/partial/abandoned) antes de iniciar outra.
-          await resolveStaleWorkoutSessionsThrottled(user.id, true);
-          if (!stale) {
-            await supabase
-              .from('workout_sessions')
-              .update({ status: 'abandoned', completion_source: 'automatic' })
-              .eq('id', existing.id)
-              .eq('status', 'in_progress');
-          }
-          clearActiveSession();
         }
+        const decision = decideWorkoutStart(existing as any, requestedDay);
+        if (decision.kind === 'conflict') {
+          setSessionConflict({ id: existing.id, message: decision.message, dayName: existing.day_name });
+          sessionInitRef.current = true;
+          return;
+        }
+        // Rascunho local da mesma sessão tem prioridade (pode ter edições não enviadas).
+        const state = (activeSession?.id === existing.id ? activeSession.session_state : null) ?? existing.session_state;
+        resume(existing, state);
+        return;
       }
 
+      // Offline: retoma pelo rascunho local da sessão.
       if (existingError && activeSession?.id && activeSession.started_at) {
-        const staleLocal = isSessionStale({ started_at: activeSession.started_at });
-        const sameDayLocal = !dayName || !activeSession.day_name || activeSession.day_name === dayName;
-        if (!staleLocal && sameDayLocal) {
-          setSessionId(activeSession.id);
-          setSessionStartAt(new Date(activeSession.started_at).getTime());
-          setSessionPlanId(activeSession.plan_id);
-          applyState(activeSession.session_state, activeSession);
+        const decision = decideWorkoutStart(activeSession as any, requestedDay);
+        if (decision.kind !== 'conflict' && !isSessionForgotten(activeSession as any)) {
+          resume(activeSession, activeSession.session_state);
           return;
         }
       }
 
       // 2. Cria nova sessão em andamento - APENAS se o contexto estiver pronto (Regra 4)
       if (!contextReady) return;
+      sessionInitRef.current = true;
 
       const startedAtIso = new Date().toISOString();
       const { data: newSession, error: createSessionError } = await supabase
@@ -368,6 +383,7 @@ const TreinoExecucao = () => {
           day_name: dayName,
           phase: phase ?? null,
           started_at: newSession.started_at,
+          last_active_at: newSession.started_at,
           session_state: null,
         });
 
@@ -377,8 +393,73 @@ const TreinoExecucao = () => {
           metadata: { day_name: dayName ?? null, session_id: newSession.id },
         });
       }
+      } finally {
+        sessionInitRunningRef.current = false;
+      }
     })();
   }, [user, dayName, phase, exercises.length, setLocalActiveSession, activeSession, contextReady, sessionPlanId]);
+
+  // Limita o exercício retomado ao tamanho do treino assim que ele carrega.
+  useEffect(() => {
+    if (exercises.length === 0) return;
+    setCurrentIndex((i) => Math.min(Math.max(0, i), exercises.length - 1));
+  }, [exercises.length]);
+
+  const handleContinueOtherSession = () => {
+    // Remonta a tela sem "state": retoma a sessão aberta (dia dela).
+    setSessionConflict(null);
+    navigate('/treino-execucao', { replace: true });
+  };
+
+  const handleEndOtherAndStart = async () => {
+    if (!sessionConflict) return;
+    setSessionDialogBusy(true);
+    await cancelWorkoutSession(sessionConflict.id);
+    clearActiveSession();
+    setSessionDialogBusy(false);
+    setSessionConflict(null);
+    navigate('/treino-execucao', { replace: true, state: location.state });
+  };
+
+  const handleForgottenChoice = async (choice: 'finish' | 'cancel') => {
+    if (!forgottenSession) return;
+    setSessionDialogBusy(true);
+    if (choice === 'finish') await finishWorkoutSessionWithRecorded(forgottenSession.id);
+    else await cancelWorkoutSession(forgottenSession.id);
+    clearActiveSession();
+    setSessionDialogBusy(false);
+    setForgottenSession(null);
+    toast.success(choice === 'finish' ? 'Treino finalizado com o que foi registrado.' : 'Treino cancelado.');
+    if (stateData?.exercises) navigate('/treino-execucao', { replace: true, state: location.state });
+    else navigate('/minha-area', { replace: true });
+  };
+
+  const sessionDialogs = (
+    <>
+      <AlertDialog open={!!sessionConflict}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Treino em andamento</AlertDialogTitle>
+            <AlertDialogDescription>{sessionConflict?.message}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={sessionDialogBusy} onClick={handleEndOtherAndStart}>
+              Encerrar e começar o de {workoutDayLabel(stateData?.dayName, 'short')}
+            </AlertDialogCancel>
+            <AlertDialogAction disabled={sessionDialogBusy} onClick={handleContinueOtherSession}>
+              Continuar o de {workoutDayLabel(sessionConflict?.dayName, 'short')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <ForgottenWorkoutDialog
+        session={forgottenSession}
+        busy={sessionDialogBusy}
+        onFinish={() => handleForgottenChoice('finish')}
+        onCancel={() => handleForgottenChoice('cancel')}
+      />
+    </>
+  );
 
   // Recomendações consultivas da sessão (congeladas no início; nunca
   // recalculadas durante o treino e nunca gravadas em exercise_set_logs).
@@ -437,7 +518,7 @@ const TreinoExecucao = () => {
     const t = setTimeout(() => {
       supabase
         .from('workout_sessions')
-        .update({ session_state: { sets, currentIndex, ...sessionMeta } as any })
+        .update({ session_state: { sets, currentIndex, ...sessionMeta } as any, last_active_at: new Date().toISOString() })
         .eq('id', sessionId)
         .then(() => {});
     }, 800);
@@ -503,10 +584,21 @@ const TreinoExecucao = () => {
           // (evita carregar o treino "de hoje" quando a sessão foi iniciada
           // ontem à noite e o usuário reabre o app no dia seguinte).
           let today = null as (typeof allDays)[number] | null;
-          const activeDayName = activeSession?.day_name?.trim();
+          let activeDayName = activeSession?.day_name?.trim();
+          // Fonte de verdade: sessão in_progress no banco (de qualquer dia).
+          try {
+            const { data: openSession } = await supabase
+              .from('workout_sessions')
+              .select('day_name')
+              .eq('student_id', user.id)
+              .eq('status', 'in_progress')
+              .order('started_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (openSession?.day_name) activeDayName = openSession.day_name.trim();
+          } catch { /* offline: usa o rascunho local */ }
           if (activeDayName) {
-            const norm = (s: string) => s.toLowerCase().trim();
-            today = allDays.find((d) => norm(d.day) === norm(activeDayName)) ?? null;
+            today = allDays.find((d) => isSameWorkoutDay(d.day, activeDayName)) ?? null;
           }
           if (!today) {
             const todayIndex = (new Date().getDay() + 6) % 7 % allDays.length;
@@ -1514,6 +1606,12 @@ const TreinoExecucao = () => {
       />
     </div>
   );
+};
+
+/** Remonta a tela a cada navegação (ex.: "Continuar" o treino de outro dia). */
+const TreinoExecucao = () => {
+  const location = useLocation();
+  return <TreinoExecucaoInner key={location.key} />;
 };
 
 export default TreinoExecucao;
