@@ -139,3 +139,50 @@ export function modelDietMentionsLinearTargets(modelDietText: string): boolean {
     /meta\s+unica\s+para\s+todos\s+os\s+dias/.test(text)
   );
 }
+
+const ALIAS_STOPWORDS = new Set(['de', 'da', 'do', 'das', 'dos', 'no', 'na', 'em', 'com', 'sem', 'shake', 'e', 'ou', 'tipo', 'protein', 'proteina']);
+
+export interface FoodAliasMatch {
+  from: string;
+  to: string;
+  id?: string;
+}
+
+/**
+ * Associa nomes livres (lista do wizard / dieta modelo) ao alimento do banco.
+ * Exato único → mantém. Senão, escolhe o item cujo nome contém mais palavras
+ * do termo (desempate: nome mais curto). Sem nenhuma palavra em comum → não associa.
+ */
+export function matchFoodNamesToCatalog(
+  names: string[],
+  foods: Array<{ id?: string; name: string }>,
+): { matched: FoodAliasMatch[]; unmatched: string[] } {
+  const matched: FoodAliasMatch[] = [];
+  const unmatched: string[] = [];
+  const seen = new Set<string>();
+  const catalog = (foods ?? []).map((f) => ({ f, key: normalizeFoodName(f.name) })).filter((x) => x.key);
+  for (const raw of names) {
+    const name = String(raw ?? '').trim();
+    const key = normalizeFoodName(name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const exact = catalog.filter((x) => x.key === key);
+    if (exact.length === 1) continue;
+    const tokens = key.split(' ').filter((t) => t.length >= 3 && !ALIAS_STOPWORDS.has(t));
+    const all = key.split(' ').filter((t) => t.length >= 3);
+    const useTokens = tokens.length ? tokens : all;
+    if (!useTokens.length) continue;
+    let best: { f: { id?: string; name: string }; score: number; len: number } | null = null;
+    for (const x of catalog) {
+      const words = x.key.split(' ');
+      const score = useTokens.filter((t) => words.some((w) => w.startsWith(t))).length;
+      if (score === 0 || !words.some((w) => w.startsWith(useTokens[0]))) continue;
+      if (!best || score > best.score || (score === best.score && x.key.length < best.len)) {
+        best = { f: x.f, score, len: x.key.length };
+      }
+    }
+    if (best) matched.push({ from: name, to: best.f.name, id: best.f.id });
+    else unmatched.push(name);
+  }
+  return { matched, unmatched };
+}
