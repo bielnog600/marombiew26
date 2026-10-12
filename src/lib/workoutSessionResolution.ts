@@ -113,7 +113,7 @@ export interface WorkoutSessionState {
   muscleGroups?: (string | null)[];
 }
 
-interface StaleSessionRow {
+export interface StaleSessionRow {
   id: string;
   student_id: string;
   status: string;
