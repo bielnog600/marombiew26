@@ -26,7 +26,7 @@ import DietValidationBadge from './DietValidationBadge';
 import TrainingContextSummary from './TrainingContextSummary';
 import { buildCarbCycleDays } from '@/lib/dietAiActions';
 import MealTimePopover from './MealTimePopover';
-import { applyMealTime, mealTimesOutOfOrder } from '@/lib/dietMealTime';
+import { applyMealTimeAndSort } from '@/lib/dietMealTime';
 
 interface DietPlanEditorProps {
   markdown: string;
@@ -374,6 +374,14 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
   }, [schedule, activeDayIdx, onScheduleChange]);
   const [subTarget, setSubTarget] = useState<{ mealIdx: number; foodIdx: number } | null>(null);
   const [addingForMeal, setAddingForMeal] = useState<number | null>(null);
+  const [highlightMeal, setHighlightMeal] = useState<number | null>(null);
+  const flashMeal = useCallback((idx: number) => {
+    setHighlightMeal(idx);
+    requestAnimationFrame(() =>
+      document.querySelector(`[data-meal-card="${idx}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }),
+    );
+    window.setTimeout(() => setHighlightMeal((cur) => (cur === idx ? null : cur)), 1200);
+  }, []);
   const [aiOpen, setAiOpen] = useState(false);
 
   const { data: foodMacroRows = [] } = useQuery<DbFoodRow[]>({
@@ -780,7 +788,11 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
 
       {/* Meals */}
       {meals.map((meal, mealIdx) => (
-        <Card key={`${meal.name}-${mealIdx}`} className="overflow-hidden">
+        <Card
+          key={`${meal.name}-${mealIdx}`}
+          data-meal-card={mealIdx}
+          className={`overflow-hidden transition-colors duration-500 ${highlightMeal === mealIdx ? 'border-primary bg-primary/10' : ''}`}
+        >
           <CardContent className="p-0">
             <div className="flex items-center justify-between gap-2 border-b border-border/60 px-3 py-2">
               <div className="flex items-center gap-2 text-sm font-semibold">
@@ -803,15 +815,14 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
                 <MealTimePopover
                   time={meal.time}
                   mealName={meal.name}
-                  onApply={(t, only) =>
-                    commitDays(applyMealTime(daysRef.current, activeDayIdxRef.current, mealIdx, t, only))
-                  }
+                  onApply={(t, only) => {
+                    const r = applyMealTimeAndSort(daysRef.current, activeDayIdxRef.current, mealIdx, t, only);
+                    setSubTarget(null);
+                    setAddingForMeal(null);
+                    commitDays(r.days);
+                    flashMeal(r.newIndex);
+                  }}
                 />
-                {mealIdx === 0 && mealTimesOutOfOrder(meals) && (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-normal text-yellow-600 dark:text-yellow-400">
-                    <AlertTriangle className="h-3 w-3" /> Horário fora da ordem das refeições
-                  </span>
-                )}
               </div>
               <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => setAddingForMeal(mealIdx)}>
                 <Plus className="h-3 w-3" /> Adicionar
