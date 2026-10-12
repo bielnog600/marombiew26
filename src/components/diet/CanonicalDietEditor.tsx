@@ -62,7 +62,7 @@ import CanonicalFoodSubstitutionDialog from './CanonicalFoodSubstitutionDialog';
 import MealAiSuggestionsDialog from './MealAiSuggestionsDialog';
 import { applyMealSuggestion } from '@/lib/mealAiSuggestions';
 import MealTimePopover from './MealTimePopover';
-import { applyMealTime, mealTimesOutOfOrder } from '@/lib/dietMealTime';
+import { applyMealTimeAndSort } from '@/lib/dietMealTime';
 
 interface Props {
   plan: DietPlan;
@@ -106,6 +106,14 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
   >(null);
   const [aiMealIdx, setAiMealIdx] = useState<number | null>(null);
   const [substitution, setSubstitution] = useState<{ mealIdx: number; itemIdx: number } | null>(null);
+  const [highlightMeal, setHighlightMeal] = useState<number | null>(null);
+  const flashMeal = (idx: number) => {
+    setHighlightMeal(idx);
+    requestAnimationFrame(() =>
+      document.querySelector(`[data-meal-card="${idx}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }),
+    );
+    window.setTimeout(() => setHighlightMeal((cur) => (cur === idx ? null : cur)), 1200);
+  };
 
 
 
@@ -473,7 +481,11 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
       </Card>
 
       {(day.meals ?? []).map((meal, mealIdx) => (
-        <Card key={meal.id ?? mealIdx} className="border-border">
+        <Card
+          key={meal.id ?? mealIdx}
+          data-meal-card={mealIdx}
+          className={`border-border transition-colors duration-500 ${highlightMeal === mealIdx ? 'border-primary bg-primary/10' : ''}`}
+        >
           <CardContent className="space-y-2 p-4">
             <div className="flex items-center justify-between text-xs">
               <div className="flex flex-wrap items-center gap-1">
@@ -483,15 +495,17 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
                   mealName={meal.name}
                   onApply={(t, only) => {
                     const next = clone(plan);
-                    next.days = applyMealTime(next.days, activeIndex, mealIdx, t, only);
+                    const r = applyMealTimeAndSort(next.days, activeIndex, mealIdx, t, only);
+                    next.days = r.days;
+                    // estados presos ao índice antigo
+                    setDrafts({});
+                    setPicker(null);
+                    setAiMealIdx(null);
+                    setSubstitution(null);
                     onChange(next);
+                    flashMeal(r.newIndex);
                   }}
                 />
-                {mealIdx === 0 && mealTimesOutOfOrder(day.meals ?? []) && (
-                  <span className="flex items-center gap-1 text-[10px] text-yellow-600 dark:text-yellow-400">
-                    <AlertTriangle className="h-3 w-3" /> Horário fora da ordem das refeições
-                  </span>
-                )}
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground">
