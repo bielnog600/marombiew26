@@ -107,12 +107,16 @@ export const resolveDayTarget = ({
   }
   const fromSchedule = scheduleDayTarget(schedule, dayIndex, planTargetKcal);
   const kcal = fromSchedule ?? positive(planTargetKcal) ?? positive(currentTotalKcal) ?? 0;
-  return {
-    kcal,
-    p: macro(planTargetMacros?.p),
-    c: macro(planTargetMacros?.c),
-    g: macro(planTargetMacros?.g),
-  };
+  const p = macro(planTargetMacros?.p);
+  let c = macro(planTargetMacros?.c);
+  const g = macro(planTargetMacros?.g);
+  // Ajuste calórico do dia (linear com +/− kcal): a diferença vai para o
+  // carboidrato, para que os macros do dia somem a meta calórica do dia.
+  const base = positive(planTargetKcal);
+  if (fromSchedule && base && fromSchedule !== base && (p || c || g)) {
+    c = Math.max(0, Math.round(c + (fromSchedule - base) / 4));
+  }
+  return { kcal, p, c, g };
 };
 
 /** Helper — no logic of its own, only delegates to resolveDayTarget. */

@@ -45,6 +45,7 @@ import {
 } from "../_shared/dietRoutingPolicy.ts";
 import { sanitizeStructuredPrompt } from "../_shared/structuredPromptSanitizer.ts";
 import { rebalanceDayCarbs } from "../_shared/dayCarbRebalance.ts";
+import { enforceProteinFloors, normalizeScheduleMacros, repairInvalidFoodIds, trimDayProtein } from "../_shared/dietAutoRepair.ts";
 import { scheduleHasDailyMacroTargets, validateDayTargets, hasMeaningfulDailyTargetVariation, hasManualWeeklyAdjustment } from "../_shared/dayTargets.ts";
 import {
   formatFoodCatalogPrompt,
@@ -570,6 +571,14 @@ serve(async (req) => {
       allowedUnresolvedFoods: rawAllowedUnresolvedFoods,
       canonicalTargets: rawCanonicalTargets,
     } = await req.json();
+    // Dias com ±kcal mas macros globais: a diferença calórica vai para o carbo do dia.
+    if (dietConfig && typeof dietConfig === "object" && dietConfig.carbCyclingEnabled !== true && dietConfig.weeklyEnergySchedule) {
+      const norm = normalizeScheduleMacros(dietConfig.weeklyEnergySchedule);
+      if (norm.adjustedDays.length) {
+        dietConfig.weeklyEnergySchedule = norm.schedule;
+        console.log("[diet-agent] schedule_macros_normalized", { days: norm.adjustedDays });
+      }
+    }
     const referenceDietProvided = Boolean(rawReferenceDietProvided);
     const wantsProgressStream = Boolean(rawProgressStream);
 
@@ -1192,12 +1201,29 @@ serve(async (req) => {
       const hasDailyTargets = weekdayTargetMode;
       const prepareCandidate = (inputPlan: any) => {
         // Metas por dia: encaixa o carboidrato de cada weekday pela base antes de validar.
-        let rawPlan = inputPlan;
-        if (hasDailyTargets && schedule) {
-          const rb = rebalanceDayCarbs(inputPlan, schedule, foodCatalog);
+        // Reparos determinísticos pela base, antes de qualquer validação.
+        const idFix = repairInvalidFoodIds(inputPlan, foodCatalog);
+        if (idFix.repairs.length) console.log("[diet-agent] food_id_repair", idFix.repairs.slice(0, 20));
+        // Ordem: metas do dia → piso de proteína → metas do dia (o piso mexe pouco na caloria).
+        const floors = { main: MAIN_MEAL_PROTEIN_FLOOR, breakfast: BREAKFAST_PROTEIN_FLOOR };
+        let rawPlan = idFix.plan;
+        const fitDays = () => {
+          if (!(hasDailyTargets && schedule)) return;
+          const rb = rebalanceDayCarbs(rawPlan, schedule, foodCatalog);
           rawPlan = rb.plan;
           if (rb.adjustedDays.length) console.log("[diet-agent] day_carb_rebalance", { days: rb.adjustedDays });
+        };
+        fitDays();
+        const protFix = enforceProteinFloors(rawPlan, foodCatalog, floors);
+        rawPlan = protFix.plan;
+        if (protFix.adjusted.length) console.log("[diet-agent] protein_floor_repair", protFix.adjusted.slice(0, 20));
+        if (hasDailyTargets && schedule) {
+          const trim = trimDayProtein(rawPlan, foodCatalog, schedule, floors);
+          rawPlan = trim.plan;
+          if (trim.trimmedDays.length) console.log("[diet-agent] day_protein_trim", { days: trim.trimmedDays });
         }
+        fitDays();
+        rawPlan = enforceProteinFloors(rawPlan, foodCatalog, floors).plan;
         const contract = validateFoodContract(rawPlan, foodCatalog, {
           mode: "fresh",
           allowedUnresolved: allowedUnresolvedFoodsForContract,
