@@ -3,10 +3,10 @@ import { Button } from '@/components/ui/button';
 import { MessageCircle } from 'lucide-react';
  import { supabase } from '@/integrations/supabase/client';
  import { toast } from 'sonner';
- import { parseSections } from '@/lib/dietResultParser';
- import { computeDayTotals } from '@/lib/dietMarkdownSerializer';
  import { normalizeWhatsAppPhone } from '@/lib/phone';
- import { buildDietWhatsAppMessage, resolveDietWhatsAppState } from '@/lib/dietWhatsAppMessage';
+ import { buildDietWhatsAppMessage, resolveDietWhatsAppState, DIET_WHATSAPP_VARIATION_COUNT } from '@/lib/dietWhatsAppMessage';
+ import { buildPlanWhatsAppMessage, PLAN_WHATSAPP_VARIATION_COUNT, type PlanWhatsAppGender } from '@/lib/planWhatsAppMessage';
+ import { nextPlanWhatsAppMessageIndex } from '@/lib/whatsAppMessageVariation';
 
 interface Props {
   plan: {
@@ -90,7 +90,7 @@ const WhatsAppNotifyPlanButton: React.FC<Props> = ({
     const firstName = (name || 'aluno').split(' ')[0];
 
     let noun = '';
-    let gender = 'm'; // default masculine
+    let gender: PlanWhatsAppGender = 'm'; // default masculine
     
     if (freshPlan.tipo === 'treino') {
       noun = 'treino';
@@ -109,43 +109,16 @@ const WhatsAppNotifyPlanButton: React.FC<Props> = ({
       gender = 'm';
     }
 
-    const verb = isAdjust 
-      ? (gender === 'm' ? 'foi ajustado e já está disponível' : 'foi ajustada e já está disponível')
-      : (gender === 'm' ? 'já está liberado no app' : 'já está liberada no app');
-
-    let macroInfo = '';
-    if (freshPlan.tipo === 'dieta' && freshPlan.conteudo) {
-      // Prefer canonical macro target from conteudo_json (single day),
-      // fallback to parsing markdown but only using the FIRST meal
-      // section — parsing all "meal" sections would sum every CARDÁPIO
-      // option (or every day of a weekly plan) and inflate the totals
-      // by 3–7x, which is what caused the 23k kcal WhatsApp message.
-      let t: { kcal: number; p: number; c: number; g: number } | null = null;
-      const cj: any = (freshPlan as any).conteudo_json;
-      const tgt = cj?.dailyTarget || cj?.target || cj?.macros;
-      if (tgt && (tgt.calories || tgt.kcal)) {
-        t = {
-          kcal: Number(tgt.calories ?? tgt.kcal) || 0,
-          p: Number(tgt.protein ?? tgt.p) || 0,
-          c: Number(tgt.carbs ?? tgt.c) || 0,
-          g: Number(tgt.fats ?? tgt.fat ?? tgt.g) || 0,
-        };
-      }
-      if (!t || t.kcal <= 0) {
-        const sections = parseSections(freshPlan.conteudo);
-        const firstMealSection = sections.find(s => s.type === 'meal' && s.meals && s.meals.length > 0);
-        if (firstMealSection?.meals) {
-          t = computeDayTotals(firstMealSection.meals);
-        }
-      }
-      if (t && t.kcal > 0) {
-        macroInfo = `\n\n📊 *Meta diária:*\n🔥 ${Math.round(t.kcal)} kcal\n🥩 ${Math.round(t.p)}g Proteína\n🍞 ${Math.round(t.c)}g Carbo\n🥑 ${Math.round(t.g)}g Gordura`;
-      }
-    }
+    const seed = nextPlanWhatsAppMessageIndex(
+      studentId,
+      freshPlan.tipo,
+      freshPlan.tipo === 'dieta' ? DIET_WHATSAPP_VARIATION_COUNT : PLAN_WHATSAPP_VARIATION_COUNT,
+    );
 
     const msg = freshPlan.tipo === 'dieta'
       ? buildDietWhatsAppMessage({
           firstName,
+          seed,
           plan: {
             titulo: freshPlan.titulo,
             conteudo_json: (freshPlan as any).conteudo_json,
@@ -156,9 +129,7 @@ const WhatsAppNotifyPlanButton: React.FC<Props> = ({
             (freshPlan as any).whatsapp_notified_at,
           ),
         })
-      : isAdjust
-      ? `Oi ${firstName}! 💪\n\nFiz alguns ajustes na sua *${noun}* ("${freshPlan.titulo}") e ${verb}.${macroInfo}\n\nPode abrir o app pra conferir as novidades. Qualquer dúvida me chama por aqui! 🙌`
-      : `Oi ${firstName}! 🚀\n\nSua nova *${noun}* ("${freshPlan.titulo}") ${verb}.${macroInfo}\n\nÉ só abrir o app pra começar! Bons treinos e qualquer dúvida me chama por aqui. 🙌`;
+      : buildPlanWhatsAppMessage({ firstName, noun, gender, titulo: freshPlan.titulo, state: isAdjust ? 'adjusted' : 'new', seed });
 
     const withDdi = normalizeWhatsAppPhone(phone);
     const url = withDdi 

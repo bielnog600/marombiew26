@@ -5,7 +5,10 @@
  * Não altera dieta, publicação, targets nem Carb Cycling — apenas LÊ.
  */
 
+import { normalizeMessageSeed } from './planWhatsAppMessage';
+
 export type DietWhatsAppState = 'new' | 'adjusted' | 'resend';
+export const DIET_WHATSAPP_VARIATION_COUNT = 5;
 
 export interface CarbCycleWhatsAppDay {
   key: string;
@@ -179,10 +182,28 @@ export const resolveDietWhatsAppState = (
   return notifiedAt ? 'resend' : 'adjusted';
 };
 
-const OPENING: Record<DietWhatsAppState, string> = {
-  new: 'Sua nova Dieta já está disponível no app.',
-  adjusted: 'Atualizei a sua Dieta e as alterações já estão disponíveis no app.',
-  resend: 'Estou te reenviando as informações da sua Dieta disponível no app.',
+const OPENING: Record<DietWhatsAppState, (plan: string) => string[]> = {
+  new: (plan) => [
+    `Sua nova ${plan} já está disponível no app. Confere o cardápio antes de começar.`,
+    `Montei sua nova ${plan}. Já está no app — dá uma olhada nas refeições e nos horários.`,
+    `Deixei sua ${plan} liberada no app. Confere as quantidades e me avisa se algo não encaixar na tua rotina.`,
+    `A sua ${plan} está pronta no app. Lê o cardápio com calma antes de organizar as refeições.`,
+    `Sua nova ${plan} está no app. Confere os alimentos antes de fazer as compras da semana.`,
+  ],
+  adjusted: (plan) => [
+    `Atualizei a sua ${plan} e as alterações já estão disponíveis no app. Confere o que mudou.`,
+    `Fiz uns ajustes na sua ${plan}. Abre o app e confere as novas quantidades.`,
+    `A sua ${plan} foi ajustada. As mudanças já estão no app; dá uma olhada antes da próxima refeição.`,
+    `Revisei sua ${plan}. Confere o cardápio atualizado no app antes de preparar as refeições.`,
+    `Os ajustes na sua ${plan} já estão no app. Confere os alimentos e as porções que mudaram.`,
+  ],
+  resend: (plan) => [
+    `Estou te reenviando as informações da sua ${plan} disponível no app. Confere o cardápio por lá.`,
+    `Aqui estão novamente as informações da sua ${plan}. Ela continua disponível no app.`,
+    `Te mando de novo o resumo da sua ${plan}. Abre o app pra conferir os alimentos e as quantidades.`,
+    `Reenviei as informações da sua ${plan} por aqui. O cardápio completo está no app.`,
+    `Segue novamente o resumo da sua ${plan}. Confere no app as refeições do dia.`,
+  ],
 };
 
 const GREETING_EMOJI: Record<DietWhatsAppState, string> = {
@@ -199,19 +220,23 @@ export interface BuildDietWhatsAppMessageInput {
     protocols?: any;
   };
   resendState: DietWhatsAppState;
+  /** Selected externally, so formatting remains pure. */
+  seed?: number;
 }
 
 export const buildDietWhatsAppMessage = ({
   firstName,
   plan,
   resendState,
+  seed = 0,
 }: BuildDietWhatsAppMessageInput): string => {
   const name = (firstName || 'aluno').trim().split(' ')[0] || 'aluno';
   const cycle = resolveCarbCycleWhatsAppDays(plan?.protocols);
   const parts: string[] = [];
 
   parts.push(`Oi ${name}! ${GREETING_EMOJI[resendState]}`);
-  parts.push(OPENING[resendState]);
+  const openings = OPENING[resendState](`*Dieta* ("${plan.titulo || 'Plano alimentar'}")`);
+  parts.push(openings[normalizeMessageSeed(seed, openings.length)]);
 
   if (cycle) {
     parts.push(
