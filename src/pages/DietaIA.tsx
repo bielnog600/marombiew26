@@ -1904,8 +1904,10 @@ const DietaIA = () => {
           .join('\n')}\nUse SEMPRE o foodId indicado para esses alimentos.`;
         toast.info('Alimentos associados ao banco', { description: matched.map((m) => `${m.from} → ${m.to}`).join(' · ') });
       }
-      if (unmatched.length) {
-        toast.warning('Alimentos sem cadastro', { description: `Sem correspondência no banco: ${unmatched.join(', ')}. Cadastre-os ou troque por um alimento existente.` });
+      const modelNames = new Set(extractModelDietFoodNames(modelDiet).map((n) => n.toLowerCase()));
+      const unmatchedModel = unmatched.filter((n) => modelNames.has(n.toLowerCase()));
+      if (unmatchedModel.length) {
+        toast.warning('Alimentos sem cadastro', { description: `Sem correspondência no banco: ${unmatchedModel.join(', ')}. Cadastre-os ou troque por um alimento existente.` });
       }
     } catch (e) {
       console.warn('structured: failed to build allowed unresolved foods', e);
