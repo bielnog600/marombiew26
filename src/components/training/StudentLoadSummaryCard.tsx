@@ -15,26 +15,27 @@ export const StudentLoadSummaryCard = ({ previousLine, suggestionLine, perSet }:
   const suggestion = suggestionLine?.replace(/^(Sugestão|Carga alvo):\s*/, '') ?? '';
   const numeric = suggestion.match(/^(\d+(?:[,.]\d+)? kg)(?: · (.*))?$/);
   const SuggestionIcon = manual ? Target : TrendingUp;
+  const bothBlocks = !!previous && !!(suggestionLine || targets);
 
   return (
     <Card className={`mt-3 rounded-lg shadow-none ${manual ? 'border-primary/50' : 'border-border'}`} data-testid="student-load-summary">
-      <CardContent className="p-3 grid grid-cols-[repeat(auto-fit,minmax(145px,1fr))] gap-4">
-        {previous && <div className="min-w-0 space-y-1.5">
-          <div className="flex items-center gap-1.5 text-primary">
+      <CardContent className={`p-3 grid items-start ${bothBlocks ? 'grid-cols-2' : 'grid-cols-1'}`}>
+        {previous && <div className={`min-w-0 space-y-1.5 text-center ${bothBlocks ? 'pr-3' : ''}`}>
+          <div className="flex items-center justify-center gap-1.5 text-primary">
             <History className="h-3.5 w-3.5 shrink-0" />
             <span className="text-[10px] uppercase font-semibold">Última vez</span>
           </div>
-          <div className="flex items-baseline gap-2 flex-wrap">
+          <div className="flex flex-col items-center gap-1.5">
             <p className="text-lg font-semibold text-foreground leading-tight">{previous[0]}</p>
             {previous[1] && <span className="text-xs font-medium text-foreground/80">{previous[1]}</span>}
           </div>
         </div>}
-        {(suggestionLine || targets) && <div className="min-w-0 space-y-1.5">
-          <div className="flex items-center gap-1.5 text-primary">
+        {(suggestionLine || targets) && <div className={`min-w-0 space-y-1.5 text-center ${bothBlocks ? 'border-l border-border pl-3 self-stretch' : ''}`}>
+          <div className="flex items-center justify-center gap-1.5 text-primary">
             <SuggestionIcon className="h-3.5 w-3.5 shrink-0" />
             <span className="text-[10px] uppercase font-semibold">{manual ? 'Carga alvo' : 'Sugestão'}</span>
           </div>
-          {targets ? <div className="flex flex-wrap gap-1.5">
+          {targets ? <div className="flex flex-wrap justify-center gap-1.5">
             {targets.map((set) => <span key={set.set_number} className="rounded border border-primary/30 bg-primary/10 px-2 py-1 text-sm font-semibold text-primary">
               {set.set_number}° set {String(set.load_kg).replace('.', ',')} kg
             </span>)}
