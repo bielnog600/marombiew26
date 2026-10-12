@@ -109,3 +109,11 @@ export const resolveHomeTrainingCard = <D extends { day: string }>(params: {
   if (todayTraining) return { mode: 'today', day: todayTraining };
   return { mode: 'none' };
 };
+
+/**
+ * Entrada da tela de execução: enquanto o plano, a sessão em andamento e o dia
+ * resolvido ainda estão carregando, o estado vazio ("Nenhum exercício
+ * encontrado") NUNCA pode aparecer — só o carregamento.
+ */
+export const shouldShowWorkoutLoading = (planLoading: boolean, hasCurrentExercise: boolean): boolean =>
+  planLoading && !hasCurrentExercise;

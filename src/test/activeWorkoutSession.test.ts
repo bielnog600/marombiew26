@@ -27,7 +27,7 @@ vi.mock('@/integrations/supabase/client', () => {
 
 import {
   decideWorkoutStart, elapsedSecondsSince, isSessionForgotten,
-  resolveHomeTrainingCard, workoutDayLabel,
+  resolveHomeTrainingCard, shouldShowWorkoutLoading, workoutDayLabel,
 } from '@/lib/activeWorkoutSession';
 import { cancelWorkoutSession } from '@/lib/workoutSessionResolution';
 
@@ -99,5 +99,18 @@ describe('cancelar sessão', () => {
     expect(upd.v.status).toBe('abandoned');
     expect(upd.v.completion_source).toBe('manual');
     expect(upserts.flat().length).toBeGreaterThan(0);
+  });
+});
+
+describe('tela de execução: carregamento da retomada', () => {
+  it('durante o carregamento nunca mostra o estado vazio', () => {
+    expect(shouldShowWorkoutLoading(true, false)).toBe(true);
+  });
+  it('carregamento terminou sem exercício: estado vazio pode aparecer', () => {
+    expect(shouldShowWorkoutLoading(false, false)).toBe(false);
+  });
+  it('com exercício pronto a tela segue normal, mesmo com carga pendente', () => {
+    expect(shouldShowWorkoutLoading(false, true)).toBe(false);
+    expect(shouldShowWorkoutLoading(true, true)).toBe(false);
   });
 });
