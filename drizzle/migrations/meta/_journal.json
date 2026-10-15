@@ -50,6 +50,13 @@
       "when": 1789774504588,
       "tag": "0006_jarvis_diet_publication_actor",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792101940917,
+      "tag": "0007_student_diet_overrides",
+      "breakpoints": true
     }
   ]
 }
