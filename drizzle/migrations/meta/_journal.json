@@ -57,6 +57,13 @@
       "when": 1792101940917,
       "tag": "0007_student_diet_overrides",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792103017937,
+      "tag": "0008_diet_override_action_tag",
+      "breakpoints": true
     }
   ]
 }
