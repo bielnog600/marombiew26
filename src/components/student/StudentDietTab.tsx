@@ -21,6 +21,7 @@ import { parseSections } from '@/lib/dietResultParser';
 import { parseDietPlanLoose, type DietPlan } from '@/lib/dietSchema';
 import DietValidationBadge from '@/components/diet/DietValidationBadge';
 import { extractTargetsFromSections } from '@/lib/dietTargets';
+import { applyTargetToPlan, replaceMetaLine, type MacroTarget } from '@/lib/dietTargetEdit';
 import {
   isStructuredCanonicalPlan,
   hasUnresolvedCanonicalItems,
@@ -295,6 +296,47 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     const { error } = await supabase.from('ai_plans').update(updatePayload).eq('id', planId);
     if (error) { toast.error('Erro ao salvar: ' + error.message); return; }
     setPlans(prev => prev.map(p => p.id === planId ? { ...p, conteudo: newContent, conteudo_json: newPlan ?? p.conteudo_json, whatsapp_notified_at: null } : p));
+  };
+
+  /** Grava nova meta (kcal/macros) sem IA e sem trocar alimentos. */
+  const handleApplyTarget = async (planId: string, target: MacroTarget, rescale: boolean): Promise<boolean> => {
+    const original = plans.find(p => p.id === planId);
+    if (!original) return false;
+    const plan = await ensureEditableDraft(original);
+    if (!plan) return false;
+    const canonical = parseDietPlanLoose(plan.conteudo_json);
+    const updatePayload: Record<string, unknown> = { whatsapp_notified_at: null };
+    let nextPlan: DietPlan | null = null;
+    let newContent: string;
+    let nextProtocols = plan.protocols;
+    if (canonical) {
+      const applied = applyTargetToPlan(canonical, target, plan.protocols, rescale);
+      nextPlan = finalizeDietPlan(applied.plan, applied.plan.targets);
+      nextProtocols = applied.protocols;
+      newContent = dietPlanToMarkdown(nextPlan);
+      updatePayload.conteudo_json = nextPlan as any;
+      if (nextProtocols !== plan.protocols) updatePayload.protocols = nextProtocols;
+    } else {
+      let md = plan.conteudo as string;
+      if (rescale) {
+        const meals = extractSingleDayMeals(md);
+        if (meals.length) md = replaceMealTableInMarkdown(md, scaleMealsToMacroTargets(meals, target));
+      }
+      newContent = replaceMetaLine(md, target);
+    }
+    updatePayload.conteudo = newContent;
+    const { error } = await supabase.from('ai_plans').update(updatePayload).eq('id', plan.id);
+    if (error) { toast.error('Erro ao salvar meta: ' + error.message); return false; }
+    setPlans(prev => prev.map(p => p.id === plan.id
+      ? { ...p, conteudo: newContent, conteudo_json: nextPlan ?? p.conteudo_json, protocols: nextProtocols, whatsapp_notified_at: null }
+      : p));
+    setEditedPlans(prev => { const c = { ...prev }; delete c[plan.id]; return c; });
+    setEditedMeals(prev => { const c = { ...prev }; delete c[plan.id]; return c; });
+    setEditedDays(prev => { const c = { ...prev }; delete c[plan.id]; return c; });
+    const status = nextPlan?.validation?.status;
+    if (status === 'invalid') toast.warning(`Meta ${target.kcal} kcal aplicada. O total atual ainda está fora da meta.`);
+    else toast.success(`Meta aplicada: ${target.kcal} kcal · ${target.p}g P · ${target.c}g C · ${target.g}g G`);
+    return true;
   };
 
   useEffect(() => {
@@ -1038,6 +1080,9 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
             studentId={studentId}
             currentPlan={canonical}
             targets={fallbackTargets}
+            studentWeightKg={studentWeight}
+            perDayTargets={!!(aiPlan as any).protocols?.carb_cycling?.enabled}
+            onApplyTarget={(t, r) => handleApplyTarget(aiPlan.id, t, r)}
             onApply={(newMeals, notes, newPlan, days) => handleAiApply(aiPlan.id, newMeals, notes, newPlan, days)}
           />
         );
