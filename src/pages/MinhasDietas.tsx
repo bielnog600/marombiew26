@@ -128,6 +128,11 @@ const MinhasDietas = () => {
   // HOTFIX ALUNO — dieta structured publicada (fonte de verdade do cardápio).
   const [structuredPlan, setStructuredPlan] = useState<any | null>(null);
   const [structuredProtocols, setStructuredProtocols] = useState<any | null>(null);
+  // Alterações do aluno persistidas no banco (visíveis ao treinador).
+  const [planId, setPlanId] = useState<string | null>(null);
+  const remoteGroupsRef = React.useRef<Record<string, any>>({});
+  const dirtyRef = React.useRef(false);
+  const [overrideTick, setOverrideTick] = useState(0);
 
   // Key local substitutions per plan version so admin edits invalidate stale subs
   const subsStorageKey = user && planVersion ? `diet-subs-${user.id}-${planVersion}` : '';
@@ -155,6 +160,48 @@ const MinhasDietas = () => {
       }
     } catch { /* ignore */ }
   }, [subsStorageKey]);
+
+  // Fonte de verdade: alterações salvas no banco (sobrepõem o cache local).
+  useEffect(() => {
+    if (!planId || !subsStorageKey) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('student_diet_overrides')
+        .select('substitutions, edited_meta, groups')
+        .eq('plan_id', planId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (data) {
+        const subs = (data.substitutions as any) ?? {};
+        const meta = (data.edited_meta as any) ?? {};
+        remoteGroupsRef.current = (data.groups as any) ?? {};
+        setSubstitutions(subs);
+        setEditedMealByGroup(meta);
+        try {
+          localStorage.setItem(subsStorageKey, JSON.stringify(subs));
+          localStorage.setItem(`${subsStorageKey}-meta`, JSON.stringify(meta));
+        } catch { /* ignore */ }
+      } else if (Object.keys(substitutions).length > 0) {
+        // Alterações antigas só locais: envia ao banco na próxima sincronização.
+        dirtyRef.current = true;
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planId, subsStorageKey, overrideTick]);
+
+  useEffect(() => {
+    if (!planId) return;
+    const channel = supabase
+      .channel(`diet-override-${planId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'student_diet_overrides', filter: `plan_id=eq.${planId}` },
+        (payload: any) => {
+          if (payload?.new?.updated_by_role === 'treinador') setOverrideTick((t) => t + 1);
+        })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [planId]);
 
   // Detecta os dias da semana em que o aluno tem treino agendado
   useEffect(() => {
@@ -242,6 +289,7 @@ const MinhasDietas = () => {
       const structured = isStructuredPublishedDiet(canonical, (dieta as any).is_draft);
       setStructuredPlan(structured ? canonical : null);
       setStructuredProtocols(structured ? saved ?? null : null);
+      setPlanId(dieta.id);
       // Version key combines plan id + created_at so any admin edit (which
       // bumps created_at via re-insert OR keeps it via update) is detected.
       // We hash the content length as a tiebreaker for in-place updates.
@@ -332,6 +380,7 @@ const MinhasDietas = () => {
   }, [mealGroups, usesMealOptions, dietMarkdown, structuredGroups]);
 
   const persistFoodsChange = useCallback((groupIdx: number, mealIdx: number, foods: any[]) => {
+    dirtyRef.current = true;
     setSubstitutions((prev) => {
       const next = { ...prev, [`${groupIdx}-${mealIdx}`]: foods };
       try { localStorage.setItem(subsStorageKey, JSON.stringify(next)); } catch { /* ignore */ }
@@ -508,6 +557,7 @@ const MinhasDietas = () => {
   const currentMeals = hasStudentEdits ? rebalance.meals : prescribedMeals;
 
   const resetDayEdits = useCallback(() => {
+    dirtyRef.current = true;
     setSubstitutions((prev) => {
       const next = { ...prev };
       prescribedMeals.forEach((_, mi) => { delete next[`${activeGroupIndex}-${mi}`]; });
@@ -521,6 +571,38 @@ const MinhasDietas = () => {
       return next;
     });
   }, [prescribedMeals, activeGroupIndex, subsStorageKey]);
+
+  // Sincroniza com o banco (debounce) o estado do dia ativo para o treinador.
+  useEffect(() => {
+    if (!dirtyRef.current || !planId || !user) return;
+    const handle = setTimeout(async () => {
+      dirtyRef.current = false;
+      const groups = { ...remoteGroupsRef.current };
+      const key = String(activeGroupIndex);
+      if (hasStudentEdits) {
+        groups[key] = {
+          label: displayGroups[activeGroupIndex]?.label ?? '',
+          prescribed: prescribedMeals,
+          student: currentMeals,
+        };
+      } else {
+        delete groups[key];
+      }
+      remoteGroupsRef.current = groups;
+      await supabase.from('student_diet_overrides').upsert(
+        {
+          plan_id: planId,
+          student_id: user.id,
+          substitutions: substitutions as any,
+          edited_meta: editedMealByGroup as any,
+          groups: groups as any,
+        },
+        { onConflict: 'plan_id' },
+      );
+    }, 1200);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [substitutions, editedMealByGroup]);
 
   // Sum directly from foods so totals reflect any carb-cycle scaling or
   // student substitutions instead of the cached meal totals from the parser.
