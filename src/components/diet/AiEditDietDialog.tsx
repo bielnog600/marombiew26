@@ -3,6 +3,9 @@ import { Sparkles, Loader2, Wand2, Apple, CalendarRange, Shuffle } from 'lucide-
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
+import { Checkbox } from '@/components/ui/checkbox';
+import { kcalFromMacros, redistributeFromKcal, type MacroTarget } from '@/lib/dietTargetEdit';
 import {
   Dialog,
   DialogContent,
@@ -35,16 +38,15 @@ interface Props {
     newPlan?: DietPlan,
     days?: { label: string; meals: ParsedMeal[] }[],
   ) => void;
+  /** Peso do aluno (kg) para mostrar g/kg. */
+  studentWeightKg?: number | null;
+  /** Grava a nova meta na dieta, sem IA. */
+  onApplyTarget?: (target: MacroTarget, rescale: boolean) => Promise<boolean | void> | void;
+  /** Quando a dieta tem metas diferentes por dia (ciclo de carbo). */
+  perDayTargets?: boolean;
 }
 
 const QUICK: { group: string; label: string; instruction: string }[] = [
-  // Calorias
-  { group: 'Calorias', label: '↓ -10% kcal', instruction: 'Reduza 10% das calorias da dieta inteira mantendo proporção dos macros (use scale_day com factor 0.9).' },
-  { group: 'Calorias', label: '↓ -20% kcal', instruction: 'Reduza 20% das calorias da dieta inteira (scale_day factor 0.8).' },
-  { group: 'Calorias', label: '↑ +10% kcal', instruction: 'Aumente 10% das calorias da dieta inteira (scale_day factor 1.1).' },
-  { group: 'Calorias', label: 'Definir 1800 kcal', instruction: 'Ajuste a dieta inteira para totalizar 1800 kcal (scale_day targetKcal 1800).' },
-  { group: 'Calorias', label: 'Definir 2200 kcal', instruction: 'Ajuste a dieta inteira para totalizar 2200 kcal (scale_day targetKcal 2200).' },
-
   // Ciclo de carbo
   { group: 'Ciclo de Carboidrato', label: 'Low Seg/Qua/Sex', instruction: 'Crie estratégia de ciclo de carboidratos: low carb na segunda, quarta e sexta (reduzir carbo em 50%), high carb terça e quinta (aumentar carbo em 20%), normal sábado e domingo. Use carb_cycle.' },
   { group: 'Ciclo de Carboidrato', label: 'Low fim de semana', instruction: 'Ciclo de carbo: low carb sábado e domingo (reduzir carbo 50%), demais dias normal. Use carb_cycle.' },
@@ -58,7 +60,7 @@ const QUICK: { group: string; label: string; instruction: string }[] = [
   { group: 'Estratégias', label: '+ Pós-treino', instruction: 'Adicione refeição pós-treino com proteína rápida (whey 30g) + carbo simples (dextrose ou banana).' },
 ];
 
-const GROUPS = ['Calorias', 'Ciclo de Carboidrato', 'Estratégias'];
+const GROUPS = ['Ciclo de Carboidrato', 'Estratégias'];
 
 type CarbDay = 'normal' | 'high' | 'low';
 const WEEK_DAYS: { key: string; label: string }[] = [
@@ -71,9 +73,46 @@ const WEEK_DAYS: { key: string; label: string }[] = [
   { key: 'domingo', label: 'Dom' },
 ];
 
-const AiEditDietDialog: React.FC<Props> = ({ open, onOpenChange, currentMeals, studentId, currentPlan, targets, onApply }) => {
+const AiEditDietDialog: React.FC<Props> = ({ open, onOpenChange, currentMeals, studentId, currentPlan, targets, onApply, studentWeightKg, onApplyTarget, perDayTargets }) => {
   const [instruction, setInstruction] = useState('');
-  const [targetKcal, setTargetKcal] = useState<string>('');
+  const initialTarget = (): MacroTarget => {
+    const t: any = targets ?? currentPlan?.targets;
+    const p = Math.round(Number(t?.p) || 0), c = Math.round(Number(t?.c) || 0), g = Math.round(Number(t?.g) || 0);
+    const kcal = Math.round(Number(t?.kcal) || kcalFromMacros(p, c, g));
+    return { kcal, p, c, g };
+  };
+  const [goal, setGoal] = useState<MacroTarget>(initialTarget);
+  const [kcalInput, setKcalInput] = useState<string>(() => String(initialTarget().kcal || ''));
+  const [rescale, setRescale] = useState(false);
+  const [applyingTarget, setApplyingTarget] = useState(false);
+  React.useEffect(() => {
+    if (open) { const t = initialTarget(); setGoal(t); setKcalInput(String(t.kcal || '')); setRescale(false); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const setMacro = (key: 'p' | 'c' | 'g', value: number) => {
+    const v = Math.max(0, Math.round(Number.isFinite(value) ? value : 0));
+    setGoal(prev => {
+      const next = { ...prev, [key]: v };
+      next.kcal = kcalFromMacros(next.p, next.c, next.g);
+      setKcalInput(String(next.kcal));
+      return next;
+    });
+  };
+  const setKcal = (raw: string) => {
+    setKcalInput(raw);
+    const n = Number(raw.replace(',', '.'));
+    if (n > 0) setGoal(prev => redistributeFromKcal(n, prev.p, prev.g));
+  };
+  const handleApplyTarget = async () => {
+    if (!onApplyTarget) return;
+    if (!goal.kcal || goal.kcal < 500) { toast.error('Informe uma meta válida (mínimo 500 kcal).'); return; }
+    setApplyingTarget(true);
+    try {
+      const ok = await onApplyTarget(goal, rescale);
+      if (ok !== false) onOpenChange(false);
+    } finally { setApplyingTarget(false); }
+  };
   const [foodSuggestion, setFoodSuggestion] = useState('');
   const [loading, setLoading] = useState(false);
   const [cycleDays, setCycleDays] = useState<Record<string, CarbDay>>(() =>
@@ -82,6 +121,7 @@ const AiEditDietDialog: React.FC<Props> = ({ open, onOpenChange, currentMeals, s
   const [variationMeal, setVariationMeal] = useState<string>('');
 
   const totals = computeDayTotals(currentMeals);
+  const busy = loading || applyingTarget;
 
   const runWithInstruction = async (text: string) => {
     if (!text.trim()) {
@@ -182,15 +222,6 @@ const AiEditDietDialog: React.FC<Props> = ({ open, onOpenChange, currentMeals, s
     }
   };
 
-  const runTargetKcal = () => {
-    const n = Number(targetKcal);
-    if (!n || n < 500) {
-      toast.error('Informe uma meta válida (>= 500 kcal).');
-      return;
-    }
-    runWithInstruction(`Ajuste a dieta inteira para totalizar exatamente ${n} kcal mantendo proporção dos macros. Use scale_day com targetKcal=${n}.`);
-  };
-
   const runFoodSuggestion = () => {
     const txt = foodSuggestion.trim();
     if (!txt) {
@@ -235,7 +266,7 @@ const AiEditDietDialog: React.FC<Props> = ({ open, onOpenChange, currentMeals, s
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!loading) onOpenChange(o); }}>
+    <Dialog open={open} onOpenChange={(o) => { if (!busy) onOpenChange(o); }}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -248,6 +279,53 @@ const AiEditDietDialog: React.FC<Props> = ({ open, onOpenChange, currentMeals, s
         </DialogHeader>
 
         <div className="space-y-4">
+          {onApplyTarget && (
+            <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Calorias e macros</p>
+              {perDayTargets ? (
+                <p className="text-xs text-muted-foreground">Esta dieta tem metas diferentes por dia (ciclo de carbo). Ajuste a meta de cada dia no editor.</p>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Input type="number" inputMode="numeric" value={kcalInput} onChange={(e) => setKcal(e.target.value)} className="h-8 w-28 text-sm" disabled={busy} aria-label="Meta de calorias" />
+                    <span className="text-xs text-muted-foreground">kcal</span>
+                  </div>
+                  {([
+                    { key: 'p', label: 'Proteína', max: 400, k: 4 },
+                    { key: 'c', label: 'Carboidrato', max: 800, k: 4 },
+                    { key: 'g', label: 'Gordura', max: 200, k: 9 },
+                  ] as const).map(m => {
+                    const grams = goal[m.key];
+                    const pct = goal.kcal > 0 ? Math.round((grams * m.k * 100) / goal.kcal) : 0;
+                    const perKg = studentWeightKg && studentWeightKg > 0 ? (grams / studentWeightKg).toFixed(1).replace('.', ',') : null;
+                    return (
+                      <div key={m.key} className="space-y-1">
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                          <span className="font-semibold">{m.label}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground">{perKg ? `${perKg} g/kg · ` : ''}{pct}%</span>
+                            <Input type="number" inputMode="numeric" value={grams} onChange={(e) => setMacro(m.key, Number(e.target.value))} className="h-7 w-20 text-xs" disabled={busy} aria-label={`${m.label} em gramas`} />
+                            <span className="text-muted-foreground">g</span>
+                          </div>
+                        </div>
+                        <Slider value={[Math.min(grams, m.max)]} min={0} max={m.max} step={1} onValueChange={([v]) => setMacro(m.key, v)} disabled={busy} aria-label={m.label} />
+                      </div>
+                    );
+                  })}
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Checkbox checked={rescale} onCheckedChange={(v) => setRescale(v === true)} disabled={busy} />
+                    Reescalar porções para a nova meta
+                  </label>
+                  <Button size="sm" className="h-8 text-xs w-full" disabled={busy || goal.kcal < 500} onClick={handleApplyTarget}>
+                    {applyingTarget && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
+                    Aplicar meta
+                  </Button>
+                  <p className="text-[10px] text-muted-foreground">Não troca alimentos nem usa IA. Sem reescalar, só a meta muda.</p>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Use single diet for the whole week */}
           <div className="space-y-1.5">
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
@@ -318,24 +396,6 @@ const AiEditDietDialog: React.FC<Props> = ({ open, onOpenChange, currentMeals, s
               </Button>
             </div>
             <p className="text-[10px] text-muted-foreground">A IA sugere 2-3 alternativas mantendo os macros próximos.</p>
-          </div>
-
-          {/* Target kcal quick set */}
-          <div className="space-y-1.5">
-            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Meta de calorias</p>
-            <div className="flex gap-2">
-              <Input
-                type="number"
-                value={targetKcal}
-                onChange={(e) => setTargetKcal(e.target.value)}
-                placeholder="Ex: 1800"
-                className="h-8 text-sm"
-                disabled={loading}
-              />
-              <Button size="sm" disabled={loading || !targetKcal} onClick={runTargetKcal} className="h-8 text-xs">
-                Ajustar
-              </Button>
-            </div>
           </div>
 
           {/* Food suggestions */}
