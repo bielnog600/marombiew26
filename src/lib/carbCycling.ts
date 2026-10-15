@@ -159,6 +159,28 @@ import {
 } from '@/lib/macroConfig';
 import { WEEKDAY_KEYS, type WeekdayKey, type DayTarget } from '@/lib/dietDayTargets';
 
+/** Limites de segurança das metas por dia do ciclo (avisos em português). */
+export const CARB_DAY_LIMITS = { fatPerKgMax: 1.5, proteinPerKgMax: 3, kcalDeviationPct: 0.2 };
+
+export const carbDayTargetSanityIssues = (
+  t: { kcal: number; p: number; c: number; g: number },
+  weightKg: number | null,
+  baseKcal?: number | null,
+): string[] => {
+  const issues: string[] = [];
+  if (t.c < 0) issues.push('Carboidrato negativo');
+  if (weightKg && weightKg > 0) {
+    const gkg = t.g / weightKg;
+    const pkg = t.p / weightKg;
+    if (gkg > CARB_DAY_LIMITS.fatPerKgMax) issues.push(`Gordura ${t.g} g (${gkg.toFixed(1)} g/kg) acima de ${CARB_DAY_LIMITS.fatPerKgMax} g/kg`);
+    if (pkg > CARB_DAY_LIMITS.proteinPerKgMax) issues.push(`Proteína ${t.p} g (${pkg.toFixed(1)} g/kg) acima de ${CARB_DAY_LIMITS.proteinPerKgMax} g/kg`);
+  }
+  if (baseKcal && baseKcal > 0 && Math.abs(t.kcal - baseKcal) / baseKcal > CARB_DAY_LIMITS.kcalDeviationPct) {
+    issues.push(`${t.kcal} kcal muito longe da meta base (${Math.round(baseKcal)} kcal)`);
+  }
+  return issues;
+};
+
 export type CarbCyclingMode = 'variable_calories' | 'fixed_calories';
 export type CarbDayType = 'low' | 'medium' | 'high';
 
