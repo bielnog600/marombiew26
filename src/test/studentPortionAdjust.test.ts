@@ -3,7 +3,7 @@ import { adjustStudentPortions } from '@/lib/studentPortionAdjust';
 import { carbDayTargetSanityIssues } from '@/lib/carbCycling';
 
 const f = (name: string, qty: string, kcal: number, p: number, c: number, g: number) =>
-  ({ name, qty, kcal: String(kcal), p: String(p), c: String(c), g: String(g) }) as any;
+  ({ food: name, qty, kcal: String(kcal), p: String(p), c: String(c), g: String(g) }) as any;
 
 describe('Ajustar Dieta do aluno', () => {
   const meals = [
@@ -14,7 +14,7 @@ describe('Ajustar Dieta do aluno', () => {
   it('mantém alimentos, respeita refeição concluída, arredonda e limita', () => {
     const r = adjustStudentPortions({ meals, lockedMealIndexes: [0], target: { kcal: 600, p: 55, c: 50, g: 14 } });
     expect(r.meals[0]).toBe(meals[0]);
-    expect(r.meals[1].foods.map((x: any) => x.name)).toEqual(['Frango', 'Arroz']);
+    expect(r.meals[1].foods.map((x: any) => x.food)).toEqual(['Frango', 'Arroz']);
     r.meals[1].foods.forEach((x: any) => {
       const n = parseInt(x.qty);
       expect(n % 5).toBe(0);

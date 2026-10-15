@@ -161,7 +161,7 @@ export const adjustStudentPortions = (input: {
     (m.foods ?? []).forEach((f, fi) => {
       const prev = meals[mi]?.foods?.[fi];
       if (prev && prev.qty !== f.qty) {
-        changes.push({ mealIndex: mi, mealName: m.name, foodName: f.name, before: prev.qty, after: f.qty });
+        changes.push({ mealIndex: mi, mealName: m.name, foodName: f.food, before: prev.qty, after: f.qty });
         changedMealIndexes.add(mi);
       }
     }),
@@ -186,11 +186,11 @@ export const adjustStudentPortions = (input: {
     const pool = adjustable.filter((a) => (short ? a.key !== k : a.key === k));
     const worst = pool.sort((a, b) => foodMacros(b.food).kcal - foodMacros(a.food).kcal)[0];
     if (short && worst) {
-      suggestions.push(`${MACRO_LABEL[k]} não fecha: troque "${worst.food.name}" (${meals[worst.mi]?.name}) por ${SOURCE_LABEL[k]}.`);
+      suggestions.push(`${MACRO_LABEL[k]} não fecha: troque "${worst.food.food}" (${meals[worst.mi]?.name}) por ${SOURCE_LABEL[k]}.`);
     } else if (short) {
       suggestions.push(`${MACRO_LABEL[k]} não fecha: adicione ${SOURCE_LABEL[k]} numa refeição ainda não feita.`);
     } else if (worst) {
-      suggestions.push(`${MACRO_LABEL[k]} acima da meta: troque "${worst.food.name}" (${meals[worst.mi]?.name}) por um alimento com menos ${MACRO_LABEL[k].toLowerCase()}.`);
+      suggestions.push(`${MACRO_LABEL[k]} acima da meta: troque "${worst.food.food}" (${meals[worst.mi]?.name}) por um alimento com menos ${MACRO_LABEL[k].toLowerCase()}.`);
     }
   });
 
