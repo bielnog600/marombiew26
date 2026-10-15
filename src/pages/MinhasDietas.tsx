@@ -31,6 +31,12 @@ import {
   isStructuredPublishedDiet,
   type StudentStructuredDay,
 } from '@/lib/studentStructuredDiet';
+import { adjustStudentPortions, type PortionAdjustResult } from '@/lib/studentPortionAdjust';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const WEEKDAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const WEEKDAY_KEYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'] as const;
@@ -589,12 +595,14 @@ const MinhasDietas = () => {
         delete groups[key];
       }
       remoteGroupsRef.current = groups;
+      const action = pendingActionRef.current;
+      pendingActionRef.current = null;
       await supabase.from('student_diet_overrides').upsert(
         {
           plan_id: planId,
           student_id: user.id,
           substitutions: substitutions as any,
-          edited_meta: editedMealByGroup as any,
+          edited_meta: (action ? { ...editedMealByGroup, __action: action } : editedMealByGroup) as any,
           groups: groups as any,
         },
         { onConflict: 'plan_id' },
@@ -603,6 +611,56 @@ const MinhasDietas = () => {
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [substitutions, editedMealByGroup]);
+
+  // ── Ajustar Dieta: mantém os alimentos do aluno e só recalcula porções ──
+  const pendingActionRef = React.useRef<string | null>(null);
+  const [portionPreview, setPortionPreview] = useState<PortionAdjustResult | null>(null);
+  const [undoSnapshot, setUndoSnapshot] = useState<{
+    group: number;
+    subs: Record<string, any[]>;
+    meta: Record<number, number>;
+  } | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
+
+  useEffect(() => { setUndoSnapshot(null); }, [activeGroupIndex]);
+
+  const openPortionPreview = useCallback(() => {
+    setPortionPreview(
+      adjustStudentPortions({ meals: currentMeals as any, lockedMealIndexes: completedIndexes, target: dailyTarget }),
+    );
+  }, [currentMeals, completedIndexes, dailyTarget]);
+
+  const writeSubs = useCallback((subs: Record<string, any[]>, meta: Record<number, number>) => {
+    dirtyRef.current = true;
+    setSubstitutions(subs);
+    setEditedMealByGroup(meta);
+    try {
+      localStorage.setItem(subsStorageKey, JSON.stringify(subs));
+      localStorage.setItem(`${subsStorageKey}-meta`, JSON.stringify(meta));
+    } catch { /* ignore */ }
+  }, [subsStorageKey]);
+
+  const applyPortionAdjust = useCallback(() => {
+    if (!portionPreview) return;
+    setUndoSnapshot({ group: activeGroupIndex, subs: substitutions, meta: editedMealByGroup });
+    const nextSubs = { ...substitutions };
+    portionPreview.meals.forEach((m, mi) => {
+      if (completedIndexes.includes(mi)) return;
+      nextSubs[`${activeGroupIndex}-${mi}`] = m.foods;
+    });
+    // Nenhuma refeição "congelada": o ajuste já fechou o dia.
+    const nextMeta = { ...editedMealByGroup, [activeGroupIndex]: -1 };
+    pendingActionRef.current = 'aluno_ajustou_porcoes';
+    writeSubs(nextSubs, nextMeta);
+    setPortionPreview(null);
+  }, [portionPreview, activeGroupIndex, substitutions, editedMealByGroup, completedIndexes, writeSubs]);
+
+  const undoPortionAdjust = useCallback(() => {
+    if (!undoSnapshot) return;
+    pendingActionRef.current = 'aluno_desfez_ajuste';
+    writeSubs(undoSnapshot.subs, undoSnapshot.meta);
+    setUndoSnapshot(null);
+  }, [undoSnapshot, writeSubs]);
 
   // Sum directly from foods so totals reflect any carb-cycle scaling or
   // student substitutions instead of the cached meal totals from the parser.
