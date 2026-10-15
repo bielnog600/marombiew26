@@ -180,7 +180,7 @@ const MinhasDietas = () => {
       if (cancelled) return;
       if (data) {
         const subs = (data.substitutions as any) ?? {};
-        const meta = (data.edited_meta as any) ?? {};
+        const { __action: _ignored, ...meta } = ((data.edited_meta as any) ?? {}) as Record<string, any>;
         remoteGroupsRef.current = (data.groups as any) ?? {};
         setSubstitutions(subs);
         setEditedMealByGroup(meta);
