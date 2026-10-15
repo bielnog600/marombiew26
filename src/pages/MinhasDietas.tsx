@@ -779,8 +779,8 @@ const MinhasDietas = () => {
           fats={{ current: consumed.g, target: displaySummary.fats }}
         />
 
-        {hasStudentEdits && (
-          <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-1">
+        {(hasStudentEdits || undoSnapshot) && (
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-2">
             <p className="text-[11px] text-foreground">
               Meta prescrita do dia:{' '}
               <strong>{formatValue(dailyTarget.kcal, ' kcal')}</strong> · P {formatValue(dailyTarget.p, 'g')} · C{' '}
@@ -791,11 +791,103 @@ const MinhasDietas = () => {
                 ? 'Ajuste estimado dentro da tolerância — refeições futuras rebalanceadas automaticamente.'
                 : `Diferença atual: ${rebalance.residual.kcal > 0 ? '+' : ''}${Math.round(-rebalance.residual.kcal)} kcal em relação à meta.`}
             </p>
-            <Button variant="default" size="sm" onClick={resetDayEdits} className="w-full text-xs font-semibold">
-              Ajustar Dieta
-            </Button>
+            {hasStudentEdits && (
+              <Button variant="default" size="sm" onClick={openPortionPreview} className="w-full text-xs font-semibold">
+                Ajustar Dieta
+              </Button>
+            )}
+            {undoSnapshot && (
+              <Button variant="outline" size="sm" onClick={undoPortionAdjust} className="w-full text-xs">
+                Desfazer ajuste
+              </Button>
+            )}
+            {hasStudentEdits && (
+              <Button variant="ghost" size="sm" onClick={() => setConfirmReset(true)} className="w-full text-xs text-muted-foreground">
+                Voltar à dieta do treinador
+              </Button>
+            )}
           </div>
         )}
+
+        <Dialog open={!!portionPreview} onOpenChange={(o) => !o && setPortionPreview(null)}>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Ajustar porções</DialogTitle>
+              <DialogDescription>
+                Seus alimentos continuam os mesmos; só as quantidades das refeições ainda não feitas mudam.
+              </DialogDescription>
+            </DialogHeader>
+            {portionPreview && (
+              <div className="space-y-3 text-xs">
+                {portionPreview.changes.length === 0 ? (
+                  <p className="text-muted-foreground">Nenhuma porção precisou mudar.</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {portionPreview.changes.map((c, i) => (
+                      <li key={i} className="flex justify-between gap-2 border-b border-border/40 pb-1">
+                        <span className="min-w-0">
+                          <span className="text-muted-foreground">{c.mealName} · </span>
+                          {c.foodName}
+                        </span>
+                        <span className="whitespace-nowrap">
+                          {c.before} → <strong className="text-primary">{c.after}</strong>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="rounded-lg border border-border/50 p-2 space-y-0.5">
+                  {(['kcal', 'p', 'c', 'g'] as const).map((k) => (
+                    <div key={k} className="flex justify-between">
+                      <span className="text-muted-foreground">{k === 'kcal' ? 'Calorias' : k === 'p' ? 'Proteína' : k === 'c' ? 'Carboidrato' : 'Gordura'}</span>
+                      <span>
+                        {Math.round(portionPreview.before[k])} → <strong>{Math.round(portionPreview.after[k])}</strong>
+                        <span className="text-muted-foreground"> / meta {Math.round(portionPreview.target[k])}{k === 'kcal' ? '' : ' g'}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                {!portionPreview.ok && (
+                  <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-2 space-y-1">
+                    <p className="font-semibold text-destructive">Não deu para fechar a meta dentro dos limites de porção:</p>
+                    {portionPreview.issues.map((s, i) => <p key={i}>• {s}</p>)}
+                    {portionPreview.suggestions.map((s, i) => <p key={`s${i}`} className="text-foreground">💡 {s}</p>)}
+                    <p className="text-muted-foreground">Use o botão de trocar alimento na refeição para escolher um substituto.</p>
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setPortionPreview(null)}>Cancelar</Button>
+              <Button onClick={applyPortionAdjust} disabled={!portionPreview || portionPreview.changes.length === 0}>
+                Confirmar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog open={confirmReset} onOpenChange={setConfirmReset}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Voltar à dieta do treinador?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Todas as trocas e porções que você alterou neste dia serão descartadas.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  pendingActionRef.current = 'aluno_restaurou';
+                  setUndoSnapshot(null);
+                  resetDayEdits();
+                }}
+              >
+                Voltar ao original
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Hidratação */}
         <HydrationCard
