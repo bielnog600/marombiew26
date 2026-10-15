@@ -222,15 +222,6 @@ const AiEditDietDialog: React.FC<Props> = ({ open, onOpenChange, currentMeals, s
     }
   };
 
-  const runTargetKcal = () => {
-    const n = Number(targetKcal);
-    if (!n || n < 500) {
-      toast.error('Informe uma meta válida (>= 500 kcal).');
-      return;
-    }
-    runWithInstruction(`Ajuste a dieta inteira para totalizar exatamente ${n} kcal mantendo proporção dos macros. Use scale_day com targetKcal=${n}.`);
-  };
-
   const runFoodSuggestion = () => {
     const txt = foodSuggestion.trim();
     if (!txt) {
