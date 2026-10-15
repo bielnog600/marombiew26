@@ -159,6 +159,28 @@ import {
 } from '@/lib/macroConfig';
 import { WEEKDAY_KEYS, type WeekdayKey, type DayTarget } from '@/lib/dietDayTargets';
 
+/** Limites de segurança das metas por dia do ciclo (avisos em português). */
+export const CARB_DAY_LIMITS = { fatPerKgMax: 1.5, proteinPerKgMax: 3, kcalDeviationPct: 0.2 };
+
+export const carbDayTargetSanityIssues = (
+  t: { kcal: number; p: number; c: number; g: number },
+  weightKg: number | null,
+  baseKcal?: number | null,
+): string[] => {
+  const issues: string[] = [];
+  if (t.c < 0) issues.push('Carboidrato negativo');
+  if (weightKg && weightKg > 0) {
+    const gkg = t.g / weightKg;
+    const pkg = t.p / weightKg;
+    if (gkg > CARB_DAY_LIMITS.fatPerKgMax) issues.push(`Gordura ${t.g} g (${gkg.toFixed(1)} g/kg) acima de ${CARB_DAY_LIMITS.fatPerKgMax} g/kg`);
+    if (pkg > CARB_DAY_LIMITS.proteinPerKgMax) issues.push(`Proteína ${t.p} g (${pkg.toFixed(1)} g/kg) acima de ${CARB_DAY_LIMITS.proteinPerKgMax} g/kg`);
+  }
+  if (baseKcal && baseKcal > 0 && Math.abs(t.kcal - baseKcal) / baseKcal > CARB_DAY_LIMITS.kcalDeviationPct) {
+    issues.push(`${t.kcal} kcal muito longe da meta base (${Math.round(baseKcal)} kcal)`);
+  }
+  return issues;
+};
+
 export type CarbCyclingMode = 'variable_calories' | 'fixed_calories';
 export type CarbDayType = 'low' | 'medium' | 'high';
 
@@ -320,21 +342,14 @@ export const buildCarbDayTypeTargets = ({
     }
 
     if (mode === 'variable_calories') {
-      // P e G constantes: preferencialmente os macros CANÔNICOS já resolvidos
-      // pela Fase 2 (inclui o macro que fechou as calorias). Só quando a
-      // resolução não estiver disponível caímos na configuração declarada.
-      const protein =
-        baseResolvedMacros?.p ??
-        macroConfig.protein.grams ??
-        (macroConfig.protein.perKg != null
-          ? gramsFromPerKg(macroConfig.protein.perKg, macroConfig.protein.basis, body)
-          : null);
-      const fat =
-        baseResolvedMacros?.g ??
-        macroConfig.fat.grams ??
-        (macroConfig.fat.perKg != null
-          ? gramsFromPerKg(macroConfig.fat.perKg, macroConfig.fat.basis, body)
-          : null);
+      // P e G constantes, travados pelo g/kg (ou gramas) escolhidos nos
+      // "Ajustes Finos". O valor resolvido da Fase 2 só é usado quando o
+      // macro não foi declarado — senão, se a gordura tiver fechado as
+      // calorias da meta base, ela herdaria um valor absurdo (ex.: 219 g).
+      const declared = (m: MacroConfig['protein']): number | null =>
+        m.grams ?? (m.perKg != null ? gramsFromPerKg(m.perKg, m.basis, body) : null);
+      const protein = declared(macroConfig.protein) ?? baseResolvedMacros?.p ?? null;
+      const fat = declared(macroConfig.fat) ?? baseResolvedMacros?.g ?? null;
       if (protein == null || fat == null) {
         out[type] = {
           ...base,
@@ -347,14 +362,17 @@ export const buildCarbDayTypeTargets = ({
         protein * MACRO_KCAL_PER_G.protein +
         carbs * MACRO_KCAL_PER_G.carbs +
         fat * MACRO_KCAL_PER_G.fat;
+      const target = {
+        kcal: Math.round(kcal),
+        p: Math.round(protein),
+        c: Math.round(carbs),
+        g: Math.round(fat),
+      };
+      const issues = carbDayTargetSanityIssues(target, body.weightKg ?? null, baseKcal);
       out[type] = {
         ...base,
-        target: {
-          kcal: Math.round(kcal),
-          p: Math.round(protein),
-          c: Math.round(carbs),
-          g: Math.round(fat),
-        },
+        warning: issues.length ? issues.join(' · ') : null,
+        target,
       };
       continue;
     }

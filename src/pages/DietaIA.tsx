@@ -95,6 +95,7 @@ import {
   defaultCarbCyclingConfig,
   buildCarbDayTypeTargets,
   buildWeeklyCarbTargets,
+  carbDayTargetSanityIssues,
   calculateWeeklyAverage,
   compareWeeklyAverageToBase,
   suggestCarbDayTypeForWorkout,
@@ -2673,6 +2674,21 @@ ${generated}`;
         toast.error(`Não é possível publicar: ${outside.length} dia(s) fora da tolerância ±75 kcal — ${outside.join(', ')}. Regere ou edite manualmente.`);
         return;
       }
+    }
+    if (carbCycling.enabled) {
+      const hard: string[] = [];
+      const soft: string[] = [];
+      for (const [wd, t] of Object.entries(weeklyCarbTargets)) {
+        if (!t) continue;
+        carbDayTargetSanityIssues(t, macroBody.weightKg ?? null, baseKcal.base_daily_kcal ?? null).forEach((msg) => {
+          (msg.includes('meta base') ? soft : hard).push(`${wd.toUpperCase()}: ${msg}`);
+        });
+      }
+      if (hard.length > 0) {
+        toast.error(`Metas do ciclo de carbo inválidas — ${hard.slice(0, 3).join(' · ')}. Revise os g/kg em Ajustes Finos.`);
+        return;
+      }
+      if (soft.length > 0) toast.warning(`Atenção: ${soft.slice(0, 3).join(' · ')}`);
     }
     console.log('[DietaIA] savePlan_start', { mode, isDraft, scheduleHasAdjustments });
     setSaving(true);
