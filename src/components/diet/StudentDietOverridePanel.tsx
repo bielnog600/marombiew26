@@ -27,6 +27,8 @@ const r = (n: number) => Math.round(n || 0);
 const ACTION_LABEL: Record<string, string> = {
   aluno_editou: 'Aluno alterou',
   aluno_restaurou: 'Aluno voltou ao original',
+  aluno_ajustou_porcoes: 'Aluno ajustou porções (Ajustar Dieta)',
+  aluno_desfez_ajuste: 'Aluno desfez o ajuste de porções',
   treinador_editou: 'Treinador corrigiu',
   treinador_descartou: 'Treinador descartou alterações',
 };
