@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import DietWeekView from '@/components/diet/DietWeekView';
+import StudentDietOverridePanel from '@/components/diet/StudentDietOverridePanel';
 import DietPlanEditor from '@/components/diet/DietPlanEditor';
 import CanonicalDietEditor from '@/components/diet/CanonicalDietEditor';
 import AiEditDietDialog from '@/components/diet/AiEditDietDialog';
@@ -940,7 +941,13 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         );
                       })()
                     ) : (
-                      <DietWeekView markdown={cleanedMarkdown} plan={plan.conteudo_json} />
+                      plan.is_draft === false ? (
+                        <StudentDietOverridePanel planId={plan.id} studentId={studentId}>
+                          <DietWeekView markdown={cleanedMarkdown} plan={plan.conteudo_json} />
+                        </StudentDietOverridePanel>
+                      ) : (
+                        <DietWeekView markdown={cleanedMarkdown} plan={plan.conteudo_json} />
+                      )
                     )}
                   </div>
                 )}

@@ -2698,6 +2698,78 @@ export type Database = {
         }
         Relationships: []
       }
+      student_diet_override_events: {
+        Row: {
+          action: string
+          actor_id: string | null
+          actor_role: string
+          created_at: string
+          groups: Json | null
+          id: string
+          plan_id: string
+          student_id: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          actor_role: string
+          created_at?: string
+          groups?: Json | null
+          id?: string
+          plan_id: string
+          student_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          actor_role?: string
+          created_at?: string
+          groups?: Json | null
+          id?: string
+          plan_id?: string
+          student_id?: string
+        }
+        Relationships: []
+      }
+      student_diet_overrides: {
+        Row: {
+          created_at: string
+          edited_meta: Json
+          groups: Json
+          id: string
+          plan_id: string
+          student_id: string
+          substitutions: Json
+          updated_at: string
+          updated_by: string | null
+          updated_by_role: string | null
+        }
+        Insert: {
+          created_at?: string
+          edited_meta?: Json
+          groups?: Json
+          id?: string
+          plan_id: string
+          student_id: string
+          substitutions?: Json
+          updated_at?: string
+          updated_by?: string | null
+          updated_by_role?: string | null
+        }
+        Update: {
+          created_at?: string
+          edited_meta?: Json
+          groups?: Json
+          id?: string
+          plan_id?: string
+          student_id?: string
+          substitutions?: Json
+          updated_at?: string
+          updated_by?: string | null
+          updated_by_role?: string | null
+        }
+        Relationships: []
+      }
       student_events: {
         Row: {
           created_at: string
