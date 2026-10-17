@@ -1245,7 +1245,7 @@ const TreinoExecucaoInner = () => {
             <Clock className="h-3 w-3" />
             {formatElapsed(elapsedSeconds)}
           </span>
-          <span className="bg-background/80 backdrop-blur rounded-full px-3 py-1 text-xs font-medium text-foreground">{currentIndex + 1}/{exercises.length}</span>
+          <span className="bg-background/80 backdrop-blur rounded-full px-3 py-1 text-xs font-medium text-foreground">{(() => { const blocks = exerciseBlocks(exercises); const bi = blocks.findIndex(b => b.indices.includes(currentIndex)); return `${bi + 1}/${blocks.length}`; })()}</span>
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 p-4 z-30">
