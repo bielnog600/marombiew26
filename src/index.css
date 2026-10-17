@@ -58,6 +58,8 @@
     --chart-3: 150 60% 45%;
     --chart-4: 280 65% 55%;
     --chart-5: 15 80% 55%;
+    --workout-rest-gradient: linear-gradient(90deg, hsl(var(--primary) / 0.28), hsl(var(--primary) / 0.12));
+    --workout-rest-glow: 0 0 0 2px hsl(var(--primary) / 0.5), 0 0 16px hsl(var(--primary) / 0.4);
   }
 }
 
@@ -181,6 +183,21 @@
     margin-top: auto;
     /* Botões logo acima da barrinha do iPhone, sem faixa vazia embaixo. */
     padding-bottom: max(8px, calc(env(safe-area-inset-bottom, 0px) - 14px));
+  }
+  .workout-rest-fill {
+    background: var(--workout-rest-gradient);
+    transform-origin: left;
+    transition: transform 1s linear;
+  }
+  @keyframes workout-rest-complete {
+    0%, 100% { box-shadow: none; }
+    50% { box-shadow: var(--workout-rest-glow); }
+  }
+  .workout-rest-pulse { animation: workout-rest-complete 0.65s ease-in-out 3; }
+  .workout-set-completed { background: hsl(var(--chart-3) / 0.16); border-color: hsl(var(--chart-3) / 0.45); color: hsl(var(--chart-3)); }
+  @media (prefers-reduced-motion: reduce) {
+    .workout-rest-fill { transition: none; }
+    .workout-rest-pulse { animation: none; }
   }
   @keyframes splash-logo-in {
     0% { opacity: 0; transform: scale(0.6); }
