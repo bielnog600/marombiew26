@@ -205,7 +205,7 @@ const TreinoExecucaoInner = () => {
   }, []);
   const [loadedLogsForIndex, setLoadedLogsForIndex] = useState<Set<number>>(new Set());
   const [exerciseDB, setExerciseDB] = useState<ExerciseDBData[]>([]);
-  const { restTimer, startTimer: startRestTimer, stopTimer: stopRestTimer } = useRestTimer();
+  const { restTimer, startTimer: startRestTimer, stopTimer: stopRestTimer, adjustTimer: adjustRestTimer } = useRestTimer();
   const [showPlayFallback, setShowPlayFallback] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
   const [showingVariation, setShowingVariation] = useState(false);
@@ -1148,10 +1148,11 @@ const TreinoExecucaoInner = () => {
         </div>
       )}
       {restTimer && (
-        <RestTimerOverlay 
-          timeLeft={restTimer.remaining} 
-          totalSeconds={restTimer.total} 
-          onClose={stopRestTimer} 
+        <RestTimerOverlay
+          timeLeft={restTimer.remaining}
+          totalSeconds={restTimer.total}
+          onClose={stopRestTimer}
+          onAddTime={adjustRestTimer}
         />
       )}
       <PhaseInfoSheet open={showPhaseInfo} onOpenChange={setShowPhaseInfo} phase={currentPhase} />
