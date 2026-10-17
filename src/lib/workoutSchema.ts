@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { ParsedTrainingDay, ParsedExercise } from "./trainingResultParser";
 import { normalizeWorkoutMethod } from "./trainingMethods";
+import { executionFields } from './workoutExecutionFields';
 
 /**
  * Workout plan v2 — JSON-first source of truth.
@@ -125,6 +126,12 @@ export const WorkoutExerciseSchema = z.object({
    * `validateWorkoutMethod` (precisa do banco) — aqui validamos só a forma.
    */
   method: WorkoutMethodSchema.optional(),
+  grupo_id: z.string().optional(),
+  tipo_grupo: z.enum(['superset', 'biset']).optional(),
+  ordem_grupo: z.enum(['A', 'B']).optional(),
+  pausa_grupo_s: z.number().min(0).max(10).optional(),
+  metodo: z.enum(['nenhum', 'dropset', 'restpause', 'cluster']).optional(),
+  metodo_params: z.object({ aplicar: z.enum(['ultima', 'todas']), drops: z.number().min(1).max(3), reducao_pct: z.number().min(1).max(90), pausa_s: z.number().min(10).max(30), minis: z.number().min(1).max(5), blocos: z.number().min(2).max(6), reps_bloco: z.number().min(1).max(20) }).optional(),
 });
 
 export type WorkoutExercise = z.infer<typeof WorkoutExerciseSchema>;

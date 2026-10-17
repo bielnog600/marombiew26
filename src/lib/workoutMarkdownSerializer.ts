@@ -1,3 +1,4 @@
+import { executionSummary } from './workoutExecutionMethods';
 import type { WorkoutPlan } from "./workoutSchema";
 import { workoutPlanToParsedDays } from "./workoutSchema";
 import { formatMethodForMarkdown, type WorkoutMethodRef } from "./trainingMethods";
@@ -50,7 +51,7 @@ export const workoutPlanToMarkdown = (plan: WorkoutPlan): string => {
       return found?.exercise ?? idOrName;
     };
     for (const ex of day.exercises) {
-      const metodo = formatMethodForMarkdown(ex.method as WorkoutMethodRef | undefined, resolvePair);
+      const metodo = executionSummary(ex as any) || formatMethodForMarkdown(ex.method as WorkoutMethodRef | undefined, resolvePair);
       const desc = [metodo, (ex.description || "").trim()].filter((s) => s && s !== "-").join(" · ");
       lines.push(
         `| ${cell(day.day)} | ${cell(ex.exercise)} | ${seriesForMarkdown(ex)} | ${cell(ex.series2)} | ${repsForMarkdown(ex)} | ${cell(ex.rir)} | ${restCell(ex.restSeconds, ex.pause)} | ${cell(desc)} | ${cell(ex.variation)} |`,

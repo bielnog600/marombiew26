@@ -145,6 +145,11 @@ export const persistSessionDayEditsToPlan = async (
       tempo: sameName ? prevEx?.tempo : undefined,
       notes: st?.notes ? st.notes : sameName ? prevEx?.notes || '' : '',
       setScheme: ex.setScheme ?? (sameName ? prevEx?.setScheme : undefined),
+      method: ex.method, metodo: ex.metodo, metodo_params: ex.metodo_params,
+      grupo_id: ex.grupo_id, tipo_grupo: ex.tipo_grupo, ordem_grupo: ex.ordem_grupo, pausa_grupo_s: ex.pausa_grupo_s,
+      targetLoadKg: ex.targetLoadKg ?? prevEx?.targetLoadKg,
+      targetLoadNote: ex.targetLoadNote ?? prevEx?.targetLoadNote,
+      targetLoadPerSet: ex.targetLoadPerSet ?? prevEx?.targetLoadPerSet,
     };
   }).filter((e) => e.exercise.length > 0);
 
