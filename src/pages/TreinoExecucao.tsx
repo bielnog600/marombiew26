@@ -1293,8 +1293,8 @@ const TreinoExecucaoInner = () => {
             remaining={groupFlow.remaining}
             title={isSwap ? `Agora: ${target?.ordem_grupo ?? 'B'} — ${target?.exercise ?? ''}` : `Descanso do ${isBiset ? 'bi-set' : 'superset'}`}
             subtitle={isSwap
-              ? `Série ${pause.setIndex + 1} de ${count} · alvo ${target?.reps ?? ''} reps${suggested}`
-              : `Próximo: ${target?.ordem_grupo ?? 'A'} — ${target?.exercise ?? ''} · Série ${pause.setIndex + 1} de ${count}`}
+              ? `Série ${(pause.setIndex ?? 0) + 1} de ${count} · alvo ${target?.reps ?? ''} reps${suggested}`
+              : `Próximo: ${target?.ordem_grupo ?? 'A'} — ${target?.exercise ?? ''} · Série ${(pause.setIndex ?? 0) + 1} de ${count}`}
             thumbnail={thumbnail}
             onSkip={groupFlow.skip}
             onAdd={groupFlow.adjust}
