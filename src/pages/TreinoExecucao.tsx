@@ -1568,9 +1568,9 @@ const TreinoExecucaoInner = () => {
             Anterior
           </Button>
           {!exerciseBlocks(exercises).at(-1)?.indices.includes(currentIndex) ? (
-            <Button className="flex-1" onClick={() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); setCurrentIndex(blocks[Math.min(blocks.length - 1, i + 1)].indices[0]); }}>
-              Próximo
-              <ChevronRight className="h-4 w-4 ml-1" />
+            <Button className="flex-1 flex-col h-auto py-1.5 gap-0" onClick={() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); setCurrentIndex(blocks[Math.min(blocks.length - 1, i + 1)].indices[0]); }}>
+              <span className="flex items-center">Próximo<ChevronRight className="h-4 w-4 ml-1" /></span>
+              <span className="text-[10px] font-normal opacity-80 truncate max-w-full">{(() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); const next = blocks[Math.min(blocks.length - 1, i + 1)]; return exercises[next.indices[0]]?.exercise ?? ''; })()}</span>
             </Button>
           ) : (
             <Button className="flex-1" disabled={isFinishing} onClick={() => setShowSessionRpe(true)}>
