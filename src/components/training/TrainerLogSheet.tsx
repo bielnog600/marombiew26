@@ -928,6 +928,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
         }
       }
       const exercisesCompleted = Object.values(state).filter(ex => ex.savedSets > 0).length;
+      inlineRest.cancel();
       await finish({
         [studentId]: {
           exercisesCompleted,
@@ -996,6 +997,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                       onClick={async () => {
                         setCancelling(true);
                         try {
+                          inlineRest.cancel();
                           await cancel();
                           if (day) localStorage.removeItem(draftKey(studentId, day.day, daySignature));
                         } finally {

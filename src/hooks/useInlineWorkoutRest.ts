@@ -64,7 +64,7 @@ export function useInlineWorkoutRest(storageKey?: string) {
     if (current) restore({ ...current, exIdx });
   }, [restore]);
   useEffect(() => {
-    if (timer.restTimer && timer.restTimer.remaining <= 0) finish(false);
+    if (timer.restTimer && timer.restTimer.remaining <= 0) finish();
   }, [timer.restTimer?.remaining, finish]);
   // Deadline-only snapshot keeps session autosaves independent of countdown ticks.
   const snapshot = useMemo(() => activeRef.current, [timer.restTimer?.endTime, timer.restTimer?.exIdx, timer.restTimer?.setIndex]);

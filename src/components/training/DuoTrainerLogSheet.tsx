@@ -700,6 +700,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
           }
         }
       }
+      inlineRestA.cancel(); inlineRestB.cancel();
       await finish(totals);
       cleanup.forEach((fn) => fn());
     } catch (err: any) {
@@ -754,7 +755,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                       disabled={cancelling}
                       onClick={async () => {
                         setCancelling(true);
-                        try { await cancel(); } finally { setCancelling(false); }
+                        try { inlineRestA.cancel(); inlineRestB.cancel(); await cancel(); } finally { setCancelling(false); }
                       }}
                     >
                       Cancelar sessão
