@@ -91,6 +91,23 @@ export const methodSummary = (ex: ParsedExercise): string => {
 };
 export const groupSummary = (ex: ParsedExercise): string => ex.grupo_id && ex.tipo_grupo
   ? `${ex.ordem_grupo === 'B' ? 'A2' : 'A1'} — ${ex.tipo_grupo === 'superset' ? 'Superset' : 'Bi-set'}` : '';
+/** Explicação em linguagem simples do método/grupo, para o bottom sheet "Descrição" do aluno. */
+export const methodExplanation = (ex: ParsedExercise): string[] => {
+  const lines: string[] = [];
+  if (ex.grupo_id && ex.tipo_grupo) {
+    lines.push(ex.tipo_grupo === 'superset'
+      ? 'Superset: faça uma série deste exercício e, sem descansar (ou com poucos segundos), faça uma série do exercício par. Descanse só depois dos dois.'
+      : 'Bi-set: faça uma série deste exercício e em seguida uma série do exercício par, com a pausa curta indicada. Descanse só depois dos dois.');
+  }
+  const m = seriesMethod(ex);
+  if (m === 'nenhum') return lines;
+  const p = methodParameters(ex);
+  const onde = p.aplicar === 'todas' ? 'em todas as séries' : 'na última série';
+  if (m === 'dropset') lines.push(`Drop set ${onde}: chegue perto da falha, reduza cerca de ${p.reducao_pct}% da carga e continue até a falha de novo, ${p.drops} ${p.drops === 1 ? 'vez' : 'vezes'}.`);
+  if (m === 'restpause') lines.push(`Rest-pause ${onde}: chegue perto da falha, descanse ${p.pausa_s} segundos e faça mais repetições. Repita ${p.minis} ${p.minis === 1 ? 'vez' : 'vezes'}.`);
+  if (m === 'cluster') lines.push(`Cluster ${onde}: divida a série em ${p.blocos} blocos de ${p.reps_bloco} repetições, descansando ${p.pausa_s} segundos entre os blocos.`);
+  return lines;
+};
 export const executionSummary = (ex: ParsedExercise): string => [groupSummary(ex), methodSummary(ex)].filter(Boolean).join(' · ');
 export const exerciseSetCount = (ex: ParsedExercise): number => buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme).length;
 export interface ExerciseBlock { id: string; indices: number[] }
