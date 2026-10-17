@@ -1660,16 +1660,17 @@ const TreinoExecucaoInner = () => {
         </DialogContent>
       </Dialog>
 
-      <div className="student-workout-footer shrink-0 z-50 bg-background/95 backdrop-blur border-t border-border p-3" data-testid="workout-footer">
-        <div className="flex items-center justify-between gap-3">
-          <Button variant="outline" className="flex-1" onClick={() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); setCurrentIndex(blocks[Math.max(0, i - 1)].indices[0]); }} disabled={exerciseBlocks(exercises)[0]?.indices.includes(currentIndex)}>
-            <ChevronLeft className="h-4 w-4 mr-1" />
+      <div className="student-workout-footer shrink-0 z-50 bg-background/95 backdrop-blur border-t border-border px-3 pt-2" data-testid="workout-footer">
+        <div className="flex items-center justify-between gap-2">
+          <Button variant="outline" className="flex-1 h-11 whitespace-nowrap" onClick={() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); setCurrentIndex(blocks[Math.max(0, i - 1)].indices[0]); }} disabled={exerciseBlocks(exercises)[0]?.indices.includes(currentIndex)}>
+            <ChevronLeft className="h-4 w-4 mr-1 shrink-0" />
             Anterior
           </Button>
           {!exerciseBlocks(exercises).at(-1)?.indices.includes(currentIndex) ? (
-            <Button className="flex-1 flex-col h-auto py-1.5 gap-0" onClick={() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); setCurrentIndex(blocks[Math.min(blocks.length - 1, i + 1)].indices[0]); }}>
-              <span className="flex items-center">Próximo<ChevronRight className="h-4 w-4 ml-1" /></span>
-              <span className="text-[10px] font-normal opacity-80 truncate max-w-full">{(() => {
+            <Button className="flex-[2] h-11 min-w-0" onClick={() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); setCurrentIndex(blocks[Math.min(blocks.length - 1, i + 1)].indices[0]); }}>
+              <span className="flex items-center min-w-0 gap-0.5">
+                <span className="shrink-0">Próximo:</span>
+                <span className="truncate font-normal opacity-90">{(() => {
                 // Dentro de um grupo, "Próximo" mostra o que vem de fato:
                 // na aba A → B; na aba B → A na série seguinte (ou o exercício depois do grupo).
                 if (groupFlow.indices.length === 2) {
