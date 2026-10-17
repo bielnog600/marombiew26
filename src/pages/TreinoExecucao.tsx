@@ -1287,70 +1287,73 @@ const TreinoExecucaoInner = () => {
               )}
             </div>
           </div>
-          {(() => {
-            const isReal = (v?: string | null) => {
-              if (!v) return false;
-              const t = v.trim();
-              return t.length > 0 && !['-', '—', '–', 'n/a', 'na'].includes(t.toLowerCase());
-            };
-
-            // Extrai 1 ou 2 números de uma string (ex: "8", "8-10", "8 a 10", "8 - 10 reps").
-            const extractRange = (raw: string): { a: number; b: number } | null => {
-              const nums = raw.match(/\d+/g);
-              if (!nums || nums.length === 0) return null;
-              const a = parseInt(nums[0], 10);
-              const b = nums[1] ? parseInt(nums[1], 10) : a;
-              return { a: Math.min(a, b), b: Math.max(a, b) };
-            };
-
-            // RIR válido: 1 número (0–5) ou faixa pequena tipo 1-3, sem palavras estranhas.
-            const parseRir = (raw: string): string | null => {
-              const r = extractRange(raw);
-              if (!r) return null;
-              // Se o maior valor for >= 5, não é RIR — é faixa de reps mal-rotulada.
-              if (r.b >= 5) return null;
-              return r.a === r.b ? `RIR ${r.a}` : `RIR ${r.a}–${r.b}`;
-            };
-
-            // Reps: aceita "10", "8-10", "8 a 10" → "10 reps" / "8–10 reps".
-            // Se vier em segundos ("15s", "30 seg"), preserva o sufixo de tempo.
-            const parseReps = (raw: string): string | null => {
-              const r = extractRange(raw);
-              if (!r) return null;
-              const isTime = /\b\d+\s*(s|seg|segundos?)\b|\d+["']/i.test(raw);
-              const unit = isTime ? 's' : ' reps';
-              return r.a === r.b ? `${r.a}${unit}` : `${r.a}–${r.b}${unit}`;
-            };
-
-            const isPerSet = exercise.setScheme?.mode === 'per_set' && setPlan.length > 0;
-            const repsLabel = !isPerSet && isReal(exercise.reps) ? parseReps(exercise.reps) : null;
-            // RIR só aparece se for realmente RIR (números baixos). Caso contrário ocultamos.
-            const rirLabel = isReal(exercise.rir) ? parseRir(exercise.rir) : null;
-            const isComposed = setPlan.some((p) => p.type === 'recognition') && setPlan.some((p) => p.type === 'work');
-            const summary = isPerSet
-              ? setPlan.map((set) => set.reps).filter(Boolean).join(' / ')
-              : isComposed ? buildPlanSummary(setPlan) : null;
-
-            return (
-              <div className="flex items-center gap-2 mt-2 flex-wrap">
-                {summary
-                  ? <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded font-semibold">{summary}</span>
-                  : isReal(exercise.series) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.series} séries</span>}
-                {!summary && repsLabel && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{repsLabel}</span>}
-                {rirLabel && <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">{rirLabel}</span>}
-                {isReal(exercise.pause) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.pause} descanso</span>}
-                {(exercise as { method?: { slug: string; params?: Record<string, string | number> } }).method?.slug && (
-                  <MethodBadge
-                    method={(exercise as { method?: { slug: string; params?: Record<string, string | number> } }).method}
-                    dayExercises={exercises}
-                    className="py-1"
-                  />
-                )}
-              </div>
-            );
-          })()}
         </div>
       </div>
+
+      {/* Chips de prescrição + botão Descrição — fora do vídeo, abaixo dele. */}
+      {(() => {
+        const isReal = (v?: string | null) => {
+          if (!v) return false;
+          const t = v.trim();
+          return t.length > 0 && !['-', '—', '–', 'n/a', 'na'].includes(t.toLowerCase());
+        };
+        const extractRange = (raw: string): { a: number; b: number } | null => {
+          const nums = raw.match(/\d+/g);
+          if (!nums || nums.length === 0) return null;
+          const a = parseInt(nums[0], 10);
+          const b = nums[1] ? parseInt(nums[1], 10) : a;
+          return { a: Math.min(a, b), b: Math.max(a, b) };
+        };
+        const parseRir = (raw: string): string | null => {
+          const r = extractRange(raw);
+          if (!r) return null;
+          if (r.b >= 5) return null;
+          return r.a === r.b ? `RIR ${r.a}` : `RIR ${r.a}–${r.b}`;
+        };
+        const parseReps = (raw: string): string | null => {
+          const r = extractRange(raw);
+          if (!r) return null;
+          const isTime = /\b\d+\s*(s|seg|segundos?)\b|\d+["']/i.test(raw);
+          const unit = isTime ? 's' : ' reps';
+          return r.a === r.b ? `${r.a}${unit}` : `${r.a}–${r.b}${unit}`;
+        };
+        const isPerSet = exercise.setScheme?.mode === 'per_set' && setPlan.length > 0;
+        const repsLabel = !isPerSet && isReal(exercise.reps) ? parseReps(exercise.reps) : null;
+        const rirLabel = isReal(exercise.rir) ? parseRir(exercise.rir) : null;
+        const isComposed = setPlan.some((p) => p.type === 'recognition') && setPlan.some((p) => p.type === 'work');
+        const summary = isPerSet
+          ? setPlan.map((set) => set.reps).filter(Boolean).join(' / ')
+          : isComposed ? buildPlanSummary(setPlan) : null;
+        const hasDetails = !!exercise.description || methodExplanation(exercise).length > 0;
+
+        return (
+          <div className="shrink-0 px-4 pt-2 flex items-center gap-2 flex-wrap" data-testid="prescription-chips">
+            {summary
+              ? <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded font-semibold">{summary}</span>
+              : isReal(exercise.series) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.series} séries</span>}
+            {!summary && repsLabel && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{repsLabel}</span>}
+            {rirLabel && <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">{rirLabel}</span>}
+            {isReal(exercise.pause) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.pause} descanso</span>}
+            {(exercise as { method?: { slug: string; params?: Record<string, string | number> } }).method?.slug && (
+              <MethodBadge
+                method={(exercise as { method?: { slug: string; params?: Record<string, string | number> } }).method}
+                dayExercises={exercises}
+                className="py-1"
+              />
+            )}
+            {hasDetails && (
+              <button
+                type="button"
+                onClick={() => setDescriptionOpen(true)}
+                className="inline-flex items-center gap-1 rounded-full bg-secondary/70 border border-border/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-foreground hover:bg-secondary transition-colors"
+              >
+                <Info className="h-3 w-3" />
+                Descrição
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {groupFlow.indices.length === 2 && <div className="shrink-0 px-4 pt-2"><WorkoutGroupTabs exercises={exercises} indices={groupFlow.indices} currentIndex={currentIndex} sets={sets} onSelect={setCurrentIndex} /></div>}
       {groupFlow.pause && <div className="shrink-0 px-4 py-2 flex items-center justify-between border-y border-primary/30 text-primary text-sm"><span>{groupFlow.pause.label} · {groupFlow.remaining}s</span><Button variant="ghost" size="sm" onClick={groupFlow.skip}>Pular</Button></div>}
