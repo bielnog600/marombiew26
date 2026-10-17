@@ -1,6 +1,7 @@
 import { MethodExerciseCard } from './MethodExerciseCard';
 import { exerciseBlocks, seriesMethod, methodLogFields, type MethodSetEntry } from '@/lib/workoutExecutionMethods';
 import type { GroupPause } from '@/hooks/useWorkoutGroupFlow';
+import { getSafeWorkoutDays } from '@/lib/planMigrationUtils';
 import React, { useEffect, useState, useMemo } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -190,7 +191,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     if (open && planA && !studentA) {
       (async () => {
         const { data: profile } = await supabase.from('profiles').select('nome').eq('user_id', studentAId).single();
-        const days = parseTrainingSections(planA.conteudo || '').flatMap(s => s.days || []);
+        const days = getSafeWorkoutDays(planA);
         
         // Find best day for today
         const weekdays = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
@@ -231,7 +232,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     }
     
     const plan = plans[0];
-    const days = parseTrainingSections(plan.conteudo || '').flatMap(s => s.days || []);
+    const days = getSafeWorkoutDays(plan);
     const weekdays = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
     const today = weekdays[new Date().getDay()];
     const idx = days.findIndex((d) => d.day.toLowerCase().includes(today));
@@ -617,6 +618,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     const rows = validSets.map((s: any) => {
       const p = exState.plan?.[s.idx];
       return {
+        ...methodLogFields(ex, exState.sets[s.idx]),
         student_id: st.studentId,
         session_id: sessionId,
         exercise_name: normalizeExName(exerciseName),
