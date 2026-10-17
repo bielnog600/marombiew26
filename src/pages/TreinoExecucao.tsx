@@ -1550,7 +1550,7 @@ const TreinoExecucaoInner = () => {
         </div>
 
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3" data-testid="workout-set-list">
+      <div className="px-4 pb-3" data-testid="workout-set-list">
         <div className="space-y-2">
           <div className="grid grid-cols-[32px_1fr_1fr_44px] gap-1.5 px-2">
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Série</span>
