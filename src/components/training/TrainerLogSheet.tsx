@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { useInlineWorkoutRest } from '@/hooks/useInlineWorkoutRest';
+import { RestOffscreenIndicator } from './WorkoutSetCard';
 import { MethodExerciseCard } from './MethodExerciseCard';
 import { exerciseBlocks, methodLogFields, seriesMethod, type MethodSetEntry } from '@/lib/workoutExecutionMethods';
 import type { GroupPause } from '@/hooks/useWorkoutGroupFlow';
@@ -380,6 +382,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   const dndSensors = useExerciseDndSensors();
 
   const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer, setTimerExerciseIndex } = useRestTimer();
+  const inlineRest = useInlineWorkoutRest(active?.id ? `mw_inline_rest:admin:${active.id}:${studentId}` : undefined);
 
   const student = active?.students.find(s => s.id === studentId);
   // Semana ajustada no card da semana durante esta sessão (vence a do início).
@@ -618,7 +621,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     setState(prev => ({ ...prev, [exIdx]: { ...prev[exIdx], savedSets: prev[exIdx].sets.filter(set => set.completed).length } }));
   };
   useEffect(() => {
-    if (!day || !currentExercises.some(ex => ex.grupo_id || seriesMethod(ex) !== 'nenhum') || loading) return;
+    if (!day || loading) return;
     const form = { sets: Object.fromEntries(Object.entries(state).map(([i, ex]) => [i, ex.sets])), plans: Object.fromEntries(Object.entries(state).map(([i, ex]) => [i, ex.plan])), savedSets: Object.fromEntries(Object.entries(state).map(([i, ex]) => [i, ex.savedSets])), exercises: currentExercises };
     patchSessionState((prev: any) => ({ ...prev, methodExecution: { ...prev.methodExecution, [studentId]: { ...prev.methodExecution?.[studentId], [day.day]: form } } }));
   }, [state, currentExercises, loading, day?.day, studentId, patchSessionState]);
@@ -1065,7 +1068,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                   {exerciseBlocks(currentExercises).map(block => {
                     const exIdx = block.indices[0], ex = currentExercises[exIdx];
                     if (!state[exIdx] || !exerciseUids[exIdx]) return null;
-                    if (block.indices.length === 2 || seriesMethod(ex) !== 'nenhum') return <MethodExerciseCard key={block.id} exercises={currentExercises} indices={block.indices} sets={Object.fromEntries(Object.entries(state).map(([i, st]) => [i, st.sets]))} onChange={changeMethodSet} onComplete={saveMethodSet} media={exercisesList} snapshot={snapshot} studentId={studentId} savedPause={active?.sessionState?.methodPauses?.[studentId]?.[block.id]} onPauseChange={pause => saveMethodPause(block.id, pause)} />;
+                    if (block.indices.length === 2 || seriesMethod(ex) !== 'nenhum') return <MethodExerciseCard key={block.id} exercises={currentExercises} indices={block.indices} sets={Object.fromEntries(Object.entries(state).map(([i, st]) => [i, st.sets]))} onChange={changeMethodSet} onComplete={saveMethodSet} media={exercisesList} snapshot={snapshot} studentId={studentId} inlineRest={inlineRest} savedPause={active?.sessionState?.methodPauses?.[studentId]?.[block.id]} onPauseChange={pause => saveMethodPause(block.id, pause)} />;
                     return (
                     <SortableExerciseRow key={exerciseUids[exIdx]} id={exerciseUids[exIdx]} position={exIdx + 1}>
 
@@ -1079,6 +1082,8 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                         onUpdateNotes={updateNotes}
                         onSaveExercise={saveExercise}
                         onStartRestTimer={setRestTimer}
+                        inlineRest={inlineRest}
+                        onCompleteSet={saveMethodSet}
                         onExerciseNameChange={(name) => updateExerciseName(exIdx, name)}
                         onAddSet={addSet}
                         onRemoveSet={removeSet}
@@ -1126,6 +1131,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
           />
         )}
 
+        <RestOffscreenIndicator rest={inlineRest.rest} />
         {restTimer && (
           <div
             className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center"
