@@ -6,7 +6,7 @@ import { exerciseBlocks, seriesMethod, methodOnSet, methodLogFields, subRecordVo
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Hls from 'hls.js';
-import { ArrowLeft, Play, Pause, Check, ChevronLeft, ChevronRight, X, Clock, Timer } from 'lucide-react';
+import { ArrowLeft, Play, Pause, Check, ChevronLeft, ChevronRight, X, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
