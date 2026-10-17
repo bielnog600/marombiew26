@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import TrainingDayCard from '@/components/training/TrainingDayCard';
 import { parseTrainingSections, rebuildTrainingMarkdown, type ParsedTrainingDay } from '@/lib/trainingResultParser';
+import { sortTrainingDays } from '@/lib/trainingDayOrder';
 import { workoutPlanToParsedDays, type WorkoutPlan } from '@/lib/workoutSchema';
 import { applyParsedDayToPlan } from '@/lib/workoutPlanEdit';
 
