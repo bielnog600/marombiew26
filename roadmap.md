@@ -1,5 +1,11 @@
 # Roadmap
 
+## Métodos de treino — editor e aluno
+- [ ] Conferir conflitos de catálogo, histórico e componentes compartilhados antes de implementar.
+- [ ] Adicionar grupos Superset/Bi-set e métodos internos Drop set/Rest-pause/Cluster, preservando treinos comuns e geração IA.
+- [ ] Integrar persistência, progressão principal, tabela/PDF/WhatsApp e volume sem contar sub-registros como séries extras.
+- [ ] Executar testes de regras/compatibilidade e conferir edição, execução e retomada.
+
 ## Scan 3D — Avaliação IA
 - [x] Autorização definida: qualquer administrador pode ver/importar/apagar; registrar importador e consentimento, sem mudar outras permissões.
 - [x] Implementar importação, consentimento, viewer lazy, medidas/capturas e comparação somente no modal, armazenamento privado e função Avaliação IA.
