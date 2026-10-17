@@ -856,6 +856,17 @@ const TreinoExecucaoInner = () => {
   const selectedExerciseName = matchedVariation && exercise?.variation ? exercise.variation : exercise?.exercise || '';
   const currentVariationPref = exercise ? variationPrefs[variationPrefKey(exercise)] : undefined;
 
+  // Nome efetivo de qualquer exercício do plano: a variação ativa vale por
+  // exercício (trocar a do B não afeta o A) e deve aparecer em abas, rodapé,
+  // transição e histórico — não só no topo.
+  const effectiveNameFor = useCallback((ex?: ParsedExercise | null) => {
+    if (!ex) return '';
+    const useVar = !!ex.variation && (variationPrefs[variationPrefKey(ex)] ?? loadVariationPref(user?.id, variationPrefKey(ex)));
+    return useVar && ex.variation ? ex.variation : (ex.exercise || '');
+  }, [variationPrefs, user?.id]);
+  const isVariationActive = useCallback((ex?: ParsedExercise | null) =>
+    !!ex?.variation && effectiveNameFor(ex) === ex.variation, [effectiveNameFor]);
+
   // Carrega a preferência de variação salva por exercício ao trocar de exercício
   useEffect(() => {
     if (!exercise) return;
@@ -1338,10 +1349,10 @@ const TreinoExecucaoInner = () => {
             groupLabel={isBiset ? 'BI-SET' : 'SUPERSET'}
             pause={pause}
             remaining={groupFlow.remaining}
-            title={isSwap ? `Agora: ${target?.ordem_grupo ?? 'B'} — ${target?.exercise ?? ''}` : `Descanso do ${isBiset ? 'bi-set' : 'superset'}`}
+            title={isSwap ? `Agora: ${target?.ordem_grupo ?? 'B'} — ${effectiveNameFor(target)}` : `Descanso do ${isBiset ? 'bi-set' : 'superset'}`}
             subtitle={isSwap
               ? `Série ${(pause.setIndex ?? 0) + 1} de ${count} · alvo ${target?.reps ?? ''} reps${suggested}`
-              : `Próximo: ${target?.ordem_grupo ?? 'A'} — ${target?.exercise ?? ''} · Série ${(pause.setIndex ?? 0) + 1} de ${count}`}
+              : `Próximo: ${target?.ordem_grupo ?? 'A'} — ${effectiveNameFor(target)} · Série ${(pause.setIndex ?? 0) + 1} de ${count}`}
             thumbnail={thumbnail}
             onSkip={groupFlow.skip}
             onAdd={groupFlow.adjust}
@@ -1552,7 +1563,7 @@ const TreinoExecucaoInner = () => {
       })()}
 
       {groupFlow.indices.length === 2
-        ? <div className="shrink-0 px-4 pt-1.5"><WorkoutGroupTabs exercises={exercises} indices={groupFlow.indices} currentIndex={currentIndex} sets={sets} onSelect={setCurrentIndex} /></div>
+        ? <div className="shrink-0 px-4 pt-1.5"><WorkoutGroupTabs exercises={exercises} indices={groupFlow.indices} currentIndex={currentIndex} sets={sets} onSelect={setCurrentIndex} nameOf={effectiveNameFor} variationOf={isVariationActive} /></div>
         : currentSets.length > 0 && <p className="shrink-0 pt-1.5 text-[13px] text-foreground text-center font-medium" data-testid="set-indicator">Série {Math.min(currentSets.length, (currentSets.findIndex(s => !s.completed) + 1) || currentSets.length)} de {currentSets.length}</p>}
       <div className="shrink-0 px-4 py-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&_button]:text-[11px] [&_button]:py-1">
         <div className="flex items-center gap-1.5 flex-nowrap w-max mx-auto">
@@ -1726,18 +1737,18 @@ const TreinoExecucaoInner = () => {
                 // na aba A → B; na aba B → A na série seguinte (ou o exercício depois do grupo).
                 if (groupFlow.indices.length === 2) {
                   const [ga, gb] = groupFlow.indices;
-                  if (currentIndex === ga) return `B · ${exercises[gb]?.exercise ?? ''}`;
+                  if (currentIndex === ga) return `B · ${effectiveNameFor(exercises[gb])}`;
                   const count = (sets[ga] ?? []).length;
                   const pending = Array.from({ length: count }, (_, i) => i).find(i => !sets[ga]?.[i]?.completed || !sets[gb]?.[i]?.completed);
                   if (pending !== undefined && pending < count - 1) return `A · Série ${pending + 2}`;
                   const blocks = exerciseBlocks(exercises);
                   const bi = blocks.findIndex(bl => bl.indices.includes(currentIndex));
-                  return exercises[blocks[bi + 1]?.indices[0] ?? -1]?.exercise ?? '';
+                  return effectiveNameFor(exercises[blocks[bi + 1]?.indices[0] ?? -1]);
                 }
                 const blocks = exerciseBlocks(exercises);
                 const i = blocks.findIndex(b => b.indices.includes(currentIndex));
                 const next = blocks[Math.min(blocks.length - 1, i + 1)];
-                return exercises[next.indices[0]]?.exercise ?? '';
+                return effectiveNameFor(exercises[next.indices[0]]);
               })()}</span>
                 <ChevronRight className="h-4 w-4 ml-0.5 shrink-0" />
               </span>
@@ -1774,8 +1785,7 @@ const TreinoExecucaoInner = () => {
               const exIdx = Number(exIdxStr);
               const ex = exercises[exIdx];
               if (!ex) return;
-               const useVariation = !!ex.variation && (variationPrefs[variationPrefKey(ex)] ?? loadVariationPref(user?.id, variationPrefKey(ex)));
-               const exName = useVariation && ex.variation ? ex.variation : (ex.exercise || '');
+               const exName = effectiveNameFor(ex);
               const muscle = exerciseDB.find((d) => d.nome.toLowerCase() === exName.toLowerCase())?.grupo_muscular || null;
               // Tipo estrutural da série vem do plano (reconhecimento vs trabalho).
               const plannedTypes = buildSetPlan(ex?.series, ex?.series2, ex?.reps, ex?.setScheme).map((p) => p.type);

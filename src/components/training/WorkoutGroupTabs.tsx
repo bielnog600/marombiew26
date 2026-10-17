@@ -1,11 +1,15 @@
-import { Check } from 'lucide-react';
+import { ArrowLeftRight, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { ParsedExercise } from '@/lib/trainingResultParser';
 import type { MethodSetEntry } from '@/lib/workoutExecutionMethods';
 
-export function WorkoutGroupTabs({ exercises, indices, currentIndex, sets, onSelect }: {
+export function WorkoutGroupTabs({ exercises, indices, currentIndex, sets, onSelect, nameOf, variationOf }: {
   exercises: ParsedExercise[]; indices: number[]; currentIndex: number;
   sets: Record<number, MethodSetEntry[]>; onSelect: (index: number) => void;
+  /** Nome exibido na aba (ex.: variação ativa). Padrão: nome original do plano. */
+  nameOf?: (ex: ParsedExercise) => string;
+  /** Marca a aba com ⇄ quando o nome exibido é uma variação. */
+  variationOf?: (ex: ParsedExercise) => boolean;
 }) {
   if (indices.length !== 2) return null;
   const a = indices[0], b = indices[1];
@@ -22,7 +26,8 @@ export function WorkoutGroupTabs({ exercises, indices, currentIndex, sets, onSel
         onClick={() => onSelect(idx)}
       >
         <span className="font-bold shrink-0">{i === 0 ? 'A' : 'B'}</span>
-        <span className="truncate font-normal flex-1 text-left">{exercises[idx].exercise}</span>
+        {variationOf?.(exercises[idx]) && <ArrowLeftRight aria-label="Variação ativa" className="h-3 w-3 shrink-0 opacity-80" />}
+        <span className="truncate font-normal flex-1 text-left">{nameOf?.(exercises[idx]) ?? exercises[idx].exercise}</span>
         {allDone(idx) && <Check aria-label="Concluído" className="h-3.5 w-3.5 shrink-0 text-chart-3" />}
       </Button>
     ))}</div>
