@@ -67,7 +67,8 @@ export const getSafeWorkoutDays = (plan: PlanData): { days: ParsedTrainingDay[],
   }
   // 2. Markdown fallback (legacy plans).
   const markdownDays = parseTrainingSections(plan.conteudo || "").flatMap((s) => s.days ?? []);
-  return { days: markdownDays, isFromJSON: false };
+  // Ordena na leitura: planos antigos fora de ordem ficam certos sem migração.
+  return { days: sortTrainingDays(markdownDays), isFromJSON: false };
 };
 
 /**
@@ -87,7 +88,7 @@ export const getEditableWorkoutPlan = (
       return { plan: normalized, source: 'json' };
     }
   }
-  const days = parseTrainingSections(plan.conteudo || "").flatMap((s) => s.days ?? []);
+  const days = sortTrainingDays(parseTrainingSections(plan.conteudo || "").flatMap((s) => s.days ?? []));
   if (days.length > 0) {
     return { plan: parsedDaysToWorkoutPlan(days), source: 'markdown' };
   }

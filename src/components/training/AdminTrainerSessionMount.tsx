@@ -36,7 +36,7 @@ const AdminTrainerSessionMount: React.FC = () => {
     if (!plan) return [];
     const json = normalizeWorkoutPlan(plan.conteudo_json);
     if (json && json.days.length > 0) return workoutPlanToParsedDays(json);
-    return parseTrainingSections(plan.conteudo || '').flatMap((s) => s.days || []);
+    return sortTrainingDays(parseTrainingSections(plan.conteudo || '').flatMap((s) => s.days || []));
   }, [plan]);
 
   if (!active) return null;

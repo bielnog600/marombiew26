@@ -1,4 +1,5 @@
 import type { ExecutionMethodFields } from './workoutExecutionMethods';
+import { sortTrainingDays } from './trainingDayOrder';
 export interface ParsedExercise extends ExecutionMethodFields {
   /**
    * Identidade estável da prescrição (slot) quando o exercício veio de um
