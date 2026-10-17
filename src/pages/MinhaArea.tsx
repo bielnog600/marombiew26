@@ -16,7 +16,8 @@ import MealsCompletedCard from '@/components/home/MealsCompletedCard';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { useNavigate } from 'react-router-dom';
 import workoutHero from '@/assets/workout-hero.jpg';
-import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
+import { type ParsedTrainingDay } from '@/lib/trainingResultParser';
+import { getSafeWorkoutDays } from '@/lib/planMigrationUtils';
 import { parseSections, type ParsedMeal, type ParsedSection } from '@/lib/dietResultParser';
 import DietPlanCard from '@/components/DietPlanCard';
 import { parseDietPlanLoose } from '@/lib/dietSchema';
@@ -131,8 +132,9 @@ const MinhaArea = () => {
         fetchWithCache(`assessments:${user!.id}`, async () => {
           return (await supabase.from('assessments').select('id, created_at').eq('student_id', user!.id).order('created_at', { ascending: false })).data;
         }),
-        fetchWithCache(`plan:treino:${user!.id}`, async () => {
-          return (await supabase.from('ai_plans').select('conteudo, titulo').eq('student_id', user!.id).eq('tipo', 'treino').order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
+        // Chave nova: o cache antigo não tinha conteudo_json (grupo/método se perdem no markdown).
+        fetchWithCache(`plan:treino:structured-v1:${user!.id}`, async () => {
+          return (await supabase.from('ai_plans').select('conteudo, titulo, conteudo_json, migration_status, fase, fase_inicio_data').eq('student_id', user!.id).eq('tipo', 'treino').order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
         }),
         // HOTFIX ALUNO — chave nova (o cache antigo não tinha conteudo_json).
         fetchWithCache(`plan:dieta:structured-v1:${user!.id}`, async () => {
@@ -169,8 +171,8 @@ const MinhaArea = () => {
       
       if (treino) {
         setTrainingTitle(treino.titulo);
-        const sections = parseTrainingSections(treino.conteudo);
-        const allDays = sections.flatMap(s => s.days ?? []);
+        // JSON-first: preserva grupo_id/método (o markdown não carrega esses campos).
+        const { days: allDays } = getSafeWorkoutDays({ ...(treino as any), tipo: 'treino' });
         setTrainingDays(allDays);
 
 

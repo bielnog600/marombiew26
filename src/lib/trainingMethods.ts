@@ -92,21 +92,38 @@ const PARAM_FORMATTERS: Record<string, (v: string | number) => string> = {
   segundos: (v) => `${v}s`,
 };
 
+/** Chaves de parâmetro relevantes por slug — evita misturar params de outros métodos. */
+const PARAM_KEYS_BY_SLUG: Record<string, string[]> = {
+  drop_set: ['aplicar', 'drops', 'reducao_pct'],
+  rest_pause: ['aplicar', 'minis', 'pausa_s', 'intra_s'],
+  cluster_set: ['aplicar', 'blocos', 'reps_bloco', 'pausa_s', 'intra_s'],
+};
+
+const APLICAR_LABELS: Record<string, string> = { ultima: 'última série', todas: 'todas as séries' };
+
 /**
  * Texto curto dos parâmetros: "2 quedas, −20%".
  * `resolvePair` traduz o id do par (`params.com`) para o nome do exercício.
+ * Quando o slug é informado, só as chaves daquele método entram no texto.
  */
 export const formatMethodParams = (
   params?: Record<string, string | number> | null,
   resolvePair?: (idOrName: string) => string | null,
+  slug?: string,
 ): string => {
   if (!params) return '';
+  const allowed = slug ? PARAM_KEYS_BY_SLUG[slug] : undefined;
   const parts: string[] = [];
   for (const [key, raw] of Object.entries(params)) {
     if (raw === null || raw === undefined || raw === '') continue;
+    if (allowed && !allowed.includes(key)) continue;
     if (key === 'com') {
       const name = resolvePair?.(String(raw)) ?? String(raw);
       parts.push(`↔ ${name}`);
+      continue;
+    }
+    if (key === 'aplicar') {
+      parts.push(APLICAR_LABELS[String(raw)] ?? String(raw));
       continue;
     }
     const fmt = PARAM_FORMATTERS[key];

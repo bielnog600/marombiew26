@@ -17,7 +17,15 @@ export function MethodSetRows({ exercise, set, index, count, recognition = false
     return () => window.clearInterval(timer);
   }, [set.pauseUntil]);
   const advanced = methodOnSet(exercise, index, count, recognition);
-  const records = advanced ? set.subRecords ?? makeSubRecords(exercise, set) : [{ label: recognition ? 'Reconhecimento' : 'Principal', weight: set.weight, reps: set.reps, completed: !!set.completed }];
+  const baseRecords = advanced ? set.subRecords ?? makeSubRecords(exercise, set) : [{ label: recognition ? 'Reconhecimento' : 'Principal', weight: set.weight, reps: set.reps, completed: !!set.completed }];
+  // Drop set: drops vazios e não concluídos herdam a sugestão (−reducao_pct por drop, 0,5 kg).
+  const records = advanced && seriesMethod(exercise) === 'dropset'
+    ? baseRecords.map((r, i) => {
+        if (i === 0 || r.completed || r.weight.trim()) return r;
+        const suggested = makeSubRecords(exercise, { ...set, weight: baseRecords[0].weight })[i]?.weight;
+        return suggested ? { ...r, weight: suggested } : r;
+      })
+    : baseRecords;
   const remaining = Math.max(0, Math.ceil(((set.pauseUntil ?? 0) - now) / 1000));
   const next = records.findIndex(r => !r.completed);
   const updateRecord = (recordIndex: number, field: 'weight' | 'reps', value: string) => {

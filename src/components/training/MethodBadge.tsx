@@ -24,7 +24,7 @@ export const MethodBadge: React.FC<Props> = ({ method, dayExercises, className =
   };
 
   const label = methodLabel(method.slug);
-  const params = formatMethodParams(method.params, resolvePair);
+  const params = formatMethodParams(method.params, resolvePair, method.slug);
 
   return (
     <span
