@@ -10,9 +10,27 @@ export function WorkoutGroupTabs({ exercises, indices, currentIndex, sets, onSel
   const a = indices[0], b = indices[1];
   const count = sets[a]?.length ?? 0;
   const pending = Array.from({ length: count }, (_, i) => i).find(i => !sets[a]?.[i]?.completed || !sets[b]?.[i]?.completed) ?? Math.max(0, count - 1);
+  const aDone = !!sets[a]?.[pending]?.completed;
+  const bDone = !!sets[b]?.[pending]?.completed;
+  // De quem é a vez na série pendente: A primeiro, depois B.
+  const turn = aDone ? (bDone ? null : b) : a;
+  const statusOf = (idx: number) =>
+    currentIndex === idx ? 'AGORA' : (sets[idx]?.[pending]?.completed ? '✓' : 'a seguir');
   return <div className="space-y-2" data-testid="workout-group">
     <p className="text-xs font-semibold text-primary">{exercises[a].tipo_grupo === 'superset' ? 'Superset' : 'Bi-set'} · A1 / A2</p>
-    <div className="grid grid-cols-2 gap-2">{indices.map((idx, i) => <Button key={exercises[idx].id ?? idx} variant={currentIndex === idx ? 'default' : 'outline'} className="h-auto min-h-9 whitespace-normal text-xs" onClick={() => onSelect(idx)}>{i === 0 ? 'A' : 'B'} · {exercises[idx].exercise}</Button>)}</div>
-    <p className="text-xs text-muted-foreground">Série {pending + 1} de {count} · A {sets[a]?.[pending]?.completed ? '✓' : 'pendente'} · B {sets[b]?.[pending]?.completed ? '✓' : 'pendente'}</p>
+    <div className="grid grid-cols-2 gap-2">{indices.map((idx, i) => (
+      <Button
+        key={exercises[idx].id ?? idx}
+        variant={currentIndex === idx ? 'default' : 'outline'}
+        className="h-auto min-h-11 whitespace-normal text-xs flex-col gap-0.5 py-1.5"
+        onClick={() => onSelect(idx)}
+      >
+        <span>{i === 0 ? 'A' : 'B'} · {exercises[idx].exercise}</span>
+        <span className={`text-[9px] font-bold uppercase tracking-wider ${currentIndex === idx ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>{statusOf(idx)}</span>
+      </Button>
+    ))}</div>
+    <p className="text-xs text-muted-foreground">
+      Série {pending + 1} de {count} · A {aDone ? '✓' : turn === a ? 'agora' : 'pendente'} · B {bDone ? '✓' : turn === b ? 'agora' : 'pendente'}
+    </p>
   </div>;
 }
