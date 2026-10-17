@@ -1693,6 +1693,7 @@ export type Database = {
           created_at: string
           day_name: string | null
           exercise_name: string
+          exercise_slot_id: string | null
           id: string
           muscle_group: string | null
           performed_at: string
@@ -1705,12 +1706,15 @@ export type Database = {
           set_type: string | null
           source: string | null
           student_id: string
+          sub_records: Json | null
+          training_method: string | null
           weight_kg: number | null
         }
         Insert: {
           created_at?: string
           day_name?: string | null
           exercise_name: string
+          exercise_slot_id?: string | null
           id?: string
           muscle_group?: string | null
           performed_at?: string
@@ -1723,12 +1727,15 @@ export type Database = {
           set_type?: string | null
           source?: string | null
           student_id: string
+          sub_records?: Json | null
+          training_method?: string | null
           weight_kg?: number | null
         }
         Update: {
           created_at?: string
           day_name?: string | null
           exercise_name?: string
+          exercise_slot_id?: string | null
           id?: string
           muscle_group?: string | null
           performed_at?: string
@@ -1741,6 +1748,8 @@ export type Database = {
           set_type?: string | null
           source?: string | null
           student_id?: string
+          sub_records?: Json | null
+          training_method?: string | null
           weight_kg?: number | null
         }
         Relationships: []
