@@ -147,11 +147,14 @@
   }
   .student-workout-screen {
     position: fixed;
-    /* Sem height explícita: inset:0 ancora a caixa exatamente na viewport visual.
-       (Com height:100svh/100dvh + inset, a altura vencia e o bottom era ignorado,
-       deixando faixa vazia embaixo quando a viewport real cresce — ex.: Safari
-       escondendo a barra de URL.) */
-    inset: 0;
+    /* Altura real da tela via --app-h (JS: visualViewport/innerHeight; em
+       standalone iOS usa screen.height quando maior, pois a viewport de layout
+       desconta a status bar e inset:0 terminava antes do fundo real). */
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: auto;
+    height: var(--app-h, 100dvh);
     min-height: 0;
     box-sizing: border-box;
     overflow: hidden;
@@ -172,7 +175,8 @@
   }
   .student-workout-footer {
     margin-top: auto;
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    /* Botões logo acima da barrinha do iPhone, sem faixa vazia embaixo. */
+    padding-bottom: max(8px, calc(env(safe-area-inset-bottom, 0px) - 14px));
   }
   @keyframes splash-logo-in {
     0% { opacity: 0; transform: scale(0.6); }
