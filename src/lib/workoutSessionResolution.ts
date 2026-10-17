@@ -1,3 +1,4 @@
+import { subRecordVolume, type MethodSetEntry } from './workoutExecutionMethods';
 /**
  * Resolução automática de sessões de treino "paradas" (stale).
  *
@@ -92,7 +93,7 @@ export const classifyCompletion = (
   return 'abandoned';
 };
 
-interface SessionStateSet {
+interface SessionStateSet extends Partial<MethodSetEntry> {
   reps?: string;
   weight?: string;
   rpe?: string;
@@ -111,6 +112,8 @@ export interface WorkoutSessionState {
   /** Tipo estrutural planejado de cada série (recognition | work) por exercício. */
   plannedSetTypes?: (string[] | undefined)[];
   muscleGroups?: (string | null)[];
+  exerciseSlotIds?: (string | undefined)[];
+  executionMethods?: string[];
 }
 
 export interface StaleSessionRow {
@@ -231,15 +234,16 @@ export const buildSessionStateLogRows = (
     if (!name) continue;
     const arr = Array.isArray(sets[key]) ? sets[key] : [];
     arr.forEach((s, i) => {
-      if (!s?.completed) return;
+      if (!s?.completed && !s?.subRecords?.some(part => part.completed)) return;
       const reps = parseInt(String(s.reps ?? ''), 10) || 0;
       const weight = parseFloat(String(s.weight ?? '').replace(',', '.')) || 0;
       const rirRaw = String(s.rir ?? '').trim();
       const rirNum = rirRaw === '' ? null : Number(rirRaw);
       const plannedType = state?.plannedSetTypes?.[idx]?.[i];
       totalSets += 1;
-      totalVolumeKg += reps * weight;
+      totalVolumeKg += s.subRecords?.length ? subRecordVolume({ ...s, weight: s.weight ?? '', reps: s.reps ?? '' }) : reps * weight;
       rows.push({
+        ...(s.subRecords?.length ? { sub_records: s.subRecords, training_method: state?.executionMethods?.[idx] ?? null, exercise_slot_id: state?.exerciseSlotIds?.[idx] ?? null } : {}),
         student_id: row.student_id,
         session_id: row.id,
         exercise_name: normalizeExName(name),

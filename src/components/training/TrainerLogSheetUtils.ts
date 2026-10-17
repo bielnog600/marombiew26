@@ -1,3 +1,4 @@
+import type { MethodSetEntry } from '@/lib/workoutExecutionMethods';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { ParsedTrainingDay, ParsedExercise } from '@/lib/trainingResultParser';
@@ -5,7 +6,7 @@ import type { ParsedTrainingDay, ParsedExercise } from '@/lib/trainingResultPars
 // Normalize exercise name for consistent DB lookups
 export const normalizeExName = (name: string) => name.trim().replace(/\s+/g, ' ').toUpperCase();
 
-export interface SetEntry {
+export interface SetEntry extends MethodSetEntry {
   weight: string;
   reps: string;
 }
@@ -99,8 +100,8 @@ export const saveDraft = (
       draft.sets[idx] = v.sets;
       draft.notes[idx] = v.notes;
       draft.savedSets[idx] = v.savedSets;
-      draft.exerciseNames![idx] = v.exerciseName;
-      draft.plans![idx] = v.plan;
+      if (draft.exerciseNames) draft.exerciseNames[idx] = v.exerciseName;
+      if (draft.plans) draft.plans[idx] = v.plan;
     });
     if (exercises) draft.exercises = exercises;
     localStorage.setItem(draftKey(studentId, dayName, planSignature), JSON.stringify(draft));
