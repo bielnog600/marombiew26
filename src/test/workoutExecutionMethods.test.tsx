@@ -43,6 +43,13 @@ describe('métodos de treino — regras', () => {
     // Drops arredondados em 0,5 kg: 65 → 48,75→49? Não: 65×0,75=48,75 → 49; 65×0,75²=36,56 → 36,5
     expect(makeSubRecords(ex, { weight: '65', reps: '10' }).map(r => r.weight)).toEqual(['65', '49', '36,5']);
   });
+  it('trocar de método limpa os parâmetros dos outros métodos', () => {
+    const drop = { ...exercise('a'), ...methodPatch('dropset') };
+    const rp = methodPatch('restpause', { ...methodParameters(drop), minis: 3 });
+    expect(Object.keys(rp.method!.params!).sort()).toEqual(['aplicar', 'minis', 'pausa_s']);
+    expect(rp.metodo_params).not.toHaveProperty('drops');
+    expect(rp.metodo_params).not.toHaveProperty('blocos');
+  });
   it('Rest-pause padrão 15s e 2 minis, intervalo 10–20s', () => {
     const ex = { ...exercise('a'), ...methodPatch('restpause') };
     expect(methodParameters(ex)).toMatchObject({ pausa_s: 15, minis: 2 });
