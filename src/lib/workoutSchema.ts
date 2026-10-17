@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { ParsedTrainingDay, ParsedExercise } from "./trainingResultParser";
 import { normalizeWorkoutMethod } from "./trainingMethods";
 import { executionFields } from './workoutExecutionFields';
+import { validateGroups } from './workoutExecutionMethods';
 
 /**
  * Workout plan v2 — JSON-first source of truth.
@@ -356,5 +357,9 @@ export const validateWorkoutPlan = (
   }
   const hasExercise = parsed.data.days.some((d) => d.exercises.length > 0);
   if (!hasExercise) return { success: false, error: "Plano sem exercícios válidos" };
+  for (const day of workoutPlanToParsedDays(parsed.data)) {
+    const groupError = validateGroups(day.exercises);
+    if (groupError) return { success: false, error: groupError };
+  }
   return { success: true, data: parsed.data };
 };

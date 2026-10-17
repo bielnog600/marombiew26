@@ -974,7 +974,7 @@ const TreinoExecucaoInner = () => {
     const updated = [...(sets[currentIndex] ?? [])]; updated[index] = { ...entry, completed: true };
     const next = { ...sets, [currentIndex]: updated };
     setSets(next); syncLocalActiveSession(next, currentIndex);
-    const rest = Number((exercises[groupFlow.indices[1]]?.pause ?? exercise?.pause ?? '60').match(/\d+/)?.[0]) || 60;
+    const rest = parsePauseSeconds(exercises[groupFlow.indices[1]]?.pause ?? exercise?.pause);
     if (!groupFlow.complete(index, next, rest)) startRestTimer(rest, currentIndex);
   };
   const currentSets = sets[currentIndex] || [];
