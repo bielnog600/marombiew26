@@ -1273,6 +1273,50 @@ const TreinoExecucaoInner = () => {
           onAddTime={adjustRestTimer}
         />
       )}
+      {groupFlow.pause && groupFlow.indices.length === 2 && (() => {
+        const pause = groupFlow.pause;
+        const target = exercises[pause.nextIndex];
+        const peer = exercises[groupFlow.indices[0]];
+        const isBiset = peer?.tipo_grupo === 'biset';
+        const count = (sets[groupFlow.indices[0]] ?? []).length || buildSetPlan(peer?.series, peer?.series2, peer?.reps, peer?.setScheme).length || 3;
+        const media = exerciseMedia[(target?.exercise ?? '').toUpperCase().trim()];
+        const streamId = extractStreamVideoId(target?.video_embed ?? media?.videoEmbed);
+        const thumbnail = streamId
+          ? `https://customer-vqfal80lir76xyf0.cloudflarestream.com/${streamId}/thumbnails/thumbnail.jpg?height=200`
+          : (target?.imagem_url ?? media?.imageUrl ?? null);
+        const suggested = target?.targetLoadKg ? ` · carga sugerida ${String(target.targetLoadKg).replace('.', ',')} kg` : '';
+        const isSwap = pause.kind === 'swap';
+        return (
+          <GroupTransitionOverlay
+            groupLabel={isBiset ? 'BI-SET' : 'SUPERSET'}
+            pause={pause}
+            remaining={groupFlow.remaining}
+            title={isSwap ? `Agora: ${target?.ordem_grupo ?? 'B'} — ${target?.exercise ?? ''}` : `Descanso do ${isBiset ? 'bi-set' : 'superset'}`}
+            subtitle={isSwap
+              ? `Série ${pause.setIndex + 1} de ${count} · alvo ${target?.reps ?? ''} reps${suggested}`
+              : `Próximo: ${target?.ordem_grupo ?? 'A'} — ${target?.exercise ?? ''} · Série ${pause.setIndex + 1} de ${count}`}
+            thumbnail={thumbnail}
+            onSkip={groupFlow.skip}
+            onAdd={groupFlow.adjust}
+          />
+        );
+      })()}
+      {groupFlow.finished && <GroupFinishedOverlay label={groupFlow.finished} />}
+      <AlertDialog open={!!groupIntro} onOpenChange={open => { if (!open) setGroupIntro(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{groupIntro?.tipo}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {groupIntro?.tipo === 'Bi-set'
+                ? `Bi-set: dois exercícios do mesmo músculo em sequência. Faça A e B com só ${groupIntro?.pausa ?? 0}s entre eles. Descanse ${groupIntro?.rest ?? 0}s só depois do B. Repita por ${groupIntro?.series ?? 3} séries.`
+                : `Superset: faça A e B em sequência, com só ${groupIntro?.pausa ?? 0}s entre eles. Descanse ${groupIntro?.rest ?? 0}s só depois do B. Repita por ${groupIntro?.series ?? 3} séries.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setGroupIntro(null)}>Entendi</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <PhaseInfoSheet open={showPhaseInfo} onOpenChange={setShowPhaseInfo} phase={currentPhase} />
       {matchedExercise?.id && user && (
         <MachineAdjustSheet
