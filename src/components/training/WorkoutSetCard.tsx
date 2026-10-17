@@ -13,7 +13,7 @@ export interface SetRestPresentation {
   onSkip?: () => void;
 }
 
-export function WorkoutSetCard({ index, children, rest, completion, exIdx, next, onAdd, onSkip, className = '' }: SetRestPresentation & { index: number; children: ReactNode; className?: string }) {
+export function WorkoutSetCard({ index, children, rest, completion, exIdx, next, onAdd, onSkip, className = '', done = false }: SetRestPresentation & { index: number; children: ReactNode; className?: string; done?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const resting = rest?.exIdx === exIdx && rest.setIndex === index && rest.remaining > 0;
   const pulsing = completion?.exIdx === exIdx && completion.setIndex === index;
@@ -21,8 +21,8 @@ export function WorkoutSetCard({ index, children, rest, completion, exIdx, next,
     if (next && completion?.exIdx === exIdx) ref.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [next, completion?.id, exIdx]);
   return (
-    <div ref={ref} data-workout-set={`${exIdx}:${index}`} data-resting={resting || undefined} data-testid="workout-set-card"
-      className={`relative isolate rounded-lg border transition-colors ${resting ? 'border-primary' : next ? 'border-primary/40' : 'border-border/50'} ${pulsing ? 'workout-rest-pulse' : ''} ${className}`}>
+    <div ref={ref} data-workout-set={`${exIdx}:${index}`} data-resting={resting || undefined} data-done={(done && !resting) || undefined} data-next={next || undefined} data-testid="workout-set-card"
+      className={`workout-set-card relative isolate rounded-lg border transition-all duration-[250ms] ${resting ? 'border-primary' : next ? 'border-primary/40' : 'border-border/50'} ${pulsing ? 'workout-rest-pulse' : ''} ${className}`}>
       {resting && <div className="workout-rest-fill absolute inset-0 -z-10 rounded-[inherit] pointer-events-none" style={{ transform: `scaleX(${Math.max(0, Math.min(1, rest.remaining / Math.max(1, rest.total)))})` }} />}
       {children}
       {resting && <div className="flex items-center justify-between gap-2 px-2 pb-2 pt-1" data-testid="inline-rest">

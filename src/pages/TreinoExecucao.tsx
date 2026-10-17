@@ -1615,7 +1615,7 @@ const TreinoExecucaoInner = () => {
             if (methodOnSet(exercise, i, currentSets.length, isRecognition)) return <MethodSetRows key={i} exercise={exercise} set={set} index={i} count={currentSets.length} recognition={isRecognition} restPresentation={restProps} disabled={!!groupFlow.pause || (groupFlow.indices.length === 2 && !set.completed && groupFlow.indices.some(idx => sets[idx]?.slice(0, i).some(prior => !prior.completed)))} targetReps={planned?.reps} weightPlaceholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation)} onChange={entry => changeMethodSet(i, entry)} onComplete={entry => completeMethodSet(i, entry)} />;
             const repsPlaceholder = planned?.reps || String(previousSets.find((row) => row.set_number === i + 1)?.reps ?? '') || '10';
             return (
-              <WorkoutSetCard key={i} index={i} exIdx={currentIndex} {...restProps} className={set.completed ? 'bg-secondary/40' : isRecognition ? 'bg-accent/10' : 'bg-secondary/50'}>
+              <WorkoutSetCard key={i} index={i} exIdx={currentIndex} {...restProps} done={!!set.completed} className={set.completed ? 'bg-secondary/40' : isRecognition ? 'bg-accent/10' : 'bg-secondary/50'}>
                 <div className="grid grid-cols-[32px_1fr_1fr_44px] gap-1.5 items-center p-2">
                   <div className="flex flex-col items-center justify-center">
                     <span className={`text-sm font-bold text-center leading-none ${isNextPending ? 'text-primary' : 'text-foreground'}`}>{i + 1}</span>
