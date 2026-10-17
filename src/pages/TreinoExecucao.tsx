@@ -1658,7 +1658,24 @@ const TreinoExecucaoInner = () => {
           {!exerciseBlocks(exercises).at(-1)?.indices.includes(currentIndex) ? (
             <Button className="flex-1 flex-col h-auto py-1.5 gap-0" onClick={() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); setCurrentIndex(blocks[Math.min(blocks.length - 1, i + 1)].indices[0]); }}>
               <span className="flex items-center">Próximo<ChevronRight className="h-4 w-4 ml-1" /></span>
-              <span className="text-[10px] font-normal opacity-80 truncate max-w-full">{(() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); const next = blocks[Math.min(blocks.length - 1, i + 1)]; return exercises[next.indices[0]]?.exercise ?? ''; })()}</span>
+              <span className="text-[10px] font-normal opacity-80 truncate max-w-full">{(() => {
+                // Dentro de um grupo, "Próximo" mostra o que vem de fato:
+                // na aba A → B; na aba B → A na série seguinte (ou o exercício depois do grupo).
+                if (groupFlow.indices.length === 2) {
+                  const [ga, gb] = groupFlow.indices;
+                  if (currentIndex === ga) return `B · ${exercises[gb]?.exercise ?? ''}`;
+                  const count = (sets[ga] ?? []).length;
+                  const pending = Array.from({ length: count }, (_, i) => i).find(i => !sets[ga]?.[i]?.completed || !sets[gb]?.[i]?.completed);
+                  if (pending !== undefined && pending < count - 1) return `A · Série ${pending + 2}`;
+                  const blocks = exerciseBlocks(exercises);
+                  const bi = blocks.findIndex(bl => bl.indices.includes(currentIndex));
+                  return exercises[blocks[bi + 1]?.indices[0] ?? -1]?.exercise ?? '';
+                }
+                const blocks = exerciseBlocks(exercises);
+                const i = blocks.findIndex(b => b.indices.includes(currentIndex));
+                const next = blocks[Math.min(blocks.length - 1, i + 1)];
+                return exercises[next.indices[0]]?.exercise ?? '';
+              })()}</span>
             </Button>
           ) : (
             <Button className="flex-1" disabled={isFinishing} onClick={() => setShowSessionRpe(true)}>
