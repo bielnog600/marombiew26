@@ -834,6 +834,7 @@ const TreinoExecucaoInner = () => {
     const cacheKey = normalizeExerciseKey(exercise.exercise);
     const localPref = loadVariationPref(user?.id, exercise.exercise);
     setShowingVariation(currentVariationPref ?? localPref);
+    setShowingVariationFor(cacheKey);
 
     if (!user || !matchedExercise?.id) return;
 
@@ -853,6 +854,7 @@ const TreinoExecucaoInner = () => {
           : localPref;
         setVariationPrefs((prev) => (prev[cacheKey] === backendPref ? prev : { ...prev, [cacheKey]: backendPref }));
         setShowingVariation(backendPref);
+        setShowingVariationFor(cacheKey);
       });
 
     return () => {
@@ -863,9 +865,10 @@ const TreinoExecucaoInner = () => {
   // Persiste a escolha sempre que mudar
   const toggleVariation = async () => {
     if (!exercise) return;
-    const next = !showingVariation;
+    const next = !effectiveShowingVariation;
     const cacheKey = normalizeExerciseKey(exercise.exercise);
     setShowingVariation(next);
+    setShowingVariationFor(cacheKey);
     setVariationPrefs((prev) => ({ ...prev, [cacheKey]: next }));
     saveVariationPref(user?.id, exercise.exercise, next);
 
@@ -892,6 +895,7 @@ const TreinoExecucaoInner = () => {
 
     if (error) {
       setShowingVariation(!next);
+      setShowingVariationFor(cacheKey);
       setVariationPrefs((prev) => ({ ...prev, [cacheKey]: !next }));
       saveVariationPref(user?.id, exercise.exercise, !next);
       toast.error('Não foi possível salvar a troca de exercício.');
@@ -1426,9 +1430,9 @@ const TreinoExecucaoInner = () => {
                 <button
                   type="button"
                   onClick={toggleVariation}
-                  className={`touch-manipulation rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider backdrop-blur transition-colors ${showingVariation ? 'bg-primary text-primary-foreground' : 'bg-background/80 text-foreground border border-border/50'}`}
+                  className={`touch-manipulation rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider backdrop-blur transition-colors ${effectiveShowingVariation ? 'bg-primary text-primary-foreground' : 'bg-background/80 text-foreground border border-border/50'}`}
                 >
-                  {showingVariation ? 'Original' : 'Variação'}
+                  {effectiveShowingVariation ? 'Original' : 'Variação'}
                 </button>
               )}
               {(hlsUrl || imageUrl) && (
