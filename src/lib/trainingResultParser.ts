@@ -304,19 +304,8 @@ export const rebuildTrainingMarkdown = (
   // Day name patterns to strip orphan headings that referred to individual day tables
   const dayNamePattern = /^#+\s*(segunda|ter[çc]a|quarta|quinta|sexta|s[áa]bado|domingo)/i;
 
-  // Sort days by weekday order (segunda -> domingo). Unknown/other labels keep original order at the end.
-  const weekdayOrder = ['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado', 'domingo'];
-  const weekdayIndex = (label: string): number => {
-    const n = (label || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-    for (let i = 0; i < weekdayOrder.length; i++) {
-      if (n.includes(weekdayOrder[i])) return i;
-    }
-    return 99;
-  };
-  const sortedDays = [...updatedDays]
-    .map((d, i) => ({ d, i, w: weekdayIndex(d.day) }))
-    .sort((a, b) => (a.w - b.w) || (a.i - b.i))
-    .map((x) => x.d);
+  // Ordem canônica dos dias (segunda -> domingo, depois TREINO A…E).
+  const sortedDays = sortTrainingDays(updatedDays);
 
   for (const section of sections) {
     if (section.type === 'training' && section.days) {
