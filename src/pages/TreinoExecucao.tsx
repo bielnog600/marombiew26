@@ -1,5 +1,6 @@
 import { MethodSetRows } from '@/components/training/MethodSetRows';
 import { WorkoutGroupTabs } from '@/components/training/WorkoutGroupTabs';
+import { GroupFinishedOverlay, GroupTransitionOverlay } from '@/components/training/GroupTransitionOverlay';
 import { useWorkoutGroupFlow, type GroupPause } from '@/hooks/useWorkoutGroupFlow';
 import { exerciseBlocks, seriesMethod, methodOnSet, methodLogFields, subRecordVolume, type MethodSetEntry } from '@/lib/workoutExecutionMethods';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -500,6 +501,51 @@ const TreinoExecucaoInner = () => {
     const restored = activeSession?.session_state as { groupPause?: GroupPause } | undefined;
     if (restored?.groupPause) setGroupPause(restored.groupPause);
   }, [activeSession?.id]);
+
+  // Aviso único por sessão ao abrir um grupo pela primeira vez ("Entendi").
+  const [groupIntroSeen, setGroupIntroSeen] = useState<Set<string>>(new Set());
+  const [groupIntro, setGroupIntro] = useState<{ tipo: string; pausa: number; rest: number; series: number } | null>(null);
+  useEffect(() => {
+    if (groupFlow.indices.length !== 2) return;
+    const gid = exercises[groupFlow.indices[0]]?.grupo_id;
+    if (!gid || groupIntroSeen.has(gid)) return;
+    setGroupIntroSeen(prev => new Set(prev).add(gid));
+    const a = exercises[groupFlow.indices[0]];
+    setGroupIntro({
+      tipo: a?.tipo_grupo === 'biset' ? 'Bi-set' : 'Superset',
+      pausa: a?.pausa_grupo_s ?? 0,
+      rest: parsePauseSeconds(exercises[groupFlow.indices[1]]?.pause),
+      series: (sets[groupFlow.indices[0]] ?? []).length || buildSetPlan(a?.series, a?.series2, a?.reps, a?.setScheme).length || 3,
+    });
+  }, [currentIndex, exercises, groupFlow.indices.length]);
+
+  // "Superset concluído ✓" por 2s, depois segue para o próximo exercício
+  // (mostrando o descanso normal antes dele, conforme a pausa configurada).
+  useEffect(() => {
+    if (!groupFlow.finished) return;
+    const t = window.setTimeout(() => {
+      groupFlow.dismissFinished();
+      const next = groupFlow.indices[1] + 1;
+      const restSecs = parsePauseSeconds(exercises[groupFlow.indices[1]]?.pause);
+      if (next < exercises.length) setCurrentIndex(next);
+      if (restSecs > 0) startRestTimer(restSecs, groupFlow.indices[1]);
+    }, 2000);
+    return () => window.clearTimeout(t);
+  }, [groupFlow.finished]);
+
+  // Pausa A→B = 0s: troca direto com aviso rápido "Agora: B — …".
+  useEffect(() => {
+    if (groupFlow.notice) { toast(groupFlow.notice); groupFlow.clearNotice(); }
+  }, [groupFlow.notice]);
+
+  // Ao trocar de aba (automático ou manual), foca a carga da série pendente.
+  const prevIndexRef = useRef(currentIndex);
+  useEffect(() => {
+    if (prevIndexRef.current === currentIndex) return;
+    prevIndexRef.current = currentIndex;
+    const pending = (sets[currentIndex] ?? []).findIndex(s => !s.completed);
+    if (pending >= 0) window.setTimeout(() => setWeightRefs.current[pending]?.focus(), 200);
+  }, [currentIndex]);
   const sessionMeta = useMemo(() => ({
     groupPause,
     exerciseSlotIds: exercises.map(ex => ex.id),
@@ -1227,6 +1273,50 @@ const TreinoExecucaoInner = () => {
           onAddTime={adjustRestTimer}
         />
       )}
+      {groupFlow.pause && groupFlow.indices.length === 2 && (() => {
+        const pause = groupFlow.pause;
+        const target = exercises[pause.nextIndex];
+        const peer = exercises[groupFlow.indices[0]];
+        const isBiset = peer?.tipo_grupo === 'biset';
+        const count = (sets[groupFlow.indices[0]] ?? []).length || buildSetPlan(peer?.series, peer?.series2, peer?.reps, peer?.setScheme).length || 3;
+        const media = exerciseMedia[(target?.exercise ?? '').toUpperCase().trim()];
+        const streamId = extractStreamVideoId((target as { video_embed?: string | null } | undefined)?.video_embed ?? media?.videoEmbed);
+        const thumbnail = streamId
+          ? `https://customer-vqfal80lir76xyf0.cloudflarestream.com/${streamId}/thumbnails/thumbnail.jpg?height=200`
+          : ((target as { imagem_url?: string | null } | undefined)?.imagem_url ?? media?.imageUrl ?? null);
+        const suggested = target?.targetLoadKg ? ` · carga sugerida ${String(target.targetLoadKg).replace('.', ',')} kg` : '';
+        const isSwap = pause.kind === 'swap';
+        return (
+          <GroupTransitionOverlay
+            groupLabel={isBiset ? 'BI-SET' : 'SUPERSET'}
+            pause={pause}
+            remaining={groupFlow.remaining}
+            title={isSwap ? `Agora: ${target?.ordem_grupo ?? 'B'} — ${target?.exercise ?? ''}` : `Descanso do ${isBiset ? 'bi-set' : 'superset'}`}
+            subtitle={isSwap
+              ? `Série ${(pause.setIndex ?? 0) + 1} de ${count} · alvo ${target?.reps ?? ''} reps${suggested}`
+              : `Próximo: ${target?.ordem_grupo ?? 'A'} — ${target?.exercise ?? ''} · Série ${(pause.setIndex ?? 0) + 1} de ${count}`}
+            thumbnail={thumbnail}
+            onSkip={groupFlow.skip}
+            onAdd={groupFlow.adjust}
+          />
+        );
+      })()}
+      {groupFlow.finished && <GroupFinishedOverlay label={groupFlow.finished} />}
+      <AlertDialog open={!!groupIntro} onOpenChange={open => { if (!open) setGroupIntro(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{groupIntro?.tipo}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {groupIntro?.tipo === 'Bi-set'
+                ? `Bi-set: dois exercícios do mesmo músculo em sequência. Faça A e B com só ${groupIntro?.pausa ?? 0}s entre eles. Descanse ${groupIntro?.rest ?? 0}s só depois do B. Repita por ${groupIntro?.series ?? 3} séries.`
+                : `Superset: faça A e B em sequência, com só ${groupIntro?.pausa ?? 0}s entre eles. Descanse ${groupIntro?.rest ?? 0}s só depois do B. Repita por ${groupIntro?.series ?? 3} séries.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setGroupIntro(null)}>Entendi</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <PhaseInfoSheet open={showPhaseInfo} onOpenChange={setShowPhaseInfo} phase={currentPhase} />
       {matchedExercise?.id && user && (
         <MachineAdjustSheet
@@ -1406,7 +1496,6 @@ const TreinoExecucaoInner = () => {
       })()}
 
       {groupFlow.indices.length === 2 && <div className="shrink-0 px-4 pt-2"><WorkoutGroupTabs exercises={exercises} indices={groupFlow.indices} currentIndex={currentIndex} sets={sets} onSelect={setCurrentIndex} /></div>}
-      {groupFlow.pause && <div className="shrink-0 px-4 py-2 flex items-center justify-between border-y border-primary/30 text-primary text-sm"><span>{groupFlow.pause.label} · {groupFlow.remaining}s</span><Button variant="ghost" size="sm" onClick={groupFlow.skip}>Pular</Button></div>}
       <div className="shrink-0 px-4 py-3">
         <div className="flex flex-wrap items-center gap-1.5">
           <button

@@ -5,6 +5,7 @@ import type { MethodSetEntry } from '@/lib/workoutExecutionMethods';
 import { methodSummary } from '@/lib/workoutExecutionMethods';
 import { useWorkoutGroupFlow, type GroupPause } from '@/hooks/useWorkoutGroupFlow';
 import { WorkoutGroupTabs } from './WorkoutGroupTabs';
+import { GroupFinishedOverlay, GroupTransitionOverlay } from './GroupTransitionOverlay';
 import { MethodSetRows } from './MethodSetRows';
 import { getRecommendationFor, targetLoadForSet, type ProgressionSnapshot } from '@/lib/sessionProgression';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
@@ -31,6 +32,12 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
     const timer = window.setInterval(() => setNow(Date.now()), 500);
     return () => window.clearInterval(timer);
   }, []);
+  // "Superset concluído ✓" por 2s no Modo Treino (admin permanece no card).
+  useEffect(() => {
+    if (!flow.finished) return;
+    const t = window.setTimeout(() => flow.dismissFinished(), 2000);
+    return () => window.clearTimeout(t);
+  }, [flow.finished]);
   const [historyOpen, setHistoryOpen] = useState(false);
   useEffect(() => { if (!indices.includes(current)) setCurrent(indices[0]); }, [indices.join(',')]);
   const ex = exercises[current];
@@ -44,7 +51,7 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
     const b = exercises[indices[1] ?? current];
     const rest = parsePauseSeconds(b?.pause);
     if (!flow.complete(index, { ...sets, [current]: nextRows }, rest)) {
-      onPauseChange?.({ until: Date.now() + rest * 1000, nextIndex: current, label: 'Descanso' });
+      onPauseChange?.({ until: Date.now() + rest * 1000, nextIndex: current, label: 'Descanso', kind: 'rest', setIndex: index + 1, total: rest });
     }
   };
   const displayedPause = flow.pause ?? savedPause;
@@ -57,7 +64,30 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
     </div>
     {matched?.video_embed && <iframe src={matched.video_embed} title={`Vídeo ${ex.exercise}`} className="w-full aspect-video border-0" allow="autoplay; fullscreen" />}
     {(recommendation || ex.targetLoadKg || ex.targetLoadPerSet) && <ProgressionHintCard recommendation={recommendation} targetLoad={{ kg: ex.targetLoadKg, perSet: ex.targetLoadPerSet, note: ex.targetLoadNote }} variant="compact" />}
-    {displayedPause && <div className="flex items-center justify-between text-primary text-xs"><span>{displayedPause.label} · {Math.max(0, Math.ceil((displayedPause.until - now) / 1000))}s</span><Button variant="ghost" size="sm" onClick={flow.skip}>Pular</Button></div>}
+    {displayedPause && indices.length === 2 && (() => {
+      const pause: GroupPause = {
+        kind: 'rest', setIndex: 0,
+        total: Math.max(1, Math.ceil((displayedPause.until - now) / 1000)),
+        ...displayedPause,
+      };
+      const target = exercises[pause.nextIndex];
+      const isBiset = exercises[indices[0]]?.tipo_grupo === 'biset';
+      const isSwap = pause.kind === 'swap';
+      const matchedTarget = target ? findBestExerciseMatch(target.exercise, media.map((item, i) => ({ ...item, id: String(i) }))) : null;
+      return <GroupTransitionOverlay
+        groupLabel={isBiset ? 'BI-SET' : 'SUPERSET'}
+        pause={pause}
+        remaining={Math.max(0, Math.ceil((pause.until - now) / 1000))}
+        title={isSwap ? `Agora: ${target?.ordem_grupo ?? 'B'} — ${target?.exercise ?? ''}` : `Descanso do ${isBiset ? 'bi-set' : 'superset'}`}
+        subtitle={isSwap
+          ? `Série ${pause.setIndex + 1} · alvo ${target?.reps ?? ''} reps`
+          : `Próximo: ${target?.ordem_grupo ?? 'A'} — ${target?.exercise ?? ''} · Série ${pause.setIndex + 1}`}
+        thumbnail={matchedTarget?.imagem_url ?? null}
+        onSkip={flow.skip}
+        onAdd={flow.adjust}
+      />;
+    })()}
+    {flow.finished && <GroupFinishedOverlay label={flow.finished} />}
     {rows.map((row, index) => <MethodSetRows key={index} exercise={ex} set={row} index={index} count={rows.length} disabled={!!displayedPause || (indices.length === 2 && !row.completed && indices.some(idx => sets[idx]?.slice(0, index).some(prior => !prior.completed)))} targetReps={ex.setScheme?.sets[index]?.target_reps ?? ex.reps} recognition={ex.setScheme?.sets[index]?.set_type === 'recognition' || (Number(ex.series2) > 0 && index < Number(ex.series))} weightPlaceholder={String(targetLoadForSet(ex.targetLoadPerSet, index + 1) ?? ex.targetLoadKg ?? recommendation?.recommendedLoadKg ?? 'kg')} onChange={entry => onChange(current, index, entry)} onComplete={entry => complete(index, entry)} />)}
     <ExerciseLoadHistorySheet open={historyOpen} onOpenChange={setHistoryOpen} studentId={studentId} exerciseName={ex.exercise} />
   </div>;

@@ -130,10 +130,10 @@ describe('execução compartilhada', () => {
     const ex = groupExercises([exercise('a'), exercise('b')], ['a', 'b'], 'superset', 'g').map(e => ({ ...e, pausa_grupo_s: 5 }));
     const select = vi.fn();
     const { result, rerender } = renderHook(({ current }) => useWorkoutGroupFlow(ex, current, select), { initialProps: { current: 0 } });
-    act(() => { result.current.complete(0, { 0: [{ weight: '40', reps: '8', completed: true }], 1: [{ weight: '', reps: '' }] }, 60); });
+    act(() => { result.current.complete(0, { 0: [{ weight: '40', reps: '8', completed: true }, { weight: '', reps: '' }], 1: [{ weight: '', reps: '' }, { weight: '', reps: '' }] }, 60); });
     act(() => { vi.advanceTimersByTime(5000); }); expect(select).toHaveBeenCalledWith(1);
     rerender({ current: 1 });
-    act(() => { result.current.complete(0, { 0: [{ weight: '40', reps: '8', completed: true }], 1: [{ weight: '20', reps: '8', completed: true }] }, 60); });
+    act(() => { result.current.complete(0, { 0: [{ weight: '40', reps: '8', completed: true }, { weight: '', reps: '' }], 1: [{ weight: '20', reps: '8', completed: true }, { weight: '', reps: '' }] }, 60); });
     act(() => { vi.advanceTimersByTime(60000); }); expect(select).toHaveBeenLastCalledWith(0);
   });
 });
