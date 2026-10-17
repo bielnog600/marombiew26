@@ -131,8 +131,9 @@ const MinhaArea = () => {
         fetchWithCache(`assessments:${user!.id}`, async () => {
           return (await supabase.from('assessments').select('id, created_at').eq('student_id', user!.id).order('created_at', { ascending: false })).data;
         }),
-        fetchWithCache(`plan:treino:${user!.id}`, async () => {
-          return (await supabase.from('ai_plans').select('conteudo, titulo').eq('student_id', user!.id).eq('tipo', 'treino').order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
+        // Chave nova: o cache antigo não tinha conteudo_json (grupo/método se perdem no markdown).
+        fetchWithCache(`plan:treino:structured-v1:${user!.id}`, async () => {
+          return (await supabase.from('ai_plans').select('conteudo, titulo, conteudo_json, migration_status, fase, fase_inicio_data').eq('student_id', user!.id).eq('tipo', 'treino').order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
         }),
         // HOTFIX ALUNO — chave nova (o cache antigo não tinha conteudo_json).
         fetchWithCache(`plan:dieta:structured-v1:${user!.id}`, async () => {
