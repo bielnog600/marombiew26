@@ -1688,9 +1688,11 @@ const TreinoExecucaoInner = () => {
                 const next = blocks[Math.min(blocks.length - 1, i + 1)];
                 return exercises[next.indices[0]]?.exercise ?? '';
               })()}</span>
+                <ChevronRight className="h-4 w-4 ml-0.5 shrink-0" />
+              </span>
             </Button>
           ) : (
-            <Button className="flex-1" disabled={isFinishing} onClick={() => setShowSessionRpe(true)}>
+            <Button className="flex-[2] h-11" disabled={isFinishing} onClick={() => setShowSessionRpe(true)}>
               Finalizar
               <Check className="h-4 w-4 ml-1" />
             </Button>
