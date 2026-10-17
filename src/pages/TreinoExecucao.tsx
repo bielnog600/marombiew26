@@ -937,6 +937,17 @@ const TreinoExecucaoInner = () => {
       return next;
     });
   };
+  /** Valor assumido ao confirmar com o campo vazio: usa o placeholder (última vez / alvo / sugestão). */
+  const assumedSetValues = (setIndex: number): { weight: string; reps: string } => {
+    const prevRows = lastLogsByExercise[selectedExerciseName.toUpperCase().trim()] ?? [];
+    const prev = prevRows.find((row) => row.set_number === setIndex + 1);
+    const weightPh = studentWeightPlaceholder(setIndex + 1, prevRows, { kg: exercise?.targetLoadKg, note: exercise?.targetLoadNote, perSet: exercise?.targetLoadPerSet }, getRecommendationFor(progressionSnapshot, selectedExerciseName));
+    const weight = weightPh !== 'kg' ? weightPh : (prev?.weight_kg != null ? String(prev.weight_kg).replace('.', ',') : '');
+    const plannedReps = setPlan[setIndex]?.reps || exercise?.reps || '';
+    const reps = plannedReps || (prev?.reps != null ? String(prev.reps) : '');
+    return { weight, reps };
+  };
+
   const toggleSetComplete = (setIndex: number) => {
     const parsePauseSeconds = (raw?: string | null): number => {
       if (!raw) return 60;
@@ -945,9 +956,18 @@ const TreinoExecucaoInner = () => {
       return match ? parseInt(match[1], 10) : 60;
     };
 
+    const completing = !sets[currentIndex]?.[setIndex]?.completed;
+    const assumed = completing ? assumedSetValues(setIndex) : null;
+
     setSets((prev) => {
       const current = [...(prev[currentIndex] || [])];
-      current[setIndex] = { ...current[setIndex], completed: !current[setIndex].completed };
+      const row = current[setIndex] ?? { weight: '', reps: '', completed: false };
+      current[setIndex] = {
+        ...row,
+        completed: !row.completed,
+        // Campo vazio ao confirmar assume o placeholder (nunca salva 0 kg).
+        ...(assumed ? { weight: row.weight.trim() || assumed.weight, reps: row.reps.trim() || assumed.reps } : {}),
+      };
       const next = { ...prev, [currentIndex]: current };
       syncLocalActiveSession(next, currentIndex);
       // Persist imediatamente para não perder a série marcada se o app fechar
@@ -968,6 +988,25 @@ const TreinoExecucaoInner = () => {
     const current = [...(sets[currentIndex] || [])];
     current[setIndex] = { ...current[setIndex], completed: !current[setIndex]?.completed };
     if (!groupFlow.complete(setIndex, { ...sets, [currentIndex]: current }, parsePauseSeconds(exercises[groupFlow.indices[1]]?.pause))) startRestTimer(secs, currentIndex);
+    // Foca a carga da próxima série pendente.
+    if (completing) {
+      window.setTimeout(() => {
+        const nextPending = (sets[currentIndex] ?? []).findIndex((s, i) => i > setIndex && !s.completed);
+        if (nextPending >= 0) setWeightRefs.current[nextPending]?.focus();
+      }, 50);
+    }
+  };
+
+  /** Botões rápidos ±: carga em passos de 2,5 kg (arredonda em 0,5), reps em 1. */
+  const stepSetValue = (setIndex: number, field: 'weight' | 'reps', delta: number) => {
+    const row = sets[currentIndex]?.[setIndex];
+    const raw = (row?.[field] ?? '').replace(',', '.');
+    const n = parseFloat(raw);
+    const base = Number.isFinite(n) ? n : 0;
+    const next = field === 'weight'
+      ? Math.max(0, Math.round((base + delta) * 2) / 2)
+      : Math.max(0, Math.round(base + delta));
+    updateSet(setIndex, field, String(next).replace('.', ','));
   };
 
   const changeMethodSet = (index: number, entry: MethodSetEntry) => {
