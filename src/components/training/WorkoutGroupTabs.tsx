@@ -17,7 +17,7 @@ export function WorkoutGroupTabs({ exercises, indices, currentIndex, sets, onSel
   const statusOf = (idx: number) =>
     currentIndex === idx ? 'AGORA' : (sets[idx]?.[pending]?.completed ? '✓' : 'a seguir');
   return <div className="space-y-2" data-testid="workout-group">
-    <p className="text-sm font-bold text-primary text-center tracking-wide uppercase">{exercises[a].tipo_grupo === 'superset' ? 'Superset' : 'Bi-set'} · A1 / A2</p>
+    <p className="text-sm font-bold text-primary text-center tracking-wide uppercase">{exercises[a].tipo_grupo === 'superset' ? 'Superset' : 'Bi-set'}</p>
     <div className="grid grid-cols-2 gap-2">{indices.map((idx, i) => (
       <Button
         key={exercises[idx].id ?? idx}

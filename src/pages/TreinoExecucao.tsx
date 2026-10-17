@@ -6,7 +6,7 @@ import { exerciseBlocks, seriesMethod, methodOnSet, methodLogFields, subRecordVo
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Hls from 'hls.js';
-import { ArrowLeft, Play, Pause, Check, ChevronLeft, ChevronRight, X, Clock } from 'lucide-react';
+import { ArrowLeft, Play, Pause, Check, ChevronLeft, ChevronRight, X, Clock, Timer } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -1485,15 +1485,16 @@ const TreinoExecucaoInner = () => {
         const summary = isPerSet
           ? setPlan.map((set) => set.reps).filter(Boolean).join(' / ')
           : isComposed ? buildPlanSummary(setPlan) : null;
-        const chip = 'inline-flex items-center h-10 px-3 rounded text-base text-foreground bg-secondary/80';
+        const chip = 'inline-flex items-center h-8 px-2.5 rounded text-sm text-foreground bg-secondary/80 whitespace-nowrap shrink-0';
+        const pauseSecs = (() => { const m = String(exercise.pause ?? '').match(/(\d+)/); return m ? parseInt(m[1], 10) : null; })();
         return (
-          <div className="shrink-0 px-4 pt-2 flex items-center justify-center gap-2 flex-wrap" data-testid="prescription-chips">
+          <div className="shrink-0 px-4 pt-2 flex items-center justify-center gap-1.5 flex-nowrap overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="prescription-chips">
             {summary
               ? <span className={`${chip} font-semibold`}>{summary}</span>
               : isReal(exercise.series) && <span className={chip}>{exercise.series} séries</span>}
             {!summary && repsLabel && <span className={chip}>{repsLabel}</span>}
-            {rirLabel && <span className="inline-flex items-center h-10 px-3 rounded text-base text-primary bg-primary/10">{rirLabel}</span>}
-            {isReal(exercise.pause) && <span className={chip}>{exercise.pause} descanso</span>}
+            {rirLabel && <span className="inline-flex items-center h-8 px-2.5 rounded text-sm text-primary bg-primary/10 whitespace-nowrap shrink-0">{rirLabel}</span>}
+            {pauseSecs != null && <span className={chip}><Timer className="h-3.5 w-3.5 mr-1" />{pauseSecs}s</span>}
             {(exercise as { method?: { slug: string; params?: Record<string, string | number> } }).method?.slug && (
               <MethodBadge
                 method={(exercise as { method?: { slug: string; params?: Record<string, string | number> } }).method}
