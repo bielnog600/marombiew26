@@ -1363,7 +1363,7 @@ const TreinoExecucaoInner = () => {
             <video
               key={streamVideoId ?? currentIndex}
               ref={videoRef}
-              className="absolute inset-0 w-full h-full object-cover object-top pointer-events-none"
+              className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none"
               muted
               autoPlay
               loop
@@ -1385,7 +1385,7 @@ const TreinoExecucaoInner = () => {
             )}
           </>
         ) : imageUrl ? (
-          <img src={imageUrl} alt={selectedExerciseName} className="w-full h-full object-cover" />
+          <img src={imageUrl} alt={selectedExerciseName} className="w-full h-full object-cover object-center" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <span className="text-muted-foreground text-sm">Sem mídia disponível</span>
@@ -1394,11 +1394,11 @@ const TreinoExecucaoInner = () => {
 
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent pointer-events-none" />
 
-        <Button variant="ghost" size="icon" aria-label="Voltar para o início" onClick={() => navigate('/minha-area')} className="absolute top-4 left-4 z-30 h-10 w-10 rounded-full bg-background/80 backdrop-blur flex items-center justify-center">
+        <Button variant="ghost" size="icon" aria-label="Voltar para o início" onClick={() => navigate('/minha-area')} className="absolute top-3 left-3 z-30 h-9 w-9 rounded-full bg-background/80 backdrop-blur flex items-center justify-center">
           <ArrowLeft className="h-5 w-5 text-foreground" />
         </Button>
 
-        <div className="absolute top-4 right-4 z-30 flex items-center gap-2">
+        <div className="absolute top-3 right-3 z-30 flex items-center gap-2">
           <span className="bg-background/80 backdrop-blur rounded-full px-2.5 py-1 text-xs font-mono font-semibold text-primary tabular-nums flex items-center gap-1">
             <Clock className="h-3 w-3" />
             {formatElapsed(elapsedSeconds)}
@@ -1406,13 +1406,13 @@ const TreinoExecucaoInner = () => {
           <span className="bg-background/80 backdrop-blur rounded-full px-3 py-1 text-xs font-medium text-foreground">{(() => { const blocks = exerciseBlocks(exercises); const bi = blocks.findIndex(b => b.indices.includes(currentIndex)); return `${bi + 1}/${blocks.length}`; })()}</span>
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 p-4 z-30">
+        <div className="absolute bottom-0 left-0 right-0 p-3 z-30">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <p className="text-[10px] uppercase tracking-widest text-primary font-semibold" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{activeExercise?.grupo_muscular || dayName}</p>
               </div>
-              <h1 className="text-xl font-bold text-foreground leading-tight" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}>{selectedExerciseName}</h1>
+              <h1 className="text-lg font-bold text-foreground leading-tight line-clamp-1" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}>{selectedExerciseName}</h1>
               {exercise.description && (
                 <button
                   type="button"
@@ -1420,7 +1420,7 @@ const TreinoExecucaoInner = () => {
                   className="mt-1 text-left"
                   aria-label="Ver descrição completa"
                 >
-                  <span className="text-xs text-foreground/85 leading-snug line-clamp-2" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{exercise.description.trim()}</span>
+                  <span className="text-xs text-foreground/85 leading-snug line-clamp-1" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{exercise.description.trim()}</span>
                   <span className="text-xs text-primary font-semibold">Ver mais</span>
                 </button>
               )}
