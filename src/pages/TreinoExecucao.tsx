@@ -45,6 +45,7 @@ import { getRecommendationFor, type ProgressionSnapshot } from '@/lib/sessionPro
 import { StudentLoadSummaryCard } from '@/components/training/StudentLoadSummaryCard';
 import { lastWorkSetLine, studentSuggestionLine, studentWeightPlaceholder, type PreviousExerciseSet } from '@/lib/studentExerciseLoadPresentation';
 import MethodBadge from '@/components/training/MethodBadge';
+import { WorkoutViewportDebug } from '@/components/training/WorkoutViewportDebug';
 import { parsePauseSeconds } from '@/components/training/TrainerLogSheetUtils';
 
 
@@ -1274,6 +1275,7 @@ const TreinoExecucaoInner = () => {
 
   return (
     <div className="student-workout-screen bg-background flex flex-col" data-testid="student-workout-screen">
+      {debugViewport && <WorkoutViewportDebug />}
       {sessionDialogs}
       {/* Barra de progresso fina: exercícios/grupos concluídos. */}
       <div className="relative z-30 shrink-0 h-0.5 bg-secondary/60" data-testid="workout-progress">
