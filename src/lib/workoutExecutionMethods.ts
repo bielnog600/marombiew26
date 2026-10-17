@@ -138,9 +138,11 @@ export const makeSubRecords = (ex: ParsedExercise, set: MethodSetEntry): SubReco
   const m = seriesMethod(ex), p = methodParameters(ex);
   const count = m === 'dropset' ? p.drops + 1 : m === 'restpause' ? p.minis + 1 : m === 'cluster' ? p.blocos : 1;
   const weight = Number(set.weight.replace(',', '.'));
+  // Drops arredondados em 0,5 kg (halteres/anilhas).
+  const dropWeight = (i: number) => String(Math.round(weight * (1 - p.reducao_pct / 100) ** i * 2) / 2).replace('.', ',');
   return Array.from({ length: count }, (_, i) => ({
     label: m === 'cluster' ? `Bloco ${i + 1}` : i === 0 ? 'Principal' : m === 'dropset' ? `Drop ${i}` : `Mini-série ${i}`,
-    weight: i === 0 ? set.weight : m === 'dropset' && weight > 0 ? String(Math.round(weight * (1 - p.reducao_pct / 100) ** i * 100) / 100).replace('.', ',') : '',
+    weight: i === 0 ? set.weight : m === 'dropset' && weight > 0 ? dropWeight(i) : '',
     reps: i === 0 ? set.reps : '', completed: false,
   }));
 };
