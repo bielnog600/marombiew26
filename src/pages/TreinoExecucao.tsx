@@ -1263,10 +1263,6 @@ const TreinoExecucaoInner = () => {
                 <p className="text-[10px] uppercase tracking-widest text-primary font-semibold" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{activeExercise?.grupo_muscular || dayName}</p>
               </div>
               <h1 className="text-xl font-bold text-foreground leading-tight" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}>{selectedExerciseName}</h1>
-              {exercise.description && <>
-                <p className="text-xs text-foreground/90 mt-1 line-clamp-3">{exercise.description}</p>
-                <Button variant="link" className="h-auto p-0 text-xs text-primary" onClick={() => setDescriptionOpen(true)}>Ver mais</Button>
-              </>}
             </div>
             <div className="relative z-10 shrink-0 mt-1 flex flex-col items-end gap-1.5">
               {exercise.variation && (
