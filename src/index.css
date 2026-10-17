@@ -148,27 +148,29 @@
   .student-workout-screen {
     position: fixed;
     inset: 0;
-    height: auto;
+    height: 100svh;
     min-height: 0;
     box-sizing: border-box;
-    overflow-y: auto;
-    overscroll-behavior: contain;
+    overflow: hidden;
     padding-bottom: 0;
     padding-top: env(safe-area-inset-top, 0px);
     padding-left: env(safe-area-inset-left, 0px);
     padding-right: env(safe-area-inset-right, 0px);
-  }
-  .student-workout-media {
-    height: clamp(220px, 32vh, 360px);
+    /* Altura do vídeo fixo do topo; o conteúdo rola por baixo dele. */
+    --workout-media-h: clamp(240px, 42vh, 420px);
   }
   @supports (height: 100dvh) {
-    .student-workout-media { height: clamp(220px, 32dvh, 360px); }
+    .student-workout-screen {
+      height: 100dvh;
+      --workout-media-h: clamp(240px, 42dvh, 420px);
+    }
+  }
+  .student-workout-media {
+    height: var(--workout-media-h);
   }
   .student-workout-footer {
-    position: sticky;
-    bottom: 0;
     margin-top: auto;
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   @keyframes splash-logo-in {
     0% { opacity: 0; transform: scale(0.6); }
