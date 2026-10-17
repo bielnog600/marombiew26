@@ -48,7 +48,7 @@ const bounded = (value: unknown, fallback: number, min: number, max: number) => 
 };
 export const methodParameters = (ex: ParsedExercise): MethodParameters => {
   const method = seriesMethod(ex);
-  const p = { ...ex.method?.params, ...ex.metodo_params };
+  const p: Record<string, unknown> = { ...ex.method?.params, ...ex.metodo_params };
   const d = methodDefaults(method);
   return {
     aplicar: p.aplicar === 'todas' ? 'todas' : 'ultima',

@@ -27,7 +27,7 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
   const ex = exercises[current];
   if (!ex) return null;
   const rows = sets[current] ?? [];
-  const matched = findBestExerciseMatch(ex.exercise, media);
+  const matched = findBestExerciseMatch(ex.exercise, media.map((item, i) => ({ ...item, id: String(i) })));
   const recommendation = getRecommendationFor(snapshot ?? null, ex.exercise);
   const complete = (index: number, entry: MethodSetEntry) => {
     onComplete(current, index, entry);
