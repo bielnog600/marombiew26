@@ -58,10 +58,24 @@ export const methodParameters = (ex: ParsedExercise): MethodParameters => {
     reps_bloco: bounded(p.reps_bloco, d.reps_bloco, 1, 20),
   };
 };
-export const methodPatch = (method: SeriesMethod, params = methodDefaults(method)): Partial<ParsedExercise> => ({
-  metodo: method, metodo_params: method === 'nenhum' ? undefined : params,
-  method: method === 'nenhum' ? undefined : { slug: methodSlug(method) ?? '', params: { ...params } },
-});
+/** Chaves de parâmetro que cada método usa — as demais são descartadas ao salvar/trocar. */
+const PARAM_KEYS_BY_METHOD: Record<Exclude<SeriesMethod, 'nenhum'>, (keyof MethodParameters)[]> = {
+  dropset: ['aplicar', 'drops', 'reducao_pct'],
+  restpause: ['aplicar', 'minis', 'pausa_s'],
+  cluster: ['aplicar', 'blocos', 'reps_bloco', 'pausa_s'],
+};
+export const cleanMethodParams = (method: SeriesMethod, params: MethodParameters): MethodParameters => {
+  if (method === 'nenhum') return params;
+  const keys = PARAM_KEYS_BY_METHOD[method];
+  return { ...methodDefaults(method), ...Object.fromEntries(keys.map(k => [k, params[k]])) } as MethodParameters;
+};
+export const methodPatch = (method: SeriesMethod, params = methodDefaults(method)): Partial<ParsedExercise> => {
+  const clean = cleanMethodParams(method, params);
+  return {
+    metodo: method, metodo_params: method === 'nenhum' ? undefined : clean,
+    method: method === 'nenhum' ? undefined : { slug: methodSlug(method) ?? '', params: { ...clean } },
+  };
+};
 export const methodOnSet = (ex: ParsedExercise, index: number, count: number, recognition = false): boolean =>
   !recognition && seriesMethod(ex) !== 'nenhum' && (methodParameters(ex).aplicar === 'todas' || index === count - 1);
 export const methodSummary = (ex: ParsedExercise): string => {
