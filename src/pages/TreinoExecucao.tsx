@@ -505,22 +505,27 @@ const TreinoExecucaoInner = () => {
     if (restored?.groupPause) setGroupPause(restored.groupPause);
   }, [activeSession?.id]);
 
-  // Aviso único por sessão ao abrir um grupo pela primeira vez ("Entendi").
-  const [groupIntroSeen, setGroupIntroSeen] = useState<Set<string>>(new Set());
-  const [groupIntro, setGroupIntro] = useState<{ tipo: string; pausa: number; rest: number; series: number } | null>(null);
+  // Aviso "Entendi" uma única vez por usuário e por tipo de método
+  // (persistido em localStorage por user_id; explicação continua no "Ver mais").
+  const [groupIntro, setGroupIntro] = useState<{ tipo: string; metodo: GroupIntroMethod; pausa: number; rest: number; series: number } | null>(null);
   useEffect(() => {
     if (groupFlow.indices.length !== 2) return;
-    const gid = exercises[groupFlow.indices[0]]?.grupo_id;
-    if (!gid || groupIntroSeen.has(gid)) return;
-    setGroupIntroSeen(prev => new Set(prev).add(gid));
     const a = exercises[groupFlow.indices[0]];
+    const metodo: GroupIntroMethod = a?.tipo_grupo === 'biset' ? 'biset' : 'superset';
+    if (hasSeenGroupIntro(user?.id, metodo)) return;
     setGroupIntro({
-      tipo: a?.tipo_grupo === 'biset' ? 'Bi-set' : 'Superset',
+      tipo: metodo === 'biset' ? 'Bi-set' : 'Superset',
+      metodo,
       pausa: a?.pausa_grupo_s ?? 0,
       rest: parsePauseSeconds(exercises[groupFlow.indices[1]]?.pause),
       series: (sets[groupFlow.indices[0]] ?? []).length || buildSetPlan(a?.series, a?.series2, a?.reps, a?.setScheme).length || 3,
     });
-  }, [currentIndex, exercises, groupFlow.indices.length]);
+  }, [currentIndex, exercises, groupFlow.indices.length, user?.id]);
+
+  const dismissGroupIntro = () => {
+    if (groupIntro) markGroupIntroSeen(user?.id, groupIntro.metodo);
+    setGroupIntro(null);
+  };
 
   // "Superset concluído ✓" por 2s, depois segue para o próximo exercício
   // (mostrando o descanso normal antes dele, conforme a pausa configurada).
