@@ -209,6 +209,9 @@ const TreinoExecucaoInner = () => {
   const [showPlayFallback, setShowPlayFallback] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
   const [showingVariation, setShowingVariation] = useState(false);
+  // Nome do exercício ao qual a preferência de variação carregada pertence.
+  // Evita mostrar a variação do exercício anterior ao trocar de aba no superset.
+  const [showingVariationFor, setShowingVariationFor] = useState<string | null>(null);
   const [variationPrefs, setVariationPrefs] = useState<Record<string, boolean>>({});
   // Sessão persistida: started_at vem do banco (ou agora se ainda não existe)
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -818,8 +821,10 @@ const TreinoExecucaoInner = () => {
     return partials[0] || null;
   }, [exercise, exerciseDB, exerciseMedia, showingVariation]);
 
-  const activeExercise = showingVariation && matchedVariation ? matchedVariation : matchedExercise;
-  const selectedExerciseName = showingVariation && exercise?.variation ? exercise.variation : exercise?.exercise || '';
+  // Só vale a variação se a preferência foi carregada para o exercício da aba ativa.
+  const effectiveShowingVariation = showingVariation && !!exercise && showingVariationFor === normalizeExerciseKey(exercise.exercise);
+  const activeExercise = effectiveShowingVariation && matchedVariation ? matchedVariation : matchedExercise;
+  const selectedExerciseName = effectiveShowingVariation && exercise?.variation ? exercise.variation : exercise?.exercise || '';
   const currentVariationPref = exercise ? variationPrefs[normalizeExerciseKey(exercise.exercise)] : undefined;
 
   // Carrega a preferência de variação salva por exercício ao trocar de exercício
