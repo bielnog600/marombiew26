@@ -1,7 +1,7 @@
 import { MethodSetRows } from '@/components/training/MethodSetRows';
 import { WorkoutGroupTabs } from '@/components/training/WorkoutGroupTabs';
 import { useWorkoutGroupFlow, type GroupPause } from '@/hooks/useWorkoutGroupFlow';
-import { seriesMethod, methodOnSet, methodLogFields, subRecordVolume, type MethodSetEntry } from '@/lib/workoutExecutionMethods';
+import { exerciseBlocks, seriesMethod, methodOnSet, methodLogFields, subRecordVolume, type MethodSetEntry } from '@/lib/workoutExecutionMethods';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Hls from 'hls.js';
@@ -1404,7 +1404,7 @@ const TreinoExecucaoInner = () => {
             return currentSets.map((set, i) => {
             const planned = setPlan[i];
             const isRecognition = planned?.type === 'recognition';
-            if (methodOnSet(exercise, i, currentSets.length, isRecognition)) return <MethodSetRows key={i} exercise={exercise} set={set} index={i} count={currentSets.length} recognition={isRecognition} targetReps={planned?.reps} weightPlaceholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation)} onChange={entry => changeMethodSet(i, entry)} onComplete={entry => completeMethodSet(i, entry)} />;
+            if (groupFlow.indices.length === 2 || methodOnSet(exercise, i, currentSets.length, isRecognition)) return <MethodSetRows key={i} exercise={exercise} set={set} index={i} count={currentSets.length} recognition={isRecognition} disabled={!!groupFlow.pause || (groupFlow.indices.length === 2 && !set.completed && groupFlow.indices.some(idx => sets[idx]?.slice(0, i).some(prior => !prior.completed)))} targetReps={planned?.reps} weightPlaceholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation)} onChange={entry => changeMethodSet(i, entry)} onComplete={entry => completeMethodSet(i, entry)} />;
             const isNextPending = i === nextPendingIndex;
             return (
               <div key={i} className={`rounded-lg transition-colors ${set.completed ? 'bg-primary/10 border border-primary/30' : isRecognition ? 'bg-accent/10 border border-accent/30' : 'bg-secondary/50'}`}>
@@ -1487,12 +1487,12 @@ const TreinoExecucaoInner = () => {
 
       <div className="student-workout-footer shrink-0 z-50 bg-background/95 backdrop-blur border-t border-border p-3" data-testid="workout-footer">
         <div className="flex items-center justify-between gap-3">
-          <Button variant="outline" className="flex-1" onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))} disabled={currentIndex === 0}>
+          <Button variant="outline" className="flex-1" onClick={() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); setCurrentIndex(blocks[Math.max(0, i - 1)].indices[0]); }} disabled={exerciseBlocks(exercises)[0]?.indices.includes(currentIndex)}>
             <ChevronLeft className="h-4 w-4 mr-1" />
             Anterior
           </Button>
-          {currentIndex < exercises.length - 1 ? (
-            <Button className="flex-1" onClick={() => setCurrentIndex(currentIndex + 1)}>
+          {!exerciseBlocks(exercises).at(-1)?.indices.includes(currentIndex) ? (
+            <Button className="flex-1" onClick={() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); setCurrentIndex(blocks[Math.min(blocks.length - 1, i + 1)].indices[0]); }}>
               Próximo
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
