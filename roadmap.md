@@ -1,5 +1,10 @@
 # Roadmap
 
+## Scan 3D — Avaliação IA
+- [ ] Definir autorização privada: não existe vínculo personal–aluno; aguarda decisão sobre restringir scans ao personal que importou.
+- [ ] Após definição, implementar importação, consentimento, viewer lazy, medidas/capturas e comparação somente no modal, armazenamento privado e função Avaliação IA.
+- [ ] Testar permissões, medidas e fluxo completo, sem alterar os demais fluxos.
+
 ## Dieta admin — leitura por dia
 - [x] Organizar dias em abas, condensar sete dias idênticos e preservar fallback e demais seções.
 - [x] Testar a apresentação e conferir a compilação, sem alterar edição, aluno ou geração (20 testes passaram; exemplos reais conferidos no admin).
