@@ -2,8 +2,9 @@
 
 ## Scan 3D — Avaliação IA
 - [x] Autorização definida: qualquer administrador pode ver/importar/apagar; registrar importador e consentimento, sem mudar outras permissões.
-- [ ] Implementar importação, consentimento, viewer lazy, medidas/capturas e comparação somente no modal, armazenamento privado e função Avaliação IA.
-- [ ] Testar permissões, medidas e fluxo completo, sem alterar os demais fluxos.
+- [x] Implementar importação, consentimento, viewer lazy, medidas/capturas e comparação somente no modal, armazenamento privado e função Avaliação IA.
+- [x] Testar cálculos/limites e conferir viewer/capturas em desktop e 390×844 com malha sintética; políticas admin e bucket privado conferidos.
+- [ ] Conferir importação, reabertura, exclusão e análise IA com scan real na sessão de administrador — bloqueado: sessão indisponível e nenhum scan real fornecido.
 
 ## Dieta admin — leitura por dia
 - [x] Organizar dias em abas, condensar sete dias idênticos e preservar fallback e demais seções.

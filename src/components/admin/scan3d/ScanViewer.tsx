@@ -17,6 +17,10 @@ function Capture({ captureRef, height, model }: { captureRef: Props['captureRef'
   useEffect(() => {
     captureRef.current = async () => {
       const background = scene.background;
+      const originalMaterial = scene.overrideMaterial;
+      const css = getComputedStyle(document.documentElement);
+      const captureMaterial = new THREE.MeshStandardMaterial({ color: `hsl(${css.getPropertyValue('--muted-foreground').trim().replace(/\s+/g, ',')})`, roughness: 0.9 });
+      scene.overrideMaterial = captureMaterial;
       const rings: THREE.Object3D[] = [];
       scene.traverse(o => { if (o.name === 'measurement-ring') { rings.push(o); o.visible = false; } });
       const neutral = getComputedStyle(document.documentElement).getPropertyValue('--foreground').trim();
@@ -30,7 +34,7 @@ function Capture({ captureRef, height, model }: { captureRef: Props['captureRef'
           ortho.position.set(x * height, height / 2, z * height); ortho.lookAt(0, height / 2, 0); ortho.updateProjectionMatrix();
           gl.render(scene, ortho); images[key] = gl.domElement.toDataURL('image/jpeg', 0.85);
         }
-      } finally { scene.background = background; rings.forEach(o => { o.visible = true; }); gl.render(scene, camera); invalidate(); }
+      } finally { scene.background = background; scene.overrideMaterial = originalMaterial; captureMaterial.dispose(); rings.forEach(o => { o.visible = true; }); gl.render(scene, camera); invalidate(); }
       return { front: images.front, side: images.side, back: images.back };
     };
     return () => { captureRef.current = null; };

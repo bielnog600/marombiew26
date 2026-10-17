@@ -140,6 +140,7 @@ const AiBodyCompositionDialog: React.FC<Props> = ({ open, onOpenChange, studentI
     }
     const knownNumbers: Record<string, number> = {};
     for (const [k, v] of Object.entries(known)) {
+      if (scanApplied[k] === v) continue; // scan perimeters are not tape calibration anchors
       const n = Number(String(v).replace(',', '.'));
       if (isFinite(n) && n > 0) knownNumbers[k] = n;
     }
@@ -320,10 +321,14 @@ const AiBodyCompositionDialog: React.FC<Props> = ({ open, onOpenChange, studentI
           </div>
 
           {open && <Suspense fallback={<p role="status" className="text-xs text-muted-foreground">Carregando importação 3D…</p>}>
-            <AssessmentScan3D studentId={studentId} height={Number(altura.replace(',', '.'))} onReady={prepare => setScanPrepare(() => prepare)} onApply={values => {
+            <AssessmentScan3D studentId={studentId} height={Number(altura.replace(',', '.'))} onReady={prepare => setScanPrepare(() => prepare)} onReset={() => {
+              setKnown(current => Object.fromEntries(Object.entries(current).filter(([key, value]) => scanApplied[key] !== value)));
+              setScanApplied({}); setAnalysisScanId(null); setResult(null);
+            }} onApply={(values, id) => {
               const applied = Object.fromEntries(Object.entries(values).filter(([key]) => key in MEASURE_LABELS).map(([key, value]) => [key, String(value)]));
               setKnown(current => ({ ...current, ...applied })); setScanApplied(applied); setShowKnown(true);
-              if (result) setResult(current => current ? { ...current, medidas_cm: { ...current.medidas_cm, ...Object.fromEntries(Object.entries(applied).map(([key, value]) => [key, Number(value)])) } } : current);
+              setAnalysisScanId(id);
+              if (result) setResult(current => current ? { ...current, scan_3d: { source: 'scan_3d', measures: Object.keys(values), warning: 'O percentual de gordura estimado pelo formato do corpo é aproximado e não substitui dobras cutâneas.' }, medidas_cm: { ...current.medidas_cm, ...Object.fromEntries(Object.entries(applied).map(([key, value]) => [key, Number(value)])) } } : current);
             }} />
           </Suspense>}
 

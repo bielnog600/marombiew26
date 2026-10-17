@@ -16,9 +16,9 @@ import type { CaptureScan } from './ScanViewer';
 const Viewer = lazy(() => import('./ScanViewer'));
 type ScanRow = Database['public']['Tables']['assessment_3d_scans']['Row'];
 export interface ScanAnalysisInput { id: string; measurements: Record<string, number>; photos: { front: string; side: string; back: string } }
-interface Props { studentId: string; height: number; onApply: (values: Record<string, number>) => void; onReady: (prepare: (() => Promise<ScanAnalysisInput>) | null) => void }
+interface Props { studentId: string; height: number; onApply: (values: Record<string, number>, id: string) => void; onReset: () => void; onReady: (prepare: (() => Promise<ScanAnalysisInput>) | null) => void }
 
-export default function AssessmentScan3D({ studentId, height, onApply, onReady }: Props) {
+export default function AssessmentScan3D({ studentId, height, onApply, onReset, onReady }: Props) {
   const [rows, setRows] = useState<ScanRow[]>([]), [selected, setSelected] = useState<ScanRow | null>(null);
   const [consent, setConsent] = useState(false), [busy, setBusy] = useState(false), [loadingRows, setLoadingRows] = useState(true);
   const [bytes, setBytes] = useState<ArrayBuffer | null>(null), [error, setError] = useState(''), [confirmDelete, setConfirmDelete] = useState(false);
@@ -44,7 +44,7 @@ export default function AssessmentScan3D({ studentId, height, onApply, onReady }
     return () => { cancelled = true; onReady(null); };
   }, [studentId]);
   const openScan = async (row: ScanRow) => {
-    setBusy(true); setError(''); setBytes(null); onReady(null); setMeasures({});
+    setBusy(true); setError(''); setBytes(null); onReady(null); onReset(); setMeasures({});
     try {
       const { data, error: e } = await supabase.storage.from('avaliacoes-3d').download(row.storage_path);
       if (e || !data) throw e ?? new Error('Arquivo indisponível.');
@@ -90,7 +90,7 @@ export default function AssessmentScan3D({ studentId, height, onApply, onReady }
     try {
       const { error: e } = await supabase.storage.from('avaliacoes-3d').remove([selected.storage_path]); if (e) throw e;
       const { error: d } = await supabase.from('assessment_3d_scans').delete().eq('id', selected.id); if (d) throw d;
-      setSelected(null); setBytes(null); setMeasures({}); setSettings({}); onReady(null); await loadRows(); toast.success('Scan apagado.');
+      setSelected(null); setBytes(null); setMeasures({}); setSettings({}); onReady(null); onReset(); await loadRows(); toast.success('Scan apagado.');
     } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível apagar o scan.'); } finally { setBusy(false); }
   };
   const previous = selected ? rows.find(r => r.created_at < selected.created_at && Object.keys((r.measurements ?? {}) as object).length > 0) : null;
@@ -128,7 +128,7 @@ export default function AssessmentScan3D({ studentId, height, onApply, onReady }
         </div>;
       })}</div>
       {previous && <p className="text-xs text-muted-foreground">Comparação com scan de {new Date(previous.created_at).toLocaleDateString('pt-BR')}.</p>}
-      <Button variant="outline" disabled={busy || measuring || !!error || !Object.keys(scanValues(measures)).length} onClick={async () => { setBusy(true); try { await persist(); onApply(scanValues(measures)); toast.success('Perímetros do scan aplicados nas medidas da avaliação.'); } catch (e) { toast.error(e instanceof Error ? e.message : 'Erro ao aplicar.'); } finally { setBusy(false); } }}>Aplicar nas medidas da avaliação</Button>
+      <Button variant="outline" disabled={busy || measuring || !!error || !Object.keys(scanValues(measures)).length} onClick={async () => { setBusy(true); try { await persist(); onApply(scanValues(measures), selected.id); toast.success('Perímetros do scan aplicados nas medidas da avaliação.'); } catch (e) { toast.error(e instanceof Error ? e.message : 'Erro ao aplicar.'); } finally { setBusy(false); } }}>Aplicar nas medidas da avaliação</Button>
       <p className="text-xs text-muted-foreground">Perímetros aproximados do scan 3D. Contornos unidos ou incompletos precisam de conferência. A gordura estimada pelo formato do corpo não substitui dobras cutâneas.</p>
     </>}
     <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Apagar scan 3D?</AlertDialogTitle><AlertDialogDescription>O modelo e o registro do scan serão removidos. A avaliação já salva não será apagada.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => void remove()}>Apagar scan</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
