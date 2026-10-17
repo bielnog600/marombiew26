@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/AppLayout';
-import PeriodizationCard from '@/components/training/PeriodizationCard';
+import CycleSummaryAccordion from '@/components/training/CycleSummaryAccordion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -317,9 +317,12 @@ const MeusTreinos = () => {
           </div>
         )}
 
-        <PeriodizationCard
+        <CycleSummaryAccordion
           plan={plans.find(p => p.fase === activePhase) ?? plans[0]}
-          variant="student"
+          report={adherenceReport}
+          loading={adherenceLoading}
+          progression={progression}
+          storageKey={`meusTreinos:cycleOpen:${user?.id ?? 'anon'}`}
         />
 
         {trainingDays.length === 0 ? (
