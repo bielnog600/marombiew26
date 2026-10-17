@@ -10,6 +10,7 @@ import { getRecommendationFor, targetLoadForSet, type ProgressionSnapshot } from
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { ProgressionHintCard } from './ProgressionHintCard';
 import { ExerciseLoadHistorySheet } from './ExerciseLoadHistorySheet';
+import { parsePauseSeconds } from './TrainerLogSheetUtils';
 
 export function MethodExerciseCard({ exercises, indices, sets, onChange, onComplete, media, snapshot, studentId, savedPause, onPauseChange }: {
   exercises: ParsedExercise[]; indices: number[]; sets: Record<number, MethodSetEntry[]>;
@@ -19,7 +20,10 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
   snapshot?: ProgressionSnapshot | null; studentId: string;
   savedPause?: GroupPause | null; onPauseChange?: (pause: GroupPause | null) => void;
 }) {
-  const [current, setCurrent] = useState(indices[0]);
+  const [current, setCurrent] = useState(() => {
+    const pending = indices.flatMap(idx => (sets[idx] ?? []).flatMap((row, i) => !row.completed ? [i] : [])).sort((a, b) => a - b)[0];
+    return indices.find(idx => !sets[idx]?.[pending ?? 0]?.completed) ?? indices[0];
+  });
   const select = useCallback((index: number) => setCurrent(index), []);
   const flow = useWorkoutGroupFlow(exercises, current, select, savedPause, onPauseChange);
   const [now, setNow] = useState(Date.now);
@@ -38,8 +42,7 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
     onComplete(current, index, entry);
     const nextRows = [...rows]; nextRows[index] = entry;
     const b = exercises[indices[1] ?? current];
-    const raw = b?.pause ?? '60s';
-    const rest = /min/.test(raw) ? (Number(raw.match(/\d+/)?.[0]) || 1) * 60 : Number(raw.match(/\d+/)?.[0]) || 60;
+    const rest = parsePauseSeconds(b?.pause);
     if (!flow.complete(index, { ...sets, [current]: nextRows }, rest)) {
       onPauseChange?.({ until: Date.now() + rest * 1000, nextIndex: current, label: 'Descanso' });
     }

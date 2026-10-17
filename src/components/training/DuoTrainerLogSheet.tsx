@@ -361,6 +361,11 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
       saveDraft(prev.studentId, prev.days[prev.activeDayIdx].day, makeDaySignature(prev.days[prev.activeDayIdx]), next);
       return { ...prev, state: next };
     });
+    const st = slot === 'A' ? studentA : studentB;
+    const day = st?.days[st.activeDayIdx], ex = day?.exercises[exIdx];
+    if (st && day && ex && sessionId && entry.subRecords?.some(part => part.completed)) {
+      void import('@/lib/offlineQueue').then(({ writeWithFallback }) => writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: { ...methodLogFields(ex, entry), student_id: st.studentId, session_id: sessionId, exercise_name: normalizeExName(ex.exercise), set_number: setIdx + 1, weight_kg: Number(entry.weight.replace(',', '.')) || null, reps: Number(entry.reps) || null, set_type: st.state[exIdx]?.plan[setIdx]?.kind === 'recon' ? 'recognition' : 'work', day_name: day.day, phase: st.phase ?? null, source: 'admin' } }));
+    }
   };
   const saveMethodSet = async (slot: 'A' | 'B', exIdx: number, setIdx: number, entry: MethodSetEntry) => {
     changeMethodSet(slot, exIdx, setIdx, entry);
@@ -368,19 +373,20 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     if (!st || !sessionId) return;
     const day = st.days[st.activeDayIdx], ex = day.exercises[exIdx];
     const { writeWithFallback } = await import('@/lib/offlineQueue');
-    await writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: {
+    const result = await writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: {
       ...methodLogFields(ex, entry), student_id: st.studentId, session_id: sessionId,
       exercise_name: normalizeExName(ex.exercise), set_number: setIdx + 1,
       weight_kg: Number(entry.weight.replace(',', '.')) || null, reps: Number(entry.reps) || null,
       set_type: st.state[exIdx]?.plan[setIdx]?.kind === 'recon' ? 'recognition' : 'work', day_name: day.day,
       phase: st.phase ?? null, source: 'admin', performed_at: new Date().toISOString(),
     } });
+    if (result.queued) toast.info('Registro guardado para sincronizar quando a conexão voltar.');
   };
   useEffect(() => {
     for (const st of [studentA, studentB]) {
       const day = st?.days[st.activeDayIdx];
       if (!st || !day || st.loading || !day.exercises.some(ex => ex.grupo_id || seriesMethod(ex) !== 'nenhum')) continue;
-      const form = { sets: Object.fromEntries(Object.entries(st.state).map(([i, ex]) => [i, ex.sets])), savedSets: Object.fromEntries(Object.entries(st.state).map(([i, ex]) => [i, ex.savedSets])) };
+      const form = { sets: Object.fromEntries(Object.entries(st.state).map(([i, ex]) => [i, ex.sets])), plans: Object.fromEntries(Object.entries(st.state).map(([i, ex]) => [i, ex.plan])), exercises: day.exercises, savedSets: Object.fromEntries(Object.entries(st.state).map(([i, ex]) => [i, ex.savedSets])) };
       patchSessionState((prev: any) => ({ ...prev, methodExecution: { ...prev.methodExecution, [st.studentId]: { ...prev.methodExecution?.[st.studentId], [day.day]: form } } }));
     }
   }, [studentA?.state, studentB?.state, patchSessionState]);

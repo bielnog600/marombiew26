@@ -597,6 +597,10 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       saveDraft(studentId, day.day, daySignature, next, currentExercises);
       return next;
     });
+    const ex = currentExercises[exIdx];
+    if (ex && session.id && entry.subRecords?.some(part => part.completed)) {
+      void import('@/lib/offlineQueue').then(({ writeWithFallback }) => writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: { ...methodLogFields(ex, entry), student_id: studentId, session_id: session.id, exercise_name: normalizeExName(ex.exercise), set_number: setIdx + 1, weight_kg: Number(entry.weight.replace(',', '.')) || null, reps: Number(entry.reps) || null, set_type: state[exIdx]?.plan[setIdx]?.kind === 'recon' ? 'recognition' : 'work', day_name: day.day, phase: effectivePhase, source: 'admin' } }));
+    }
   };
   const saveMethodSet = async (exIdx: number, setIdx: number, entry: MethodSetEntry) => {
     changeMethodSet(exIdx, setIdx, entry);
@@ -610,6 +614,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       set_type: state[exIdx]?.plan[setIdx]?.kind === 'recon' ? 'recognition' : 'work',
       day_name: day.day, phase: effectivePhase, source: 'admin', performed_at: new Date().toISOString(),
     } });
+    if (result.queued) toast.info('Registro guardado para sincronizar quando a conexão voltar.');
     setState(prev => ({ ...prev, [exIdx]: { ...prev[exIdx], savedSets: prev[exIdx].sets.filter(set => set.completed).length } }));
   };
   useEffect(() => {

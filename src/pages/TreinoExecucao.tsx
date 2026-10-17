@@ -42,6 +42,7 @@ import { StudentWeightInput } from '@/components/training/StudentWeightInput';
 import { StudentLoadSummaryCard } from '@/components/training/StudentLoadSummaryCard';
 import { lastWorkSetLine, studentSuggestionLine, studentWeightPlaceholder, type PreviousExerciseSet } from '@/lib/studentExerciseLoadPresentation';
 import MethodBadge from '@/components/training/MethodBadge';
+import { parsePauseSeconds } from '@/components/training/TrainerLogSheetUtils';
 
 
 import {
@@ -969,6 +970,7 @@ const TreinoExecucaoInner = () => {
     updated[index] = { ...entry, completed: !!entry.completed };
     const next = { ...sets, [currentIndex]: updated };
     setSets(next); syncLocalActiveSession(next, currentIndex);
+    if (sessionId) void supabase.from('workout_sessions').update({ session_state: { sets: next, currentIndex, ...sessionMeta } as any, last_active_at: new Date().toISOString() }).eq('id', sessionId).then(() => {});
   };
   const completeMethodSet = (index: number, entry: MethodSetEntry) => {
     const updated = [...(sets[currentIndex] ?? [])]; updated[index] = { ...entry, completed: true };
