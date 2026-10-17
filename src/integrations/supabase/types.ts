@@ -369,6 +369,71 @@ export type Database = {
         }
         Relationships: []
       }
+      assessment_3d_scans: {
+        Row: {
+          assessment_id: string | null
+          consent_at: string
+          consent_by: string
+          consent_given: boolean
+          created_at: string
+          file_bytes: number
+          file_name: string
+          format: string
+          height_cm: number | null
+          id: string
+          imported_by: string
+          measurements: Json
+          original_height_cm: number | null
+          settings: Json
+          storage_path: string
+          student_id: string
+        }
+        Insert: {
+          assessment_id?: string | null
+          consent_at?: string
+          consent_by?: string
+          consent_given: boolean
+          created_at?: string
+          file_bytes: number
+          file_name: string
+          format: string
+          height_cm?: number | null
+          id?: string
+          imported_by?: string
+          measurements?: Json
+          original_height_cm?: number | null
+          settings?: Json
+          storage_path: string
+          student_id: string
+        }
+        Update: {
+          assessment_id?: string | null
+          consent_at?: string
+          consent_by?: string
+          consent_given?: boolean
+          created_at?: string
+          file_bytes?: number
+          file_name?: string
+          format?: string
+          height_cm?: number | null
+          id?: string
+          imported_by?: string
+          measurements?: Json
+          original_height_cm?: number | null
+          settings?: Json
+          storage_path?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_3d_scans_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: false
+            referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       assessment_bodycomp_analysis: {
         Row: {
           assessment_id: string

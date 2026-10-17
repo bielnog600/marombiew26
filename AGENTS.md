@@ -1,5 +1,7 @@
 # Architecture rules
 
+- Isolate 3D scan loading, geometry and private persistence behind the AI assessment modal's lazy boundary; keep consent/import provenance server-stamped and scan perimeters distinct from visual estimates to avoid changing other assessment flows.
+
 - Keep WhatsApp message formatting pure and select persisted variation indices at the notification boundary, keyed by student and plan type; this separates message tests from browser storage and preserves nutrition formatting.
 - Keep student exercise load presentation in a pure helper and a controlled empty input, separate from session persistence and progression calculations; historical and recommended loads remain display-only placeholders.
 - Render student load history and recommendations through a presentation-only summary card consuming the existing formatted results; visual changes must not affect progression or session persistence.
