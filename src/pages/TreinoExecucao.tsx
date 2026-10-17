@@ -34,11 +34,12 @@ import { SessionRpeDialog } from '@/components/training/SessionRpeDialog';
 import ExerciseVideoCapture from '@/components/training/ExerciseVideoCapture';
 import { Settings2, Info, BarChart3, Timer, Camera, Maximize2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { methodExplanation } from '@/lib/workoutExecutionMethods';
 import { fetchWithCache, getCached, setCache } from '@/lib/offlineCache';
 import { useRestTimer } from '@/hooks/useRestTimer';
 import { useSessionProgression } from '@/hooks/useSessionProgression';
 import { getRecommendationFor, type ProgressionSnapshot } from '@/lib/sessionProgression';
-import { StudentWeightInput } from '@/components/training/StudentWeightInput';
 import { StudentLoadSummaryCard } from '@/components/training/StudentLoadSummaryCard';
 import { lastWorkSetLine, studentSuggestionLine, studentWeightPlaceholder, type PreviousExerciseSet } from '@/lib/studentExerciseLoadPresentation';
 import MethodBadge from '@/components/training/MethodBadge';
@@ -130,54 +131,33 @@ const extractStreamVideoId = (embed: string | null | undefined): string | null =
   return null;
 };
 
-const RestTimerOverlay = ({ timeLeft, totalSeconds, onClose }: { timeLeft: number; totalSeconds: number; onClose: () => void }) => {
+/** Card flutuante compacto de descanso: tempo restante, +15s e Pular. Vibra ao zerar. */
+const RestTimerOverlay = ({ timeLeft, totalSeconds, onClose, onAddTime }: { timeLeft: number; totalSeconds: number; onClose: () => void; onAddTime: (secs: number) => void }) => {
   useEffect(() => {
     if (timeLeft === 0 && navigator.vibrate) navigator.vibrate([200, 100, 200]);
   }, [timeLeft]);
 
-  const radius = 54;
-  const circumference = 2 * Math.PI * radius;
   const safeTime = Math.max(timeLeft, 0);
-  const dashOffset = circumference * (1 - safeTime / totalSeconds);
   const mins = Math.floor(Math.abs(timeLeft) / 60);
   const secs = Math.abs(timeLeft) % 60;
+  const progress = totalSeconds > 0 ? Math.min(1, Math.max(0, safeTime / totalSeconds)) : 0;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-background/70 backdrop-blur-xl flex flex-col items-center justify-center animate-fade-in">
-      <button onClick={onClose} className="absolute z-[110] h-12 w-12 rounded-full bg-destructive flex items-center justify-center shadow-lg"
-        style={{ top: 'calc(env(safe-area-inset-top, 16px) + 8px)', right: '16px' }}>
-        <X className="h-6 w-6 text-destructive-foreground" />
-      </button>
-
-      <p className="text-sm uppercase tracking-widest text-muted-foreground mb-8 font-semibold">Descanso</p>
-
-      <div className="relative w-48 h-48">
-        <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
-          <circle cx="60" cy="60" r={radius} fill="none" stroke="hsl(var(--secondary))" strokeWidth="6" />
-          <circle
-            cx="60"
-            cy="60"
-            r={radius}
-            fill="none"
-            stroke="hsl(var(--primary))"
-            strokeWidth="6"
-            strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={dashOffset}
-            className="transition-[stroke-dashoffset] duration-1000 ease-linear"
-          />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={`text-5xl font-mono font-bold tabular-nums ${timeLeft < 0 ? 'text-destructive' : 'text-foreground'}`}>
+    <div className="fixed left-1/2 -translate-x-1/2 z-[100] w-[calc(100%-2rem)] max-w-sm animate-fade-in" style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 84px)' }} data-testid="rest-timer-card">
+      <div className="rounded-xl border border-primary/40 bg-card/95 backdrop-blur shadow-xl p-3 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">Descanso</span>
+          <span className={`text-2xl font-mono font-bold tabular-nums ${timeLeft < 0 ? 'text-destructive' : 'text-primary'}`}>
             {timeLeft < 0 ? '+' : ''}{mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
           </span>
         </div>
-      </div>
-
-      <div className="flex items-center gap-4 mt-10">
-        <Button size="lg" className="rounded-full h-14 px-8 bg-primary text-primary-foreground font-bold" onClick={onClose}>
-          Continuar
-        </Button>
+        <div className="h-1 rounded-full bg-secondary overflow-hidden">
+          <div className="h-full bg-primary transition-[width] duration-200 ease-linear" style={{ width: `${progress * 100}%` }} />
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="flex-1 h-9" onClick={() => onAddTime(15)}>+15s</Button>
+          <Button variant="ghost" size="sm" className="flex-1 h-9" onClick={onClose}>Pular</Button>
+        </div>
       </div>
     </div>
   );
@@ -224,7 +204,7 @@ const TreinoExecucaoInner = () => {
   }, []);
   const [loadedLogsForIndex, setLoadedLogsForIndex] = useState<Set<number>>(new Set());
   const [exerciseDB, setExerciseDB] = useState<ExerciseDBData[]>([]);
-  const { restTimer, startTimer: startRestTimer, stopTimer: stopRestTimer } = useRestTimer();
+  const { restTimer, startTimer: startRestTimer, stopTimer: stopRestTimer, adjustTimer: adjustRestTimer } = useRestTimer();
   const [showPlayFallback, setShowPlayFallback] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
   const [showingVariation, setShowingVariation] = useState(false);
@@ -249,6 +229,30 @@ const TreinoExecucaoInner = () => {
   const hlsRef = useRef<Hls | null>(null);
   const zoomVideoRef = useRef<HTMLVideoElement | null>(null);
   const zoomHlsRef = useRef<Hls | null>(null);
+  /** Refs dos campos de carga por série — para focar a próxima ao confirmar. */
+  const setWeightRefs = useRef<Record<number, HTMLInputElement | null>>({});
+
+  // Mantém a tela ligada durante o treino (Screen Wake Lock; fallback silencioso).
+  useEffect(() => {
+    let lock: { release: () => Promise<void> } | null = null;
+    let released = false;
+    const request = async () => {
+      try {
+        const wl = (navigator as any).wakeLock;
+        if (!wl?.request) return;
+        lock = await wl.request('screen');
+        released = false;
+        lock?.release && (lock as any).addEventListener?.('release', () => { released = true; });
+      } catch { /* não suportado/permissão negada — ignora */ }
+    };
+    request();
+    const onVisible = () => { if (document.visibilityState === 'visible' && released) request(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      lock?.release().catch(() => {});
+    };
+  }, []);
 
   // Combined Session timer tick & visibility sync
   useEffect(() => {
@@ -932,6 +936,17 @@ const TreinoExecucaoInner = () => {
       return next;
     });
   };
+  /** Valor assumido ao confirmar com o campo vazio: usa o placeholder (última vez / alvo / sugestão). */
+  const assumedSetValues = (setIndex: number): { weight: string; reps: string } => {
+    const prevRows = lastLogsByExercise[selectedExerciseName.toUpperCase().trim()] ?? [];
+    const prev = prevRows.find((row) => row.set_number === setIndex + 1);
+    const weightPh = studentWeightPlaceholder(setIndex + 1, prevRows, { kg: exercise?.targetLoadKg, note: exercise?.targetLoadNote, perSet: exercise?.targetLoadPerSet }, getRecommendationFor(progressionSnapshot, selectedExerciseName));
+    const weight = weightPh !== 'kg' ? weightPh : (prev?.weight_kg != null ? String(prev.weight_kg).replace('.', ',') : '');
+    const plannedReps = setPlan[setIndex]?.reps || exercise?.reps || '';
+    const reps = plannedReps || (prev?.reps != null ? String(prev.reps) : '');
+    return { weight, reps };
+  };
+
   const toggleSetComplete = (setIndex: number) => {
     const parsePauseSeconds = (raw?: string | null): number => {
       if (!raw) return 60;
@@ -940,9 +955,18 @@ const TreinoExecucaoInner = () => {
       return match ? parseInt(match[1], 10) : 60;
     };
 
+    const completing = !sets[currentIndex]?.[setIndex]?.completed;
+    const assumed = completing ? assumedSetValues(setIndex) : null;
+
     setSets((prev) => {
       const current = [...(prev[currentIndex] || [])];
-      current[setIndex] = { ...current[setIndex], completed: !current[setIndex].completed };
+      const row = current[setIndex] ?? { weight: '', reps: '', completed: false };
+      current[setIndex] = {
+        ...row,
+        completed: !row.completed,
+        // Campo vazio ao confirmar assume o placeholder (nunca salva 0 kg).
+        ...(assumed ? { weight: row.weight.trim() || assumed.weight, reps: row.reps.trim() || assumed.reps } : {}),
+      };
       const next = { ...prev, [currentIndex]: current };
       syncLocalActiveSession(next, currentIndex);
       // Persist imediatamente para não perder a série marcada se o app fechar
@@ -963,6 +987,25 @@ const TreinoExecucaoInner = () => {
     const current = [...(sets[currentIndex] || [])];
     current[setIndex] = { ...current[setIndex], completed: !current[setIndex]?.completed };
     if (!groupFlow.complete(setIndex, { ...sets, [currentIndex]: current }, parsePauseSeconds(exercises[groupFlow.indices[1]]?.pause))) startRestTimer(secs, currentIndex);
+    // Foca a carga da próxima série pendente.
+    if (completing) {
+      window.setTimeout(() => {
+        const nextPending = (sets[currentIndex] ?? []).findIndex((s, i) => i > setIndex && !s.completed);
+        if (nextPending >= 0) setWeightRefs.current[nextPending]?.focus();
+      }, 50);
+    }
+  };
+
+  /** Botões rápidos ±: carga em passos de 2,5 kg (arredonda em 0,5), reps em 1. */
+  const stepSetValue = (setIndex: number, field: 'weight' | 'reps', delta: number) => {
+    const row = sets[currentIndex]?.[setIndex];
+    const raw = (row?.[field] ?? '').replace(',', '.');
+    const n = parseFloat(raw);
+    const base = Number.isFinite(n) ? n : 0;
+    const next = field === 'weight'
+      ? Math.max(0, Math.round((base + delta) * 2) / 2)
+      : Math.max(0, Math.round(base + delta));
+    updateSet(setIndex, field, String(next).replace('.', ','));
   };
 
   const changeMethodSet = (index: number, entry: MethodSetEntry) => {
@@ -1136,9 +1179,19 @@ const TreinoExecucaoInner = () => {
     );
   }
 
+  const workoutBlocks = exerciseBlocks(exercises);
+  const completedBlocks = workoutBlocks.filter(b => b.indices.every(idx => {
+    const arr = sets[idx] ?? [];
+    return arr.length > 0 && arr.every(s => s.completed);
+  })).length;
+
   return (
     <div className="student-workout-screen bg-background flex flex-col" data-testid="student-workout-screen">
       {sessionDialogs}
+      {/* Barra de progresso fina: exercícios/grupos concluídos. */}
+      <div className="shrink-0 h-0.5 bg-secondary/60" data-testid="workout-progress">
+        <div className="h-full bg-primary transition-[width] duration-300" style={{ width: `${workoutBlocks.length ? (completedBlocks / workoutBlocks.length) * 100 : 0}%` }} />
+      </div>
       {zoomOpen && (
         <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center">
           {hlsUrl ? (
@@ -1167,10 +1220,11 @@ const TreinoExecucaoInner = () => {
         </div>
       )}
       {restTimer && (
-        <RestTimerOverlay 
-          timeLeft={restTimer.remaining} 
-          totalSeconds={restTimer.total} 
-          onClose={stopRestTimer} 
+        <RestTimerOverlay
+          timeLeft={restTimer.remaining}
+          totalSeconds={restTimer.total}
+          onClose={stopRestTimer}
+          onAddTime={adjustRestTimer}
         />
       )}
       <PhaseInfoSheet open={showPhaseInfo} onOpenChange={setShowPhaseInfo} phase={currentPhase} />
@@ -1219,10 +1273,14 @@ const TreinoExecucaoInner = () => {
             />
             {showPlayFallback && (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/35">
-                <Button onClick={handleManualPlay} size="lg" className="rounded-full h-14 px-6 font-bold">
-                  <Play className="h-5 w-5 mr-2" />
-                  Reproduzir vídeo
-                </Button>
+                <button
+                  type="button"
+                  onClick={handleManualPlay}
+                  aria-label="Reproduzir vídeo"
+                  className="h-14 w-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg touch-manipulation"
+                >
+                  <Play className="h-6 w-6 ml-0.5" />
+                </button>
               </div>
             )}
           </>
@@ -1255,10 +1313,6 @@ const TreinoExecucaoInner = () => {
                 <p className="text-[10px] uppercase tracking-widest text-primary font-semibold" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{activeExercise?.grupo_muscular || dayName}</p>
               </div>
               <h1 className="text-xl font-bold text-foreground leading-tight" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}>{selectedExerciseName}</h1>
-              {exercise.description && <>
-                <p className="text-xs text-foreground/90 mt-1 line-clamp-3">{exercise.description}</p>
-                <Button variant="link" className="h-auto p-0 text-xs text-primary" onClick={() => setDescriptionOpen(true)}>Ver mais</Button>
-              </>}
             </div>
             <div className="relative z-10 shrink-0 mt-1 flex flex-col items-end gap-1.5">
               {exercise.variation && (
@@ -1283,70 +1337,73 @@ const TreinoExecucaoInner = () => {
               )}
             </div>
           </div>
-          {(() => {
-            const isReal = (v?: string | null) => {
-              if (!v) return false;
-              const t = v.trim();
-              return t.length > 0 && !['-', '—', '–', 'n/a', 'na'].includes(t.toLowerCase());
-            };
-
-            // Extrai 1 ou 2 números de uma string (ex: "8", "8-10", "8 a 10", "8 - 10 reps").
-            const extractRange = (raw: string): { a: number; b: number } | null => {
-              const nums = raw.match(/\d+/g);
-              if (!nums || nums.length === 0) return null;
-              const a = parseInt(nums[0], 10);
-              const b = nums[1] ? parseInt(nums[1], 10) : a;
-              return { a: Math.min(a, b), b: Math.max(a, b) };
-            };
-
-            // RIR válido: 1 número (0–5) ou faixa pequena tipo 1-3, sem palavras estranhas.
-            const parseRir = (raw: string): string | null => {
-              const r = extractRange(raw);
-              if (!r) return null;
-              // Se o maior valor for >= 5, não é RIR — é faixa de reps mal-rotulada.
-              if (r.b >= 5) return null;
-              return r.a === r.b ? `RIR ${r.a}` : `RIR ${r.a}–${r.b}`;
-            };
-
-            // Reps: aceita "10", "8-10", "8 a 10" → "10 reps" / "8–10 reps".
-            // Se vier em segundos ("15s", "30 seg"), preserva o sufixo de tempo.
-            const parseReps = (raw: string): string | null => {
-              const r = extractRange(raw);
-              if (!r) return null;
-              const isTime = /\b\d+\s*(s|seg|segundos?)\b|\d+["']/i.test(raw);
-              const unit = isTime ? 's' : ' reps';
-              return r.a === r.b ? `${r.a}${unit}` : `${r.a}–${r.b}${unit}`;
-            };
-
-            const isPerSet = exercise.setScheme?.mode === 'per_set' && setPlan.length > 0;
-            const repsLabel = !isPerSet && isReal(exercise.reps) ? parseReps(exercise.reps) : null;
-            // RIR só aparece se for realmente RIR (números baixos). Caso contrário ocultamos.
-            const rirLabel = isReal(exercise.rir) ? parseRir(exercise.rir) : null;
-            const isComposed = setPlan.some((p) => p.type === 'recognition') && setPlan.some((p) => p.type === 'work');
-            const summary = isPerSet
-              ? setPlan.map((set) => set.reps).filter(Boolean).join(' / ')
-              : isComposed ? buildPlanSummary(setPlan) : null;
-
-            return (
-              <div className="flex items-center gap-2 mt-2 flex-wrap">
-                {summary
-                  ? <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded font-semibold">{summary}</span>
-                  : isReal(exercise.series) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.series} séries</span>}
-                {!summary && repsLabel && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{repsLabel}</span>}
-                {rirLabel && <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">{rirLabel}</span>}
-                {isReal(exercise.pause) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.pause} descanso</span>}
-                {(exercise as { method?: { slug: string; params?: Record<string, string | number> } }).method?.slug && (
-                  <MethodBadge
-                    method={(exercise as { method?: { slug: string; params?: Record<string, string | number> } }).method}
-                    dayExercises={exercises}
-                    className="py-1"
-                  />
-                )}
-              </div>
-            );
-          })()}
         </div>
       </div>
+
+      {/* Chips de prescrição + botão Descrição — fora do vídeo, abaixo dele. */}
+      {(() => {
+        const isReal = (v?: string | null) => {
+          if (!v) return false;
+          const t = v.trim();
+          return t.length > 0 && !['-', '—', '–', 'n/a', 'na'].includes(t.toLowerCase());
+        };
+        const extractRange = (raw: string): { a: number; b: number } | null => {
+          const nums = raw.match(/\d+/g);
+          if (!nums || nums.length === 0) return null;
+          const a = parseInt(nums[0], 10);
+          const b = nums[1] ? parseInt(nums[1], 10) : a;
+          return { a: Math.min(a, b), b: Math.max(a, b) };
+        };
+        const parseRir = (raw: string): string | null => {
+          const r = extractRange(raw);
+          if (!r) return null;
+          if (r.b >= 5) return null;
+          return r.a === r.b ? `RIR ${r.a}` : `RIR ${r.a}–${r.b}`;
+        };
+        const parseReps = (raw: string): string | null => {
+          const r = extractRange(raw);
+          if (!r) return null;
+          const isTime = /\b\d+\s*(s|seg|segundos?)\b|\d+["']/i.test(raw);
+          const unit = isTime ? 's' : ' reps';
+          return r.a === r.b ? `${r.a}${unit}` : `${r.a}–${r.b}${unit}`;
+        };
+        const isPerSet = exercise.setScheme?.mode === 'per_set' && setPlan.length > 0;
+        const repsLabel = !isPerSet && isReal(exercise.reps) ? parseReps(exercise.reps) : null;
+        const rirLabel = isReal(exercise.rir) ? parseRir(exercise.rir) : null;
+        const isComposed = setPlan.some((p) => p.type === 'recognition') && setPlan.some((p) => p.type === 'work');
+        const summary = isPerSet
+          ? setPlan.map((set) => set.reps).filter(Boolean).join(' / ')
+          : isComposed ? buildPlanSummary(setPlan) : null;
+        const hasDetails = !!exercise.description || methodExplanation(exercise).length > 0;
+
+        return (
+          <div className="shrink-0 px-4 pt-2 flex items-center gap-2 flex-wrap" data-testid="prescription-chips">
+            {summary
+              ? <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded font-semibold">{summary}</span>
+              : isReal(exercise.series) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.series} séries</span>}
+            {!summary && repsLabel && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{repsLabel}</span>}
+            {rirLabel && <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">{rirLabel}</span>}
+            {isReal(exercise.pause) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.pause} descanso</span>}
+            {(exercise as { method?: { slug: string; params?: Record<string, string | number> } }).method?.slug && (
+              <MethodBadge
+                method={(exercise as { method?: { slug: string; params?: Record<string, string | number> } }).method}
+                dayExercises={exercises}
+                className="py-1"
+              />
+            )}
+            {hasDetails && (
+              <button
+                type="button"
+                onClick={() => setDescriptionOpen(true)}
+                className="inline-flex items-center gap-1 rounded-full bg-secondary/70 border border-border/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-foreground hover:bg-secondary transition-colors"
+              >
+                <Info className="h-3 w-3" />
+                Descrição
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {groupFlow.indices.length === 2 && <div className="shrink-0 px-4 pt-2"><WorkoutGroupTabs exercises={exercises} indices={groupFlow.indices} currentIndex={currentIndex} sets={sets} onSelect={setCurrentIndex} /></div>}
       {groupFlow.pause && <div className="shrink-0 px-4 py-2 flex items-center justify-between border-y border-primary/30 text-primary text-sm"><span>{groupFlow.pause.label} · {groupFlow.remaining}s</span><Button variant="ghost" size="sm" onClick={groupFlow.skip}>Pular</Button></div>}
@@ -1395,10 +1452,10 @@ const TreinoExecucaoInner = () => {
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3" data-testid="workout-set-list">
         <div className="space-y-2">
-          <div className="grid grid-cols-[36px_1fr_1fr_44px] gap-1.5 px-2">
+          <div className="grid grid-cols-[32px_1fr_1fr_44px] gap-1.5 px-2">
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Série</span>
+            <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Carga (kg)</span>
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Reps</span>
-            <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Carga</span>
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">✓</span>
           </div>
           {(() => {
@@ -1408,16 +1465,25 @@ const TreinoExecucaoInner = () => {
             const isRecognition = planned?.type === 'recognition';
             if (groupFlow.indices.length === 2 || methodOnSet(exercise, i, currentSets.length, isRecognition)) return <MethodSetRows key={i} exercise={exercise} set={set} index={i} count={currentSets.length} recognition={isRecognition} disabled={!!groupFlow.pause || (groupFlow.indices.length === 2 && !set.completed && groupFlow.indices.some(idx => sets[idx]?.slice(0, i).some(prior => !prior.completed)))} targetReps={planned?.reps} weightPlaceholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation)} onChange={entry => changeMethodSet(i, entry)} onComplete={entry => completeMethodSet(i, entry)} />;
             const isNextPending = i === nextPendingIndex;
+            const repsPlaceholder = planned?.reps || String(previousSets.find((row) => row.set_number === i + 1)?.reps ?? '') || '10';
             return (
               <div key={i} className={`rounded-lg transition-colors ${set.completed ? 'bg-primary/10 border border-primary/30' : isRecognition ? 'bg-accent/10 border border-accent/30' : 'bg-secondary/50'}`}>
-                <div className="grid grid-cols-[36px_1fr_1fr_44px] gap-1.5 items-center p-2">
+                <div className="grid grid-cols-[32px_1fr_1fr_44px] gap-1.5 items-center p-2">
                   <div className="flex flex-col items-center justify-center">
                     <span className="text-sm font-bold text-center text-foreground leading-none">{i + 1}</span>
                     {isRecognition && <span className="text-[8px] uppercase tracking-wider text-accent font-semibold mt-0.5">Rec</span>}
                   </div>
-                  <Input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} placeholder={planned?.reps || '10'} className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
-                  <StudentWeightInput setNumber={i + 1} value={set.weight} onChange={(value) => updateSet(i, 'weight', value)} placeholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation)} disabled={set.completed} />
-                  <Button size="icon" aria-label={`Confirmar série ${i + 1}`} variant={set.completed ? 'default' : 'outline'} className={`h-9 w-9 mx-auto rounded-full ${isNextPending ? 'animate-pulse-glow' : ''}`} onClick={() => toggleSetComplete(i)}>
+                  <div className="flex items-center gap-0.5 min-w-0">
+                    <button type="button" aria-label={`Série ${i + 1} diminuir carga`} disabled={set.completed} onClick={() => stepSetValue(i, 'weight', -2.5)} className="h-11 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/60 disabled:opacity-30 text-xs font-bold touch-manipulation">−</button>
+                    <Input ref={(el) => { setWeightRefs.current[i] = el; }} type="text" inputMode="decimal" value={set.weight} onChange={(e) => updateSet(i, 'weight', e.target.value)} placeholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation)} className="h-11 text-center bg-background/50 border-border/50 min-w-0 px-1" disabled={set.completed} />
+                    <button type="button" aria-label={`Série ${i + 1} aumentar carga`} disabled={set.completed} onClick={() => stepSetValue(i, 'weight', 2.5)} className="h-11 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/60 disabled:opacity-30 text-xs font-bold touch-manipulation">+</button>
+                  </div>
+                  <div className="flex items-center gap-0.5 min-w-0">
+                    <button type="button" aria-label={`Série ${i + 1} diminuir reps`} disabled={set.completed} onClick={() => stepSetValue(i, 'reps', -1)} className="h-11 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/60 disabled:opacity-30 text-xs font-bold touch-manipulation">−</button>
+                    <Input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} placeholder={repsPlaceholder} className="h-11 text-center bg-background/50 border-border/50 min-w-0 px-1" disabled={set.completed} />
+                    <button type="button" aria-label={`Série ${i + 1} aumentar reps`} disabled={set.completed} onClick={() => stepSetValue(i, 'reps', 1)} className="h-11 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/60 disabled:opacity-30 text-xs font-bold touch-manipulation">+</button>
+                  </div>
+                  <Button size="icon" aria-label={`Confirmar série ${i + 1}`} variant={set.completed ? 'default' : 'outline'} className={`h-11 w-11 mx-auto rounded-full ${isNextPending ? 'animate-pulse-glow' : ''}`} onClick={() => toggleSetComplete(i)}>
                     <Check className="h-4 w-4" />
                   </Button>
                 </div>
@@ -1456,12 +1522,19 @@ const TreinoExecucaoInner = () => {
         <StudentLoadSummaryCard previousLine={previousLine} suggestionLine={suggestionLine} perSet={loadTarget.perSet} />
       </div>
 
-      <Dialog open={descriptionOpen} onOpenChange={setDescriptionOpen}>
-        <DialogContent className="max-w-md max-h-[80dvh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{selectedExerciseName}</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground whitespace-pre-wrap">{exercise.description}</p>
-        </DialogContent>
-      </Dialog>
+      <Sheet open={descriptionOpen} onOpenChange={setDescriptionOpen}>
+        <SheetContent side="bottom" className="max-h-[80dvh] overflow-y-auto rounded-t-2xl">
+          <SheetHeader><SheetTitle>{selectedExerciseName}</SheetTitle></SheetHeader>
+          <div className="space-y-3 pt-2">
+            {exercise.description && (
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{exercise.description}</p>
+            )}
+            {methodExplanation(exercise).map((line, i) => (
+              <p key={i} className="text-sm text-foreground bg-primary/10 border border-primary/25 rounded-lg p-3">{line}</p>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <Dialog open={showVideoCapture} onOpenChange={setShowVideoCapture}>
         <DialogContent className="max-w-md">
@@ -1494,9 +1567,9 @@ const TreinoExecucaoInner = () => {
             Anterior
           </Button>
           {!exerciseBlocks(exercises).at(-1)?.indices.includes(currentIndex) ? (
-            <Button className="flex-1" onClick={() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); setCurrentIndex(blocks[Math.min(blocks.length - 1, i + 1)].indices[0]); }}>
-              Próximo
-              <ChevronRight className="h-4 w-4 ml-1" />
+            <Button className="flex-1 flex-col h-auto py-1.5 gap-0" onClick={() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); setCurrentIndex(blocks[Math.min(blocks.length - 1, i + 1)].indices[0]); }}>
+              <span className="flex items-center">Próximo<ChevronRight className="h-4 w-4 ml-1" /></span>
+              <span className="text-[10px] font-normal opacity-80 truncate max-w-full">{(() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); const next = blocks[Math.min(blocks.length - 1, i + 1)]; return exercises[next.indices[0]]?.exercise ?? ''; })()}</span>
             </Button>
           ) : (
             <Button className="flex-1" disabled={isFinishing} onClick={() => setShowSessionRpe(true)}>
