@@ -654,6 +654,7 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
             <span className="text-xs text-muted-foreground shrink-0">({day.exercises.length} ex.)</span>
           </div>
           <div className="flex items-center gap-1">
+            {!editing && <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Baixar PDF do treino" title="Baixar PDF do treino" onClick={() => { void import('@/lib/generateWorkoutDayPDF').then(({ generateWorkoutDayPDF }) => generateWorkoutDayPDF({ ...day, exercises: displayExercises })); }}><FileDown className="h-3.5 w-3.5" /></Button>}
             {editable && !editing && (
               <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={startEditing}>
                 <Pencil className="h-3 w-3" /> Editar

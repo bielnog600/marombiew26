@@ -7,6 +7,7 @@ import { applyParsedDayToPlan } from '@/lib/workoutPlanEdit';
 import { buildSessionStateLogRows } from '@/lib/workoutSessionResolution';
 import { MethodSetRows } from '@/components/training/MethodSetRows';
 import { useWorkoutGroupFlow } from '@/hooks/useWorkoutGroupFlow';
+import { useState } from 'react';
 
 const exercise = (id: string): ParsedExercise => ({ id, exercise: id, series: '3', series2: '', reps: '8-10', rir: '2', pause: '60s', description: '', variation: '' });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
@@ -85,11 +86,26 @@ describe('métodos de treino — regras', () => {
   });
 });
 describe('execução compartilhada', () => {
+  it('Rest-pause pausa 15s antes de liberar a próxima mini-série', () => {
+    vi.useFakeTimers();
+    const ex = { ...exercise('a'), ...methodPatch('restpause') };
+    let latest: import('@/lib/workoutExecutionMethods').MethodSetEntry | undefined;
+    function Harness() {
+      const [set, update] = useState({ weight: '40', reps: '8' } as import('@/lib/workoutExecutionMethods').MethodSetEntry);
+      return <MethodSetRows exercise={ex} set={set} index={2} count={3} onChange={entry => { latest = entry; update(entry); }} onComplete={() => {}} />;
+    }
+    render(<Harness />);
+    fireEvent.click(screen.getByLabelText('Confirmar série 3 Principal'));
+    expect(latest?.pauseUntil).toBe(Date.now() + 15000);
+    expect((screen.getByLabelText('Série 3 Mini-série 1 reps') as HTMLInputElement).disabled).toBe(true);
+    act(() => { vi.advanceTimersByTime(15000); });
+    expect((screen.getByLabelText('Série 3 Mini-série 1 reps') as HTMLInputElement).disabled).toBe(false);
+  });
   it('drop salva principal e sub-registros com cargas 80/60/45', () => {
     const ex = { ...exercise('a'), ...methodPatch('dropset') };
     let completed: any;
     function Harness() {
-      const [set, update] = requireReactState();
+      const [set, update] = useState({ weight: '80', reps: '', completed: false } as import('@/lib/workoutExecutionMethods').MethodSetEntry);
       return <MethodSetRows exercise={ex} set={set} index={2} count={3} onChange={update} onComplete={entry => { completed = entry; }} />;
     }
     render(<Harness />);
@@ -112,5 +128,3 @@ describe('execução compartilhada', () => {
     act(() => { vi.advanceTimersByTime(60000); }); expect(select).toHaveBeenLastCalledWith(0);
   });
 });
-import { useState } from 'react';
-function requireReactState() { return useState({ weight: '80', reps: '', completed: false } as import('@/lib/workoutExecutionMethods').MethodSetEntry); }
