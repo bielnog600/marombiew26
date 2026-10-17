@@ -691,6 +691,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     if (!over || dragged.id === over.id) return;
 
     const currentUid = restTimer ? exerciseUids[restTimer.exIdx] : null;
+    const inlineUid = inlineRest.rest ? exerciseUids[inlineRest.rest.exIdx] : null;
     const res = reorderExercisesByUid(
       currentExercises,
       state,
@@ -704,6 +705,11 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     setState(res.states);
     setExerciseUids(res.uids);
     setOrderDirty(true);
+    if (inlineUid) {
+      const index = res.uids.indexOf(inlineUid);
+      if (index >= 0) inlineRest.reindex(index);
+      else inlineRest.cancel();
+    }
     // Mantém o exercício atual (timer) apontando para a mesma identidade.
     if (currentUid) {
       const nextIdx = res.uids.indexOf(currentUid);

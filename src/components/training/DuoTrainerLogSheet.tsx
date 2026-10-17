@@ -390,7 +390,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
   useEffect(() => {
     for (const st of [studentA, studentB]) {
       const day = st?.days[st.activeDayIdx];
-      if (!st || !day || st.loading || !day.exercises.some(ex => ex.grupo_id || seriesMethod(ex) !== 'nenhum')) continue;
+      if (!st || !day || st.loading) continue;
       const form = { sets: Object.fromEntries(Object.entries(st.state).map(([i, ex]) => [i, ex.sets])), plans: Object.fromEntries(Object.entries(st.state).map(([i, ex]) => [i, ex.plan])), exercises: day.exercises, savedSets: Object.fromEntries(Object.entries(st.state).map(([i, ex]) => [i, ex.savedSets])) };
       patchSessionState((prev: any) => ({ ...prev, methodExecution: { ...prev.methodExecution, [st.studentId]: { ...prev.methodExecution?.[st.studentId], [day.day]: form } } }));
     }
@@ -550,6 +550,8 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     mutateSlot(slot, (prev) => {
       const day = prev.days[prev.activeDayIdx];
       const timerUid = restTimer && restSlot === slot ? (prev.uids || [])[restTimer.exIdx] : null;
+      const inlineRest = slot === 'A' ? inlineRestA : inlineRestB;
+      const inlineUid = inlineRest.rest ? prev.uids[inlineRest.rest.exIdx] : null;
       const res = reorderExercisesByUid(
         day.exercises,
         prev.state,
@@ -558,6 +560,11 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
         String(over.id),
       );
       if (!res) return prev;
+      if (inlineUid) {
+        const index = res.uids.indexOf(inlineUid);
+        if (index >= 0) inlineRest.reindex(index);
+        else inlineRest.cancel();
+      }
       if (timerUid) {
         const nextIdx = res.uids.indexOf(timerUid);
         if (nextIdx >= 0) setTimerExerciseIndex(nextIdx);

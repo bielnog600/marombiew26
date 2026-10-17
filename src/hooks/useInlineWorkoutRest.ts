@@ -28,6 +28,7 @@ export function useInlineWorkoutRest(storageKey?: string) {
     try { navigator.vibrate?.([120, 80, 120]); } catch { /* optional */ }
     setCompletion({ exIdx: current.exIdx, setIndex: current.setIndex, id: Date.now() });
   }, [persist, timer.stopTimer, timer.playCompletionBeep]);
+  const cancel = useCallback(() => { persist(null); timer.stopTimer(); setCompletion(null); }, [persist, timer.stopTimer]);
   const restore = useCallback((state: InlineRestState | null | undefined) => {
     if (!state || !Number.isFinite(state.endTime) || !Number.isInteger(state.setIndex)) return;
     persist(state);
@@ -58,11 +59,15 @@ export function useInlineWorkoutRest(storageKey?: string) {
     persist(next);
     timer.restoreTimer(next);
   }, [persist, timer.restoreTimer]);
+  const reindex = useCallback((exIdx: number) => {
+    const current = activeRef.current;
+    if (current) restore({ ...current, exIdx });
+  }, [restore]);
   useEffect(() => {
     if (timer.restTimer && timer.restTimer.remaining <= 0) finish(false);
   }, [timer.restTimer?.remaining, finish]);
   // Deadline-only snapshot keeps session autosaves independent of countdown ticks.
   const snapshot = useMemo(() => activeRef.current, [timer.restTimer?.endTime, timer.restTimer?.exIdx, timer.restTimer?.setIndex]);
   const rest = timer.restTimer?.setIndex != null ? timer.restTimer as InlineRestState : null;
-  return { rest, snapshot, completion, start, adjust, skip: finish, restore };
+  return { rest, snapshot, completion, start, adjust, skip: finish, restore, cancel, reindex };
 }

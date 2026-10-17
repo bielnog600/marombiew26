@@ -228,6 +228,14 @@ const TreinoExecucaoInner = () => {
   // Sessão persistida: started_at vem do banco (ou agora se ainda não existe)
   const [sessionId, setSessionId] = useState<string | null>(null);
   const inlineRest = useInlineWorkoutRest(user && sessionId ? `mw_inline_rest:${user.id}:${sessionId}` : undefined);
+  const pendingRestRestore = useRef<import('@/hooks/useInlineWorkoutRest').InlineRestState | null>(null);
+  useEffect(() => {
+    if (!sessionId || !pendingRestRestore.current) return;
+    // The session-scoped cache initializes first; do not replace newer local edits.
+    const key = user ? `mw_inline_rest:${user.id}:${sessionId}` : null;
+    if (!key || !localStorage.getItem(key)) inlineRest.restore(pendingRestRestore.current);
+    pendingRestRestore.current = null;
+  }, [sessionId, inlineRest.restore, user]);
   const [sessionStartAt, setSessionStartAt] = useState<number>(() => Date.now());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isFinishing, setIsFinishing] = useState(false);
@@ -318,7 +326,7 @@ const TreinoExecucaoInner = () => {
           const idxs = new Set<number>(Object.keys(state.sets).map((k) => Number(k)));
           setLoadedLogsForIndex(idxs);
         }
-        if (state?.inlineRest) inlineRest.restore(state.inlineRest);
+        if (state?.inlineRest) pendingRestRestore.current = state.inlineRest;
         // Retomada: reaproveita o snapshot já calculado (nunca recalcula).
         if (state?.progressionRecommendations) {
           setRestoredSnapshot(state.progressionRecommendations as ProgressionSnapshot);
@@ -1893,6 +1901,7 @@ const TreinoExecucaoInner = () => {
                 }).catch(() => {});
               } catch {}
 
+              inlineRest.cancel();
               clearActiveSession();
             }
           } catch (e) {

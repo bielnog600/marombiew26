@@ -75,4 +75,21 @@ describe('descanso entre séries', () => {
     expect(b.result.current.rest).toBeNull();
     expect(c.result.current.rest).toBeNull();
   });
+  it('reordenar mantém prazo e série, alterando apenas o índice do exercício', () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useInlineWorkoutRest('u:s'));
+    act(() => result.current.start(120, 0, 1));
+    const endTime = result.current.rest?.endTime;
+    act(() => result.current.reindex(3));
+    expect(result.current.rest).toMatchObject({ exIdx: 3, setIndex: 1, endTime });
+  });
+  it('cancelar limpa o descanso sem acionar sinal de próxima série', () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useInlineWorkoutRest('u:s'));
+    act(() => result.current.start(90, 0, 0));
+    act(() => result.current.cancel());
+    expect(result.current.rest).toBeNull();
+    expect(result.current.completion).toBeNull();
+    expect(localStorage.getItem('u:s')).toBeNull();
+  });
 });
