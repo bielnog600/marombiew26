@@ -231,6 +231,28 @@ const TreinoExecucaoInner = () => {
   const zoomVideoRef = useRef<HTMLVideoElement | null>(null);
   const zoomHlsRef = useRef<Hls | null>(null);
 
+  // Mantém a tela ligada durante o treino (Screen Wake Lock; fallback silencioso).
+  useEffect(() => {
+    let lock: { release: () => Promise<void> } | null = null;
+    let released = false;
+    const request = async () => {
+      try {
+        const wl = (navigator as any).wakeLock;
+        if (!wl?.request) return;
+        lock = await wl.request('screen');
+        released = false;
+        lock?.release && (lock as any).addEventListener?.('release', () => { released = true; });
+      } catch { /* não suportado/permissão negada — ignora */ }
+    };
+    request();
+    const onVisible = () => { if (document.visibilityState === 'visible' && released) request(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      lock?.release().catch(() => {});
+    };
+  }, []);
+
   // Combined Session timer tick & visibility sync
   useEffect(() => {
     const sync = () => setElapsedSeconds(Math.floor((Date.now() - sessionStartAt) / 1000));
