@@ -795,7 +795,7 @@ const TreinoExecucaoInner = () => {
   }, [exercise, exerciseDB, exerciseMedia]);
 
   const matchedVariation = useMemo(() => {
-    if (!exercise?.variation || !showingVariation) return null;
+    if (!exercise?.variation || !showingVariation || showingVariationFor !== normalizeExerciseKey(exercise.exercise)) return null;
     const name = exercise.variation.toUpperCase().trim();
 
     if (exerciseMedia[name]) {
@@ -819,12 +819,13 @@ const TreinoExecucaoInner = () => {
       })
       .sort((a, b) => b.nome.trim().length - a.nome.trim().length);
     return partials[0] || null;
-  }, [exercise, exerciseDB, exerciseMedia, showingVariation]);
+  }, [exercise, exerciseDB, exerciseMedia, showingVariation, showingVariationFor]);
 
-  // Só vale a variação se a preferência foi carregada para o exercício da aba ativa.
-  const effectiveShowingVariation = showingVariation && !!exercise && showingVariationFor === normalizeExerciseKey(exercise.exercise);
-  const activeExercise = effectiveShowingVariation && matchedVariation ? matchedVariation : matchedExercise;
-  const selectedExerciseName = effectiveShowingVariation && exercise?.variation ? exercise.variation : exercise?.exercise || '';
+  // Só vale a variação se a preferência foi carregada para o exercício da aba ativa
+  // (matchedVariation já retorna null quando a preferência é de outro exercício).
+  const effectiveShowingVariation = !!matchedVariation;
+  const activeExercise = matchedVariation ?? matchedExercise;
+  const selectedExerciseName = matchedVariation && exercise?.variation ? exercise.variation : exercise?.exercise || '';
   const currentVariationPref = exercise ? variationPrefs[normalizeExerciseKey(exercise.exercise)] : undefined;
 
   // Carrega a preferência de variação salva por exercício ao trocar de exercício
