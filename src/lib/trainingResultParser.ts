@@ -1,4 +1,5 @@
-export interface ParsedExercise {
+import type { ExecutionMethodFields } from './workoutExecutionMethods';
+export interface ParsedExercise extends ExecutionMethodFields {
   /**
    * Identidade estável da prescrição (slot) quando o exercício veio de um
    * WorkoutPlan v2. Ausente para dados vindos apenas de markdown (legacy).

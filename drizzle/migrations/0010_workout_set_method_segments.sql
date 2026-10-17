@@ -1,0 +1,3 @@
+ALTER TABLE public.exercise_set_logs ADD COLUMN IF NOT EXISTS sub_records jsonb, ADD COLUMN IF NOT EXISTS exercise_slot_id text, ADD COLUMN IF NOT EXISTS training_method text;
+COMMENT ON COLUMN public.exercise_set_logs.sub_records IS 'Ordered intra-set execution segments. Main reps/weight remain in existing columns for progression; segments never count as additional sets.';
+COMMENT ON COLUMN public.exercise_set_logs.exercise_slot_id IS 'Stable prescription exercise slot from workout JSON, optional for legacy logs.';

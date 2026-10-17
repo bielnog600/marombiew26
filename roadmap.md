@@ -1,7 +1,8 @@
 # Roadmap
 
 ## Métodos de treino — editor e aluno
-- [ ] Conferir conflitos de catálogo, histórico e componentes compartilhados antes de implementar.
+- [x] Conferir conflitos de catálogo, histórico e componentes compartilhados antes de implementar.
+- [ ] Incluir Modo Treino admin com os mesmos componentes A/B, sub-registros, pausas automáticas e armazenamento do aluno, sem redesenhar treinos comuns.
 - [ ] Adicionar grupos Superset/Bi-set e métodos internos Drop set/Rest-pause/Cluster, preservando treinos comuns e geração IA.
 - [ ] Integrar persistência, progressão principal, tabela/PDF/WhatsApp e volume sem contar sub-registros como séries extras.
 - [ ] Executar testes de regras/compatibilidade e conferir edição, execução e retomada.

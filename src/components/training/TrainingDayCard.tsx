@@ -1,5 +1,9 @@
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { WorkoutMethodEditor } from './WorkoutMethodEditor';
+import { exerciseBlocks, groupExercises, ungroupExercises, moveExerciseBlock, validateGroups, executionSummary } from '@/lib/workoutExecutionMethods';
 import React, { useEffect, useState } from 'react';
-import { Dumbbell, Pencil, Check, ChevronsUpDown, Plus, Trash2, GripVertical, CalendarDays, Sparkles, Copy } from 'lucide-react';
+import { Dumbbell, Pencil, Check, ChevronsUpDown, Plus, Trash2, GripVertical, CalendarDays, Sparkles, Copy, FileDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -79,7 +83,7 @@ const sanitizeForTsv = (value: string) => value.replace(/"/g, 'seg');
 const buildDayCopyText = (day: ParsedTrainingDay) => {
   const rows = day.exercises.map(
     (ex) =>
-      [day.day, ex.exercise, ex.series || '—', ex.series2 || '—', ex.reps || '—', ex.rir || '—', sanitizeForTsv(ex.pause || '—'), ex.description || '—', ex.variation || '—'].join('\t'),
+      [day.day, ex.exercise, ex.series || '—', ex.series2 || '—', ex.reps || '—', ex.rir || '—', sanitizeForTsv(ex.pause || '—'), [executionSummary(ex), ex.description].filter(Boolean).join(' · ') || '—', ex.variation || '—'].join('\t'),
   );
   return rows.join('\n');
 };
@@ -105,7 +109,7 @@ const buildDayFullCopyText = (day: ParsedTrainingDay, exercises: ParsedExercise[
         (ex.reps || '—') + perSet,
         ex.rir || '—',
         ex.pause || '—',
-        ex.description || '—',
+        [executionSummary(ex), ex.description].filter(Boolean).join(' · ') || '—',
         ex.variation || '—',
       ].join(' | '),
     );
@@ -299,6 +303,7 @@ const SortableExerciseItem: React.FC<{ id: string; position: number; onRemove: (
 const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, editable, onDayChange, onAiAssistedEdit }) => {
   const surface = DAY_SURFACES[index % DAY_SURFACES.length];
   const [editing, setEditing] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [localExercises, setLocalExercises] = useState<ParsedExercise[]>(day.exercises);
   const [exerciseOptions, setExerciseOptions] = useState<ExerciseOption[]>([]);
   const [exerciseCatalog, setExerciseCatalog] = useState<ExerciseCatalogItem[]>([]);
@@ -350,7 +355,7 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
   };
 
   const removeExercise = (exIndex: number) => {
-    setLocalExercises(prev => prev.filter((_, i) => i !== exIndex));
+    setLocalExercises(prev => { const groupId = prev[exIndex]?.grupo_id; return (groupId ? ungroupExercises(prev, groupId) : prev).filter((_, i) => i !== exIndex); });
   };
 
   /**
@@ -364,14 +369,13 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     setLocalExercises(prev => {
-      const oldIndex = prev.findIndex((ex, i) => exerciseKey(ex, i) === String(active.id));
-      const newIndex = prev.findIndex((ex, i) => exerciseKey(ex, i) === String(over.id));
-      if (oldIndex < 0 || newIndex < 0) return prev;
-      return arrayMove(prev, oldIndex, newIndex);
+      return moveExerciseBlock(prev, String(active.id), String(over.id));
     });
   };
 
   const commitEdits = () => {
+    const groupError = validateGroups(localExercises);
+    if (groupError) { toast.error(groupError); return; }
     // Validate per-set entries before committing
     for (const ex of localExercises) {
       if (ex.setScheme?.mode === 'per_set') {
@@ -398,6 +402,7 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
   const startEditing = () => {
     // Garante identidade estável mesmo para planos legacy sem `id`.
     setLocalExercises(day.exercises.map((ex) => (ex.id ? ex : { ...ex, id: newId('ex') })));
+    setSelectedIds([]);
     setEditing(true);
   };
 
@@ -692,13 +697,36 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
         {editing ? (
           // ===== EDIT MODE: structured cards per exercise =====
           <div className="space-y-3 p-3">
+            {selectedIds.length > 0 && <div className="flex flex-wrap gap-2">
+              {(['superset', 'biset'] as const).map(type => <Button key={type} size="sm" variant="outline" disabled={selectedIds.length !== 2} onClick={() => {
+                try { setLocalExercises(groupExercises(localExercises, selectedIds, type, newId('group'))); setSelectedIds([]); } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível agrupar.'); }
+              }}>Agrupar como {type === 'superset' ? 'Superset' : 'Bi-set'}</Button>)}
+            </div>}
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={displayExercises.map((ex, i) => exerciseKey(ex, i))} strategy={verticalListSortingStrategy}>
-                {displayExercises.map((ex, exIndex) => {
+              <SortableContext items={exerciseBlocks(displayExercises).map(block => block.id)} strategy={verticalListSortingStrategy}>
+                {exerciseBlocks(displayExercises).map(block => (
+                  <SortableExerciseItem key={block.id} id={block.id} position={block.indices[0] + 1} onRemove={() => {
+                    const ids = new Set(block.indices.map(i => displayExercises[i].id));
+                    setLocalExercises(prev => prev.filter(ex => !ids.has(ex.id)));
+                  }}>
+                    {block.indices.length === 2 && <div className="flex flex-wrap items-center gap-2 border-b border-primary/30 pb-2">
+                      <span className="text-xs font-semibold text-primary">{displayExercises[block.indices[0]].tipo_grupo === 'superset' ? 'Superset' : 'Bi-set'} · A1 / A2</span>
+                      <label className="flex items-center gap-2 text-xs">Pausa A → B
+                        <Input aria-label="Pausa A para B" type="number" min={0} max={10} className="h-7 w-16" value={displayExercises[block.indices[0]].pausa_grupo_s ?? 0} onChange={e => {
+                          const pause = Math.min(10, Math.max(0, Number(e.target.value)));
+                          setLocalExercises(prev => prev.map(ex => ex.grupo_id === block.id ? { ...ex, pausa_grupo_s: pause } : ex));
+                        }} />s
+                      </label>
+                      <Button variant="ghost" size="sm" onClick={() => setLocalExercises(prev => ungroupExercises(prev, block.id))}>Desagrupar</Button>
+                    </div>}
+                    {block.indices.map(exIndex => {
+                  const ex = displayExercises[exIndex];
                   const mode = detectMode(ex);
                   const [recReps, workReps] = splitComposed(ex.reps || '');
                   return (
-                    <SortableExerciseItem key={exerciseKey(ex, exIndex)} id={exerciseKey(ex, exIndex)} position={exIndex + 1} onRemove={() => removeExercise(exIndex)}>
+                    <div key={exerciseKey(ex, exIndex)} className={ex.grupo_id ? 'space-y-2 border-l-2 border-primary/40 pl-3 py-2' : 'space-y-2'}>
+                      {!ex.grupo_id && <label className="flex items-center gap-2 text-xs text-muted-foreground"><Checkbox aria-label={`Selecionar ${ex.exercise}`} checked={selectedIds.includes(ex.id ?? '')} onCheckedChange={checked => setSelectedIds(prev => checked ? [...prev, ex.id ?? ''] : prev.filter(id => id !== ex.id))} />Selecionar para grupo</label>}
+                      {ex.grupo_id && <p className="text-xs text-primary font-semibold">{ex.ordem_grupo === 'A' ? 'A1' : 'A2'}</p>}
                       <div className="flex flex-wrap items-center gap-2">
                         <ExerciseThumb name={ex.exercise} catalog={exerciseCatalog} />
                         <div className="flex-1 min-w-[180px]">
@@ -719,6 +747,7 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
                           </SelectContent>
                         </Select>
                       </div>
+                      <WorkoutMethodEditor exercise={ex} onChange={patch => setLocalExercises(prev => prev.map((item, i) => i === exIndex ? { ...item, ...patch } : item))} />
 
                       {mode === 'per_set' ? (
                         <div className="space-y-2">
@@ -848,9 +877,11 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
                           className="text-xs min-h-[60px] resize-none"
                         />
                       </div>
-                    </SortableExerciseItem>
+                    </div>
                   );
                 })}
+                  </SortableExerciseItem>
+                ))}
               </SortableContext>
             </DndContext>
             <Button variant="outline" size="sm" className="w-full gap-2 text-xs" onClick={addExercise}>
@@ -882,14 +913,14 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
                     <TableCell className="px-2 py-2 align-middle">
                       <ExerciseThumb name={ex.exercise} catalog={exerciseCatalog} />
                     </TableCell>
-                    <TableCell className="px-3 py-2 font-medium align-top">{ex.exercise}</TableCell>
+                    <TableCell className="px-3 py-2 font-medium align-top">{ex.exercise}{executionSummary(ex) && <p className="mt-1 text-[10px] text-primary">{executionSummary(ex)}</p>}</TableCell>
                     <TableCell className="px-3 py-2 text-center align-top">{ex.series || '—'}</TableCell>
                     <TableCell className="px-3 py-2 text-center align-top">{ex.series2 || '—'}</TableCell>
                     <TableCell className="px-3 py-2 text-center align-top">{ex.reps || '—'}</TableCell>
                     <TableCell className="px-3 py-2 text-center align-top">{ex.rir || '—'}</TableCell>
                     <TableCell className="px-3 py-2 text-center align-top">{ex.pause || '—'}</TableCell>
                     <TableCell className="px-3 py-2 align-top text-muted-foreground hidden sm:table-cell max-w-[200px]">
-                      {ex.description || '—'}
+                      {[executionSummary(ex), ex.description].filter(Boolean).join(' · ') || '—'}
                     </TableCell>
                     <TableCell className="px-3 py-2 align-top text-muted-foreground">{ex.variation || '—'}</TableCell>
                   </TableRow>

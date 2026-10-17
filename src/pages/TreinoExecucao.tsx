@@ -1,3 +1,7 @@
+import { MethodSetRows } from '@/components/training/MethodSetRows';
+import { WorkoutGroupTabs } from '@/components/training/WorkoutGroupTabs';
+import { useWorkoutGroupFlow, type GroupPause } from '@/hooks/useWorkoutGroupFlow';
+import { exerciseBlocks, seriesMethod, methodOnSet, methodLogFields, subRecordVolume, type MethodSetEntry } from '@/lib/workoutExecutionMethods';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Hls from 'hls.js';
@@ -38,6 +42,7 @@ import { StudentWeightInput } from '@/components/training/StudentWeightInput';
 import { StudentLoadSummaryCard } from '@/components/training/StudentLoadSummaryCard';
 import { lastWorkSetLine, studentSuggestionLine, studentWeightPlaceholder, type PreviousExerciseSet } from '@/lib/studentExerciseLoadPresentation';
 import MethodBadge from '@/components/training/MethodBadge';
+import { parsePauseSeconds } from '@/components/training/TrainerLogSheetUtils';
 
 
 import {
@@ -78,7 +83,7 @@ const saveVariationPref = (userId: string | undefined, exerciseName: string, val
   }
 };
 
-interface ExerciseSet {
+interface ExerciseSet extends MethodSetEntry {
   reps: string;
   weight: string;
   completed: boolean;
@@ -485,7 +490,16 @@ const TreinoExecucaoInner = () => {
 
   // Metadados do treino gravados no session_state: permitem classificar e
   // recuperar as séries mesmo quando o aluno não finaliza manualmente.
+  const [groupPause, setGroupPause] = useState<GroupPause | null>(null);
+  const groupFlow = useWorkoutGroupFlow(exercises, currentIndex, setCurrentIndex, groupPause, setGroupPause);
+  useEffect(() => {
+    const restored = activeSession?.session_state as { groupPause?: GroupPause } | undefined;
+    if (restored?.groupPause) setGroupPause(restored.groupPause);
+  }, [activeSession?.id]);
   const sessionMeta = useMemo(() => ({
+    groupPause,
+    exerciseSlotIds: exercises.map(ex => ex.id),
+    executionMethods: exercises.map(ex => seriesMethod(ex)),
     exerciseNames: exercises.map((ex: any) => ex?.exercise || ''),
     plannedSets: exercises.map((ex: any) =>
       buildSetPlan(ex?.series, ex?.series2, ex?.reps, ex?.setScheme).length || 3,
@@ -495,7 +509,7 @@ const TreinoExecucaoInner = () => {
       buildSetPlan(ex?.series, ex?.series2, ex?.reps, ex?.setScheme).map((p) => p.type),
     ),
     ...(progressionSnapshot ? { progressionRecommendations: progressionSnapshot } : {}),
-  }), [exercises, progressionSnapshot]);
+  }), [exercises, progressionSnapshot, groupPause]);
 
 
   const formatElapsed = (totalSec: number) => {
@@ -946,9 +960,25 @@ const TreinoExecucaoInner = () => {
       return next;
     });
     const secs = parsePauseSeconds(exercise?.pause);
-    startRestTimer(secs, currentIndex);
+    const current = [...(sets[currentIndex] || [])];
+    current[setIndex] = { ...current[setIndex], completed: !current[setIndex]?.completed };
+    if (!groupFlow.complete(setIndex, { ...sets, [currentIndex]: current }, parsePauseSeconds(exercises[groupFlow.indices[1]]?.pause))) startRestTimer(secs, currentIndex);
   };
 
+  const changeMethodSet = (index: number, entry: MethodSetEntry) => {
+    const updated = [...(sets[currentIndex] ?? [])];
+    updated[index] = { ...entry, completed: !!entry.completed };
+    const next = { ...sets, [currentIndex]: updated };
+    setSets(next); syncLocalActiveSession(next, currentIndex);
+    if (sessionId) void supabase.from('workout_sessions').update({ session_state: { sets: next, currentIndex, ...sessionMeta } as any, last_active_at: new Date().toISOString() }).eq('id', sessionId).then(() => {});
+  };
+  const completeMethodSet = (index: number, entry: MethodSetEntry) => {
+    const updated = [...(sets[currentIndex] ?? [])]; updated[index] = { ...entry, completed: true };
+    const next = { ...sets, [currentIndex]: updated };
+    setSets(next); syncLocalActiveSession(next, currentIndex);
+    const rest = parsePauseSeconds(exercises[groupFlow.indices[1]]?.pause ?? exercise?.pause);
+    if (!groupFlow.complete(index, next, rest)) startRestTimer(rest, currentIndex);
+  };
   const currentSets = sets[currentIndex] || [];
   const previousSets = lastLogsByExercise[selectedExerciseName.toUpperCase().trim()] ?? [];
   const recommendation = getRecommendationFor(progressionSnapshot, selectedExerciseName);
@@ -1318,6 +1348,8 @@ const TreinoExecucaoInner = () => {
         </div>
       </div>
 
+      {groupFlow.indices.length === 2 && <div className="shrink-0 px-4 pt-2"><WorkoutGroupTabs exercises={exercises} indices={groupFlow.indices} currentIndex={currentIndex} sets={sets} onSelect={setCurrentIndex} /></div>}
+      {groupFlow.pause && <div className="shrink-0 px-4 py-2 flex items-center justify-between border-y border-primary/30 text-primary text-sm"><span>{groupFlow.pause.label} · {groupFlow.remaining}s</span><Button variant="ghost" size="sm" onClick={groupFlow.skip}>Pular</Button></div>}
       <div className="shrink-0 px-4 py-3">
         <div className="flex flex-wrap items-center gap-1.5">
           <button
@@ -1374,6 +1406,7 @@ const TreinoExecucaoInner = () => {
             return currentSets.map((set, i) => {
             const planned = setPlan[i];
             const isRecognition = planned?.type === 'recognition';
+            if (groupFlow.indices.length === 2 || methodOnSet(exercise, i, currentSets.length, isRecognition)) return <MethodSetRows key={i} exercise={exercise} set={set} index={i} count={currentSets.length} recognition={isRecognition} disabled={!!groupFlow.pause || (groupFlow.indices.length === 2 && !set.completed && groupFlow.indices.some(idx => sets[idx]?.slice(0, i).some(prior => !prior.completed)))} targetReps={planned?.reps} weightPlaceholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation)} onChange={entry => changeMethodSet(i, entry)} onComplete={entry => completeMethodSet(i, entry)} />;
             const isNextPending = i === nextPendingIndex;
             return (
               <div key={i} className={`rounded-lg transition-colors ${set.completed ? 'bg-primary/10 border border-primary/30' : isRecognition ? 'bg-accent/10 border border-accent/30' : 'bg-secondary/50'}`}>
@@ -1456,12 +1489,12 @@ const TreinoExecucaoInner = () => {
 
       <div className="student-workout-footer shrink-0 z-50 bg-background/95 backdrop-blur border-t border-border p-3" data-testid="workout-footer">
         <div className="flex items-center justify-between gap-3">
-          <Button variant="outline" className="flex-1" onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))} disabled={currentIndex === 0}>
+          <Button variant="outline" className="flex-1" onClick={() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); setCurrentIndex(blocks[Math.max(0, i - 1)].indices[0]); }} disabled={exerciseBlocks(exercises)[0]?.indices.includes(currentIndex)}>
             <ChevronLeft className="h-4 w-4 mr-1" />
             Anterior
           </Button>
-          {currentIndex < exercises.length - 1 ? (
-            <Button className="flex-1" onClick={() => setCurrentIndex(currentIndex + 1)}>
+          {!exerciseBlocks(exercises).at(-1)?.indices.includes(currentIndex) ? (
+            <Button className="flex-1" onClick={() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); setCurrentIndex(blocks[Math.min(blocks.length - 1, i + 1)].indices[0]); }}>
               Próximo
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
@@ -1503,14 +1536,15 @@ const TreinoExecucaoInner = () => {
               // Tipo estrutural da série vem do plano (reconhecimento vs trabalho).
               const plannedTypes = buildSetPlan(ex?.series, ex?.series2, ex?.reps, ex?.setScheme).map((p) => p.type);
               arr.forEach((s, i) => {
-                if (!s.completed) return;
+                if (!s.completed && !s.subRecords?.some(part => part.completed)) return;
                 const reps = parseInt(s.reps) || 0;
                 const weight = parseFloat(s.weight.replace(',', '.')) || 0;
                 const rirRaw = (s.rir ?? '').trim();
                 const rirNum = rirRaw === '' ? null : Number(rirRaw);
                 totalSets += 1;
-                totalVolumeKg += reps * weight;
+                totalVolumeKg += s.subRecords?.length ? subRecordVolume(s) : reps * weight;
                 setLogRows.push({
+                  ...methodLogFields(ex, s),
                   student_id: user.id,
                   exercise_name: normalizeExName(exName),
                   muscle_group: muscle,

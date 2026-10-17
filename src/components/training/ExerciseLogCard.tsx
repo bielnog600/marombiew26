@@ -9,6 +9,8 @@ import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { ExercisePicker } from '@/components/tabata/ExercisePicker';
 import { ProgressionHintCard } from './ProgressionHintCard';
 import MethodBadge from './MethodBadge';
+import { WorkoutMethodEditor } from './WorkoutMethodEditor';
+import type { ExecutionMethodFields } from '@/lib/workoutExecutionMethods';
 import { getRecommendationFor, targetLoadForSet, type ProgressionSnapshot } from '@/lib/sessionProgression';
 
 interface SetEntry {
@@ -47,7 +49,8 @@ interface Props {
   onAddSet?: (exIdx: number) => void;
   onRemoveSet?: (exIdx: number, setIdx: number) => void;
   onRemoveExercise?: (exIdx: number) => void;
-  onUpdateMeta?: (patch: {
+  onUpdateMeta?: (patch: ExecutionMethodFields & {
+    method?: import('@/lib/trainingResultParser').ParsedExercise['method'];
     pause?: string;
     variation?: string;
     reps?: string;
@@ -277,6 +280,7 @@ const ExerciseLogCard: React.FC<Props> = ({
                 </Select>
               </div>
 
+              <WorkoutMethodEditor exercise={ex} onChange={onUpdateMeta} />
               {mode === 'per_set' ? (
                 <div className="space-y-1.5">
                   <label className="text-[9px] uppercase text-muted-foreground font-semibold">

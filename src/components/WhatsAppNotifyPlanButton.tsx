@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { normalizeWorkoutPlan, workoutPlanToParsedDays } from '@/lib/workoutSchema';
+import { executionSummary } from '@/lib/workoutExecutionMethods';
 import { Button } from '@/components/ui/button';
 import { MessageCircle } from 'lucide-react';
  import { supabase } from '@/integrations/supabase/client';
@@ -115,7 +117,7 @@ const WhatsAppNotifyPlanButton: React.FC<Props> = ({
       freshPlan.tipo === 'dieta' ? DIET_WHATSAPP_VARIATION_COUNT : PLAN_WHATSAPP_VARIATION_COUNT,
     );
 
-    const msg = freshPlan.tipo === 'dieta'
+    let msg = freshPlan.tipo === 'dieta'
       ? buildDietWhatsAppMessage({
           firstName,
           seed,
@@ -130,6 +132,12 @@ const WhatsAppNotifyPlanButton: React.FC<Props> = ({
           ),
         })
       : buildPlanWhatsAppMessage({ firstName, noun, gender, titulo: freshPlan.titulo, state: isAdjust ? 'adjusted' : 'new', seed });
+
+    if (freshPlan.tipo === 'treino') {
+      const workout = normalizeWorkoutPlan(freshPlan.conteudo_json);
+      const summaries = workout ? workoutPlanToParsedDays(workout).flatMap(day => day.exercises.filter(ex => executionSummary(ex)).map(ex => `${day.day} · ${ex.exercise}: ${executionSummary(ex)}`)) : [];
+      if (summaries.length) msg += `\n\n${summaries.join('\n')}`;
+    }
 
     const withDdi = normalizeWhatsAppPhone(phone);
     const url = withDdi 

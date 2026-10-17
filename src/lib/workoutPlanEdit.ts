@@ -72,6 +72,12 @@ export const mergeParsedExerciseIntoPlan = (
     tempo: previous?.tempo,
     notes: previous?.notes,
     setScheme: parsed.setScheme as WorkoutExercise["setScheme"],
+    method: parsed.method,
+    grupo_id: parsed.grupo_id, tipo_grupo: parsed.tipo_grupo, ordem_grupo: parsed.ordem_grupo,
+    pausa_grupo_s: parsed.pausa_grupo_s, metodo: parsed.metodo, metodo_params: parsed.metodo_params,
+    targetLoadKg: parsed.targetLoadKg ?? previous?.targetLoadKg,
+    targetLoadNote: parsed.targetLoadNote ?? previous?.targetLoadNote,
+    targetLoadPerSet: parsed.targetLoadPerSet ?? previous?.targetLoadPerSet,
   };
 };
 

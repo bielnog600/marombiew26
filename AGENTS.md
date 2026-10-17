@@ -1,6 +1,7 @@
 # Architecture rules
 
 - Isolate 3D scan loading, geometry and private persistence behind the AI assessment modal's lazy boundary; keep consent/import provenance server-stamped and scan perimeters distinct from visual estimates to avoid changing other assessment flows.
+- Keep workout groups and method parameters optional in structured plans; share set-part controls and group transitions between student/admin execution, storing parts in each existing set log while primary columns remain progression inputs.
 
 - Keep WhatsApp message formatting pure and select persisted variation indices at the notification boundary, keyed by student and plan type; this separates message tests from browser storage and preserves nutrition formatting.
 - Keep student exercise load presentation in a pure helper and a controlled empty input, separate from session persistence and progression calculations; historical and recommended loads remain display-only placeholders.

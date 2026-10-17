@@ -1,4 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { MethodExerciseCard } from './MethodExerciseCard';
+import { exerciseBlocks, methodLogFields, seriesMethod, type MethodSetEntry } from '@/lib/workoutExecutionMethods';
+import type { GroupPause } from '@/hooks/useWorkoutGroupFlow';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -366,7 +369,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     setActiveDayIdx(resolveInitialDayIdx());
     initialDaySyncedRef.current = true;
   }, [open, days, resolveInitialDayIdx]);
-  const [exercisesList, setExercisesList] = useState<{ id: string; nome: string; grupo_muscular: string; imagem_url?: string | null }[]>([]);
+  const [exercisesList, setExercisesList] = useState<{ id: string; nome: string; grupo_muscular: string; imagem_url?: string | null; video_embed?: string | null }[]>([]);
   const [currentExercises, setCurrentExercises] = useState<ParsedExercise[]>([]);
   // Identidade estável por exercício (key React + id do sortable)
   const [exerciseUids, setExerciseUids] = useState<string[]>([]);
@@ -485,7 +488,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   useEffect(() => {
     if (!open || exercisesList.length > 0) return;
     (async () => {
-      const { data } = await supabase.from('exercises').select('id, nome, grupo_muscular, imagem_url').order('nome');
+      const { data } = await supabase.from('exercises').select('id, nome, grupo_muscular, imagem_url, video_embed').order('nome');
       if (data) setExercisesList(data);
     })();
   }, [open]);
@@ -503,7 +506,8 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     setLoading(true);
     (async () => {
       const initial: Record<number, ExerciseState> = {};
-      const draft = loadDraft(studentId, day.day, daySignature);
+      const persisted = active?.sessionState?.methodExecution?.[studentId]?.[day.day];
+      const draft = persisted ?? loadDraft(studentId, day.day, daySignature);
       const baseExercises: ParsedExercise[] = draft?.exercises && draft.exercises.length > 0
         ? draft.exercises
         : day.exercises;
@@ -575,7 +579,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     })();
   }, [open, day?.day, daySignature, studentId]);
 
-  const updateSet = (exIdx: number, setIdx: number, field: keyof SetEntry, value: string) => {
+  const updateSet = (exIdx: number, setIdx: number, field: 'weight' | 'reps', value: string) => {
     setState((prev) => {
       const copy = { ...prev };
       copy[exIdx].sets[setIdx][field] = value;
@@ -583,6 +587,42 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       return { ...copy };
     });
   };
+
+  const changeMethodSet = (exIdx: number, setIdx: number, entry: MethodSetEntry) => {
+    setState(prev => {
+      const current = prev[exIdx];
+      if (!current) return prev;
+      const sets = current.sets.map((set, i) => i === setIdx ? entry : set);
+      const next = { ...prev, [exIdx]: { ...current, sets } };
+      saveDraft(studentId, day.day, daySignature, next, currentExercises);
+      return next;
+    });
+    const ex = currentExercises[exIdx];
+    if (ex && session.id && entry.subRecords?.some(part => part.completed)) {
+      void import('@/lib/offlineQueue').then(({ writeWithFallback }) => writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: { ...methodLogFields(ex, entry), student_id: studentId, session_id: session.id, exercise_name: normalizeExName(ex.exercise), set_number: setIdx + 1, weight_kg: Number(entry.weight.replace(',', '.')) || null, reps: Number(entry.reps) || null, set_type: state[exIdx]?.plan[setIdx]?.kind === 'recon' ? 'recognition' : 'work', day_name: day.day, phase: effectivePhase, source: 'admin' } }));
+    }
+  };
+  const saveMethodSet = async (exIdx: number, setIdx: number, entry: MethodSetEntry) => {
+    changeMethodSet(exIdx, setIdx, entry);
+    const ex = currentExercises[exIdx];
+    if (!ex || !session.id) return;
+    const { writeWithFallback } = await import('@/lib/offlineQueue');
+    const result = await writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: {
+      ...methodLogFields(ex, entry), student_id: studentId, session_id: session.id,
+      exercise_name: normalizeExName(ex.exercise), set_number: setIdx + 1,
+      weight_kg: Number(entry.weight.replace(',', '.')) || null, reps: Number(entry.reps) || null,
+      set_type: state[exIdx]?.plan[setIdx]?.kind === 'recon' ? 'recognition' : 'work',
+      day_name: day.day, phase: effectivePhase, source: 'admin', performed_at: new Date().toISOString(),
+    } });
+    if (result.queued) toast.info('Registro guardado para sincronizar quando a conexão voltar.');
+    setState(prev => ({ ...prev, [exIdx]: { ...prev[exIdx], savedSets: prev[exIdx].sets.filter(set => set.completed).length } }));
+  };
+  useEffect(() => {
+    if (!day || !currentExercises.some(ex => ex.grupo_id || seriesMethod(ex) !== 'nenhum') || loading) return;
+    const form = { sets: Object.fromEntries(Object.entries(state).map(([i, ex]) => [i, ex.sets])), plans: Object.fromEntries(Object.entries(state).map(([i, ex]) => [i, ex.plan])), savedSets: Object.fromEntries(Object.entries(state).map(([i, ex]) => [i, ex.savedSets])), exercises: currentExercises };
+    patchSessionState((prev: any) => ({ ...prev, methodExecution: { ...prev.methodExecution, [studentId]: { ...prev.methodExecution?.[studentId], [day.day]: form } } }));
+  }, [state, currentExercises, loading, day?.day, studentId, patchSessionState]);
+  const saveMethodPause = (blockId: string, pause: GroupPause | null) => patchSessionState((prev: any) => ({ ...prev, methodPauses: { ...prev.methodPauses, [studentId]: { ...prev.methodPauses?.[studentId], [blockId]: pause } } }));
 
   const updateNotes = (exIdx: number, value: string) => {
     setState((prev) => {
@@ -822,6 +862,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     const rows = validSets.map((s) => {
       const p = st.plan?.[s.idx];
       return {
+        ...methodLogFields(ex, st.sets[s.idx]),
         student_id: studentId,
         session_id: session.id,
         exercise_name: normalizeExName(exerciseName),
@@ -1021,7 +1062,11 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                 strategy={verticalListSortingStrategy}
               >
                 <div className="space-y-3">
-                  {currentExercises.map((ex, exIdx) => state[exIdx] && exerciseUids[exIdx] ? (
+                  {exerciseBlocks(currentExercises).map(block => {
+                    const exIdx = block.indices[0], ex = currentExercises[exIdx];
+                    if (!state[exIdx] || !exerciseUids[exIdx]) return null;
+                    if (block.indices.length === 2 || seriesMethod(ex) !== 'nenhum') return <MethodExerciseCard key={block.id} exercises={currentExercises} indices={block.indices} sets={Object.fromEntries(Object.entries(state).map(([i, st]) => [i, st.sets]))} onChange={changeMethodSet} onComplete={saveMethodSet} media={exercisesList} snapshot={snapshot} studentId={studentId} savedPause={active?.sessionState?.methodPauses?.[studentId]?.[block.id]} onPauseChange={pause => saveMethodPause(block.id, pause)} />;
+                    return (
                     <SortableExerciseRow key={exerciseUids[exIdx]} id={exerciseUids[exIdx]} position={exIdx + 1}>
 
                       <ExerciseLogCard
@@ -1046,7 +1091,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                         dayExercises={currentExercises}
                       />
                     </SortableExerciseRow>
-                  ) : null)}
+                  ); })}
                 </div>
               </SortableContext>
             </DndContext>

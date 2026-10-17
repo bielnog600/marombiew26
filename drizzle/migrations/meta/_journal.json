@@ -71,6 +71,13 @@
       "when": 1792223208496,
       "tag": "0009_assessment_3d_scans_private_admin",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792247441112,
+      "tag": "0010_workout_set_method_segments",
+      "breakpoints": true
     }
   ]
 }

@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 
 const normalizeExName = (name: string) => name.trim().replace(/\s+/g, ' ').toUpperCase();
 import { ptBR } from 'date-fns/locale';
+import type { SubRecord } from '@/lib/workoutExecutionMethods';
 
 interface SetLog {
   id: string;
@@ -16,6 +17,7 @@ interface SetLog {
   weight_kg: number | null;
   rpe: number | null;
   phase: string | null;
+  sub_records?: SubRecord[] | null;
 }
 
 interface Props {
@@ -44,7 +46,7 @@ export const ExerciseLoadHistorySheet: React.FC<Props> = ({ open, onOpenChange, 
     (async () => {
       const { data } = await supabase
         .from('exercise_set_logs')
-        .select('id, performed_at, session_id, set_number, reps, weight_kg, rpe, phase')
+        .select('id, performed_at, session_id, set_number, reps, weight_kg, rpe, phase, sub_records')
         .eq('student_id', studentId)
         .ilike('exercise_name', normalizeExName(exerciseName))
         .order('performed_at', { ascending: false })
@@ -63,8 +65,9 @@ export const ExerciseLoadHistorySheet: React.FC<Props> = ({ open, onOpenChange, 
             totalVolume: 0,
           });
         }
-        const g = map.get(key)!;
-        g.sets.push(row as SetLog);
+        const g = map.get(key);
+        if (!g) return;
+        g.sets.push(row as unknown as SetLog);
         const w = Number(row.weight_kg) || 0;
         const r = Number(row.reps) || 0;
         if (w > g.topWeight) g.topWeight = w;
@@ -154,11 +157,14 @@ export const ExerciseLoadHistorySheet: React.FC<Props> = ({ open, onOpenChange, 
                 </div>
                 <div className="space-y-1 mt-1">
                   {g.sets.map((s) => (
-                    <div key={s.id} className="grid grid-cols-[28px_1fr_1fr_44px] gap-1 items-center bg-background/50 rounded px-1 py-1.5 text-xs tabular-nums">
+                    <div key={s.id}>
+                    <div className="grid grid-cols-[28px_1fr_1fr_44px] gap-1 items-center bg-background/50 rounded px-1 py-1.5 text-xs tabular-nums">
                       <span className="font-bold text-center">{s.set_number}</span>
                       <span className="text-center">{s.reps ?? '—'}</span>
                       <span className="text-center font-semibold">{s.weight_kg != null ? `${s.weight_kg}kg` : '—'}</span>
                       <span className="text-center text-muted-foreground">{s.rpe ?? '—'}</span>
+                    </div>
+                    {s.sub_records?.filter(part => part.completed).map((part, i) => <p key={i} className="pl-8 py-1 text-xs text-muted-foreground">{part.label} · {part.weight || '—'} kg × {part.reps || '—'}</p>)}
                     </div>
                   ))}
                 </div>

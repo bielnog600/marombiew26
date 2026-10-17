@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { ParsedTrainingDay, ParsedExercise } from "./trainingResultParser";
 import { normalizeWorkoutMethod } from "./trainingMethods";
+import { executionFields } from './workoutExecutionFields';
+import { validateGroups } from './workoutExecutionMethods';
 
 /**
  * Workout plan v2 — JSON-first source of truth.
@@ -125,6 +127,12 @@ export const WorkoutExerciseSchema = z.object({
    * `validateWorkoutMethod` (precisa do banco) — aqui validamos só a forma.
    */
   method: WorkoutMethodSchema.optional(),
+  grupo_id: z.string().optional(),
+  tipo_grupo: z.enum(['superset', 'biset']).optional(),
+  ordem_grupo: z.enum(['A', 'B']).optional(),
+  pausa_grupo_s: z.number().min(0).max(10).optional(),
+  metodo: z.enum(['nenhum', 'dropset', 'restpause', 'cluster']).optional(),
+  metodo_params: z.object({ aplicar: z.enum(['ultima', 'todas']), drops: z.number().min(1).max(3), reducao_pct: z.number().min(1).max(90), pausa_s: z.number().min(10).max(30), minis: z.number().min(1).max(5), blocos: z.number().min(2).max(6), reps_bloco: z.number().min(1).max(20) }).optional(),
 });
 
 export type WorkoutExercise = z.infer<typeof WorkoutExerciseSchema>;
@@ -240,6 +248,7 @@ export const parsedDaysToWorkoutPlan = (
       targetLoadPerSet: normalizeTargetLoadPerSetValue(e.targetLoadPerSet),
       setScheme: e.setScheme,
       method: normalizeWorkoutMethod(e.method),
+      ...executionFields(e as unknown as Record<string, unknown>),
     })),
   })),
 });
@@ -265,6 +274,7 @@ export const workoutPlanToParsedDays = (plan: WorkoutPlan): ParsedTrainingDay[] 
       targetLoadPerSet: normalizeTargetLoadPerSetValue(e.targetLoadPerSet),
       setScheme: e.setScheme as ParsedExercise["setScheme"],
       method: e.method as ParsedExercise["method"],
+      ...executionFields(e as unknown as Record<string, unknown>),
     })),
   }));
 
@@ -322,6 +332,7 @@ export const normalizeWorkoutPlan = (raw: unknown): WorkoutPlan | null => {
                 targetLoadPerSet: normalizeTargetLoadPerSetValue(e.targetLoadPerSet),
                 setScheme: normalizeSetScheme(e.setScheme ?? e.set_scheme),
                 method: normalizeWorkoutMethod(e.method ?? e.metodo),
+                ...executionFields(e),
               }))
               .filter((e: WorkoutExercise) => e.exercise.length > 0)
           : [],
@@ -346,5 +357,9 @@ export const validateWorkoutPlan = (
   }
   const hasExercise = parsed.data.days.some((d) => d.exercises.length > 0);
   if (!hasExercise) return { success: false, error: "Plano sem exercícios válidos" };
+  for (const day of workoutPlanToParsedDays(parsed.data)) {
+    const groupError = validateGroups(day.exercises);
+    if (groupError) return { success: false, error: groupError };
+  }
   return { success: true, data: parsed.data };
 };
