@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,9 @@ import { Bot, Loader2, Upload, ImageIcon, Save } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { resolvePhotoUrlMap } from '@/lib/storagePhotos';
 import { SignedImage } from '@/components/SignedImage';
+import type { ScanAnalysisInput } from './scan3d/AssessmentScan3D';
+
+const AssessmentScan3D = lazy(() => import('./scan3d/AssessmentScan3D'));
 
 type ViewKey = 'front' | 'side' | 'back';
 
@@ -49,6 +52,7 @@ interface AiResult {
   limitacoes?: string[];
   relatorio_markdown?: string | null;
   calibracao?: { ancoras?: string[]; fator_global?: number | null } | null;
+  scan_3d?: { source: string; warning: string; measures: string[] } | null;
 }
 
 const MEASURE_LABELS: Record<string, string> = {
@@ -77,11 +81,17 @@ const AiBodyCompositionDialog: React.FC<Props> = ({ open, onOpenChange, studentI
   const [uploading, setUploading] = useState<ViewKey | null>(null);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<AiResult | null>(null);
+  const [scanPrepare, setScanPrepare] = useState<(() => Promise<ScanAnalysisInput>) | null>(null);
+  const [analysisScanId, setAnalysisScanId] = useState<string | null>(null);
+  const [scanApplied, setScanApplied] = useState<Record<string, string>>({});
   const fileRefs = { front: useRef<HTMLInputElement>(null), side: useRef<HTMLInputElement>(null), back: useRef<HTMLInputElement>(null) };
 
   useEffect(() => {
     if (!open) return;
     setResult(null);
+    setScanPrepare(null);
+    setAnalysisScanId(null);
+    setScanApplied({});
     (async () => {
       const { data: sp } = await supabase.from('students_profile').select('sexo, altura, data_nascimento').eq('user_id', studentId).maybeSingle();
       if (sp?.sexo) setSexo(sp.sexo);
@@ -124,7 +134,7 @@ const AiBodyCompositionDialog: React.FC<Props> = ({ open, onOpenChange, studentI
   };
 
   const analyze = async () => {
-    if (!photos.front && !photos.side && !photos.back) {
+    if (!scanPrepare && !photos.front && !photos.side && !photos.back) {
       toast.error('Selecione ou envie ao menos uma foto.');
       return;
     }
@@ -135,7 +145,9 @@ const AiBodyCompositionDialog: React.FC<Props> = ({ open, onOpenChange, studentI
     }
     setLoading(true);
     setResult(null);
+    setAnalysisScanId(null);
     try {
+      const scanInput = scanPrepare ? await scanPrepare() : null;
       const signedPhotos = await resolvePhotoUrlMap(photos);
       const { data, error } = await supabase.functions.invoke('body-composition-ai', {
         body: {
@@ -146,11 +158,13 @@ const AiBodyCompositionDialog: React.FC<Props> = ({ open, onOpenChange, studentI
           weightKg: peso ? Number(peso) : null,
           notes: notes || null,
           knownMeasurements: knownNumbers,
+          ...(scanInput ? { scanId: scanInput.id, scanPhotos: scanInput.photos, scanMeasurements: scanInput.measurements } : {}),
         },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
       setResult((data as any).result as AiResult);
+      setAnalysisScanId(scanInput?.id ?? null);
       toast.success('Análise concluída.');
     } catch (e: any) {
       toast.error('Falha na análise: ' + (e?.message ?? 'erro desconhecido'));
@@ -169,7 +183,7 @@ const AiBodyCompositionDialog: React.FC<Props> = ({ open, onOpenChange, studentI
 
       const { data: assessment, error: aErr } = await supabase
         .from('assessments')
-        .insert({ student_id: studentId, avaliador_id: avaliador, notas_gerais: `Avaliação estimada por IA (foto-antropometria).${notes ? ' ' + notes : ''}` })
+        .insert({ student_id: studentId, avaliador_id: avaliador, notas_gerais: `Avaliação estimada por IA (${analysisScanId ? 'scan 3D; perímetros do scan, gordura aproximada — não substitui dobras cutâneas' : 'foto-antropometria'}).${notes ? ' ' + notes : ''}` })
         .select('id')
         .single();
       if (aErr) throw aErr;
@@ -205,6 +219,11 @@ const AiBodyCompositionDialog: React.FC<Props> = ({ open, onOpenChange, studentI
           abdominal: num(d.abdominal), peitoral: num(d.peitoral), axilar_media: num(d.axilar_media),
           coxa: num(d.coxa), biceps: num(d.biceps), panturrilha_medial: num(d.panturrilha_medial),
         });
+      }
+
+      if (analysisScanId) {
+        const { error: scanError } = await supabase.from('assessment_3d_scans').update({ assessment_id: assessment.id }).eq('id', analysisScanId);
+        if (scanError) throw scanError;
       }
 
       toast.success('Avaliação salva.');
@@ -252,7 +271,7 @@ const AiBodyCompositionDialog: React.FC<Props> = ({ open, onOpenChange, studentI
                   {uploading === v ? (
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                   ) : photos[v] ? (
-                    <SignedImage src={photos[v]!} alt={VIEW_LABEL[v]} className="h-full w-full object-cover" />
+                    <SignedImage src={photos[v] ?? ''} alt={VIEW_LABEL[v]} className="h-full w-full object-cover" />
                   ) : (
                     <Upload className="h-5 w-5 text-muted-foreground" />
                   )}
@@ -300,19 +319,27 @@ const AiBodyCompositionDialog: React.FC<Props> = ({ open, onOpenChange, studentI
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Ex.: atleta, fase de cutting, retenção hídrica..." />
           </div>
 
+          {open && <Suspense fallback={<p role="status" className="text-xs text-muted-foreground">Carregando importação 3D…</p>}>
+            <AssessmentScan3D studentId={studentId} height={Number(altura.replace(',', '.'))} onReady={prepare => setScanPrepare(() => prepare)} onApply={values => {
+              const applied = Object.fromEntries(Object.entries(values).filter(([key]) => key in MEASURE_LABELS).map(([key, value]) => [key, String(value)]));
+              setKnown(current => ({ ...current, ...applied })); setScanApplied(applied); setShowKnown(true);
+              if (result) setResult(current => current ? { ...current, medidas_cm: { ...current.medidas_cm, ...Object.fromEntries(Object.entries(applied).map(([key, value]) => [key, Number(value)])) } } : current);
+            }} />
+          </Suspense>}
+
           <div className="space-y-2">
-            <button
+            <Button variant="link" size="sm"
               type="button"
               onClick={() => setShowKnown(v => !v)}
               className="text-xs font-semibold text-primary underline-offset-2 hover:underline"
             >
               {showKnown ? 'Ocultar' : 'Adicionar'} medidas reais de fita métrica (calibração)
-            </button>
+            </Button>
             {showKnown && (
               <div className="space-y-2 rounded-lg border border-border p-3">
                 <p className="text-[11px] text-muted-foreground">
-                  Informe apenas as medidas que você aferiu com fita. Elas viram verdade absoluta e a IA recalibra
-                  as demais medidas do mesmo segmento pela mesma proporção.
+                  {Object.keys(scanApplied).length ? 'Perímetros do scan 3D aplicados. Confira ou corrija os valores antes de analisar.' : 'Informe apenas as medidas que você aferiu com fita. Elas viram verdade absoluta e a IA recalibra'}
+                  {!Object.keys(scanApplied).length && ' as demais medidas do mesmo segmento pela mesma proporção.'}
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {Object.entries(MEASURE_LABELS).map(([key, label]) => (
@@ -338,6 +365,7 @@ const AiBodyCompositionDialog: React.FC<Props> = ({ open, onOpenChange, studentI
 
           {result && (
             <div className="space-y-4 pt-2 border-t border-border">
+              {result.scan_3d && <p role="note" className="rounded-md border border-primary/40 bg-primary/5 p-3 text-sm">Perímetros provenientes de scan 3D. {result.scan_3d.warning}</p>}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <Card className="glass-card"><CardContent className="p-3">
                   <p className="text-xs text-muted-foreground">% Gordura</p>

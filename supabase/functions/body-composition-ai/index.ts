@@ -1,9 +1,7 @@
 import { AI_MODELS } from "../_shared/aiModelRouter.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { createClient } from 'npm:@supabase/supabase-js@2';
+import { z } from 'npm:zod@3';
 
 const j = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), {
@@ -20,6 +18,9 @@ interface Body {
   notes?: string | null;
   /** Medidas reais de fita métrica (cm) usadas como âncoras de calibração. */
   knownMeasurements?: Record<string, number | null> | null;
+  scanId?: string;
+  scanPhotos?: { front: string; side: string; back: string };
+  scanMeasurements?: Record<string, number>;
 }
 
 const MEASURE_KEYS = [
@@ -203,6 +204,26 @@ Deno.serve(async (req) => {
     if (!apiKey) return j(500, { error: "OPENAI_API_KEY não configurada." });
 
     const body = (await req.json()) as Body;
+    let scanMeasures: Record<string, number> = {};
+    if (body.scanId || body.scanPhotos || body.scanMeasurements) {
+      const image = z.string().max(6000000).regex(/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/);
+      const parsed = z.object({ scanId: z.string().uuid(), scanPhotos: z.object({ front: image, side: image, back: image }), scanMeasurements: z.record(z.number().finite().positive().max(400)).optional() }).safeParse(body);
+      if (!parsed.success) return j(400, { error: 'Scan inválido: envie o registro e três capturas JPEG.' });
+      const authorization = req.headers.get('Authorization');
+      if (!authorization?.startsWith('Bearer ')) return j(401, { error: 'Entre novamente para analisar o scan.' });
+      const client = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_ANON_KEY') ?? '', { global: { headers: { Authorization: authorization } } });
+      const { data: identity, error: authError } = await client.auth.getUser();
+      if (authError || !identity.user) return j(401, { error: 'Sessão expirada.' });
+      const { data: admin } = await client.rpc('has_role', { _user_id: identity.user.id, _role: 'admin' });
+      if (!admin) return j(403, { error: 'Apenas administradores podem analisar scans 3D.' });
+      const { data: scan, error: scanError } = await client.from('assessment_3d_scans').select('measurements, consent_given').eq('id', parsed.data.scanId).single();
+      if (scanError || !scan?.consent_given) return j(404, { error: 'Scan com consentimento não encontrado.' });
+      for (const [key, entry] of Object.entries(scan.measurements ?? {})) {
+        const value = num((entry as { value?: number })?.value);
+        if (value !== null && value > 0 && value <= 400) scanMeasures[key] = value;
+      }
+      if (!Object.keys(scanMeasures).length) return j(400, { error: 'Calcule e salve as medidas do scan antes de analisar.' });
+    }
     const photos = body.photos ?? {};
     const known: Record<string, number> = {};
     for (const [k, v] of Object.entries(body.knownMeasurements ?? {})) {
@@ -215,6 +236,7 @@ Deno.serve(async (req) => {
       ["Vista LATERAL", photos.side],
       ["Vista POSTERIOR (costas)", photos.back],
     ].filter(([, u]) => !!u) as [string, string][];
+    if (body.scanPhotos) urls.push(['Scan 3D — FRONTAL', body.scanPhotos.front], ['Scan 3D — LADO DIREITO', body.scanPhotos.side], ['Scan 3D — COSTAS', body.scanPhotos.back]);
 
     if (urls.length === 0) return j(400, { error: "Envie ao menos uma foto." });
 
@@ -229,6 +251,7 @@ Deno.serve(async (req) => {
 - Observações: ${body.notes || "nenhuma"}
 ${knownList.length ? `- MEDIDAS REAIS DE FITA MÉTRICA (verdade absoluta, repita exatamente e use para calibrar as demais):\n${knownList.map(([k, v]) => `  • ${k}: ${v} cm`).join("\n")}` : "- Medidas reais de fita métrica: nenhuma informada"}
 - Fotos disponíveis: ${urls.length} (${urls.map(([l]) => l).join(", ")})
+${body.scanId ? `- Perímetros de scan 3D (cm), calculados da malha e sujeitos a conferência: ${JSON.stringify(scanMeasures)}. Preserve estes perímetros, exceto onde houver correção de fita. As capturas são renders do mesmo modelo, não fotos independentes. O percentual de gordura pelo formato corporal é aproximado e não substitui dobras cutâneas; explicite essa limitação no relatório e não trate dobras visuais como medições.` : ''}
 
 Analise as imagens e devolva o JSON pedido, com valores coerentes entre si.`,
       },
@@ -278,6 +301,12 @@ Analise as imagens e devolva o JSON pedido, com valores coerentes entre si.`,
 
     let parsed = consensus(samples);
     if (knownList.length > 0) parsed = calibrate(parsed, known);
+    if (body.scanId) {
+      parsed.medidas_cm = { ...parsed.medidas_cm, ...scanMeasures, ...known };
+      const warning = 'O percentual de gordura estimado pelo formato do corpo é aproximado e não substitui a avaliação por dobras cutâneas.';
+      parsed.scan_3d = { source: 'scan_3d', measures: Object.keys(scanMeasures), warning };
+      parsed.limitacoes = [...(Array.isArray(parsed.limitacoes) ? parsed.limitacoes : []), warning];
+    }
 
     return j(200, { result: parsed, model: usedModel, samples: samples.length });
   } catch (err) {
