@@ -278,3 +278,22 @@
     animation: diet-bar-shine 2.8s ease-in-out infinite;
   }
 }
+
+/* Cards de série: contraste dos campos e estados concluído/atual */
+.workout-set-card input {
+  background: hsl(220 20% 4%) !important;
+  border-color: hsl(0 0% 100% / 0.04) !important;
+  color: hsl(0 0% 95%);
+}
+.workout-set-card input::placeholder { color: hsl(222 9% 37%) !important; }
+.workout-set-card input:disabled { opacity: 1; }
+.workout-set-card > * { transition: opacity 250ms ease; }
+.workout-set-card[data-done] {
+  background: hsl(220 20% 6%) !important;
+  border-color: transparent !important;
+}
+.workout-set-card[data-done] > * { opacity: 0.55; }
+.workout-set-card[data-done]:focus-within { background: inherit; }
+.workout-set-card[data-done]:focus-within > * { opacity: 1; }
+.workout-set-card[data-next] { border-color: hsl(var(--primary)) !important; }
+.workout-set-card[data-next] button:last-child:not(.workout-set-completed) { border-color: hsl(var(--primary) / 0.7); }

@@ -48,7 +48,7 @@ export function MethodSetRows({ exercise, set, index, count, recognition = false
     onChange(result);
     if (completed) onComplete(result);
   };
-  return <WorkoutSetCard index={index} exIdx={-1} {...restPresentation} className="bg-secondary/40"><div className="p-2 space-y-2" data-testid="method-set">
+  return <WorkoutSetCard index={index} exIdx={-1} done={!!set.completed} {...restPresentation} className="bg-secondary/40"><div className="p-2 space-y-2" data-testid="method-set">
     <div className="flex items-center justify-between text-xs"><span className={`font-semibold ${restPresentation?.next ? 'text-primary' : ''}`}>Série {index + 1}{restPresentation?.next && <span className="ml-2 text-[9px]">AGORA</span>}{advanced && seriesMethod(exercise) === 'restpause' && set.subRecords?.some(r => r.completed) ? ` · ${records.map(r => r.reps || '—').join(' + ')}` : ''}</span>{remaining > 0 && <span className="inline-flex items-center gap-1 text-primary"><Timer className="h-3 w-3" />{remaining}s</span>}</div>
     {records.map((record, i) => <div key={i} className="grid grid-cols-[minmax(58px,1fr)_1fr_1fr_44px] gap-1.5 items-center">
       <span className="text-[10px] text-muted-foreground">{advanced ? record.label : recognition ? 'REC' : `#${index + 1}`}</span>

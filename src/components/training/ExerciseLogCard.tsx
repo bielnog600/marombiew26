@@ -396,7 +396,7 @@ const ExerciseLogCard: React.FC<Props> = ({
             const p = st.plan?.[setIdx] ?? { kind: 'work' as const, targetReps: '' };
             const isRecon = p?.kind === 'recon';
             return (
-              <WorkoutSetCard key={setIdx} index={setIdx} exIdx={exIdx} rest={inlineRest?.rest} completion={inlineRest?.completion} next={!!inlineRest && !inlineRest.rest && setIdx === st.sets.findIndex(s => !s.completed)} onAdd={inlineRest?.adjust} onSkip={() => inlineRest?.skip()} className="bg-secondary/30">
+              <WorkoutSetCard key={setIdx} index={setIdx} exIdx={exIdx} rest={inlineRest?.rest} completion={inlineRest?.completion} next={!!inlineRest && !inlineRest.rest && setIdx === st.sets.findIndex(s => !s.completed)} onAdd={inlineRest?.adjust} onSkip={() => inlineRest?.skip()} done={!!s.completed} className="bg-secondary/30">
               <div className={`grid ${inlineRest ? 'grid-cols-[48px_1fr_1fr_44px_28px]' : 'grid-cols-[68px_1fr_1fr_28px]'} items-center gap-1.5 p-2`}>
                 <span
                   className={`text-[9px] font-bold text-center px-1 py-0.5 rounded ${
