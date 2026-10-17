@@ -1223,10 +1223,14 @@ const TreinoExecucaoInner = () => {
             />
             {showPlayFallback && (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/35">
-                <Button onClick={handleManualPlay} size="lg" className="rounded-full h-14 px-6 font-bold">
-                  <Play className="h-5 w-5 mr-2" />
-                  Reproduzir vídeo
-                </Button>
+                <button
+                  type="button"
+                  onClick={handleManualPlay}
+                  aria-label="Reproduzir vídeo"
+                  className="h-14 w-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg touch-manipulation"
+                >
+                  <Play className="h-6 w-6 ml-0.5" />
+                </button>
               </div>
             )}
           </>
