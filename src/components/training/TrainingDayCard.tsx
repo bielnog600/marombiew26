@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { WorkoutMethodEditor } from './WorkoutMethodEditor';
 import { exerciseBlocks, groupExercises, ungroupExercises, moveExerciseBlock, validateGroups, executionSummary } from '@/lib/workoutExecutionMethods';
 import React, { useEffect, useState } from 'react';
-import { Dumbbell, Pencil, Check, ChevronsUpDown, Plus, Trash2, GripVertical, CalendarDays, Sparkles, Copy } from 'lucide-react';
+import { Dumbbell, Pencil, Check, ChevronsUpDown, Plus, Trash2, GripVertical, CalendarDays, Sparkles, Copy, FileDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
