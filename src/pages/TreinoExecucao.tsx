@@ -1385,7 +1385,7 @@ const TreinoExecucaoInner = () => {
             )}
           </>
         ) : imageUrl ? (
-          <img src={imageUrl} alt={selectedExerciseName} className="w-full h-full object-cover" />
+          <img src={imageUrl} alt={selectedExerciseName} className="w-full h-full object-cover object-center" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <span className="text-muted-foreground text-sm">Sem mídia disponível</span>
@@ -1394,11 +1394,11 @@ const TreinoExecucaoInner = () => {
 
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent pointer-events-none" />
 
-        <Button variant="ghost" size="icon" aria-label="Voltar para o início" onClick={() => navigate('/minha-area')} className="absolute top-4 left-4 z-30 h-10 w-10 rounded-full bg-background/80 backdrop-blur flex items-center justify-center">
+        <Button variant="ghost" size="icon" aria-label="Voltar para o início" onClick={() => navigate('/minha-area')} className="absolute top-3 left-3 z-30 h-9 w-9 rounded-full bg-background/80 backdrop-blur flex items-center justify-center">
           <ArrowLeft className="h-5 w-5 text-foreground" />
         </Button>
 
-        <div className="absolute top-4 right-4 z-30 flex items-center gap-2">
+        <div className="absolute top-3 right-3 z-30 flex items-center gap-2">
           <span className="bg-background/80 backdrop-blur rounded-full px-2.5 py-1 text-xs font-mono font-semibold text-primary tabular-nums flex items-center gap-1">
             <Clock className="h-3 w-3" />
             {formatElapsed(elapsedSeconds)}
