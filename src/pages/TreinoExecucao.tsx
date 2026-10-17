@@ -1495,7 +1495,7 @@ const TreinoExecucaoInner = () => {
         aria-hidden
       />
       {/* Área rolável: chips em diante, com espaço no topo igual à altura do vídeo fixo. */}
-      <div className="relative z-0 flex-1 min-h-0 overflow-y-auto overscroll-contain" style={{ paddingTop: 'var(--workout-media-h)' }}>
+      <div className="relative z-0 flex-1 min-h-0 flex flex-col overflow-hidden" style={{ paddingTop: 'var(--workout-media-h)' }}>
       {/* Chips de prescrição + botão Descrição — fora do vídeo, abaixo dele. */}
       {(() => {
         const isReal = (v?: string | null) => {
@@ -1533,7 +1533,7 @@ const TreinoExecucaoInner = () => {
         const chip = 'inline-flex items-center h-8 px-2.5 rounded text-sm text-foreground bg-secondary/80 whitespace-nowrap shrink-0';
         const pauseSecs = (() => { const m = String(exercise.pause ?? '').match(/(\d+)/); return m ? parseInt(m[1], 10) : null; })();
         return (
-          <div className="shrink-0 px-4 pt-2 flex items-center justify-center gap-1.5 flex-nowrap overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="prescription-chips">
+          <div className="shrink-0 px-4 pt-0.5 flex items-center justify-center gap-1.5 flex-nowrap overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="prescription-chips">
             {summary
               ? <span className={`${chip} font-semibold`}>{summary}</span>
               : isReal(exercise.series) && <span className={chip}>{exercise.series} séries</span>}
@@ -1551,8 +1551,10 @@ const TreinoExecucaoInner = () => {
         );
       })()}
 
-      {groupFlow.indices.length === 2 && <div className="shrink-0 px-4 pt-2"><WorkoutGroupTabs exercises={exercises} indices={groupFlow.indices} currentIndex={currentIndex} sets={sets} onSelect={setCurrentIndex} /></div>}
-      <div className="shrink-0 px-4 py-3 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {groupFlow.indices.length === 2
+        ? <div className="shrink-0 px-4 pt-1.5"><WorkoutGroupTabs exercises={exercises} indices={groupFlow.indices} currentIndex={currentIndex} sets={sets} onSelect={setCurrentIndex} /></div>
+        : currentSets.length > 0 && <p className="shrink-0 pt-1.5 text-[13px] text-foreground text-center font-medium" data-testid="set-indicator">Série {Math.min(currentSets.length, (currentSets.findIndex(s => !s.completed) + 1) || currentSets.length)} de {currentSets.length}</p>}
+      <div className="shrink-0 px-4 py-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&_button]:text-[11px] [&_button]:py-1">
         <div className="flex items-center gap-1.5 flex-nowrap w-max mx-auto">
           <button
             type="button"
@@ -1595,14 +1597,14 @@ const TreinoExecucaoInner = () => {
         </div>
 
       </div>
-      <div className="px-4 pb-3" data-testid="workout-set-list">
+      <div className="shrink-0 mx-4 grid grid-cols-[32px_1fr_1fr_44px] gap-1.5 px-2 pb-1.5 border-b border-border" data-testid="workout-table-header">
+        <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Série</span>
+        <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Carga (kg)</span>
+        <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Reps</span>
+        <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">✓</span>
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pt-2 pb-3" data-testid="workout-set-list">
         <div className="space-y-2">
-          <div className="grid grid-cols-[32px_1fr_1fr_44px] gap-1.5 px-2">
-            <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Série</span>
-            <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Carga (kg)</span>
-            <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Reps</span>
-            <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">✓</span>
-          </div>
           {(() => {
             const nextPendingIndex = currentSets.findIndex((s) => !s.completed);
             return currentSets.map((set, i) => {
