@@ -170,8 +170,8 @@ const MinhaArea = () => {
       
       if (treino) {
         setTrainingTitle(treino.titulo);
-        const sections = parseTrainingSections(treino.conteudo);
-        const allDays = sections.flatMap(s => s.days ?? []);
+        // JSON-first: preserva grupo_id/método (o markdown não carrega esses campos).
+        const { days: allDays } = getSafeWorkoutDays({ ...(treino as any), tipo: 'treino' });
         setTrainingDays(allDays);
 
 
