@@ -1317,7 +1317,7 @@ const TreinoExecucaoInner = () => {
         );
       })()}
       {groupFlow.finished && <GroupFinishedOverlay label={groupFlow.finished} />}
-      <AlertDialog open={!!groupIntro} onOpenChange={open => { if (!open) setGroupIntro(null); }}>
+      <AlertDialog open={!!groupIntro} onOpenChange={open => { if (!open) dismissGroupIntro(); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{groupIntro?.tipo}</AlertDialogTitle>
@@ -1328,7 +1328,7 @@ const TreinoExecucaoInner = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setGroupIntro(null)}>Entendi</AlertDialogAction>
+            <AlertDialogAction onClick={dismissGroupIntro}>Entendi</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
