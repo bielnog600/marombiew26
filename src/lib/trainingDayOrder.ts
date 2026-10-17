@@ -35,8 +35,8 @@ export const trainingDaySortKey = (label: string): number => {
 };
 
 /** Ordenação estável: empates mantêm a ordem original do array. */
-export const sortTrainingDays = <T extends { day: string }>(days: T[]): T[] =>
+export const sortTrainingDays = <T extends { day?: string | null }>(days: readonly T[]): T[] =>
   days
-    .map((d, i) => ({ d, i, k: trainingDaySortKey(d.day) }))
+    .map((d, i) => ({ d, i, k: trainingDaySortKey(d.day ?? '') }))
     .sort((a, b) => (a.k - b.k) || (a.i - b.i))
     .map((x) => x.d);
