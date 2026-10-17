@@ -209,6 +209,9 @@ const TreinoExecucaoInner = () => {
   const [showPlayFallback, setShowPlayFallback] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
   const [showingVariation, setShowingVariation] = useState(false);
+  // Nome do exercício ao qual a preferência de variação carregada pertence.
+  // Evita mostrar a variação do exercício anterior ao trocar de aba no superset.
+  const [showingVariationFor, setShowingVariationFor] = useState<string | null>(null);
   const [variationPrefs, setVariationPrefs] = useState<Record<string, boolean>>({});
   // Sessão persistida: started_at vem do banco (ou agora se ainda não existe)
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -792,7 +795,7 @@ const TreinoExecucaoInner = () => {
   }, [exercise, exerciseDB, exerciseMedia]);
 
   const matchedVariation = useMemo(() => {
-    if (!exercise?.variation || !showingVariation) return null;
+    if (!exercise?.variation || !showingVariation || showingVariationFor !== normalizeExerciseKey(exercise.exercise)) return null;
     const name = exercise.variation.toUpperCase().trim();
 
     if (exerciseMedia[name]) {
@@ -816,10 +819,13 @@ const TreinoExecucaoInner = () => {
       })
       .sort((a, b) => b.nome.trim().length - a.nome.trim().length);
     return partials[0] || null;
-  }, [exercise, exerciseDB, exerciseMedia, showingVariation]);
+  }, [exercise, exerciseDB, exerciseMedia, showingVariation, showingVariationFor]);
 
-  const activeExercise = showingVariation && matchedVariation ? matchedVariation : matchedExercise;
-  const selectedExerciseName = showingVariation && exercise?.variation ? exercise.variation : exercise?.exercise || '';
+  // Só vale a variação se a preferência foi carregada para o exercício da aba ativa
+  // (matchedVariation já retorna null quando a preferência é de outro exercício).
+  const effectiveShowingVariation = !!matchedVariation;
+  const activeExercise = matchedVariation ?? matchedExercise;
+  const selectedExerciseName = matchedVariation && exercise?.variation ? exercise.variation : exercise?.exercise || '';
   const currentVariationPref = exercise ? variationPrefs[normalizeExerciseKey(exercise.exercise)] : undefined;
 
   // Carrega a preferência de variação salva por exercício ao trocar de exercício
@@ -828,6 +834,7 @@ const TreinoExecucaoInner = () => {
     const cacheKey = normalizeExerciseKey(exercise.exercise);
     const localPref = loadVariationPref(user?.id, exercise.exercise);
     setShowingVariation(currentVariationPref ?? localPref);
+    setShowingVariationFor(cacheKey);
 
     if (!user || !matchedExercise?.id) return;
 
@@ -847,6 +854,7 @@ const TreinoExecucaoInner = () => {
           : localPref;
         setVariationPrefs((prev) => (prev[cacheKey] === backendPref ? prev : { ...prev, [cacheKey]: backendPref }));
         setShowingVariation(backendPref);
+        setShowingVariationFor(cacheKey);
       });
 
     return () => {
@@ -857,9 +865,10 @@ const TreinoExecucaoInner = () => {
   // Persiste a escolha sempre que mudar
   const toggleVariation = async () => {
     if (!exercise) return;
-    const next = !showingVariation;
+    const next = !effectiveShowingVariation;
     const cacheKey = normalizeExerciseKey(exercise.exercise);
     setShowingVariation(next);
+    setShowingVariationFor(cacheKey);
     setVariationPrefs((prev) => ({ ...prev, [cacheKey]: next }));
     saveVariationPref(user?.id, exercise.exercise, next);
 
@@ -886,6 +895,7 @@ const TreinoExecucaoInner = () => {
 
     if (error) {
       setShowingVariation(!next);
+      setShowingVariationFor(cacheKey);
       setVariationPrefs((prev) => ({ ...prev, [cacheKey]: !next }));
       saveVariationPref(user?.id, exercise.exercise, !next);
       toast.error('Não foi possível salvar a troca de exercício.');
@@ -1420,9 +1430,9 @@ const TreinoExecucaoInner = () => {
                 <button
                   type="button"
                   onClick={toggleVariation}
-                  className={`touch-manipulation rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider backdrop-blur transition-colors ${showingVariation ? 'bg-primary text-primary-foreground' : 'bg-background/80 text-foreground border border-border/50'}`}
+                  className={`touch-manipulation rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider backdrop-blur transition-colors ${effectiveShowingVariation ? 'bg-primary text-primary-foreground' : 'bg-background/80 text-foreground border border-border/50'}`}
                 >
-                  {showingVariation ? 'Original' : 'Variação'}
+                  {effectiveShowingVariation ? 'Original' : 'Variação'}
                 </button>
               )}
               {(hlsUrl || imageUrl) && (
@@ -1475,15 +1485,16 @@ const TreinoExecucaoInner = () => {
         const summary = isPerSet
           ? setPlan.map((set) => set.reps).filter(Boolean).join(' / ')
           : isComposed ? buildPlanSummary(setPlan) : null;
-        const chip = 'inline-flex items-center h-10 px-3 rounded text-base text-foreground bg-secondary/80';
+        const chip = 'inline-flex items-center h-8 px-2.5 rounded text-sm text-foreground bg-secondary/80 whitespace-nowrap shrink-0';
+        const pauseSecs = (() => { const m = String(exercise.pause ?? '').match(/(\d+)/); return m ? parseInt(m[1], 10) : null; })();
         return (
-          <div className="shrink-0 px-4 pt-2 flex items-center justify-center gap-2 flex-wrap" data-testid="prescription-chips">
+          <div className="shrink-0 px-4 pt-2 flex items-center justify-center gap-1.5 flex-nowrap overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="prescription-chips">
             {summary
               ? <span className={`${chip} font-semibold`}>{summary}</span>
               : isReal(exercise.series) && <span className={chip}>{exercise.series} séries</span>}
             {!summary && repsLabel && <span className={chip}>{repsLabel}</span>}
-            {rirLabel && <span className="inline-flex items-center h-10 px-3 rounded text-base text-primary bg-primary/10">{rirLabel}</span>}
-            {isReal(exercise.pause) && <span className={chip}>{exercise.pause} descanso</span>}
+            {rirLabel && <span className="inline-flex items-center h-8 px-2.5 rounded text-sm text-primary bg-primary/10 whitespace-nowrap shrink-0">{rirLabel}</span>}
+            {pauseSecs != null && <span className={chip}><Timer className="h-3.5 w-3.5 mr-1" />{pauseSecs}s</span>}
             {(exercise as { method?: { slug: string; params?: Record<string, string | number> } }).method?.slug && (
               <MethodBadge
                 method={(exercise as { method?: { slug: string; params?: Record<string, string | number> } }).method}
@@ -1539,7 +1550,7 @@ const TreinoExecucaoInner = () => {
         </div>
 
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3" data-testid="workout-set-list">
+      <div className="px-4 pb-3" data-testid="workout-set-list">
         <div className="space-y-2">
           <div className="grid grid-cols-[32px_1fr_1fr_44px] gap-1.5 px-2">
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Série</span>
@@ -1564,12 +1575,12 @@ const TreinoExecucaoInner = () => {
                   </div>
                   <div className="flex items-center gap-0.5 min-w-0">
                     <button type="button" aria-label={`Série ${i + 1} diminuir carga`} disabled={set.completed} onClick={() => stepSetValue(i, 'weight', -2.5)} className="h-11 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/60 disabled:opacity-30 text-xs font-bold touch-manipulation">−</button>
-                    <Input ref={(el) => { setWeightRefs.current[i] = el; }} type="text" inputMode="decimal" value={set.weight} onChange={(e) => updateSet(i, 'weight', e.target.value)} placeholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation)} className="h-11 text-center bg-background/50 border-border/50 min-w-0 px-1" disabled={set.completed} />
+                    <Input ref={(el) => { setWeightRefs.current[i] = el; }} type="text" inputMode="decimal" value={set.weight} onChange={(e) => updateSet(i, 'weight', e.target.value)} onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })} placeholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation)} className="h-11 text-center bg-background/50 border-border/50 min-w-0 px-1" disabled={set.completed} />
                     <button type="button" aria-label={`Série ${i + 1} aumentar carga`} disabled={set.completed} onClick={() => stepSetValue(i, 'weight', 2.5)} className="h-11 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/60 disabled:opacity-30 text-xs font-bold touch-manipulation">+</button>
                   </div>
                   <div className="flex items-center gap-0.5 min-w-0">
                     <button type="button" aria-label={`Série ${i + 1} diminuir reps`} disabled={set.completed} onClick={() => stepSetValue(i, 'reps', -1)} className="h-11 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/60 disabled:opacity-30 text-xs font-bold touch-manipulation">−</button>
-                    <Input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} placeholder={repsPlaceholder} className="h-11 text-center bg-background/50 border-border/50 min-w-0 px-1" disabled={set.completed} />
+                    <Input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })} placeholder={repsPlaceholder} className="h-11 text-center bg-background/50 border-border/50 min-w-0 px-1" disabled={set.completed} />
                     <button type="button" aria-label={`Série ${i + 1} aumentar reps`} disabled={set.completed} onClick={() => stepSetValue(i, 'reps', 1)} className="h-11 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/60 disabled:opacity-30 text-xs font-bold touch-manipulation">+</button>
                   </div>
                   <Button size="icon" aria-label={`Confirmar série ${i + 1}`} variant={set.completed ? 'default' : 'outline'} className={`h-11 w-11 mx-auto rounded-full ${isNextPending ? 'animate-pulse-glow' : ''}`} onClick={() => toggleSetComplete(i)}>
@@ -1649,16 +1660,17 @@ const TreinoExecucaoInner = () => {
         </DialogContent>
       </Dialog>
 
-      <div className="student-workout-footer shrink-0 z-50 bg-background/95 backdrop-blur border-t border-border p-3" data-testid="workout-footer">
-        <div className="flex items-center justify-between gap-3">
-          <Button variant="outline" className="flex-1" onClick={() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); setCurrentIndex(blocks[Math.max(0, i - 1)].indices[0]); }} disabled={exerciseBlocks(exercises)[0]?.indices.includes(currentIndex)}>
-            <ChevronLeft className="h-4 w-4 mr-1" />
+      <div className="student-workout-footer shrink-0 z-50 bg-background/95 backdrop-blur border-t border-border px-3 pt-2" data-testid="workout-footer">
+        <div className="flex items-center justify-between gap-2">
+          <Button variant="outline" className="flex-1 h-11 whitespace-nowrap" onClick={() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); setCurrentIndex(blocks[Math.max(0, i - 1)].indices[0]); }} disabled={exerciseBlocks(exercises)[0]?.indices.includes(currentIndex)}>
+            <ChevronLeft className="h-4 w-4 mr-1 shrink-0" />
             Anterior
           </Button>
           {!exerciseBlocks(exercises).at(-1)?.indices.includes(currentIndex) ? (
-            <Button className="flex-1 flex-col h-auto py-1.5 gap-0" onClick={() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); setCurrentIndex(blocks[Math.min(blocks.length - 1, i + 1)].indices[0]); }}>
-              <span className="flex items-center">Próximo<ChevronRight className="h-4 w-4 ml-1" /></span>
-              <span className="text-[10px] font-normal opacity-80 truncate max-w-full">{(() => {
+            <Button className="flex-[2] h-11 min-w-0" onClick={() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); setCurrentIndex(blocks[Math.min(blocks.length - 1, i + 1)].indices[0]); }}>
+              <span className="flex items-center min-w-0 gap-0.5">
+                <span className="shrink-0">Próximo:</span>
+                <span className="truncate font-normal opacity-90">{(() => {
                 // Dentro de um grupo, "Próximo" mostra o que vem de fato:
                 // na aba A → B; na aba B → A na série seguinte (ou o exercício depois do grupo).
                 if (groupFlow.indices.length === 2) {
@@ -1676,9 +1688,11 @@ const TreinoExecucaoInner = () => {
                 const next = blocks[Math.min(blocks.length - 1, i + 1)];
                 return exercises[next.indices[0]]?.exercise ?? '';
               })()}</span>
+                <ChevronRight className="h-4 w-4 ml-0.5 shrink-0" />
+              </span>
             </Button>
           ) : (
-            <Button className="flex-1" disabled={isFinishing} onClick={() => setShowSessionRpe(true)}>
+            <Button className="flex-[2] h-11" disabled={isFinishing} onClick={() => setShowSessionRpe(true)}>
               Finalizar
               <Check className="h-4 w-4 ml-1" />
             </Button>

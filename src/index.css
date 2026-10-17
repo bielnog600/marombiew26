@@ -151,7 +151,8 @@
     height: auto;
     min-height: 0;
     box-sizing: border-box;
-    overflow: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     padding-bottom: 0;
     padding-top: env(safe-area-inset-top, 0px);
     padding-left: env(safe-area-inset-left, 0px);
@@ -164,8 +165,10 @@
     .student-workout-media { height: clamp(220px, 32dvh, 360px); }
   }
   .student-workout-footer {
+    position: sticky;
+    bottom: 0;
     margin-top: auto;
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4px);
   }
   @keyframes splash-logo-in {
     0% { opacity: 0; transform: scale(0.6); }
