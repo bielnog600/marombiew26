@@ -230,6 +230,8 @@ const TreinoExecucaoInner = () => {
   const hlsRef = useRef<Hls | null>(null);
   const zoomVideoRef = useRef<HTMLVideoElement | null>(null);
   const zoomHlsRef = useRef<Hls | null>(null);
+  /** Refs dos campos de carga por série — para focar a próxima ao confirmar. */
+  const setWeightRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
   // Mantém a tela ligada durante o treino (Screen Wake Lock; fallback silencioso).
   useEffect(() => {
