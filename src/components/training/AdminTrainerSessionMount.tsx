@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAdminTrainerSessionOptional } from '@/contexts/AdminTrainerSessionContext';
 import { supabase } from '@/integrations/supabase/client';
 import { parseTrainingSections } from '@/lib/trainingResultParser';
+import { sortTrainingDays } from '@/lib/trainingDayOrder';
 import { normalizeWorkoutPlan, workoutPlanToParsedDays } from '@/lib/workoutSchema';
 import TrainerLogSheet from './TrainerLogSheet';
 import DuoTrainerLogSheet from './DuoTrainerLogSheet';

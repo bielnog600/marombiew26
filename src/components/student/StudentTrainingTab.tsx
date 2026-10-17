@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import TrainingResultCards from '@/components/TrainingResultCards';
 import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
+import { sortTrainingDays } from '@/lib/trainingDayOrder';
 import { rebuildTrainingMarkdown } from '@/lib/trainingResultParser';
 import { saveWorkoutPlanFromMarkdown, saveWorkoutPlanJSON } from '@/lib/workoutPlanRepo';
 import {
@@ -136,7 +137,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   }, [studentId]);
 
   const todayDayName = (plan: any): string | null => {
-    const days = parseTrainingSections(plan?.conteudo || '').flatMap((s) => s.days || []);
+    const days = sortTrainingDays(parseTrainingSections(plan?.conteudo || '').flatMap((s) => s.days || []));
     const weekdays = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
     const today = weekdays[new Date().getDay()];
     const found = days.find((d) => d.day.toLowerCase().includes(today));
@@ -400,7 +401,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
 
           const currentDays: ParsedTrainingDay[] = planV2
             ? workoutPlanToParsedDays(planV2)
-            : parseTrainingSections(currentMarkdown || '').flatMap(s => s.days || []);
+            : sortTrainingDays(parseTrainingSections(currentMarkdown || '').flatMap(s => s.days || []));
 
 
           return (
@@ -746,7 +747,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
               const v2 = row ? getCurrentPlanV2(row) : null;
               return v2
                 ? workoutPlanToParsedDays(v2)
-                : parseTrainingSections(row?.conteudo || '').flatMap(s => s.days || []);
+                : sortTrainingDays(parseTrainingSections(row?.conteudo || '').flatMap(s => s.days || []));
             })()}
             studentId={studentId}
             onApply={(updatedDays) => {

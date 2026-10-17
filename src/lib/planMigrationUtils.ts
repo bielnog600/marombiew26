@@ -1,5 +1,6 @@
 import { Json } from "@/integrations/supabase/types";
 import { ParsedTrainingDay, parseTrainingSections } from "./trainingResultParser";
+import { sortTrainingDays } from "./trainingDayOrder";
 import {
   normalizeWorkoutPlan,
   parsedDaysToWorkoutPlan,
