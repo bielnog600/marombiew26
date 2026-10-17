@@ -1,3 +1,6 @@
+import { MethodExerciseCard } from './MethodExerciseCard';
+import { exerciseBlocks, seriesMethod, methodLogFields, type MethodSetEntry } from '@/lib/workoutExecutionMethods';
+import type { GroupPause } from '@/hooks/useWorkoutGroupFlow';
 import React, { useEffect, useState, useMemo } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -109,7 +112,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
   useEffect(() => {
     if (!open) return;
     (async () => {
-      const { data } = await supabase.from('exercises').select('id, nome, grupo_muscular, imagem_url').order('nome');
+      const { data } = await supabase.from('exercises').select('id, nome, grupo_muscular, imagem_url, video_embed').order('nome');
       if (data) setExercisesList(data);
       
       const { data: students } = await supabase
@@ -277,7 +280,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
       const initial: Record<number, any> = {};
       
       day.exercises.forEach((ex, i) => {
-        const setPlan = buildSetPlan(ex.series, ex.series2, ex.reps);
+        const setPlan = buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme);
         initial[i] = {
           sets: setPlan.map(() => ({ weight: '', reps: '' })),
           plan: setPlan,
@@ -291,7 +294,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
         };
       });
 
-      const draft = loadDraft(st.studentId, day.day, daySignature);
+      const draft = active?.sessionState?.methodExecution?.[st.studentId]?.[day.day] ?? loadDraft(st.studentId, day.day, daySignature);
       if (draft) {
         Object.keys(initial).forEach((k) => {
           const idx = Number(k);
@@ -348,6 +351,40 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
       return { ...prev, state: nextState };
     });
   };
+
+  const changeMethodSet = (slot: 'A' | 'B', exIdx: number, setIdx: number, entry: MethodSetEntry) => {
+    const setFn = slot === 'A' ? setStudentA : setStudentB;
+    setFn(prev => {
+      if (!prev) return prev;
+      const current = prev.state[exIdx];
+      const next = { ...prev.state, [exIdx]: { ...current, sets: current.sets.map((set: MethodSetEntry, i: number) => i === setIdx ? entry : set), savedSets: current.sets.filter((set: MethodSetEntry, i: number) => i === setIdx ? entry.completed : set.completed).length } };
+      saveDraft(prev.studentId, prev.days[prev.activeDayIdx].day, makeDaySignature(prev.days[prev.activeDayIdx]), next);
+      return { ...prev, state: next };
+    });
+  };
+  const saveMethodSet = async (slot: 'A' | 'B', exIdx: number, setIdx: number, entry: MethodSetEntry) => {
+    changeMethodSet(slot, exIdx, setIdx, entry);
+    const st = slot === 'A' ? studentA : studentB;
+    if (!st || !sessionId) return;
+    const day = st.days[st.activeDayIdx], ex = day.exercises[exIdx];
+    const { writeWithFallback } = await import('@/lib/offlineQueue');
+    await writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: {
+      ...methodLogFields(ex, entry), student_id: st.studentId, session_id: sessionId,
+      exercise_name: normalizeExName(ex.exercise), set_number: setIdx + 1,
+      weight_kg: Number(entry.weight.replace(',', '.')) || null, reps: Number(entry.reps) || null,
+      set_type: st.state[exIdx]?.plan[setIdx]?.kind === 'recon' ? 'recognition' : 'work', day_name: day.day,
+      phase: st.phase ?? null, source: 'admin', performed_at: new Date().toISOString(),
+    } });
+  };
+  useEffect(() => {
+    for (const st of [studentA, studentB]) {
+      const day = st?.days[st.activeDayIdx];
+      if (!st || !day || st.loading || !day.exercises.some(ex => ex.grupo_id || seriesMethod(ex) !== 'nenhum')) continue;
+      const form = { sets: Object.fromEntries(Object.entries(st.state).map(([i, ex]) => [i, ex.sets])), savedSets: Object.fromEntries(Object.entries(st.state).map(([i, ex]) => [i, ex.savedSets])) };
+      patchSessionState((prev: any) => ({ ...prev, methodExecution: { ...prev.methodExecution, [st.studentId]: { ...prev.methodExecution?.[st.studentId], [day.day]: form } } }));
+    }
+  }, [studentA?.state, studentB?.state, patchSessionState]);
+  const saveMethodPause = (studentId: string, blockId: string, pause: GroupPause | null) => patchSessionState((prev: any) => ({ ...prev, methodPauses: { ...prev.methodPauses, [studentId]: { ...prev.methodPauses?.[studentId], [blockId]: pause } } }));
 
   const updateNotes = (slot: 'A' | 'B', exIdx: number, value: string) => {
     const setFn = slot === 'A' ? setStudentA : setStudentB;
@@ -763,7 +800,11 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                       <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleReorderEnd('A')}>
                         <SortableContext items={studentA.uids || []} strategy={verticalListSortingStrategy}>
                           <div className="space-y-3">
-                            {studentA.days[studentA.activeDayIdx].exercises.map((ex, i) => (studentA.uids?.[i] ? (
+                            {exerciseBlocks(studentA.days[studentA.activeDayIdx].exercises).map(block => {
+                              const i = block.indices[0], ex = studentA.days[studentA.activeDayIdx].exercises[i];
+                              if (!studentA.uids?.[i]) return null;
+                              if (block.indices.length === 2 || seriesMethod(ex) !== 'nenhum') return <MethodExerciseCard key={block.id} exercises={studentA.days[studentA.activeDayIdx].exercises} indices={block.indices} sets={Object.fromEntries(Object.entries(studentA.state).map(([i, st]) => [i, st.sets]))} onChange={(idx, setIdx, entry) => changeMethodSet('A', idx, setIdx, entry)} onComplete={(idx, setIdx, entry) => saveMethodSet('A', idx, setIdx, entry)} media={exercisesList} snapshot={snapshotA} studentId={studentA.studentId} savedPause={active?.sessionState?.methodPauses?.[studentA.studentId]?.[block.id]} onPauseChange={pause => saveMethodPause(studentA.studentId, block.id, pause)} />;
+                              return (
                               <SortableExerciseRow key={studentA.uids[i]} id={studentA.uids[i]} position={i + 1}>
                                 <ExerciseLogCard
                                   exIdx={i}
@@ -792,7 +833,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                                   progressionSnapshot={snapshotA}
                                 />
                               </SortableExerciseRow>
-                            ) : null))}
+                            ); })}
                           </div>
                         </SortableContext>
                       </DndContext>
@@ -863,7 +904,11 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                       <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleReorderEnd('B')}>
                         <SortableContext items={studentB.uids || []} strategy={verticalListSortingStrategy}>
                           <div className="space-y-3">
-                            {studentB.days[studentB.activeDayIdx].exercises.map((ex, i) => (studentB.uids?.[i] ? (
+                            {exerciseBlocks(studentB.days[studentB.activeDayIdx].exercises).map(block => {
+                              const i = block.indices[0], ex = studentB.days[studentB.activeDayIdx].exercises[i];
+                              if (!studentB.uids?.[i]) return null;
+                              if (block.indices.length === 2 || seriesMethod(ex) !== 'nenhum') return <MethodExerciseCard key={block.id} exercises={studentB.days[studentB.activeDayIdx].exercises} indices={block.indices} sets={Object.fromEntries(Object.entries(studentB.state).map(([i, st]) => [i, st.sets]))} onChange={(idx, setIdx, entry) => changeMethodSet('B', idx, setIdx, entry)} onComplete={(idx, setIdx, entry) => saveMethodSet('B', idx, setIdx, entry)} media={exercisesList} snapshot={snapshotB} studentId={studentB.studentId} savedPause={active?.sessionState?.methodPauses?.[studentB.studentId]?.[block.id]} onPauseChange={pause => saveMethodPause(studentB.studentId, block.id, pause)} />;
+                              return (
                               <SortableExerciseRow key={studentB.uids[i]} id={studentB.uids[i]} position={i + 1}>
                                 <ExerciseLogCard
                                   exIdx={i}
@@ -892,7 +937,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                                   progressionSnapshot={snapshotB}
                                 />
                               </SortableExerciseRow>
-                            ) : null))}
+                            ); })}
                           </div>
                         </SortableContext>
                       </DndContext>
