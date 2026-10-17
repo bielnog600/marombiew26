@@ -1406,13 +1406,13 @@ const TreinoExecucaoInner = () => {
           <span className="bg-background/80 backdrop-blur rounded-full px-3 py-1 text-xs font-medium text-foreground">{(() => { const blocks = exerciseBlocks(exercises); const bi = blocks.findIndex(b => b.indices.includes(currentIndex)); return `${bi + 1}/${blocks.length}`; })()}</span>
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 p-4 z-30">
+        <div className="absolute bottom-0 left-0 right-0 p-3 z-30">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <p className="text-[10px] uppercase tracking-widest text-primary font-semibold" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{activeExercise?.grupo_muscular || dayName}</p>
               </div>
-              <h1 className="text-xl font-bold text-foreground leading-tight" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}>{selectedExerciseName}</h1>
+              <h1 className="text-lg font-bold text-foreground leading-tight line-clamp-1" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}>{selectedExerciseName}</h1>
               {exercise.description && (
                 <button
                   type="button"
@@ -1420,7 +1420,7 @@ const TreinoExecucaoInner = () => {
                   className="mt-1 text-left"
                   aria-label="Ver descrição completa"
                 >
-                  <span className="text-xs text-foreground/85 leading-snug line-clamp-2" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{exercise.description.trim()}</span>
+                  <span className="text-xs text-foreground/85 leading-snug line-clamp-1" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{exercise.description.trim()}</span>
                   <span className="text-xs text-primary font-semibold">Ver mais</span>
                 </button>
               )}
