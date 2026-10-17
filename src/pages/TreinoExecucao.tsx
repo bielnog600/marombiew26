@@ -1245,7 +1245,7 @@ const TreinoExecucaoInner = () => {
     <div className="student-workout-screen bg-background flex flex-col" data-testid="student-workout-screen">
       {sessionDialogs}
       {/* Barra de progresso fina: exercícios/grupos concluídos. */}
-      <div className="shrink-0 h-0.5 bg-secondary/60" data-testid="workout-progress">
+      <div className="relative z-30 shrink-0 h-0.5 bg-secondary/60" data-testid="workout-progress">
         <div className="h-full bg-primary transition-[width] duration-300" style={{ width: `${workoutBlocks.length ? (completedBlocks / workoutBlocks.length) * 100 : 0}%` }} />
       </div>
       {zoomOpen && (
