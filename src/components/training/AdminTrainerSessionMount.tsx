@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAdminTrainerSessionOptional } from '@/contexts/AdminTrainerSessionContext';
 import { supabase } from '@/integrations/supabase/client';
 import { parseTrainingSections } from '@/lib/trainingResultParser';
+import { sortTrainingDays } from '@/lib/trainingDayOrder';
 import { normalizeWorkoutPlan, workoutPlanToParsedDays } from '@/lib/workoutSchema';
 import TrainerLogSheet from './TrainerLogSheet';
 import DuoTrainerLogSheet from './DuoTrainerLogSheet';
@@ -36,7 +37,7 @@ const AdminTrainerSessionMount: React.FC = () => {
     if (!plan) return [];
     const json = normalizeWorkoutPlan(plan.conteudo_json);
     if (json && json.days.length > 0) return workoutPlanToParsedDays(json);
-    return parseTrainingSections(plan.conteudo || '').flatMap((s) => s.days || []);
+    return sortTrainingDays(parseTrainingSections(plan.conteudo || '').flatMap((s) => s.days || []));
   }, [plan]);
 
   if (!active) return null;

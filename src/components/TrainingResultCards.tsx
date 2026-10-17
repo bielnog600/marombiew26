@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import TrainingDayCard from '@/components/training/TrainingDayCard';
 import { parseTrainingSections, rebuildTrainingMarkdown, type ParsedTrainingDay } from '@/lib/trainingResultParser';
+import { sortTrainingDays } from '@/lib/trainingDayOrder';
 import { workoutPlanToParsedDays, type WorkoutPlan } from '@/lib/workoutSchema';
 import { applyParsedDayToPlan } from '@/lib/workoutPlanEdit';
 
@@ -79,11 +80,10 @@ const TrainingResultCards: React.FC<TrainingResultCardsProps> = ({
   const rendered: React.ReactNode[] = [];
   let messageGroup: string[] = [];
 
-  // Collect all days for rebuild
-  const allDays: ParsedTrainingDay[] = [];
-  for (const s of sections) {
-    if (s.type === 'training' && s.days) allDays.push(...s.days);
-  }
+  // Collect all days for rebuild (sempre na ordem canônica da semana)
+  const allDays: ParsedTrainingDay[] = sortTrainingDays(
+    sections.flatMap((s) => (s.type === 'training' && s.days ? s.days : [])),
+  );
 
   const uniqueDayList = Array.from(new Set(allDays.map((d) => d.day)));
   const [selectedDay, setSelectedDay] = useState<string>(uniqueDayList[0] || '');

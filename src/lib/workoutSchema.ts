@@ -3,6 +3,7 @@ import type { ParsedTrainingDay, ParsedExercise } from "./trainingResultParser";
 import { normalizeWorkoutMethod } from "./trainingMethods";
 import { executionFields } from './workoutExecutionFields';
 import { validateGroups } from './workoutExecutionMethods';
+import { sortTrainingDays } from './trainingDayOrder';
 
 /**
  * Workout plan v2 — JSON-first source of truth.
@@ -228,7 +229,8 @@ export const parsedDaysToWorkoutPlan = (
   version: WORKOUT_PLAN_VERSION,
   type: "workout",
   metadata: { ...metadata },
-  days: days.map((d) => ({
+  // Dias gravados já na ordem da semana (SEG→DOM, depois TREINO A…E).
+  days: sortTrainingDays(days).map((d) => ({
     id: newId("day"),
     day: d.day,
     focus: "",
@@ -255,7 +257,8 @@ export const parsedDaysToWorkoutPlan = (
 
 /** Back-compat: project a v2 plan to the legacy ParsedTrainingDay[] shape. */
 export const workoutPlanToParsedDays = (plan: WorkoutPlan): ParsedTrainingDay[] =>
-  plan.days.map((d): ParsedTrainingDay => ({
+  // Ordena na leitura: planos antigos salvos fora de ordem ficam certos sem migração.
+  sortTrainingDays(plan.days).map((d): ParsedTrainingDay => ({
     id: d.id,
     day: String(d.day),
     exercises: d.exercises.map((e): ParsedExercise => ({
