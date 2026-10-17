@@ -34,6 +34,8 @@ import { SessionRpeDialog } from '@/components/training/SessionRpeDialog';
 import ExerciseVideoCapture from '@/components/training/ExerciseVideoCapture';
 import { Settings2, Info, BarChart3, Timer, Camera, Maximize2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { methodExplanation } from '@/lib/workoutExecutionMethods';
 import { fetchWithCache, getCached, setCache } from '@/lib/offlineCache';
 import { useRestTimer } from '@/hooks/useRestTimer';
 import { useSessionProgression } from '@/hooks/useSessionProgression';
@@ -130,54 +132,33 @@ const extractStreamVideoId = (embed: string | null | undefined): string | null =
   return null;
 };
 
-const RestTimerOverlay = ({ timeLeft, totalSeconds, onClose }: { timeLeft: number; totalSeconds: number; onClose: () => void }) => {
+/** Card flutuante compacto de descanso: tempo restante, +15s e Pular. Vibra ao zerar. */
+const RestTimerOverlay = ({ timeLeft, totalSeconds, onClose, onAddTime }: { timeLeft: number; totalSeconds: number; onClose: () => void; onAddTime: (secs: number) => void }) => {
   useEffect(() => {
     if (timeLeft === 0 && navigator.vibrate) navigator.vibrate([200, 100, 200]);
   }, [timeLeft]);
 
-  const radius = 54;
-  const circumference = 2 * Math.PI * radius;
   const safeTime = Math.max(timeLeft, 0);
-  const dashOffset = circumference * (1 - safeTime / totalSeconds);
   const mins = Math.floor(Math.abs(timeLeft) / 60);
   const secs = Math.abs(timeLeft) % 60;
+  const progress = totalSeconds > 0 ? Math.min(1, Math.max(0, safeTime / totalSeconds)) : 0;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-background/70 backdrop-blur-xl flex flex-col items-center justify-center animate-fade-in">
-      <button onClick={onClose} className="absolute z-[110] h-12 w-12 rounded-full bg-destructive flex items-center justify-center shadow-lg"
-        style={{ top: 'calc(env(safe-area-inset-top, 16px) + 8px)', right: '16px' }}>
-        <X className="h-6 w-6 text-destructive-foreground" />
-      </button>
-
-      <p className="text-sm uppercase tracking-widest text-muted-foreground mb-8 font-semibold">Descanso</p>
-
-      <div className="relative w-48 h-48">
-        <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
-          <circle cx="60" cy="60" r={radius} fill="none" stroke="hsl(var(--secondary))" strokeWidth="6" />
-          <circle
-            cx="60"
-            cy="60"
-            r={radius}
-            fill="none"
-            stroke="hsl(var(--primary))"
-            strokeWidth="6"
-            strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={dashOffset}
-            className="transition-[stroke-dashoffset] duration-1000 ease-linear"
-          />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={`text-5xl font-mono font-bold tabular-nums ${timeLeft < 0 ? 'text-destructive' : 'text-foreground'}`}>
+    <div className="fixed left-1/2 -translate-x-1/2 z-[100] w-[calc(100%-2rem)] max-w-sm animate-fade-in" style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 84px)' }} data-testid="rest-timer-card">
+      <div className="rounded-xl border border-primary/40 bg-card/95 backdrop-blur shadow-xl p-3 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">Descanso</span>
+          <span className={`text-2xl font-mono font-bold tabular-nums ${timeLeft < 0 ? 'text-destructive' : 'text-primary'}`}>
             {timeLeft < 0 ? '+' : ''}{mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
           </span>
         </div>
-      </div>
-
-      <div className="flex items-center gap-4 mt-10">
-        <Button size="lg" className="rounded-full h-14 px-8 bg-primary text-primary-foreground font-bold" onClick={onClose}>
-          Continuar
-        </Button>
+        <div className="h-1 rounded-full bg-secondary overflow-hidden">
+          <div className="h-full bg-primary transition-[width] duration-200 ease-linear" style={{ width: `${progress * 100}%` }} />
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="flex-1 h-9" onClick={() => onAddTime(15)}>+15s</Button>
+          <Button variant="ghost" size="sm" className="flex-1 h-9" onClick={onClose}>Pular</Button>
+        </div>
       </div>
     </div>
   );
