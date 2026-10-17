@@ -1443,10 +1443,10 @@ const TreinoExecucaoInner = () => {
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3" data-testid="workout-set-list">
         <div className="space-y-2">
-          <div className="grid grid-cols-[36px_1fr_1fr_44px] gap-1.5 px-2">
+          <div className="grid grid-cols-[32px_1fr_1fr_44px] gap-1.5 px-2">
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Série</span>
+            <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Carga (kg)</span>
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Reps</span>
-            <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">Carga</span>
             <span className="text-[10px] uppercase text-muted-foreground font-semibold text-center">✓</span>
           </div>
           {(() => {
@@ -1456,16 +1456,25 @@ const TreinoExecucaoInner = () => {
             const isRecognition = planned?.type === 'recognition';
             if (groupFlow.indices.length === 2 || methodOnSet(exercise, i, currentSets.length, isRecognition)) return <MethodSetRows key={i} exercise={exercise} set={set} index={i} count={currentSets.length} recognition={isRecognition} disabled={!!groupFlow.pause || (groupFlow.indices.length === 2 && !set.completed && groupFlow.indices.some(idx => sets[idx]?.slice(0, i).some(prior => !prior.completed)))} targetReps={planned?.reps} weightPlaceholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation)} onChange={entry => changeMethodSet(i, entry)} onComplete={entry => completeMethodSet(i, entry)} />;
             const isNextPending = i === nextPendingIndex;
+            const repsPlaceholder = planned?.reps || String(previousSets.find((row) => row.set_number === i + 1)?.reps ?? '') || '10';
             return (
               <div key={i} className={`rounded-lg transition-colors ${set.completed ? 'bg-primary/10 border border-primary/30' : isRecognition ? 'bg-accent/10 border border-accent/30' : 'bg-secondary/50'}`}>
-                <div className="grid grid-cols-[36px_1fr_1fr_44px] gap-1.5 items-center p-2">
+                <div className="grid grid-cols-[32px_1fr_1fr_44px] gap-1.5 items-center p-2">
                   <div className="flex flex-col items-center justify-center">
                     <span className="text-sm font-bold text-center text-foreground leading-none">{i + 1}</span>
                     {isRecognition && <span className="text-[8px] uppercase tracking-wider text-accent font-semibold mt-0.5">Rec</span>}
                   </div>
-                  <Input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} placeholder={planned?.reps || '10'} className="h-9 text-center bg-background/50 border-border/50" disabled={set.completed} />
-                  <StudentWeightInput setNumber={i + 1} value={set.weight} onChange={(value) => updateSet(i, 'weight', value)} placeholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation)} disabled={set.completed} />
-                  <Button size="icon" aria-label={`Confirmar série ${i + 1}`} variant={set.completed ? 'default' : 'outline'} className={`h-9 w-9 mx-auto rounded-full ${isNextPending ? 'animate-pulse-glow' : ''}`} onClick={() => toggleSetComplete(i)}>
+                  <div className="flex items-center gap-0.5 min-w-0">
+                    <button type="button" aria-label={`Série ${i + 1} diminuir carga`} disabled={set.completed} onClick={() => stepSetValue(i, 'weight', -2.5)} className="h-11 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/60 disabled:opacity-30 text-xs font-bold touch-manipulation">−</button>
+                    <Input ref={(el) => { setWeightRefs.current[i] = el; }} type="text" inputMode="decimal" value={set.weight} onChange={(e) => updateSet(i, 'weight', e.target.value)} placeholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation)} className="h-11 text-center bg-background/50 border-border/50 min-w-0 px-1" disabled={set.completed} />
+                    <button type="button" aria-label={`Série ${i + 1} aumentar carga`} disabled={set.completed} onClick={() => stepSetValue(i, 'weight', 2.5)} className="h-11 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/60 disabled:opacity-30 text-xs font-bold touch-manipulation">+</button>
+                  </div>
+                  <div className="flex items-center gap-0.5 min-w-0">
+                    <button type="button" aria-label={`Série ${i + 1} diminuir reps`} disabled={set.completed} onClick={() => stepSetValue(i, 'reps', -1)} className="h-11 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/60 disabled:opacity-30 text-xs font-bold touch-manipulation">−</button>
+                    <Input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} placeholder={repsPlaceholder} className="h-11 text-center bg-background/50 border-border/50 min-w-0 px-1" disabled={set.completed} />
+                    <button type="button" aria-label={`Série ${i + 1} aumentar reps`} disabled={set.completed} onClick={() => stepSetValue(i, 'reps', 1)} className="h-11 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/60 disabled:opacity-30 text-xs font-bold touch-manipulation">+</button>
+                  </div>
+                  <Button size="icon" aria-label={`Confirmar série ${i + 1}`} variant={set.completed ? 'default' : 'outline'} className={`h-11 w-11 mx-auto rounded-full ${isNextPending ? 'animate-pulse-glow' : ''}`} onClick={() => toggleSetComplete(i)}>
                     <Check className="h-4 w-4" />
                   </Button>
                 </div>
