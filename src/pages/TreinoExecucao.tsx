@@ -45,6 +45,8 @@ import { getRecommendationFor, type ProgressionSnapshot } from '@/lib/sessionPro
 import { StudentLoadSummaryCard } from '@/components/training/StudentLoadSummaryCard';
 import { lastWorkSetLine, studentSuggestionLine, studentWeightPlaceholder, type PreviousExerciseSet } from '@/lib/studentExerciseLoadPresentation';
 import MethodBadge from '@/components/training/MethodBadge';
+import { variationPrefKey, backendVariationPref } from '@/lib/exerciseVariationPref';
+import { WorkoutViewportDebug } from '@/components/training/WorkoutViewportDebug';
 import { parsePauseSeconds } from '@/components/training/TrainerLogSheetUtils';
 
 
@@ -60,26 +62,27 @@ const VARIATION_PREF_KEY = 'mw_exercise_variation_pref';
 const VARIATION_PREF_FIELD = '__preferred_variation';
 
 const normalizeExerciseKey = (exerciseName: string) => exerciseName.toUpperCase().trim();
+const VARIATION_NAME_FIELD = '__preferred_variation_name';
 
-const loadVariationPref = (userId: string | undefined, exerciseName: string): boolean => {
-  if (!userId || !exerciseName) return false;
+const loadVariationPref = (userId: string | undefined, prefKey: string): boolean => {
+  if (!userId || !prefKey) return false;
   try {
     const raw = localStorage.getItem(`${VARIATION_PREF_KEY}:${userId}`);
     if (!raw) return false;
     const map = JSON.parse(raw) as Record<string, boolean>;
-    return !!map[normalizeExerciseKey(exerciseName)];
+    return map[prefKey] === true;
   } catch {
     return false;
   }
 };
 
-const saveVariationPref = (userId: string | undefined, exerciseName: string, value: boolean) => {
-  if (!userId || !exerciseName) return;
+const saveVariationPref = (userId: string | undefined, prefKey: string, value: boolean) => {
+  if (!userId || !prefKey) return;
   try {
     const key = `${VARIATION_PREF_KEY}:${userId}`;
     const raw = localStorage.getItem(key);
     const map = raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
-    map[normalizeExerciseKey(exerciseName)] = value;
+    map[prefKey] = value;
     localStorage.setItem(key, JSON.stringify(map));
   } catch {
     /* ignore */
@@ -201,37 +204,15 @@ const TreinoExecucaoInner = () => {
   const [lastLogsByExercise, setLastLogsByExercise] = useState<Record<string, PreviousExerciseSet[]>>({});
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   useEffect(() => {
+    // Classe no <html> e no <body>: o CSS ajusta html/body/#root só nesta tela.
+    document.documentElement.classList.add('student-workout-open');
     document.body.classList.add('student-workout-open');
-    return () => document.body.classList.remove('student-workout-open');
-  }, []);
-
-  // --app-h: altura real da tela. No PWA instalado (standalone iOS) a viewport
-  // de layout desconta a status bar, então usamos screen.height quando maior.
-  useEffect(() => {
-    const isStandalone =
-      window.matchMedia?.('(display-mode: standalone)').matches ||
-      (navigator as unknown as { standalone?: boolean }).standalone === true;
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-    const updateAppHeight = () => {
-      let h = window.visualViewport?.height ?? window.innerHeight;
-      if (isStandalone && isIOS && window.screen.height > h) {
-        h = window.screen.height;
-      }
-      document.documentElement.style.setProperty('--app-h', `${Math.round(h)}px`);
-    };
-
-    updateAppHeight();
-    window.addEventListener('resize', updateAppHeight);
-    window.addEventListener('orientationchange', updateAppHeight);
-    window.visualViewport?.addEventListener('resize', updateAppHeight);
     return () => {
-      window.removeEventListener('resize', updateAppHeight);
-      window.removeEventListener('orientationchange', updateAppHeight);
-      window.visualViewport?.removeEventListener('resize', updateAppHeight);
-      document.documentElement.style.removeProperty('--app-h');
+      document.documentElement.classList.remove('student-workout-open');
+      document.body.classList.remove('student-workout-open');
     };
   }, []);
+  const debugViewport = useMemo(() => new URLSearchParams(window.location.search).get('debug') === '1', []);
   const [loadedLogsForIndex, setLoadedLogsForIndex] = useState<Set<number>>(new Set());
   const [exerciseDB, setExerciseDB] = useState<ExerciseDBData[]>([]);
   const { restTimer, startTimer: startRestTimer, stopTimer: stopRestTimer, adjustTimer: adjustRestTimer } = useRestTimer();
@@ -829,7 +810,7 @@ const TreinoExecucaoInner = () => {
   }, [exercise, exerciseDB, exerciseMedia]);
 
   const matchedVariation = useMemo(() => {
-    if (!exercise?.variation || !showingVariation || showingVariationFor !== normalizeExerciseKey(exercise.exercise)) return null;
+    if (!exercise?.variation || !showingVariation || showingVariationFor !== variationPrefKey(exercise)) return null;
     const name = exercise.variation.toUpperCase().trim();
 
     if (exerciseMedia[name]) {
@@ -860,13 +841,18 @@ const TreinoExecucaoInner = () => {
   const effectiveShowingVariation = !!matchedVariation;
   const activeExercise = matchedVariation ?? matchedExercise;
   const selectedExerciseName = matchedVariation && exercise?.variation ? exercise.variation : exercise?.exercise || '';
-  const currentVariationPref = exercise ? variationPrefs[normalizeExerciseKey(exercise.exercise)] : undefined;
+  const currentVariationPref = exercise ? variationPrefs[variationPrefKey(exercise)] : undefined;
 
   // Carrega a preferência de variação salva por exercício ao trocar de exercício
   useEffect(() => {
     if (!exercise) return;
-    const cacheKey = normalizeExerciseKey(exercise.exercise);
-    const localPref = loadVariationPref(user?.id, exercise.exercise);
+    const cacheKey = variationPrefKey(exercise);
+    if (!exercise.variation) {
+      setShowingVariation(false);
+      setShowingVariationFor(cacheKey);
+      return;
+    }
+    const localPref = loadVariationPref(user?.id, cacheKey);
     setShowingVariation(currentVariationPref ?? localPref);
     setShowingVariationFor(cacheKey);
 
@@ -883,9 +869,9 @@ const TreinoExecucaoInner = () => {
       .then(({ data, error }) => {
         if (cancelled || error) return;
         const stored = (data?.valores as Record<string, any> | null) ?? {};
-        const backendPref = typeof stored[VARIATION_PREF_FIELD] === 'boolean'
-          ? stored[VARIATION_PREF_FIELD]
-          : localPref;
+        // Só vale a preferência salva para ESTA variação (registros antigos sem
+        // nome da variação são ignorados — evitavam mostrar outro exercício).
+        const backendPref = backendVariationPref(stored, exercise.variation) ?? localPref;
         setVariationPrefs((prev) => (prev[cacheKey] === backendPref ? prev : { ...prev, [cacheKey]: backendPref }));
         setShowingVariation(backendPref);
         setShowingVariationFor(cacheKey);
@@ -900,11 +886,11 @@ const TreinoExecucaoInner = () => {
   const toggleVariation = async () => {
     if (!exercise) return;
     const next = !effectiveShowingVariation;
-    const cacheKey = normalizeExerciseKey(exercise.exercise);
+    const cacheKey = variationPrefKey(exercise);
     setShowingVariation(next);
     setShowingVariationFor(cacheKey);
     setVariationPrefs((prev) => ({ ...prev, [cacheKey]: next }));
-    saveVariationPref(user?.id, exercise.exercise, next);
+    saveVariationPref(user?.id, cacheKey, next);
 
     if (!user || !matchedExercise?.id) return;
 
@@ -918,6 +904,7 @@ const TreinoExecucaoInner = () => {
     const payload = {
       ...((existing?.valores as Record<string, any> | null) ?? {}),
       [VARIATION_PREF_FIELD]: next,
+      [VARIATION_NAME_FIELD]: normalizeExerciseKey(exercise.variation || ''),
     };
 
     const { error } = await supabase
@@ -931,7 +918,7 @@ const TreinoExecucaoInner = () => {
       setShowingVariation(!next);
       setShowingVariationFor(cacheKey);
       setVariationPrefs((prev) => ({ ...prev, [cacheKey]: !next }));
-      saveVariationPref(user?.id, exercise.exercise, !next);
+      saveVariationPref(user?.id, cacheKey, !next);
       toast.error('Não foi possível salvar a troca de exercício.');
       return;
     }
@@ -947,8 +934,9 @@ const TreinoExecucaoInner = () => {
 
     const buildEmpty = (): ExerciseSet[] =>
       setPlan.length > 0
-        ? setPlan.map((p) => ({ reps: p.reps || exercise?.reps || '', weight: '', completed: false }))
-        : Array.from({ length: totalSeries }, () => ({ reps: exercise?.reps || '', weight: '', completed: false }));
+        // Sem "última vez": campo vazio; a faixa planejada aparece só como placeholder.
+        ? setPlan.map(() => ({ reps: '', weight: '', completed: false }))
+        : Array.from({ length: totalSeries }, () => ({ reps: '', weight: '', completed: false }));
 
     const applyPrefill = (prevSets: PreviousExerciseSet[] | undefined) => {
       const base = buildEmpty();
@@ -1089,7 +1077,8 @@ const TreinoExecucaoInner = () => {
   /** Botões rápidos ±: carga em passos de 2,5 kg (arredonda em 0,5), reps em 1. */
   const stepSetValue = (setIndex: number, field: 'weight' | 'reps', delta: number) => {
     const row = sets[currentIndex]?.[setIndex];
-    const raw = (row?.[field] ?? '').replace(',', '.');
+    // Campo vazio parte do valor sugerido (placeholder), ex.: "6-10" → 6.
+    const raw = ((row?.[field] ?? '').trim() || assumedSetValues(setIndex)[field]).replace(',', '.');
     const n = parseFloat(raw);
     const base = Number.isFinite(n) ? n : 0;
     const next = field === 'weight'
@@ -1277,6 +1266,7 @@ const TreinoExecucaoInner = () => {
 
   return (
     <div className="student-workout-screen bg-background flex flex-col" data-testid="student-workout-screen">
+      {debugViewport && <WorkoutViewportDebug />}
       {sessionDialogs}
       {/* Barra de progresso fina: exercícios/grupos concluídos. */}
       <div className="relative z-30 shrink-0 h-0.5 bg-secondary/60" data-testid="workout-progress">
@@ -1766,7 +1756,7 @@ const TreinoExecucaoInner = () => {
               const exIdx = Number(exIdxStr);
               const ex = exercises[exIdx];
               if (!ex) return;
-               const useVariation = variationPrefs[normalizeExerciseKey(ex.exercise)] ?? loadVariationPref(user?.id, ex.exercise);
+               const useVariation = !!ex.variation && (variationPrefs[variationPrefKey(ex)] ?? loadVariationPref(user?.id, variationPrefKey(ex)));
                const exName = useVariation && ex.variation ? ex.variation : (ex.exercise || '');
               const muscle = exerciseDB.find((d) => d.nome.toLowerCase() === exName.toLowerCase())?.grupo_muscular || null;
               // Tipo estrutural da série vem do plano (reconhecimento vs trabalho).
