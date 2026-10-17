@@ -1630,7 +1630,7 @@ const TreinoExecucaoInner = () => {
                     <Input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })} placeholder={repsPlaceholder} className="h-11 text-center bg-background/50 border-border/50 min-w-0 px-1" disabled={set.completed} />
                     <button type="button" aria-label={`Série ${i + 1} aumentar reps`} disabled={set.completed} onClick={() => stepSetValue(i, 'reps', 1)} className="h-11 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/60 disabled:opacity-30 text-xs font-bold touch-manipulation">+</button>
                   </div>
-                  <Button size="icon" aria-label={`Confirmar série ${i + 1}`} variant="outline" className={`h-11 w-11 mx-auto rounded-full ${set.completed ? 'workout-set-completed' : isNextPending ? 'border-primary/40 text-primary' : ''}`} onClick={() => toggleSetComplete(i)}>
+                  <Button size="icon" aria-label={`Confirmar série ${i + 1}`} variant="outline" className={`h-11 w-11 mx-auto rounded-full ${set.completed ? 'bg-chart-3/15 border-chart-3/50 text-chart-3 hover:bg-chart-3/20 hover:text-chart-3' : isNextPending ? 'border-primary/40 text-primary' : ''}`} onClick={() => toggleSetComplete(i)}>
                     <Check className="h-4 w-4" />
                   </Button>
                 </div>

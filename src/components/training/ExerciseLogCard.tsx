@@ -430,7 +430,7 @@ const ExerciseLogCard: React.FC<Props> = ({
                   disabled={!!inlineRest && s.completed}
                   className={inlineRest ? 'h-11 min-w-0 text-base text-center' : 'h-8 text-xs'}
                 />
-                {inlineRest && <Button size="icon" variant="outline" className={`h-11 w-11 ${s.completed ? 'workout-set-completed' : ''}`} aria-label={`Confirmar série ${setIdx + 1}`} disabled={!!s.completed || !(Number(s.reps) > 0)} onClick={() => {
+                {inlineRest && <Button size="icon" variant="outline" className={`h-11 w-11 ${s.completed ? 'bg-chart-3/15 border-chart-3/50 text-chart-3 hover:bg-chart-3/20 hover:text-chart-3' : ''}`} aria-label={`Confirmar série ${setIdx + 1}`} disabled={!!s.completed || !(Number(s.reps) > 0)} onClick={() => {
                   onCompleteSet?.(exIdx, setIdx, { ...s, completed: true });
                   inlineRest.start(parsePauseSeconds(ex.pause), exIdx, setIdx);
                 }}><Check className="h-4 w-4" /></Button>}
