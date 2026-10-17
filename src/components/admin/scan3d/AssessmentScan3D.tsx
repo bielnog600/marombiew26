@@ -25,10 +25,17 @@ export default function AssessmentScan3D({ studentId, height, onApply, onReady }
   const [settings, setSettings] = useState<ScanMeasurements>({}), [measures, setMeasures] = useState<ScanMeasurements>({});
   const [up, setUp] = useState('y'), [turn, setTurn] = useState(0), [unit, setUnit] = useState(100);
   const [originalHeight, setOriginalHeight] = useState(0), [scaleWarning, setScaleWarning] = useState(false), [measuring, setMeasuring] = useState(false);
+  const [importerNames, setImporterNames] = useState<Record<string, string>>({});
   const fileRef = useRef<HTMLInputElement>(null), captureRef = useRef<CaptureScan | null>(null);
   const loadRows = async () => {
     const { data, error: e } = await supabase.from('assessment_3d_scans').select('*').eq('student_id', studentId).order('created_at', { ascending: false }).limit(100);
-    if (e) throw e; setRows(data ?? []); return data ?? [];
+    if (e) throw e; setRows(data ?? []);
+    const ids = [...new Set((data ?? []).map(row => row.imported_by))];
+    if (ids.length) {
+      const { data: profiles } = await supabase.from('profiles').select('user_id,nome').in('user_id', ids);
+      setImporterNames(Object.fromEntries((profiles ?? []).map(p => [p.user_id, p.nome || 'Administrador'])));
+    }
+    return data ?? [];
   };
   useEffect(() => {
     let cancelled = false;
@@ -102,7 +109,7 @@ export default function AssessmentScan3D({ studentId, height, onApply, onReady }
     {rows.length > 0 && <Select value={selected?.id ?? ''} onValueChange={id => { const row = rows.find(r => r.id === id); if (row) void openScan(row); }} disabled={busy}><SelectTrigger aria-label="Scans anteriores"><SelectValue placeholder="Abrir scan importado" /></SelectTrigger><SelectContent>{rows.map(r => <SelectItem key={r.id} value={r.id}>{new Date(r.created_at).toLocaleString('pt-BR')} · {r.file_name}</SelectItem>)}</SelectContent></Select>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {selected && bytes && height > 0 && <>
-      <p className="text-xs text-muted-foreground">Consentimento registrado em {new Date(selected.consent_at).toLocaleString('pt-BR')} · Importado por administrador ({selected.imported_by.slice(0, 8)})</p>
+      <p className="text-xs text-muted-foreground">Importado por {importerNames[selected.imported_by] ?? 'Administrador'} em {new Date(selected.created_at).toLocaleString('pt-BR')} · Consentimento registrado em {new Date(selected.consent_at).toLocaleString('pt-BR')}</p>
       <div className="grid grid-cols-3 gap-2">
         <div><Label className="text-xs">Eixo vertical</Label><Select value={up} onValueChange={v => { setUp(v); setSettings({}); setMeasuring(true); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['y','z','x'].map(v => <SelectItem key={v} value={v}>{v.toUpperCase()}</SelectItem>)}</SelectContent></Select></div>
         <div><Label className="text-xs">Unidade original</Label><Select value={String(unit)} onValueChange={v => { setUnit(Number(v)); setMeasuring(true); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="100">Metros</SelectItem><SelectItem value="1">Centímetros</SelectItem><SelectItem value="0.1">Milímetros</SelectItem></SelectContent></Select></div>

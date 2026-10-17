@@ -38,6 +38,17 @@ function Capture({ captureRef, height, model }: { captureRef: Props['captureRef'
   return null;
 }
 
+function FrameModel({ height, model }: { height: number; model: THREE.Object3D }) {
+  const { camera, size, invalidate } = useThree();
+  useEffect(() => {
+    if (!(camera instanceof THREE.PerspectiveCamera)) return;
+    const bounds = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+    const distance = Math.max(height, bounds.x / (size.width / size.height)) / (2 * Math.tan(camera.fov * Math.PI / 360)) * 1.2;
+    camera.position.set(0, height / 2, distance); camera.lookAt(0, height / 2, 0); camera.updateProjectionMatrix(); invalidate();
+  }, [camera, size, height, model, invalidate]);
+  return null;
+}
+
 export default function ScanViewer(props: Props) {
   const [source, setSource] = useState<THREE.Object3D | null>(null);
   const [measured, setMeasured] = useState<ScanMeasurements>({});
@@ -86,6 +97,7 @@ export default function ScanViewer(props: Props) {
       })}
       <OrbitControls target={[0, props.height / 2, 0]} minDistance={props.height * 0.3} maxDistance={distance * 3} />
       <Capture captureRef={props.captureRef} height={props.height} model={normalized.model} />
+      <FrameModel height={props.height} model={normalized.model} />
     </Canvas>
   </div>;
 }
