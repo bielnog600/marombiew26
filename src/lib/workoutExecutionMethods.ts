@@ -131,7 +131,7 @@ export const makeSubRecords = (ex: ParsedExercise, set: MethodSetEntry): SubReco
   }));
 };
 export const methodLogFields = (ex: ParsedExercise, set: MethodSetEntry) => set.subRecords?.length ? {
-  sub_records: set.subRecords, exercise_slot_id: ex.id ?? null, training_method: seriesMethod(ex),
+  sub_records: set.subRecords.map(part => ({ ...part })), exercise_slot_id: ex.id ?? null, training_method: seriesMethod(ex),
 } : {};
 export const subRecordVolume = (set: MethodSetEntry): number => (set.subRecords?.length ? set.subRecords : [set])
   .filter(s => s.completed !== false).reduce((sum, s) => sum + (Number(s.weight.replace(',', '.')) || 0) * (Number(s.reps) || 0), 0);

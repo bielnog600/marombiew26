@@ -22,6 +22,11 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
   const [current, setCurrent] = useState(indices[0]);
   const select = useCallback((index: number) => setCurrent(index), []);
   const flow = useWorkoutGroupFlow(exercises, current, select, savedPause, onPauseChange);
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 500);
+    return () => window.clearInterval(timer);
+  }, []);
   const [historyOpen, setHistoryOpen] = useState(false);
   useEffect(() => { if (!indices.includes(current)) setCurrent(indices[0]); }, [indices.join(',')]);
   const ex = exercises[current];
@@ -49,7 +54,7 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
     </div>
     {matched?.video_embed && <iframe src={matched.video_embed} title={`Vídeo ${ex.exercise}`} className="w-full aspect-video border-0" allow="autoplay; fullscreen" />}
     {(recommendation || ex.targetLoadKg || ex.targetLoadPerSet) && <ProgressionHintCard recommendation={recommendation} targetLoad={{ kg: ex.targetLoadKg, perSet: ex.targetLoadPerSet, note: ex.targetLoadNote }} variant="compact" />}
-    {displayedPause && <div className="flex items-center justify-between text-primary text-xs"><span>{displayedPause.label} · pausa automática</span><Button variant="ghost" size="sm" onClick={flow.skip}>Pular</Button></div>}
+    {displayedPause && <div className="flex items-center justify-between text-primary text-xs"><span>{displayedPause.label} · {Math.max(0, Math.ceil((displayedPause.until - now) / 1000))}s</span><Button variant="ghost" size="sm" onClick={flow.skip}>Pular</Button></div>}
     {rows.map((row, index) => <MethodSetRows key={index} exercise={ex} set={row} index={index} count={rows.length} targetReps={ex.setScheme?.sets[index]?.target_reps ?? ex.reps} recognition={ex.setScheme?.sets[index]?.set_type === 'recognition' || (Number(ex.series2) > 0 && index < Number(ex.series))} weightPlaceholder={String(targetLoadForSet(ex.targetLoadPerSet, index + 1) ?? ex.targetLoadKg ?? recommendation?.recommendedLoadKg ?? 'kg')} onChange={entry => onChange(current, index, entry)} onComplete={entry => complete(index, entry)} />)}
     <ExerciseLoadHistorySheet open={historyOpen} onOpenChange={setHistoryOpen} studentId={studentId} exerciseName={ex.exercise} />
   </div>;

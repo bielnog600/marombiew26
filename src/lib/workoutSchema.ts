@@ -247,6 +247,7 @@ export const parsedDaysToWorkoutPlan = (
       targetLoadPerSet: normalizeTargetLoadPerSetValue(e.targetLoadPerSet),
       setScheme: e.setScheme,
       method: normalizeWorkoutMethod(e.method),
+      ...executionFields(e as unknown as Record<string, unknown>),
     })),
   })),
 });
@@ -272,6 +273,7 @@ export const workoutPlanToParsedDays = (plan: WorkoutPlan): ParsedTrainingDay[] 
       targetLoadPerSet: normalizeTargetLoadPerSetValue(e.targetLoadPerSet),
       setScheme: e.setScheme as ParsedExercise["setScheme"],
       method: e.method as ParsedExercise["method"],
+      ...executionFields(e as unknown as Record<string, unknown>),
     })),
   }));
 
@@ -329,6 +331,7 @@ export const normalizeWorkoutPlan = (raw: unknown): WorkoutPlan | null => {
                 targetLoadPerSet: normalizeTargetLoadPerSetValue(e.targetLoadPerSet),
                 setScheme: normalizeSetScheme(e.setScheme ?? e.set_scheme),
                 method: normalizeWorkoutMethod(e.method ?? e.metodo),
+                ...executionFields(e),
               }))
               .filter((e: WorkoutExercise) => e.exercise.length > 0)
           : [],

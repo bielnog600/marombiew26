@@ -1534,7 +1534,7 @@ const TreinoExecucaoInner = () => {
               // Tipo estrutural da série vem do plano (reconhecimento vs trabalho).
               const plannedTypes = buildSetPlan(ex?.series, ex?.series2, ex?.reps, ex?.setScheme).map((p) => p.type);
               arr.forEach((s, i) => {
-                if (!s.completed) return;
+                if (!s.completed && !s.subRecords?.some(part => part.completed)) return;
                 const reps = parseInt(s.reps) || 0;
                 const weight = parseFloat(s.weight.replace(',', '.')) || 0;
                 const rirRaw = (s.rir ?? '').trim();
