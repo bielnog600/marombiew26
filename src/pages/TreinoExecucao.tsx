@@ -1463,12 +1463,19 @@ const TreinoExecucaoInner = () => {
         <StudentLoadSummaryCard previousLine={previousLine} suggestionLine={suggestionLine} perSet={loadTarget.perSet} />
       </div>
 
-      <Dialog open={descriptionOpen} onOpenChange={setDescriptionOpen}>
-        <DialogContent className="max-w-md max-h-[80dvh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{selectedExerciseName}</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground whitespace-pre-wrap">{exercise.description}</p>
-        </DialogContent>
-      </Dialog>
+      <Sheet open={descriptionOpen} onOpenChange={setDescriptionOpen}>
+        <SheetContent side="bottom" className="max-h-[80dvh] overflow-y-auto rounded-t-2xl">
+          <SheetHeader><SheetTitle>{selectedExerciseName}</SheetTitle></SheetHeader>
+          <div className="space-y-3 pt-2">
+            {exercise.description && (
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{exercise.description}</p>
+            )}
+            {methodExplanation(exercise).map((line, i) => (
+              <p key={i} className="text-sm text-foreground bg-primary/10 border border-primary/25 rounded-lg p-3">{line}</p>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <Dialog open={showVideoCapture} onOpenChange={setShowVideoCapture}>
         <DialogContent className="max-w-md">
