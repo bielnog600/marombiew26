@@ -1629,6 +1629,7 @@ const TreinoExecucaoInner = () => {
         </div>
         <StudentLoadSummaryCard previousLine={previousLine} suggestionLine={suggestionLine} perSet={loadTarget.perSet} />
       </div>
+      </div>
 
       <Sheet open={descriptionOpen} onOpenChange={setDescriptionOpen}>
         <SheetContent side="bottom" className="max-h-[80dvh] overflow-y-auto rounded-t-2xl">
