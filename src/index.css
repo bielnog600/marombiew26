@@ -139,22 +139,26 @@
 
 @layer utilities {
   /* Scoped to the student's player; other pages and the admin retain their layout. */
-  body.student-workout-open, body.student-workout-open #root {
-    height: 100%;
+  /* Somente com a tela de treino aberta: no PWA standalone do iOS, height:100%
+     usa a viewport reduzida e recortava o app ~45pt acima do fundo real. */
+  html.student-workout-open,
+  html.student-workout-open body,
+  html.student-workout-open #root {
+    height: 100vh;
+    height: -webkit-fill-available;
+    height: 100lvh;
     min-height: 0;
     padding: 0;
     overflow: hidden;
   }
   .student-workout-screen {
     position: fixed;
-    /* Altura real da tela via --app-h (JS: visualViewport/innerHeight; em
-       standalone iOS usa screen.height quando maior, pois a viewport de layout
-       desconta a status bar e inset:0 terminava antes do fundo real). */
     top: 0;
     left: 0;
     right: 0;
     bottom: auto;
-    height: var(--app-h, 100dvh);
+    height: 100vh;
+    height: 100lvh;
     min-height: 0;
     box-sizing: border-box;
     overflow: hidden;
