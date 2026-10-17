@@ -2,6 +2,7 @@ import { MethodSetRows } from '@/components/training/MethodSetRows';
 import { WorkoutGroupTabs } from '@/components/training/WorkoutGroupTabs';
 import { GroupFinishedOverlay, GroupTransitionOverlay } from '@/components/training/GroupTransitionOverlay';
 import { useWorkoutGroupFlow, type GroupPause } from '@/hooks/useWorkoutGroupFlow';
+import { hasSeenGroupIntro, markGroupIntroSeen, type GroupIntroMethod } from '@/lib/groupIntroSeen';
 import { exerciseBlocks, seriesMethod, methodOnSet, methodLogFields, subRecordVolume, type MethodSetEntry } from '@/lib/workoutExecutionMethods';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
