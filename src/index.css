@@ -147,8 +147,11 @@
   }
   .student-workout-screen {
     position: fixed;
+    /* Sem height explícita: inset:0 ancora a caixa exatamente na viewport visual.
+       (Com height:100svh/100dvh + inset, a altura vencia e o bottom era ignorado,
+       deixando faixa vazia embaixo quando a viewport real cresce — ex.: Safari
+       escondendo a barra de URL.) */
     inset: 0;
-    height: 100svh;
     min-height: 0;
     box-sizing: border-box;
     overflow: hidden;
@@ -157,12 +160,11 @@
     padding-left: env(safe-area-inset-left, 0px);
     padding-right: env(safe-area-inset-right, 0px);
     /* Altura do vídeo fixo do topo; o conteúdo rola por baixo dele. */
-    --workout-media-h: clamp(240px, 42vh, 420px);
+    --workout-media-h: min(300px, 34vh);
   }
   @supports (height: 100dvh) {
     .student-workout-screen {
-      height: 100dvh;
-      --workout-media-h: clamp(240px, 42dvh, 420px);
+      --workout-media-h: min(300px, 34dvh);
     }
   }
   .student-workout-media {
