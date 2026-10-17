@@ -1245,7 +1245,7 @@ const TreinoExecucaoInner = () => {
     <div className="student-workout-screen bg-background flex flex-col" data-testid="student-workout-screen">
       {sessionDialogs}
       {/* Barra de progresso fina: exercícios/grupos concluídos. */}
-      <div className="shrink-0 h-0.5 bg-secondary/60" data-testid="workout-progress">
+      <div className="relative z-30 shrink-0 h-0.5 bg-secondary/60" data-testid="workout-progress">
         <div className="h-full bg-primary transition-[width] duration-300" style={{ width: `${workoutBlocks.length ? (completedBlocks / workoutBlocks.length) * 100 : 0}%` }} />
       </div>
       {zoomOpen && (
@@ -1357,7 +1357,7 @@ const TreinoExecucaoInner = () => {
         />
       )}
 
-      <div className="student-workout-media relative w-full shrink-0 bg-secondary/30 overflow-hidden" data-testid="workout-header">
+      <div className="student-workout-media absolute top-0 left-0 right-0 z-20 w-full bg-secondary/30 overflow-hidden" data-testid="workout-header" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
         {hlsUrl ? (
           <>
             <video
@@ -1451,6 +1451,14 @@ const TreinoExecucaoInner = () => {
         </div>
       </div>
 
+      {/* Degradê na borda inferior do vídeo: o conteúdo que rola "some" sob ele. */}
+      <div
+        className="absolute left-0 right-0 h-12 z-20 pointer-events-none bg-gradient-to-b from-transparent to-background"
+        style={{ top: 'calc(var(--workout-media-h) + env(safe-area-inset-top, 0px) - 48px)' }}
+        aria-hidden
+      />
+      {/* Área rolável: chips em diante, com espaço no topo igual à altura do vídeo fixo. */}
+      <div className="relative z-0 flex-1 min-h-0 overflow-y-auto overscroll-contain" style={{ paddingTop: 'var(--workout-media-h)' }}>
       {/* Chips de prescrição + botão Descrição — fora do vídeo, abaixo dele. */}
       {(() => {
         const isReal = (v?: string | null) => {
@@ -1620,6 +1628,7 @@ const TreinoExecucaoInner = () => {
           })()}
         </div>
         <StudentLoadSummaryCard previousLine={previousLine} suggestionLine={suggestionLine} perSet={loadTarget.perSet} />
+      </div>
       </div>
 
       <Sheet open={descriptionOpen} onOpenChange={setDescriptionOpen}>
