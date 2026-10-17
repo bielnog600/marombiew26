@@ -12,14 +12,17 @@ import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { ProgressionHintCard } from './ProgressionHintCard';
 import { ExerciseLoadHistorySheet } from './ExerciseLoadHistorySheet';
 import { parsePauseSeconds } from './TrainerLogSheetUtils';
+import { useInlineWorkoutRest } from '@/hooks/useInlineWorkoutRest';
+import { RestOffscreenIndicator } from './WorkoutSetCard';
 
-export function MethodExerciseCard({ exercises, indices, sets, onChange, onComplete, media, snapshot, studentId, savedPause, onPauseChange }: {
+export function MethodExerciseCard({ exercises, indices, sets, onChange, onComplete, media, snapshot, studentId, savedPause, onPauseChange, inlineRest: sharedRest }: {
   exercises: ParsedExercise[]; indices: number[]; sets: Record<number, MethodSetEntry[]>;
   onChange: (exIndex: number, setIndex: number, entry: MethodSetEntry) => void;
   onComplete: (exIndex: number, setIndex: number, entry: MethodSetEntry) => void;
   media: Array<{ nome: string; imagem_url?: string | null; video_embed?: string | null }>;
   snapshot?: ProgressionSnapshot | null; studentId: string;
   savedPause?: GroupPause | null; onPauseChange?: (pause: GroupPause | null) => void;
+  inlineRest?: ReturnType<typeof useInlineWorkoutRest>;
 }) {
   const [current, setCurrent] = useState(() => {
     const pending = indices.flatMap(idx => (sets[idx] ?? []).flatMap((row, i) => !row.completed ? [i] : [])).sort((a, b) => a - b)[0];
@@ -27,6 +30,8 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
   });
   const select = useCallback((index: number) => setCurrent(index), []);
   const flow = useWorkoutGroupFlow(exercises, current, select, savedPause, onPauseChange);
+  const localRest = useInlineWorkoutRest();
+  const inlineRest = sharedRest ?? localRest;
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 500);
@@ -51,10 +56,10 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
     const b = exercises[indices[1] ?? current];
     const rest = parsePauseSeconds(b?.pause);
     if (!flow.complete(index, { ...sets, [current]: nextRows }, rest)) {
-      onPauseChange?.({ until: Date.now() + rest * 1000, nextIndex: current, label: 'Descanso', kind: 'rest', setIndex: index + 1, total: rest });
+      inlineRest.start(rest, current, index);
     }
   };
-  const displayedPause = flow.pause ?? savedPause;
+  const displayedPause = indices.length === 2 ? flow.pause ?? savedPause : null;
   return <div className="rounded-lg border border-primary/40 bg-card p-3 space-y-3">
     <WorkoutGroupTabs exercises={exercises} indices={indices} currentIndex={current} sets={sets} onSelect={select} />
     <div className="flex items-start gap-3">
@@ -88,7 +93,8 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
       />;
     })()}
     {flow.finished && <GroupFinishedOverlay label={flow.finished} />}
-    {rows.map((row, index) => <MethodSetRows key={index} exercise={ex} set={row} index={index} count={rows.length} disabled={!!displayedPause || (indices.length === 2 && !row.completed && indices.some(idx => sets[idx]?.slice(0, index).some(prior => !prior.completed)))} targetReps={ex.setScheme?.sets[index]?.target_reps ?? ex.reps} recognition={ex.setScheme?.sets[index]?.set_type === 'recognition' || (Number(ex.series2) > 0 && index < Number(ex.series))} weightPlaceholder={String(targetLoadForSet(ex.targetLoadPerSet, index + 1) ?? ex.targetLoadKg ?? recommendation?.recommendedLoadKg ?? 'kg')} onChange={entry => onChange(current, index, entry)} onComplete={entry => complete(index, entry)} />)}
+    {rows.map((row, index) => <MethodSetRows key={index} exercise={ex} set={row} index={index} count={rows.length} restPresentation={indices.length === 2 ? undefined : { exIdx: current, rest: inlineRest.rest, completion: inlineRest.completion, next: !inlineRest.rest && index === rows.findIndex(r => !r.completed), onAdd: inlineRest.adjust, onSkip: () => inlineRest.skip() }} disabled={!!displayedPause || (indices.length === 2 && !row.completed && indices.some(idx => sets[idx]?.slice(0, index).some(prior => !prior.completed)))} targetReps={ex.setScheme?.sets[index]?.target_reps ?? ex.reps} recognition={ex.setScheme?.sets[index]?.set_type === 'recognition' || (Number(ex.series2) > 0 && index < Number(ex.series))} weightPlaceholder={String(targetLoadForSet(ex.targetLoadPerSet, index + 1) ?? ex.targetLoadKg ?? recommendation?.recommendedLoadKg ?? 'kg')} onChange={entry => onChange(current, index, entry)} onComplete={entry => complete(index, entry)} />)}
+    {!sharedRest && <RestOffscreenIndicator rest={inlineRest.rest} />}
     <ExerciseLoadHistorySheet open={historyOpen} onOpenChange={setHistoryOpen} studentId={studentId} exerciseName={ex.exercise} />
   </div>;
 }

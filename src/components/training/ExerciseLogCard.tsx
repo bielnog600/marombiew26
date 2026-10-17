@@ -12,10 +12,14 @@ import MethodBadge from './MethodBadge';
 import { WorkoutMethodEditor } from './WorkoutMethodEditor';
 import type { ExecutionMethodFields } from '@/lib/workoutExecutionMethods';
 import { getRecommendationFor, targetLoadForSet, type ProgressionSnapshot } from '@/lib/sessionProgression';
+import { WorkoutSetCard } from './WorkoutSetCard';
+import type { useInlineWorkoutRest } from '@/hooks/useInlineWorkoutRest';
+import type { MethodSetEntry } from '@/lib/workoutExecutionMethods';
 
 interface SetEntry {
   weight: string;
   reps: string;
+  completed?: boolean;
 }
 
 interface SetPlan {
@@ -65,6 +69,8 @@ interface Props {
   progressionSnapshot?: ProgressionSnapshot | null;
   /** Exercícios do dia — usados para nomear o par de bi-set/tri-set no badge. */
   dayExercises?: any[];
+  inlineRest?: ReturnType<typeof useInlineWorkoutRest>;
+  onCompleteSet?: (exIdx: number, setIdx: number, entry: MethodSetEntry) => void;
 }
 
 type StructureMode = 'standard' | 'recognition' | 'per_set';
@@ -98,6 +104,8 @@ const ExerciseLogCard: React.FC<Props> = ({
   parsePauseSeconds,
   progressionSnapshot,
   dayExercises,
+  inlineRest,
+  onCompleteSet,
 }) => {
   const [editOpen, setEditOpen] = useState(false);
   const mode: StructureMode = detectMode(ex);
@@ -245,7 +253,8 @@ const ExerciseLogCard: React.FC<Props> = ({
             className="h-7 gap-1.5 px-2.5 text-[10px] border-primary/40 text-primary hover:bg-primary/10"
             onClick={() => {
               const secs = parsePauseSeconds(ex.pause);
-              onStartRestTimer(secs, exIdx);
+              if (inlineRest) inlineRest.start(secs, exIdx, Math.max(0, st.sets.findIndex(s => !s.completed)));
+              else onStartRestTimer(secs, exIdx);
             }}
           >
             <Timer className="h-3 w-3" />
@@ -387,7 +396,8 @@ const ExerciseLogCard: React.FC<Props> = ({
             const p = st.plan?.[setIdx] ?? { kind: 'work' as const, targetReps: '' };
             const isRecon = p?.kind === 'recon';
             return (
-              <div key={setIdx} className="grid grid-cols-[68px_1fr_1fr_28px] items-center gap-2">
+              <WorkoutSetCard key={setIdx} index={setIdx} exIdx={exIdx} rest={inlineRest?.rest} completion={inlineRest?.completion} next={!!inlineRest && !inlineRest.rest && setIdx === st.sets.findIndex(s => !s.completed)} onAdd={inlineRest?.adjust} onSkip={() => inlineRest?.skip()} className="bg-secondary/30">
+              <div className={`grid ${inlineRest ? 'grid-cols-[48px_1fr_1fr_44px_28px]' : 'grid-cols-[68px_1fr_1fr_28px]'} items-center gap-1.5 p-2`}>
                 <span
                   className={`text-[9px] font-bold text-center px-1 py-0.5 rounded ${
                     isRecon
@@ -397,6 +407,7 @@ const ExerciseLogCard: React.FC<Props> = ({
                   title={isRecon ? 'Reconhecimento' : 'Trabalho'}
                 >
                   {isRecon ? `REC #${setIdx + 1}` : `#${setIdx + 1}`}
+                  {inlineRest && !inlineRest.rest && setIdx === st.sets.findIndex(s => !s.completed) && <span className="block text-primary text-[8px]">AGORA</span>}
                 </span>
                 <Input
                   type="number"
@@ -407,7 +418,8 @@ const ExerciseLogCard: React.FC<Props> = ({
                   })()}
                   value={s.weight}
                   onChange={(e) => onUpdateSet(exIdx, setIdx, 'weight', e.target.value)}
-                  className="h-8 text-xs"
+                  disabled={!!inlineRest && s.completed}
+                  className={inlineRest ? 'h-11 min-w-0 text-base text-center' : 'h-8 text-xs'}
                 />
                 <Input
                   type="number"
@@ -415,8 +427,13 @@ const ExerciseLogCard: React.FC<Props> = ({
                   placeholder={p?.targetReps ? `${p.targetReps}` : 'reps'}
                   value={s.reps}
                   onChange={(e) => onUpdateSet(exIdx, setIdx, 'reps', e.target.value)}
-                  className="h-8 text-xs"
+                  disabled={!!inlineRest && s.completed}
+                  className={inlineRest ? 'h-11 min-w-0 text-base text-center' : 'h-8 text-xs'}
                 />
+                {inlineRest && <Button size="icon" variant="outline" className={`h-11 w-11 ${s.completed ? 'bg-chart-3/15 border-chart-3/50 text-chart-3 hover:bg-chart-3/20 hover:text-chart-3' : ''}`} aria-label={`Confirmar série ${setIdx + 1}`} disabled={!!s.completed || !(Number(s.reps) > 0)} onClick={() => {
+                  onCompleteSet?.(exIdx, setIdx, { ...s, completed: true });
+                  inlineRest.start(parsePauseSeconds(ex.pause), exIdx, setIdx);
+                }}><Check className="h-4 w-4" /></Button>}
                 {onRemoveSet ? (
                 <button
                   type="button"
@@ -430,6 +447,7 @@ const ExerciseLogCard: React.FC<Props> = ({
                 </button>
                 ) : <span />}
               </div>
+              </WorkoutSetCard>
             );
           })}
           {onAddSet && (

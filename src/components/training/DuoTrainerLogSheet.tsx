@@ -1,4 +1,6 @@
 import { MethodExerciseCard } from './MethodExerciseCard';
+import { useInlineWorkoutRest } from '@/hooks/useInlineWorkoutRest';
+import { RestOffscreenIndicator } from './WorkoutSetCard';
 import { exerciseBlocks, seriesMethod, methodLogFields, type MethodSetEntry } from '@/lib/workoutExecutionMethods';
 import type { GroupPause } from '@/hooks/useWorkoutGroupFlow';
 import { getSafeWorkoutDays } from '@/lib/planMigrationUtils';
@@ -96,6 +98,8 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     setRestTimer(secs, exIdx);
   };
   const sessionId = active?.id || '';
+  const inlineRestA = useInlineWorkoutRest(sessionId && studentA ? `mw_inline_rest:admin:${sessionId}:${studentA.studentId}` : undefined);
+  const inlineRestB = useInlineWorkoutRest(sessionId && studentB ? `mw_inline_rest:admin:${sessionId}:${studentB.studentId}` : undefined);
   const sessionStartedAt = active?.startedAtReal || new Date().toISOString();
   const [now, setNow] = useState(() => Date.now());
   const durationSeconds = Math.max(0, Math.floor((now - new Date(sessionStartedAt).getTime()) / 1000));
@@ -386,7 +390,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
   useEffect(() => {
     for (const st of [studentA, studentB]) {
       const day = st?.days[st.activeDayIdx];
-      if (!st || !day || st.loading || !day.exercises.some(ex => ex.grupo_id || seriesMethod(ex) !== 'nenhum')) continue;
+      if (!st || !day || st.loading) continue;
       const form = { sets: Object.fromEntries(Object.entries(st.state).map(([i, ex]) => [i, ex.sets])), plans: Object.fromEntries(Object.entries(st.state).map(([i, ex]) => [i, ex.plan])), exercises: day.exercises, savedSets: Object.fromEntries(Object.entries(st.state).map(([i, ex]) => [i, ex.savedSets])) };
       patchSessionState((prev: any) => ({ ...prev, methodExecution: { ...prev.methodExecution, [st.studentId]: { ...prev.methodExecution?.[st.studentId], [day.day]: form } } }));
     }
@@ -546,6 +550,8 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     mutateSlot(slot, (prev) => {
       const day = prev.days[prev.activeDayIdx];
       const timerUid = restTimer && restSlot === slot ? (prev.uids || [])[restTimer.exIdx] : null;
+      const inlineRest = slot === 'A' ? inlineRestA : inlineRestB;
+      const inlineUid = inlineRest.rest ? prev.uids[inlineRest.rest.exIdx] : null;
       const res = reorderExercisesByUid(
         day.exercises,
         prev.state,
@@ -554,6 +560,11 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
         String(over.id),
       );
       if (!res) return prev;
+      if (inlineUid) {
+        const index = res.uids.indexOf(inlineUid);
+        if (index >= 0) inlineRest.reindex(index);
+        else inlineRest.cancel();
+      }
       if (timerUid) {
         const nextIdx = res.uids.indexOf(timerUid);
         if (nextIdx >= 0) setTimerExerciseIndex(nextIdx);
@@ -689,6 +700,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
           }
         }
       }
+      inlineRestA.cancel(); inlineRestB.cancel();
       await finish(totals);
       cleanup.forEach((fn) => fn());
     } catch (err: any) {
@@ -743,7 +755,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                       disabled={cancelling}
                       onClick={async () => {
                         setCancelling(true);
-                        try { await cancel(); } finally { setCancelling(false); }
+                        try { inlineRestA.cancel(); inlineRestB.cancel(); await cancel(); } finally { setCancelling(false); }
                       }}
                     >
                       Cancelar sessão
@@ -811,7 +823,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                             {exerciseBlocks(studentA.days[studentA.activeDayIdx].exercises).map(block => {
                               const i = block.indices[0], ex = studentA.days[studentA.activeDayIdx].exercises[i];
                               if (!studentA.uids?.[i]) return null;
-                              if (block.indices.length === 2 || seriesMethod(ex) !== 'nenhum') return <MethodExerciseCard key={block.id} exercises={studentA.days[studentA.activeDayIdx].exercises} indices={block.indices} sets={Object.fromEntries(Object.entries(studentA.state).map(([i, st]) => [i, st.sets]))} onChange={(idx, setIdx, entry) => changeMethodSet('A', idx, setIdx, entry)} onComplete={(idx, setIdx, entry) => saveMethodSet('A', idx, setIdx, entry)} media={exercisesList} snapshot={snapshotA} studentId={studentA.studentId} savedPause={active?.sessionState?.methodPauses?.[studentA.studentId]?.[block.id]} onPauseChange={pause => saveMethodPause(studentA.studentId, block.id, pause)} />;
+                              if (block.indices.length === 2 || seriesMethod(ex) !== 'nenhum') return <MethodExerciseCard key={block.id} exercises={studentA.days[studentA.activeDayIdx].exercises} indices={block.indices} sets={Object.fromEntries(Object.entries(studentA.state).map(([i, st]) => [i, st.sets]))} onChange={(idx, setIdx, entry) => changeMethodSet('A', idx, setIdx, entry)} onComplete={(idx, setIdx, entry) => saveMethodSet('A', idx, setIdx, entry)} media={exercisesList} snapshot={snapshotA} studentId={studentA.studentId} inlineRest={inlineRestA} savedPause={active?.sessionState?.methodPauses?.[studentA.studentId]?.[block.id]} onPauseChange={pause => saveMethodPause(studentA.studentId, block.id, pause)} />;
                               return (
                               <SortableExerciseRow key={studentA.uids[i]} id={studentA.uids[i]} position={i + 1}>
                                 <ExerciseLogCard
@@ -824,6 +836,8 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                                   onUpdateNotes={(idx, v) => updateNotes('A', idx, v)}
                                   onSaveExercise={(idx) => saveExerciseImpl('A', idx)}
                                   onStartRestTimer={startRestFor('A')}
+                                  inlineRest={inlineRestA}
+                                  onCompleteSet={(idx, setIdx, entry) => saveMethodSet('A', idx, setIdx, entry)}
                                   onExerciseNameChange={(name) => setStudentA(p => {
                                     if (!p) return null;
                                     const ns = { ...p.state, [i]: { ...p.state[i], exerciseName: name } };
@@ -915,7 +929,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                             {exerciseBlocks(studentB.days[studentB.activeDayIdx].exercises).map(block => {
                               const i = block.indices[0], ex = studentB.days[studentB.activeDayIdx].exercises[i];
                               if (!studentB.uids?.[i]) return null;
-                              if (block.indices.length === 2 || seriesMethod(ex) !== 'nenhum') return <MethodExerciseCard key={block.id} exercises={studentB.days[studentB.activeDayIdx].exercises} indices={block.indices} sets={Object.fromEntries(Object.entries(studentB.state).map(([i, st]) => [i, st.sets]))} onChange={(idx, setIdx, entry) => changeMethodSet('B', idx, setIdx, entry)} onComplete={(idx, setIdx, entry) => saveMethodSet('B', idx, setIdx, entry)} media={exercisesList} snapshot={snapshotB} studentId={studentB.studentId} savedPause={active?.sessionState?.methodPauses?.[studentB.studentId]?.[block.id]} onPauseChange={pause => saveMethodPause(studentB.studentId, block.id, pause)} />;
+                              if (block.indices.length === 2 || seriesMethod(ex) !== 'nenhum') return <MethodExerciseCard key={block.id} exercises={studentB.days[studentB.activeDayIdx].exercises} indices={block.indices} sets={Object.fromEntries(Object.entries(studentB.state).map(([i, st]) => [i, st.sets]))} onChange={(idx, setIdx, entry) => changeMethodSet('B', idx, setIdx, entry)} onComplete={(idx, setIdx, entry) => saveMethodSet('B', idx, setIdx, entry)} media={exercisesList} snapshot={snapshotB} studentId={studentB.studentId} inlineRest={inlineRestB} savedPause={active?.sessionState?.methodPauses?.[studentB.studentId]?.[block.id]} onPauseChange={pause => saveMethodPause(studentB.studentId, block.id, pause)} />;
                               return (
                               <SortableExerciseRow key={studentB.uids[i]} id={studentB.uids[i]} position={i + 1}>
                                 <ExerciseLogCard
@@ -928,6 +942,8 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                                   onUpdateNotes={(idx, v) => updateNotes('B', idx, v)}
                                   onSaveExercise={(idx) => saveExerciseImpl('B', idx)}
                                   onStartRestTimer={startRestFor('B')}
+                                  inlineRest={inlineRestB}
+                                  onCompleteSet={(idx, setIdx, entry) => saveMethodSet('B', idx, setIdx, entry)}
                                   onExerciseNameChange={(name) => setStudentB(p => {
                                     if (!p) return null;
                                     const ns = { ...p.state, [i]: { ...p.state[i], exerciseName: name } };
@@ -940,7 +956,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                                   onUpdateMeta={(patch) => updateExerciseMeta('B', i, patch)}
                                   ExerciseNamePicker={ExerciseNamePicker}
                                   HistoryPopover={HistoryPopover}
-                                  parsePauseSeconds={(p) => 60}
+                                  parsePauseSeconds={parsePauseSeconds}
                                   dayExercises={studentB.days[studentB.activeDayIdx].exercises}
                                   progressionSnapshot={snapshotB}
                                 />
@@ -1005,6 +1021,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
         </div>
 
         {/* Rest timer modal */}
+        <RestOffscreenIndicator rest={inlineRestA.rest ?? inlineRestB.rest} />
         {restTimer && (
           <div
             className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center"

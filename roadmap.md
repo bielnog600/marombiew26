@@ -1,5 +1,11 @@
 # Roadmap
 
+## Descanso dentro da série — execução
+- [x] Integrar descanso no card concluído no aluno e Modo Treino admin, preservando grupos e pausas internas.
+- [x] Preservar retomada e destacar próxima série/Próximo, com indicador mínimo fora da área visível.
+- [x] Executar testes (65 passaram), conferir compilação e validar controles em 390×844 com dados simulados.
+- [ ] Validar execução e retomada com conta real — bloqueado: não há sessão disponível e a conta solicitante não possui cadastro correspondente.
+
 ## Métodos de treino — editor e aluno
 - [x] Conferir conflitos de catálogo, histórico e componentes compartilhados antes de implementar.
 - [x] Incluir Modo Treino admin com os mesmos componentes A/B, sub-registros, pausas automáticas e armazenamento do aluno, sem redesenhar treinos comuns.

@@ -10,8 +10,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
  * AudioContext quando o app vai pro background, então beeps com tela
  * bloqueada/app minimizado não são garantidos no Safari iOS.
  */
+export interface RestTimerState { total: number; remaining: number; exIdx: number; startTime: number; endTime: number; setIndex?: number }
+
 export function useRestTimer() {
-  const [restTimer, setRestTimer] = useState<{ total: number; remaining: number; exIdx: number; startTime: number; endTime: number } | null>(null);
+  const [restTimer, setRestTimer] = useState<RestTimerState | null>(null);
   const intervalRef = useRef<number | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const scheduledNodesRef = useRef<{ osc: OscillatorNode; gain: GainNode }[]>([]);
@@ -23,7 +25,8 @@ export function useRestTimer() {
         if (!Ctx) return null;
         audioCtxRef.current = new Ctx();
       }
-      const ctx = audioCtxRef.current!;
+      const ctx = audioCtxRef.current;
+      if (!ctx) return null;
       if (ctx.state === 'suspended') ctx.resume().catch(() => { /* noop */ });
       return ctx;
     } catch { return null; }
@@ -65,12 +68,13 @@ export function useRestTimer() {
     scheduleBeep(ctx, now + seconds, 1320, 0.35, 0.3);
   }, [clearScheduledBeeps, getAudioCtx, scheduleBeep]);
 
-  const startTimer = useCallback((seconds: number, exIdx: number) => {
+  const startTimer = useCallback((seconds: number, exIdx: number, setIndex?: number) => {
     const now = Date.now();
     setRestTimer({
       total: seconds,
       remaining: seconds,
       exIdx,
+      setIndex,
       startTime: now,
       endTime: now + seconds * 1000,
     });
@@ -81,6 +85,17 @@ export function useRestTimer() {
     setRestTimer(null);
     clearScheduledBeeps();
   }, [clearScheduledBeeps]);
+
+  const restoreTimer = useCallback((state: RestTimerState) => {
+    const remaining = Math.max(0, Math.ceil((state.endTime - Date.now()) / 1000));
+    setRestTimer({ ...state, remaining });
+    scheduleCountdownBeeps(remaining);
+  }, [scheduleCountdownBeeps]);
+
+  const playCompletionBeep = useCallback(() => {
+    const ctx = getAudioCtx();
+    if (ctx) scheduleBeep(ctx, ctx.currentTime, 1320, 0.35, 0.3);
+  }, [getAudioCtx, scheduleBeep]);
 
   const adjustTimer = useCallback((seconds: number) => {
     setRestTimer(prev => {
@@ -165,6 +180,8 @@ export function useRestTimer() {
     startTimer,
     stopTimer,
     adjustTimer,
+    restoreTimer,
+    playCompletionBeep,
     setTimerExerciseIndex
   };
 }

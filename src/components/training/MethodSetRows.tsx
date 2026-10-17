@@ -2,13 +2,15 @@ import { useEffect, useState } from 'react';
 import { Check, Timer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { WorkoutSetCard, type SetRestPresentation } from './WorkoutSetCard';
 import type { ParsedExercise } from '@/lib/trainingResultParser';
 import { makeSubRecords, methodOnSet, methodParameters, seriesMethod, type MethodSetEntry } from '@/lib/workoutExecutionMethods';
 
-export function MethodSetRows({ exercise, set, index, count, recognition = false, targetReps, weightPlaceholder = 'kg', disabled = false, onChange, onComplete }: {
+export function MethodSetRows({ exercise, set, index, count, recognition = false, targetReps, weightPlaceholder = 'kg', disabled = false, onChange, onComplete, restPresentation }: {
   exercise: ParsedExercise; set: MethodSetEntry; index: number; count: number; recognition?: boolean;
   targetReps?: string; weightPlaceholder?: string; disabled?: boolean; onChange: (set: MethodSetEntry) => void;
   onComplete: (set: MethodSetEntry) => void;
+  restPresentation?: SetRestPresentation;
 }) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
@@ -46,13 +48,13 @@ export function MethodSetRows({ exercise, set, index, count, recognition = false
     onChange(result);
     if (completed) onComplete(result);
   };
-  return <div className="rounded-md border border-border bg-secondary/40 p-2 space-y-2" data-testid="method-set">
-    <div className="flex items-center justify-between text-xs"><span className="font-semibold">Série {index + 1}{advanced && seriesMethod(exercise) === 'restpause' && set.subRecords?.some(r => r.completed) ? ` · ${records.map(r => r.reps || '—').join(' + ')}` : ''}</span>{remaining > 0 && <span className="inline-flex items-center gap-1 text-primary"><Timer className="h-3 w-3" />{remaining}s</span>}</div>
+  return <WorkoutSetCard index={index} exIdx={-1} {...restPresentation} className="bg-secondary/40"><div className="p-2 space-y-2" data-testid="method-set">
+    <div className="flex items-center justify-between text-xs"><span className={`font-semibold ${restPresentation?.next ? 'text-primary' : ''}`}>Série {index + 1}{restPresentation?.next && <span className="ml-2 text-[9px]">AGORA</span>}{advanced && seriesMethod(exercise) === 'restpause' && set.subRecords?.some(r => r.completed) ? ` · ${records.map(r => r.reps || '—').join(' + ')}` : ''}</span>{remaining > 0 && <span className="inline-flex items-center gap-1 text-primary"><Timer className="h-3 w-3" />{remaining}s</span>}</div>
     {records.map((record, i) => <div key={i} className="grid grid-cols-[minmax(58px,1fr)_1fr_1fr_44px] gap-1.5 items-center">
       <span className="text-[10px] text-muted-foreground">{advanced ? record.label : recognition ? 'REC' : `#${index + 1}`}</span>
       <Input aria-label={`Série ${index + 1} ${record.label} carga`} inputMode="decimal" value={record.weight} placeholder={i === 0 ? weightPlaceholder : 'kg'} onChange={e => updateRecord(i, 'weight', e.target.value)} onFocus={e => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })} disabled={disabled || record.completed || remaining > 0} className="h-11 text-center text-base min-w-0" />
       <Input aria-label={`Série ${index + 1} ${record.label} reps`} inputMode="numeric" value={record.reps} placeholder={seriesMethod(exercise) === 'cluster' && advanced ? String(methodParameters(exercise).reps_bloco) : i === 0 ? targetReps || 'reps' : 'reps'} onChange={e => updateRecord(i, 'reps', e.target.value)} onFocus={e => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })} disabled={disabled || record.completed || remaining > 0} className="h-11 text-center text-base min-w-0" />
-      <Button size="icon" variant={record.completed ? 'default' : 'outline'} aria-label={`Confirmar série ${index + 1} ${record.label}`} className="h-11 w-11" disabled={disabled || (!record.completed && (remaining > 0 || (advanced && i !== next) || !(Number(record.reps) > 0)))} onClick={() => confirm(i)}><Check className="h-4 w-4" /></Button>
+      <Button size="icon" variant="outline" aria-label={`Confirmar série ${index + 1} ${record.label}`} className={`h-11 w-11 ${record.completed ? 'bg-chart-3/15 border-chart-3/50 text-chart-3 hover:bg-chart-3/20 hover:text-chart-3' : ''}`} disabled={disabled || (!record.completed && (remaining > 0 || (advanced && i !== next) || !(Number(record.reps) > 0)))} onClick={() => confirm(i)}><Check className="h-4 w-4" /></Button>
     </div>)}
-  </div>;
+  </div></WorkoutSetCard>;
 }

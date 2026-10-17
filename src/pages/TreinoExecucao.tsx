@@ -1,4 +1,6 @@
 import { MethodSetRows } from '@/components/training/MethodSetRows';
+import { WorkoutSetCard, RestOffscreenIndicator } from '@/components/training/WorkoutSetCard';
+import { useInlineWorkoutRest } from '@/hooks/useInlineWorkoutRest';
 import { WorkoutGroupTabs } from '@/components/training/WorkoutGroupTabs';
 import { GroupFinishedOverlay, GroupTransitionOverlay } from '@/components/training/GroupTransitionOverlay';
 import { useWorkoutGroupFlow, type GroupPause } from '@/hooks/useWorkoutGroupFlow';
@@ -225,6 +227,15 @@ const TreinoExecucaoInner = () => {
   const [variationPrefs, setVariationPrefs] = useState<Record<string, boolean>>({});
   // Sessão persistida: started_at vem do banco (ou agora se ainda não existe)
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const inlineRest = useInlineWorkoutRest(user && sessionId ? `mw_inline_rest:${user.id}:${sessionId}` : undefined);
+  const pendingRestRestore = useRef<import('@/hooks/useInlineWorkoutRest').InlineRestState | null>(null);
+  useEffect(() => {
+    if (!sessionId || !pendingRestRestore.current) return;
+    // The session-scoped cache initializes first; do not replace newer local edits.
+    const key = user ? `mw_inline_rest:${user.id}:${sessionId}` : null;
+    if (!key || !localStorage.getItem(key)) inlineRest.restore(pendingRestRestore.current);
+    pendingRestRestore.current = null;
+  }, [sessionId, inlineRest.restore, user]);
   const [sessionStartAt, setSessionStartAt] = useState<number>(() => Date.now());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isFinishing, setIsFinishing] = useState(false);
@@ -315,6 +326,7 @@ const TreinoExecucaoInner = () => {
           const idxs = new Set<number>(Object.keys(state.sets).map((k) => Number(k)));
           setLoadedLogsForIndex(idxs);
         }
+        if (state?.inlineRest) pendingRestRestore.current = state.inlineRest;
         // Retomada: reaproveita o snapshot já calculado (nunca recalcula).
         if (state?.progressionRecommendations) {
           setRestoredSnapshot(state.progressionRecommendations as ProgressionSnapshot);
@@ -566,6 +578,7 @@ const TreinoExecucaoInner = () => {
   }, [currentIndex]);
   const sessionMeta = useMemo(() => ({
     groupPause,
+    inlineRest: inlineRest.snapshot,
     exerciseSlotIds: exercises.map(ex => ex.id),
     executionMethods: exercises.map(ex => seriesMethod(ex)),
     exerciseNames: exercises.map((ex: any) => ex?.exercise || ''),
@@ -577,7 +590,7 @@ const TreinoExecucaoInner = () => {
       buildSetPlan(ex?.series, ex?.series2, ex?.reps, ex?.setScheme).map((p) => p.type),
     ),
     ...(progressionSnapshot ? { progressionRecommendations: progressionSnapshot } : {}),
-  }), [exercises, progressionSnapshot, groupPause]);
+  }), [exercises, progressionSnapshot, groupPause, inlineRest.snapshot]);
 
 
   const formatElapsed = (totalSec: number) => {
@@ -1064,9 +1077,9 @@ const TreinoExecucaoInner = () => {
     const secs = parsePauseSeconds(exercise?.pause);
     const current = [...(sets[currentIndex] || [])];
     current[setIndex] = { ...current[setIndex], completed: !current[setIndex]?.completed };
-    if (!groupFlow.complete(setIndex, { ...sets, [currentIndex]: current }, parsePauseSeconds(exercises[groupFlow.indices[1]]?.pause))) startRestTimer(secs, currentIndex);
-    // Foca a carga da próxima série pendente.
-    if (completing) {
+    if (completing && !groupFlow.complete(setIndex, { ...sets, [currentIndex]: current }, parsePauseSeconds(exercises[groupFlow.indices[1]]?.pause))) inlineRest.start(secs, currentIndex, setIndex);
+    // Group transitions retain their existing focus behavior; normal sets scroll on rest completion.
+    if (completing && groupFlow.indices.length === 2) {
       window.setTimeout(() => {
         const nextPending = (sets[currentIndex] ?? []).findIndex((s, i) => i > setIndex && !s.completed);
         if (nextPending >= 0) setWeightRefs.current[nextPending]?.focus();
@@ -1099,7 +1112,7 @@ const TreinoExecucaoInner = () => {
     const next = { ...sets, [currentIndex]: updated };
     setSets(next); syncLocalActiveSession(next, currentIndex);
     const rest = parsePauseSeconds(exercises[groupFlow.indices[1]]?.pause ?? exercise?.pause);
-    if (!groupFlow.complete(index, next, rest)) startRestTimer(rest, currentIndex);
+    if (!groupFlow.complete(index, next, rest)) inlineRest.start(parsePauseSeconds(exercise?.pause), currentIndex, index);
   };
   const currentSets = sets[currentIndex] || [];
   const previousSets = lastLogsByExercise[selectedExerciseName.toUpperCase().trim()] ?? [];
@@ -1299,7 +1312,7 @@ const TreinoExecucaoInner = () => {
           </button>
         </div>
       )}
-      {restTimer && (
+      {restTimer && exerciseBlocks(exercises).find(block => block.indices.includes(restTimer.exIdx))?.indices.length === 2 && (
         <RestTimerOverlay
           timeLeft={restTimer.remaining}
           totalSeconds={restTimer.total}
@@ -1595,14 +1608,16 @@ const TreinoExecucaoInner = () => {
             return currentSets.map((set, i) => {
             const planned = setPlan[i];
             const isRecognition = planned?.type === 'recognition';
-            if (methodOnSet(exercise, i, currentSets.length, isRecognition)) return <MethodSetRows key={i} exercise={exercise} set={set} index={i} count={currentSets.length} recognition={isRecognition} disabled={!!groupFlow.pause || (groupFlow.indices.length === 2 && !set.completed && groupFlow.indices.some(idx => sets[idx]?.slice(0, i).some(prior => !prior.completed)))} targetReps={planned?.reps} weightPlaceholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation)} onChange={entry => changeMethodSet(i, entry)} onComplete={entry => completeMethodSet(i, entry)} />;
-            const isNextPending = i === nextPendingIndex;
+            const isNextPending = i === nextPendingIndex && (!inlineRest.rest || inlineRest.rest.exIdx !== currentIndex);
+            const restProps = groupFlow.indices.length === 2 ? undefined : { exIdx: currentIndex, rest: inlineRest.rest, completion: inlineRest.completion, next: isNextPending, onAdd: inlineRest.adjust, onSkip: () => inlineRest.skip() };
+            if (methodOnSet(exercise, i, currentSets.length, isRecognition)) return <MethodSetRows key={i} exercise={exercise} set={set} index={i} count={currentSets.length} recognition={isRecognition} restPresentation={restProps} disabled={!!groupFlow.pause || (groupFlow.indices.length === 2 && !set.completed && groupFlow.indices.some(idx => sets[idx]?.slice(0, i).some(prior => !prior.completed)))} targetReps={planned?.reps} weightPlaceholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation)} onChange={entry => changeMethodSet(i, entry)} onComplete={entry => completeMethodSet(i, entry)} />;
             const repsPlaceholder = planned?.reps || String(previousSets.find((row) => row.set_number === i + 1)?.reps ?? '') || '10';
             return (
-              <div key={i} className={`rounded-lg transition-colors ${set.completed ? 'bg-primary/10 border border-primary/30' : isRecognition ? 'bg-accent/10 border border-accent/30' : 'bg-secondary/50'}`}>
+              <WorkoutSetCard key={i} index={i} exIdx={currentIndex} {...restProps} className={set.completed ? 'bg-secondary/40' : isRecognition ? 'bg-accent/10' : 'bg-secondary/50'}>
                 <div className="grid grid-cols-[32px_1fr_1fr_44px] gap-1.5 items-center p-2">
                   <div className="flex flex-col items-center justify-center">
-                    <span className="text-sm font-bold text-center text-foreground leading-none">{i + 1}</span>
+                    <span className={`text-sm font-bold text-center leading-none ${isNextPending ? 'text-primary' : 'text-foreground'}`}>{i + 1}</span>
+                    {isNextPending && groupFlow.indices.length !== 2 && <span className="text-[8px] font-bold text-primary mt-1">AGORA</span>}
                     {isRecognition && <span className="text-[8px] uppercase tracking-wider text-accent font-semibold mt-0.5">Rec</span>}
                   </div>
                   <div className="flex items-center gap-0.5 min-w-0">
@@ -1615,7 +1630,7 @@ const TreinoExecucaoInner = () => {
                     <Input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })} placeholder={repsPlaceholder} className="h-11 text-center bg-background/50 border-border/50 min-w-0 px-1" disabled={set.completed} />
                     <button type="button" aria-label={`Série ${i + 1} aumentar reps`} disabled={set.completed} onClick={() => stepSetValue(i, 'reps', 1)} className="h-11 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/60 disabled:opacity-30 text-xs font-bold touch-manipulation">+</button>
                   </div>
-                  <Button size="icon" aria-label={`Confirmar série ${i + 1}`} variant={set.completed ? 'default' : 'outline'} className={`h-11 w-11 mx-auto rounded-full ${isNextPending ? 'animate-pulse-glow' : ''}`} onClick={() => toggleSetComplete(i)}>
+                  <Button size="icon" aria-label={`Confirmar série ${i + 1}`} variant="outline" className={`h-11 w-11 mx-auto rounded-full ${set.completed ? 'bg-chart-3/15 border-chart-3/50 text-chart-3 hover:bg-chart-3/20 hover:text-chart-3' : isNextPending ? 'border-primary/40 text-primary' : ''}`} onClick={() => toggleSetComplete(i)}>
                     <Check className="h-4 w-4" />
                   </Button>
                 </div>
@@ -1645,7 +1660,7 @@ const TreinoExecucaoInner = () => {
                     })}
                   </div>
                 )}
-              </div>
+              </WorkoutSetCard>
             );
 
             });
@@ -1693,14 +1708,15 @@ const TreinoExecucaoInner = () => {
         </DialogContent>
       </Dialog>
 
-      <div className="student-workout-footer shrink-0 z-50 bg-background/95 backdrop-blur border-t border-border px-3 pt-2" data-testid="workout-footer">
+      <div className="student-workout-footer relative shrink-0 z-50 bg-background/95 backdrop-blur border-t border-border px-3 pt-2" data-testid="workout-footer">
+        <RestOffscreenIndicator rest={inlineRest.rest} footer onReveal={() => { if (inlineRest.rest) setCurrentIndex(inlineRest.rest.exIdx); }} />
         <div className="flex items-center justify-between gap-2">
           <Button variant="outline" className="flex-1 h-11 whitespace-nowrap" onClick={() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); setCurrentIndex(blocks[Math.max(0, i - 1)].indices[0]); }} disabled={exerciseBlocks(exercises)[0]?.indices.includes(currentIndex)}>
             <ChevronLeft className="h-4 w-4 mr-1 shrink-0" />
             Anterior
           </Button>
           {!exerciseBlocks(exercises).at(-1)?.indices.includes(currentIndex) ? (
-            <Button className="flex-[2] h-11 min-w-0" onClick={() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); setCurrentIndex(blocks[Math.min(blocks.length - 1, i + 1)].indices[0]); }}>
+            <Button className={`flex-[2] h-11 min-w-0 ${inlineRest.completion?.exIdx === currentIndex && currentSets.every(s => s.completed) && !inlineRest.rest ? 'workout-rest-pulse ring-2 ring-primary/50' : ''}`} onClick={() => { const blocks = exerciseBlocks(exercises); const i = blocks.findIndex(b => b.indices.includes(currentIndex)); setCurrentIndex(blocks[Math.min(blocks.length - 1, i + 1)].indices[0]); }}>
               <span className="flex items-center min-w-0 gap-0.5">
                 <span className="shrink-0">Próximo:</span>
                 <span className="truncate font-normal opacity-90">{(() => {
@@ -1885,6 +1901,7 @@ const TreinoExecucaoInner = () => {
                 }).catch(() => {});
               } catch {}
 
+              inlineRest.cancel();
               clearActiveSession();
             }
           } catch (e) {
