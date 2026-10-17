@@ -17,20 +17,20 @@ export function WorkoutGroupTabs({ exercises, indices, currentIndex, sets, onSel
   const statusOf = (idx: number) =>
     currentIndex === idx ? 'AGORA' : (sets[idx]?.[pending]?.completed ? '✓' : 'a seguir');
   return <div className="space-y-2" data-testid="workout-group">
-    <p className="text-xs font-semibold text-primary">{exercises[a].tipo_grupo === 'superset' ? 'Superset' : 'Bi-set'} · A1 / A2</p>
+    <p className="text-sm font-bold text-primary text-center tracking-wide uppercase">{exercises[a].tipo_grupo === 'superset' ? 'Superset' : 'Bi-set'} · A1 / A2</p>
     <div className="grid grid-cols-2 gap-2">{indices.map((idx, i) => (
       <Button
         key={exercises[idx].id ?? idx}
         variant={currentIndex === idx ? 'default' : 'outline'}
-        className="h-auto min-h-11 whitespace-normal text-xs flex-col gap-0.5 py-1.5"
+        className="h-auto min-h-11 whitespace-normal text-center text-sm flex-col gap-0.5 py-1.5 px-2"
         onClick={() => onSelect(idx)}
       >
-        <span>{i === 0 ? 'A' : 'B'} · {exercises[idx].exercise}</span>
-        <span className={`text-[9px] font-bold uppercase tracking-wider ${currentIndex === idx ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>{statusOf(idx)}</span>
+        <span className="line-clamp-2 leading-tight">{i === 0 ? 'A' : 'B'} · {exercises[idx].exercise}</span>
+        <span className={`text-[10px] font-bold uppercase tracking-wider ${currentIndex === idx ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>{statusOf(idx)}</span>
       </Button>
     ))}</div>
-    <p className="text-xs text-muted-foreground">
-      Série {pending + 1} de {count} · A {aDone ? '✓' : turn === a ? 'agora' : 'pendente'} · B {bDone ? '✓' : turn === b ? 'agora' : 'pendente'}
+    <p className="text-sm text-foreground text-center font-medium">
+      Série {pending + 1} de {count} · A {aDone ? '✓' : turn === a ? 'agora' : 'a seguir'} · B {bDone ? '✓' : turn === b ? 'agora' : 'a seguir'}
     </p>
   </div>;
 }

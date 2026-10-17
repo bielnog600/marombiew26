@@ -1496,8 +1496,8 @@ const TreinoExecucaoInner = () => {
       })()}
 
       {groupFlow.indices.length === 2 && <div className="shrink-0 px-4 pt-2"><WorkoutGroupTabs exercises={exercises} indices={groupFlow.indices} currentIndex={currentIndex} sets={sets} onSelect={setCurrentIndex} /></div>}
-      <div className="shrink-0 px-4 py-3">
-        <div className="flex flex-wrap items-center gap-1.5">
+      <div className="shrink-0 px-4 py-3 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex items-center gap-1.5 flex-nowrap w-max mx-auto">
           <button
             type="button"
             onClick={() => setShowPhaseInfo(true)}
@@ -1552,7 +1552,7 @@ const TreinoExecucaoInner = () => {
             return currentSets.map((set, i) => {
             const planned = setPlan[i];
             const isRecognition = planned?.type === 'recognition';
-            if (groupFlow.indices.length === 2 || methodOnSet(exercise, i, currentSets.length, isRecognition)) return <MethodSetRows key={i} exercise={exercise} set={set} index={i} count={currentSets.length} recognition={isRecognition} disabled={!!groupFlow.pause || (groupFlow.indices.length === 2 && !set.completed && groupFlow.indices.some(idx => sets[idx]?.slice(0, i).some(prior => !prior.completed)))} targetReps={planned?.reps} weightPlaceholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation)} onChange={entry => changeMethodSet(i, entry)} onComplete={entry => completeMethodSet(i, entry)} />;
+            if (methodOnSet(exercise, i, currentSets.length, isRecognition)) return <MethodSetRows key={i} exercise={exercise} set={set} index={i} count={currentSets.length} recognition={isRecognition} disabled={!!groupFlow.pause || (groupFlow.indices.length === 2 && !set.completed && groupFlow.indices.some(idx => sets[idx]?.slice(0, i).some(prior => !prior.completed)))} targetReps={planned?.reps} weightPlaceholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation)} onChange={entry => changeMethodSet(i, entry)} onComplete={entry => completeMethodSet(i, entry)} />;
             const isNextPending = i === nextPendingIndex;
             const repsPlaceholder = planned?.reps || String(previousSets.find((row) => row.set_number === i + 1)?.reps ?? '') || '10';
             return (
