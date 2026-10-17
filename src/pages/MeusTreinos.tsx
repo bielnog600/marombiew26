@@ -20,7 +20,6 @@ import { translatePlanMarkdown } from '@/lib/planTranslation';
 import { getSafeWorkoutDays, trackPlanAccess } from '@/lib/planMigrationUtils';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { fetchWithCache } from '@/lib/offlineCache';
-import WeeklyAdherenceBanner from '@/components/training/WeeklyAdherenceBanner';
 import { useWeeklyTraining } from '@/hooks/useWeeklyTraining';
 import {
   TRAINING_PHASES,
@@ -343,11 +342,6 @@ const MeusTreinos = () => {
           </Card>
         ) : (
           <>
-            <WeeklyAdherenceBanner
-              report={adherenceReport}
-              loading={adherenceLoading}
-              progression={progression}
-            />
             {
           trainingDays.map((day, i) => {
             const isToday = i === todayIndex;
