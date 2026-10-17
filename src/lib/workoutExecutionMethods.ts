@@ -67,7 +67,9 @@ const PARAM_KEYS_BY_METHOD: Record<Exclude<SeriesMethod, 'nenhum'>, (keyof Metho
 export const cleanMethodParams = (method: SeriesMethod, params: MethodParameters): MethodParameters => {
   if (method === 'nenhum') return params;
   const keys = PARAM_KEYS_BY_METHOD[method];
-  return { ...methodDefaults(method), ...Object.fromEntries(keys.map(k => [k, params[k]])) } as MethodParameters;
+  const d = methodDefaults(method);
+  // Só as chaves do método entram; o resto é descartado (evita misturar params).
+  return Object.fromEntries(keys.map(k => [k, params[k] ?? d[k]])) as unknown as MethodParameters;
 };
 export const methodPatch = (method: SeriesMethod, params = methodDefaults(method)): Partial<ParsedExercise> => {
   const clean = cleanMethodParams(method, params);
