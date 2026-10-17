@@ -1280,10 +1280,10 @@ const TreinoExecucaoInner = () => {
         const isBiset = peer?.tipo_grupo === 'biset';
         const count = (sets[groupFlow.indices[0]] ?? []).length || buildSetPlan(peer?.series, peer?.series2, peer?.reps, peer?.setScheme).length || 3;
         const media = exerciseMedia[(target?.exercise ?? '').toUpperCase().trim()];
-        const streamId = extractStreamVideoId(target?.video_embed ?? media?.videoEmbed);
+        const streamId = extractStreamVideoId((target as { video_embed?: string | null } | undefined)?.video_embed ?? media?.videoEmbed);
         const thumbnail = streamId
           ? `https://customer-vqfal80lir76xyf0.cloudflarestream.com/${streamId}/thumbnails/thumbnail.jpg?height=200`
-          : (target?.imagem_url ?? media?.imageUrl ?? null);
+          : ((target as { imagem_url?: string | null } | undefined)?.imagem_url ?? media?.imageUrl ?? null);
         const suggested = target?.targetLoadKg ? ` · carga sugerida ${String(target.targetLoadKg).replace('.', ',')} kg` : '';
         const isSwap = pause.kind === 'swap';
         return (

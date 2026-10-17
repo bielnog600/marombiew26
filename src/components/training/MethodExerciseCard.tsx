@@ -51,7 +51,7 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
     const b = exercises[indices[1] ?? current];
     const rest = parsePauseSeconds(b?.pause);
     if (!flow.complete(index, { ...sets, [current]: nextRows }, rest)) {
-      onPauseChange?.({ until: Date.now() + rest * 1000, nextIndex: current, label: 'Descanso' });
+      onPauseChange?.({ until: Date.now() + rest * 1000, nextIndex: current, label: 'Descanso', kind: 'rest', setIndex: index + 1, total: rest });
     }
   };
   const displayedPause = flow.pause ?? savedPause;
