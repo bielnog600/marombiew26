@@ -209,37 +209,15 @@ const TreinoExecucaoInner = () => {
   const [lastLogsByExercise, setLastLogsByExercise] = useState<Record<string, PreviousExerciseSet[]>>({});
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   useEffect(() => {
+    // Classe no <html> e no <body>: o CSS ajusta html/body/#root só nesta tela.
+    document.documentElement.classList.add('student-workout-open');
     document.body.classList.add('student-workout-open');
-    return () => document.body.classList.remove('student-workout-open');
-  }, []);
-
-  // --app-h: altura real da tela. No PWA instalado (standalone iOS) a viewport
-  // de layout desconta a status bar, então usamos screen.height quando maior.
-  useEffect(() => {
-    const isStandalone =
-      window.matchMedia?.('(display-mode: standalone)').matches ||
-      (navigator as unknown as { standalone?: boolean }).standalone === true;
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-    const updateAppHeight = () => {
-      let h = window.visualViewport?.height ?? window.innerHeight;
-      if (isStandalone && isIOS && window.screen.height > h) {
-        h = window.screen.height;
-      }
-      document.documentElement.style.setProperty('--app-h', `${Math.round(h)}px`);
-    };
-
-    updateAppHeight();
-    window.addEventListener('resize', updateAppHeight);
-    window.addEventListener('orientationchange', updateAppHeight);
-    window.visualViewport?.addEventListener('resize', updateAppHeight);
     return () => {
-      window.removeEventListener('resize', updateAppHeight);
-      window.removeEventListener('orientationchange', updateAppHeight);
-      window.visualViewport?.removeEventListener('resize', updateAppHeight);
-      document.documentElement.style.removeProperty('--app-h');
+      document.documentElement.classList.remove('student-workout-open');
+      document.body.classList.remove('student-workout-open');
     };
   }, []);
+  const debugViewport = useMemo(() => new URLSearchParams(window.location.search).get('debug') === '1', []);
   const [loadedLogsForIndex, setLoadedLogsForIndex] = useState<Set<number>>(new Set());
   const [exerciseDB, setExerciseDB] = useState<ExerciseDBData[]>([]);
   const { restTimer, startTimer: startRestTimer, stopTimer: stopRestTimer, adjustTimer: adjustRestTimer } = useRestTimer();
