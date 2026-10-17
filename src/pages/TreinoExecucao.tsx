@@ -45,6 +45,7 @@ import { getRecommendationFor, type ProgressionSnapshot } from '@/lib/sessionPro
 import { StudentLoadSummaryCard } from '@/components/training/StudentLoadSummaryCard';
 import { lastWorkSetLine, studentSuggestionLine, studentWeightPlaceholder, type PreviousExerciseSet } from '@/lib/studentExerciseLoadPresentation';
 import MethodBadge from '@/components/training/MethodBadge';
+import { variationPrefKey, backendVariationPref } from '@/lib/exerciseVariationPref';
 import { WorkoutViewportDebug } from '@/components/training/WorkoutViewportDebug';
 import { parsePauseSeconds } from '@/components/training/TrainerLogSheetUtils';
 
@@ -62,13 +63,6 @@ const VARIATION_PREF_FIELD = '__preferred_variation';
 
 const normalizeExerciseKey = (exerciseName: string) => exerciseName.toUpperCase().trim();
 const VARIATION_NAME_FIELD = '__preferred_variation_name';
-/**
- * Chave da preferência de variação: exercício + variação. Uma escolha só vale
- * para aquele mesmo par; se o plano trocar a variação (ou a preferência for de
- * outro exercício), o topo volta a mostrar o exercício original.
- */
-const variationPrefKey = (ex: { exercise?: string; variation?: string } | undefined) =>
-  ex ? `${normalizeExerciseKey(ex.exercise || '')}=>${normalizeExerciseKey(ex.variation || '')}` : '';
 
 const loadVariationPref = (userId: string | undefined, prefKey: string): boolean => {
   if (!userId || !prefKey) return false;
@@ -877,10 +871,7 @@ const TreinoExecucaoInner = () => {
         const stored = (data?.valores as Record<string, any> | null) ?? {};
         // Só vale a preferência salva para ESTA variação (registros antigos sem
         // nome da variação são ignorados — evitavam mostrar outro exercício).
-        const sameVariation = stored[VARIATION_NAME_FIELD] === normalizeExerciseKey(exercise.variation || '');
-        const backendPref = sameVariation && typeof stored[VARIATION_PREF_FIELD] === 'boolean'
-          ? stored[VARIATION_PREF_FIELD]
-          : localPref;
+        const backendPref = backendVariationPref(stored, exercise.variation) ?? localPref;
         setVariationPrefs((prev) => (prev[cacheKey] === backendPref ? prev : { ...prev, [cacheKey]: backendPref }));
         setShowingVariation(backendPref);
         setShowingVariationFor(cacheKey);
