@@ -191,7 +191,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     if (open && planA && !studentA) {
       (async () => {
         const { data: profile } = await supabase.from('profiles').select('nome').eq('user_id', studentAId).single();
-        const days = getSafeWorkoutDays(planA);
+        const { days } = getSafeWorkoutDays(planA);
         
         // Find best day for today
         const weekdays = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
@@ -232,7 +232,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     }
     
     const plan = plans[0];
-    const days = getSafeWorkoutDays(plan);
+    const { days } = getSafeWorkoutDays(plan);
     const weekdays = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
     const today = weekdays[new Date().getDay()];
     const idx = days.findIndex((d) => d.day.toLowerCase().includes(today));
