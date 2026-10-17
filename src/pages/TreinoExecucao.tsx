@@ -1403,6 +1403,17 @@ const TreinoExecucaoInner = () => {
                 <p className="text-[10px] uppercase tracking-widest text-primary font-semibold" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{activeExercise?.grupo_muscular || dayName}</p>
               </div>
               <h1 className="text-xl font-bold text-foreground leading-tight" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}>{selectedExerciseName}</h1>
+              {exercise.description && (
+                <button
+                  type="button"
+                  onClick={() => setDescriptionOpen(true)}
+                  className="mt-1 text-left"
+                  aria-label="Ver descrição completa"
+                >
+                  <span className="text-xs text-foreground/85 leading-snug line-clamp-2" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{exercise.description.trim()}</span>
+                  <span className="text-xs text-primary font-semibold">Ver mais</span>
+                </button>
+              )}
             </div>
             <div className="relative z-10 shrink-0 mt-1 flex flex-col items-end gap-1.5">
               {exercise.variation && (
@@ -1464,32 +1475,21 @@ const TreinoExecucaoInner = () => {
         const summary = isPerSet
           ? setPlan.map((set) => set.reps).filter(Boolean).join(' / ')
           : isComposed ? buildPlanSummary(setPlan) : null;
-        const hasDetails = !!exercise.description || methodExplanation(exercise).length > 0;
-
+        const chip = 'inline-flex items-center h-10 px-3 rounded text-base text-foreground bg-secondary/80';
         return (
-          <div className="shrink-0 px-4 pt-2 flex items-center gap-2 flex-wrap" data-testid="prescription-chips">
+          <div className="shrink-0 px-4 pt-2 flex items-center justify-center gap-2 flex-wrap" data-testid="prescription-chips">
             {summary
-              ? <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded font-semibold">{summary}</span>
-              : isReal(exercise.series) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.series} séries</span>}
-            {!summary && repsLabel && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{repsLabel}</span>}
-            {rirLabel && <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">{rirLabel}</span>}
-            {isReal(exercise.pause) && <span className="text-xs text-foreground bg-secondary/80 px-2 py-1 rounded">{exercise.pause} descanso</span>}
+              ? <span className={`${chip} font-semibold`}>{summary}</span>
+              : isReal(exercise.series) && <span className={chip}>{exercise.series} séries</span>}
+            {!summary && repsLabel && <span className={chip}>{repsLabel}</span>}
+            {rirLabel && <span className="inline-flex items-center h-10 px-3 rounded text-base text-primary bg-primary/10">{rirLabel}</span>}
+            {isReal(exercise.pause) && <span className={chip}>{exercise.pause} descanso</span>}
             {(exercise as { method?: { slug: string; params?: Record<string, string | number> } }).method?.slug && (
               <MethodBadge
                 method={(exercise as { method?: { slug: string; params?: Record<string, string | number> } }).method}
                 dayExercises={exercises}
                 className="py-1"
               />
-            )}
-            {hasDetails && (
-              <button
-                type="button"
-                onClick={() => setDescriptionOpen(true)}
-                className="inline-flex items-center gap-1 rounded-full bg-secondary/70 border border-border/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-foreground hover:bg-secondary transition-colors"
-              >
-                <Info className="h-3 w-3" />
-                Descrição
-              </button>
             )}
           </div>
         );
