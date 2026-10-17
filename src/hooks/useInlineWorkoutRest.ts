@@ -64,7 +64,8 @@ export function useInlineWorkoutRest(storageKey?: string) {
     if (current) restore({ ...current, exIdx });
   }, [restore]);
   useEffect(() => {
-    if (timer.restTimer && timer.restTimer.remaining <= 0) finish();
+    // Normal expiration already has its Web Audio beep scheduled; skipping plays it immediately.
+    if (timer.restTimer && timer.restTimer.remaining <= 0) finish(false);
   }, [timer.restTimer?.remaining, finish]);
   // Deadline-only snapshot keeps session autosaves independent of countdown ticks.
   const snapshot = useMemo(() => activeRef.current, [timer.restTimer?.endTime, timer.restTimer?.exIdx, timer.restTimer?.setIndex]);
