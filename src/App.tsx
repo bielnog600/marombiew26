@@ -53,6 +53,7 @@ import Agenda from "./pages/Agenda";
 import MinhaAgenda from "./pages/MinhaAgenda";
 import Financeiro from "./pages/Financeiro";
 import RedeSocial from "./pages/RedeSocial";
+import StudentErrorBoundary from "./components/StudentErrorBoundary";
 
 const queryClient = new QueryClient();
 
