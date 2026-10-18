@@ -94,6 +94,7 @@ const App = () => {
             <PushNotificationsInit />
             <StudentAppOpenTracker />
             <AdminTrainerSessionMount />
+            <StudentErrorBoundary>
             <Routes>
               <Route path="/" element={<RootRedirect />} />
               <Route path="/login" element={<Login />} />
@@ -134,6 +135,7 @@ const App = () => {
               <Route path="/minha-agenda" element={<ProtectedRoute requiredRole="aluno"><MinhaAgenda /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </StudentErrorBoundary>
             </AdminTrainerSessionProvider>
             </TabSwipeProvider>
             </LanguageProvider>
