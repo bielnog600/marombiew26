@@ -44,6 +44,8 @@ export const METHOD_LABELS: Record<string, string> = {
   non_competing_superset: 'Supersérie não-competitiva',
   one_and_half_reps: 'Reps 1½',
   paused_reps: 'Reps com pausa',
+  pyramid_up: 'Pirâmide crescente',
+  pyramid_down: 'Pirâmide decrescente',
   post_exhaustion: 'Pós-exaustão',
   pre_exhaustion: 'Pré-exaustão',
   ramping_sets: 'Séries em rampa',

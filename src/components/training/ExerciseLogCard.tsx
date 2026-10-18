@@ -310,6 +310,7 @@ const ExerciseLogCard: React.FC<Props> = ({
                         {s.set_type === 'recognition' ? `REC #${i + 1}` : `#${i + 1}`}
                       </button>
                       <Input
+                        key={`${i}-${s.target_reps}`}
                         defaultValue={s.target_reps}
                         onBlur={(e) => updatePerSetReps(i, e.target.value)}
                         placeholder="ex.: 12"

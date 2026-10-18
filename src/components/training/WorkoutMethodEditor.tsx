@@ -2,9 +2,11 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { ParsedExercise } from '@/lib/trainingResultParser';
 import { methodParameters, methodPatch, methodSummary, seriesMethod, type MethodParameters, type SeriesMethod } from '@/lib/workoutExecutionMethods';
+import { pyramidPatch, pyramidType } from '@/lib/workoutPyramid';
 
 export function WorkoutMethodEditor({ exercise, onChange }: { exercise: ParsedExercise; onChange: (patch: Partial<ParsedExercise>) => void }) {
   const method = seriesMethod(exercise), params = methodParameters(exercise);
+  const pyramid = pyramidType(exercise);
   const update = (key: keyof MethodParameters, value: number | string) => onChange(methodPatch(method, { ...params, [key]: value }));
   const number = (key: keyof MethodParameters, label: string, min: number, max: number) => (
     <label className="text-xs text-muted-foreground space-y-1" key={key}>{label}
@@ -12,11 +14,18 @@ export function WorkoutMethodEditor({ exercise, onChange }: { exercise: ParsedEx
     </label>
   );
   return <div className="space-y-2">
-    <Select value={method} onValueChange={v => onChange(methodPatch(v as SeriesMethod))}>
+    <Select value={pyramid ? 'piramide' : method} onValueChange={v => onChange(v === 'piramide' ? pyramidPatch(exercise, 'crescente') : methodPatch(v as SeriesMethod))}>
       <SelectTrigger aria-label="Método" className="h-8 text-xs"><SelectValue /></SelectTrigger>
-      <SelectContent>{[['nenhum', 'Sem método'], ['dropset', 'Drop set'], ['restpause', 'Rest-pause'], ['cluster', 'Cluster']].map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
+      <SelectContent>{[['nenhum', 'Sem método'], ['dropset', 'Drop set'], ['restpause', 'Rest-pause'], ['cluster', 'Cluster'], ['piramide', 'Pirâmide']].map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
     </Select>
-    {method !== 'nenhum' && <>
+    {pyramid && <>
+      <Select value={pyramid} onValueChange={v => onChange(pyramidPatch(exercise, v as 'crescente' | 'decrescente'))}>
+        <SelectTrigger aria-label="Tipo de pirâmide" className="h-8 text-xs"><SelectValue /></SelectTrigger>
+        <SelectContent><SelectItem value="crescente">Crescente</SelectItem><SelectItem value="decrescente">Decrescente</SelectItem></SelectContent>
+      </Select>
+      <p className="text-xs text-primary">{methodSummary(exercise)}</p>
+    </>}
+    {!pyramid && method !== 'nenhum' && <>
       <Select value={params.aplicar} onValueChange={v => update('aplicar', v)}>
         <SelectTrigger aria-label="Aplicar em" className="h-8 text-xs"><SelectValue /></SelectTrigger>
         <SelectContent><SelectItem value="ultima">Última série</SelectItem><SelectItem value="todas">Todas as séries</SelectItem></SelectContent>
