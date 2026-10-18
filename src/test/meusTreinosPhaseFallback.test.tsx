@@ -61,8 +61,9 @@ const wemersonPlans = [
 vi.mock('@/components/AppLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
+const STABLE_USER = { id: STUDENT_ID };
 vi.mock('@/contexts/AuthContext', () => ({
-  useAuth: () => ({ user: { id: STUDENT_ID }, role: 'aluno' }),
+  useAuth: () => ({ user: STABLE_USER, role: 'aluno' }),
 }));
 vi.mock('@/i18n', () => ({
   useLanguage: () => ({ language: 'pt' }),
@@ -74,7 +75,7 @@ vi.mock('@/hooks/useActiveWorkoutSession', () => ({
   useActiveWorkoutSession: () => ({ session: null, clear: vi.fn() }),
 }));
 vi.mock('@/lib/offlineCache', () => ({
-  fetchWithCache: (_key: string, fn: () => Promise<unknown>) => fn(),
+  fetchWithCache: async (_key: string, fn: () => Promise<unknown>) => ({ data: await fn(), fromCache: false }),
 }));
 vi.mock('@/lib/workoutSessionResolution', () => ({
   cancelWorkoutSession: vi.fn(),
