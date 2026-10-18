@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import AppLayout from '@/components/AppLayout';
 import CycleSummaryAccordion from '@/components/training/CycleSummaryAccordion';
 import { Card, CardContent } from '@/components/ui/card';
@@ -102,6 +102,8 @@ const MeusTreinos = () => {
   const [autoPhaseSet, setAutoPhaseSet] = useState(false);
   const [plannedPhase, setPlannedPhase] = useState<TrainingPhase>('semana_1');
   const [userOverridePhase, setUserOverridePhase] = useState(false);
+  // Garante no máximo UM auto-ajuste de fase por carregamento (sem oscilação).
+  const autoResolvedRef = useRef(false);
 
   useEffect(() => {
     if (user) loadTraining();
@@ -141,9 +143,21 @@ const MeusTreinos = () => {
       const planned = resolveCurrentTrainingPhaseFromPlans(allPlans).phase;
       // A avaliação semanal usa SEMPRE a fase resolvida (identidade com admin).
       setPlannedPhase(planned);
-      // A exibição cai para um documento existente quando não há plano da fase.
+      // Regra de exibição: quando o plano MAIS RECENTE está numa fase diferente
+      // da fase calculada pelo calendário, mostra o plano mais recente (é o que
+      // o personal acabou de gerar). As abas de fase continuam disponíveis.
+      const newestFase = allPlans[0]?.fase;
+      const newestPhase = (TRAINING_PHASES as string[]).includes(newestFase)
+        ? (newestFase as TrainingPhase)
+        : null;
       const available = allPlans.some(p => p.fase === planned);
-      setActivePhase((available ? planned : (allPlans[0].fase || planned)) as TrainingPhase);
+      const initial =
+        newestPhase && newestPhase !== planned
+          ? newestPhase
+          : available
+            ? planned
+            : (newestPhase ?? planned);
+      setActivePhase(initial);
       setAutoPhaseSet(true);
     }
 
@@ -236,12 +250,18 @@ const MeusTreinos = () => {
   useEffect(() => {
     if (!autoPhaseSet || userOverridePhase) return;
     if (weeklyLoading || !resolution) return;
+    // No máximo um auto-ajuste por carregamento: nunca oscila.
+    if (autoResolvedRef.current) return;
     const target = resolution.activePhase;
+    // Só auto-troca quando a execução aponta uma semana DIFERENTE da planejada
+    // (repetir/avançar). Nunca derruba o padrão "plano mais recente".
+    if (target === plannedPhase) return;
     const hasPlanForTarget = plans.some(p => p.fase === target);
     if (hasPlanForTarget && target !== activePhase) {
+      autoResolvedRef.current = true;
       setActivePhase(target);
     }
-  }, [resolution, plans, weeklyLoading, autoPhaseSet, userOverridePhase, activePhase]);
+  }, [resolution, plans, weeklyLoading, autoPhaseSet, userOverridePhase, activePhase, plannedPhase]);
 
 
   const todayIndex = useMemo(() => {

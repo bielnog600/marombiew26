@@ -53,6 +53,7 @@ import Agenda from "./pages/Agenda";
 import MinhaAgenda from "./pages/MinhaAgenda";
 import Financeiro from "./pages/Financeiro";
 import RedeSocial from "./pages/RedeSocial";
+import StudentErrorBoundary from "./components/StudentErrorBoundary";
 
 const queryClient = new QueryClient();
 
@@ -94,6 +95,7 @@ const App = () => {
             <PushNotificationsInit />
             <StudentAppOpenTracker />
             <AdminTrainerSessionMount />
+            <StudentErrorBoundary>
             <Routes>
               <Route path="/" element={<RootRedirect />} />
               <Route path="/login" element={<Login />} />
@@ -134,6 +136,7 @@ const App = () => {
               <Route path="/minha-agenda" element={<ProtectedRoute requiredRole="aluno"><MinhaAgenda /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </StudentErrorBoundary>
             </AdminTrainerSessionProvider>
             </TabSwipeProvider>
             </LanguageProvider>
