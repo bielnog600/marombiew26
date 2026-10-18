@@ -363,7 +363,15 @@ const MeusTreinos = () => {
               >
                 {heroImage && (
                   <div className="relative h-32 overflow-hidden">
-                    <img src={heroImage} alt={day.day} className="w-full h-full object-cover" />
+                    <img
+                      src={heroImage}
+                      alt={day.day}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      decoding="async"
+                      width={800}
+                      height={256}
+                    />
                     <div className="absolute inset-0 bg-gradient-to-t from-card via-card/60 to-transparent" />
                     <div className="absolute top-2 left-2 flex gap-1.5">
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${PHASE_BADGE_CLASS[activePhase]}`}>

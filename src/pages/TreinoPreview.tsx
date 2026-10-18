@@ -137,6 +137,10 @@ const TreinoPreview = () => {
                           src={media.imageUrl}
                           alt={ex.exercise}
                           className="w-full h-full object-cover"
+                          loading="lazy"
+                          decoding="async"
+                          width={64}
+                          height={64}
                         />
                       ) : (
                         <Dumbbell className="h-6 w-6 text-muted-foreground" />
