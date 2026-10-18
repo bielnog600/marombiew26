@@ -756,7 +756,7 @@ const MinhasDietas = () => {
           </div>
           <Skeleton className="h-20 rounded-xl" />
           {[1, 2, 3].map((i) => (
-            <Card key={i} className="glass-card">
+            <Card key={i} className="glass-card-solid">
               <CardContent className="p-4 space-y-3">
                 <div className="flex justify-between">
                   <Skeleton className="h-4 w-24" />
@@ -986,7 +986,7 @@ const MinhasDietas = () => {
 
 
         {currentMeals.length === 0 && (
-          <Card className="glass-card">
+          <Card className="glass-card-solid">
             <CardContent className="p-6 text-center">
               <UtensilsCrossed className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">Nenhum plano alimentar disponível.</p>

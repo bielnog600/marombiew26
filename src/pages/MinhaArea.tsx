@@ -364,7 +364,7 @@ const MinhaArea = () => {
               <Skeleton className="h-5 w-32" />
             </div>
           </div>
-          <Card className="glass-card overflow-hidden">
+          <Card className="glass-card-solid overflow-hidden">
             <Skeleton className="h-40 w-full rounded-none" />
           </Card>
           <Skeleton className="h-24 rounded-xl" />
@@ -419,7 +419,7 @@ const MinhaArea = () => {
           {homeTrainingCard.mode === 'active' ? (
             <Card
               key="treino"
-              className="glass-card overflow-hidden ring-2 ring-primary/60 shadow-lg shadow-primary/10"
+              className="glass-card-solid overflow-hidden ring-2 ring-primary/60 shadow-lg shadow-primary/10"
             >
               <div className="relative h-40 overflow-hidden">
                 <img src={todayHeroImage} alt="Treino em andamento" className="w-full h-full object-cover" />
@@ -448,7 +448,7 @@ const MinhaArea = () => {
           ) : todayTraining ? (
             <Card
               key="treino"
-              className="glass-card overflow-hidden cursor-pointer group"
+              className="glass-card-solid overflow-hidden cursor-pointer group"
               onClick={() => {
                 navigate('/treino-preview', {
                   state: {
@@ -492,7 +492,7 @@ const MinhaArea = () => {
 
         {/* Rest day card - when student has a training plan but today is not a scheduled training day */}
         {!todayTraining && !activeSession && trainingDays.length > 0 && (
-          <Card className="glass-card overflow-hidden">
+          <Card className="glass-card-solid overflow-hidden">
             <CardContent className="p-5 flex items-center gap-4">
               <div className="h-14 w-14 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
                 <span className="text-2xl">🛌</span>
@@ -540,7 +540,7 @@ const MinhaArea = () => {
 
         {/* No plans message */}
         {trainingDays.length === 0 && meals.length === 0 && (
-          <Card className="glass-card">
+          <Card className="glass-card-solid">
             <CardContent className="p-6 text-center">
               <Dumbbell className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">
@@ -555,7 +555,7 @@ const MinhaArea = () => {
 
         {/* Quick access to assessments */}
         <Card
-          className="glass-card cursor-pointer hover:bg-secondary/50 transition-colors"
+          className="glass-card-solid cursor-pointer hover:bg-secondary/50 transition-colors"
           onClick={() => navigate('/minhas-avaliacoes')}
         >
           <CardContent className="p-4 flex items-center justify-between">

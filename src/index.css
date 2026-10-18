@@ -239,6 +239,11 @@
   .glass-card {
     @apply bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl shadow-lg;
   }
+  /* Variante sem backdrop-blur para listas roláveis do aluno: o WebKit do iOS
+     perde composição (áreas pretas ao rolar) com vários blur + imagens hero. */
+  .glass-card-solid {
+    @apply bg-card border border-border/50 rounded-xl shadow-lg;
+  }
   .gradient-primary {
     background: var(--gradient-chrome);
   }

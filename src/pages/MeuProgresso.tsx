@@ -78,7 +78,7 @@ const fmtDate = (iso: string) => {
 };
 
 const EmptyState = ({ message }: { message: string }) => (
-  <Card className="glass-card">
+  <Card className="glass-card-solid">
     <CardContent className="p-8 text-center">
       <BarChart3 className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-50" />
       <p className="text-sm text-muted-foreground">{message}</p>
@@ -87,7 +87,7 @@ const EmptyState = ({ message }: { message: string }) => (
 );
 
 const StatCard = ({ icon: Icon, label, value, sub }: { icon: any; label: string; value: string | number; sub?: string }) => (
-  <Card className="glass-card">
+  <Card className="glass-card-solid">
     <CardContent className="p-3">
       <div className="flex items-center gap-2 mb-1">
         <Icon className="h-3.5 w-3.5 text-primary" />
@@ -375,7 +375,7 @@ const MeuProgresso: React.FC = () => {
           <>
           {/* Compartilhar treinos recentes */}
           {sessions.length > 0 && (
-            <Card className="glass-card">
+            <Card className="glass-card-solid">
               <CardContent className="p-3 space-y-2">
                 <div className="flex items-center gap-2">
                   <Share2 className="h-4 w-4 text-primary" />
@@ -462,7 +462,7 @@ const MeuProgresso: React.FC = () => {
                     const evol = stat.current - stat.initial;
                     const evolPct = stat.initial > 0 ? (evol / stat.initial) * 100 : 0;
                     return (
-                      <Card key={stat.exercise} className="glass-card">
+                      <Card key={stat.exercise} className="glass-card-solid">
                         <CardContent className="p-3 space-y-2">
                           <div className="flex items-start justify-between gap-2">
                             <p className="text-xs font-bold text-foreground line-clamp-1 flex-1">{stat.exercise}</p>
@@ -518,7 +518,7 @@ const MeuProgresso: React.FC = () => {
                 <EmptyState message="Sem volume registrado. Anote carga e reps em cada série." />
               ) : (
                 <>
-                  <Card className="glass-card">
+                  <Card className="glass-card-solid">
                     <CardContent className="p-3 space-y-2">
                       <p className="text-xs font-semibold text-foreground">Volume semanal (kg)</p>
                       <div className="h-40">
@@ -544,7 +544,7 @@ const MeuProgresso: React.FC = () => {
                   </Card>
 
                   {volumeData.musclePoints.length > 0 && (
-                    <Card className="glass-card">
+                    <Card className="glass-card-solid">
                       <CardContent className="p-3 space-y-2">
                         <p className="text-xs font-semibold text-foreground">Volume por grupo muscular</p>
                         <div className="h-48">
@@ -578,7 +578,7 @@ const MeuProgresso: React.FC = () => {
               </div>
 
               {sessions.length > 0 && (
-                <Card className="glass-card">
+                <Card className="glass-card-solid">
                   <CardContent className="p-3 space-y-2">
                     <p className="text-xs font-semibold text-foreground">Duração por sessão (min)</p>
                     <div className="h-40">
@@ -602,7 +602,7 @@ const MeuProgresso: React.FC = () => {
 
             {/* ESTRESSE */}
             <TabsContent value="estresse" className="space-y-3 mt-0">
-              <Card className="glass-card">
+              <Card className="glass-card-solid">
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
@@ -629,7 +629,7 @@ const MeuProgresso: React.FC = () => {
               {stressData.points.length === 0 ? (
                 <EmptyState message="Registre RPE em cada série para acompanhar seu estresse fisiológico." />
               ) : (
-                <Card className="glass-card">
+                <Card className="glass-card-solid">
                   <CardContent className="p-3 space-y-2">
                     <p className="text-xs font-semibold text-foreground">Evolução da carga interna</p>
                     <div className="h-44">

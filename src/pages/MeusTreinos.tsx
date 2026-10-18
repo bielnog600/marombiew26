@@ -278,7 +278,7 @@ const MeusTreinos = () => {
       <AppLayout title="Treinos">
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
-            <Card key={i} className="glass-card overflow-hidden">
+            <Card key={i} className="glass-card-solid overflow-hidden">
               <Skeleton className="h-32 w-full rounded-none" />
               <CardContent className="p-4 space-y-3">
                 <Skeleton className="h-3 w-20" />
@@ -325,7 +325,7 @@ const MeusTreinos = () => {
         />
 
         {trainingDays.length === 0 ? (
-          <Card className="glass-card">
+          <Card className="glass-card-solid">
             <CardContent className="p-6 text-center">
               <Dumbbell className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">
@@ -359,11 +359,19 @@ const MeusTreinos = () => {
             return (
               <Card
                 key={day.day + i}
-                className={`glass-card overflow-hidden ${isActiveDay ? 'ring-2 ring-primary/60 shadow-lg shadow-primary/10' : isToday ? 'ring-2 ring-primary/50' : ''}`}
+                className={`glass-card-solid overflow-hidden ${isActiveDay ? 'ring-2 ring-primary/60 shadow-lg shadow-primary/10' : isToday ? 'ring-2 ring-primary/50' : ''}`}
               >
                 {heroImage && (
                   <div className="relative h-32 overflow-hidden">
-                    <img src={heroImage} alt={day.day} className="w-full h-full object-cover" />
+                    <img
+                      src={heroImage}
+                      alt={day.day}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      decoding="async"
+                      width={800}
+                      height={256}
+                    />
                     <div className="absolute inset-0 bg-gradient-to-t from-card via-card/60 to-transparent" />
                     <div className="absolute top-2 left-2 flex gap-1.5">
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${PHASE_BADGE_CLASS[activePhase]}`}>

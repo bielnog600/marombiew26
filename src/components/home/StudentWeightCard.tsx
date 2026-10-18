@@ -171,7 +171,7 @@ const StudentWeightCard: React.FC<Props> = ({ studentId }) => {
 
   return (
     <>
-      <Card className={`glass-card ${highlight ? 'ring-1 ring-primary/50' : ''}`}>
+      <Card className={`glass-card-solid ${highlight ? 'ring-1 ring-primary/50' : ''}`}>
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-[10px] uppercase tracking-widest text-primary font-semibold">

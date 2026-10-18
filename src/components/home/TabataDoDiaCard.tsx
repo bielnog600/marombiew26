@@ -46,7 +46,7 @@ const TabataDoDiaCard: React.FC<TabataDoDiaCardProps> = ({ conteudo }) => {
 
   return (
     <Card
-      className="glass-card overflow-hidden cursor-pointer group border-primary/20"
+      className="glass-card-solid overflow-hidden cursor-pointer group border-primary/20"
       onClick={() => navigate('/tabata-execucao', { state: { tabata: parsed } })}
     >
       <div className="relative h-40 overflow-hidden">

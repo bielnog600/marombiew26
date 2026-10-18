@@ -176,7 +176,7 @@ const MinhasAvaliacoes = () => {
             {loading ? (
               <div className="space-y-3">
                 {[1, 2, 3].map((i) => (
-                  <Card key={i} className="glass-card">
+                  <Card key={i} className="glass-card-solid">
                     <CardContent className="p-4 space-y-2">
                       <Skeleton className="h-4 w-40" />
                       <div className="flex gap-4">
@@ -189,7 +189,7 @@ const MinhasAvaliacoes = () => {
                 ))}
               </div>
             ) : assessments.length === 0 ? (
-              <Card className="glass-card">
+              <Card className="glass-card-solid">
                 <CardContent className="p-8 text-center">
                   <ClipboardList className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
                   <p className="text-sm text-muted-foreground">Nenhuma avaliação realizada ainda.</p>
@@ -199,7 +199,7 @@ const MinhasAvaliacoes = () => {
               assessments.map((a, i) => (
                 <Card
                   key={a.id}
-                  className="glass-card cursor-pointer hover:bg-secondary/50 transition-colors active:scale-[0.98]"
+                  className="glass-card-solid cursor-pointer hover:bg-secondary/50 transition-colors active:scale-[0.98]"
                   onClick={() => navigate(`/relatorio/${a.id}`)}
                 >
                   <CardContent className="p-4">
@@ -241,7 +241,7 @@ const MinhasAvaliacoes = () => {
             {loadingScans ? (
               <div className="space-y-4">
                 {[1, 2].map((i) => (
-                  <Card key={i} className="glass-card">
+                  <Card key={i} className="glass-card-solid">
                     <CardContent className="p-4 space-y-4">
                       <Skeleton className="h-4 w-40" />
                       <div className="grid grid-cols-3 gap-2">
@@ -254,7 +254,7 @@ const MinhasAvaliacoes = () => {
                 ))}
               </div>
             ) : scans.length === 0 ? (
-              <Card className="glass-card">
+              <Card className="glass-card-solid">
                 <CardContent className="p-8 text-center">
                   <ScanLine className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
                   <p className="text-sm text-muted-foreground">Nenhuma análise de postura realizada ainda.</p>
@@ -267,7 +267,7 @@ const MinhasAvaliacoes = () => {
                 const attentionPoints: Array<{ label: string; status: string; detail?: string }> = Array.isArray(scan.attention_points_json) ? scan.attention_points_json : [];
 
                 return (
-                  <Card key={scan.id} className="glass-card">
+                  <Card key={scan.id} className="glass-card-solid">
                     <CardContent className="p-4 space-y-4">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-semibold text-foreground">

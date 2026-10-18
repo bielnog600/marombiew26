@@ -11,7 +11,7 @@ const MealsCompletedCard: React.FC<MealsCompletedCardProps> = ({ completed, tota
   const pct = total > 0 ? Math.min(Math.round((completed / total) * 100), 100) : 0;
 
   return (
-    <Card className="glass-card">
+    <Card className="glass-card-solid">
       <CardContent className="p-3 text-center">
         <UtensilsCrossed className="h-5 w-5 text-chart-4 mx-auto mb-1" />
         <div className="relative mx-auto w-10 h-10 mb-1">
