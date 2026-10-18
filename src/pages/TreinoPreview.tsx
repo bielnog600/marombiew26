@@ -36,7 +36,7 @@ const TreinoPreview = () => {
   if (!state || !state.exercises) {
     return (
       <AppLayout title="Treino">
-        <Card className="glass-card">
+        <Card className="glass-card-solid">
           <CardContent className="p-6 text-center">
             <p className="text-sm text-muted-foreground">Treino não encontrado.</p>
             <Button className="mt-4" onClick={() => navigate('/meus-treinos')}>
@@ -74,7 +74,7 @@ const TreinoPreview = () => {
     <AppLayout title={dayName}>
       <div className="space-y-4 animate-fade-in pb-24">
         {/* Header / Resumo */}
-        <Card className="glass-card overflow-hidden">
+        <Card className="glass-card-solid overflow-hidden">
           <CardContent className="p-4 space-y-3">
             <div className="flex items-center justify-between">
                <Button
@@ -127,7 +127,7 @@ const TreinoPreview = () => {
               : buildPlanSummary(plan);
 
             return (
-              <Card key={ex.exercise + i} className="glass-card overflow-hidden">
+              <Card key={ex.exercise + i} className="glass-card-solid overflow-hidden">
                 <CardContent className="p-3">
                   <div className="flex gap-3">
                     {/* Foto */}

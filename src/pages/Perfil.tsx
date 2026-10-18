@@ -142,7 +142,7 @@ const Perfil = () => {
 
         {/* Info Card */}
         {infoItems.length > 0 && (
-          <Card className="glass-card">
+          <Card className="glass-card-solid">
             <CardContent className="p-4 space-y-3">
               {infoItems.map((item, i) => (
                 <div key={i} className="flex items-center gap-3">
@@ -159,7 +159,7 @@ const Perfil = () => {
 
         {/* Observations */}
         {studentProfile?.observacoes && (
-          <Card className="glass-card">
+          <Card className="glass-card-solid">
             <CardContent className="p-4">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Observações</p>
               <p className="text-sm text-foreground">{studentProfile.observacoes}</p>
@@ -168,7 +168,7 @@ const Perfil = () => {
         )}
 
         {/* Notificações */}
-        <Card className="glass-card">
+        <Card className="glass-card-solid">
           <CardContent className="p-4 space-y-3">
             <div className="flex items-center gap-3">
               {status === 'enabled' ? (
@@ -230,7 +230,7 @@ const Perfil = () => {
 
         {/* Compartilhar treinos recentes */}
         {recentSessions.length > 0 && (
-          <Card className="glass-card">
+          <Card className="glass-card-solid">
             <CardContent className="p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <Share2 className="h-4 w-4 text-primary" />

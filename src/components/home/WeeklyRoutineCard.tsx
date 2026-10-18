@@ -14,7 +14,7 @@ const WeeklyRoutineCard: React.FC<WeeklyRoutineCardProps> = ({ completedThisWeek
   const today = new Date().getDay();
 
   return (
-    <Card className="glass-card">
+    <Card className="glass-card-solid">
       <CardContent className="p-3 text-center">
         <Calendar className="h-5 w-5 text-primary mx-auto mb-1" />
         <div className="flex justify-center gap-[3px] mb-1">

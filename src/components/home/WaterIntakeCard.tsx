@@ -24,7 +24,7 @@ const WaterIntakeCard: React.FC<WaterIntakeCardProps> = ({ glasses, goal, curren
   }, [percentage]);
 
   return (
-    <Card className="glass-card overflow-hidden relative">
+    <Card className="glass-card-solid overflow-hidden relative">
       <CardContent className="p-3 text-center relative z-10">
         <div className="relative mx-auto mb-1 w-10 h-14 rounded-b-lg rounded-t-sm border-2 border-primary/40 overflow-hidden">
           {/* Water fill */}

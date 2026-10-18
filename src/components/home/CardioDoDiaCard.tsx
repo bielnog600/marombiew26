@@ -94,7 +94,7 @@ const CardioDoDiaCard: React.FC<CardioDoDiaCardProps> = ({ conteudo }) => {
 
   return (
     <Card
-      className={`glass-card overflow-hidden cursor-pointer group border-primary/20 ${isActive ? 'ring-2 ring-primary/60 shadow-lg shadow-primary/10' : ''}`}
+      className={`glass-card-solid overflow-hidden cursor-pointer group border-primary/20 ${isActive ? 'ring-2 ring-primary/60 shadow-lg shadow-primary/10' : ''}`}
       onClick={handleClick}
     >
       <div className="relative h-40 overflow-hidden">
