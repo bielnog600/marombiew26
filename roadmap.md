@@ -1,5 +1,9 @@
 # Roadmap
 
+## Pirâmide — editor de treino
+- [ ] Adicionar tipos crescente/decrescente com metas por série, preservando os métodos existentes.
+- [ ] Conferir salvamento, resumo e execução compartilhada; rodar testes e verificar compilação.
+
 ## Descanso dentro da série — execução
 - [x] Integrar descanso no card concluído no aluno e Modo Treino admin, preservando grupos e pausas internas.
 - [x] Preservar retomada e destacar próxima série/Próximo, com indicador mínimo fora da área visível.
