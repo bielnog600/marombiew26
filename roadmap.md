@@ -1,8 +1,9 @@
 # Roadmap
 
 ## Pirâmide — editor de treino
-- [ ] Adicionar tipos crescente/decrescente com metas por série, preservando os métodos existentes.
-- [ ] Conferir salvamento, resumo e execução compartilhada; rodar testes e verificar compilação.
+- [x] Adicionar tipos crescente/decrescente com metas por série, preservando os métodos existentes.
+- [x] Conferir round-trip JSON, resumo e registros por série; 63 testes passaram e compilação OK. Editor conferido em 390×844 com dados de teste, incluindo confirmação e reabertura.
+- [ ] Validar salvamento e execução com conta real — bloqueado: sessão indisponível; a conta solicitante não tem cadastro correspondente para acesso automático.
 
 ## Descanso dentro da série — execução
 - [x] Integrar descanso no card concluído no aluno e Modo Treino admin, preservando grupos e pausas internas.

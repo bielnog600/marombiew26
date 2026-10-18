@@ -1,5 +1,6 @@
 import type { ParsedExercise } from './trainingResultParser';
 import { buildSetPlan } from './setPlanBuilder';
+import { pyramidSummary, pyramidType } from './workoutPyramid';
 
 export type SeriesMethod = 'nenhum' | 'dropset' | 'restpause' | 'cluster';
 export interface MethodParameters {
@@ -81,6 +82,7 @@ export const methodPatch = (method: SeriesMethod, params = methodDefaults(method
 export const methodOnSet = (ex: ParsedExercise, index: number, count: number, recognition = false): boolean =>
   !recognition && seriesMethod(ex) !== 'nenhum' && (methodParameters(ex).aplicar === 'todas' || index === count - 1);
 export const methodSummary = (ex: ParsedExercise): string => {
+  if (pyramidType(ex)) return pyramidSummary(ex);
   const m = seriesMethod(ex);
   if (m === 'nenhum') return '';
   const p = methodParameters(ex);
@@ -100,6 +102,12 @@ export const methodExplanation = (ex: ParsedExercise): string[] => {
       : 'Bi-set: faça uma série deste exercício e em seguida uma série do exercício par, com a pausa curta indicada. Descanse só depois dos dois.');
   }
   const m = seriesMethod(ex);
+  if (pyramidType(ex)) {
+    lines.push(pyramidType(ex) === 'crescente'
+      ? 'Pirâmide crescente: siga as repetições de cada série, diminuindo as reps e aumentando a carga entre séries.'
+      : 'Pirâmide decrescente: siga as repetições de cada série, aumentando as reps e diminuindo a carga entre séries.');
+    return lines;
+  }
   if (m === 'nenhum') return lines;
   const p = methodParameters(ex);
   const onde = p.aplicar === 'todas' ? 'em todas as séries' : 'na última série';
