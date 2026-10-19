@@ -1,3 +1,4 @@
+import { safeVideoSrc } from '@/lib/exerciseVideoSrc';
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -468,7 +469,7 @@ export function ExerciseReviewer({
           </div>
           {ex.video_embed && (
             <div className="aspect-video">
-              <iframe src={ex.video_embed} className="w-full h-full rounded" allowFullScreen />
+              <iframe src={safeVideoSrc(ex.video_embed) ?? undefined} className="w-full h-full rounded" allowFullScreen />
             </div>
           )}
         </div>
