@@ -1076,7 +1076,8 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                   {exerciseBlocks(currentExercises).map(block => {
                     const exIdx = block.indices[0], ex = currentExercises[exIdx];
                     if (!state[exIdx] || !exerciseUids[exIdx]) return null;
-                    if (block.indices.length === 2 || seriesMethod(ex) !== 'nenhum') return <MethodExerciseCard key={block.id} exercises={currentExercises} indices={block.indices} sets={Object.fromEntries(Object.entries(state).map(([i, st]) => [i, st.sets]))} onChange={changeMethodSet} onComplete={saveMethodSet} media={exercisesList} snapshot={snapshot} studentId={studentId} inlineRest={inlineRest} savedPause={active?.sessionState?.methodPauses?.[studentId]?.[block.id]} onPauseChange={pause => saveMethodPause(block.id, pause)} />;
+                    const methodCard = (block.indices.length === 2 || seriesMethod(ex) !== 'nenhum') ? <MethodExerciseCard key={block.id} embedded={block.indices.length === 1} exercises={currentExercises} indices={block.indices} sets={Object.fromEntries(Object.entries(state).map(([i, st]) => [i, st.sets]))} onChange={changeMethodSet} onComplete={saveMethodSet} media={exercisesList} snapshot={snapshot} studentId={studentId} inlineRest={inlineRest} savedPause={active?.sessionState?.methodPauses?.[studentId]?.[block.id]} onPauseChange={pause => saveMethodPause(block.id, pause)} /> : null;
+                    if (methodCard && block.indices.length === 2) return methodCard;
                     return (
                     <SortableExerciseRow key={exerciseUids[exIdx]} id={exerciseUids[exIdx]} position={exIdx + 1}>
 
@@ -1102,6 +1103,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                         parsePauseSeconds={parsePauseSeconds}
                         progressionSnapshot={snapshot}
                         dayExercises={currentExercises}
+                        methodBody={methodCard ?? undefined}
                       />
                     </SortableExerciseRow>
                   ); })}
