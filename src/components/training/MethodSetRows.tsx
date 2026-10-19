@@ -28,6 +28,11 @@ export function MethodSetRows({ exercise, set, index, count, recognition = false
         return suggested ? { ...r, weight: suggested } : r;
       })
     : baseRecords;
+  // Carga principal só como sugestão (placeholder): drops sugeridos viram placeholders cinza.
+  const placeholderLoad = weightPlaceholder.replace(',', '.');
+  const dropPlaceholders = advanced && seriesMethod(exercise) === 'dropset' && !baseRecords[0].weight.trim() && Number(placeholderLoad) > 0
+    ? makeSubRecords(exercise, { ...set, weight: placeholderLoad }).map(r => r.weight)
+    : [];
   const remaining = Math.max(0, Math.ceil(((set.pauseUntil ?? 0) - now) / 1000));
   const next = records.findIndex(r => !r.completed);
   const updateRecord = (recordIndex: number, field: 'weight' | 'reps', value: string) => {
@@ -49,10 +54,10 @@ export function MethodSetRows({ exercise, set, index, count, recognition = false
     if (completed) onComplete(result);
   };
   return <WorkoutSetCard index={index} exIdx={-1} done={!!set.completed} {...restPresentation} className="bg-secondary/40"><div className="p-2 space-y-2" data-testid="method-set">
-    <div className="flex items-center justify-between text-xs"><span className={`font-semibold ${restPresentation?.next ? 'text-primary' : ''}`}>Série {index + 1}{restPresentation?.next && <span className="ml-2 text-[9px]">AGORA</span>}{advanced && seriesMethod(exercise) === 'restpause' && set.subRecords?.some(r => r.completed) ? ` · ${records.map(r => r.reps || '—').join(' + ')}` : ''}</span>{remaining > 0 && <span className="inline-flex items-center gap-1 text-primary"><Timer className="h-3 w-3" />{remaining}s</span>}</div>
+    <div className="flex items-center justify-between text-xs"><span className={`font-semibold ${restPresentation?.next ? 'text-primary' : ''}`}>Série {index + 1}{advanced && seriesMethod(exercise) === 'restpause' && set.subRecords?.some(r => r.completed) ? ` · ${records.map(r => r.reps || '—').join(' + ')}` : ''}</span>{remaining > 0 && <span className="inline-flex items-center gap-1 text-primary"><Timer className="h-3 w-3" />{remaining}s</span>}</div>
     {records.map((record, i) => <div key={i} className="grid grid-cols-[minmax(58px,1fr)_1fr_1fr_44px] gap-1.5 items-center">
       <span className="text-[10px] text-muted-foreground">{advanced ? record.label : recognition ? 'REC' : `#${index + 1}`}</span>
-      <Input aria-label={`Série ${index + 1} ${record.label} carga`} inputMode="decimal" value={record.weight} placeholder={i === 0 ? weightPlaceholder : 'kg'} onChange={e => updateRecord(i, 'weight', e.target.value)} onFocus={e => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })} disabled={disabled || record.completed || remaining > 0} className="h-11 text-center text-base min-w-0" />
+      <Input aria-label={`Série ${index + 1} ${record.label} carga`} inputMode="decimal" value={record.weight} placeholder={i === 0 ? weightPlaceholder : (dropPlaceholders[i] || 'kg')} onChange={e => updateRecord(i, 'weight', e.target.value)} onFocus={e => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })} disabled={disabled || record.completed || remaining > 0} className="h-11 text-center text-base min-w-0" />
       <Input aria-label={`Série ${index + 1} ${record.label} reps`} inputMode="numeric" value={record.reps} placeholder={seriesMethod(exercise) === 'cluster' && advanced ? String(methodParameters(exercise).reps_bloco) : i === 0 ? targetReps || 'reps' : 'reps'} onChange={e => updateRecord(i, 'reps', e.target.value)} onFocus={e => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })} disabled={disabled || record.completed || remaining > 0} className="h-11 text-center text-base min-w-0" />
       <Button size="icon" variant="outline" aria-label={`Confirmar série ${index + 1} ${record.label}`} className={`h-11 w-11 ${record.completed ? 'bg-chart-3/15 border-chart-3/50 text-chart-3 hover:bg-chart-3/20 hover:text-chart-3' : ''}`} disabled={disabled || (!record.completed && (remaining > 0 || (advanced && i !== next) || !(Number(record.reps) > 0)))} onClick={() => confirm(i)}><Check className="h-4 w-4" /></Button>
     </div>)}
