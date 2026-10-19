@@ -7,6 +7,7 @@ import { normalizeWorkoutPlan, workoutPlanToParsedDays } from '@/lib/workoutSche
 import TrainerLogSheet from './TrainerLogSheet';
 import DuoTrainerLogSheet from './DuoTrainerLogSheet';
 import AdminTrainerSessionBanner from './AdminTrainerSessionBanner';
+import StudentErrorBoundary from '@/components/StudentErrorBoundary';
 
 const AdminTrainerSessionMount: React.FC = () => {
   const ctx = useAdminTrainerSessionOptional();
@@ -45,6 +46,7 @@ const AdminTrainerSessionMount: React.FC = () => {
   return (
     <>
       <AdminTrainerSessionBanner />
+      <StudentErrorBoundary>
       {isOpen && plan && active.mode === 'individual' && (
         <TrainerLogSheet
           open
@@ -64,6 +66,7 @@ const AdminTrainerSessionMount: React.FC = () => {
           planA={plan}
         />
       )}
+      </StudentErrorBoundary>
     </>
   );
 };
