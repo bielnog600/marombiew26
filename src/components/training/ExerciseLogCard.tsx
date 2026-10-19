@@ -15,6 +15,7 @@ import { getRecommendationFor, targetLoadForSet, type ProgressionSnapshot } from
 import { WorkoutSetCard } from './WorkoutSetCard';
 import type { useInlineWorkoutRest } from '@/hooks/useInlineWorkoutRest';
 import type { MethodSetEntry } from '@/lib/workoutExecutionMethods';
+import { safeVideoSrc } from '@/lib/exerciseVideoSrc';
 
 interface SetEntry {
   weight: string;
@@ -71,6 +72,8 @@ interface Props {
   dayExercises?: any[];
   inlineRest?: ReturnType<typeof useInlineWorkoutRest>;
   onCompleteSet?: (exIdx: number, setIdx: number, entry: MethodSetEntry) => void;
+  /** Quando presente (exercício com método), substitui a lista de séries simples. */
+  methodBody?: React.ReactNode;
 }
 
 type StructureMode = 'standard' | 'recognition' | 'per_set';
@@ -106,6 +109,7 @@ const ExerciseLogCard: React.FC<Props> = ({
   dayExercises,
   inlineRest,
   onCompleteSet,
+  methodBody,
 }) => {
   const [editOpen, setEditOpen] = useState(false);
   const mode: StructureMode = detectMode(ex);
@@ -207,7 +211,7 @@ const ExerciseLogCard: React.FC<Props> = ({
                 onChange={onExerciseNameChange}
               />
               <p className="text-[10px] text-muted-foreground">
-                Prescrição: {ex.series2 || ex.series} séries × {ex.reps || '—'}
+                Prescrição: {(() => { const n = parseInt(String(ex.series2 || ex.series || ''), 10); return n > 0 ? n : (st.sets?.length || 3); })()} séries{ex.reps ? ` × ${ex.reps}` : ''}
                 {ex.rir && ` · RIR ${ex.rir}`}
                 {ex.pause && ` · pausa ${ex.pause}`}
               </p>
@@ -235,6 +239,15 @@ const ExerciseLogCard: React.FC<Props> = ({
           </Button>
           )}
         </div>
+
+        {(() => {
+          const m = st.exerciseName ? findBestExerciseMatch(st.exerciseName, exercisesList as any) : undefined;
+          const src = safeVideoSrc((m as any)?.video_embed);
+          if (src) return <iframe src={src} title={`Vídeo ${st.exerciseName}`} className="w-full aspect-video border-0 rounded-md" allow="autoplay; fullscreen" />;
+          const img = (m as any)?.imagem_url as string | undefined;
+          if ((m as any)?.video_embed && img) return <img src={img} alt={st.exerciseName} className="w-full aspect-video object-cover rounded-md" />;
+          return null;
+        })()}
 
         <div className="space-y-2">
           {(recommendation || ex?.targetLoadKg || ex?.targetLoadPerSet) && (
@@ -392,7 +405,7 @@ const ExerciseLogCard: React.FC<Props> = ({
           )}
         </div>
 
-        <div className="space-y-1.5">
+        {methodBody ? methodBody : <div className="space-y-1.5">
           {st.sets.map((s, setIdx) => {
             const p = st.plan?.[setIdx] ?? { kind: 'work' as const, targetReps: '' };
             const isRecon = p?.kind === 'recon';
@@ -462,7 +475,7 @@ const ExerciseLogCard: React.FC<Props> = ({
             <Plus className="h-3 w-3" /> Adicionar série
           </Button>
           )}
-        </div>
+        </div>}
 
         <Textarea
           placeholder="Observações (técnica, progressão, dor...)"

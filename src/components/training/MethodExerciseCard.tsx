@@ -16,7 +16,7 @@ import { useInlineWorkoutRest } from '@/hooks/useInlineWorkoutRest';
 import { RestOffscreenIndicator } from './WorkoutSetCard';
 import { safeVideoSrc, splitRecognitionReps } from '@/lib/exerciseVideoSrc';
 
-export function MethodExerciseCard({ exercises, indices, sets, onChange, onComplete, media, snapshot, studentId, savedPause, onPauseChange, inlineRest: sharedRest }: {
+export function MethodExerciseCard({ exercises, indices, sets, onChange, onComplete, media, snapshot, studentId, savedPause, onPauseChange, inlineRest: sharedRest, embedded }: {
   exercises: ParsedExercise[]; indices: number[]; sets: Record<number, MethodSetEntry[]>;
   onChange: (exIndex: number, setIndex: number, entry: MethodSetEntry) => void;
   onComplete: (exIndex: number, setIndex: number, entry: MethodSetEntry) => void;
@@ -24,6 +24,8 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
   snapshot?: ProgressionSnapshot | null; studentId: string;
   savedPause?: GroupPause | null; onPauseChange?: (pause: GroupPause | null) => void;
   inlineRest?: ReturnType<typeof useInlineWorkoutRest>;
+  /** Dentro do ExerciseLogCard: omite cabeçalho, vídeo e dica (já exibidos pelo card). */
+  embedded?: boolean;
 }) {
   const [current, setCurrent] = useState(() => {
     const pending = indices.flatMap(idx => (sets[idx] ?? []).flatMap((row, i) => !row.completed ? [i] : [])).sort((a, b) => a - b)[0];
@@ -61,8 +63,9 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
     }
   };
   const displayedPause = indices.length === 2 ? flow.pause ?? savedPause : null;
-  return <div className="rounded-lg border border-primary/40 bg-card p-3 space-y-3">
+  return <div className={embedded ? "space-y-3" : "rounded-lg border border-primary/40 bg-card p-3 space-y-3"}>
     <WorkoutGroupTabs exercises={exercises} indices={indices} currentIndex={current} sets={sets} onSelect={select} />
+    {!embedded && <>
     <div className="flex items-start gap-3">
       {matched?.imagem_url && <img src={matched.imagem_url} alt={ex.exercise} className="h-16 w-16 rounded-md object-cover shrink-0" />}
       <div className="min-w-0 flex-1"><p className="font-semibold text-sm">{ex.exercise}</p><p className="text-xs text-muted-foreground">{rows.length} séries × {ex.reps}{ex.rir ? ` · RIR ${ex.rir}` : ''}</p><p className="text-xs text-primary">{methodSummary(ex)}</p></div>
@@ -75,6 +78,7 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
       return null;
     })()}
     {(recommendation || ex.targetLoadKg || ex.targetLoadPerSet) && <ProgressionHintCard recommendation={recommendation} targetLoad={{ kg: ex.targetLoadKg, perSet: ex.targetLoadPerSet, note: ex.targetLoadNote }} variant="compact" />}
+    </>}
     {displayedPause && indices.length === 2 && (() => {
       const pause: GroupPause = {
         kind: 'rest', setIndex: 0,
