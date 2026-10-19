@@ -14,7 +14,8 @@ import { ExerciseLoadHistorySheet } from './ExerciseLoadHistorySheet';
 import { parsePauseSeconds } from './TrainerLogSheetUtils';
 import { useInlineWorkoutRest } from '@/hooks/useInlineWorkoutRest';
 import { RestOffscreenIndicator } from './WorkoutSetCard';
-import { safeVideoSrc, splitRecognitionReps } from '@/lib/exerciseVideoSrc';
+import { splitRecognitionReps } from '@/lib/exerciseVideoSrc';
+import { ExerciseMediaFrame } from './ExerciseMediaFrame';
 
 export function MethodExerciseCard({ exercises, indices, sets, onChange, onComplete, media, snapshot, studentId, savedPause, onPauseChange, inlineRest: sharedRest, embedded }: {
   exercises: ParsedExercise[]; indices: number[]; sets: Record<number, MethodSetEntry[]>;
@@ -71,12 +72,7 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
       <div className="min-w-0 flex-1"><p className="font-semibold text-sm">{ex.exercise}</p><p className="text-xs text-muted-foreground">{rows.length} séries × {ex.reps}{ex.rir ? ` · RIR ${ex.rir}` : ''}</p><p className="text-xs text-primary">{methodSummary(ex)}</p></div>
       <Button size="sm" variant="outline" onClick={() => setHistoryOpen(true)}>Cargas</Button>
     </div>
-    {(() => {
-      const src = safeVideoSrc(matched?.video_embed);
-      if (src) return <iframe src={src} title={`Vídeo ${ex.exercise}`} className="w-full aspect-video border-0" allow="autoplay; fullscreen" />;
-      if (matched?.video_embed && matched?.imagem_url) return <img src={matched.imagem_url} alt={ex.exercise} className="w-full aspect-video object-cover rounded-md" />;
-      return null;
-    })()}
+    <ExerciseMediaFrame embed={matched?.video_embed} imageUrl={matched?.imagem_url} alt={ex.exercise} />
     {(recommendation || ex.targetLoadKg || ex.targetLoadPerSet) && <ProgressionHintCard recommendation={recommendation} targetLoad={{ kg: ex.targetLoadKg, perSet: ex.targetLoadPerSet, note: ex.targetLoadNote }} variant="compact" />}
     </>}
     {displayedPause && indices.length === 2 && (() => {

@@ -51,3 +51,11 @@ Escopo atual: SOMENTE Fase 1 + Fase 2. Parar ao terminar e apresentar o relatór
 - [ ] Testes de compatibilidade + relatório final (arquivos novos/alterados, testes, migrations = nenhuma, exemplo real recalculado)
 
 Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, ajuste automático, contrato definitivo da IA, migração de `foods`, RPC de publicação, bloqueio de publicação.
+
+## Modo Treino admin — vídeo, edição e altura da mídia
+- [x] Vídeo por `safeVideoSrc` (HTML de iframe → URL apenas de Cloudflare Stream/YouTube/Vimeo) em todos os cards, com fallback para a foto; mesma regra na tela de revisão de exercícios.
+- [x] Card com método (Drop set) com as mesmas ações do card normal: editar, séries/reps/RIR/descanso, método (inclusive voltar para "nenhum") e salvar; registro de sub-séries inalterado.
+- [x] Prescrição sem "—": usa as linhas de séries do card (ou 3) quando o plano não traz a quantidade.
+- [x] Moldura compartilhada com altura reduzida (21/9, máx. 180px no celular / 220px no iPad), vídeo centralizado e foto em `object-fit: cover`; tela de execução do aluno intacta.
+- [x] 1264 testes passaram, tipos limpos, build OK.
+- [ ] Conferir no iPad com a sessão do Manuel (84a08dd7) — bloqueado: abrir a sessão de administrador exige aprovação do usuário.

@@ -15,7 +15,7 @@ import { getRecommendationFor, targetLoadForSet, type ProgressionSnapshot } from
 import { WorkoutSetCard } from './WorkoutSetCard';
 import type { useInlineWorkoutRest } from '@/hooks/useInlineWorkoutRest';
 import type { MethodSetEntry } from '@/lib/workoutExecutionMethods';
-import { safeVideoSrc } from '@/lib/exerciseVideoSrc';
+import { ExerciseMediaFrame } from './ExerciseMediaFrame';
 
 interface SetEntry {
   weight: string;
@@ -242,11 +242,13 @@ const ExerciseLogCard: React.FC<Props> = ({
 
         {(() => {
           const m = st.exerciseName ? findBestExerciseMatch(st.exerciseName, exercisesList as any) : undefined;
-          const src = safeVideoSrc((m as any)?.video_embed);
-          if (src) return <iframe src={src} title={`Vídeo ${st.exerciseName}`} className="w-full aspect-video border-0 rounded-md" allow="autoplay; fullscreen" />;
-          const img = (m as any)?.imagem_url as string | undefined;
-          if ((m as any)?.video_embed && img) return <img src={img} alt={st.exerciseName} className="w-full aspect-video object-cover rounded-md" />;
-          return null;
+          return (
+            <ExerciseMediaFrame
+              embed={(m as any)?.video_embed}
+              imageUrl={(m as any)?.imagem_url}
+              alt={st.exerciseName || ex.exercise || 'exercício'}
+            />
+          );
         })()}
 
         <div className="space-y-2">
