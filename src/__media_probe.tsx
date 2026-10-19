@@ -12,7 +12,7 @@ export function mountProbe(el: HTMLElement) {
         <ExerciseMediaFrame embed={EMBED_HTML} imageUrl="https://placehold.co/600x400" alt="LEG 180" />
       </div>
       <div data-probe="foto">
-        <ExerciseMediaFrame embed={null} imageUrl="https://placehold.co/600x400" alt="Cadeira extensora" />
+        <ExerciseMediaFrame embed="<div>sem video</div>" imageUrl="https://placehold.co/600x400" alt="Cadeira extensora" />
       </div>
       <div data-probe="inseguro">
         <ExerciseMediaFrame embed="https://evil.example.com/v.mp4" imageUrl={null} alt="Host não permitido" />
