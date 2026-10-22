@@ -34,19 +34,27 @@ const AdminTrainerSessionMount: React.FC = () => {
   }, [planId]);
 
   // Dias do plano: prioriza o JSON v2 (carrega `exercise.id`), markdown é fallback legacy.
+  // Qualquer falha de parsing não pode derrubar o app inteiro (este componente é global).
   const planDays = React.useMemo(() => {
     if (!plan) return [];
-    const json = normalizeWorkoutPlan(plan.conteudo_json);
-    if (json && json.days.length > 0) return workoutPlanToParsedDays(json);
-    return sortTrainingDays(parseTrainingSections(plan.conteudo || '').flatMap((s) => s.days || []));
+    try {
+      const json = normalizeWorkoutPlan(plan.conteudo_json);
+      if (json && json.days.length > 0) return workoutPlanToParsedDays(json);
+      return sortTrainingDays(
+        parseTrainingSections(typeof plan.conteudo === 'string' ? plan.conteudo : '').flatMap((s) => s.days || []),
+      );
+    } catch (err) {
+      console.error('[AdminTrainerSessionMount] falha ao ler o plano da sessão ativa', err);
+      return [];
+    }
   }, [plan]);
 
   if (!active) return null;
 
   return (
     <>
-      <AdminTrainerSessionBanner />
       <StudentErrorBoundary>
+      <AdminTrainerSessionBanner />
       {isOpen && plan && active.mode === 'individual' && (
         <TrainerLogSheet
           open

@@ -5,7 +5,8 @@
 const ALLOWED = [/(^|\.)cloudflarestream\.com$/i, /(^|\.)videodelivery\.net$/i, /(^|\.)youtube(-nocookie)?\.com$/i, /^youtu\.be$/i, /(^|\.)vimeo\.com$/i];
 
 export function safeVideoSrc(embed: string | null | undefined): string | null {
-  if (!embed) return null;
+  // Dados legados podem vir com tipo inesperado (objeto/number) — nunca quebrar o render.
+  if (!embed || typeof embed !== 'string') return null;
   const raw = embed.trim();
   const fromIframe = raw.match(/src\s*=\s*["']([^"']+)["']/i)?.[1];
   const candidate = (fromIframe ?? raw).replace(/&amp;/g, '&');
