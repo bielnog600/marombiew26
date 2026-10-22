@@ -34,9 +34,10 @@ export function nextGroupStep(
 ): GroupStep | null {
   if (indices.length !== 2) return null;
   const [a, b] = indices;
+  if (a === b || !exercises[a] || !exercises[b] || !indices.includes(currentIndex)) return null;
   const count = nextSets[a]?.length ?? 0;
   if (currentIndex === a && !nextSets[b]?.[setIndex]?.completed) {
-    return { kind: 'swap', nextIndex: b, seconds: Math.max(0, exercises[a].pausa_grupo_s ?? 0), setIndex };
+    return { kind: 'swap', nextIndex: b, seconds: Math.max(0, exercises[a]?.pausa_grupo_s ?? 0), setIndex };
   }
   if (nextSets[a]?.[setIndex]?.completed && nextSets[b]?.[setIndex]?.completed) {
     const allDone = count > 0

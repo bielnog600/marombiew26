@@ -65,4 +65,5 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] ErrorBoundary registra mensagem do erro + rota no console e mostra "Detalhes técnicos" recolhível.
 - [x] Resiliência: sessão de treino do admin sem alunos válidos é ignorada; banner global dentro do ErrorBoundary; parsing do plano da sessão com proteção; `safeVideoSrc` imune a valor não-texto.
 - [x] 1266 testes passaram, tipos limpos, build OK.
-- [ ] Causa exata no iPhone: aguarda o usuário abrir o app e informar o texto em "Detalhes técnicos" (sem sessão de admin disponível no sandbox para reproduzir no Safari).
+- [x] Causa identificada em /meus-treinos: dia vazio iniciava a busca de mídia/grupos musculares no índice -1.
+- [ ] Proteger dias vazios/slots ausentes e pares incompletos, auditar planos sem gravar dados e validar regressões/compilação.

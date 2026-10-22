@@ -122,12 +122,15 @@ export interface ExerciseBlock { id: string; indices: number[] }
 export const exerciseBlocks = (exercises: ParsedExercise[]): ExerciseBlock[] => {
   const used = new Set<number>();
   return exercises.flatMap((ex, i) => {
-    if (used.has(i)) return [];
-    const indices = ex.grupo_id ? exercises.flatMap((peer, j) => peer.grupo_id === ex.grupo_id ? [j] : []) : [i];
-    const valid = indices.length === 2 && indices.every(j => exercises[j].tipo_grupo === ex.tipo_grupo)
-      && !!ex.tipo_grupo && new Set(indices.map(j => exercises[j].ordem_grupo)).size === 2
-      && exerciseSetCount(exercises[indices[0]]) === exerciseSetCount(exercises[indices[1]]);
-    const members = valid ? indices.sort((a, b) => exercises[a].ordem_grupo === 'A' ? -1 : exercises[b].ordem_grupo === 'A' ? 1 : a - b) : [i];
+    if (!ex || typeof ex.exercise !== 'string' || !ex.exercise.trim() || used.has(i)) return [];
+    // Ignore absent slots without renumbering session/log indices.
+    const indices = ex.grupo_id ? exercises.flatMap((peer, j) => peer && typeof peer.exercise === 'string' && peer.exercise.trim() && peer.grupo_id === ex.grupo_id ? [j] : []) : [i];
+    const first = exercises[indices[0]], second = exercises[indices[1]];
+    const valid = indices.length === 2 && !!first && !!second
+      && !!ex.tipo_grupo && first.tipo_grupo === ex.tipo_grupo && second.tipo_grupo === ex.tipo_grupo
+      && ((first.ordem_grupo === 'A' && second.ordem_grupo === 'B') || (first.ordem_grupo === 'B' && second.ordem_grupo === 'A'))
+      && exerciseSetCount(first) === exerciseSetCount(second);
+    const members = valid ? indices.sort((a, b) => exercises[a]?.ordem_grupo === 'A' ? -1 : exercises[b]?.ordem_grupo === 'A' ? 1 : a - b) : [i];
     members.forEach(j => used.add(j));
     return [{ id: valid ? ex.grupo_id ?? String(i) : ex.id ?? `legacy-${i}`, indices: members }];
   });
