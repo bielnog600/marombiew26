@@ -107,6 +107,27 @@ import MeusTreinos from '@/pages/MeusTreinos';
 afterEach(() => cleanup());
 
 describe('MeusTreinos — plano recente em fase diferente do calendário', () => {
+  it('renderiza dia vazio sem acessar exercises[-1] e não permite iniciar sem exercícios', async () => {
+    plansFixture = [makePlan({ fase: 'semana_1', conteudo_json: {
+      version: '2.0', type: 'workout', days: [{ id: 'empty', day: 'SÁBADO', exercises: [] }],
+    } })];
+    render(<MeusTreinos />);
+    await waitFor(() => expect(screen.getByText('SÁBADO')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Iniciar Treino' })).toBeDisabled();
+  });
+
+  it('ignora exercício null e preserva o exercício válido de um bi-set incompleto', async () => {
+    plansFixture = [makePlan({ fase: 'semana_1', conteudo_json: {
+      version: '2.0', type: 'workout', days: [{ id: 'partial', day: 'SÁBADO', exercises: [null, {
+        id: 'a', exercise: 'Leg 180', series: '3', reps: '8-10', grupo_id: 'partial', tipo_grupo: 'biset', ordem_grupo: 'A',
+      }, undefined] }],
+    } })];
+    render(<MeusTreinos />);
+    await waitFor(() => expect(screen.getByText('SÁBADO')).toBeInTheDocument());
+    expect(screen.getByText('1 exercícios')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Iniciar Treino' })).toBeEnabled();
+  });
+
   it('mostra por padrão o plano mais recente (deload), sem tela preta nem oscilação', async () => {
     plansFixture = wemersonPlans;
     render(<MeusTreinos />);
