@@ -56,7 +56,9 @@ describe('admin dashboard crash repro', () => {
       if (queryByTestId('caught')) return;
       expect(container.textContent!.length).toBeGreaterThan(0);
     }, { timeout: 30000 });
-    await new Promise((r) => setTimeout(r, 8000));
+    await new Promise((r) => setTimeout(r, 10000));
+    console.log("REPRO-HTML-LEN:", container.textContent!.length);
+    console.log("REPRO-SNAPSHOT:", container.textContent!.slice(0, 600).replace(/\s+/g, " "));
     const caught = queryByTestId('caught');
     expect(caught, `Dashboard threw: ${caught?.textContent}`).toBeNull();
   }, 60000);
