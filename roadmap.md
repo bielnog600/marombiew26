@@ -66,4 +66,7 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Resiliência: sessão de treino do admin sem alunos válidos é ignorada; banner global dentro do ErrorBoundary; parsing do plano da sessão com proteção; `safeVideoSrc` imune a valor não-texto.
 - [x] 1266 testes passaram, tipos limpos, build OK.
 - [x] Causa identificada em /meus-treinos: dia vazio iniciava a busca de mídia/grupos musculares no índice -1.
-- [ ] Proteger dias vazios/slots ausentes e pares incompletos, auditar planos sem gravar dados e validar regressões/compilação.
+- [x] Proteger dias vazios/slots ausentes e pares incompletos sem renumerar índices da sessão; normalização JSON já filtra null/undefined.
+- [x] Auditoria somente leitura: 168 planos, 123 com JSON, 572 dias; zero exercícios null/inválidos e zero grupos incompletos; dias vazios em Fabiew (07/09, sábado) e Wemerson (04/09, terça).
+- [x] 1271 testes passaram na suíte completa e o teste adicional das abas ausentes passou; compilação automática OK.
+- [ ] Conferir /meus-treinos autenticado no iPhone — bloqueado: acesso automático não encontra a conta solicitante e autorização de sessão explícita indisponível.
