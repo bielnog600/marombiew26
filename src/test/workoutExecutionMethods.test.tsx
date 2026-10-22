@@ -12,6 +12,21 @@ import { useState } from 'react';
 const exercise = (id: string): ParsedExercise => ({ id, exercise: id, series: '3', series2: '', reps: '8-10', rir: '2', pause: '60s', description: '', variation: '' });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 describe('métodos de treino — regras', () => {
+  it('bi-set sem par vira bloco individual e slots ausentes não deslocam os índices da sessão', () => {
+    const a = { ...exercise('a'), grupo_id: 'partial', tipo_grupo: 'biset' as const, ordem_grupo: 'A' as const };
+    const sparse = [null, a, undefined, exercise('c')] as unknown as ParsedExercise[];
+    expect(exerciseBlocks(sparse)).toEqual([{ id: 'a', indices: [1] }, { id: 'c', indices: [3] }]);
+    const normalized = normalizeWorkoutPlan({ type: 'workout', days: [{ day: 'Sábado', exercises: sparse }] });
+    expect(normalized?.days[0].exercises.map(ex => ex.id)).toEqual(['a', 'c']);
+    expect(exerciseBlocks(normalized ? workoutPlanToParsedDays(normalized)[0].exercises : [])).toEqual([
+      { id: 'a', indices: [0] }, { id: 'c', indices: [1] },
+    ]);
+  });
+  it('agrupa pares válidos mesmo com buraco no array, mantendo os slots originais', () => {
+    const grouped = groupExercises([exercise('a'), exercise('b')], ['a', 'b'], 'superset', 'g');
+    const sparse = [grouped[0], , grouped[1]] as ParsedExercise[];
+    expect(exerciseBlocks(sparse)).toEqual([{ id: 'g', indices: [0, 2] }]);
+  });
   it('agrupa exatamente 2 exercícios com igual número de séries', () => {
     const ex = [exercise('a'), exercise('b'), exercise('c')];
     expect(() => groupExercises(ex, ['a'], 'superset', 'g')).toThrow();

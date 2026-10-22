@@ -273,9 +273,9 @@ const MeusTreinos = () => {
 
   const getMuscleGroups = (day: ParsedTrainingDay) => {
     const groups: string[] = [];
-    const startIndex = Math.min(2, day.exercises.length - 1);
-    for (let i = startIndex; i < day.exercises.length; i++) {
-      const key = day.exercises[i].exercise.toUpperCase().trim();
+    const candidates = day.exercises.filter(ex => ex && typeof ex.exercise === 'string');
+    for (const ex of candidates.slice(Math.max(0, Math.min(2, candidates.length - 1)))) {
+      const key = ex.exercise.toUpperCase().trim();
       const muscle = exerciseMedia[key]?.muscleGroup;
       if (muscle && !groups.includes(muscle)) groups.push(muscle);
     }
@@ -368,9 +368,9 @@ const MeusTreinos = () => {
             const isActiveDay = !!activeSession && isSameWorkoutDay(day.day, activeSession.day_name);
             const muscles = getMuscleGroups(day);
             const heroImage = (() => {
-              const start = Math.min(2, day.exercises.length - 1);
-              for (let j = start; j < day.exercises.length; j++) {
-                const key = day.exercises[j].exercise.toUpperCase().trim();
+              const candidates = day.exercises.filter(ex => ex && typeof ex.exercise === 'string');
+              for (const ex of candidates.slice(Math.max(0, Math.min(2, candidates.length - 1)))) {
+                const key = ex.exercise.toUpperCase().trim();
                 if (exerciseMedia[key]?.imageUrl) return exerciseMedia[key].imageUrl;
               }
               return null;
@@ -455,6 +455,7 @@ const MeusTreinos = () => {
 
                   <Button
                     className="w-full gap-2"
+                    disabled={!isActiveDay && day.exercises.length === 0}
                     onClick={() => (isActiveDay ? handleResumeActive() : handleStart(day))}
                   >
                     <Play className="h-4 w-4" />

@@ -13,6 +13,10 @@ const exercises = [
 const sets = { 0: [{ reps: '10', weight: '', completed: false }], 1: [{ reps: '10', weight: '', completed: false }] };
 
 describe('superset com variação ativa no B', () => {
+  it('não renderiza abas quando o par aponta para um exercício ausente', () => {
+    const { container } = render(<WorkoutGroupTabs exercises={exercises.slice(0, 1)} indices={[0, 1]} currentIndex={0} sets={sets} onSelect={() => {}} />);
+    expect(container.childElementCount).toBe(0);
+  });
   it('aba B mostra o nome da variação com ⇄ e a aba A fica com o original', () => {
     render(<WorkoutGroupTabs
       exercises={exercises} indices={[0, 1]} currentIndex={1} sets={sets} onSelect={() => {}}

@@ -12,3 +12,4 @@
 - Key student exercise-variation preferences by exercise plus variation name (local and backend); legacy or mismatched preferences fall back to the original so the player header always shows the active exercise.
 - Share inline inter-set rest presentation and deadline-based control across student and admin players; persist by session/student and keep group transitions and internal method pauses separate to preserve execution history and progression.
 - Render exercise media in training cards through the shared ExerciseMediaFrame, which resolves `video_embed` with `safeVideoSrc`; never bind the stored embed HTML straight to a src, because a value that is not a known video URL would load the app's own pages inside the player.
+- Read empty workout days safely and ignore absent exercise slots when building execution blocks without renumbering session indices; incomplete groups render as standalone exercises so saved logs remain attached to their original slots.

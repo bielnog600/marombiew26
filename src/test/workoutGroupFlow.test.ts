@@ -17,6 +17,11 @@ const sets = (a: boolean[], b: boolean[]): Record<number, MethodSetEntry[]> => (
 });
 
 describe('nextGroupStep', () => {
+  it('par ausente ou índice fora do array não dispara transição de grupo', () => {
+    expect(nextGroupStep([ex('A')], [0, 1], 0, 0, sets([true], []), 90)).toBeNull();
+    expect(nextGroupStep([ex('A'), null] as unknown as ParsedExercise[], [0, 1], 0, 0, sets([true], []), 90)).toBeNull();
+    expect(nextGroupStep(exercises, [-1, 1], 1, 0, sets([true], [true]), 90)).toBeNull();
+  });
   it('série do A concluída → troca para o B com a pausa do grupo (10s)', () => {
     const step = nextGroupStep(exercises, indices, 0, 0, sets([true, false, false], [false, false, false]), 90);
     expect(step).toEqual({ kind: 'swap', nextIndex: 1, seconds: 10, setIndex: 0 });
