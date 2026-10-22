@@ -1,9 +1,58 @@
-// TEMP reproduction: render admin Dashboard with real backend data (permissive RLS, anon key).
+// TEMP reproduction: render admin Dashboard with REAL backend data (fixtures
+// dumped from production on 2026-10-22) via a mocked supabase client.
 import React from 'react';
 import { render, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const TABLE_FIXTURES: Record<string, any[]> = {
+  ai_plans: require('./__fixtures/ai_plans.json'),
+  assessments: require('./__fixtures/assessments.json'),
+  class_packages: require('./__fixtures/class_packages.json'),
+  daily_tracking: require('./__fixtures/daily_tracking.json'),
+  exercise_set_logs: require('./__fixtures/exercise_set_logs.json'),
+  payments: require('./__fixtures/payments.json'),
+  profiles: require('./__fixtures/profiles.json'),
+  student_events: require('./__fixtures/student_events.json'),
+  students_profile: require('./__fixtures/students_profile.json'),
+  user_roles: require('./__fixtures/user_roles.json'),
+  weekly_progression_contacts: require('./__fixtures/weekly_progression_contacts.json'),
+  workout_sessions: require('./__fixtures/workout_sessions.json'),
+};
+
+function makeQueryStub(table: string) {
+  const rows = TABLE_FIXTURES[table] ?? [];
+  const stub: any = {
+    __table: table,
+    __single: false,
+    then(resolve: any) {
+      const data = stub.__single ? (rows[0] ?? null) : rows;
+      return Promise.resolve({ data, error: null, count: rows.length }).then(resolve);
+    },
+  };
+  const methods = ['select', 'eq', 'neq', 'in', 'gte', 'lte', 'gt', 'lt', 'is', 'not', 'order', 'limit', 'range', 'filter', 'or', 'ilike', 'like', 'contains', 'match'];
+  for (const m of methods) stub[m] = () => stub;
+  stub.single = () => { stub.__single = true; return stub; };
+  stub.maybeSingle = () => { stub.__single = true; return stub; };
+  stub.insert = () => stub;
+  stub.update = () => stub;
+  stub.upsert = () => stub;
+  stub.delete = () => stub;
+  return stub;
+}
+
+vi.mock('@/integrations/supabase/client', () => ({
+  supabase: {
+    from: (table: string) => makeQueryStub(table),
+    rpc: () => Promise.resolve({ data: null, error: null }),
+    channel: () => ({ on: () => ({ subscribe: () => {} }), subscribe: () => {}, track: async () => {} }),
+    removeChannel: () => {},
+    auth: { getSession: async () => ({ data: { session: null } }), onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }) },
+    functions: { invoke: async () => ({ data: null, error: null }) },
+    storage: { from: () => ({ getPublicUrl: (p: string) => ({ data: { publicUrl: p } }) }) },
+  },
+}));
 
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({
@@ -39,7 +88,7 @@ class Catcher extends React.Component<any, { err: any }> {
 
 import Dashboard from '@/pages/Dashboard';
 
-describe('admin dashboard crash repro', () => {
+describe('admin dashboard crash repro (real data fixtures)', () => {
   it('renders dashboard with real data without throwing', async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const { container, queryByTestId } = render(
@@ -52,13 +101,11 @@ describe('admin dashboard crash repro', () => {
       </QueryClientProvider>,
     );
     await waitFor(() => {
-      // wait until either crash captured or some content rendered
       if (queryByTestId('caught')) return;
-      expect(container.textContent!.length).toBeGreaterThan(0);
+      // dashboard renders real student names once data loads
+      expect(container.textContent).toMatch(/Dhan Kumari Ban|Josue Silva/);
     }, { timeout: 30000 });
-    await new Promise((r) => setTimeout(r, 10000));
-    console.log("REPRO-HTML-LEN:", container.textContent!.length);
-    console.log("REPRO-SNAPSHOT:", container.textContent!.slice(0, 600).replace(/\s+/g, " "));
+    await new Promise((r) => setTimeout(r, 8000));
     const caught = queryByTestId('caught');
     expect(caught, `Dashboard threw: ${caught?.textContent}`).toBeNull();
   }, 60000);
