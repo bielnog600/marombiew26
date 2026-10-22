@@ -59,10 +59,10 @@ const AdminTrainerSessionMount: React.FC = () => {
         <TrainerLogSheet
           open
           onOpenChange={(v) => { if (!v) close(); }}
-          studentId={active.students[0].id}
+          studentId={active.students[0]?.id}
           days={planDays}
           phase={plan.fase}
-          initialDayName={active.students[0].dayName || null}
+          initialDayName={active.students[0]?.dayName || null}
           planId={plan.id}
         />
       )}
@@ -70,7 +70,7 @@ const AdminTrainerSessionMount: React.FC = () => {
         <DuoTrainerLogSheet
           open
           onOpenChange={(v) => { if (!v) close(); }}
-          studentAId={active.students[0].id}
+          studentAId={active.students[0]?.id}
           planA={plan}
         />
       )}
