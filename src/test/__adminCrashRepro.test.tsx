@@ -46,7 +46,7 @@ vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     from: (table: string) => makeQueryStub(table),
     rpc: () => Promise.resolve({ data: null, error: null }),
-    channel: () => ({ on: () => ({ subscribe: () => {} }), subscribe: () => {}, track: async () => {} }),
+    channel: () => { const ch: any = { on: () => ch, subscribe: () => ch, track: async () => {}, unsubscribe: async () => {} }; return ch; },
     removeChannel: () => {},
     auth: { getSession: async () => ({ data: { session: null } }), onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }) },
     functions: { invoke: async () => ({ data: null, error: null }) },
