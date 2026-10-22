@@ -22,6 +22,23 @@ describe('StudentErrorBoundary', () => {
     spy.mockRestore();
   });
 
+  it('registra mensagem do erro e rota no console e mostra detalhe técnico recolhível', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(
+      <StudentErrorBoundary>
+        <Boom />
+      </StudentErrorBoundary>,
+    );
+    const logged = spy.mock.calls.find((c) => c[0] === '[StudentErrorBoundary]');
+    expect(logged).toBeTruthy();
+    const payload = logged![1] as { rota: string; mensagem: string };
+    expect(payload.mensagem).toContain('falha de render simulada');
+    expect(payload.rota).toBe(window.location.pathname);
+    expect(screen.getByText('Detalhes técnicos')).toBeInTheDocument();
+    expect(screen.getByText(/falha de render simulada/)).toBeInTheDocument();
+    spy.mockRestore();
+  });
+
   it('renderiza os filhos normalmente quando não há erro', () => {
     render(
       <StudentErrorBoundary>

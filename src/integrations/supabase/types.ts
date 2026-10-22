@@ -755,6 +755,69 @@ export type Database = {
         }
         Relationships: []
       }
+      cardio_sessions: {
+        Row: {
+          average_heart_rate: number | null
+          completed_at: string | null
+          completed_blocks: number
+          created_at: string
+          duration_seconds: number
+          estimated_calories: number | null
+          id: string
+          max_heart_rate: number | null
+          plan_id: string | null
+          protocol_id: string | null
+          protocol_name: string | null
+          session_state: Json
+          started_at: string
+          status: string
+          student_id: string
+          total_blocks: number
+          total_pause_ms: number
+          updated_at: string
+        }
+        Insert: {
+          average_heart_rate?: number | null
+          completed_at?: string | null
+          completed_blocks?: number
+          created_at?: string
+          duration_seconds?: number
+          estimated_calories?: number | null
+          id: string
+          max_heart_rate?: number | null
+          plan_id?: string | null
+          protocol_id?: string | null
+          protocol_name?: string | null
+          session_state?: Json
+          started_at: string
+          status?: string
+          student_id: string
+          total_blocks?: number
+          total_pause_ms?: number
+          updated_at?: string
+        }
+        Update: {
+          average_heart_rate?: number | null
+          completed_at?: string | null
+          completed_blocks?: number
+          created_at?: string
+          duration_seconds?: number
+          estimated_calories?: number | null
+          id?: string
+          max_heart_rate?: number | null
+          plan_id?: string | null
+          protocol_id?: string | null
+          protocol_name?: string | null
+          session_state?: Json
+          started_at?: string
+          status?: string
+          student_id?: string
+          total_blocks?: number
+          total_pause_ms?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       class_credits_log: {
         Row: {
           action_type: Database["public"]["Enums"]["credit_action_type"]
@@ -3055,6 +3118,66 @@ export type Database = {
           suspension_reason?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      tabata_sessions: {
+        Row: {
+          completed_at: string | null
+          completed_blocks: number
+          completed_rounds: number
+          created_at: string
+          current_phase: string | null
+          duration_seconds: number
+          id: string
+          plan_id: string | null
+          session_state: Json
+          started_at: string
+          status: string
+          student_id: string
+          tabata_name: string | null
+          total_blocks: number
+          total_pause_ms: number
+          total_rounds: number
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_blocks?: number
+          completed_rounds?: number
+          created_at?: string
+          current_phase?: string | null
+          duration_seconds?: number
+          id: string
+          plan_id?: string | null
+          session_state?: Json
+          started_at: string
+          status?: string
+          student_id: string
+          tabata_name?: string | null
+          total_blocks?: number
+          total_pause_ms?: number
+          total_rounds?: number
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          completed_blocks?: number
+          completed_rounds?: number
+          created_at?: string
+          current_phase?: string | null
+          duration_seconds?: number
+          id?: string
+          plan_id?: string | null
+          session_state?: Json
+          started_at?: string
+          status?: string
+          student_id?: string
+          tabata_name?: string | null
+          total_blocks?: number
+          total_pause_ms?: number
+          total_rounds?: number
+          updated_at?: string
         }
         Relationships: []
       }

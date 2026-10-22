@@ -102,7 +102,18 @@ export const AdminTrainerSessionProvider: React.FC<{ children: React.ReactNode }
     if (row) {
       const ss = (row.session_state as any) || {};
       const meta = ss.meta || {};
-      const students: AdminSessionStudent[] = meta.students || [];
+      // session_state é JSON livre: valida o formato antes de confiar,
+      // para que uma sessão corrompida não derrube o app no render.
+      const students: AdminSessionStudent[] = (
+        Array.isArray(meta.students) ? meta.students : []
+      ).filter((s: any) => s && typeof s === 'object' && typeof s.id === 'string');
+      if (students.length === 0) {
+        console.warn('[AdminTrainerSession] sessão ativa sem alunos válidos; ignorando', row.id);
+        activeIdRef.current = null;
+        setActive(null);
+        setLoading(false);
+        return;
+      }
       const calendarEventIds: Record<string, string> = { ...(meta.calendar_event_ids || {}) };
       if (row.calendar_event_id && students[0] && !calendarEventIds[students[0].id]) {
         calendarEventIds[students[0].id] = row.calendar_event_id;

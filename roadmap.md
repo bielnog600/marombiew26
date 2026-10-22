@@ -59,3 +59,10 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Moldura compartilhada com altura reduzida (21/9, máx. 180px no celular / 220px no iPad), vídeo centralizado e foto em `object-fit: cover`; tela de execução do aluno intacta.
 - [x] 1264 testes passaram, tipos limpos, build OK.
 - [ ] Conferir no iPad com a sessão do Manuel (84a08dd7) — bloqueado: abrir a sessão de administrador exige aprovação do usuário.
+
+## Crash no login do admin (iPhone)
+- [x] Reprodução com dados reais do banco (perfis, sessões, eventos, pacotes, planos): Dashboard renderiza sem erro.
+- [x] ErrorBoundary registra mensagem do erro + rota no console e mostra "Detalhes técnicos" recolhível.
+- [x] Resiliência: sessão de treino do admin sem alunos válidos é ignorada; banner global dentro do ErrorBoundary; parsing do plano da sessão com proteção; `safeVideoSrc` imune a valor não-texto.
+- [x] 1266 testes passaram, tipos limpos, build OK.
+- [ ] Causa exata no iPhone: aguarda o usuário abrir o app e informar o texto em "Detalhes técnicos" (sem sessão de admin disponível no sandbox para reproduzir no Safari).

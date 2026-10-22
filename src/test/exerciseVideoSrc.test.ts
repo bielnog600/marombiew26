@@ -6,6 +6,12 @@ describe('safeVideoSrc', () => {
     const html = '<div style="position: relative;"><iframe src="https://customer-x.cloudflarestream.com/9e36735af82eee852d23dc9c13bfd238/iframe?muted=true&amp;loop=true"></iframe></div>';
     expect(safeVideoSrc(html)).toBe('https://customer-x.cloudflarestream.com/9e36735af82eee852d23dc9c13bfd238/iframe?muted=true&loop=true');
   });
+  it('nunca quebra com valores não-string legados (objeto, number)', () => {
+    expect(safeVideoSrc(null)).toBeNull();
+    expect(safeVideoSrc(undefined)).toBeNull();
+    expect(safeVideoSrc({ src: 'https://x.cloudflarestream.com/a' } as any)).toBeNull();
+    expect(safeVideoSrc(123 as any)).toBeNull();
+  });
   it('rejeita URL relativa, do próprio app ou host desconhecido', () => {
     expect(safeVideoSrc('/treino')).toBeNull();
     expect(safeVideoSrc('undefined')).toBeNull();
