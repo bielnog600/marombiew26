@@ -323,7 +323,7 @@ const Exercicios: React.FC = () => {
   const filtered = exercises.filter(
     (e) =>
       e.nome.toLowerCase().includes(search.toLowerCase()) ||
-      e.grupo_muscular.toLowerCase().includes(search.toLowerCase())
+      allGroupsOf(e).some((g) => g.toLowerCase().includes(search.toLowerCase()))
   );
 
   const dialogOpen = !!editing || creating;
@@ -447,7 +447,13 @@ const Exercicios: React.FC = () => {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell><Badge variant="secondary">{ex.grupo_muscular}</Badge></TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {allGroupsOf(ex).map((g, i) => (
+                          <Badge key={g} variant={i === 0 ? 'secondary' : 'outline'}>{g}</Badge>
+                        ))}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {(ex.ajustes ?? []).length === 0 ? (
@@ -503,10 +509,12 @@ const Exercicios: React.FC = () => {
                 <div className="space-y-1.5">
                   <Label>Grupo muscular</Label>
                   <MuscleGroupPicker
-                    value={form.grupo_muscular}
-                    onChange={(v) => setForm((f) => ({ ...f, grupo_muscular: v }))}
+                    values={form.grupos}
+                    onChange={(v) => setForm((f) => ({ ...f, grupos: v }))}
                     counts={exercises.reduce<Record<string, number>>((acc, e) => {
-                      if (e.grupo_muscular) acc[e.grupo_muscular] = (acc[e.grupo_muscular] || 0) + 1;
+                      for (const g of new Set([e.grupo_muscular, ...(e.grupos_musculares ?? [])])) {
+                        if (g) acc[g] = (acc[g] || 0) + 1;
+                      }
                       return acc;
                     }, {})}
                     onGroupsChanged={() => qc.invalidateQueries({ queryKey: ['exercises-admin'] })}
