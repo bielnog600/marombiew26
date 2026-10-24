@@ -21,9 +21,9 @@ export const findEmptyDays = (days: DayLike[] | null | undefined): string[] =>
     .filter((d) => !d || !(Array.isArray(d.exercises) && d.exercises.some(hasName)))
     .map((d) => String(d?.day || "Sem nome"));
 
-export const removeEmptyDays = <P extends { days: DayLike[] }>(plan: P): P => ({
+export const removeEmptyDays = <P extends { days?: DayLike[] }>(plan: P): P => ({
   ...plan,
-  days: sanitizeTrainingDays(plan.days) as P["days"],
+  days: sanitizeTrainingDays(plan.days) as unknown as P["days"],
 });
 
 export const emptyDaysMessage = (names: string[]): string =>
