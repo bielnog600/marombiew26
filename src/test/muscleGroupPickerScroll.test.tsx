@@ -9,8 +9,8 @@ const GROUPS = Array.from({ length: 30 }, (_, i) => `Grupo ${i + 1}`);
 const COUNTS: Record<string, number> = Object.fromEntries(GROUPS.map(g => [g, 0]));
 
 function Harness() {
-  const [value, setValue] = useState('');
-  return <MuscleGroupPicker value={value} onChange={setValue} counts={COUNTS} onGroupsChanged={() => {}} />;
+  const [value, setValue] = useState<string[]>([]);
+  return <MuscleGroupPicker values={value} onChange={setValue} counts={COUNTS} onGroupsChanged={() => {}} />;
 }
 
 function findScrollContainer(): HTMLElement | null {
