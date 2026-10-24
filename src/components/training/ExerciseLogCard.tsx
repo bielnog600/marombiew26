@@ -3,13 +3,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dumbbell, Save, Loader2, Check, Timer, Plus, Minus, Trash2, X, Settings2 } from 'lucide-react';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
-import { ExercisePicker } from '@/components/tabata/ExercisePicker';
 import { ProgressionHintCard } from './ProgressionHintCard';
 import MethodBadge from './MethodBadge';
-import { WorkoutMethodEditor } from './WorkoutMethodEditor';
+import { ExerciseStructureEditor } from './ExerciseStructureEditor';
 import type { ExecutionMethodFields } from '@/lib/workoutExecutionMethods';
 import { getRecommendationFor, targetLoadForSet, type ProgressionSnapshot } from '@/lib/sessionProgression';
 import { WorkoutSetCard } from './WorkoutSetCard';
@@ -74,18 +72,9 @@ interface Props {
   onCompleteSet?: (exIdx: number, setIdx: number, entry: MethodSetEntry) => void;
   /** Quando presente (exercício com método), substitui a lista de séries simples. */
   methodBody?: React.ReactNode;
+  /** Ação extra no painel Editar (ex.: "Agrupar com…" no Modo Treino admin). */
+  groupAction?: React.ReactNode;
 }
-
-type StructureMode = 'standard' | 'recognition' | 'per_set';
-
-const detectMode = (ex: any): StructureMode => {
-  if (ex?.setScheme?.mode === 'per_set') return 'per_set';
-  const s1 = parseInt(String(ex?.series ?? '0'), 10) || 0;
-  const s2 = parseInt(String(ex?.series2 ?? '0'), 10) || 0;
-  if (s1 > 0 && s2 > 0) return 'recognition';
-  if (String(ex?.reps || '').includes('+')) return 'recognition';
-  return 'standard';
-};
 
 const ExerciseLogCard: React.FC<Props> = ({
   exIdx,
