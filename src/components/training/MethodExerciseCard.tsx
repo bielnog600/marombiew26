@@ -27,6 +27,10 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
   inlineRest?: ReturnType<typeof useInlineWorkoutRest>;
   /** Dentro do ExerciseLogCard: omite cabeçalho, vídeo e dica (já exibidos pelo card). */
   embedded?: boolean;
+  /** Só no Modo Treino admin: ações extras no cabeçalho (ex.: "Editar grupo"). */
+  headerActions?: React.ReactNode;
+  /** Só no Modo Treino admin: painel de edição do grupo, abaixo do cabeçalho. */
+  editPanel?: React.ReactNode;
 }) {
   const [current, setCurrent] = useState(() => {
     const pending = indices.flatMap(idx => (sets[idx] ?? []).flatMap((row, i) => !row.completed ? [i] : [])).sort((a, b) => a - b)[0];
