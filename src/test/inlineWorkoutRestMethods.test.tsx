@@ -41,12 +41,10 @@ describe('Modo Treino — descanso sem grupo', () => {
     expect(latest?.rest).toBeNull();
     expect((screen.getByLabelText('Série 1 Mini-série 1 reps') as HTMLInputElement).disabled).toBe(true);
     act(() => vi.advanceTimersByTime(15000));
-    fireEvent.change(screen.getByLabelText('Série 1 Mini-série 1 reps'), { target: { value: '4' } });
-    fireEvent.click(screen.getByLabelText('Confirmar série 1 Mini-série 1'));
+    fireEvent.click(screen.getByLabelText('Registrar 4 reps em Mini-série 1'));
     expect(latest?.rest).toBeNull();
     act(() => vi.advanceTimersByTime(15000));
-    fireEvent.change(screen.getByLabelText('Série 1 Mini-série 2 reps'), { target: { value: '3' } });
-    fireEvent.click(screen.getByLabelText('Confirmar série 1 Mini-série 2'));
+    fireEvent.click(screen.getByLabelText('Registrar 3 reps em Mini-série 2'));
     expect(latest?.rest).toMatchObject({ total: 90, remaining: 90, setIndex: 0 });
   });
 });

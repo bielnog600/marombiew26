@@ -123,7 +123,8 @@ describe('execução compartilhada', () => {
     expect(latest?.pauseUntil).toBe(Date.now() + 15000);
     expect((screen.getByLabelText('Série 3 Mini-série 1 reps') as HTMLInputElement).disabled).toBe(true);
     act(() => { vi.advanceTimersByTime(15000); });
-    expect((screen.getByLabelText('Série 3 Mini-série 1 reps') as HTMLInputElement).disabled).toBe(false);
+    fireEvent.click(screen.getByLabelText('Registrar 4 reps em Mini-série 1'));
+    expect(latest?.subRecords?.[1]).toMatchObject({ reps: '4', weight: '40', completed: true });
   });
   it('drop salva principal e sub-registros com cargas 80/60/45', () => {
     const ex = { ...exercise('a'), ...methodPatch('dropset') };
