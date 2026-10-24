@@ -12,6 +12,29 @@ afterEach(() => { cleanup(); vi.useRealTimers(); localStorage.clear(); });
 const base: ParsedExercise = { exercise: 'Remada', series: '2', series2: '', reps: '10', pause: '90s', variation: '', description: '', rir: '' };
 
 describe('Modo Treino — descanso sem grupo', () => {
+  it('Cluster só inicia descanso normal de 90s após três blocos e correção não reinicia', () => {
+    vi.useFakeTimers();
+    const ex = { ...base, ...methodPatch('cluster'), series: '1' };
+    let latest: ReturnType<typeof useInlineWorkoutRest> | undefined;
+    function Harness() {
+      const [sets, update] = useState<Record<number, MethodSetEntry[]>>({ 0: [{ weight: '40', reps: '' }] });
+      latest = useInlineWorkoutRest('admin:cluster:u');
+      return <MethodExerciseCard exercises={[ex]} indices={[0]} sets={sets} media={[]} studentId="u" inlineRest={latest} onChange={(ex, i, row) => update({ 0: [row] })} onComplete={(ex, i, row) => update({ 0: [row] })} />;
+    }
+    render(<Harness />);
+    fireEvent.click(screen.getByRole('button', { name: 'Fiz 3 reps' }));
+    expect(latest?.rest).toBeNull();
+    act(() => vi.advanceTimersByTime(20000));
+    fireEvent.click(screen.getByRole('button', { name: 'Fiz 3 reps' }));
+    expect(latest?.rest).toBeNull();
+    act(() => vi.advanceTimersByTime(20000));
+    fireEvent.click(screen.getByRole('button', { name: 'Fiz 3 reps' }));
+    expect(latest?.rest).toMatchObject({ total: 90, remaining: 90 });
+    act(() => vi.advanceTimersByTime(5000));
+    fireEvent.click(screen.getByLabelText('Corrigir série 1 Bloco 3'));
+    fireEvent.change(screen.getByLabelText('Série 1 Bloco 3 reps'), { target: { value: '2' } });
+    expect(latest?.rest?.remaining).toBe(85);
+  });
   it('série simples no card admin conclui e inicia 90s sem bloquear a próxima', () => {
     vi.useFakeTimers();
     let latest: ReturnType<typeof useInlineWorkoutRest> | undefined;
@@ -41,12 +64,10 @@ describe('Modo Treino — descanso sem grupo', () => {
     expect(latest?.rest).toBeNull();
     expect((screen.getByLabelText('Série 1 Mini-série 1 reps') as HTMLInputElement).disabled).toBe(true);
     act(() => vi.advanceTimersByTime(15000));
-    fireEvent.change(screen.getByLabelText('Série 1 Mini-série 1 reps'), { target: { value: '4' } });
-    fireEvent.click(screen.getByLabelText('Confirmar série 1 Mini-série 1'));
+    fireEvent.click(screen.getByLabelText('Registrar 4 reps em Mini-série 1'));
     expect(latest?.rest).toBeNull();
     act(() => vi.advanceTimersByTime(15000));
-    fireEvent.change(screen.getByLabelText('Série 1 Mini-série 2 reps'), { target: { value: '3' } });
-    fireEvent.click(screen.getByLabelText('Confirmar série 1 Mini-série 2'));
+    fireEvent.click(screen.getByLabelText('Registrar 3 reps em Mini-série 2'));
     expect(latest?.rest).toMatchObject({ total: 90, remaining: 90, setIndex: 0 });
   });
 });

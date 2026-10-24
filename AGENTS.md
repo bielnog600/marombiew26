@@ -2,6 +2,7 @@
 
 - Isolate 3D scan loading, geometry and private persistence behind the AI assessment modal's lazy boundary; keep consent/import provenance server-stamped and scan perimeters distinct from visual estimates to avoid changing other assessment flows.
 - Keep workout groups and method parameters optional in structured plans; share set-part controls and group transitions between student/admin execution, storing parts in each existing set log while primary columns remain progression inputs.
+- Keep quick Cluster/Rest-pause actions and internal deadline controls inside the shared method-series boundary; corrections only update existing sub-records and never trigger completion or restart timers.
 - Represent pyramid direction in the exercise method slug and rep targets in the existing per-set scheme; reuse ordinary set logging instead of intra-set sub-records to preserve progression and rest behavior.
 
 - Keep WhatsApp message formatting pure and select persisted variation indices at the notification boundary, keyed by student and plan type; this separates message tests from browser storage and preserves nutrition formatting.
