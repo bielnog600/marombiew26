@@ -183,7 +183,7 @@ export const MuscleGroupPicker: React.FC<Props> = ({ value, onChange, counts, on
             ),
           )}
         </div>
-        <div className="flex items-center gap-1 border-t mt-2 pt-2">
+        <div className="shrink-0 flex items-center gap-1 border-t mt-2 pt-2">
           <Input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
