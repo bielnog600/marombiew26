@@ -15,6 +15,8 @@ import WhatsAppNotifyPlanButton from '@/components/WhatsAppNotifyPlanButton';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { sortTrainingDays } from '@/lib/trainingDayOrder';
 import { rebuildTrainingMarkdown } from '@/lib/trainingResultParser';
+import { useEmptyDaysConfirm } from '@/components/training/EmptyDaysConfirm';
+import { findEmptyDays } from '@/lib/workoutEmptyDays';
 import { saveWorkoutPlanFromMarkdown, saveWorkoutPlanJSON } from '@/lib/workoutPlanRepo';
 import {
   normalizeWorkoutPlan,
@@ -262,6 +264,8 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
     setEditedStartDates(prev => ({ ...prev, [planId]: date }));
   };
 
+  const { confirm: confirmEmptyDays, dialog: emptyDaysDialog } = useEmptyDaysConfirm();
+
   const handleSave = async (planId: string) => {
     const planRow = plans.find((p) => p.id === planId);
     const jsonChanged = editedPlans[planId] !== undefined;
@@ -269,6 +273,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
     const phaseChanged = editedPhases[planId] !== undefined;
     const startDateChanged = editedStartDates[planId] !== undefined;
     if (!jsonChanged && !markdownChanged && !phaseChanged && !startDateChanged) return;
+    if (jsonChanged && !(await confirmEmptyDays(findEmptyDays(editedPlans[planId]?.days)))) return;
 
     setSaving(planId);
 
@@ -381,6 +386,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
 
   return (
     <>
+      {emptyDaysDialog}
       <div className="space-y-3">
         <ProgressionAnalyticsCard studentId={studentId} />
         {plans.map(plan => {

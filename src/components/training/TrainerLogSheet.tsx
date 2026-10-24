@@ -49,6 +49,7 @@ import { normalizeWorkoutPlan, newId, parsedDaysToWorkoutPlan, type WorkoutPlan 
 import { GroupEditPanel } from './GroupEditPanel';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { workoutPlanToMarkdown } from '@/lib/workoutMarkdownSerializer';
+import { useEmptyDaysConfirm } from './EmptyDaysConfirm';
 import { persistSessionDayEditsToPlan } from '@/lib/sessionPlanPersistence';
 import {
   buildExerciseUids,
@@ -728,6 +729,8 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   };
 
 
+  const { confirm: confirmEmptyDays, dialog: emptyDaysDialog } = useEmptyDaysConfirm();
+
   const saveOrderToPlan = async () => {
     if (!day) return;
     if (!effectivePlanId) {
@@ -851,6 +854,8 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   // Grava as edições de método/grupo da sessão no plano do aluno (ai_plans).
   const saveStructureToPlan = async () => {
     if (!day) return;
+    const hasValid = currentExercises.some((e) => String(e?.exercise || '').trim());
+    if (!hasValid && !(await confirmEmptyDays([day.day]))) return;
     const groupError = validateGroups(currentExercises);
     if (groupError) {
       toast.error('Não foi possível salvar: ' + groupError);
@@ -1068,6 +1073,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       }}
     >
       <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+        {emptyDaysDialog}
         <SheetHeader>
           <SheetTitle className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
