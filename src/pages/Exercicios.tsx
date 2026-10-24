@@ -23,6 +23,7 @@ import {
 import { Pencil, Search, Check, Plus, Trash2, Upload, Download, X, ImageIcon, Loader2, Video, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import ExerciseVariationsDialog from '@/components/admin/ExerciseVariationsDialog';
+import MuscleGroupPicker from '@/components/admin/MuscleGroupPicker';
 
 const STANDARD_FIELDS = [
   'Banco',
@@ -493,12 +494,15 @@ const Exercicios: React.FC = () => {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="grupo">Grupo muscular</Label>
-                  <Input
-                    id="grupo"
+                  <Label>Grupo muscular</Label>
+                  <MuscleGroupPicker
                     value={form.grupo_muscular}
-                    onChange={(e) => setForm((f) => ({ ...f, grupo_muscular: e.target.value }))}
-                    placeholder="Ex: Peito"
+                    onChange={(v) => setForm((f) => ({ ...f, grupo_muscular: v }))}
+                    counts={exercises.reduce<Record<string, number>>((acc, e) => {
+                      if (e.grupo_muscular) acc[e.grupo_muscular] = (acc[e.grupo_muscular] || 0) + 1;
+                      return acc;
+                    }, {})}
+                    onGroupsChanged={() => qc.invalidateQueries({ queryKey: ['exercises-admin'] })}
                   />
                 </div>
               </div>
