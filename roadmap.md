@@ -1,5 +1,12 @@
 # Roadmap
 
+## Modo Treino admin — agrupar e editar métodos no modal
+- [x] "Agrupar com…" no card sem grupo: par escolhido no modal vira A/B seguido, com ajuste do B para o número de séries do A preservando séries registradas.
+- [x] "Editar grupo" no card do par: tipo, pausa A→B (0–10s), descanso do par, desagrupar e editor completo de A e B (modo de séries, método, reps, RIR, descanso, variação).
+- [x] "Salvar no plano do aluno" grava método/grupo em ai_plans com validateGroups e erro em português; schema passa a aceitar parâmetros parciais de método (corrige o "Required; Required" também no editor do plano).
+- [x] 1283 testes passaram, tipos limpos, build OK; tela do aluno intacta.
+- [ ] Conferir agrupar/editar/salvar com sessão real no iPad — bloqueado: sessão de administrador indisponível neste contexto.
+
 ## Cluster e Rest-pause — registro por toque
 - [x] Compartilhar controles rápidos, carga e pausa interna entre aluno e admin, sem alterar outros métodos ou dados.
 - [x] Cobrir registro, correções e retomada com testes; compilação automática OK e fluxo visual conferido em celular/desktop com dados de teste.
