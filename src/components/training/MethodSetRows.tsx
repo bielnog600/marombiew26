@@ -3,6 +3,7 @@ import { Check, Timer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { WorkoutSetCard, type SetRestPresentation } from './WorkoutSetCard';
+import { QuickMethodSetRows } from './QuickMethodSetRows';
 import type { ParsedExercise } from '@/lib/trainingResultParser';
 import { makeSubRecords, methodOnSet, methodParameters, seriesMethod, type MethodSetEntry } from '@/lib/workoutExecutionMethods';
 
@@ -19,6 +20,9 @@ export function MethodSetRows({ exercise, set, index, count, recognition = false
     return () => window.clearInterval(timer);
   }, [set.pauseUntil]);
   const advanced = methodOnSet(exercise, index, count, recognition);
+  if (advanced && (seriesMethod(exercise) === 'cluster' || seriesMethod(exercise) === 'restpause')) {
+    return <QuickMethodSetRows exercise={exercise} set={set} index={index} targetReps={targetReps} weightPlaceholder={weightPlaceholder} disabled={disabled} onChange={onChange} onComplete={onComplete} restPresentation={restPresentation} />;
+  }
   const baseRecords = advanced ? set.subRecords ?? makeSubRecords(exercise, set) : [{ label: recognition ? 'Reconhecimento' : 'Principal', weight: set.weight, reps: set.reps, completed: !!set.completed }];
   // Drop set: drops vazios e não concluídos herdam a sugestão (−reducao_pct por drop, 0,5 kg).
   const records = advanced && seriesMethod(exercise) === 'dropset'
