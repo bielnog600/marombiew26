@@ -176,7 +176,7 @@ const MinhaArea = () => {
         setTrainingDays(allDays);
 
 
-        const exerciseNames = allDays.flatMap(d => d.exercises.map(e => e.exercise.toUpperCase().trim()));
+        const exerciseNames = allDays.flatMap(d => (d.exercises || []).map(e => String(e?.exercise || '').toUpperCase().trim()).filter(Boolean));
         const uniqueNames = [...new Set(exerciseNames)];
         if (uniqueNames.length > 0) {
           const { data: dbExercises } = await fetchWithCache('exercises:all', async () => {
@@ -298,7 +298,8 @@ const MinhaArea = () => {
     if (trainingDays.length === 0) return undefined;
     const jsDay = new Date().getDay(); // 0=Sun
     const todayNames = jsDay === 0 ? ['domingo'] : jsDay === 1 ? ['segunda'] : jsDay === 2 ? ['terca', 'terça'] : jsDay === 3 ? ['quarta'] : jsDay === 4 ? ['quinta'] : jsDay === 5 ? ['sexta'] : ['sabado', 'sábado'];
-    return trainingDays.find(d => todayNames.some(n => d.day.toLowerCase().includes(n)));
+    // Dia sem exercícios = descanso.
+    return trainingDays.find(d => (d?.exercises?.length ?? 0) > 0 && todayNames.some(n => String(d?.day || '').toLowerCase().includes(n)));
   }, [trainingDays]);
 
   // Card "Hoje": sessão em andamento (de qualquer dia) tem prioridade.
