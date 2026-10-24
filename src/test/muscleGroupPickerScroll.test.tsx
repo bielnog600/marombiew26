@@ -35,6 +35,6 @@ describe('MuscleGroupPicker — lista rolável', () => {
     expect(popover?.className).toContain('max-h-');
 
     // O último grupo existe e fica dentro do contêiner rolável.
-    expect(screen.getByRole('button', { name: /Grupo 30/ }).closest('div.overflow-y-auto')).toBe(list);
+    expect(screen.getByRole('button', { name: 'Grupo 30' }).closest('div.overflow-y-auto')).toBe(list);
   });
 });
