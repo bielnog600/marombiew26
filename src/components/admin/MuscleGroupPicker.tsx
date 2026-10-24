@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import * as PopoverPrimitive from '@radix-ui/react-popover';
+import { Popover, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Check, ChevronsUpDown, Pencil, Plus, Trash2, X } from 'lucide-react';
@@ -115,10 +116,22 @@ export const MuscleGroupPicker: React.FC<Props> = ({ value, onChange, counts, on
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        className="w-[--radix-popover-trigger-width] min-w-[260px] p-2 bg-popover z-50 flex flex-col max-h-[min(70dvh,520px)]"
+      {/*
+        Sem Portal de propósito: o painel "Adicionar exercício" trava o rolar
+        de tudo que está fora dele (no iPhone isso bloqueia o arrastar). Renderizar
+        o balão dentro do painel libera a rolagem por toque da lista.
+      */}
+      <PopoverPrimitive.Content
         align="start"
-        style={{ WebkitOverflowScrolling: 'touch' }}
+        sideOffset={4}
+        collisionPadding={8}
+        className="z-50 w-[--radix-popover-trigger-width] min-w-[260px] rounded-md border bg-popover p-2 text-popover-foreground shadow-md outline-none flex flex-col"
+        style={{
+          maxHeight: 'min(var(--radix-popover-content-available-height, 70dvh), 60dvh, 520px)',
+          WebkitOverflowScrolling: 'touch',
+        }}
+        onWheel={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
       >
         <div
           className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y space-y-0.5"
@@ -195,7 +208,7 @@ export const MuscleGroupPicker: React.FC<Props> = ({ value, onChange, counts, on
             <Plus className="h-4 w-4 mr-1" /> Adicionar
           </Button>
         </div>
-      </PopoverContent>
+      </PopoverPrimitive.Content>
     </Popover>
   );
 };
