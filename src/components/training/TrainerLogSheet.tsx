@@ -1271,6 +1271,76 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
           />
         )}
 
+        <Dialog open={groupingAIdx !== null} onOpenChange={(v) => { if (!v) { setGroupingAIdx(null); setGroupPick(null); } }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Agrupar em Bi-set / Superset</DialogTitle>
+              <DialogDescription>
+                {groupingAIdx !== null
+                  ? `A: ${currentExercises[groupingAIdx]?.exercise || '—'} · escolha o exercício B e o tipo de grupo.`
+                  : ''}
+              </DialogDescription>
+            </DialogHeader>
+            {groupingAIdx !== null && (
+              <div className="space-y-3">
+                <div className="max-h-56 space-y-1 overflow-y-auto">
+                  {currentExercises.flatMap((e, i) =>
+                    i === groupingAIdx || e.grupo_id || !state[i] ? [] : [(
+                      <button
+                        key={i}
+                        type="button"
+                        className={`flex w-full items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-left text-xs ${
+                          groupPick?.bIdx === i ? 'border-primary bg-primary/10' : 'border-border/50 hover:bg-secondary/50'
+                        }`}
+                        onClick={() => setGroupPick({ bIdx: i, type: groupPick?.type ?? 'biset' })}
+                      >
+                        <span className="truncate font-medium">{state[i]?.exerciseName || e.exercise}</span>
+                        <span className="shrink-0 text-[10px] text-muted-foreground">{exerciseSetCount(e)} séries</span>
+                      </button>
+                    )],
+                  )}
+                </div>
+                {groupPick && (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      {(['biset', 'superset'] as const).map((t) => (
+                        <Button
+                          key={t}
+                          type="button"
+                          size="sm"
+                          variant={groupPick.type === t ? 'default' : 'outline'}
+                          className="h-8 text-xs"
+                          onClick={() => setGroupPick({ ...groupPick, type: t })}
+                        >
+                          {t === 'biset' ? 'Bi-set' : 'Superset'}
+                        </Button>
+                      ))}
+                    </div>
+                    {(() => {
+                      const countA = exerciseSetCount(currentExercises[groupingAIdx]);
+                      const countB = exerciseSetCount(currentExercises[groupPick.bIdx]);
+                      const adjusted = countA !== countB;
+                      return (
+                        <>
+                          {adjusted && (
+                            <p className="text-[11px] text-muted-foreground">
+                              O exercício B tem {countB} séries e será ajustado para {countA} séries (igual ao A). As séries já registradas são preservadas.
+                            </p>
+                          )}
+                          <Button type="button" className="w-full gap-2" onClick={confirmGroup}>
+                            <Link2 className="h-4 w-4" />
+                            {adjusted ? `Ajustar B para ${countA} séries e agrupar` : 'Agrupar'}
+                          </Button>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
         <RestOffscreenIndicator rest={inlineRest.rest} />
         {restTimer && (
           <div
