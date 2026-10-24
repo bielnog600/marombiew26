@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, act, renderHook } from '@testing-library/react';
 import type { ParsedExercise } from '@/lib/trainingResultParser';
-import { groupExercises, ungroupExercises, moveExerciseBlock, exerciseBlocks, methodPatch, methodParameters, methodOnSet, makeSubRecords, methodLogFields, subRecordVolume, validateGroups } from '@/lib/workoutExecutionMethods';
-import { normalizeWorkoutPlan, parsedDaysToWorkoutPlan, workoutPlanToParsedDays } from '@/lib/workoutSchema';
+import { groupExercises, groupExercisesByIndex, matchSetCount, ungroupExercises, moveExerciseBlock, exerciseBlocks, methodPatch, methodParameters, methodOnSet, makeSubRecords, methodLogFields, subRecordVolume, validateGroups } from '@/lib/workoutExecutionMethods';
+import { normalizeWorkoutPlan, parsedDaysToWorkoutPlan, validateWorkoutPlan, workoutPlanToParsedDays } from '@/lib/workoutSchema';
 import { applyParsedDayToPlan } from '@/lib/workoutPlanEdit';
 import { buildSessionStateLogRows } from '@/lib/workoutSessionResolution';
 import { MethodSetRows } from '@/components/training/MethodSetRows';
@@ -107,6 +107,42 @@ describe('métodos de treino — regras', () => {
     const ex = exercise('a');
     expect(methodOnSet(ex, 2, 3)).toBe(false);
     expect(methodLogFields(ex, { weight: '40', reps: '10' })).toEqual({});
+  });
+  it('agrupa por índice: par fica seguido na posição do A, com orderMap para remapear séries', () => {
+    const res = groupExercisesByIndex([exercise('a'), exercise('b'), exercise('c')], 0, 2, 'biset', 'g')!;
+    expect(res.orderMap).toEqual([0, 2, 1]);
+    expect(res.exercises.map(ex => [ex.id, ex.ordem_grupo])).toEqual([['a', 'A'], ['c', 'B'], ['b', undefined]]);
+    expect(res.exercises[0].grupo_id).toBe('g');
+    expect(res.exercises[1].pausa_grupo_s).toBe(0);
+    expect(validateGroups(res.exercises)).toBeNull();
+    // B antes do A: o par fica na posição do A.
+    const res2 = groupExercisesByIndex([exercise('a'), exercise('b'), exercise('c')], 2, 0, 'superset', 'g2')!;
+    expect(res2.orderMap).toEqual([1, 2, 0]);
+    expect(res2.exercises.map(ex => ex.ordem_grupo)).toEqual([undefined, 'A', 'B']);
+    // Exercício já agrupado não pode ser agrupado de novo.
+    expect(groupExercisesByIndex(res.exercises, 0, 2, 'biset', 'x')).toBeNull();
+  });
+  it('matchSetCount ajusta o B para o número de séries do A', () => {
+    expect(matchSetCount(exercise('a'), 3)).toEqual({ series: '3', series2: '' });
+    expect(matchSetCount({ ...exercise('a'), series: '4' }, 3)).toEqual({ series: '3', series2: '' });
+    const recon = { ...exercise('a'), series: '1', series2: '3', reps: '15 + 8-10' };
+    expect(matchSetCount(recon, 5)).toEqual({ series2: '4' });
+    const perSet = { ...exercise('a'), setScheme: { mode: 'per_set' as const, sets: [
+      { set_number: 1, set_type: 'work' as const, target_reps: '12' },
+      { set_number: 2, set_type: 'work' as const, target_reps: '10' },
+    ] } };
+    const padded = matchSetCount(perSet, 4).setScheme!;
+    expect(padded.sets.map(s => [s.set_number, s.target_reps])).toEqual([[1, '12'], [2, '10'], [3, '10'], [4, '10']]);
+    expect(matchSetCount(perSet, 1).setScheme!.sets).toHaveLength(1);
+  });
+  it('schema aceita os parâmetros parciais gerados por methodPatch (bug "Required; Required")', () => {
+    const ex = [
+      { ...exercise('a'), ...methodPatch('dropset') },
+      { ...exercise('b'), ...methodPatch('restpause') },
+      { ...exercise('c'), ...methodPatch('cluster') },
+    ];
+    const result = validateWorkoutPlan(parsedDaysToWorkoutPlan([{ day: 'Segunda', exercises: ex }]));
+    expect(result.success).toBe(true);
   });
 });
 describe('execução compartilhada', () => {

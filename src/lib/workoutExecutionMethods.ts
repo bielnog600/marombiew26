@@ -157,6 +157,43 @@ export const groupExercises = (exercises: ParsedExercise[], ids: string[], type:
 };
 export const ungroupExercises = (exercises: ParsedExercise[], groupId: string): ParsedExercise[] => exercises.map(ex => ex.grupo_id === groupId
   ? { ...ex, grupo_id: undefined, tipo_grupo: undefined, ordem_grupo: undefined, pausa_grupo_s: undefined } : ex);
+/**
+ * Agrupa por ÍNDICE (Modo Treino admin, onde exercícios podem não ter id):
+ * o par fica seguido na posição do A (A = primeiro clique, B = segundo).
+ * Retorna também o orderMap (novo índice → índice antigo) para o chamador
+ * remapear estado/séries sem perder registros. Null quando inválido.
+ */
+export const groupExercisesByIndex = (
+  exercises: ParsedExercise[], aIdx: number, bIdx: number,
+  type: 'superset' | 'biset', groupId: string,
+): { exercises: ParsedExercise[]; orderMap: number[] } | null => {
+  const a = exercises[aIdx], b = exercises[bIdx];
+  if (!a || !b || aIdx === bIdx || a.grupo_id || b.grupo_id) return null;
+  const rest = exercises.flatMap((_, i) => (i === aIdx || i === bIdx) ? [] : [i]);
+  const aPos = rest.filter(i => i < aIdx).length;
+  const orderMap = [...rest.slice(0, aPos), aIdx, bIdx, ...rest.slice(aPos)];
+  return {
+    orderMap,
+    exercises: orderMap.map(i => i === aIdx
+      ? { ...a, grupo_id: groupId, tipo_grupo: type, ordem_grupo: 'A' as const, pausa_grupo_s: a.pausa_grupo_s ?? 0 }
+      : i === bIdx
+        ? { ...b, grupo_id: groupId, tipo_grupo: type, ordem_grupo: 'B' as const, pausa_grupo_s: 0 }
+        : exercises[i]),
+  };
+};
+/** Patch para o exercício passar a ter `count` séries (usado ao agrupar com contagens diferentes). */
+export const matchSetCount = (ex: ParsedExercise, count: number): Partial<ParsedExercise> => {
+  const target = Math.max(1, Math.round(count));
+  if (ex.setScheme?.mode === 'per_set' && ex.setScheme.sets.length > 0) {
+    const sets = ex.setScheme.sets.slice(0, target).map((s, i) => ({ ...s, set_number: i + 1 }));
+    const last = sets[sets.length - 1];
+    while (sets.length < target) sets.push({ set_number: sets.length + 1, set_type: 'work', target_reps: last?.target_reps || ex.reps || '' });
+    return { setScheme: { mode: 'per_set', sets }, series: String(target), series2: '' };
+  }
+  const recon = (parseInt(String(ex.series ?? ''), 10) || 0) > 0 && (parseInt(String(ex.series2 ?? ''), 10) || 0) > 0;
+  if (recon) return { series2: String(Math.max(1, target - (parseInt(String(ex.series), 10) || 1))) };
+  return { series: String(target), series2: '' };
+};
 export const moveExerciseBlock = (exercises: ParsedExercise[], active: string, over: string): ParsedExercise[] => {
   const blocks = exerciseBlocks(exercises);
   const from = blocks.findIndex(b => b.id === active), to = blocks.findIndex(b => b.id === over);

@@ -2,14 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { useInlineWorkoutRest } from '@/hooks/useInlineWorkoutRest';
 import { RestOffscreenIndicator } from './WorkoutSetCard';
 import { MethodExerciseCard } from './MethodExerciseCard';
-import { exerciseBlocks, methodLogFields, seriesMethod, type MethodSetEntry } from '@/lib/workoutExecutionMethods';
+import { exerciseBlocks, exerciseSetCount, groupExercisesByIndex, matchSetCount, methodLogFields, seriesMethod, ungroupExercises, validateGroups, type MethodSetEntry } from '@/lib/workoutExecutionMethods';
 import type { GroupPause } from '@/hooks/useWorkoutGroupFlow';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Save, History, Dumbbell, Check, ChevronDown, Pencil, Timer, X, Play, Plus, Sparkles, GripVertical, ListOrdered } from 'lucide-react';
+import { Loader2, Save, History, Dumbbell, Check, ChevronDown, Pencil, Timer, X, Play, Plus, Sparkles, GripVertical, ListOrdered, Link2, Settings2 } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -45,7 +45,9 @@ import { readProgressionSnapshot } from '@/lib/sessionProgression';
 import { useAdminTrainerSession } from '@/contexts/AdminTrainerSessionContext';
 import AiEditExerciseDialog, { type AiEditAction } from './AiEditExerciseDialog';
 import { applyActionsToDay } from './AiEditAllDaysDialog';
-import { normalizeWorkoutPlan, parsedDaysToWorkoutPlan, type WorkoutPlan } from '@/lib/workoutSchema';
+import { normalizeWorkoutPlan, newId, parsedDaysToWorkoutPlan, type WorkoutPlan } from '@/lib/workoutSchema';
+import { GroupEditPanel } from './GroupEditPanel';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { workoutPlanToMarkdown } from '@/lib/workoutMarkdownSerializer';
 import { persistSessionDayEditsToPlan } from '@/lib/sessionPlanPersistence';
 import {
@@ -379,6 +381,12 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   const [aiOpen, setAiOpen] = useState(false);
   const [orderDirty, setOrderDirty] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
+  // Edições de método/grupo feitas na sessão, ainda não gravadas no plano.
+  const [structureDirty, setStructureDirty] = useState(false);
+  const [savingStructure, setSavingStructure] = useState(false);
+  const [groupingAIdx, setGroupingAIdx] = useState<number | null>(null);
+  const [groupPick, setGroupPick] = useState<{ bIdx: number; type: 'biset' | 'superset' } | null>(null);
+  const [groupEditOpen, setGroupEditOpen] = useState<string | null>(null);
   const dndSensors = useExerciseDndSensors();
 
   const { restTimer, startTimer: setRestTimer, stopTimer, adjustTimer, setTimerExerciseIndex } = useRestTimer();
@@ -754,32 +762,129 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
 
 
 
-  const updateExerciseMeta = (
-    exIdx: number,
-    patch: Partial<Pick<ParsedExercise, 'pause' | 'variation' | 'reps' | 'rir' | 'series' | 'series2' | 'setScheme'>>,
-  ) => {
-    const newExercises = currentExercises.map((e, i) =>
-      i === exIdx ? { ...e, ...patch } : e,
-    );
-    setCurrentExercises(newExercises);
-    let nextState = state;
-    // Se algo que afeta o plano mudou, reconstrói preservando séries já preenchidas
-    if (
+  const updateExerciseMeta = (exIdx: number, patch: Partial<ParsedExercise>) => {
+    const affectsPlan =
       patch.reps !== undefined ||
       patch.series !== undefined ||
       patch.series2 !== undefined ||
-      patch.setScheme !== undefined
-    ) {
-      const ex = newExercises[exIdx];
-      const newPlan = buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme);
-      const prev = state[exIdx];
+      patch.setScheme !== undefined;
+    // Atualizações funcionais: duas chamadas seguidas (ex.: A e B do grupo) não
+    // pisam uma na outra. Se o plano de séries muda, reconstrói preservando as
+    // séries já preenchidas/concluídas.
+    setCurrentExercises((prevExercises) => {
+      const newExercises = prevExercises.map((e, i) => (i === exIdx ? { ...e, ...patch } : e));
+      setState((prevState) => {
+        let next = prevState;
+        if (affectsPlan) {
+          const ex = newExercises[exIdx];
+          const prev = prevState[exIdx];
+          if (prev) {
+            const newPlan = buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme);
+            const sets = newPlan.map((_, i) => prev.sets[i] ?? { weight: '', reps: '' });
+            next = { ...prevState, [exIdx]: { ...prev, plan: newPlan, sets } };
+          }
+        }
+        saveDraft(studentId, day.day, daySignature, next, newExercises);
+        return next;
+      });
+      return newExercises;
+    });
+    if (['metodo', 'metodo_params', 'method', 'grupo_id', 'tipo_grupo', 'ordem_grupo', 'pausa_grupo_s'].some((k) => k in patch)) {
+      setStructureDirty(true);
+    }
+  };
+
+  // Agrupa A (card onde o admin tocou "Agrupar com…") com o par escolhido.
+  // Se o número de séries for diferente, o B é ajustado para o do A antes de
+  // agrupar, preservando as séries já registradas de ambos.
+  const confirmGroup = () => {
+    if (groupingAIdx === null || !groupPick || !day) return;
+    const aIdx = groupingAIdx;
+    const { bIdx, type } = groupPick;
+    const label = type === 'biset' ? 'Bi-set' : 'Superset';
+    const countA = exerciseSetCount(currentExercises[aIdx]);
+    const adjusted = exerciseSetCount(currentExercises[bIdx]) !== countA;
+    const exs = currentExercises.map((e) => ({ ...e }));
+    if (adjusted) exs[bIdx] = { ...exs[bIdx], ...matchSetCount(exs[bIdx], countA) };
+    const res = groupExercisesByIndex(exs, aIdx, bIdx, type, newId('grp'));
+    if (!res) {
+      toast.error('Não foi possível agrupar esses exercícios.');
+      return;
+    }
+    const groupError = validateGroups(res.exercises);
+    if (groupError) {
+      toast.error(groupError);
+      return;
+    }
+    const newState: Record<number, ExerciseState> = {};
+    res.orderMap.forEach((oldIdx, newIdx) => {
+      newState[newIdx] = state[oldIdx];
+    });
+    if (adjusted) {
+      const bNewIdx = res.orderMap.indexOf(bIdx);
+      const prev = newState[bNewIdx];
       if (prev) {
-        const sets = newPlan.map((_, i) => prev.sets[i] ?? { weight: '', reps: '' });
-        nextState = { ...state, [exIdx]: { ...prev, plan: newPlan, sets } };
-        setState(nextState);
+        const plan = buildSetPlan(exs[bIdx].series, exs[bIdx].series2, exs[bIdx].reps, exs[bIdx].setScheme);
+        newState[bNewIdx] = { ...prev, plan, sets: plan.map((_, i) => prev.sets[i] ?? { weight: '', reps: '' }) };
       }
     }
-    saveDraft(studentId, day.day, daySignature, nextState, newExercises);
+    setCurrentExercises(res.exercises);
+    setExerciseUids(res.orderMap.map((oldIdx) => exerciseUids[oldIdx]));
+    setState(newState);
+    saveDraft(studentId, day.day, daySignature, newState, res.exercises);
+    setStructureDirty(true);
+    setGroupingAIdx(null);
+    setGroupPick(null);
+    toast.success(adjusted ? `${label} criado — B ajustado para ${countA} séries.` : `${label} criado.`);
+  };
+
+  const ungroup = (groupId: string) => {
+    if (!day) return;
+    const next = ungroupExercises(currentExercises, groupId);
+    setCurrentExercises(next);
+    saveDraft(studentId, day.day, daySignature, state, next);
+    setStructureDirty(true);
+    setGroupEditOpen(null);
+    toast.success('Grupo desfeito.');
+  };
+
+  // Grava as edições de método/grupo da sessão no plano do aluno (ai_plans).
+  const saveStructureToPlan = async () => {
+    if (!day) return;
+    const groupError = validateGroups(currentExercises);
+    if (groupError) {
+      toast.error('Não foi possível salvar: ' + groupError);
+      return;
+    }
+    if (!effectivePlanId) {
+      toast.error('Plano ativo não encontrado para salvar');
+      return;
+    }
+    setSavingStructure(true);
+    try {
+      const res = await persistSessionDayEditsToPlan({
+        planId: effectivePlanId,
+        dayName: day.day,
+        dayIndex: days.findIndex((d) => d.day === day.day),
+        exercises: currentExercises,
+        states: state,
+        fallbackDays: days,
+        studentId,
+      });
+      if (res.success === false) {
+        toast.error('Não foi possível salvar no plano: ' + res.error);
+      } else if (res.updated) {
+        setStructureDirty(false);
+        setOrderDirty(false);
+        toast.success('Alterações salvas no treino do aluno');
+      } else {
+        toast.error('Alterações não salvas: ' + (res as { reason: string }).reason);
+      }
+    } catch (e: any) {
+      toast.error('Erro ao salvar no plano: ' + (e?.message || 'desconhecido'));
+    } finally {
+      setSavingStructure(false);
+    }
   };
 
   const addExercise = () => {
@@ -1067,6 +1172,17 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                 Salvar nova sequência
               </Button>
             )}
+            {structureDirty && (
+              <Button
+                type="button"
+                className="w-full gap-2"
+                onClick={saveStructureToPlan}
+                disabled={savingStructure}
+              >
+                {savingStructure ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Salvar no plano do aluno
+              </Button>
+            )}
             <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleReorderEnd}>
               <SortableContext
                 items={exerciseUids}
@@ -1076,8 +1192,11 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                   {exerciseBlocks(currentExercises).map(block => {
                     const exIdx = block.indices[0], ex = currentExercises[exIdx];
                     if (!state[exIdx] || !exerciseUids[exIdx]) return null;
-                    const methodCard = (block.indices.length === 2 || seriesMethod(ex) !== 'nenhum') ? <MethodExerciseCard key={block.id} embedded={block.indices.length === 1} exercises={currentExercises} indices={block.indices} sets={Object.fromEntries(Object.entries(state).map(([i, st]) => [i, st.sets]))} onChange={changeMethodSet} onComplete={saveMethodSet} media={exercisesList} snapshot={snapshot} studentId={studentId} inlineRest={inlineRest} savedPause={active?.sessionState?.methodPauses?.[studentId]?.[block.id]} onPauseChange={pause => saveMethodPause(block.id, pause)} /> : null;
-                    if (methodCard && block.indices.length === 2) return methodCard;
+                    const sharedMethodProps = { exercises: currentExercises, indices: block.indices, sets: Object.fromEntries(Object.entries(state).map(([i, st]) => [i, st.sets])), onChange: changeMethodSet, onComplete: saveMethodSet, media: exercisesList, snapshot, studentId, inlineRest, savedPause: active?.sessionState?.methodPauses?.[studentId]?.[block.id], onPauseChange: (pause: GroupPause | null) => saveMethodPause(block.id, pause) };
+                    if (block.indices.length === 2) return <MethodExerciseCard key={block.id} {...sharedMethodProps}
+                      headerActions={<Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-[10px] text-muted-foreground hover:text-primary" onClick={() => setGroupEditOpen(groupEditOpen === block.id ? null : block.id)}><Settings2 className="h-3 w-3" />{groupEditOpen === block.id ? 'Fechar edição' : 'Editar grupo'}</Button>}
+                      editPanel={groupEditOpen === block.id ? <GroupEditPanel exercises={currentExercises} indices={block.indices} planOf={(idx) => state[idx]?.plan ?? []} onPatch={(idx, patch) => updateExerciseMeta(idx, patch)} onUngroup={() => ungroup(block.id)} /> : undefined} />;
+                    const methodCard = seriesMethod(ex) !== 'nenhum' ? <MethodExerciseCard key={block.id} embedded {...sharedMethodProps} /> : null;
                     return (
                     <SortableExerciseRow key={exerciseUids[exIdx]} id={exerciseUids[exIdx]} position={exIdx + 1}>
 
@@ -1104,6 +1223,17 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                         progressionSnapshot={snapshot}
                         dayExercises={currentExercises}
                         methodBody={methodCard ?? undefined}
+                        groupAction={!ex.grupo_id ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 w-full gap-1.5 text-[10px]"
+                            onClick={() => { setGroupingAIdx(exIdx); setGroupPick(null); }}
+                          >
+                            <Link2 className="h-3 w-3" /> Agrupar com…
+                          </Button>
+                        ) : undefined}
                       />
                     </SortableExerciseRow>
                   ); })}
@@ -1140,6 +1270,76 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
             onApply={applyAiActions}
           />
         )}
+
+        <Dialog open={groupingAIdx !== null} onOpenChange={(v) => { if (!v) { setGroupingAIdx(null); setGroupPick(null); } }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Agrupar em Bi-set / Superset</DialogTitle>
+              <DialogDescription>
+                {groupingAIdx !== null
+                  ? `A: ${currentExercises[groupingAIdx]?.exercise || '—'} · escolha o exercício B e o tipo de grupo.`
+                  : ''}
+              </DialogDescription>
+            </DialogHeader>
+            {groupingAIdx !== null && (
+              <div className="space-y-3">
+                <div className="max-h-56 space-y-1 overflow-y-auto">
+                  {currentExercises.flatMap((e, i) =>
+                    i === groupingAIdx || e.grupo_id || !state[i] ? [] : [(
+                      <button
+                        key={i}
+                        type="button"
+                        className={`flex w-full items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-left text-xs ${
+                          groupPick?.bIdx === i ? 'border-primary bg-primary/10' : 'border-border/50 hover:bg-secondary/50'
+                        }`}
+                        onClick={() => setGroupPick({ bIdx: i, type: groupPick?.type ?? 'biset' })}
+                      >
+                        <span className="truncate font-medium">{state[i]?.exerciseName || e.exercise}</span>
+                        <span className="shrink-0 text-[10px] text-muted-foreground">{exerciseSetCount(e)} séries</span>
+                      </button>
+                    )],
+                  )}
+                </div>
+                {groupPick && (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      {(['biset', 'superset'] as const).map((t) => (
+                        <Button
+                          key={t}
+                          type="button"
+                          size="sm"
+                          variant={groupPick.type === t ? 'default' : 'outline'}
+                          className="h-8 text-xs"
+                          onClick={() => setGroupPick({ ...groupPick, type: t })}
+                        >
+                          {t === 'biset' ? 'Bi-set' : 'Superset'}
+                        </Button>
+                      ))}
+                    </div>
+                    {(() => {
+                      const countA = exerciseSetCount(currentExercises[groupingAIdx]);
+                      const countB = exerciseSetCount(currentExercises[groupPick.bIdx]);
+                      const adjusted = countA !== countB;
+                      return (
+                        <>
+                          {adjusted && (
+                            <p className="text-[11px] text-muted-foreground">
+                              O exercício B tem {countB} séries e será ajustado para {countA} séries (igual ao A). As séries já registradas são preservadas.
+                            </p>
+                          )}
+                          <Button type="button" className="w-full gap-2" onClick={confirmGroup}>
+                            <Link2 className="h-4 w-4" />
+                            {adjusted ? `Ajustar B para ${countA} séries e agrupar` : 'Agrupar'}
+                          </Button>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         <RestOffscreenIndicator rest={inlineRest.rest} />
         {restTimer && (
