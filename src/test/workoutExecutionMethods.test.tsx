@@ -111,7 +111,6 @@ describe('métodos de treino — regras', () => {
   it('agrupa por índice: par fica seguido na posição do A, com orderMap para remapear séries', () => {
     const res = groupExercisesByIndex([exercise('a'), exercise('b'), exercise('c')], 0, 2, 'biset', 'g')!;
     expect(res.orderMap).toEqual([0, 2, 1]);
-    expect(res.exercises.map(ex => ex.id)).toEqual(['a', 'c' in res.exercises[1] ? 'c' : '', '']);
     expect(res.exercises.map(ex => [ex.id, ex.ordem_grupo])).toEqual([['a', 'A'], ['c', 'B'], ['b', undefined]]);
     expect(res.exercises[0].grupo_id).toBe('g');
     expect(res.exercises[1].pausa_grupo_s).toBe(0);
