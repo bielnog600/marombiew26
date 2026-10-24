@@ -20,18 +20,19 @@ function findScrollContainer(): HTMLElement | null {
 }
 
 describe('MuscleGroupPicker — lista rolável', () => {
-  it('limite máximo de altura cresce com a viewport e a lista pode rolar até o último grupo', () => {
+  it('a lista de grupos é o contêiner rolável (overflow-y + pan-y) e o popover limita a altura', () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole('combobox'));
 
     const list = findScrollContainer();
     expect(list).not.toBeNull();
-    expect(list!.scrollHeight).toBeGreaterThan(list!.clientHeight);
-
-    list!.scrollTop = list!.scrollHeight;
-    fireEvent.scroll(list!);
-    expect(list!.scrollTop).toBeGreaterThan(0);
-    expect(list!.scrollTop).toBe(list!.scrollHeight - list!.clientHeight);
+    // Rolagem própria da lista, não do popover inteiro nem da página.
+    expect(list!.className).toContain('overflow-y-auto');
+    expect(list!.className).toContain('touch-pan-y');
+    expect(list!.className).toContain('min-h-0');
+    // Popover limita a altura total para caber na tela.
+    const popover = list!.closest('[data-radix-popper-content-wrapper]')?.firstElementChild as HTMLElement | null;
+    expect(popover?.className).toContain('max-h-');
 
     // O último grupo existe e fica dentro do contêiner rolável.
     expect(screen.getByRole('button', { name: /Grupo 30/ }).closest('div.overflow-y-auto')).toBe(list);
