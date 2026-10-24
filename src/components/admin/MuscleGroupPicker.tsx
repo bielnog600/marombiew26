@@ -115,8 +115,15 @@ export const MuscleGroupPicker: React.FC<Props> = ({ value, onChange, counts, on
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] min-w-[260px] p-2 bg-popover z-50" align="start">
-        <div className="max-h-[45vh] overflow-y-auto overscroll-contain space-y-0.5">
+      <PopoverContent
+        className="w-[--radix-popover-trigger-width] min-w-[260px] p-2 bg-popover z-50 flex flex-col max-h-[min(70dvh,520px)]"
+        align="start"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
+        <div
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y space-y-0.5"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
           {groups.length === 0 && (
             <p className="text-sm text-muted-foreground px-2 py-3">Nenhum grupo cadastrado.</p>
           )}
