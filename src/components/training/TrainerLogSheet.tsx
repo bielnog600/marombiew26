@@ -1223,6 +1223,17 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                         progressionSnapshot={snapshot}
                         dayExercises={currentExercises}
                         methodBody={methodCard ?? undefined}
+                        groupAction={!ex.grupo_id ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 w-full gap-1.5 text-[10px]"
+                            onClick={() => { setGroupingAIdx(exIdx); setGroupPick(null); }}
+                          >
+                            <Link2 className="h-3 w-3" /> Agrupar com…
+                          </Button>
+                        ) : undefined}
                       />
                     </SortableExerciseRow>
                   ); })}
