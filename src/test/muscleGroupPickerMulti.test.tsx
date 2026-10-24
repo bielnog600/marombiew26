@@ -37,12 +37,12 @@ describe('MuscleGroupPicker — seleção de 1 ou mais grupos', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Glúteos' }));
     expect(triggerLabel()).toBe('Isquiotibiais +1');
 
-    // Desseleciona o principal → Glúteos assume.
-    fireEvent.click(screen.getByRole('button', { name: 'Isquiotibiais' }));
+    // Desseleciona o principal → Glúteos assume. ("principal" entra no nome acessível)
+    fireEvent.click(screen.getByRole('button', { name: /Isquiotibiais/ }));
     expect(triggerLabel()).toBe('Glúteos');
 
     // Remove todos → placeholder.
-    fireEvent.click(screen.getByRole('button', { name: 'Glúteos' }));
+    fireEvent.click(screen.getByRole('button', { name: /Glúteos/ }));
     expect(triggerLabel()).toBe('Selecionar grupos');
   });
 });
