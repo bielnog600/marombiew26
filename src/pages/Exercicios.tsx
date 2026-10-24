@@ -45,6 +45,7 @@ interface Exercise {
   id: string;
   nome: string;
   grupo_muscular: string;
+  grupos_musculares: string[] | null;
   imagem_url: string | null;
   video_embed: string | null;
   ajustes: string[] | null;
@@ -52,12 +53,17 @@ interface Exercise {
 
 type EditForm = {
   nome: string;
-  grupo_muscular: string;
+  /** Grupos selecionados na ordem em que foram escolhidos (o primeiro é o principal). */
+  grupos: string[];
   imagem_url: string;
   video_embed: string;
 };
 
-const emptyForm: EditForm = { nome: '', grupo_muscular: '', imagem_url: '', video_embed: '' };
+const emptyForm: EditForm = { nome: '', grupos: [], imagem_url: '', video_embed: '' };
+
+/** Grupos do exercício: principal primeiro + adicionais, sem repetir. */
+const allGroupsOf = (ex: { grupo_muscular: string; grupos_musculares: string[] | null }): string[] =>
+  Array.from(new Set([ex.grupo_muscular, ...(ex.grupos_musculares ?? [])])).filter(Boolean);
 
 const isInternalUrl = (url: string | null) => !!url && url.includes(STORAGE_PUBLIC_PREFIX);
 
@@ -84,7 +90,7 @@ const Exercicios: React.FC = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('exercises')
-        .select('id, nome, grupo_muscular, imagem_url, video_embed, ajustes')
+        .select('id, nome, grupo_muscular, grupos_musculares, imagem_url, video_embed, ajustes')
         .order('nome');
       if (error) throw error;
       return (data ?? []) as Exercise[];
@@ -129,13 +135,14 @@ const Exercicios: React.FC = () => {
     mutationFn: async () => {
       const payload = {
         nome: form.nome.trim(),
-        grupo_muscular: form.grupo_muscular.trim(),
+        grupo_muscular: (form.grupos[0] ?? '').trim(),
+        grupos_musculares: form.grupos,
         imagem_url: form.imagem_url.trim() || null,
         video_embed: form.video_embed.trim() || null,
         ajustes,
       };
       if (!payload.nome || !payload.grupo_muscular) {
-        throw new Error('Nome e grupo muscular são obrigatórios.');
+        throw new Error('Nome e pelo menos um grupo muscular são obrigatórios.');
       }
       if (editing) {
         const { error } = await supabase.from('exercises').update(payload).eq('id', editing.id);
@@ -292,7 +299,7 @@ const Exercicios: React.FC = () => {
     setCreating(false);
     setForm({
       nome: ex.nome,
-      grupo_muscular: ex.grupo_muscular,
+      grupos: allGroupsOf(ex),
       imagem_url: ex.imagem_url ?? '',
       video_embed: ex.video_embed ?? '',
     });
