@@ -17,7 +17,7 @@ import { RestOffscreenIndicator } from './WorkoutSetCard';
 import { splitRecognitionReps } from '@/lib/exerciseVideoSrc';
 import { ExerciseMediaFrame } from './ExerciseMediaFrame';
 
-export function MethodExerciseCard({ exercises, indices, sets, onChange, onComplete, media, snapshot, studentId, savedPause, onPauseChange, inlineRest: sharedRest, embedded }: {
+export function MethodExerciseCard({ exercises, indices, sets, onChange, onComplete, media, snapshot, studentId, savedPause, onPauseChange, inlineRest: sharedRest, embedded, headerActions, editPanel }: {
   exercises: ParsedExercise[]; indices: number[]; sets: Record<number, MethodSetEntry[]>;
   onChange: (exIndex: number, setIndex: number, entry: MethodSetEntry) => void;
   onComplete: (exIndex: number, setIndex: number, entry: MethodSetEntry) => void;
@@ -75,7 +75,9 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
       {matched?.imagem_url && <img src={matched.imagem_url} alt={ex.exercise} className="h-16 w-16 rounded-md object-cover shrink-0" />}
       <div className="min-w-0 flex-1"><p className="font-semibold text-sm">{ex.exercise}</p><p className="text-xs text-muted-foreground">{rows.length} séries × {ex.reps}{ex.rir ? ` · RIR ${ex.rir}` : ''}</p><p className="text-xs text-primary">{methodSummary(ex)}</p></div>
       <Button size="sm" variant="outline" onClick={() => setHistoryOpen(true)}>Cargas</Button>
+      {headerActions}
     </div>
+    {editPanel}
     <ExerciseMediaFrame embed={matched?.video_embed} imageUrl={matched?.imagem_url} alt={ex.exercise} />
     {(recommendation || ex.targetLoadKg || ex.targetLoadPerSet) && <ProgressionHintCard recommendation={recommendation} targetLoad={{ kg: ex.targetLoadKg, perSet: ex.targetLoadPerSet, note: ex.targetLoadNote }} variant="compact" />}
     </>}
