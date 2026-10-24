@@ -1172,6 +1172,17 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                 Salvar nova sequência
               </Button>
             )}
+            {structureDirty && (
+              <Button
+                type="button"
+                className="w-full gap-2"
+                onClick={saveStructureToPlan}
+                disabled={savingStructure}
+              >
+                {savingStructure ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Salvar no plano do aluno
+              </Button>
+            )}
             <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleReorderEnd}>
               <SortableContext
                 items={exerciseUids}
@@ -1181,8 +1192,11 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                   {exerciseBlocks(currentExercises).map(block => {
                     const exIdx = block.indices[0], ex = currentExercises[exIdx];
                     if (!state[exIdx] || !exerciseUids[exIdx]) return null;
-                    const methodCard = (block.indices.length === 2 || seriesMethod(ex) !== 'nenhum') ? <MethodExerciseCard key={block.id} embedded={block.indices.length === 1} exercises={currentExercises} indices={block.indices} sets={Object.fromEntries(Object.entries(state).map(([i, st]) => [i, st.sets]))} onChange={changeMethodSet} onComplete={saveMethodSet} media={exercisesList} snapshot={snapshot} studentId={studentId} inlineRest={inlineRest} savedPause={active?.sessionState?.methodPauses?.[studentId]?.[block.id]} onPauseChange={pause => saveMethodPause(block.id, pause)} /> : null;
-                    if (methodCard && block.indices.length === 2) return methodCard;
+                    const sharedMethodProps = { exercises: currentExercises, indices: block.indices, sets: Object.fromEntries(Object.entries(state).map(([i, st]) => [i, st.sets])), onChange: changeMethodSet, onComplete: saveMethodSet, media: exercisesList, snapshot, studentId, inlineRest, savedPause: active?.sessionState?.methodPauses?.[studentId]?.[block.id], onPauseChange: (pause: GroupPause | null) => saveMethodPause(block.id, pause) };
+                    if (block.indices.length === 2) return <MethodExerciseCard key={block.id} {...sharedMethodProps}
+                      headerActions={<Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-[10px] text-muted-foreground hover:text-primary" onClick={() => setGroupEditOpen(groupEditOpen === block.id ? null : block.id)}><Settings2 className="h-3 w-3" />{groupEditOpen === block.id ? 'Fechar edição' : 'Editar grupo'}</Button>}
+                      editPanel={groupEditOpen === block.id ? <GroupEditPanel exercises={currentExercises} indices={block.indices} planOf={(idx) => state[idx]?.plan ?? []} onPatch={(idx, patch) => updateExerciseMeta(idx, patch)} onUngroup={() => ungroup(block.id)} /> : undefined} />;
+                    const methodCard = seriesMethod(ex) !== 'nenhum' ? <MethodExerciseCard key={block.id} embedded {...sharedMethodProps} /> : null;
                     return (
                     <SortableExerciseRow key={exerciseUids[exIdx]} id={exerciseUids[exIdx]} position={exIdx + 1}>
 
