@@ -1,3 +1,4 @@
+import { removeEmptyDays } from './workoutEmptyDays';
 import { supabase } from '@/integrations/supabase/client';
 import type { ParsedExercise, ParsedTrainingDay } from '@/lib/trainingResultParser';
 import {
@@ -153,10 +154,11 @@ export const persistSessionDayEditsToPlan = async (
     };
   }).filter((e) => e.exercise.length > 0);
 
-  const updatedPlan: WorkoutPlan = {
+  // Dia que ficou vazio é removido: nunca gravamos dia sem exercícios.
+  const updatedPlan: WorkoutPlan = removeEmptyDays({
     ...plan,
     days: plan.days.map((d, i) => (i === dayIdx ? { ...d, exercises: rebuilt as any } : d)),
-  };
+  });
 
   const { error: updErr } = await supabase
     .from('ai_plans')

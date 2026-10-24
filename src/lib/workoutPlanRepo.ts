@@ -7,6 +7,7 @@ import {
 } from "./workoutSchema";
 import { workoutPlanToMarkdown } from "./workoutMarkdownSerializer";
 import { parseTrainingSections } from "./trainingResultParser";
+import { removeEmptyDays } from "./workoutEmptyDays";
 import { calculateCurrentPhase, getPhaseByMonthDay } from "./trainingPhase";
 
 /**
@@ -60,7 +61,8 @@ export const saveWorkoutPlanJSON = async (
   json: WorkoutPlan,
   extras: SaveExtras = {},
 ): Promise<SaveResult> => {
-  const validation = validateWorkoutPlan(json);
+  // Dia vazio nunca é gravado (nem no JSON nem no markdown).
+  const validation = validateWorkoutPlan(removeEmptyDays(json));
   if (!validation.success) {
     return { success: false, error: (validation as { error: string }).error };
   }
@@ -86,7 +88,8 @@ export const createWorkoutPlanJSON = async (
   json: WorkoutPlan,
   extras: SaveExtras & { tipo?: string; cycle_status?: string } = {},
 ): Promise<CreateResult> => {
-  const validation = validateWorkoutPlan(json);
+  // Dia vazio nunca é gravado (nem no JSON nem no markdown).
+  const validation = validateWorkoutPlan(removeEmptyDays(json));
   if (!validation.success) {
     return { success: false, error: (validation as { error: string }).error };
   }
@@ -131,7 +134,7 @@ export const saveWorkoutPlanFromMarkdown = async (
 ): Promise<SaveResult> => {
   const days = parseTrainingSections(markdown || "").flatMap((s) => s.days || []);
   if (days.length > 0) {
-    const json = parsedDaysToWorkoutPlan(days);
+    const json = removeEmptyDays(parsedDaysToWorkoutPlan(days));
     const validation = validateWorkoutPlan(json);
     if (validation.success) {
       const derivedMarkdown = workoutPlanToMarkdown(validation.data);
