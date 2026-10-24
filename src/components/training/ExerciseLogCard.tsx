@@ -99,75 +99,9 @@ const ExerciseLogCard: React.FC<Props> = ({
   inlineRest,
   onCompleteSet,
   methodBody,
+  groupAction,
 }) => {
   const [editOpen, setEditOpen] = useState(false);
-  const mode: StructureMode = detectMode(ex);
-
-  const perSetSets: Array<{ set_number: number; set_type: 'work' | 'recognition'; target_reps: string }> =
-    mode === 'per_set' && ex?.setScheme?.sets
-      ? ex.setScheme.sets
-      : (st.plan || []).map((p, i) => ({
-          set_number: i + 1,
-          set_type: p.kind === 'recon' ? 'recognition' : 'work',
-          target_reps: p.targetReps || '',
-        }));
-
-  const commitPerSet = (next: typeof perSetSets) => {
-    if (!onUpdateMeta) return;
-    const renumbered = next.map((s, i) => ({ ...s, set_number: i + 1 }));
-    onUpdateMeta({ setScheme: { mode: 'per_set', sets: renumbered } });
-  };
-
-  const changeMode = (next: StructureMode) => {
-    if (!onUpdateMeta || next === mode) return;
-    if (next === 'standard') {
-      const [a] = String(ex.reps || '').split('+').map((p) => p.trim());
-      onUpdateMeta({
-        setScheme: undefined,
-        series: String(st.plan?.length || parseInt(ex.series || '3', 10) || 3),
-        series2: '',
-        reps: a || ex.reps || '',
-      });
-    } else if (next === 'recognition') {
-      const workCount = String(st.plan?.filter((p) => p.kind === 'work').length || 3);
-      const [a, b] = String(ex.reps || '').split('+').map((p) => p.trim());
-      const recReps = a || '12';
-      const workReps = b || a || '8-10';
-      onUpdateMeta({
-        setScheme: undefined,
-        series: '1',
-        series2: workCount,
-        reps: `${recReps} + ${workReps}`,
-      });
-    } else {
-      // per_set — semear a partir do plano atual
-      commitPerSet(perSetSets);
-    }
-  };
-
-  const updatePerSetReps = (idx: number, value: string) => {
-    const next = perSetSets.map((s, i) => (i === idx ? { ...s, target_reps: value } : s));
-    commitPerSet(next);
-  };
-  const togglePerSetType = (idx: number) => {
-    const next = perSetSets.map((s, i) =>
-      i === idx
-        ? { ...s, set_type: (s.set_type === 'work' ? 'recognition' : 'work') as 'work' | 'recognition' }
-        : s,
-    );
-    commitPerSet(next);
-  };
-  const addPerSetSlot = () => {
-    const last = perSetSets[perSetSets.length - 1];
-    commitPerSet([
-      ...perSetSets,
-      { set_number: perSetSets.length + 1, set_type: 'work', target_reps: last?.target_reps || '' },
-    ]);
-  };
-  const removePerSetSlot = (idx: number) => {
-    if (perSetSets.length <= 1) return;
-    commitPerSet(perSetSets.filter((_, i) => i !== idx));
-  };
 
   const recommendation = getRecommendationFor(progressionSnapshot ?? null, st.exerciseName || ex.exercise);
 
