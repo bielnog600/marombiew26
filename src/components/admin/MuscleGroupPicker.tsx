@@ -20,15 +20,26 @@ const readExtras = (): string[] => {
 };
 const writeExtras = (list: string[]) => localStorage.setItem(EXTRA_KEY, JSON.stringify(list));
 
+/**
+ * Seleção múltipla: tocar adiciona/remove. A ordem da lista define o grupo
+ * principal — o primeiro selecionado é o principal; se ele for removido, o
+ * próximo assumir.
+ */
+export function toggleGroupSelection(selected: string[], group: string): string[] {
+  if (selected.includes(group)) return selected.filter((g) => g !== group);
+  return [...selected, group];
+}
+
 interface Props {
-  value: string;
-  onChange: (v: string) => void;
-  /** Contagem de exercícios por grupo (grupos existentes no banco). */
+  /** Grupos selecionados na ordem em que foram escolhidos (o primeiro é o principal). */
+  values: string[];
+  onChange: (values: string[]) => void;
+  /** Contagem de exercícios por grupo (contando grupo principal e adicionais). */
   counts: Record<string, number>;
   onGroupsChanged: () => void;
 }
 
-export const MuscleGroupPicker: React.FC<Props> = ({ value, onChange, counts, onGroupsChanged }) => {
+export const MuscleGroupPicker: React.FC<Props> = ({ values, onChange, counts, onGroupsChanged }) => {
   const [open, setOpen] = useState(false);
   const [extras, setExtras] = useState<string[]>(readExtras);
   const [newName, setNewName] = useState('');
@@ -58,7 +69,7 @@ export const MuscleGroupPicker: React.FC<Props> = ({ value, onChange, counts, on
     }
     setExtrasPersist([...extras, name]);
     setNewName('');
-    onChange(name);
+    onChange([...values, name]);
     setOpen(false);
   };
 
@@ -74,15 +85,28 @@ export const MuscleGroupPicker: React.FC<Props> = ({ value, onChange, counts, on
     }
     setBusy(true);
     try {
-      if (counts[oldName]) {
+      // Renomeia onde o grupo é principal e onde aparece como grupo adicional.
+      const [primaryRes, extraRes] = await Promise.all([
+        supabase.from('exercises').select('id, grupo_muscular, grupos_musculares').eq('grupo_muscular', oldName),
+        supabase.from('exercises').select('id, grupo_muscular, grupos_musculares').contains('grupos_musculares', [oldName]),
+      ]);
+      if (primaryRes.error) throw primaryRes.error;
+      if (extraRes.error) throw extraRes.error;
+      const byId = new Map<string, { id: string; grupo_muscular: string; grupos_musculares: string[] }>();
+      for (const row of [...(primaryRes.data ?? []), ...(extraRes.data ?? [])]) {
+        byId.set(row.id, row);
+      }
+      for (const row of byId.values()) {
+        const primary = row.grupo_muscular === oldName ? name : row.grupo_muscular;
+        const arr = (row.grupos_musculares ?? []).map((g) => (g === oldName ? name : g));
         const { error } = await supabase
           .from('exercises')
-          .update({ grupo_muscular: name })
-          .eq('grupo_muscular', oldName);
+          .update({ grupo_muscular: primary, grupos_musculares: arr })
+          .eq('id', row.id);
         if (error) throw error;
       }
       setExtrasPersist(extras.map((g) => (g === oldName ? name : g)));
-      if (value === oldName) onChange(name);
+      if (values.includes(oldName)) onChange(values.map((g) => (g === oldName ? name : g)));
       onGroupsChanged();
       toast.success('Grupo renomeado.');
       setEditingName(null);
@@ -100,7 +124,7 @@ export const MuscleGroupPicker: React.FC<Props> = ({ value, onChange, counts, on
       return;
     }
     setExtrasPersist(extras.filter((g) => g !== name));
-    if (value === name) onChange('');
+    if (values.includes(name)) onChange(toggleGroupSelection(values, name));
   };
 
   return (
@@ -110,9 +134,15 @@ export const MuscleGroupPicker: React.FC<Props> = ({ value, onChange, counts, on
           type="button"
           variant="outline"
           role="combobox"
-          className={cn('w-full justify-between font-normal', !value && 'text-muted-foreground')}
+          className={cn('w-full justify-between font-normal', values.length === 0 && 'text-muted-foreground')}
         >
-          <span className="truncate">{value || 'Selecionar grupo'}</span>
+          <span className="truncate">
+            {values.length === 0
+              ? 'Selecionar grupos'
+              : values.length === 1
+                ? values[0]
+                : `${values[0]} +${values.length - 1}`}
+          </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -162,14 +192,14 @@ export const MuscleGroupPicker: React.FC<Props> = ({ value, onChange, counts, on
                 <button
                   type="button"
                   className="flex-1 flex items-center gap-2 text-left text-sm px-2 py-2"
-                  onClick={() => {
-                    onChange(g);
-                    setOpen(false);
-                  }}
+                  onClick={() => onChange(toggleGroupSelection(values, g))}
                 >
-                  <Check className={cn('h-4 w-4', value === g ? 'opacity-100' : 'opacity-0')} />
+                  <Check className={cn('h-4 w-4', values.includes(g) ? 'opacity-100' : 'opacity-0')} />
                   <span className="truncate">{g}</span>
                   {counts[g] ? <span className="text-xs text-muted-foreground">({counts[g]})</span> : null}
+                  {values[0] === g && (
+                    <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground">principal</span>
+                  )}
                 </button>
                 <Button
                   size="icon"

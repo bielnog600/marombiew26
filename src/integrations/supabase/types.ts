@@ -1855,6 +1855,7 @@ export type Database = {
           exercise_class: string | null
           fatigue_cost: string | null
           grupo_muscular: string
+          grupos_musculares: string[]
           id: string
           imagem_url: string | null
           lumbar_load: string | null
@@ -1887,6 +1888,7 @@ export type Database = {
           exercise_class?: string | null
           fatigue_cost?: string | null
           grupo_muscular: string
+          grupos_musculares?: string[]
           id?: string
           imagem_url?: string | null
           lumbar_load?: string | null
@@ -1919,6 +1921,7 @@ export type Database = {
           exercise_class?: string | null
           fatigue_cost?: string | null
           grupo_muscular?: string
+          grupos_musculares?: string[]
           id?: string
           imagem_url?: string | null
           lumbar_load?: string | null
@@ -3856,6 +3859,7 @@ export type Database = {
           exercise_class: string | null
           fatigue_cost: string | null
           grupo_muscular: string
+          grupos_musculares: string[]
           id: string
           imagem_url: string | null
           lumbar_load: string | null

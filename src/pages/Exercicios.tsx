@@ -45,6 +45,7 @@ interface Exercise {
   id: string;
   nome: string;
   grupo_muscular: string;
+  grupos_musculares: string[] | null;
   imagem_url: string | null;
   video_embed: string | null;
   ajustes: string[] | null;
@@ -52,12 +53,17 @@ interface Exercise {
 
 type EditForm = {
   nome: string;
-  grupo_muscular: string;
+  /** Grupos selecionados na ordem em que foram escolhidos (o primeiro é o principal). */
+  grupos: string[];
   imagem_url: string;
   video_embed: string;
 };
 
-const emptyForm: EditForm = { nome: '', grupo_muscular: '', imagem_url: '', video_embed: '' };
+const emptyForm: EditForm = { nome: '', grupos: [], imagem_url: '', video_embed: '' };
+
+/** Grupos do exercício: principal primeiro + adicionais, sem repetir. */
+const allGroupsOf = (ex: { grupo_muscular: string; grupos_musculares: string[] | null }): string[] =>
+  Array.from(new Set([ex.grupo_muscular, ...(ex.grupos_musculares ?? [])])).filter(Boolean);
 
 const isInternalUrl = (url: string | null) => !!url && url.includes(STORAGE_PUBLIC_PREFIX);
 
@@ -84,7 +90,7 @@ const Exercicios: React.FC = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('exercises')
-        .select('id, nome, grupo_muscular, imagem_url, video_embed, ajustes')
+        .select('id, nome, grupo_muscular, grupos_musculares, imagem_url, video_embed, ajustes')
         .order('nome');
       if (error) throw error;
       return (data ?? []) as Exercise[];
@@ -129,13 +135,14 @@ const Exercicios: React.FC = () => {
     mutationFn: async () => {
       const payload = {
         nome: form.nome.trim(),
-        grupo_muscular: form.grupo_muscular.trim(),
+        grupo_muscular: (form.grupos[0] ?? '').trim(),
+        grupos_musculares: form.grupos,
         imagem_url: form.imagem_url.trim() || null,
         video_embed: form.video_embed.trim() || null,
         ajustes,
       };
       if (!payload.nome || !payload.grupo_muscular) {
-        throw new Error('Nome e grupo muscular são obrigatórios.');
+        throw new Error('Nome e pelo menos um grupo muscular são obrigatórios.');
       }
       if (editing) {
         const { error } = await supabase.from('exercises').update(payload).eq('id', editing.id);
@@ -292,7 +299,7 @@ const Exercicios: React.FC = () => {
     setCreating(false);
     setForm({
       nome: ex.nome,
-      grupo_muscular: ex.grupo_muscular,
+      grupos: allGroupsOf(ex),
       imagem_url: ex.imagem_url ?? '',
       video_embed: ex.video_embed ?? '',
     });
@@ -316,7 +323,7 @@ const Exercicios: React.FC = () => {
   const filtered = exercises.filter(
     (e) =>
       e.nome.toLowerCase().includes(search.toLowerCase()) ||
-      e.grupo_muscular.toLowerCase().includes(search.toLowerCase())
+      allGroupsOf(e).some((g) => g.toLowerCase().includes(search.toLowerCase()))
   );
 
   const dialogOpen = !!editing || creating;
@@ -440,7 +447,13 @@ const Exercicios: React.FC = () => {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell><Badge variant="secondary">{ex.grupo_muscular}</Badge></TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {allGroupsOf(ex).map((g, i) => (
+                          <Badge key={g} variant={i === 0 ? 'secondary' : 'outline'}>{g}</Badge>
+                        ))}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {(ex.ajustes ?? []).length === 0 ? (
@@ -496,10 +509,12 @@ const Exercicios: React.FC = () => {
                 <div className="space-y-1.5">
                   <Label>Grupo muscular</Label>
                   <MuscleGroupPicker
-                    value={form.grupo_muscular}
-                    onChange={(v) => setForm((f) => ({ ...f, grupo_muscular: v }))}
+                    values={form.grupos}
+                    onChange={(v) => setForm((f) => ({ ...f, grupos: v }))}
                     counts={exercises.reduce<Record<string, number>>((acc, e) => {
-                      if (e.grupo_muscular) acc[e.grupo_muscular] = (acc[e.grupo_muscular] || 0) + 1;
+                      for (const g of new Set([e.grupo_muscular, ...(e.grupos_musculares ?? [])])) {
+                        if (g) acc[g] = (acc[g] || 0) + 1;
+                      }
                       return acc;
                     }, {})}
                     onGroupsChanged={() => qc.invalidateQueries({ queryKey: ['exercises-admin'] })}
