@@ -1,3 +1,4 @@
+import { sanitizeTrainingDays } from "./workoutEmptyDays";
 import { Json } from "@/integrations/supabase/types";
 import { ParsedTrainingDay, parseTrainingSections } from "./trainingResultParser";
 import { sortTrainingDays } from "./trainingDayOrder";
@@ -60,16 +61,18 @@ export interface PlanData {
  */
 export const getSafeWorkoutDays = (plan: PlanData): { days: ParsedTrainingDay[], isFromJSON: boolean } => {
   // 1. JSON-first (no migration_status gate).
+  // Dia sem exercício válido = descanso; itens nulos/sem nome são ignorados.
   if (plan.conteudo_json) {
     const normalized = normalizeWorkoutPlan(plan.conteudo_json);
     if (normalized && normalized.days.length > 0) {
-      return { days: workoutPlanToParsedDays(normalized), isFromJSON: true };
+      const days = sanitizeTrainingDays(workoutPlanToParsedDays(normalized));
+      if (days.length > 0) return { days, isFromJSON: true };
     }
   }
   // 2. Markdown fallback (legacy plans).
   const markdownDays = parseTrainingSections(plan.conteudo || "").flatMap((s) => s.days ?? []);
   // Ordena na leitura: planos antigos fora de ordem ficam certos sem migração.
-  return { days: sortTrainingDays(markdownDays), isFromJSON: false };
+  return { days: sanitizeTrainingDays(sortTrainingDays(markdownDays)), isFromJSON: false };
 };
 
 /**

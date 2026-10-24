@@ -176,7 +176,7 @@ const MinhaArea = () => {
         setTrainingDays(allDays);
 
 
-        const exerciseNames = allDays.flatMap(d => d.exercises.map(e => e.exercise.toUpperCase().trim()));
+        const exerciseNames = allDays.flatMap(d => (d.exercises || []).map(e => String(e?.exercise || '').toUpperCase().trim()).filter(Boolean));
         const uniqueNames = [...new Set(exerciseNames)];
         if (uniqueNames.length > 0) {
           const { data: dbExercises } = await fetchWithCache('exercises:all', async () => {
@@ -298,7 +298,8 @@ const MinhaArea = () => {
     if (trainingDays.length === 0) return undefined;
     const jsDay = new Date().getDay(); // 0=Sun
     const todayNames = jsDay === 0 ? ['domingo'] : jsDay === 1 ? ['segunda'] : jsDay === 2 ? ['terca', 'terça'] : jsDay === 3 ? ['quarta'] : jsDay === 4 ? ['quinta'] : jsDay === 5 ? ['sexta'] : ['sabado', 'sábado'];
-    return trainingDays.find(d => todayNames.some(n => d.day.toLowerCase().includes(n)));
+    // Dia sem exercícios = descanso.
+    return trainingDays.find(d => (d?.exercises?.length ?? 0) > 0 && todayNames.some(n => String(d?.day || '').toLowerCase().includes(n)));
   }, [trainingDays]);
 
   // Card "Hoje": sessão em andamento (de qualquer dia) tem prioridade.
@@ -322,15 +323,16 @@ const MinhaArea = () => {
 
   // Pick an exercise image from today's training
   const todayHeroImage = useMemo(() => {
-    if (!todayTraining) return workoutHero;
+    const list = (todayTraining?.exercises || []).filter((e) => typeof e?.exercise === 'string' && e.exercise.trim());
+    if (list.length === 0) return workoutHero;
     // Skip first 2 exercises (usually mobility), start from 3rd
-    const startIndex = Math.min(2, todayTraining.exercises.length - 1);
-    for (let i = startIndex; i < todayTraining.exercises.length; i++) {
-      const key = todayTraining.exercises[i].exercise.toUpperCase().trim();
+    const startIndex = Math.max(0, Math.min(2, list.length - 1));
+    for (let i = startIndex; i < list.length; i++) {
+      const key = list[i].exercise.toUpperCase().trim();
       if (exerciseImages[key]) return exerciseImages[key];
     }
     // Fallback: try any exercise
-    for (const ex of todayTraining.exercises) {
+    for (const ex of list) {
       const key = ex.exercise.toUpperCase().trim();
       if (exerciseImages[key]) return exerciseImages[key];
     }
@@ -339,11 +341,12 @@ const MinhaArea = () => {
 
   // Main muscle groups for today's training
   const todayMuscleGroups = useMemo(() => {
-    if (!todayTraining) return '';
+    const list = (todayTraining?.exercises || []).filter((e) => typeof e?.exercise === 'string' && e.exercise.trim());
+    if (list.length === 0) return '';
     const groups: string[] = [];
-    const startIndex = Math.min(2, todayTraining.exercises.length - 1);
-    for (let i = startIndex; i < todayTraining.exercises.length; i++) {
-      const key = todayTraining.exercises[i].exercise.toUpperCase().trim();
+    const startIndex = Math.max(0, Math.min(2, list.length - 1));
+    for (let i = startIndex; i < list.length; i++) {
+      const key = list[i].exercise.toUpperCase().trim();
       const muscle = exerciseMuscles[key];
       if (muscle && !groups.includes(muscle)) groups.push(muscle);
     }

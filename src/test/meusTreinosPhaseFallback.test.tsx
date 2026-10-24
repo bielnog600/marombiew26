@@ -107,13 +107,16 @@ import MeusTreinos from '@/pages/MeusTreinos';
 afterEach(() => cleanup());
 
 describe('MeusTreinos — plano recente em fase diferente do calendário', () => {
-  it('renderiza dia vazio sem acessar exercises[-1] e não permite iniciar sem exercícios', async () => {
+  it('trata dia vazio como descanso: não mostra o card nem acessa exercises[-1]', async () => {
     plansFixture = [makePlan({ fase: 'semana_1', conteudo_json: {
-      version: '2.0', type: 'workout', days: [{ id: 'empty', day: 'SÁBADO', exercises: [] }],
+      version: '2.0', type: 'workout', days: [
+        { id: 'mon', day: 'SEGUNDA-FEIRA', exercises: [{ id: 'a', exercise: 'Leg 180', series: '3', reps: '10' }] },
+        { id: 'empty', day: 'SÁBADO', exercises: [] },
+      ],
     } })];
     render(<MeusTreinos />);
-    await waitFor(() => expect(screen.getByText('SÁBADO')).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: 'Iniciar Treino' })).toBeDisabled();
+    await waitFor(() => expect(screen.getAllByText('SEGUNDA-FEIRA').length).toBeGreaterThan(0));
+    expect(screen.queryByText('SÁBADO')).not.toBeInTheDocument();
   });
 
   it('ignora exercício null e preserva o exercício válido de um bi-set incompleto', async () => {

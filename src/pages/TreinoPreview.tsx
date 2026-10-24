@@ -57,7 +57,7 @@ const TreinoPreview = () => {
   const muscleGroups = (() => {
     const groups: string[] = [];
     for (const ex of exercises) {
-      const key = ex.exercise.toUpperCase().trim();
+      const key = String(ex?.exercise || '').toUpperCase().trim();
       const muscle = exerciseMedia[key]?.muscleGroup;
       if (muscle && !groups.includes(muscle)) groups.push(muscle);
     }
@@ -119,7 +119,7 @@ const TreinoPreview = () => {
         {/* Lista de exercícios */}
         <div className="space-y-2">
           {exercises.map((ex, i) => {
-            const key = ex.exercise.toUpperCase().trim();
+            const key = String(ex?.exercise || '').toUpperCase().trim();
             const media = exerciseMedia[key];
             const plan = buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme);
             const summary = ex.setScheme?.mode === 'per_set'

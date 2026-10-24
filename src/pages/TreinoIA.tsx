@@ -1,3 +1,4 @@
+import { findEmptyDays, emptyDaysMessage } from '@/lib/workoutEmptyDays';
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
@@ -800,6 +801,9 @@ GERE TUDO DE UMA VEZ:
       // by hand AND we have no JSON to start from (shouldn't normally happen
       // because edits hydrate `generatedJson` from `conteudo_json`).
       const useMarkdownFallback = markdownEdited || !generatedJson;
+      // Dias sem exercícios são removidos ao salvar (repo); avisamos quais.
+      const emptyIaDays = generatedJson ? findEmptyDays(generatedJson.days) : [];
+      if (emptyIaDays.length > 0) toast.info(emptyDaysMessage(emptyIaDays) + ' Dia removido ao salvar.');
 
       if (editPlanId) {
         if (!useMarkdownFallback && generatedJson) {
