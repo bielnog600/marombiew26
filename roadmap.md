@@ -1,5 +1,9 @@
 # Roadmap
 
+## Cluster e Rest-pause — registro por toque
+- [ ] Compartilhar controles rápidos, carga e pausa interna entre aluno e admin, sem alterar outros métodos ou dados.
+- [ ] Cobrir registro, correções e retomada com testes e conferir a compilação.
+
 ## Pirâmide — editor de treino
 - [x] Adicionar tipos crescente/decrescente com metas por série, preservando os métodos existentes.
 - [x] Conferir round-trip JSON, resumo e registros por série; 63 testes passaram e compilação OK. Editor conferido em 390×844 com dados de teste, incluindo confirmação e reabertura.
