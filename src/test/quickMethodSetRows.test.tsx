@@ -101,7 +101,9 @@ describe('Cluster e Rest-pause — registro por toque', () => {
     const h = harness('cluster', { weight: '40', reps: '3', subRecords, pauseUntil: Date.now() + 5000 });
     act(() => vi.advanceTimersByTime(2000));
     expect(vibrate).toHaveBeenCalledTimes(1);
-    act(() => vi.advanceTimersByTime(3000));
+    act(() => vi.advanceTimersByTime(1000));
+    act(() => vi.advanceTimersByTime(1000));
+    act(() => vi.advanceTimersByTime(1000));
     expect(vibrate).toHaveBeenCalledTimes(3);
     expect(h.latest().pauseUntil).toBeUndefined();
     expect(h.latest().subRecords?.[0]).toMatchObject({ completed: true, reps: '3' });
