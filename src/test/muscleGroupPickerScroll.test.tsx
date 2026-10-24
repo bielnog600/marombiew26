@@ -6,7 +6,7 @@ import MuscleGroupPicker from '@/components/admin/MuscleGroupPicker';
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 const GROUPS = Array.from({ length: 30 }, (_, i) => `Grupo ${i + 1}`);
-const COUNTS: Record<string, number> = Object.fromEntries(GROUPS.map(g => [g, 1]));
+const COUNTS: Record<string, number> = Object.fromEntries(GROUPS.map(g => [g, 0]));
 
 function Harness() {
   const [value, setValue] = useState('');
