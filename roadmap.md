@@ -1,8 +1,9 @@
 # Roadmap
 
 ## Cluster e Rest-pause — registro por toque
-- [ ] Compartilhar controles rápidos, carga e pausa interna entre aluno e admin, sem alterar outros métodos ou dados.
-- [ ] Cobrir registro, correções e retomada com testes e conferir a compilação.
+- [x] Compartilhar controles rápidos, carga e pausa interna entre aluno e admin, sem alterar outros métodos ou dados.
+- [x] Cobrir registro, correções e retomada com testes; compilação automática OK e fluxo visual conferido em celular/desktop com dados de teste.
+- [ ] Conferir salvamento/retomada autenticados — bloqueado: não foi utilizada uma conta real nesta validação; persistência existente preservada.
 
 ## Pirâmide — editor de treino
 - [x] Adicionar tipos crescente/decrescente com metas por série, preservando os métodos existentes.
