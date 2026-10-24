@@ -322,15 +322,16 @@ const MinhaArea = () => {
 
   // Pick an exercise image from today's training
   const todayHeroImage = useMemo(() => {
-    if (!todayTraining) return workoutHero;
+    const list = (todayTraining?.exercises || []).filter((e) => typeof e?.exercise === 'string' && e.exercise.trim());
+    if (list.length === 0) return workoutHero;
     // Skip first 2 exercises (usually mobility), start from 3rd
-    const startIndex = Math.min(2, todayTraining.exercises.length - 1);
-    for (let i = startIndex; i < todayTraining.exercises.length; i++) {
-      const key = todayTraining.exercises[i].exercise.toUpperCase().trim();
+    const startIndex = Math.max(0, Math.min(2, list.length - 1));
+    for (let i = startIndex; i < list.length; i++) {
+      const key = list[i].exercise.toUpperCase().trim();
       if (exerciseImages[key]) return exerciseImages[key];
     }
     // Fallback: try any exercise
-    for (const ex of todayTraining.exercises) {
+    for (const ex of list) {
       const key = ex.exercise.toUpperCase().trim();
       if (exerciseImages[key]) return exerciseImages[key];
     }
@@ -339,11 +340,12 @@ const MinhaArea = () => {
 
   // Main muscle groups for today's training
   const todayMuscleGroups = useMemo(() => {
-    if (!todayTraining) return '';
+    const list = (todayTraining?.exercises || []).filter((e) => typeof e?.exercise === 'string' && e.exercise.trim());
+    if (list.length === 0) return '';
     const groups: string[] = [];
-    const startIndex = Math.min(2, todayTraining.exercises.length - 1);
-    for (let i = startIndex; i < todayTraining.exercises.length; i++) {
-      const key = todayTraining.exercises[i].exercise.toUpperCase().trim();
+    const startIndex = Math.max(0, Math.min(2, list.length - 1));
+    for (let i = startIndex; i < list.length; i++) {
+      const key = list[i].exercise.toUpperCase().trim();
       const muscle = exerciseMuscles[key];
       if (muscle && !groups.includes(muscle)) groups.push(muscle);
     }
