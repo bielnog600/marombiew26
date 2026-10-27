@@ -220,7 +220,7 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal }: Props) {
             {!result && !notFound && (
               <>
                 <div className="relative w-full aspect-[3/4] max-h-[55dvh] rounded-2xl overflow-hidden bg-card border border-border">
-                  <video ref={videoRef} className="w-full h-full object-cover" muted playsInline autoPlay />
+                  <video ref={setVideoEl} className="w-full h-full object-cover" muted playsInline autoPlay />
                   <div className="pointer-events-none absolute inset-x-8 top-1/2 -translate-y-1/2 h-28 rounded-xl border-2 border-primary/80" />
                   {(busy || camError) && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/80 p-6 text-center text-sm">
