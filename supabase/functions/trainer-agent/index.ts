@@ -429,16 +429,20 @@ async function consumeStructuredChatStream(response: Response): Promise<Structur
 async function callStructuredModel({
   apiKey,
   systemPrompt,
+  stableSystemPrompt,
   messages,
   extraSystem,
   modelToUse,
   reason,
   attempts,
+  transform,
 }: StructuredArgs & { 
+  stableSystemPrompt?: string;
   extraSystem?: string; 
   modelToUse: string; 
   reason: string;
   attempts: AIAttemptMetadata[];
+  transform?: (parsed: any) => any;
 }): Promise<
   | { ok: true; data: any }
   | { ok: false; response: Response; error_code?: string }
@@ -446,8 +450,18 @@ async function callStructuredModel({
   const start = Date.now();
   
   // Limpeza de instruções de formato incompatíveis
-  const cleanSystemPrompt = sanitizeStructuredPrompt(systemPrompt)
+  const clean = (prompt: string) => sanitizeStructuredPrompt(prompt)
     .replace(/Para aluno intermediário\/avançado, usar no mínimo 2 técnicas avançadas por treino do dia\./gi, "Técnicas avançadas são opcionais e só devem ser utilizadas quando coerentes com nível, fase, recuperação, objetivo e segurança. Não existe quantidade mínima obrigatória por treino.");
+  const cleanSystemPrompt = clean(systemPrompt);
+
+  // Prompt caching: fixed instructions + catalog + output rules come first and
+  // are byte-identical across calls; student data and corrections follow.
+  const systemContent = stableSystemPrompt !== undefined
+    ? [
+        { type: "text", text: clean(stableSystemPrompt) + "\n\n" + JSON_OUTPUT_INSTRUCTIONS, cache_control: { type: "ephemeral" } },
+        { type: "text", text: cleanSystemPrompt + (extraSystem ? "\n\n" + extraSystem : ""), cache_control: { type: "ephemeral" } },
+      ]
+    : cleanSystemPrompt + "\n\n" + JSON_OUTPUT_INSTRUCTIONS + (extraSystem ? "\n\n" + extraSystem : "");
 
   const upstream = await anthropicChat({
     method: "POST",
@@ -457,11 +471,7 @@ async function callStructuredModel({
       messages: [
         {
           role: "system",
-          content:
-            cleanSystemPrompt +
-            "\n\n" +
-            JSON_OUTPUT_INSTRUCTIONS +
-            (extraSystem ? "\n\n" + extraSystem : ""),
+          content: systemContent,
         },
         ...messages,
       ],
