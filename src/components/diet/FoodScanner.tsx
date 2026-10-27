@@ -136,32 +136,50 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal }: Props) {
     }
   };
 
-  // Câmera
   useEffect(() => {
-    if (!open || tab !== 'scan' || result || notFound || busy) return;
+    lookupRef.current = lookup;
+  }, [lookup]);
+
+  // Câmera: só inicia quando o <video> já está montado no DOM
+  useEffect(() => {
+    if (!open || tab !== 'scan' || result || notFound || busy || !videoEl) return;
     let cancelled = false;
     const hints = new Map();
     hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E]);
     const reader = new BrowserMultiFormatReader(hints);
     setCamError(null);
+    videoEl.setAttribute('playsinline', 'true');
+    videoEl.setAttribute('webkit-playsinline', 'true');
     reader
-      .decodeFromConstraints({ video: { facingMode: { ideal: 'environment' } }, audio: false }, videoRef.current!, (res) => {
+      .decodeFromConstraints({ video: { facingMode: { ideal: 'environment' } }, audio: false }, videoEl, (res) => {
         if (res && !cancelled) {
           cancelled = true;
           navigator.vibrate?.(60);
-          lookup(res.getText());
+          lookupRef.current(res.getText());
         }
       })
       .then((c) => {
-        if (cancelled) c.stop();
-        else controlsRef.current = c;
+        if (cancelled) {
+          c.stop();
+          return;
+        }
+        controlsRef.current = c;
+        videoEl.play().catch(() => {});
       })
       .catch(() => setCamError('Não foi possível abrir a câmera. Permita o acesso ou digite o código abaixo.'));
+    // Se em 4s o vídeo ainda não tiver imagem, avisar e oferecer nova tentativa
+    const watchdog = window.setTimeout(() => {
+      if (!cancelled && videoEl.videoWidth === 0) {
+        stopCamera();
+        setCamError('A câmera abriu mas não mostrou imagem. Toque para tentar de novo.');
+      }
+    }, 4000);
     return () => {
       cancelled = true;
+      window.clearTimeout(watchdog);
       stopCamera();
     };
-  }, [open, tab, result, notFound, busy, lookup, stopCamera]);
+  }, [open, tab, result, notFound, busy, videoEl, stopCamera]);
 
   useEffect(() => {
     if (!open || tab !== 'history' || !user) return;
