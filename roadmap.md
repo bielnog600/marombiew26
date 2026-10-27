@@ -1,10 +1,11 @@
 # Roadmap
 
 ## Anthropic oficial — treino, dieta, cardio e scanner
-- [ ] Inventariar chamadas, provedores, modelos e limites antes de editar treino/dieta; listar demais features excluídas.
-- [ ] Scanner: Anthropic oficial, modelo solicitado e log Anthropic error; lookup intacto.
-- [ ] Treino/dieta/cardio: helper compartilhado com prompts, schemas, tools, streams e limites preservados.
-- [ ] Testar e implantar funções alteradas; nenhuma chamada real até confirmação da chave oficial.
+- [x] Inventário apresentado e plano aprovado; modelos oficiais conferidos, demais features listadas e Jarvis sem edição (herda agentes).
+- [x] Scanner: Anthropic oficial, claude-haiku-5-5 e log Anthropic error; lookup intacto.
+- [x] Treino/dieta/cardio/Tabata: helper compartilhado, claude-sonnet-5, prompts preservados, tools/JSON/SSE adaptados e limites existentes intactos; limites antes ausentes aprovados no plano.
+- [x] 1.328 testes passaram, 3 preexistentes ignorados; compilação automática OK; nove funções implantadas sem chamada real ou gravação de dados de teste.
+- [ ] Validação real da chave/modelos — bloqueada intencionalmente até confirmação do usuário de que a chave oficial foi salva.
 
 ## Modo Treino admin — agrupar e editar métodos no modal
 - [x] "Agrupar com…" no card sem grupo: par escolhido no modal vira A/B seguido, com ajuste do B para o número de séries do A preservando séries registradas.
