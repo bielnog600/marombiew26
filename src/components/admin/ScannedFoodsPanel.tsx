@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Search, Plus, EyeOff, AlertTriangle, ScanBarcode } from 'lucide-react';
+import { Search, Plus, EyeOff, AlertTriangle } from 'lucide-react';
 import FoodScanner from '@/components/diet/FoodScanner';
 import type { ScanRecord } from '@/components/diet/FoodScanResult';
 import { toast } from 'sonner';
@@ -51,14 +51,18 @@ export function usePendingScanCount(): number {
   return data.groups.filter((g) => (data.reviews.get(g.key)?.status ?? 'pendente') === 'pendente').length;
 }
 
-const ScannedFoodsPanel: React.FC = () => {
+interface ScannedFoodsPanelProps {
+  scannerOpen: boolean;
+  onScannerOpenChange: (open: boolean) => void;
+}
+
+const ScannedFoodsPanel: React.FC<ScannedFoodsPanelProps> = ({ scannerOpen, onScannerOpenChange }) => {
   const qc = useQueryClient();
   const { user } = useAuth() as any;
   const [filter, setFilter] = useState<ReviewStatus>('pendente');
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<{ group: ProductGroup; draft: FoodDraft } | null>(null);
   const [saving, setSaving] = useState(false);
-  const [scannerOpen, setScannerOpen] = useState(false);
 
   const { data, isLoading, refetch } = useScannedFoodsData();
 
