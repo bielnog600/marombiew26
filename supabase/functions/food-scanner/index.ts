@@ -4,32 +4,46 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 const FIELDS =
   'product_name,brands,image_front_url,nutriments,nutriscore_grade,nutriscore_score,nova_group,additives_tags,additives_n,ingredients_text,labels_tags,quantity,serving_size,serving_quantity';
 const CACHE_DAYS = 30;
-const MODEL = 'anthropic/claude-sonnet-5';
+const MODEL = 'gpt-4o-mini';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-async function claude(content: unknown, maxTokens: number) {
-  const res = await fetch('https://ai.gateway.lovable.dev/v1/messages', {
+async function openai(content: unknown, maxTokens: number) {
+  const apiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!apiKey) throw new Error('Não foi possível consultar a IA agora.');
+  let res: Response;
+  try {
+    res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${Deno.env.get('LOVABLE_API_KEY')}`,
+      Authorization: `Bearer ${apiKey}`,
       'content-type': 'application/json',
-      'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, messages: [{ role: 'user', content }] }),
-  });
+    });
+  } catch {
+    console.error('OpenAI error', 'network failure');
+    throw new Error('Não foi possível consultar a IA agora.');
+  }
   if (!res.ok) {
     const t = await res.text();
-    console.error('claude error', res.status, t);
+    console.error('OpenAI error', res.status, t);
+    let insufficientQuota = false;
+    try {
+      const error = JSON.parse(t)?.error;
+      insufficientQuota = error?.code === 'insufficient_quota' || error?.type === 'insufficient_quota';
+    } catch { /* Non-JSON upstream errors use the HTTP status. */ }
     const msg =
-      res.status === 429 ? 'Muitas solicitações agora. Tente de novo em instantes.'
-      : res.status === 402 ? 'Créditos de IA esgotados.'
+      insufficientQuota || res.status === 401 || res.status === 402 ? 'Créditos de IA esgotados.'
+      : res.status === 429 ? 'Muitas solicitações agora. Tente de novo em instantes.'
       : 'Não foi possível consultar a IA agora.';
-    throw Object.assign(new Error(msg), { status: res.status });
+    throw Object.assign(new Error(msg), { status: insufficientQuota ? 402 : res.status });
   }
   const data = await res.json();
-  return (data.content ?? []).filter((c: any) => c.type === 'text').map((c: any) => c.text).join('').trim();
+  const text = data.choices?.[0]?.message?.content;
+  if (typeof text !== 'string' || !text.trim()) throw new Error('Não foi possível consultar a IA agora.');
+  return text.trim();
 }
 
 Deno.serve(async (req) => {
@@ -69,9 +83,9 @@ Deno.serve(async (req) => {
       const image = String(body.image ?? '');
       const m = image.match(/^data:(image\/[a-z+]+);base64,(.+)$/);
       if (!m) return json({ error: 'Imagem inválida' }, 400);
-      const text = await claude(
+      const text = await openai(
         [
-          { type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } },
+          { type: 'image_url', image_url: { url: image } },
           {
             type: 'text',
             text: `Leia a tabela nutricional e a lista de ingredientes deste rótulo. Converta tudo para 100 g/ml. Responda SOMENTE JSON:
@@ -100,13 +114,13 @@ Objetivo do aluno: ${prof?.objetivo ?? 'não informado'}. Restrições: ${prof?.
 Dieta atual (resumo): ${String(diet?.conteudo ?? 'sem dieta publicada').slice(0, 2500)}
 
 Responda em português do Brasil, linguagem neutra em gênero, no máximo 4 frases, direto, tom de personal real, sem motivação genérica: diga se cabe ou não na dieta, em qual refeição e quantidade, e qual troca faria. Separe nota de qualidade de utilidade para o objetivo. Sem markdown.`;
-      const evaluation = await claude(prompt, 400);
+      const evaluation = await openai(prompt, 400);
       return json({ evaluation });
     }
 
     return json({ error: 'Ação inválida' }, 400);
   } catch (e) {
-    const status = (e as any)?.status && [402, 429].includes((e as any).status) ? (e as any).status : 500;
+    const status = (e as any)?.status && [401, 402, 429].includes((e as any).status) ? (e as any).status : 500;
     return json({ error: (e as Error).message || 'Erro inesperado' }, status);
   }
 });
