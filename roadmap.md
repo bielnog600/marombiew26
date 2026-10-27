@@ -5,7 +5,7 @@
 - [x] Scanner: Anthropic oficial, claude-haiku-5-5 e log Anthropic error; lookup intacto.
 - [x] Treino/dieta/cardio/Tabata: helper compartilhado, claude-sonnet-5, prompts preservados, tools/JSON/SSE adaptados e limites existentes intactos; limites antes ausentes aprovados no plano.
 - [x] 1.328 testes passaram, 3 preexistentes ignorados; compilação automática OK; nove funções implantadas sem chamada real ou gravação de dados de teste.
-- [ ] Validação real da chave/modelos — bloqueada intencionalmente até confirmação do usuário de que a chave oficial foi salva.
+- [ ] Validar chave/modelos com chamadas reais autorizadas, diagnosticar resposta vazia no scanner/helper, testar e implantar correções sem gravar dados.
 
 ## Modo Treino admin — agrupar e editar métodos no modal
 - [x] "Agrupar com…" no card sem grupo: par escolhido no modal vira A/B seguido, com ajuste do B para o número de séries do A preservando séries registradas.
