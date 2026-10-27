@@ -2,14 +2,13 @@ import React, { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Search, Plus, EyeOff, AlertTriangle, ScanBarcode } from 'lucide-react';
+import { Search, Plus, EyeOff, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   groupScans, mapGroupToFood, findDuplicates,
@@ -20,16 +19,11 @@ const scoreClass = (s: number | null) =>
   s == null ? 'bg-muted' : s < 25 ? 'bg-destructive' : s < 50 ? 'bg-orange-500' : s < 75 ? 'bg-lime-500' : 'bg-green-600';
 const fmt = (v: number | null) => (v == null ? '–' : String(Math.round(v * 10) / 10).replace('.', ','));
 
-const AlimentosEscaneados: React.FC = () => {
-  const qc = useQueryClient();
-  const { user } = useAuth() as any;
-  const [filter, setFilter] = useState<ReviewStatus>('pendente');
-  const [search, setSearch] = useState('');
-  const [editing, setEditing] = useState<{ group: ProductGroup; draft: FoodDraft } | null>(null);
-  const [saving, setSaving] = useState(false);
+export const SCANNED_FOODS_KEY = ['admin-food-scans'];
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['admin-food-scans'],
+export function useScannedFoodsData() {
+  return useQuery({
+    queryKey: SCANNED_FOODS_KEY,
     queryFn: async () => {
       const [scans, reviews, foods] = await Promise.all([
         supabase.from('food_scans').select('id,aluno_id,barcode,product_name,brand,image_url,score,score_label,nutriments,created_at').order('created_at', { ascending: false }).limit(2000),
@@ -47,6 +41,23 @@ const AlimentosEscaneados: React.FC = () => {
       };
     },
   });
+}
+
+export function usePendingScanCount(): number {
+  const { data } = useScannedFoodsData();
+  if (!data) return 0;
+  return data.groups.filter((g) => (data.reviews.get(g.key)?.status ?? 'pendente') === 'pendente').length;
+}
+
+const ScannedFoodsPanel: React.FC = () => {
+  const qc = useQueryClient();
+  const { user } = useAuth() as any;
+  const [filter, setFilter] = useState<ReviewStatus>('pendente');
+  const [search, setSearch] = useState('');
+  const [editing, setEditing] = useState<{ group: ProductGroup; draft: FoodDraft } | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const { data, isLoading } = useScannedFoodsData();
 
   const statusOf = (k: string): ReviewStatus => (data?.reviews.get(k)?.status ?? 'pendente') as ReviewStatus;
 
@@ -70,7 +81,7 @@ const AlimentosEscaneados: React.FC = () => {
       reviewed_at: new Date().toISOString(), food_id: foodId,
     });
     if (error) throw error;
-    qc.invalidateQueries({ queryKey: ['admin-food-scans'] });
+    qc.invalidateQueries({ queryKey: SCANNED_FOODS_KEY });
   };
 
   const ignore = async (g: ProductGroup) => {
@@ -122,12 +133,8 @@ const AlimentosEscaneados: React.FC = () => {
   );
 
   return (
-    <AppLayout>
-      <div className="space-y-4 p-4 max-w-5xl mx-auto">
-        <div className="flex items-center gap-2">
-          <ScanBarcode className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Alimentos escaneados</h1>
-        </div>
+    <>
+      <div className="space-y-4">
         <div className="flex flex-wrap gap-2">
           {(['pendente', 'adicionado', 'ignorado'] as ReviewStatus[]).map((s) => (
             <Button key={s} size="sm" variant={filter === s ? 'default' : 'outline'} onClick={() => setFilter(s)}>
@@ -224,8 +231,8 @@ const AlimentosEscaneados: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </AppLayout>
+    </>
   );
 };
 
-export default AlimentosEscaneados;
+export default ScannedFoodsPanel;

@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import AppLayout from '@/components/AppLayout';
+import { useSearchParams } from 'react-router-dom';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import ScannedFoodsPanel, { usePendingScanCount } from '@/components/admin/ScannedFoodsPanel';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -233,12 +236,26 @@ const Alimentos: React.FC = () => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const aba = searchParams.get('aba') === 'escaneados' ? 'escaneados' : 'banco';
+  const pendingScans = usePendingScanCount();
+
   const filtered = foods.filter((f) =>
     f.name.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
     <AppLayout title="Alimentos">
+      <Tabs value={aba} onValueChange={(v) => setSearchParams(v === 'escaneados' ? { aba: 'escaneados' } : {}, { replace: true })}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="banco">Banco de alimentos</TabsTrigger>
+          <TabsTrigger value="escaneados" className="gap-1.5">
+            Escaneados
+            {pendingScans > 0 && <span className="rounded-full bg-primary text-primary-foreground text-[10px] font-bold px-1.5 min-w-[18px] leading-[18px]">{pendingScans}</span>}
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="escaneados"><ScannedFoodsPanel /></TabsContent>
+        <TabsContent value="banco">
       <div className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative flex-1 max-w-sm">
@@ -489,6 +506,8 @@ const Alimentos: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+        </TabsContent>
+      </Tabs>
     </AppLayout>
   );
 };
