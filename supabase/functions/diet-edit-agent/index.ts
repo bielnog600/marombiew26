@@ -136,7 +136,7 @@ async function handleMealSuggestions(payload: any, apiKey: string): Promise<Resp
 
   const response = await anthropicChat({
     method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    
     body: JSON.stringify({
       model: PRESCRIPTION_MODEL,
       response_format: { type: "json_object" },
@@ -170,7 +170,7 @@ serve(async (req) => {
     const payload = await req.json();
     const { currentMeals, instruction, foodCatalog, studentContext, dayTotals, trainingContext } = payload;
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not configured");
+    if (!ANTHROPIC_API_KEY) throw new Error("Não foi possível consultar a IA agora.");
 
     if (payload?.mode === "meal_suggestions") {
       return await handleMealSuggestions(payload, ANTHROPIC_API_KEY);
@@ -239,10 +239,7 @@ serve(async (req) => {
 
     const response = await anthropicChat({
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${ANTHROPIC_API_KEY}`,
-        "Content-Type": "application/json",
-      },
+      
       body: JSON.stringify({
         model: PRESCRIPTION_MODEL,
         response_format: { type: "json_object" },

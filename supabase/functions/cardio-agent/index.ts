@@ -107,7 +107,7 @@ serve(async (req) => {
     } = await req.json();
 
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not configured");
+    if (!ANTHROPIC_API_KEY) throw new Error("Não foi possível consultar a IA agora.");
 
     // Normalize allowed modalities
     const ALL_MODS = ["passadeira", "bike", "eliptica", "escada"] as const;
@@ -346,10 +346,7 @@ Lembre-se:
 
     const response = await anthropicChat({
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${ANTHROPIC_API_KEY}`,
-        "Content-Type": "application/json",
-      },
+      
       body: JSON.stringify({
         model: PRESCRIPTION_MODEL,
         max_tokens: 16000,

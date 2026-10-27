@@ -167,7 +167,7 @@ async function callAI(context: any, currentPlanExcerpt: string) {
 
   const resp = await anthropicChat({
     method: "POST",
-    headers: { Authorization: `Bearer ${ANTHROPIC_API_KEY}`, "Content-Type": "application/json" },
+    
     body: JSON.stringify(body),
   });
 
@@ -290,7 +290,7 @@ async function callAnthropicDirect(prompt: string, studentContext: any): Promise
 
   const resp = await anthropicChat({
     method: "POST",
-    headers: { Authorization: `Bearer ${ANTHROPIC_API_KEY}`, "Content-Type": "application/json" },
+    
     body: JSON.stringify({
       model: PRESCRIPTION_MODEL,
       messages: [

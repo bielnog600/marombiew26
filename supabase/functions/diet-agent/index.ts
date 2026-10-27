@@ -584,7 +584,7 @@ serve(async (req) => {
     const wantsProgressStream = Boolean(rawProgressStream);
 
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not configured");
+    if (!ANTHROPIC_API_KEY) throw new Error("Não foi possível consultar a IA agora.");
 
     // Fase 4: uma única leitura do catálogo com IDs reais por requisição.
     const foodCatalog = await loadCatalogOnce();
@@ -964,10 +964,7 @@ serve(async (req) => {
           r = await anthropicChat({
             method: "POST",
             signal,
-            headers: {
-              Authorization: `Bearer ${ANTHROPIC_API_KEY}`,
-              "Content-Type": "application/json",
-            },
+            
             body: JSON.stringify({
               model: modelToUse,
               messages: [
@@ -1897,10 +1894,7 @@ serve(async (req) => {
     // Legacy path does not need metadata if zero attempts occurred
     const response = await anthropicChat({
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${ANTHROPIC_API_KEY}`,
-        "Content-Type": "application/json",
-      },
+      
       body: JSON.stringify({
         model: PRESCRIPTION_MODEL,
         messages: [

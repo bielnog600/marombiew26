@@ -408,7 +408,7 @@ ${lowCostNote}`;
 
   const resp = await anthropicChat({
     method: "POST",
-    headers: { Authorization: `Bearer ${ANTHROPIC_API_KEY}`, "Content-Type": "application/json" },
+    
     body: JSON.stringify(body),
   });
 

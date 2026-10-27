@@ -77,7 +77,7 @@ serve(async (req) => {
   try {
     const { dayName, currentExercises, instruction, exerciseCatalog, studentContext } = await req.json();
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not configured");
+    if (!ANTHROPIC_API_KEY) throw new Error("Não foi possível consultar a IA agora.");
 
     if (!instruction || typeof instruction !== "string") {
       return new Response(JSON.stringify({ error: "instruction é obrigatório" }), {
@@ -127,10 +127,7 @@ serve(async (req) => {
 
     const response = await anthropicChat({
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${ANTHROPIC_API_KEY}`,
-        "Content-Type": "application/json",
-      },
+      
       body: JSON.stringify({
         model: PRESCRIPTION_MODEL,
         response_format: { type: "json_object" },

@@ -119,7 +119,7 @@ serve(async (req) => {
       avoidExercises = [],
     } = await req.json();
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not configured");
+    if (!ANTHROPIC_API_KEY) throw new Error("Não foi possível consultar a IA agora.");
 
     // Build official exercise list block (grouped) to inject into the system prompt
     let exerciseListBlock = "";
@@ -237,10 +237,7 @@ Lembre-se:
 
     const response = await anthropicChat({
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${ANTHROPIC_API_KEY}`,
-        "Content-Type": "application/json",
-      },
+      
       body: JSON.stringify({
         model: PRESCRIPTION_MODEL,
         messages: [

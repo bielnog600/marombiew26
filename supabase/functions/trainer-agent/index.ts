@@ -451,7 +451,7 @@ async function callStructuredModel({
 
   const upstream = await anthropicChat({
     method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    
     body: JSON.stringify({
       model: modelToUse,
       messages: [
@@ -1454,7 +1454,7 @@ serve(async (req) => {
     // Disponibilidade real de equipamento: hard gate determinístico (nunca fuzzy).
     const availableEquipment = mapMachineIdsToEquipmentCapabilities(available_equipment);
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not configured");
+    if (!ANTHROPIC_API_KEY) throw new Error("Não foi possível consultar a IA agora.");
 
     let contextMessage = "";
     if (studentContext) {
@@ -1739,10 +1739,7 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
     // Legacy path does not need metadata if zero attempts occurred
     const response = await anthropicChat({
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${ANTHROPIC_API_KEY}`,
-        "Content-Type": "application/json",
-      },
+      
       body: JSON.stringify({
         model: PRESCRIPTION_MODEL,
         messages: [
