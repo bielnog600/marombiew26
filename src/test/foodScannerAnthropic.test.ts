@@ -45,11 +45,11 @@ describe('food scanner direct Anthropic', () => {
     expect(body.messages[0].content[1].type).toBe('text');
   });
 
-  it('joins text blocks and keeps 400 output tokens for evaluation', async () => {
+  it('joins text blocks and uses 300 output tokens for evaluation', async () => {
     const ctx = setup();
     expect(await (await ctx.request({ action: 'evaluate', product: {} })).json()).toEqual({ evaluation: 'Avaliação de teste' });
     const [, options] = ctx.fetch.mock.calls[0] as unknown as [string, RequestInit];
-    expect(JSON.parse(String(options.body)).max_tokens).toBe(400);
+    expect(JSON.parse(String(options.body)).max_tokens).toBe(300);
     expect(JSON.parse(String(options.body)).thinking).toEqual({ type: 'disabled' });
   });
 
