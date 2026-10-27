@@ -1,9 +1,10 @@
-// @vitest-environment node
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { createRequire } from "node:module";
 import { describe, expect, it, vi } from "vitest";
 import ts from "typescript";
+import { TextEncoder, TextDecoder } from "node:util";
+import { ReadableStream, TransformStream } from "node:stream/web";
 
 const require = createRequire(import.meta.url);
 const Ajv = require("ajv");
