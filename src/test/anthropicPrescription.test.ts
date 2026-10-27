@@ -109,7 +109,7 @@ describe("official Anthropic prescription boundary", () => {
     const stream = await (await ctx.call({ messages, max_tokens: 16000, stream: true })).text();
     const events = stream.split("\n\n").filter(Boolean).map((x) => x.slice(6));
     expect(JSON.parse(events[0]).choices[0].delta.content).toBe("Olá, refeição");
-    expect(JSON.parse(events[1]).usage).toEqual({ prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 });
+    expect(JSON.parse(events[1]).usage).toEqual({ prompt_tokens: 10, completion_tokens: 5, total_tokens: 15, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 });
     expect(JSON.parse(events[1]).choices[0].finish_reason).toBe("stop");
     expect(events.at(-1)).toBe("[DONE]");
   });
