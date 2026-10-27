@@ -20,6 +20,7 @@ export default {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
+        score: { bad: "hsl(var(--score-bad))", poor: "hsl(var(--score-poor))", good: "hsl(var(--score-good))", excellent: "hsl(var(--score-excellent))" },
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         primary: {

@@ -36,6 +36,10 @@
     --accent-foreground: 220 20% 7%;
 
     --destructive: 0 72% 51%;
+    --score-bad: 0 72% 51%;
+    --score-poor: 28 92% 54%;
+    --score-good: 96 55% 52%;
+    --score-excellent: 142 64% 36%;
     --destructive-foreground: 0 0% 98%;
 
     --border: 220 14% 18%;
