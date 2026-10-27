@@ -38,8 +38,10 @@ const fileToDataUrl = (file: File) =>
 
 export default function FoodScanner({ open, onOpenChange, dailyKcal }: Props) {
   const { user } = useAuth();
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
+  const lookupRef = useRef<(code: string) => void>(() => {});
+  const camRetryRef = useRef(0);
   const [tab, setTab] = useState('scan');
   const [manual, setManual] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
