@@ -28,17 +28,17 @@ function setup(status = 200, response: unknown = { content: [{ type: 'text', tex
 }
 
 describe('food scanner direct Anthropic', () => {
-  it('sends base64 image block, Claude Haiku 5.5 and 1200 output tokens for extraction', async () => {
+  it('sends base64 image block, Claude Haiku 4.5 via Kyron and 1200 output tokens for extraction', async () => {
     const ctx = setup(200, { content: [{ type: 'text', text: '{"product_name":"Teste"}' }] });
     const result = await ctx.request({ action: 'extract', image: 'data:image/png;base64,dGVzdA==' });
     expect(await result.json()).toEqual({ product: { product_name: 'Teste' } });
     const [url, options] = ctx.fetch.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe('https://api.anthropic.com/v1/messages');
+    expect(url).toBe('https://kyronapi.com/v1/messages');
     const headers = options.headers as Record<string, string>;
     expect(headers['anthropic-version']).toBe('2023-06-01');
     expect(headers['x-api-key']).toBe('test-only');
     const body = JSON.parse(String(options.body));
-    expect(body.model).toBe('claude-haiku-5-5');
+    expect(body.model).toBe('claude-haiku-4-5');
     expect(body.max_tokens).toBe(1200);
     expect(body.messages[0].content[0]).toEqual({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'dGVzdA==' } });
     expect(body.messages[0].content[1].type).toBe('text');
@@ -64,6 +64,6 @@ describe('food scanner direct Anthropic', () => {
     expect(result.status).toBe(outputStatus);
     expect(await result.json()).toEqual({ error: message });
     expect(ctx.fetch).toHaveBeenCalledTimes(1);
-    expect(ctx.error).toHaveBeenCalledWith('Anthropic error', status, expect.any(String));
+    expect(ctx.error).toHaveBeenCalledWith('Kyron error', status, expect.any(String));
   });
 });
