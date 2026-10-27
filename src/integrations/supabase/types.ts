@@ -1985,6 +1985,36 @@ export type Database = {
         }
         Relationships: []
       }
+      food_scan_reviews: {
+        Row: {
+          barcode: string | null
+          created_at: string
+          food_id: string | null
+          product_key: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        Insert: {
+          barcode?: string | null
+          created_at?: string
+          food_id?: string | null
+          product_key: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Update: {
+          barcode?: string | null
+          created_at?: string
+          food_id?: string | null
+          product_key?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       food_scans: {
         Row: {
           additives: Json
