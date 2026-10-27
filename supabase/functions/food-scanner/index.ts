@@ -4,8 +4,8 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 const FIELDS =
   'product_name,brands,image_front_url,nutriments,nutriscore_grade,nutriscore_score,nova_group,additives_tags,additives_n,ingredients_text,labels_tags,quantity,serving_size,serving_quantity';
 const CACHE_DAYS = 30;
-const MODEL = 'claude-haiku-4-5';
-const KYRON_BASE_URL = 'https://kyronapi.com/v1';
+const MODEL = 'claude-haiku-5-5';
+const ANTHROPIC_BASE_URL = 'https://api.anthropic.com/v1';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -15,7 +15,7 @@ async function anthropic(content: unknown, maxTokens: number) {
   if (!apiKey) throw new Error('Não foi possível consultar a IA agora.');
   let res: Response;
   try {
-    res = await fetch(`${KYRON_BASE_URL}/messages`, {
+    res = await fetch(`${ANTHROPIC_BASE_URL}/messages`, {
       method: 'POST',
       headers: {
         'x-api-key': apiKey,
@@ -25,12 +25,12 @@ async function anthropic(content: unknown, maxTokens: number) {
       body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, messages: [{ role: 'user', content }] }),
     });
   } catch {
-    console.error('Kyron error', 'network failure');
+    console.error('Anthropic error', 'network failure');
     throw new Error('Não foi possível consultar a IA agora.');
   }
   if (!res.ok) {
     const t = await res.text();
-    console.error('Kyron error', res.status, t);
+    console.error('Anthropic error', res.status, t);
     const billing = /credit|billing/i.test(t);
     const credits = billing || [401, 402, 403].includes(res.status);
     const msg =

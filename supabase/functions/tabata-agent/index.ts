@@ -1,3 +1,4 @@
+import { anthropicChat, anthropicFailure, anthropicErrorStatus, PRESCRIPTION_MODEL } from "../_shared/anthropic.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -117,8 +118,8 @@ serve(async (req) => {
       rounds = 'auto',
       avoidExercises = [],
     } = await req.json();
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not configured");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) throw new Error("Não foi possível consultar a IA agora.");
 
     // Build official exercise list block (grouped) to inject into the system prompt
     let exerciseListBlock = "";
@@ -234,39 +235,21 @@ Lembre-se:
 - Escolha SEMPRE exercícios que fazem sentido no contexto TABATA (funcionais, dinâmicos, alta intensidade adequada ao perfil)
 - Gere tudo de uma vez no formato markdown especificado`;
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await anthropicChat({
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
+      
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: PRESCRIPTION_MODEL,
         messages: [
           { role: "system", content: SYSTEM_PROMPT + exerciseListBlock + contextMessage },
           { role: "user", content: userPrompt },
         ],
         stream: true,
+        max_tokens: 16000,
       }),
     });
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns minutos." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos esgotados. Adicione créditos em Settings > Workspace > Usage." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
-      return new Response(JSON.stringify({ error: "Erro no gateway de IA" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!response.ok) return await anthropicFailure(response, corsHeaders);
 
     return new Response(response.body, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
@@ -274,7 +257,7 @@ Lembre-se:
   } catch (e) {
     console.error("tabata-agent error:", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Erro desconhecido" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: anthropicErrorStatus(e), headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

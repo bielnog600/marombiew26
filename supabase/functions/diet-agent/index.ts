@@ -1,3 +1,4 @@
+import { anthropicChat, anthropicFailure, anthropicErrorStatus, PRESCRIPTION_MODEL, AI_MODELS, createRoutingMetadata } from "../_shared/anthropic.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
@@ -32,7 +33,7 @@ import {
   validateDailyAdjustments,
   hasDailyCalorieVariation,
 } from "../_shared/dailyAdjustments.ts";
-import { AI_MODELS, createRoutingMetadata, type AIAttemptMetadata } from "../_shared/aiModelRouter.ts";
+import type { AIAttemptMetadata } from "../_shared/aiModelRouter.ts";
 import {
   isVariationRetryAllowed,
   needsDietVariationRetry,
@@ -582,8 +583,8 @@ serve(async (req) => {
     const referenceDietProvided = Boolean(rawReferenceDietProvided);
     const wantsProgressStream = Boolean(rawProgressStream);
 
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) throw new Error("Não foi possível consultar a IA agora.");
 
     // Fase 4: uma única leitura do catálogo com IDs reais por requisição.
     const foodCatalog = await loadCatalogOnce();
@@ -960,13 +961,10 @@ serve(async (req) => {
 
         let r: Response;
         try {
-          r = await fetch("https://api.openai.com/v1/chat/completions", {
+          r = await anthropicChat({
             method: "POST",
             signal,
-            headers: {
-              Authorization: `Bearer ${OPENAI_API_KEY}`,
-              "Content-Type": "application/json",
-            },
+            
             body: JSON.stringify({
               model: modelToUse,
               messages: [
@@ -987,39 +985,20 @@ serve(async (req) => {
             ok: false,
             resp: new Response(
               JSON.stringify({
-                error: aborted ? "Geração alternativa cancelada." : "Falha de conexão com a IA.",
+                error: aborted ? "Geração alternativa cancelada." : "Não foi possível consultar a IA agora.",
                 retryable: !aborted,
                 error_code: aborted ? "aborted" : "upstream_error",
               }),
-              { status: aborted ? 499 : 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+              { status: aborted ? 499 : anthropicErrorStatus(error), headers: { ...corsHeaders, "Content-Type": "application/json" } },
             ),
           };
         }
         if (!r.ok) {
           const durationMs = Date.now() - start;
           const status = r.status;
-          const t = await r.text();
-          console.error("structured diet-agent error:", status, t);
           modelAttempts.push({ model: modelToUse, durationMs, reason: `Error: ${status}` });
-          
           const isRetryable = ![400, 401, 402, 403, 404, 429].includes(status);
-          
-          return {
-            ok: false,
-            resp: new Response(
-              JSON.stringify({
-                error:
-                  status === 429
-                    ? "Limite de requisições excedido."
-                    : status === 402
-                      ? "Créditos insuficientes na conta OpenAI."
-                      : "Erro ao gerar dieta estruturada.",
-                retryable: isRetryable,
-                error_code: "upstream_error",
-              }),
-              { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-            ),
-          };
+          return { ok: false, resp: await anthropicFailure(r, corsHeaders, { retryable: isRetryable, error_code: "upstream_error" }) };
         }
         let completion: StructuredStreamResult;
         try {
@@ -1913,14 +1892,11 @@ serve(async (req) => {
 
 
     // Legacy path does not need metadata if zero attempts occurred
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await anthropicChat({
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
+      
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: PRESCRIPTION_MODEL,
         messages: [
           { role: "system", content: SYSTEM_PROMPT + contextMessage },
           ...messages,
@@ -1931,23 +1907,7 @@ serve(async (req) => {
       }),
     });
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns minutos." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos insuficientes na sua conta OpenAI." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const t = await response.text();
-      console.error("OpenAI API error:", response.status, t);
-      return new Response(JSON.stringify({ error: "Erro na API de IA" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!response.ok) return await anthropicFailure(response, corsHeaders);
 
 
     return new Response(response.body, {
@@ -1956,7 +1916,7 @@ serve(async (req) => {
   } catch (e) {
     console.error("diet-agent error:", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Erro desconhecido" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: anthropicErrorStatus(e), headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

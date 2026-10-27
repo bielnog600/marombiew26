@@ -1,3 +1,4 @@
+import { anthropicChat, anthropicFailure, anthropicErrorStatus, PRESCRIPTION_MODEL } from "../_shared/anthropic.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { authorizePrivilegedRequest, unauthorizedResponse } from "../_shared/authorizePrivilegedRequest.ts";
@@ -8,7 +9,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
+const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -122,7 +123,8 @@ async function callAI(context: any, currentPlanExcerpt: string) {
   Seja conservador: NÃO recomende gerar nova se faltam dados (data_quality != sufficient) — prefira solicitar_dados. Se aderência < 0.4, prefira ajustar. Se tendência contraria objetivo, recomende ajustar/gerar_nova.`;
 
   const body = {
-    model: "gpt-4o-mini",
+    model: PRESCRIPTION_MODEL,
+    max_tokens: 4000,
     messages: [
       { role: "system", content: system },
       {
@@ -163,15 +165,16 @@ async function callAI(context: any, currentPlanExcerpt: string) {
     tool_choice: { type: "function", function: { name: "recommend_action" } },
   };
 
-  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+  const resp = await anthropicChat({
     method: "POST",
-    headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
+    
     body: JSON.stringify(body),
   });
 
   if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`AI error ${resp.status}: ${text}`);
+    const failure = await anthropicFailure(resp, corsHeaders);
+    const detail = await failure.json();
+    throw Object.assign(new Error(detail.error), { status: failure.status });
   }
   const data = await resp.json();
   const tc = data.choices?.[0]?.message?.tool_calls?.[0];
@@ -269,9 +272,9 @@ async function callDietAgent(prompt: string, studentContext: any): Promise<strin
 }
 
 /**
- * Direct OpenAI call as fallback when diet-agent fails. Uses non-streaming mode for reliability.
+ * Direct Anthropic call as fallback when diet-agent fails. Uses non-streaming mode for reliability.
  */
-async function callOpenAIDirect(prompt: string, studentContext: any): Promise<string> {
+async function callAnthropicDirect(prompt: string, studentContext: any): Promise<string> {
   const ctxLines: string[] = [];
   for (const [k, v] of Object.entries(studentContext || {})) {
     if (v == null) continue;
@@ -285,11 +288,11 @@ async function callOpenAIDirect(prompt: string, studentContext: any): Promise<st
 
   const system = `Você é um nutricionista esportivo experiente. Crie dietas detalhadas em markdown com tabela completa de refeições (Refeição | Horário | Alimento | Quantidade (g) | Kcal | Proteína (g) | Carboidrato (g) | Gordura (g)), totais por refeição e total diário. Mantenha as calorias e macros indicados pelo usuário como âncora exata. NUNCA deixe valores zerados. Use português do Brasil.`;
 
-  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+  const resp = await anthropicChat({
     method: "POST",
-    headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
+    
     body: JSON.stringify({
-      model: "gpt-4o",
+      model: PRESCRIPTION_MODEL,
       messages: [
         { role: "system", content: system },
         { role: "user", content: prompt + ctxBlock },
@@ -299,8 +302,9 @@ async function callOpenAIDirect(prompt: string, studentContext: any): Promise<st
     }),
   });
   if (!resp.ok) {
-    const t = await resp.text().catch(() => "");
-    throw new Error(`OpenAI direct error ${resp.status}: ${t.slice(0, 300)}`);
+    const failure = await anthropicFailure(resp, corsHeaders);
+    const detail = await failure.json();
+    throw Object.assign(new Error(detail.error), { status: failure.status });
   }
   const data = await resp.json();
   return (data.choices?.[0]?.message?.content ?? "").trim();
@@ -513,10 +517,10 @@ ENTREGUE OBRIGATORIAMENTE:
   } catch (e: any) {
     console.error("[generateDraft] diet-agent failed:", e?.message);
   }
-  // Fallback: chama OpenAI diretamente se o diet-agent não retornou conteúdo suficiente
+  // Fallback: chama Anthropic diretamente se o diet-agent não retornou conteúdo suficiente
   if (!draftContent || draftContent.length < 200) {
-    console.log("[generateDraft] usando fallback OpenAI direto. tamanho atual:", draftContent.length);
-    draftContent = await callOpenAIDirect(prompt, studentContext);
+    console.log("[generateDraft] usando fallback Anthropic direto. tamanho atual:", draftContent.length);
+    draftContent = await callAnthropicDirect(prompt, studentContext);
   }
   if (!draftContent || draftContent.length < 100) {
     throw new Error("Conteúdo do rascunho insuficiente — tente novamente");
@@ -820,7 +824,7 @@ serve(async (req) => {
   } catch (e) {
     console.error("diet-renewal-analyzer error:", e);
     return new Response(JSON.stringify({ error: (e as Error).message }), {
-      status: 500,
+      status: anthropicErrorStatus(e),
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

@@ -1,3 +1,4 @@
+import { anthropicChat, anthropicFailure, anthropicErrorStatus, PRESCRIPTION_MODEL } from "../_shared/anthropic.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { authorizePrivilegedRequest, unauthorizedResponse } from "../_shared/authorizePrivilegedRequest.ts";
@@ -15,7 +16,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
+const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -348,7 +349,8 @@ DIRETRIZES DE FREQUÊNCIA E ADERÊNCIA:
 ${lowCostNote}`;
 
   const body = {
-    model: "gpt-4o-mini",
+    model: PRESCRIPTION_MODEL,
+    max_tokens: 4000,
     messages: [
       { role: "system", content: system },
       {
@@ -404,17 +406,16 @@ ${lowCostNote}`;
     tool_choice: { type: "function", function: { name: "recommend_action" } },
   };
 
-  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+  const resp = await anthropicChat({
     method: "POST",
-    headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
+    
     body: JSON.stringify(body),
   });
 
   if (!resp.ok) {
-    const text = await resp.text();
-    if (resp.status === 429) throw new Error("Limite de uso da IA atingido — tente novamente em alguns minutos.");
-    if (resp.status === 402) throw new Error("Créditos da IA esgotados — recarregue para continuar.");
-    throw new Error(`AI error ${resp.status}: ${text.slice(0, 200)}`);
+    const failure = await anthropicFailure(resp, corsHeaders);
+    const detail = await failure.json();
+    throw Object.assign(new Error(detail.error), { status: failure.status });
   }
   const data = await resp.json();
   const tc = data.choices?.[0]?.message?.tool_calls?.[0];
@@ -1081,7 +1082,7 @@ serve(async (req) => {
   } catch (e) {
     console.error("workout-renewal-analyzer error:", e);
     return new Response(JSON.stringify({ error: (e as Error).message }), {
-      status: 500,
+      status: anthropicErrorStatus(e),
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

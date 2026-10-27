@@ -1,3 +1,4 @@
+import { anthropicChat, anthropicFailure, anthropicErrorStatus, PRESCRIPTION_MODEL } from "../_shared/anthropic.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -105,8 +106,8 @@ serve(async (req) => {
       equipment = null,
     } = await req.json();
 
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not configured");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) throw new Error("Não foi possível consultar a IA agora.");
 
     // Normalize allowed modalities
     const ALL_MODS = ["passadeira", "bike", "eliptica", "escada"] as const;
@@ -343,14 +344,12 @@ Lembre-se:
       },
     };
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await anthropicChat({
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
+      
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: PRESCRIPTION_MODEL,
+        max_tokens: 16000,
         messages: [
           { role: "system", content: SYSTEM_PROMPT + contextMessage },
           { role: "user", content: userPrompt },
@@ -360,26 +359,7 @@ Lembre-se:
       }),
     });
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns minutos." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "Créditos OpenAI esgotados. Verifique sua conta OpenAI." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      const t = await response.text();
-      console.error("OpenAI error:", response.status, t);
-      return new Response(JSON.stringify({ error: "Erro no gateway de IA" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!response.ok) return await anthropicFailure(response, corsHeaders);
 
     const data = await response.json();
     const toolCall = data?.choices?.[0]?.message?.tool_calls?.[0];
@@ -426,7 +406,7 @@ Lembre-se:
     console.error("cardio-agent error:", e);
     return new Response(
       JSON.stringify({ error: e instanceof Error ? e.message : "Erro desconhecido" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: anthropicErrorStatus(e), headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
