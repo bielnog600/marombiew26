@@ -15,7 +15,6 @@ const adminItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
   { title: 'Alunos', url: '/alunos', icon: Users },
   { title: 'Alimentos', url: '/alimentos', icon: Apple },
-  { title: 'Alimentos escaneados', url: '/alimentos-escaneados', icon: ScanLine },
   { title: 'Exercícios', url: '/exercicios', icon: Settings2 },
   { title: 'Consultoria', url: '/consultoria', icon: Briefcase },
   { title: 'Agenda', url: '/agenda', icon: CalendarDays },

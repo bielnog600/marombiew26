@@ -34,7 +34,6 @@ import TabataExecucao from "./pages/TabataExecucao";
 import CardioIA from "./pages/CardioIA";
 import CardioExecucao from "./pages/CardioExecucao";
 import Alimentos from "./pages/Alimentos";
-import AlimentosEscaneados from "./pages/AlimentosEscaneados";
 import Exercicios from "./pages/Exercicios";
 import ExerciseMetadataReview from "./pages/ExerciseMetadataReview";
 import HumanFirstReview from "./pages/HumanFirstReview";
@@ -114,7 +113,7 @@ const App = () => {
               <Route path="/cardio-ia/:studentId" element={<ProtectedRoute requiredRole="admin"><CardioIA /></ProtectedRoute>} />
               <Route path="/cardio-execucao" element={<ProtectedRoute><CardioExecucao /></ProtectedRoute>} />
               <Route path="/alimentos" element={<ProtectedRoute requiredRole="admin"><Alimentos /></ProtectedRoute>} />
-              <Route path="/alimentos-escaneados" element={<ProtectedRoute requiredRole="admin"><AlimentosEscaneados /></ProtectedRoute>} />
+              <Route path="/alimentos-escaneados" element={<Navigate to="/alimentos?aba=escaneados" replace />} />
               <Route path="/exercicios" element={<ProtectedRoute requiredRole="admin"><Exercicios /></ProtectedRoute>} />
               <Route path="/exercicios/metadados" element={<ProtectedRoute requiredRole="admin"><ExerciseMetadataReview /></ProtectedRoute>} />
               <Route path="/exercicios/metadados/human-first" element={<ProtectedRoute requiredRole="admin"><HumanFirstReview /></ProtectedRoute>} />
