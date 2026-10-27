@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Pencil, Trash2, Search, Sparkles } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Sparkles, ScanBarcode } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface FoodForm {
@@ -239,6 +239,12 @@ const Alimentos: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const aba = searchParams.get('aba') === 'escaneados' ? 'escaneados' : 'banco';
   const pendingScans = usePendingScanCount();
+  const [scannerOpen, setScannerOpen] = useState(false);
+
+  const openScanner = () => {
+    if (aba !== 'escaneados') setSearchParams({ aba: 'escaneados' }, { replace: true });
+    setScannerOpen(true);
+  };
 
   const filtered = foods.filter((f) =>
     f.name.toLowerCase().includes(search.toLowerCase()),
