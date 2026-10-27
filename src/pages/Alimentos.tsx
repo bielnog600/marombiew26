@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Pencil, Trash2, Search, Sparkles } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Sparkles, ScanBarcode } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface FoodForm {
@@ -239,6 +239,12 @@ const Alimentos: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const aba = searchParams.get('aba') === 'escaneados' ? 'escaneados' : 'banco';
   const pendingScans = usePendingScanCount();
+  const [scannerOpen, setScannerOpen] = useState(false);
+
+  const openScanner = () => {
+    if (aba !== 'escaneados') setSearchParams({ aba: 'escaneados' }, { replace: true });
+    setScannerOpen(true);
+  };
 
   const filtered = foods.filter((f) =>
     f.name.toLowerCase().includes(search.toLowerCase()),
@@ -247,14 +253,21 @@ const Alimentos: React.FC = () => {
   return (
     <AppLayout title="Alimentos">
       <Tabs value={aba} onValueChange={(v) => setSearchParams(v === 'escaneados' ? { aba: 'escaneados' } : {}, { replace: true })}>
-        <TabsList className="mb-4">
-          <TabsTrigger value="banco">Banco de alimentos</TabsTrigger>
-          <TabsTrigger value="escaneados" className="gap-1.5">
-            Escaneados
-            {pendingScans > 0 && <span className="rounded-full bg-primary text-primary-foreground text-[10px] font-bold px-1.5 min-w-[18px] leading-[18px]">{pendingScans}</span>}
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="escaneados"><ScannedFoodsPanel /></TabsContent>
+        <div className="flex items-center justify-between gap-2 mb-4">
+          <TabsList>
+            <TabsTrigger value="banco">Banco de alimentos</TabsTrigger>
+            <TabsTrigger value="escaneados" className="gap-1.5">
+              Escaneados
+              {pendingScans > 0 && <span className="rounded-full bg-primary text-primary-foreground text-[10px] font-bold px-1.5 min-w-[18px] leading-[18px]">{pendingScans}</span>}
+            </TabsTrigger>
+          </TabsList>
+          <Button variant="outline" className="gap-2 shrink-0" aria-label="Escanear produto" onClick={openScanner}>
+            <ScanBarcode className="h-4 w-4" />
+            <span className="hidden sm:inline">Escanear produto</span>
+            <span className="sm:hidden">Escanear</span>
+          </Button>
+        </div>
+        <TabsContent value="escaneados"><ScannedFoodsPanel scannerOpen={scannerOpen} onScannerOpenChange={setScannerOpen} /></TabsContent>
         <TabsContent value="banco">
       <div className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
