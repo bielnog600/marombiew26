@@ -224,7 +224,7 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal }: Props) {
                   <div className="pointer-events-none absolute inset-x-8 top-1/2 -translate-y-1/2 h-28 rounded-xl border-2 border-primary/80" />
                   {(busy || camError) && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/80 p-6 text-center text-sm">
-                      {busy ? <><Loader2 className="h-8 w-8 animate-spin text-primary" />{busy}</> : <><Camera className="h-8 w-8 text-muted-foreground" />{camError}</>}
+                      {busy ? <><Loader2 className="h-8 w-8 animate-spin text-primary" />{busy}</> : <><Camera className="h-8 w-8 text-muted-foreground" />{camError}<Button type="button" variant="outline" className="h-11" onClick={() => { stopCamera(); setCamError(null); setCamRetry((n) => n + 1); }}>Tentar de novo</Button></>}
                     </div>
                   )}
                 </div>
