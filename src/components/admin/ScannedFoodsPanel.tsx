@@ -160,9 +160,6 @@ const ScannedFoodsPanel: React.FC<ScannedFoodsPanelProps> = ({ scannerOpen, onSc
   return (
     <>
       <div className="space-y-4">
-        <Button className="w-full sm:w-auto" onClick={() => setScannerOpen(true)}>
-          <ScanBarcode className="h-4 w-4 mr-2" />Escanear produto
-        </Button>
         <div className="flex flex-wrap gap-2">
           {(['pendente', 'adicionado', 'ignorado'] as ReviewStatus[]).map((s) => (
             <Button key={s} size="sm" variant={filter === s ? 'default' : 'outline'} onClick={() => setFilter(s)}>
@@ -274,7 +271,7 @@ const ScannedFoodsPanel: React.FC<ScannedFoodsPanelProps> = ({ scannerOpen, onSc
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <FoodScanner open={scannerOpen} onOpenChange={setScannerOpen} mode="admin" onAdminScanned={onAdminScanned} />
+      <FoodScanner open={scannerOpen} onOpenChange={onScannerOpenChange} mode="admin" onAdminScanned={onAdminScanned} />
     </>
   );
 };
