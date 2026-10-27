@@ -253,14 +253,21 @@ const Alimentos: React.FC = () => {
   return (
     <AppLayout title="Alimentos">
       <Tabs value={aba} onValueChange={(v) => setSearchParams(v === 'escaneados' ? { aba: 'escaneados' } : {}, { replace: true })}>
-        <TabsList className="mb-4">
-          <TabsTrigger value="banco">Banco de alimentos</TabsTrigger>
-          <TabsTrigger value="escaneados" className="gap-1.5">
-            Escaneados
-            {pendingScans > 0 && <span className="rounded-full bg-primary text-primary-foreground text-[10px] font-bold px-1.5 min-w-[18px] leading-[18px]">{pendingScans}</span>}
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="escaneados"><ScannedFoodsPanel /></TabsContent>
+        <div className="flex items-center justify-between gap-2 mb-4">
+          <TabsList>
+            <TabsTrigger value="banco">Banco de alimentos</TabsTrigger>
+            <TabsTrigger value="escaneados" className="gap-1.5">
+              Escaneados
+              {pendingScans > 0 && <span className="rounded-full bg-primary text-primary-foreground text-[10px] font-bold px-1.5 min-w-[18px] leading-[18px]">{pendingScans}</span>}
+            </TabsTrigger>
+          </TabsList>
+          <Button variant="outline" className="gap-2 shrink-0" aria-label="Escanear produto" onClick={openScanner}>
+            <ScanBarcode className="h-4 w-4" />
+            <span className="hidden sm:inline">Escanear produto</span>
+            <span className="sm:hidden">Escanear</span>
+          </Button>
+        </div>
+        <TabsContent value="escaneados"><ScannedFoodsPanel scannerOpen={scannerOpen} onScannerOpenChange={setScannerOpen} /></TabsContent>
         <TabsContent value="banco">
       <div className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
