@@ -1985,6 +1985,60 @@ export type Database = {
         }
         Relationships: []
       }
+      food_scans: {
+        Row: {
+          additives: Json
+          ai_evaluation: string | null
+          aluno_id: string
+          barcode: string | null
+          brand: string | null
+          consumed_at: string | null
+          consumed_grams: number | null
+          created_at: string
+          id: string
+          image_url: string | null
+          nutriments: Json
+          product_name: string | null
+          score: number | null
+          score_label: string | null
+          source: string
+        }
+        Insert: {
+          additives?: Json
+          ai_evaluation?: string | null
+          aluno_id: string
+          barcode?: string | null
+          brand?: string | null
+          consumed_at?: string | null
+          consumed_grams?: number | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          nutriments?: Json
+          product_name?: string | null
+          score?: number | null
+          score_label?: string | null
+          source?: string
+        }
+        Update: {
+          additives?: Json
+          ai_evaluation?: string | null
+          aluno_id?: string
+          barcode?: string | null
+          brand?: string | null
+          consumed_at?: string | null
+          consumed_grams?: number | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          nutriments?: Json
+          product_name?: string | null
+          score?: number | null
+          score_label?: string | null
+          source?: string
+        }
+        Relationships: []
+      }
       foods: {
         Row: {
           barcode: string | null
@@ -2376,6 +2430,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      products_cache: {
+        Row: {
+          barcode: string
+          data: Json
+          fetched_at: string
+        }
+        Insert: {
+          barcode: string
+          data: Json
+          fetched_at?: string
+        }
+        Update: {
+          barcode?: string
+          data?: Json
+          fetched_at?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {

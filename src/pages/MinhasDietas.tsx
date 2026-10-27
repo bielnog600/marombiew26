@@ -23,7 +23,8 @@ import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { fetchWithCache } from '@/lib/offlineCache';
 import ProtocolsDialog from '@/components/diet/ProtocolsDialog';
 import { protocolsToKeys, type SavedProtocols, type ProtocolKey } from '@/lib/dietProtocols';
-import { ListChecks } from 'lucide-react';
+import { ListChecks, ScanBarcode } from 'lucide-react';
+import FoodScanner from '@/components/diet/FoodScanner';
 import { buildCarbCycleDays } from '@/lib/dietAiActions';
 import { parseDietPlanLoose } from '@/lib/dietSchema';
 import {
@@ -441,6 +442,7 @@ const MinhasDietas = () => {
     return trainingDayIndices.includes(activeGroupIndex);
   }, [trainingDayIndices, activeGroupIndex, usesMealOptions]);
 
+  const [showScanner, setShowScanner] = useState(false);
   const { tracking, addWaterMl, removeWater, toggleMeal, waterCurrentMl, waterTargetMl } = useDailyTracking({ isTrainingDay: isSelectedDayTraining });
 
   // Per-day target / adjustment from protocols.weekly_energy_schedule.
@@ -775,9 +777,13 @@ const MinhasDietas = () => {
 
   return (
     <AppLayout title="Plano Alimentar">
+      <FoodScanner open={showScanner} onOpenChange={setShowScanner} dailyKcal={daySchedule?.target ?? (dailyTarget?.kcal || null)} />
       <div className="space-y-4 animate-fade-in">
         {/* Protocolos */}
         <div className="flex items-center justify-end gap-2">
+          <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={() => setShowScanner(true)}>
+            <ScanBarcode className="h-4 w-4" /> Escanear alimento
+          </Button>
           {protocolKeys.length > 0 && (
             <Button
               variant="outline"
