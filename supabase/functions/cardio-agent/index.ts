@@ -409,7 +409,7 @@ Lembre-se:
     console.error("cardio-agent error:", e);
     return new Response(
       JSON.stringify({ error: e instanceof Error ? e.message : "Erro desconhecido" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: anthropicErrorStatus(e), headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

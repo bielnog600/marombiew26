@@ -265,7 +265,7 @@ serve(async (req) => {
     } catch {
       console.error("Failed to parse AI JSON:", raw);
       return new Response(JSON.stringify({ error: "Resposta inválida da IA" }), {
-        status: anthropicErrorStatus(e),
+        status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -276,7 +276,7 @@ serve(async (req) => {
   } catch (e) {
     console.error("diet-edit-agent error:", e);
     return new Response(JSON.stringify({ error: String((e as Error).message || e) }), {
-      status: 500,
+      status: anthropicErrorStatus(e),
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
