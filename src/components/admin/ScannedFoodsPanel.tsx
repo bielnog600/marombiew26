@@ -8,10 +8,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Search, Plus, EyeOff, AlertTriangle } from 'lucide-react';
+import { Search, Plus, EyeOff, AlertTriangle, ScanBarcode } from 'lucide-react';
+import FoodScanner from '@/components/diet/FoodScanner';
+import type { ScanRecord } from '@/components/diet/FoodScanResult';
 import { toast } from 'sonner';
 import {
-  groupScans, mapGroupToFood, findDuplicates,
+  groupScans, mapGroupToFood, productKey, findDuplicates,
   type ProductGroup, type ReviewStatus, type FoodDraft, type ExistingFood, type ScanRow,
 } from '@/lib/foodScanReview';
 
@@ -56,8 +58,18 @@ const ScannedFoodsPanel: React.FC = () => {
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<{ group: ProductGroup; draft: FoodDraft } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
-  const { data, isLoading } = useScannedFoodsData();
+  const { data, isLoading, refetch } = useScannedFoodsData();
+
+  const onAdminScanned = async (rec: ScanRecord) => {
+    const key = productKey(rec as any);
+    const res = await refetch();
+    const fresh = res.data;
+    const g = fresh?.groups.find((x) => x.key === key);
+    if (!g) return toast.error('Produto escaneado, mas não encontrado na lista.');
+    setEditing({ group: g, draft: mapGroupToFood(g) });
+  };
 
   const statusOf = (k: string): ReviewStatus => (data?.reviews.get(k)?.status ?? 'pendente') as ReviewStatus;
 
@@ -92,6 +104,15 @@ const ScannedFoodsPanel: React.FC = () => {
   const restore = async (g: ProductGroup) => {
     try { await saveReview(g, 'pendente', null); toast.success('Voltou para pendentes'); }
     catch (e: any) { toast.error(e.message ?? 'Erro'); }
+  };
+
+  const editingStatus: ReviewStatus = editing ? statusOf(editing.group.key) : 'pendente';
+  const reviewed = editingStatus !== 'pendente';
+
+  const ignoreEditing = async () => {
+    if (!editing) return;
+    await ignore(editing.group);
+    setEditing(null);
   };
 
   const duplicates = editing && data ? findDuplicates(editing.draft, data.foods) : [];
@@ -135,6 +156,9 @@ const ScannedFoodsPanel: React.FC = () => {
   return (
     <>
       <div className="space-y-4">
+        <Button className="w-full sm:w-auto" onClick={() => setScannerOpen(true)}>
+          <ScanBarcode className="h-4 w-4 mr-2" />Escanear produto
+        </Button>
         <div className="flex flex-wrap gap-2">
           {(['pendente', 'adicionado', 'ignorado'] as ReviewStatus[]).map((s) => (
             <Button key={s} size="sm" variant={filter === s ? 'default' : 'outline'} onClick={() => setFilter(s)}>
@@ -225,12 +249,18 @@ const ScannedFoodsPanel: React.FC = () => {
             <p className="text-xs text-muted-foreground">Fibras, sal e nota não existem no banco de alimentos e não são salvos.</p>
             <Badge variant="outline">Origem: {editing.draft.source}</Badge>
           </div>}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditing(null)}>Cancelar</Button>
-            <Button onClick={submit} disabled={saving}>{duplicates.length ? 'Salvar mesmo assim' : 'Salvar alimento'}</Button>
+          <DialogFooter className="gap-2">
+            {reviewed ? (
+              <Button variant="outline" onClick={() => setEditing(null)}>Fechar</Button>
+            ) : <>
+              <Button variant="outline" onClick={() => setEditing(null)}>Cancelar</Button>
+              <Button variant="outline" onClick={ignoreEditing}><EyeOff className="h-4 w-4 mr-1" />Ignorar</Button>
+              <Button onClick={submit} disabled={saving}>{duplicates.length ? 'Salvar mesmo assim' : 'Salvar alimento'}</Button>
+            </>}
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <FoodScanner open={scannerOpen} onOpenChange={setScannerOpen} mode="admin" onAdminScanned={onAdminScanned} />
     </>
   );
 };
