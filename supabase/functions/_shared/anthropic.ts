@@ -154,7 +154,10 @@ function adaptStream(response: Response, jsonMode: boolean, schema: any): Respon
     if (chunk.type === "error") {
       const body = JSON.stringify(chunk);
       console.error("Anthropic error", 200, body);
-      throw anthropicError(500, body);
+      const type = chunk.error?.type;
+      const status = type === "rate_limit_error" ? 429 : type === "overloaded_error" ? 529
+        : type === "authentication_error" ? 401 : type === "permission_error" ? 403 : 500;
+      throw anthropicError(status, body);
     }
     if (chunk.type === "message_start") usage = chunk.message?.usage ?? {};
     if (chunk.type === "content_block_start") {

@@ -985,11 +985,11 @@ serve(async (req) => {
             ok: false,
             resp: new Response(
               JSON.stringify({
-                error: aborted ? "Geração alternativa cancelada." : "Falha de conexão com a IA.",
+                error: aborted ? "Geração alternativa cancelada." : "Não foi possível consultar a IA agora.",
                 retryable: !aborted,
                 error_code: aborted ? "aborted" : "upstream_error",
               }),
-              { status: aborted ? 499 : 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+              { status: aborted ? 499 : anthropicErrorStatus(error), headers: { ...corsHeaders, "Content-Type": "application/json" } },
             ),
           };
         }

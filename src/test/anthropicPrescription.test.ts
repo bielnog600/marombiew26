@@ -13,7 +13,7 @@ const code = ts.transpile(source, { target: ts.ScriptTarget.ES2022, module: ts.M
 const plainResponse = { content: [{ type: "text", text: "Resposta" }], stop_reason: "end_turn", usage: { input_tokens: 10, output_tokens: 5 } };
 
 function setup(response: unknown = plainResponse, status = 200) {
-  const fetch = vi.fn(async () => response instanceof Response ? response : new Response(JSON.stringify(response), { status }));
+  const fetch = vi.fn(async (_url: string, _init: RequestInit) => response instanceof Response ? response : new Response(JSON.stringify(response), { status }));
   const error = vi.fn();
   const exports: any = {};
   const env = vi.fn((name: string) => name === "ANTHROPIC_API_KEY" ? "test-secret" : undefined);
@@ -31,7 +31,7 @@ function sse(events: unknown[], split = 11) {
   return new Response(new ReadableStream({ start(controller) {
     for (let i = 0; i < bytes.length; i += split) controller.enqueue(bytes.slice(i, i + split));
     controller.close();
-  } }));
+  } }) as unknown as BodyInit);
 }
 const start = { type: "message_start", message: { usage: { input_tokens: 10, output_tokens: 1 } } };
 const stop = [{ type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 5 } }, { type: "message_stop" }];
@@ -123,6 +123,12 @@ describe("official Anthropic prescription boundary", () => {
     ctx.fetch.mockRejectedValueOnce(new DOMException("cancelled", "AbortError"));
     await expect(ctx.call({ messages, max_tokens: 24000 }, controller.signal)).rejects.toMatchObject({ name: "AbortError" });
     expect(ctx.fetch.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
+  });
+
+  it("maps Anthropic rate-limit SSE events without losing the failure", async () => {
+    const ctx = setup(sse([start, { type: "error", error: { type: "rate_limit_error", message: "limit" } }]));
+    await expect((await ctx.call({ messages, max_tokens: 4000, stream: true })).text()).rejects.toMatchObject({ status: 429, message: "Muitas solicitações agora. Tente de novo em instantes." });
+    expect(ctx.error).toHaveBeenCalledWith("Anthropic error", 200, expect.stringContaining("rate_limit_error"));
   });
 
   it.each([
