@@ -1,3 +1,4 @@
+import { buildTargetedCorrectionPrompt, mergeCorrectedDays } from "./targetedCorrection.ts";
 import { anthropicChat, anthropicFailure, anthropicErrorStatus, PRESCRIPTION_MODEL, AI_MODELS, createRoutingMetadata } from "../_shared/anthropic.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import {
@@ -575,6 +576,7 @@ async function callStructuredModel({
 async function generateStructuredWorkoutWithVariation(args: {
   apiKey: string;
   systemPrompt: string;
+  stableSystemPrompt?: string;
   messages: Array<{ role: string; content: string }>;
   studentId?: string;
   intensity: VariationIntensity;
@@ -738,6 +740,7 @@ async function generateStructuredWorkoutWithVariation(args: {
   const first = await callStructuredModel({
     apiKey: args.apiKey,
     systemPrompt: args.systemPrompt,
+    stableSystemPrompt: args.stableSystemPrompt,
     messages: args.messages,
     extraSystem: variationBlock,
     modelToUse: AI_MODELS.primary,
@@ -791,6 +794,7 @@ async function generateStructuredWorkoutWithVariation(args: {
     const second = await callStructuredModel({
       apiKey: args.apiKey,
       systemPrompt: args.systemPrompt,
+      stableSystemPrompt: args.stableSystemPrompt,
       messages: args.messages,
       extraSystem: retryBlock,
       modelToUse: AI_MODELS.fallback,
@@ -1726,8 +1730,8 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
 
       return await generateStructuredWorkoutWithVariation({
         apiKey: ANTHROPIC_API_KEY,
+        stableSystemPrompt: systemWithCatalog,
         systemPrompt:
-          systemWithCatalog +
           contextMessage +
           restrictionBlock +
           buildExerciseProfilePromptBlock(exerciseProfile) +
