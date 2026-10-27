@@ -1,6 +1,7 @@
 # Architecture rules
 
 - Isolate official Anthropic prescription calls in `_shared/anthropic.ts`, adapting tools, structured JSON, usage and SSE to existing contracts; keep the OpenAI router and unrelated features unchanged so migrating prescriptions does not migrate assessment or catalog features.
+- Disable thinking explicitly at the scanner and prescription Anthropic boundaries so existing output budgets remain available for text/tools; log empty-response metadata without reasoning content and preserve valid tool-only responses.
 
 - Isolate 3D scan loading, geometry and private persistence behind the AI assessment modal's lazy boundary; keep consent/import provenance server-stamped and scan perimeters distinct from visual estimates to avoid changing other assessment flows.
 - Keep workout groups and method parameters optional in structured plans; share set-part controls and group transitions between student/admin execution, storing parts in each existing set log while primary columns remain progression inputs.

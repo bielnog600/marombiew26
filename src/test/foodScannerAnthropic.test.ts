@@ -40,6 +40,7 @@ describe('food scanner direct Anthropic', () => {
     const body = JSON.parse(String(options.body));
     expect(body.model).toBe('claude-haiku-5-5');
     expect(body.max_tokens).toBe(1200);
+    expect(body.thinking).toEqual({ type: 'disabled' });
     expect(body.messages[0].content[0]).toEqual({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'dGVzdA==' } });
     expect(body.messages[0].content[1].type).toBe('text');
   });
@@ -49,6 +50,16 @@ describe('food scanner direct Anthropic', () => {
     expect(await (await ctx.request({ action: 'evaluate', product: {} })).json()).toEqual({ evaluation: 'Avaliação de teste' });
     const [, options] = ctx.fetch.mock.calls[0] as unknown as [string, RequestInit];
     expect(JSON.parse(String(options.body)).max_tokens).toBe(400);
+    expect(JSON.parse(String(options.body)).thinking).toEqual({ type: 'disabled' });
+  });
+
+  it('logs empty text diagnostics without exposing thinking content', async () => {
+    const usage = { output_tokens: 400 };
+    const ctx = setup(200, { content: [{ type: 'thinking', thinking: 'private reasoning' }], stop_reason: 'max_tokens', usage });
+    const result = await ctx.request({ action: 'evaluate', product: {} });
+    expect(result.status).toBe(500);
+    expect(ctx.error).toHaveBeenCalledWith('Anthropic error', 200, 'empty text response', { stop_reason: 'max_tokens', content_types: ['thinking'], usage });
+    expect(JSON.stringify(ctx.error.mock.calls)).not.toContain('private reasoning');
   });
 
   it.each([

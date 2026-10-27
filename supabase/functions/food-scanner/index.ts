@@ -22,7 +22,7 @@ async function anthropic(content: unknown, maxTokens: number) {
         'anthropic-version': '2023-06-01',
         'content-type': 'application/json',
       },
-      body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, messages: [{ role: 'user', content }] }),
+      body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, thinking: { type: 'disabled' }, messages: [{ role: 'user', content }] }),
     });
   } catch {
     console.error('Anthropic error', 'network failure');
@@ -43,7 +43,14 @@ async function anthropic(content: unknown, maxTokens: number) {
   const text = Array.isArray(data.content)
     ? data.content.filter((b: any) => b?.type === 'text').map((b: any) => b.text).join('')
     : '';
-  if (!text.trim()) throw new Error('Não foi possível consultar a IA agora.');
+  if (!text.trim()) {
+    console.error('Anthropic error', res.status, 'empty text response', {
+      stop_reason: data.stop_reason,
+      content_types: Array.isArray(data.content) ? data.content.map((b: any) => b?.type) : [],
+      usage: data.usage,
+    });
+    throw new Error('Não foi possível consultar a IA agora.');
+  }
   return text.trim();
 }
 

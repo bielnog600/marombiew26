@@ -44,7 +44,7 @@ describe("official Anthropic prescription boundary", () => {
     expect(url).toBe("https://api.anthropic.com/v1/messages");
     expect(init.headers).toEqual({ "x-api-key": "test-secret", "anthropic-version": "2023-06-01", "content-type": "application/json" });
     const sent = JSON.parse(String(init.body));
-    expect(sent).toEqual({ model: "claude-sonnet-5", max_tokens: 4000, stream: false, system: [{ type: "text", text: "Prompt exato" }], messages: [messages[1]], temperature: 0.4 });
+    expect(sent).toEqual({ model: "claude-sonnet-5", max_tokens: 4000, thinking: { type: "disabled" }, stream: false, system: [{ type: "text", text: "Prompt exato" }], messages: [messages[1]], temperature: 0.4 });
     expect(ctx.env).toHaveBeenCalledWith("ANTHROPIC_API_KEY");
     expect(data.choices[0].message.content).toBe("Resposta");
     expect(data.usage).toEqual({ prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 });
@@ -77,6 +77,19 @@ describe("official Anthropic prescription boundary", () => {
     const data = await (await ctx.call({ messages, max_tokens: 2000, response_format: { type: "json_object" } })).json();
     expect(JSON.parse(data.choices[0].message.content)).toEqual({ actions: [], summary: "Teste" });
     expect(data.choices[0].message.tool_calls).toBeUndefined();
+  });
+
+  it('rejects thinking-only responses and logs block types and stop reason', async () => {
+    const ctx = setup({ content: [{ type: 'thinking', thinking: 'private reasoning' }], stop_reason: 'max_tokens', usage: { output_tokens: 400 } });
+    await expect(ctx.call({ messages, max_tokens: 400 })).rejects.toThrow('Não foi possível consultar a IA agora.');
+    expect(ctx.error).toHaveBeenCalledWith('Anthropic error', 200, 'empty response', { stop_reason: 'max_tokens', content_types: ['thinking'], usage: { output_tokens: 400 } });
+    expect(JSON.stringify(ctx.error.mock.calls)).not.toContain('private reasoning');
+  });
+
+  it('rejects thinking-only streams rather than returning a successful empty answer', async () => {
+    const ctx = setup(sse([start, { type: 'content_block_start', index: 0, content_block: { type: 'thinking' } }, ...stop]));
+    await expect((await ctx.call({ messages, max_tokens: 400, stream: true })).text()).rejects.toThrow('Não foi possível consultar a IA agora.');
+    expect(ctx.error).toHaveBeenCalledWith('Anthropic error', 200, 'empty response', expect.objectContaining({ stop_reason: 'end_turn', content_types: ['thinking'] }));
   });
 
   it("keeps strict original schema validation after Anthropic bound transformation", async () => {
