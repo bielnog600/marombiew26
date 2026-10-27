@@ -938,8 +938,8 @@ serve(async (req) => {
 
         const cleanSystemPrompt = stripSingleMenuRules(sanitizeStructuredPrompt(SYSTEM_PROMPT));
 
-        const jsonSystem =
-          cleanSystemPrompt +
+        // Prompt caching: fixed SYSTEM_PROMPT first (byte-identical), student data after.
+        const jsonSystemTail =
           dailyMaterializationRule +
           stripSingleMenuRules(sanitizeStructuredPrompt(contextMessage)) +
           layeredInstructions +
@@ -968,7 +968,10 @@ serve(async (req) => {
             body: JSON.stringify({
               model: modelToUse,
               messages: [
-                { role: "system", content: jsonSystem },
+                { role: "system", content: [
+                  { type: "text", text: cleanSystemPrompt, cache_control: { type: "ephemeral" } },
+                  { type: "text", text: jsonSystemTail },
+                ] },
                 ...messages,
               ],
               max_completion_tokens: 24000,
