@@ -16,6 +16,9 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   dailyKcal?: number | null;
+  /** 'admin': sem avaliação da IA; entrega o scan via onAdminScanned e fecha. */
+  mode?: 'aluno' | 'admin';
+  onAdminScanned?: (rec: ScanRecord) => void;
 }
 
 const fileToDataUrl = (file: File) =>
@@ -36,7 +39,7 @@ const fileToDataUrl = (file: File) =>
     img.src = url;
   });
 
-export default function FoodScanner({ open, onOpenChange, dailyKcal }: Props) {
+export default function FoodScanner({ open, onOpenChange, dailyKcal, mode = 'aluno', onAdminScanned }: Props) {
   const { user } = useAuth();
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
@@ -77,6 +80,12 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal }: Props) {
         .single();
       if (error) throw error;
       const rec = data as unknown as ScanRecord;
+      if (mode === 'admin') {
+        stopCamera();
+        onOpenChange(false);
+        onAdminScanned?.(rec);
+        return;
+      }
       setResult(rec);
       // Avaliação da IA em segundo plano
       supabase.functions
@@ -91,7 +100,7 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal }: Props) {
           setResult((r) => (r && r.id === rec.id ? { ...r, ai_evaluation: text } : r));
         });
     },
-    [user, dailyKcal],
+    [user, dailyKcal, mode, onAdminScanned, onOpenChange, stopCamera],
   );
 
   const lookup = useCallback(
