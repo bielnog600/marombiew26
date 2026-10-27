@@ -8,7 +8,7 @@ const source = readFileSync('supabase/functions/food-scanner/index.ts', 'utf8')
   .replace(/^import .*;\n/gm, '');
 const code = ts.transpile(source, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None });
 
-function setup(status = 200, response: unknown = { choices: [{ message: { content: 'Avaliação de teste' } }] }) {
+function setup(status = 200, response: unknown = { content: [{ type: 'text', text: 'Avaliação ' }, { type: 'text', text: 'de teste' }] }) {
   let handler: (req: Request) => Promise<Response> = async () => new Response();
   const query = {
     select: () => query, eq: () => query, order: () => query, limit: () => query,
@@ -27,40 +27,43 @@ function setup(status = 200, response: unknown = { choices: [{ message: { conten
   return { request, fetch, error };
 }
 
-describe('food scanner direct OpenAI', () => {
-  it('uses the existing mini model, data URL and 1200 output tokens for extraction', async () => {
-    const ctx = setup(200, { choices: [{ message: { content: '{"product_name":"Teste"}' } }] });
-    const image = 'data:image/png;base64,dGVzdA==';
-    const result = await ctx.request({ action: 'extract', image });
+describe('food scanner direct Anthropic', () => {
+  it('sends base64 image block, Claude Haiku 5.5 and 1200 output tokens for extraction', async () => {
+    const ctx = setup(200, { content: [{ type: 'text', text: '{"product_name":"Teste"}' }] });
+    const result = await ctx.request({ action: 'extract', image: 'data:image/png;base64,dGVzdA==' });
     expect(await result.json()).toEqual({ product: { product_name: 'Teste' } });
     const [url, options] = ctx.fetch.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe('https://api.openai.com/v1/chat/completions');
+    expect(url).toBe('https://api.anthropic.com/v1/messages');
+    const headers = options.headers as Record<string, string>;
+    expect(headers['anthropic-version']).toBe('2023-06-01');
+    expect(headers['x-api-key']).toBe('test-only');
     const body = JSON.parse(String(options.body));
-    expect(body.model).toBe('gpt-4o-mini');
+    expect(body.model).toBe('claude-haiku-5-5');
     expect(body.max_tokens).toBe(1200);
-    expect(body.messages[0].content[0]).toEqual({ type: 'image_url', image_url: { url: image } });
+    expect(body.messages[0].content[0]).toEqual({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'dGVzdA==' } });
+    expect(body.messages[0].content[1].type).toBe('text');
   });
 
-  it('keeps evaluation response and 400 output tokens', async () => {
+  it('joins text blocks and keeps 400 output tokens for evaluation', async () => {
     const ctx = setup();
     expect(await (await ctx.request({ action: 'evaluate', product: {} })).json()).toEqual({ evaluation: 'Avaliação de teste' });
     const [, options] = ctx.fetch.mock.calls[0] as unknown as [string, RequestInit];
     expect(JSON.parse(String(options.body)).max_tokens).toBe(400);
-    expect(JSON.parse(String(options.body)).model).toBe('gpt-4o-mini');
   });
 
   it.each([
-    [429, 'rate_limit_exceeded', 'Muitas solicitações agora. Tente de novo em instantes.', 429],
-    [401, 'invalid_api_key', 'Créditos de IA esgotados.', 401],
-    [402, 'payment_required', 'Créditos de IA esgotados.', 402],
-    [429, 'insufficient_quota', 'Créditos de IA esgotados.', 402],
-    [500, 'server_error', 'Não foi possível consultar a IA agora.', 500],
-  ])('maps upstream %s / %s without retries', async (status, code, message, outputStatus) => {
-    const ctx = setup(status, { error: { code } });
+    [429, 'rate_limit_error', 'Muitas solicitações agora. Tente de novo em instantes.', 429],
+    [401, 'authentication_error', 'Créditos de IA esgotados.', 402],
+    [403, 'permission_error', 'Créditos de IA esgotados.', 402],
+    [400, 'Your credit balance is too low', 'Créditos de IA esgotados.', 402],
+    [529, 'overloaded_error', 'Não foi possível consultar a IA agora.', 500],
+    [500, 'api_error', 'Não foi possível consultar a IA agora.', 500],
+  ])('maps upstream %s / %s', async (status, msg, message, outputStatus) => {
+    const ctx = setup(status, { type: 'error', error: { type: 'x', message: msg } });
     const result = await ctx.request({ action: 'evaluate' });
     expect(result.status).toBe(outputStatus);
     expect(await result.json()).toEqual({ error: message });
     expect(ctx.fetch).toHaveBeenCalledTimes(1);
-    expect(ctx.error).toHaveBeenCalledWith('OpenAI error', status, JSON.stringify({ error: { code } }));
+    expect(ctx.error).toHaveBeenCalledWith('Anthropic error', status, expect.any(String));
   });
 });

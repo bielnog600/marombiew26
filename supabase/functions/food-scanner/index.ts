@@ -4,45 +4,45 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 const FIELDS =
   'product_name,brands,image_front_url,nutriments,nutriscore_grade,nutriscore_score,nova_group,additives_tags,additives_n,ingredients_text,labels_tags,quantity,serving_size,serving_quantity';
 const CACHE_DAYS = 30;
-const MODEL = 'gpt-4o-mini';
+const MODEL = 'claude-haiku-5-5';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-async function openai(content: unknown, maxTokens: number) {
-  const apiKey = Deno.env.get('OPENAI_API_KEY');
+async function anthropic(content: unknown, maxTokens: number) {
+  const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
   if (!apiKey) throw new Error('Não foi possível consultar a IA agora.');
   let res: Response;
   try {
-    res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, messages: [{ role: 'user', content }] }),
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, messages: [{ role: 'user', content }] }),
     });
   } catch {
-    console.error('OpenAI error', 'network failure');
+    console.error('Anthropic error', 'network failure');
     throw new Error('Não foi possível consultar a IA agora.');
   }
   if (!res.ok) {
     const t = await res.text();
-    console.error('OpenAI error', res.status, t);
-    let insufficientQuota = false;
-    try {
-      const error = JSON.parse(t)?.error;
-      insufficientQuota = error?.code === 'insufficient_quota' || error?.type === 'insufficient_quota';
-    } catch { /* Non-JSON upstream errors use the HTTP status. */ }
+    console.error('Anthropic error', res.status, t);
+    const billing = /credit|billing/i.test(t);
+    const credits = billing || [401, 402, 403].includes(res.status);
     const msg =
-      insufficientQuota || res.status === 401 || res.status === 402 ? 'Créditos de IA esgotados.'
-      : res.status === 429 ? 'Muitas solicitações agora. Tente de novo em instantes.'
+      res.status === 429 ? 'Muitas solicitações agora. Tente de novo em instantes.'
+      : credits ? 'Créditos de IA esgotados.'
       : 'Não foi possível consultar a IA agora.';
-    throw Object.assign(new Error(msg), { status: insufficientQuota ? 402 : res.status });
+    throw Object.assign(new Error(msg), { status: res.status === 429 ? 429 : credits ? 402 : res.status });
   }
   const data = await res.json();
-  const text = data.choices?.[0]?.message?.content;
-  if (typeof text !== 'string' || !text.trim()) throw new Error('Não foi possível consultar a IA agora.');
+  const text = Array.isArray(data.content)
+    ? data.content.filter((b: any) => b?.type === 'text').map((b: any) => b.text).join('')
+    : '';
+  if (!text.trim()) throw new Error('Não foi possível consultar a IA agora.');
   return text.trim();
 }
 
@@ -83,9 +83,9 @@ Deno.serve(async (req) => {
       const image = String(body.image ?? '');
       const m = image.match(/^data:(image\/[a-z+]+);base64,(.+)$/);
       if (!m) return json({ error: 'Imagem inválida' }, 400);
-      const text = await openai(
+      const text = await anthropic(
         [
-          { type: 'image_url', image_url: { url: image } },
+          { type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } },
           {
             type: 'text',
             text: `Leia a tabela nutricional e a lista de ingredientes deste rótulo. Converta tudo para 100 g/ml. Responda SOMENTE JSON:
@@ -114,7 +114,7 @@ Objetivo do aluno: ${prof?.objetivo ?? 'não informado'}. Restrições: ${prof?.
 Dieta atual (resumo): ${String(diet?.conteudo ?? 'sem dieta publicada').slice(0, 2500)}
 
 Responda em português do Brasil, linguagem neutra em gênero, no máximo 4 frases, direto, tom de personal real, sem motivação genérica: diga se cabe ou não na dieta, em qual refeição e quantidade, e qual troca faria. Separe nota de qualidade de utilidade para o objetivo. Sem markdown.`;
-      const evaluation = await openai(prompt, 400);
+      const evaluation = await anthropic(prompt, 400);
       return json({ evaluation });
     }
 
