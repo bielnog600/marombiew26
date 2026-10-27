@@ -41,7 +41,7 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal }: Props) {
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
   const lookupRef = useRef<(code: string) => void>(() => {});
-  const camRetryRef = useRef(0);
+  const [camRetry, setCamRetry] = useState(0);
   const [tab, setTab] = useState('scan');
   const [manual, setManual] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
