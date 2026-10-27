@@ -1,5 +1,11 @@
 # Roadmap
 
+## Anthropic oficial — treino, dieta, cardio e scanner
+- [ ] Inventariar chamadas, provedores, modelos e limites antes de editar treino/dieta; listar demais features excluídas.
+- [ ] Scanner: Anthropic oficial, modelo solicitado e log Anthropic error; lookup intacto.
+- [ ] Treino/dieta/cardio: helper compartilhado com prompts, schemas, tools, streams e limites preservados.
+- [ ] Testar e implantar funções alteradas; nenhuma chamada real até confirmação da chave oficial.
+
 ## Modo Treino admin — agrupar e editar métodos no modal
 - [x] "Agrupar com…" no card sem grupo: par escolhido no modal vira A/B seguido, com ajuste do B para o número de séries do A preservando séries registradas.
 - [x] "Editar grupo" no card do par: tipo, pausa A→B (0–10s), descanso do par, desagrupar e editor completo de A e B (modo de séries, método, reps, RIR, descanso, variação).
