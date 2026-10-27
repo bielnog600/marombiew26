@@ -15,14 +15,15 @@ const plainResponse = { content: [{ type: "text", text: "Resposta" }], stop_reas
 function setup(response: unknown = plainResponse, status = 200) {
   const fetch = vi.fn(async (_url: string, _init: RequestInit) => response instanceof Response ? response : new Response(JSON.stringify(response), { status }));
   const error = vi.fn();
+  const log = vi.fn();
   const exports: any = {};
   const env = vi.fn((name: string) => name === "ANTHROPIC_API_KEY" ? "test-secret" : undefined);
   runInNewContext(code, {
     exports, Ajv, Deno: { env: { get: env } }, fetch, Response, TextEncoder, TextDecoder, TransformStream,
-    console: { error }, originalRoutingMetadata: () => ({ routing: { primaryModel: "old" }, usage: {} }),
+    console: { error, log }, originalRoutingMetadata: () => ({ routing: { primaryModel: "old" }, usage: {} }),
   });
   const call = (body: unknown, signal?: AbortSignal) => exports.anthropicChat({ body: JSON.stringify(body), signal });
-  return { exports, fetch, error, env, call };
+  return { exports, fetch, error, log, env, call };
 }
 
 const messages = [{ role: "system", content: "Prompt exato" }, { role: "user", content: "Entrada exata" }];
@@ -47,7 +48,7 @@ describe("official Anthropic prescription boundary", () => {
     expect(sent).toEqual({ model: "claude-sonnet-5", max_tokens: 4000, thinking: { type: "disabled" }, stream: false, system: [{ type: "text", text: "Prompt exato" }], messages: [messages[1]], temperature: 0.4 });
     expect(ctx.env).toHaveBeenCalledWith("ANTHROPIC_API_KEY");
     expect(data.choices[0].message.content).toBe("Resposta");
-    expect(data.usage).toEqual({ prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 });
+    expect(data.usage).toEqual({ prompt_tokens: 10, completion_tokens: 5, total_tokens: 15, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 });
   });
 
   it.each([400, 1200, 2000, 4000, 8000, 16000, 24000])("preserves the %s output budget", async (budget) => {
@@ -108,7 +109,7 @@ describe("official Anthropic prescription boundary", () => {
     const stream = await (await ctx.call({ messages, max_tokens: 16000, stream: true })).text();
     const events = stream.split("\n\n").filter(Boolean).map((x) => x.slice(6));
     expect(JSON.parse(events[0]).choices[0].delta.content).toBe("Olá, refeição");
-    expect(JSON.parse(events[1]).usage).toEqual({ prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 });
+    expect(JSON.parse(events[1]).usage).toEqual({ prompt_tokens: 10, completion_tokens: 5, total_tokens: 15, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 });
     expect(JSON.parse(events[1]).choices[0].finish_reason).toBe("stop");
     expect(events.at(-1)).toBe("[DONE]");
   });
@@ -166,5 +167,20 @@ describe("official Anthropic prescription boundary", () => {
     const ctx = setup();
     expect(ctx.exports.AI_MODELS).toEqual({ primary: "claude-sonnet-5", fallback: "claude-sonnet-5" });
     expect(ctx.exports.createRoutingMetadata().routing.primaryModel).toBe("claude-sonnet-5");
+  });
+
+  it("keeps the cached stable prefix first and logs cache tokens separately", async () => {
+    const usage = { input_tokens: 300, cache_creation_input_tokens: 0, cache_read_input_tokens: 20000, output_tokens: 50 };
+    const ctx = setup({ ...plainResponse, usage });
+    const system = { role: "system", content: [
+      { type: "text", text: "Instruções + catálogo", cache_control: { type: "ephemeral" } },
+      { type: "text", text: "Dados do aluno" },
+    ] };
+    const data = await (await ctx.call({ messages: [system, messages[1]], max_tokens: 100 })).json();
+    const sent = JSON.parse(String(ctx.fetch.mock.calls[0]?.[1]?.body));
+    expect(sent.system).toEqual(system.content);
+    expect(data.usage.cache_read_input_tokens).toBe(20000);
+    expect(data.usage.prompt_tokens).toBe(20300);
+    expect(ctx.log).toHaveBeenCalledWith("Anthropic usage", JSON.stringify(usage));
   });
 });

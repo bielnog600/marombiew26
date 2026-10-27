@@ -1,3 +1,4 @@
+import { buildTargetedCorrectionPrompt, mergeCorrectedDays } from "./targetedCorrection.ts";
 import { anthropicChat, anthropicFailure, anthropicErrorStatus, PRESCRIPTION_MODEL, AI_MODELS, createRoutingMetadata } from "../_shared/anthropic.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import {
@@ -429,16 +430,20 @@ async function consumeStructuredChatStream(response: Response): Promise<Structur
 async function callStructuredModel({
   apiKey,
   systemPrompt,
+  stableSystemPrompt,
   messages,
   extraSystem,
   modelToUse,
   reason,
   attempts,
+  transform,
 }: StructuredArgs & { 
+  stableSystemPrompt?: string;
   extraSystem?: string; 
   modelToUse: string; 
   reason: string;
   attempts: AIAttemptMetadata[];
+  transform?: (parsed: any) => any;
 }): Promise<
   | { ok: true; data: any }
   | { ok: false; response: Response; error_code?: string }
@@ -446,8 +451,18 @@ async function callStructuredModel({
   const start = Date.now();
   
   // Limpeza de instruções de formato incompatíveis
-  const cleanSystemPrompt = sanitizeStructuredPrompt(systemPrompt)
+  const clean = (prompt: string) => sanitizeStructuredPrompt(prompt)
     .replace(/Para aluno intermediário\/avançado, usar no mínimo 2 técnicas avançadas por treino do dia\./gi, "Técnicas avançadas são opcionais e só devem ser utilizadas quando coerentes com nível, fase, recuperação, objetivo e segurança. Não existe quantidade mínima obrigatória por treino.");
+  const cleanSystemPrompt = clean(systemPrompt);
+
+  // Prompt caching: fixed instructions + catalog + output rules come first and
+  // are byte-identical across calls; student data and corrections follow.
+  const systemContent = stableSystemPrompt !== undefined
+    ? [
+        { type: "text", text: clean(stableSystemPrompt) + "\n\n" + JSON_OUTPUT_INSTRUCTIONS, cache_control: { type: "ephemeral" } },
+        { type: "text", text: cleanSystemPrompt + (extraSystem ? "\n\n" + extraSystem : ""), cache_control: { type: "ephemeral" } },
+      ]
+    : cleanSystemPrompt + "\n\n" + JSON_OUTPUT_INSTRUCTIONS + (extraSystem ? "\n\n" + extraSystem : "");
 
   const upstream = await anthropicChat({
     method: "POST",
@@ -457,11 +472,7 @@ async function callStructuredModel({
       messages: [
         {
           role: "system",
-          content:
-            cleanSystemPrompt +
-            "\n\n" +
-            JSON_OUTPUT_INSTRUCTIONS +
-            (extraSystem ? "\n\n" + extraSystem : ""),
+          content: systemContent,
         },
         ...messages,
       ],
@@ -545,6 +556,7 @@ async function callStructuredModel({
     };
   }
 
+  if (transform) parsed = transform(parsed);
   const validation = validateAndNormalizePlan(parsed);
   if (!validation.ok) {
     console.error("trainer-agent[json] validation error:", validation.error);
@@ -564,6 +576,7 @@ async function callStructuredModel({
 async function generateStructuredWorkoutWithVariation(args: {
   apiKey: string;
   systemPrompt: string;
+  stableSystemPrompt?: string;
   messages: Array<{ role: string; content: string }>;
   studentId?: string;
   intensity: VariationIntensity;
@@ -727,6 +740,7 @@ async function generateStructuredWorkoutWithVariation(args: {
   const first = await callStructuredModel({
     apiKey: args.apiKey,
     systemPrompt: args.systemPrompt,
+    stableSystemPrompt: args.stableSystemPrompt,
     messages: args.messages,
     extraSystem: variationBlock,
     modelToUse: AI_MODELS.primary,
@@ -780,6 +794,7 @@ async function generateStructuredWorkoutWithVariation(args: {
     const second = await callStructuredModel({
       apiKey: args.apiKey,
       systemPrompt: args.systemPrompt,
+      stableSystemPrompt: args.stableSystemPrompt,
       messages: args.messages,
       extraSystem: retryBlock,
       modelToUse: AI_MODELS.fallback,
@@ -925,16 +940,25 @@ async function generateStructuredWorkoutWithVariation(args: {
     }
 
     const retryNotes = retryNotesArr.join(" ");
-    const retryBlock = workoutVariationPrompt(intensity, historySummary, retryNotes);
 
+    // Targeted correction: send the first candidate + objective violations and
+    // receive only the corrected days. Same system prefix as the first call
+    // (cache hit); the merged plan goes through ALL validations again below.
+    const baseCandidate = evaluation.clone;
     const second = await callStructuredModel({
       apiKey: args.apiKey,
       systemPrompt: args.systemPrompt,
-      messages: args.messages,
-      extraSystem: retryBlock,
+      stableSystemPrompt: args.stableSystemPrompt,
+      messages: [
+        ...args.messages,
+        { role: "assistant", content: JSON.stringify(baseCandidate) },
+        { role: "user", content: buildTargetedCorrectionPrompt(retryNotes) },
+      ],
+      extraSystem: variationBlock,
       modelToUse: AI_MODELS.fallback,
-      reason: fallbackReason || "retry",
-      attempts: modelAttempts
+      reason: `targeted_correction:${fallbackReason || "retry"}`,
+      attempts: modelAttempts,
+      transform: (patch) => mergeCorrectedDays(baseCandidate, patch),
     });
 
     if (!second.ok) {
@@ -1706,8 +1730,8 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
 
       return await generateStructuredWorkoutWithVariation({
         apiKey: ANTHROPIC_API_KEY,
+        stableSystemPrompt: systemWithCatalog,
         systemPrompt:
-          systemWithCatalog +
           contextMessage +
           restrictionBlock +
           buildExerciseProfilePromptBlock(exerciseProfile) +

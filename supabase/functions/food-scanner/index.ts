@@ -121,8 +121,13 @@ Nota de qualidade: ${body.score ?? '?'}/100 (${body.label ?? ''}). Aditivos: ${(
 Objetivo do aluno: ${prof?.objetivo ?? 'não informado'}. Restrições: ${prof?.restricoes ?? 'nenhuma'}. Meta de hoje: ${body.dailyKcal ?? '?'} kcal.
 Dieta atual (resumo): ${String(diet?.conteudo ?? 'sem dieta publicada').slice(0, 2500)}
 
-Responda em português do Brasil, linguagem neutra em gênero, no máximo 4 frases, direto, tom de personal real, sem motivação genérica: diga se cabe ou não na dieta, em qual refeição e quantidade, e qual troca faria. Separe nota de qualidade de utilidade para o objetivo. Sem markdown.`;
-      const evaluation = await anthropic(prompt, 400);
+Responda em português do Brasil, linguagem neutra em gênero, tom de personal real, direto, sem motivação genérica e sem markdown.
+Regras:
+- No máximo 3 frases, sem repetir ideia.
+- Se o produto for infantil (papinha, cereal para bebê, fórmula), suplemento ou bebida alcoólica, diga isso logo na primeira frase.
+- Separe a nota de qualidade da utilidade para o objetivo.
+- Dê UMA recomendação só e clara: se cabe ou não na dieta, em qual refeição, em qual quantidade e qual alimento da dieta ajustar. Nunca dê duas opções nem alternativas contraditórias.`;
+      const evaluation = await anthropic(prompt, 300);
       return json({ evaluation });
     }
 

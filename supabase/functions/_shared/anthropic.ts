@@ -119,9 +119,26 @@ function buildRequest(chat: ChatBody) {
 }
 
 function usageEnvelope(usage: any) {
-  const input = (usage?.input_tokens ?? 0) + (usage?.cache_creation_input_tokens ?? 0) + (usage?.cache_read_input_tokens ?? 0);
+  const cacheCreation = usage?.cache_creation_input_tokens ?? 0;
+  const cacheRead = usage?.cache_read_input_tokens ?? 0;
+  const input = (usage?.input_tokens ?? 0) + cacheCreation + cacheRead;
   const output = usage?.output_tokens ?? 0;
-  return { prompt_tokens: input, completion_tokens: output, total_tokens: input + output };
+  return {
+    prompt_tokens: input,
+    completion_tokens: output,
+    total_tokens: input + output,
+    cache_creation_input_tokens: cacheCreation,
+    cache_read_input_tokens: cacheRead,
+  };
+}
+
+export function logAnthropicUsage(usage: any) {
+  console.log("Anthropic usage", JSON.stringify({
+    input_tokens: usage?.input_tokens ?? 0,
+    cache_creation_input_tokens: usage?.cache_creation_input_tokens ?? 0,
+    cache_read_input_tokens: usage?.cache_read_input_tokens ?? 0,
+    output_tokens: usage?.output_tokens ?? 0,
+  }));
 }
 
 function finishReason(reason: string | undefined) {
@@ -196,6 +213,7 @@ function adaptStream(response: Response, jsonMode: boolean, schema: any): Respon
         if (jsonMode && !text.trim()) throw anthropicError(500, "empty json response");
       }
       stopped = true;
+      logAnthropicUsage(usage);
       send(controller, { choices: [{ index: 0, delta: {}, finish_reason: jsonMode && reason === "tool_use" ? "stop" : finishReason(reason) }], usage: usageEnvelope(usage) });
       controller.enqueue(encoder.encode("data: [DONE]\n\n"));
     }
@@ -254,6 +272,7 @@ export async function anthropicChat(init: RequestInit): Promise<Response> {
   }
   if (chat.stream) return adaptStream(response, jsonMode, schema);
   const data = await response.json();
+  logAnthropicUsage(data.usage);
   const blocks = Array.isArray(data.content) ? data.content : [];
   const jsonBlock = blocks.find((block: any) => block.type === "tool_use" && block.name === JSON_TOOL);
   const content = jsonMode ? (jsonBlock ? JSON.stringify(jsonBlock.input) : "") : blocks.filter((block: any) => block.type === "text").map((block: any) => block.text).join("");
