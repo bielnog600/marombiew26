@@ -1,3 +1,4 @@
+import { anthropicChat, anthropicFailure, anthropicErrorStatus, PRESCRIPTION_MODEL } from "../_shared/anthropic.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -75,8 +76,8 @@ serve(async (req) => {
 
   try {
     const { dayName, currentExercises, instruction, exerciseCatalog, studentContext } = await req.json();
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not configured");
 
     if (!instruction || typeof instruction !== "string") {
       return new Response(JSON.stringify({ error: "instruction é obrigatório" }), {
@@ -124,14 +125,14 @@ serve(async (req) => {
 
     const userMessage = `${currentBlock}${safetyBlock}${catalogBlock}\n\n=== INSTRUÇÃO DO USUÁRIO ===\n${instruction}\n\nRetorne o JSON com as ações.`;
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await anthropicChat({
       method: "POST",
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${ANTHROPIC_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: PRESCRIPTION_MODEL,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
@@ -142,23 +143,7 @@ serve(async (req) => {
       }),
     });
 
-    if (!response.ok) {
-      const t = await response.text();
-      console.error("training-edit-agent OpenAI error:", response.status, t);
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns minutos." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos insuficientes na conta OpenAI." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      return new Response(JSON.stringify({ error: "Erro no gateway de IA" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!response.ok) return await anthropicFailure(response, corsHeaders);
 
     const data = await response.json();
     const raw = data?.choices?.[0]?.message?.content || "{}";
@@ -168,7 +153,7 @@ serve(async (req) => {
     } catch (e) {
       console.error("Failed to parse AI JSON:", raw);
       return new Response(JSON.stringify({ error: "Resposta inválida da IA" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: anthropicErrorStatus(e), headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 

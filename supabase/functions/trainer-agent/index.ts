@@ -1,3 +1,4 @@
+import { anthropicChat, anthropicFailure, anthropicErrorStatus, PRESCRIPTION_MODEL, AI_MODELS, createRoutingMetadata } from "../_shared/anthropic.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import {
   DEFAULT_INTENSITY,
@@ -18,7 +19,7 @@ import {
   snapPlanToCatalog,
   type CatalogEntry,
 } from "../_shared/exerciseCatalog.ts";
-import { AI_MODELS, createRoutingMetadata, type AIAttemptMetadata } from "../_shared/aiModelRouter.ts";
+import type { AIAttemptMetadata } from "../_shared/aiModelRouter.ts";
 import { validateWorkoutRedundancy, enforceVariationIntegrity } from "../_shared/workoutRedundancy.ts";
 import { validateAndNormalizeVariations } from "../_shared/variationSelection.ts";
 import {
@@ -448,7 +449,7 @@ async function callStructuredModel({
   const cleanSystemPrompt = sanitizeStructuredPrompt(systemPrompt)
     .replace(/Para aluno intermediário\/avançado, usar no mínimo 2 técnicas avançadas por treino do dia\./gi, "Técnicas avançadas são opcionais e só devem ser utilizadas quando coerentes com nível, fase, recuperação, objetivo e segurança. Não existe quantidade mínima obrigatória por treino.");
 
-  const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
+  const upstream = await anthropicChat({
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -481,26 +482,11 @@ async function callStructuredModel({
   const durationMs = Date.now() - start;
 
   if (!upstream.ok) {
-    const t = await upstream.text();
-    console.error("trainer-agent[json] gateway error:", upstream.status, t);
     attempts.push({ model: modelToUse, durationMs, reason: `Error: ${upstream.status}` });
-    
     const isRetryable = isRetryableUpstreamStatus(upstream.status);
-
-    return {
-      ok: false,
-      error_code: "upstream_error",
-      response: new Response(
-        JSON.stringify({ 
-          error: upstream.status === 429 ? "Limite de requisições excedido." : "Erro no gateway de IA",
-          error_code: "upstream_error",
-          upstream_status: upstream.status,
-          model: modelToUse,
-          retryable: isRetryable 
-        }),
-        { status: upstream.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      ),
-    };
+    return { ok: false, error_code: "upstream_error", response: await anthropicFailure(upstream, corsHeaders, {
+      error_code: "upstream_error", upstream_status: upstream.status, model: modelToUse, retryable: isRetryable,
+    }) };
   }
 
   let completion: StructuredStreamResult;
@@ -1467,8 +1453,8 @@ serve(async (req) => {
     const exerciseProfile = normalizeExerciseProfile(exercise_profile);
     // Disponibilidade real de equipamento: hard gate determinístico (nunca fuzzy).
     const availableEquipment = mapMachineIdsToEquipmentCapabilities(available_equipment);
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not configured");
 
     let contextMessage = "";
     if (studentContext) {
@@ -1719,7 +1705,7 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
         buildRestrictionQualityPromptBlock(restriction) + buildEvidenceProvenanceBlock(restrictionEvidence);
 
       return await generateStructuredWorkoutWithVariation({
-        apiKey: OPENAI_API_KEY,
+        apiKey: ANTHROPIC_API_KEY,
         systemPrompt:
           systemWithCatalog +
           contextMessage +
@@ -1751,14 +1737,14 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
     }
 
     // Legacy path does not need metadata if zero attempts occurred
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await anthropicChat({
       method: "POST",
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${ANTHROPIC_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: PRESCRIPTION_MODEL,
         messages: [
           { role: "system", content: SYSTEM_PROMPT + contextMessage },
           ...messages,
@@ -1768,23 +1754,7 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
       }),
     });
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns minutos." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos insuficientes na sua conta OpenAI." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const t = await response.text();
-      console.error("OpenAI API error:", response.status, t);
-      return new Response(JSON.stringify({ error: "Erro na API de IA" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!response.ok) return await anthropicFailure(response, corsHeaders);
 
 
     return new Response(response.body, {
@@ -1793,7 +1763,7 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
   } catch (e) {
     console.error("trainer-agent error:", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Erro desconhecido" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: anthropicErrorStatus(e), headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
