@@ -179,7 +179,7 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal }: Props) {
       window.clearTimeout(watchdog);
       stopCamera();
     };
-  }, [open, tab, result, notFound, busy, videoEl, stopCamera]);
+  }, [open, tab, result, notFound, busy, videoEl, stopCamera, camRetry]);
 
   useEffect(() => {
     if (!open || tab !== 'history' || !user) return;
