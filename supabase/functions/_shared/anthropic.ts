@@ -93,7 +93,7 @@ function buildRequest(chat: ChatBody) {
   });
   const jsonMode = chat.response_format?.type === "json_object";
   const schema = chat.response_format?.type === "json_schema" ? chat.response_format.json_schema?.schema : undefined;
-  const body: Record<string, any> = { model: PRESCRIPTION_MODEL, max_tokens: maxTokens, messages, stream: chat.stream === true };
+  const body: Record<string, any> = { model: PRESCRIPTION_MODEL, max_tokens: maxTokens, thinking: { type: 'disabled' }, messages, stream: chat.stream === true };
   if (system.length) body.system = system;
   if (chat.temperature !== undefined) body.temperature = chat.temperature;
   if (schema) body.output_config = { format: { type: "json_schema", schema: supportedSchema(schema) } };
@@ -186,6 +186,11 @@ function adaptStream(response: Response, jsonMode: boolean, schema: any): Respon
       reason = chunk.delta?.stop_reason;
     }
     if (chunk.type === "message_stop") {
+      const hasTool = !jsonMode && Array.from(blocks.values()).some((block) => block?.type === "tool_use");
+      if (!text.trim() && !hasTool) {
+        console.error("Anthropic error", 200, "empty response", { stop_reason: reason, content_types: Array.from(blocks.values()).map((block) => block?.type), usage });
+        if (reason !== "max_tokens") throw anthropicError(500, "empty response");
+      }
       if (reason !== "max_tokens") {
         validateOutput(schema, text);
         if (jsonMode && !text.trim()) throw anthropicError(500, "empty json response");
@@ -252,10 +257,14 @@ export async function anthropicChat(init: RequestInit): Promise<Response> {
   const blocks = Array.isArray(data.content) ? data.content : [];
   const jsonBlock = blocks.find((block: any) => block.type === "tool_use" && block.name === JSON_TOOL);
   const content = jsonMode ? (jsonBlock ? JSON.stringify(jsonBlock.input) : "") : blocks.filter((block: any) => block.type === "text").map((block: any) => block.text).join("");
+  const toolCalls = blocks.filter((block: any) => block.type === "tool_use" && !jsonMode).map((block: any) => ({ id: block.id, type: "function", function: { name: block.name, arguments: JSON.stringify(block.input) } }));
+  if (!content.trim() && !toolCalls.length) {
+    console.error("Anthropic error", response.status, "empty response", { stop_reason: data.stop_reason, content_types: blocks.map((block: any) => block?.type), usage: data.usage });
+    throw anthropicError(500, "empty response");
+  }
   if (data.stop_reason === "max_tokens") throw anthropicError(500, "truncated output");
   validateOutput(schema, content);
   if (jsonMode && !content.trim()) throw anthropicError(500, "empty json response");
-  const toolCalls = blocks.filter((block: any) => block.type === "tool_use" && !jsonMode).map((block: any) => ({ id: block.id, type: "function", function: { name: block.name, arguments: JSON.stringify(block.input) } }));
   return new Response(JSON.stringify({
     choices: [{ message: { role: "assistant", content, ...(toolCalls.length ? { tool_calls: toolCalls } : {}) }, finish_reason: jsonMode ? "stop" : finishReason(data.stop_reason) }],
     usage: usageEnvelope(data.usage),

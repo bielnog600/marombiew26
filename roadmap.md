@@ -5,7 +5,8 @@
 - [x] Scanner: Anthropic oficial, claude-haiku-5-5 e log Anthropic error; lookup intacto.
 - [x] Treino/dieta/cardio/Tabata: helper compartilhado, claude-sonnet-5, prompts preservados, tools/JSON/SSE adaptados e limites existentes intactos; limites antes ausentes aprovados no plano.
 - [x] 1.328 testes passaram, 3 preexistentes ignorados; compilação automática OK; nove funções implantadas sem chamada real ou gravação de dados de teste.
-- [ ] Validação real da chave/modelos — bloqueada intencionalmente até confirmação do usuário de que a chave oficial foi salva.
+- [x] Chamadas reais autorizadas: Haiku reproduziu HTTP 200 com thinking-only/max_tokens (400 tokens); thinking disabled retornou texto/end_turn. Sonnet pelo helper retornou texto, tool JSON e JSON schema com HTTP 200, sem banco.
+- [x] Thinking desabilitado no scanner/helper, diagnósticos de respostas vazias adicionados sem conteúdo de raciocínio, ferramentas preservadas; 1.331 testes passaram (3 ignorados), compilação OK e nove funções reimplantadas.
 
 ## Modo Treino admin — agrupar e editar métodos no modal
 - [x] "Agrupar com…" no card sem grupo: par escolhido no modal vira A/B seguido, com ajuste do B para o número de séries do A preservando séries registradas.
