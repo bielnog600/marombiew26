@@ -38,8 +38,10 @@ const fileToDataUrl = (file: File) =>
 
 export default function FoodScanner({ open, onOpenChange, dailyKcal }: Props) {
   const { user } = useAuth();
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
+  const lookupRef = useRef<(code: string) => void>(() => {});
+  const [camRetry, setCamRetry] = useState(0);
   const [tab, setTab] = useState('scan');
   const [manual, setManual] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
@@ -134,32 +136,50 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal }: Props) {
     }
   };
 
-  // Câmera
   useEffect(() => {
-    if (!open || tab !== 'scan' || result || notFound || busy) return;
+    lookupRef.current = lookup;
+  }, [lookup]);
+
+  // Câmera: só inicia quando o <video> já está montado no DOM
+  useEffect(() => {
+    if (!open || tab !== 'scan' || result || notFound || busy || !videoEl) return;
     let cancelled = false;
     const hints = new Map();
     hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E]);
     const reader = new BrowserMultiFormatReader(hints);
     setCamError(null);
+    videoEl.setAttribute('playsinline', 'true');
+    videoEl.setAttribute('webkit-playsinline', 'true');
     reader
-      .decodeFromConstraints({ video: { facingMode: { ideal: 'environment' } }, audio: false }, videoRef.current!, (res) => {
+      .decodeFromConstraints({ video: { facingMode: { ideal: 'environment' } }, audio: false }, videoEl, (res) => {
         if (res && !cancelled) {
           cancelled = true;
           navigator.vibrate?.(60);
-          lookup(res.getText());
+          lookupRef.current(res.getText());
         }
       })
       .then((c) => {
-        if (cancelled) c.stop();
-        else controlsRef.current = c;
+        if (cancelled) {
+          c.stop();
+          return;
+        }
+        controlsRef.current = c;
+        videoEl.play().catch(() => {});
       })
       .catch(() => setCamError('Não foi possível abrir a câmera. Permita o acesso ou digite o código abaixo.'));
+    // Se em 4s o vídeo ainda não tiver imagem, avisar e oferecer nova tentativa
+    const watchdog = window.setTimeout(() => {
+      if (!cancelled && videoEl.videoWidth === 0) {
+        stopCamera();
+        setCamError('A câmera abriu mas não mostrou imagem. Toque para tentar de novo.');
+      }
+    }, 4000);
     return () => {
       cancelled = true;
+      window.clearTimeout(watchdog);
       stopCamera();
     };
-  }, [open, tab, result, notFound, busy, lookup, stopCamera]);
+  }, [open, tab, result, notFound, busy, videoEl, stopCamera, camRetry]);
 
   useEffect(() => {
     if (!open || tab !== 'history' || !user) return;
@@ -200,11 +220,11 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal }: Props) {
             {!result && !notFound && (
               <>
                 <div className="relative w-full aspect-[3/4] max-h-[55dvh] rounded-2xl overflow-hidden bg-card border border-border">
-                  <video ref={videoRef} className="w-full h-full object-cover" muted playsInline autoPlay />
+                  <video ref={setVideoEl} className="w-full h-full object-cover" muted playsInline autoPlay />
                   <div className="pointer-events-none absolute inset-x-8 top-1/2 -translate-y-1/2 h-28 rounded-xl border-2 border-primary/80" />
                   {(busy || camError) && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/80 p-6 text-center text-sm">
-                      {busy ? <><Loader2 className="h-8 w-8 animate-spin text-primary" />{busy}</> : <><Camera className="h-8 w-8 text-muted-foreground" />{camError}</>}
+                      {busy ? <><Loader2 className="h-8 w-8 animate-spin text-primary" />{busy}</> : <><Camera className="h-8 w-8 text-muted-foreground" />{camError}<Button type="button" variant="outline" className="h-11" onClick={() => { stopCamera(); setCamError(null); setCamRetry((n) => n + 1); }}>Tentar de novo</Button></>}
                     </div>
                   )}
                 </div>
