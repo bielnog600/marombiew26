@@ -555,6 +555,7 @@ async function callStructuredModel({
     };
   }
 
+  if (transform) parsed = transform(parsed);
   const validation = validateAndNormalizePlan(parsed);
   if (!validation.ok) {
     console.error("trainer-agent[json] validation error:", validation.error);
