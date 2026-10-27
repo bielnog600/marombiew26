@@ -1,3 +1,4 @@
+import StudentFoodScans from '@/components/admin/StudentFoodScans';
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
@@ -462,6 +463,7 @@ const AlunoDetail = () => {
                 </CardContent>
               </Card>
               <StudentDietTab studentId={id!} />
+              <StudentFoodScans studentId={id!} />
             </div>
           </TabsContent>
 
