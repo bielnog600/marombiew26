@@ -216,7 +216,17 @@ const ScannedFoodsPanel: React.FC = () => {
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent className="max-w-lg max-h-[90dvh] overflow-y-auto">
           <DialogHeader><DialogTitle>Revisar alimento</DialogTitle></DialogHeader>
-          {editing && <div className="space-y-3">
+          {editing && reviewed && (
+            <div className="rounded-lg border border-primary/40 bg-primary/10 p-3 text-sm space-y-1">
+              <p className="font-medium">
+                {editingStatus === 'adicionado' ? 'Este produto já foi adicionado ao banco de alimentos.' : 'Este produto já foi ignorado.'}
+              </p>
+              {data?.reviews.get(editing.group.key)?.reviewed_at && (
+                <p className="text-xs text-muted-foreground">Revisado em {new Date(data.reviews.get(editing.group.key).reviewed_at).toLocaleDateString('pt-BR')}</p>
+              )}
+            </div>
+          )}
+          {editing && !reviewed && <div className="space-y-3">
             {duplicates.length > 0 && (
               <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 space-y-2">
                 <p className="text-sm font-medium flex items-center gap-1"><AlertTriangle className="h-4 w-4" />Possível duplicado no banco:</p>
