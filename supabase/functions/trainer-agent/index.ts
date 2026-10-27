@@ -936,16 +936,25 @@ async function generateStructuredWorkoutWithVariation(args: {
     }
 
     const retryNotes = retryNotesArr.join(" ");
-    const retryBlock = workoutVariationPrompt(intensity, historySummary, retryNotes);
 
+    // Targeted correction: send the first candidate + objective violations and
+    // receive only the corrected days. Same system prefix as the first call
+    // (cache hit); the merged plan goes through ALL validations again below.
+    const baseCandidate = evaluation.clone;
     const second = await callStructuredModel({
       apiKey: args.apiKey,
       systemPrompt: args.systemPrompt,
-      messages: args.messages,
-      extraSystem: retryBlock,
+      stableSystemPrompt: args.stableSystemPrompt,
+      messages: [
+        ...args.messages,
+        { role: "assistant", content: JSON.stringify(baseCandidate) },
+        { role: "user", content: buildTargetedCorrectionPrompt(retryNotes) },
+      ],
+      extraSystem: variationBlock,
       modelToUse: AI_MODELS.fallback,
-      reason: fallbackReason || "retry",
-      attempts: modelAttempts
+      reason: `targeted_correction:${fallbackReason || "retry"}`,
+      attempts: modelAttempts,
+      transform: (patch) => mergeCorrectedDays(baseCandidate, patch),
     });
 
     if (!second.ok) {
