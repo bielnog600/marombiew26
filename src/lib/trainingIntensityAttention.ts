@@ -23,8 +23,9 @@ export type ProgressionAction = 'increase_load' | 'increase_reps' | 'maintain';
 /** Thresholds centralizados — não espalhar magic numbers. */
 export const RPE_THRESHOLDS = {
   veryLowMax: 5,
-  lowMax: 7,
-  targetMin: 8,
+  /** RPE ≤ 6 = intensidade baixa. RPE 7 já é treino pesado (dentro do alvo). */
+  lowMax: 6,
+  targetMin: 7,
   targetMax: 9,
   maximal: 10,
 } as const;
