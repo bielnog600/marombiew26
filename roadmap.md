@@ -1,5 +1,10 @@
 # Roadmap
 
+## Consultoria — carregamento dos contadores
+- [ ] Mostrar skeleton nos contadores/listas de progressão e inatividade durante suas buscas.
+- [ ] Compartilhar dados brutos entre resumo e progressão, selecionar só campos usados e preservar cálculo/paginação.
+- [ ] Executar testes e verificar carregamento; medir tempo real somente se houver sessão autorizada.
+
 ## Progressão determinística — cargas e RIR
 - [x] Aprender degraus recentes por aluno/exercício e comparar últimas sessões em qualquer plano/dia; consultas em lote paginadas.
 - [x] Avaliar metas por série, reconhecimento e partes de métodos; preservar deload e usar esforço auxiliar.
