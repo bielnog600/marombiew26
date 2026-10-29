@@ -4,8 +4,7 @@ import { Dumbbell, Droplet, UtensilsCrossed, CheckCircle2, Radio } from 'lucide-
 import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-
-type ActivityKind = 'workout_start' | 'workout_end' | 'water' | 'meal' | 'workout_done';
+import LiveActivityDetailDialog, { type ActivityKind } from './LiveActivityDetailDialog';
 
 interface FeedItem {
   key: string;
@@ -15,6 +14,9 @@ interface FeedItem {
   label: string;
   detail?: string;
   at: string; // ISO
+  sessionId?: string;
+  date?: string;
+  addedGlasses?: number;
 }
 
 const KIND_META: Record<ActivityKind, { icon: React.ComponentType<{ className?: string }>; color: string; bg: string }> = {
@@ -34,6 +36,7 @@ const LiveActivityFeed: React.FC = () => {
   nameRef.current = names;
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const pausedRef = useRef(false);
+  const [selected, setSelected] = useState<FeedItem | null>(null);
 
   const resolveName = async (studentId: string): Promise<string> => {
     if (nameRef.current.has(studentId)) return nameRef.current.get(studentId)!;
@@ -103,6 +106,7 @@ const LiveActivityFeed: React.FC = () => {
             label: 'iniciou treino',
             detail: s.day_name || undefined,
             at: s.started_at,
+            sessionId: s.id,
           });
         }
         if (s.completed_at && s.status === 'completed') {
@@ -114,6 +118,7 @@ const LiveActivityFeed: React.FC = () => {
             label: 'finalizou treino',
             detail: s.day_name || undefined,
             at: s.completed_at,
+            sessionId: s.id,
           });
         }
       });
@@ -127,6 +132,7 @@ const LiveActivityFeed: React.FC = () => {
             label: 'registrou água',
             detail: `${t.water_glasses} copo${t.water_glasses > 1 ? 's' : ''}`,
             at: t.updated_at,
+            date: t.date,
           });
         }
         const meals = Array.isArray(t.meals_completed) ? t.meals_completed : [];
@@ -139,6 +145,7 @@ const LiveActivityFeed: React.FC = () => {
             label: 'registrou refeição',
             detail: `${meals.length} de hoje`,
             at: t.updated_at,
+            date: t.date,
           });
         }
         if (t.workout_completed) {
@@ -149,6 +156,7 @@ const LiveActivityFeed: React.FC = () => {
             kind: 'workout_done',
             label: 'marcou treino concluído',
             at: t.updated_at,
+            date: t.date,
           });
         }
       });
@@ -188,6 +196,7 @@ const LiveActivityFeed: React.FC = () => {
                 label: 'iniciou treino',
                 detail: row.day_name || undefined,
                 at: row.started_at || now,
+                sessionId: row.id,
               });
             }
           }
@@ -200,6 +209,7 @@ const LiveActivityFeed: React.FC = () => {
               label: 'finalizou treino',
               detail: row.day_name || undefined,
               at: row.completed_at || now,
+              sessionId: row.id,
             });
           }
         },
@@ -225,6 +235,8 @@ const LiveActivityFeed: React.FC = () => {
               label: 'registrou água',
               detail: `${newWater} copo${newWater > 1 ? 's' : ''}`,
               at,
+              date: row.date,
+              addedGlasses: newWater - oldWater,
             });
           }
           const newMeals = Array.isArray(row.meals_completed) ? row.meals_completed.length : 0;
@@ -238,6 +250,7 @@ const LiveActivityFeed: React.FC = () => {
               label: 'registrou refeição',
               detail: `${newMeals} de hoje`,
               at,
+              date: row.date,
             });
           }
           if (row.workout_completed && !oldRow.workout_completed) {
@@ -248,6 +261,7 @@ const LiveActivityFeed: React.FC = () => {
               kind: 'workout_done',
               label: 'marcou treino concluído',
               at,
+              date: row.date,
             });
           }
         },
@@ -311,9 +325,11 @@ const LiveActivityFeed: React.FC = () => {
               const meta = KIND_META[it.kind];
               const Icon = meta.icon;
               return (
-                <div
+                <button
+                  type="button"
                   key={it.key}
-                  className="flex items-center gap-3 rounded-lg border border-border/40 bg-secondary/30 px-3 py-2 animate-fade-in"
+                  onClick={() => setSelected(it)}
+                  className="w-full text-left flex items-center gap-3 rounded-lg border border-border/40 bg-secondary/30 px-3 py-2 animate-fade-in hover:bg-secondary/60 transition-colors"
                 >
                   <div className={`rounded-lg p-2 ${meta.bg} ${meta.color}`}>
                     <Icon className="h-4 w-4" />
@@ -328,12 +344,13 @@ const LiveActivityFeed: React.FC = () => {
                   <span className="text-[11px] text-muted-foreground whitespace-nowrap">
                     {formatDistanceToNowStrict(new Date(it.at), { locale: ptBR, addSuffix: true })}
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>
         )}
       </CardContent>
+      <LiveActivityDetailDialog activity={selected} onClose={() => setSelected(null)} />
     </Card>
   );
 };

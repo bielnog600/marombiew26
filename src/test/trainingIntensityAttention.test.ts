@@ -10,7 +10,8 @@ describe('classifySessionRpe', () => {
   it('classifica a escala 0-10', () => {
     expect(classifySessionRpe(5)).toBe('very_low');
     expect(classifySessionRpe(6)).toBe('low');
-    expect(classifySessionRpe(7)).toBe('low');
+    expect(classifySessionRpe(6)).toBe('low');
+    expect(classifySessionRpe(7)).toBe('target');
     expect(classifySessionRpe(8)).toBe('target');
     expect(classifySessionRpe(9)).toBe('target');
     expect(classifySessionRpe(10)).toBe('maximal');
@@ -25,7 +26,7 @@ describe('buildAttentionPriority', () => {
     expect(buildAttentionPriority({ ...base, rpe: 6, actions: ['increase_load'] }).attentionPriority).toBe('high');
   });
   it('complete + RPE 7 + increase_reps → high', () => {
-    expect(buildAttentionPriority({ ...base, rpe: 7, actions: ['increase_reps'] }).attentionPriority).toBe('high');
+    expect(buildAttentionPriority({ ...base, rpe: 6, actions: ['increase_reps'] }).attentionPriority).toBe('high');
   });
   it('complete + RPE 6 + maintain → attention_only', () => {
     expect(buildAttentionPriority({ ...base, rpe: 6, actions: ['maintain'] }).attentionPriority).toBe('attention_only');
@@ -122,5 +123,14 @@ describe('contato semanal', () => {
     const contacted = new Set(contacts.filter((c) => c.week_start === weekStart).map((c) => c.student_id));
     expect(contacted.has('a')).toBe(true);
     expect(contacted.has('b')).toBe(false);
+  });
+});
+
+describe('RPE 7 não é intensidade baixa', () => {
+  it('RPE 7 sem progressão não entra no alerta', () => {
+    expect(buildAttentionPriority({ sessionStatus: 'completed', rpe: 7, phase: 's2', actions: [] }).attentionPriority).toBe('none');
+  });
+  it('RPE 6 sem progressão entra como revisar', () => {
+    expect(buildAttentionPriority({ sessionStatus: 'completed', rpe: 6, phase: 's2', actions: [] }).attentionPriority).toBe('attention_only');
   });
 });
