@@ -1,3 +1,4 @@
+import { optionalRirValue } from '@/lib/finalWorkingSetRir';
 import React, { useEffect, useState } from 'react';
 import { useInlineWorkoutRest } from '@/hooks/useInlineWorkoutRest';
 import { RestOffscreenIndicator } from './WorkoutSetCard';
@@ -591,7 +592,12 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     })();
   }, [open, day?.day, daySignature, studentId]);
 
-  const updateSet = (exIdx: number, setIdx: number, field: 'weight' | 'reps', value: string) => {
+  const updateSet = (exIdx: number, setIdx: number, field: 'weight' | 'reps' | 'rir', value: string) => {
+    if (field === "rir") {
+      const entry = state[exIdx]?.sets[setIdx];
+      if (entry) changeMethodSet(exIdx, setIdx, { ...entry, rir: value });
+      return;
+    }
     setState((prev) => {
       const copy = { ...prev };
       copy[exIdx].sets[setIdx][field] = value;
@@ -610,8 +616,8 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       return next;
     });
     const ex = currentExercises[exIdx];
-    if (ex && session.id && entry.subRecords?.some(part => part.completed)) {
-      void import('@/lib/offlineQueue').then(({ writeWithFallback }) => writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: { ...methodLogFields(ex, entry), student_id: studentId, session_id: session.id, exercise_name: normalizeExName(ex.exercise), set_number: setIdx + 1, weight_kg: Number(entry.weight.replace(',', '.')) || null, reps: Number(entry.reps) || null, set_type: state[exIdx]?.plan[setIdx]?.kind === 'recon' ? 'recognition' : 'work', day_name: day.day, phase: effectivePhase, source: 'admin' } }));
+    if (ex && session.id && (entry.completed || entry.subRecords?.some(part => part.completed))) {
+      void import('@/lib/offlineQueue').then(({ writeWithFallback }) => writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: { ...methodLogFields(ex, entry), rir: optionalRirValue(entry.rir), student_id: studentId, session_id: session.id, exercise_name: normalizeExName(ex.exercise), set_number: setIdx + 1, weight_kg: Number(entry.weight.replace(',', '.')) || null, reps: Number(entry.reps) || null, set_type: state[exIdx]?.plan[setIdx]?.kind === 'recon' ? 'recognition' : 'work', day_name: day.day, phase: effectivePhase, source: 'admin' } }));
     }
   };
   const saveMethodSet = async (exIdx: number, setIdx: number, entry: MethodSetEntry) => {
@@ -620,7 +626,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     if (!ex || !session.id) return;
     const { writeWithFallback } = await import('@/lib/offlineQueue');
     const result = await writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: {
-      ...methodLogFields(ex, entry), student_id: studentId, session_id: session.id,
+      ...methodLogFields(ex, entry), rir: optionalRirValue(entry.rir), student_id: studentId, session_id: session.id,
       exercise_name: normalizeExName(ex.exercise), set_number: setIdx + 1,
       weight_kg: Number(entry.weight.replace(',', '.')) || null, reps: Number(entry.reps) || null,
       set_type: state[exIdx]?.plan[setIdx]?.kind === 'recon' ? 'recognition' : 'work',
@@ -982,6 +988,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       const p = st.plan?.[s.idx];
       return {
         ...methodLogFields(ex, st.sets[s.idx]),
+        rir: optionalRirValue(st.sets[s.idx].rir),
         student_id: studentId,
         session_id: session.id,
         exercise_name: normalizeExName(exerciseName),

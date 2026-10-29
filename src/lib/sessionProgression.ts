@@ -16,6 +16,7 @@
 
 import {
   buildExercisePerformance,
+  withPlannedSetTypes,
   parseRepRange,
   repRangeFromPlanned,
   type ExerciseLog,
@@ -24,6 +25,7 @@ import {
 } from './weeklyProgression';
 import {
   buildQuantitativeProgressionRecommendation,
+  formatQuantitativeRecommendation,
   type QuantitativeAction,
   type QuantitativeRecommendation,
   type RecommendationConfidence,
@@ -31,6 +33,10 @@ import {
 import { normalizeExerciseKey, type IncrementSource } from './loadIncrement';
 import type { TrainingPhase } from './trainingPhase';
 import type { ParsedExercise } from './trainingResultParser';
+import { buildSetPlan } from './setPlanBuilder';
+
+export const buildPrescribedWorkSets = (ex: ParsedExercise) => buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme)
+  .flatMap((s, i) => s.type === 'work' ? [{ setNumber: i + 1, reps: s.reps.includes('/') ? s.reps.split('/')[i]?.trim() ?? s.reps : s.reps }] : []);
 
 export const PROGRESSION_SNAPSHOT_VERSION = 1;
 
@@ -46,6 +52,7 @@ export interface SessionRecommendation {
   currentReps: number | null;
   targetReps: number | null;
   workingSetTargets: number[] | null;
+  seriesTargets?: QuantitativeRecommendation["seriesTargets"];
   repRange: RepRange | null;
   confidence: RecommendationConfidence;
   incrementKg: number | null;
@@ -89,6 +96,7 @@ export interface SessionMetaRow {
   sessionId: string;
   planId?: string | null;
   phase?: string | null;
+  avgRpe?: number | null;
 }
 
 export interface BuildSessionRecommendationsInput {
@@ -183,10 +191,7 @@ export const filterComparableSessionHistory = (input: {
       excludedDeloadSessions += 1;
       return;
     }
-    if (currentPlanId && planId && planId !== currentPlanId) {
-      excludedOtherPlanSessions += 1;
-      return;
-    }
+    // Same exercise is comparable across plans and days.
     if (currentPlanId && !planId) {
       // Sessão sem plan_id (o app do aluno não grava): se foi feita depois do
       // início do plano atual, é deste plano — não é legado.
@@ -312,8 +317,6 @@ const applyEvidencePolicy = (
     out.reasons = [...out.reasons, 'historico_legado_sem_plano'];
     if (out.action === 'reduce_load') {
       out = { ...out, action: 'maintain', recommendedLoadKg: null, qualitative: true, basis: 'evidencia_legada' };
-    } else if (out.action === 'increase_load' && out.incrementSource !== 'configured') {
-      out = { ...out, recommendedLoadKg: null, qualitative: true };
     }
   }
 
@@ -321,7 +324,7 @@ const applyEvidencePolicy = (
     out.singlePerformance = true;
     out.confidence = 'low';
     out.reasons = [...out.reasons, 'apenas_uma_performance_valida'];
-    if (out.action === 'increase_load' || out.action === 'reduce_load' || out.action === 'manual_increment_required') {
+    if (out.action === 'reduce_load') {
       out = {
         ...out,
         action: 'maintain',
@@ -365,9 +368,10 @@ export const buildSessionProgressionRecommendations = (
     coveredKeys.add(key);
     const { logs: history, ignoredKg } = dropLoadOutliers(byKey.get(key) ?? []);
     // Aluno sem histórico comparável: não inventamos recomendação (regra 21/22).
-    if (history.length === 0) return;
 
-    const { current, previous } = splitLastTwoSessions(history);
+
+    const typedHistory = withPlannedSetTypes(history, ex);
+    const { current, previous } = splitLastTwoSessions(typedHistory);
     // Legado POR EXERCÍCIO: só as duas sessões usadas contam.
     const legacyDoExercicio = [...current, ...previous].some((l) =>
       comparable.legacySessionKeys.has(sessionGroupKey(l)),
@@ -379,7 +383,10 @@ export const buildSessionProgressionRecommendations = (
     const quant: QuantitativeRecommendation = buildQuantitativeProgressionRecommendation({
       performance,
       recentLogs: current,
-      historyLogs: history,
+      historyLogs: typedHistory,
+      previousLogs: previous,
+      prescribedSets: buildPrescribedWorkSets(ex),
+      sessionAvgRpe: input.sessionMeta?.[current[0]?.session_id ?? ""]?.avgRpe ?? null,
       configuredIncrementKg: input.configuredIncrements?.[key] ?? null,
       activePhase: input.activePhase,
       setSchemeMode: ex.setScheme?.mode ?? null,
@@ -396,7 +403,10 @@ export const buildSessionProgressionRecommendations = (
     if (quant.basis === 'sem_base_quantificavel') {
       const refLoad = performance.bestSet?.weightKg ?? null;
       // Se não houver bestSet nem carga, não há o que sugerir.
-      if (!performance.bestSet) return;
+      if (!performance.bestSet) {
+        recommendations[key] = { ...quant, exerciseKey: key, bodyweight: false };
+        return;
+      }
 
       recommendations[key] = applyEvidencePolicy(
         {
@@ -438,6 +448,7 @@ export const buildSessionProgressionRecommendations = (
       currentReps: quant.currentReps,
       targetReps: quant.targetReps,
       workingSetTargets: quant.workingSetTargets,
+      seriesTargets: quant.seriesTargets,
       repRange: quant.repRange,
       confidence: quant.confidence,
       incrementKg: quant.incrementKg,
@@ -573,7 +584,8 @@ const formatSessionHintBase = (r: SessionRecommendation | null): SessionHint | n
   const label = SESSION_ACTION_LABEL[r.action] ?? 'Sugestão';
   const range = r.repRange ? `${r.repRange.min}–${r.repRange.max}` : null;
 
-  if (r.action === 'review') return null;
+  if (r.action === 'review') return { label: 'Sugestão', estimated: false, text: `Escolha uma carga para fazer ${range ?? 'as'} reps com 2 de reserva.` };
+  if (r.seriesTargets?.length) return { label, estimated, text: formatQuantitativeRecommendation(r as QuantitativeRecommendation) };
 
   if (r.action === 'manual_increment_required') {
     return {

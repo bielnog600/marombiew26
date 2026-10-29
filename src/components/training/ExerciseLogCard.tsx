@@ -1,3 +1,5 @@
+import { FinalSetRir } from './FinalSetRir';
+import { finalWorkingSetIndex } from '@/lib/finalWorkingSetRir';
 import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,6 +21,7 @@ interface SetEntry {
   weight: string;
   reps: string;
   completed?: boolean;
+  rir?: string;
 }
 
 interface SetPlan {
@@ -44,7 +47,7 @@ interface Props {
   st: ExerciseState;
   exercisesList: any[];
   studentId: string;
-  onUpdateSet: (exIdx: number, setIdx: number, field: 'weight' | 'reps', value: string) => void;
+  onUpdateSet: (exIdx: number, setIdx: number, field: 'weight' | 'reps' | 'rir', value: string) => void;
   onUpdateNotes: (exIdx: number, value: string) => void;
   onSaveExercise: (exIdx: number) => void;
   onStartRestTimer: (secs: number, exIdx: number) => void;
@@ -275,6 +278,7 @@ const ExerciseLogCard: React.FC<Props> = ({
                 </button>
                 ) : <span />}
               </div>
+              {setIdx === finalWorkingSetIndex(st.sets.map((_, i) => st.plan?.[i]?.kind ?? "work")) && (s.completed || (!inlineRest && Number(s.reps) > 0)) && <FinalSetRir value={s.rir} onChange={v => onUpdateSet(exIdx, setIdx, "rir", v)} />}
               </WorkoutSetCard>
             );
           })}
