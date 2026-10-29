@@ -101,7 +101,7 @@ export function useSessionProgression({
         const { data, error } = await supabase
           .from('exercise_set_logs')
           .select(
-            'exercise_name, weight_kg, reps, rir, rpe, set_type, set_number, performed_at, session_id, phase',
+            'exercise_name, weight_kg, reps, rir, rpe, set_type, set_number, performed_at, session_id, phase, sub_records',
           )
           .eq('student_id', student)
           .or(`session_id.neq.${session},session_id.is.null`) // exclusão explícita da sessão atual

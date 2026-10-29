@@ -1,3 +1,7 @@
+import { readProgressionLogs } from '@/lib/progressionHistory';
+import { buildPrescribedWorkSets } from '@/lib/sessionProgression';
+import { lastExerciseSessions, withPlannedSetTypes, buildExercisePerformance, repRangeFromPlanned } from '@/lib/weeklyProgression';
+import { normalizeExerciseKey } from '@/lib/loadIncrement';
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
@@ -216,17 +220,14 @@ export const useStudentsWeeklySummary = () => {
       }
       if (contextsByStudent.size === 0) batchFrom.setDate(batchFrom.getDate() - 14);
 
-      const { data: logs } = await supabase
-        .from('exercise_set_logs')
-        .select('student_id, exercise_name, reps, weight_kg, rpe, rir, set_type, set_number, performed_at, phase, session_id')
-        .in('student_id', ids)
-        .gte('performed_at', batchFrom.toISOString())
-        .lt('performed_at', batchTo.toISOString());
+      batchFrom = new Date(Math.min(batchFrom.getTime(), nowMs - 180 * 86400000));
+      const logs = await readProgressionLogs(ids, batchFrom.toISOString());
 
       const logsByStudent = new Map<string, RawSetLog[]>();
       for (const l of logs ?? []) {
         if (!logsByStudent.has(l.student_id)) logsByStudent.set(l.student_id, []);
         logsByStudent.get(l.student_id)!.push({
+          sub_records: l.sub_records,
           exercise_name: l.exercise_name,
           reps: l.reps,
           weight_kg: l.weight_kg,
@@ -242,7 +243,7 @@ export const useStudentsWeeklySummary = () => {
 
       const { data: sessionRows } = await supabase
         .from('workout_sessions')
-        .select('id, student_id, status, completed_at, started_at, created_at, plan_id, phase')
+        .select('id, student_id, status, completed_at, started_at, created_at, plan_id, phase, avg_rpe')
         .in('student_id', ids)
         .in('status', ['completed', 'partial', 'abandoned'])
         .gte('completed_at', batchFrom.toISOString())
@@ -251,6 +252,7 @@ export const useStudentsWeeklySummary = () => {
       for (const s of sessionRows ?? []) {
         if (!sessionsByStudent.has(s.student_id)) sessionsByStudent.set(s.student_id, []);
         sessionsByStudent.get(s.student_id)!.push({
+          avg_rpe: s.avg_rpe,
           id: s.id,
           status: s.status,
           completed_at: s.completed_at,
@@ -349,20 +351,15 @@ export const useStudentsWeeklySummary = () => {
         // Recomendação quantitativa (kg/reps reais) por exercício avaliado.
         const activePhase = (resolution?.activePhase ?? null) as TrainingPhase | null;
         const quantitative: QuantitativeRecommendation[] = [];
-        for (const perf of progression?.performances ?? []) {
-          if (perf.status === 'missing' || perf.status === 'insufficient_data') continue;
-          const history = allLogs.filter(
-            (l) => (l.exercise_name || '').toLowerCase() === perf.exerciseName.toLowerCase(),
-          );
-          if (history.length === 0) continue;
-          try {
-            quantitative.push(buildQuantitativeProgressionRecommendation({
-              performance: perf,
-              recentLogs: history as any,
-              historyLogs: history as any,
-              activePhase: activePhase ?? undefined,
-            } as any));
-          } catch { /* motor conservador: ignora exercício sem base */ }
+        for (const ex of plannedDays.flatMap(d => d.exercises ?? [])) {
+          const history = withPlannedSetTypes(allLogs.filter(l => normalizeExerciseKey(l.exercise_name) === normalizeExerciseKey(ex.exercise)), ex);
+          const pair = lastExerciseSessions(history);
+          const perf = buildExercisePerformance(ex.exercise, pair.current, pair.previous, repRangeFromPlanned(ex));
+          quantitative.push(buildQuantitativeProgressionRecommendation({
+            performance: perf, recentLogs: pair.current, previousLogs: pair.previous, historyLogs: history,
+            prescribedSets: buildPrescribedWorkSets(ex), activePhase: activePhase ?? undefined,
+            sessionAvgRpe: sessionsByStudent.get(p.user_id)?.find(s => s.id === pair.current[0]?.session_id)?.avg_rpe ?? null,
+          }));
         }
 
         const isPresencial = presencialMap.get(p.user_id) ?? false;

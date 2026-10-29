@@ -3,7 +3,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { startOfWeek, format } from 'date-fns';
 import { buildQuantitativeProgressionRecommendation } from '@/lib/quantitativeProgression';
 import { resolveCurrentTrainingPhase } from '@/lib/currentPhase';
-import { selectBestSet } from '@/lib/weeklyProgression';
+import { buildExercisePerformance, lastExerciseSessions, withPlannedSetTypes, repRangeFromPlanned } from '@/lib/weeklyProgression';
+import { normalizeExerciseKey } from '@/lib/loadIncrement';
+import { buildPrescribedWorkSets } from '@/lib/sessionProgression';
+import { readProgressionLogs } from '@/lib/progressionHistory';
 import { parseTrainingSections } from '@/lib/trainingResultParser';
 import {
   buildAttentionPriority,
@@ -52,14 +55,14 @@ export const useWeeklyProgressionReview = () => {
       if (!students || students.length === 0) return [];
       const studentIds = students.map(s => s.user_id);
 
-      const windowStart = new Date(Date.now() - 30 * 86400000).toISOString();
+      const windowStart = new Date(Date.now() - 180 * 86400000).toISOString();
 
       // Todas as consultas em lote — nunca uma query por aluno.
       const [profilesRes, plansRes, contactsRes, logsRes, sessionsRes] = await Promise.all([
         supabase.from('profiles').select('user_id, nome, telefone').in('user_id', studentIds),
         supabase.from('ai_plans').select('*').in('student_id', studentIds).eq('is_draft', false).order('created_at', { ascending: false }),
         supabase.from('weekly_progression_contacts').select('*').in('student_id', studentIds),
-        supabase.from('exercise_set_logs').select('*').in('student_id', studentIds).gte('performed_at', windowStart).order('performed_at', { ascending: false }),
+        readProgressionLogs(studentIds, windowStart).then(data => ({ data })),
         supabase
           .from('workout_sessions')
           .select('id, student_id, status, avg_rpe, phase, completed_at, created_at')
@@ -94,25 +97,13 @@ export const useWeeklyProgressionReview = () => {
         const recs: any[] = [];
 
         for (const exercise of exercises) {
-          const exerciseLogs = studentLogs.filter((l: any) => l.exercise_name === exercise.exercise);
-          if (exerciseLogs.length === 0) continue;
-
-          const bestSet = selectBestSet(exerciseLogs as any);
-          if (!bestSet) continue;
-
+          const exerciseLogs = withPlannedSetTypes(studentLogs.filter(l => normalizeExerciseKey(l.exercise_name) === normalizeExerciseKey(exercise.exercise)), exercise);
+          const pair = lastExerciseSessions(exerciseLogs);
+          const performance = buildExercisePerformance(exercise.exercise, pair.current, pair.previous, repRangeFromPlanned(exercise));
           const recommendation = buildQuantitativeProgressionRecommendation({
-            performance: {
-              exerciseName: exercise.exercise,
-              nextAction: 'maintain',
-              bestSet: {
-                reps: bestSet.reps,
-                weightKg: (bestSet as any).weight_kg,
-                rir: (bestSet as any).rir
-              },
-              status: 'ok'
-            } as any,
-            historyLogs: exerciseLogs as any,
-            activePhase: phaseResolution.phase
+            performance, recentLogs: pair.current, previousLogs: pair.previous, historyLogs: exerciseLogs,
+            prescribedSets: buildPrescribedWorkSets(exercise), activePhase: phaseResolution.phase,
+            sessionAvgRpe: sessionsRes.data?.find(s => s.id === pair.current[0]?.session_id)?.avg_rpe ?? null,
           });
 
           const nextAction = recommendation.action === 'increase_load' ? 'increase_load' 
