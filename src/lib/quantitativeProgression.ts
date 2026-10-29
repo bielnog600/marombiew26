@@ -32,6 +32,7 @@ import type {
   RepRange,
 } from './weeklyProgression';
 import { setRoleOf } from './weeklyProgression';
+import { computeSeriesProgression, type SeriesLoadTarget } from './seriesProgression';
 import type { TrainingPhase } from './trainingPhase';
 import {
   inferIncrementFromTransitions,
@@ -79,6 +80,7 @@ export interface EquipmentIncrement {
 
 
 export interface QuantitativeRecommendation {
+  seriesTargets?: SeriesLoadTarget[];
   exerciseName: string;
   /** Ação de origem (weeklyProgression) — nunca contrariada. */
   sourceAction: NextAction;
@@ -106,6 +108,10 @@ export interface QuantitativeRecommendation {
 }
 
 export interface QuantitativeInput {
+  previousLogs?: ExerciseLog[];
+  prescribedSets?: Array<{ setNumber: number; reps: string }>;
+  sessionAvgRpe?: number | null;
+  now?: Date;
   performance: ExercisePerformance;
   /** Séries recentes do exercício (janela atual) — cru de exercise_set_logs. */
   recentLogs?: ExerciseLog[];
@@ -205,6 +211,13 @@ const qualitative = (
  * objetos recebidos.
  */
 export const buildQuantitativeProgressionRecommendation = (
+  input: QuantitativeInput,
+): QuantitativeRecommendation => {
+  return computeSeriesProgression(input);
+};
+
+/** Previous policy retained only as documentation during compatibility transition. */
+const legacyRecommendation = (
   input: QuantitativeInput,
 ): QuantitativeRecommendation => {
   const p = input.performance;
@@ -500,7 +513,16 @@ export const buildQuantitativeProgressionRecommendation = (
 /** Texto curto em PT-BR derivado exclusivamente dos números acima (sem IA). */
 export const formatQuantitativeRecommendation = (r: QuantitativeRecommendation): string => {
   const kg = (n: number) => String(n).replace('.', ',');
+  if (r.seriesTargets?.length) {
+    const targets = r.seriesTargets;
+    const same = targets.every(s => s.recommendedLoadKg === targets[0].recommendedLoadKg && s.targetReps === targets[0].targetReps && s.action === targets[0].action);
+    const describe = (s: SeriesLoadTarget) => s.recommendedLoadKg == null
+      ? `Busca ${s.targetReps} reps`
+      : `${s.action === 'increase_load' ? 'Sobe para' : s.action === 'reduce_load' ? 'Reduz para' : 'Mantém'} ${kg(s.recommendedLoadKg)} kg e ${s.action === 'increase_load' ? 'busca' : 'tenta'} ${s.targetReps} reps${s.action === 'increase_load' ? ' limpas' : ''}`;
+    return same ? `${describe(targets[0])} no ${r.exerciseName}.` : targets.map(s => `Série ${s.setNumber}: ${describe(s)}`).join(' · ');
+  }
   if (r.qualitative) {
+    if (r.basis === 'sem_base_quantificavel') return `Escolha uma carga para fazer ${r.repRange ? `${r.repRange.min}–${r.repRange.max}` : 'as'} reps com 2 de reserva.`;
     if (r.action === 'increase_load') return 'Atingiu o topo da faixa. Aumente pelo menor incremento disponível.';
     if (r.action === 'manual_increment_required')
       return 'O próximo incremento disponível é grande demais: mantenha a carga e progrida em repetições.';
