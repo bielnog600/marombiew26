@@ -12,6 +12,8 @@ import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { safeVideoSrc } from '@/lib/exerciseVideoSrc';
 import { buildActivityDiet, resolveActivityMeals } from '@/lib/adminActivityMeals';
 import { activitySetDisplay, activityRepLabel } from '@/lib/adminActivitySets';
+import { exerciseProgress, type ActivityHistoryLog } from '@/lib/adminExerciseProgress';
+import { ExerciseProgressSummary, type ExerciseProgressData } from './ExerciseProgressSummary';
 import { diffMealFoods, foodName, sumMeals, type OverrideMeal } from '@/lib/studentDietOverrideDiff';
 import { WATER_STEP_ML, ML_PER_KG_REST, TRAINING_DAY_MULTIPLIER, DEFAULT_WATER_GOAL_GLASSES } from '@/hooks/useDailyTracking';
 
@@ -188,7 +190,7 @@ const WaterView: React.FC<{ a: ActivityRef; addedGlasses?: number }> = ({ a, add
 
 /* ======================== TREINO ======================== */
 
-interface LiveSet { reps?: any; weight?: any; completed?: boolean; rpe?: any; rir?: any; subRecords?: { label?: string; reps?: any; weight?: any; completed?: boolean }[] }
+interface LiveSet { set_type?: string | null; reps?: any; weight?: any; completed?: boolean; rpe?: any; rir?: any; subRecords?: { label?: string; reps?: any; weight?: any; completed?: boolean }[] }
 interface ExView {
   name: string;
   plan?: any;
@@ -234,7 +236,7 @@ const useWorkoutSession = (sessionId: string, studentId: string) => {
           .eq('student_id', studentId).eq('status', 'completed').eq('day_name', s.day_name)
           .lt('started_at', s.started_at || s.created_at).order('started_at', { ascending: false }).limit(1).maybeSingle();
         if (prev) {
-          const { data: pl } = await supabase.from('exercise_set_logs').select('exercise_name, reps, weight_kg').eq('session_id', prev.id);
+          const { data: pl } = await supabase.from('exercise_set_logs').select('exercise_name, reps, weight_kg, sub_records, set_type').eq('session_id', prev.id);
           if (alive) setPrevious({ session: prev, logs: pl ?? [] });
         }
       }
@@ -245,6 +247,7 @@ const useWorkoutSession = (sessionId: string, studentId: string) => {
         setSession(p.new);
         if ((p.new as any).status !== 'in_progress') void loadLogs();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'exercise_set_logs', filter: `session_id=eq.${sessionId}` }, () => { void loadLogs(); })
       .subscribe();
     return () => { alive = false; supabase.removeChannel(ch); };
   }, [sessionId, studentId]);
@@ -291,7 +294,7 @@ const buildExercises = (session: any, logs: any[], planDay: any[] | null, media:
     const sets: LiveSet[] = Array.from({ length: planned }, () => ({ completed: false }));
     ls.forEach(l => {
       const index = Math.max(0, (Number(l.set_number) || 1) - 1);
-      sets[index] = { reps: l.reps, weight: l.weight_kg, completed: true, rpe: l.rpe, rir: l.rir, subRecords: l.sub_records ?? undefined };
+      sets[index] = { reps: l.reps, weight: l.weight_kg, completed: true, set_type: l.set_type, rpe: l.rpe, rir: l.rir, subRecords: l.sub_records ?? undefined };
     });
     return {
       name, plan, media: mediaOf(name), planned,
@@ -317,7 +320,7 @@ const elapsed = (from: string, to: number) => {
   return `${h ? `${h}:` : ''}${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 };
 
-const ExerciseSlide: React.FC<{ ex: ExView; index: number; total: number; isCurrent: boolean }> = ({ ex, index, total, isCurrent }) => {
+const ExerciseSlide: React.FC<{ ex: ExView; index: number; total: number; isCurrent: boolean; progress: ExerciseProgressData; historyLoading: boolean; historyError: string | null }> = ({ ex, index, total, isCurrent, progress, historyLoading, historyError }) => {
   const p = ex.plan ?? {};
   const videoSrc = safeVideoSrc(ex.media?.embed);
   const pause = p.restSeconds ? `${p.restSeconds}s` : p.pause;
@@ -360,13 +363,14 @@ const ExerciseSlide: React.FC<{ ex: ExView; index: number; total: number; isCurr
               {row.target && <p className="pl-8 text-[10px] text-muted-foreground">meta {row.target}</p>}
               {done && (s?.subRecords?.length ?? 0) > 1 && (
                 <p className="text-[10px] text-muted-foreground pl-8">
-                  {s?.subRecords?.map((x) => `${x.label ?? ''} ${x.weight || '—'}kg×${x.reps ?? '—'}`).join(' · ')}
+                  {s?.subRecords?.map((x, i) => `${x.label || (i === 0 ? 'Principal' : `Parte ${i}`)} ${x.weight ?? '—'}kg×${x.reps ?? '—'}`).join(' · ')}
                 </p>
               )}
             </div>
           );
         })}
       </div>
+      <ExerciseProgressSummary data={progress} loading={historyLoading} error={historyError} />
     </div>
   );
 };
@@ -380,6 +384,39 @@ const WorkoutView: React.FC<{ a: ActivityRef }> = ({ a }) => {
   useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(t); }, []);
 
   const exercises = useMemo(() => buildExercises(session, logs, planDay, media), [session, logs, planDay, media]);
+  const [history, setHistory] = useState<ActivityHistoryLog[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const exerciseNamesKey = JSON.stringify(exercises.map(e => e.name).sort());
+  const startedAt = session?.started_at_real || session?.started_at;
+  useEffect(() => {
+    if (!startedAt || planDay == null) return;
+    let alive = true;
+    setHistoryLoading(true); setHistoryError(null); setHistory([]);
+    const load = async () => {
+      try {
+        const names: string[] = JSON.parse(exerciseNamesKey);
+        const all: ActivityHistoryLog[] = [];
+        if (names.length) {
+          for (let offset = 0; ; offset += 1000) {
+            const { data, error } = await supabase.from('exercise_set_logs')
+              .select('exercise_name, session_id, performed_at, set_number, weight_kg, reps, set_type, sub_records')
+              .eq('student_id', a.studentId).in('exercise_name', names).lt('performed_at', startedAt)
+              .order('performed_at', { ascending: false }).order('id', { ascending: false }).range(offset, offset + 999);
+            if (error) throw error;
+            all.push(...(data ?? []) as ActivityHistoryLog[]);
+            if (!alive || (data ?? []).length < 1000) break;
+          }
+        }
+        if (alive) setHistory(all);
+      } catch (error) {
+        if (alive) setHistoryError(error instanceof Error ? error.message : 'Não foi possível carregar.');
+      } finally { if (alive) setHistoryLoading(false); }
+    };
+    void load();
+    return () => { alive = false; };
+  }, [a.studentId, startedAt, exerciseNamesKey, planDay == null]);
+  const progress = exercises.map(e => exerciseProgress(e.name, e.sets, history, a.sessionId ?? '', startedAt ?? '', e.plan));
   if (!session || planDay == null) return <Skeleton className="h-64 w-full" />;
 
   const status: string = session.status;
@@ -433,7 +470,7 @@ const WorkoutView: React.FC<{ a: ActivityRef }> = ({ a }) => {
         </div>
       </div>
 
-      {!live && (
+      {(
         <div className="rounded-xl border border-border bg-secondary/30 p-3 text-xs space-y-1">
           <p>Volume total: <strong>{r0(Number(session.total_volume_kg) || volume).toLocaleString('pt-BR')} kg</strong>{session.avg_rpe != null && <> · RPE médio <strong>{session.avg_rpe}</strong></>}</p>
           {previous ? (() => {
@@ -448,7 +485,8 @@ const WorkoutView: React.FC<{ a: ActivityRef }> = ({ a }) => {
                 <span className={dv >= 0 ? 'text-chart-2' : 'text-destructive'}>({dv >= 0 ? '+' : ''}{r0(dv).toLocaleString('pt-BR')} kg)</span>
               </p>
             );
-          })() : <p className="text-muted-foreground">Sem sessão anterior deste dia para comparar.</p>}
+          })() : <p className="text-muted-foreground">Sem sessão equivalente anterior; comparação por exercício abaixo.</p>}
+          {!historyLoading && !historyError && <p className="pt-1 font-semibold">↑ {progress.filter(p => p.status === 'up').length} progrediram · = {progress.filter(p => p.status === 'same').length} mantiveram · ↓ {progress.filter(p => p.status === 'down').length} caíram</p>}
         </div>
       )}
 
@@ -487,7 +525,7 @@ const WorkoutView: React.FC<{ a: ActivityRef }> = ({ a }) => {
           >
             <div className="flex w-full min-w-0 transition-transform duration-300 ease-out motion-reduce:transition-none" style={{ transform: `translateX(-${idx * 100}%)` }}>
               {exercises.map((e, i) => (
-                <ExerciseSlide key={i} ex={e} index={i} total={exercises.length} isCurrent={live && i === liveIdx} />
+                <ExerciseSlide key={i} ex={e} index={i} total={exercises.length} isCurrent={live && i === liveIdx} progress={progress[i]} historyLoading={historyLoading} historyError={historyError} />
               ))}
             </div>
           </div>
@@ -527,7 +565,7 @@ const LiveActivityDetailDialog: React.FC<{ activity: (ActivityRef & { addedGlass
   const Icon = meta?.icon ?? Dumbbell;
   return (
     <Dialog open={!!activity} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="flex h-[100dvh] w-full min-w-0 max-w-full flex-col overflow-hidden p-4 pt-[max(1rem,env(safe-area-inset-top))] sm:h-auto sm:max-h-[90dvh] sm:max-w-2xl sm:p-6">
+      <DialogContent className="flex h-[100dvh] w-full min-w-0 max-w-full flex-col overflow-hidden p-4 pt-[max(1rem,env(safe-area-inset-top))] sm:h-[90dvh] sm:max-h-[90dvh] sm:max-w-2xl sm:p-6">
         <DialogHeader className="min-w-0 shrink-0 pr-6 text-left">
           <DialogTitle className="flex items-center gap-2 text-base">
             <Icon className="h-4 w-4 text-primary" />
@@ -535,12 +573,12 @@ const LiveActivityDetailDialog: React.FC<{ activity: (ActivityRef & { addedGlass
           </DialogTitle>
           <DialogDescription>{activity?.studentName}</DialogDescription>
         </DialogHeader>
-        <div className="w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+        <div className="relative min-h-0 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto pb-[env(safe-area-inset-bottom)]">
         {activity && (
           activity.kind === 'meal' ? <MealView a={activity} />
           : activity.kind === 'water' ? <WaterView a={activity} addedGlasses={activity.addedGlasses} />
           : activity.kind === 'workout_done' ? <WorkoutDoneResolver a={activity} />
-          : activity.sessionId ? <WorkoutView a={activity} />
+          : activity.sessionId ? <WorkoutView key={activity.sessionId} a={activity} />
           : <p className="text-sm text-muted-foreground">Sessão não encontrada.</p>
         )}
         </div>
