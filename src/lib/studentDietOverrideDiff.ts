@@ -15,6 +15,9 @@ const num = (v?: string) => {
   return Number.isFinite(n) ? n : 0;
 };
 const norm = (s?: string) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+/** Nome do alimento tolerante a formatos antigos/novos (food/name/nome/alimento). */
+export const foodName = (f?: OverrideFood | null): string =>
+  String(f?.food ?? f?.name ?? f?.nome ?? f?.alimento ?? '').trim();
 const sameQty = (a?: string, b?: string) => norm(a).replace(/\s+/g, '') === norm(b).replace(/\s+/g, '');
 
 export const sumMeals = (meals: OverrideMeal[]): Totals =>
@@ -30,7 +33,7 @@ export function diffMealFoods(before: OverrideFood[] = [], after: OverrideFood[]
   const used = new Set<number>();
   const matchedBefore = new Map<number, number>();
   before.forEach((b, bi) => {
-    const ai = after.findIndex((a, i) => !used.has(i) && norm(a.name) === norm(b.name));
+    const ai = after.findIndex((a, i) => !used.has(i) && norm(foodName(a)) === norm(foodName(b)));
     if (ai >= 0) { used.add(ai); matchedBefore.set(bi, ai); }
   });
   const unmatchedAfter = after.map((_, i) => i).filter((i) => !used.has(i));
@@ -68,3 +71,27 @@ export function diffDay(prescribed: OverrideMeal[] = [], student: OverrideMeal[]
 
 export const hasOverrideGroups = (groups: unknown): boolean =>
   !!groups && typeof groups === 'object' && Object.keys(groups as object).length > 0;
+
+/** Linhas legíveis descrevendo o que mudou entre dois snapshots de groups. */
+export function summarizeGroupChanges(prev: Record<string, any> | null | undefined, next: Record<string, any> | null | undefined): string[] {
+  const WEEK = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+  const out: string[] = [];
+  const keys = Object.keys(next ?? {}).sort((a, b) => Number(a) - Number(b));
+  keys.forEach((k) => {
+    const g = next?.[k] ?? {};
+    const base: OverrideMeal[] = prev?.[k]?.student ?? g.prescribed ?? [];
+    const day = g.label || WEEK[Number(k)] || `Dia ${Number(k) + 1}`;
+    diffDay(base, g.student ?? []).forEach((m) => {
+      m.changes.forEach((c) => {
+        const b = foodName(c.before); const a = foodName(c.after);
+        let t = '';
+        if (c.kind === 'qty') t = `porção de ${b} ${c.before?.qty || '—'} → ${c.after?.qty || '—'}`;
+        else if (c.kind === 'replaced') t = `trocou ${b} por ${a}`;
+        else if (c.kind === 'added') t = `adicionou ${a}${c.after?.qty ? ` (${c.after.qty})` : ''}`;
+        else if (c.kind === 'removed') t = `removeu ${b}`;
+        if (t) out.push(`${day} · ${m.name}: ${t}`);
+      });
+    });
+  });
+  return out;
+}
