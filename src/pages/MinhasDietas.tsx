@@ -1,3 +1,4 @@
+import { resolveStudentDayTarget } from '@/lib/studentDietDayTarget';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -134,6 +135,7 @@ const MinhasDietas = () => {
   const [showProtocols, setShowProtocols] = useState(false);
   // HOTFIX ALUNO — dieta structured publicada (fonte de verdade do cardápio).
   const [structuredPlan, setStructuredPlan] = useState<any | null>(null);
+  const [publishedTargets, setPublishedTargets] = useState<Partial<Macros> | null>(null);
   const [structuredProtocols, setStructuredProtocols] = useState<any | null>(null);
   // Alterações do aluno persistidas no banco (visíveis ao treinador).
   const [planId, setPlanId] = useState<string | null>(null);
@@ -293,6 +295,8 @@ const MinhasDietas = () => {
       setWeeklySchedule((saved as any)?.weekly_energy_schedule ?? null);
       // HOTFIX ALUNO — structured publicada: o cardápio vem de conteudo_json.
       const canonical = parseDietPlanLoose((dieta as any).conteudo_json);
+      const rawTargets = (dieta as any).conteudo_json?.targets ?? (canonical as any)?.targets ?? null;
+      setPublishedTargets(rawTargets && Number(rawTargets.kcal) > 0 ? rawTargets : null);
       const structured = isStructuredPublishedDiet(canonical, (dieta as any).is_draft);
       setStructuredPlan(structured ? canonical : null);
       setStructuredProtocols(structured ? saved ?? null : null);
@@ -478,52 +482,20 @@ const MinhasDietas = () => {
     return { target, adjustment, instructions: dayInstructions };
   }, [weeklySchedule, activeGroupIndex, usesMealOptions, isStructuredDiet, structuredGroups]);
 
-  // Scale foods (qty + kcal + macros) proportionally to the per-day target
-  // so the student sees a different meal size on adjusted days instead of
-  // the same base menu everywhere. This is the PRESCRIBED plan of the day.
-  // PROIBIDO para structured publicada: o dia já vem pronto do banco.
-  const prescribedMeals = useMemo(() => {
-    if (isStructuredDiet) return baseMealsForDay;
-    const target = daySchedule?.target;
-    if (!target || target <= 0 || baseMealsForDay.length === 0) return baseMealsForDay;
-    const baseTotal = baseMealsForDay.reduce(
-      (s, m) => s + (m.foods?.reduce((fs: number, f: any) => fs + parseNum(f.kcal), 0) ?? 0),
-      0,
-    );
-    if (baseTotal <= 0) return baseMealsForDay;
-    const ratio = target / baseTotal;
-    if (Math.abs(ratio - 1) < 0.01) return baseMealsForDay;
-    const scaleQty = (qty: string): string => {
-      if (!qty) return qty;
-      const m = qty.match(/^\s*([\d.,]+)\s*(.*)$/);
-      if (!m) return qty;
-      const n = Number(m[1].replace(',', '.'));
-      if (!Number.isFinite(n) || n <= 0) return qty;
-      const scaled = n * ratio;
-      const rounded = scaled >= 10 ? Math.round(scaled) : Math.round(scaled * 10) / 10;
-      const numStr = String(rounded).replace('.', ',');
-      return m[2] ? `${numStr} ${m[2]}`.trim() : numStr;
-    };
-    const scaleNum = (v: string) => {
-      const n = parseNum(v);
-      if (!n) return v;
-      return String(Math.round(n * ratio));
-    };
-    return baseMealsForDay.map((meal) => ({
-      ...meal,
-      foods: meal.foods.map((f: any) => ({
-        ...f,
-        qty: scaleQty(f.qty),
-        kcal: scaleNum(f.kcal),
-        p: scaleNum(f.p),
-        c: scaleNum(f.c),
-        g: scaleNum(f.g),
-      })),
-    }));
-  }, [baseMealsForDay, daySchedule, isStructuredDiet]);
+  // Porções exatamente como o treinador salvou: NUNCA escalar para bater meta
+  // (a escala por weekly_energy_schedule usava GET × estratégia e inflava porções).
+  const prescribedMeals = baseMealsForDay;
 
   // META PRESCRITA PELO PROFESSOR — imutável para o aluno.
-  const dailyTarget = useMemo<Macros>(() => sumMealMacros(prescribedMeals as any), [prescribedMeals]);
+  // Fonte: meta do dia publicada (structured) ou conteudo_json.targets.
+  const dailyTarget = useMemo<Macros>(() => {
+    const dayTarget = isStructuredDiet ? (structuredGroups[activeGroupIndex] as any)?.target ?? null : null;
+    return resolveStudentDayTarget({
+      dayTarget,
+      publishedTargets: publishedTargets,
+      mealsTotal: sumMealMacros(prescribedMeals as any),
+    });
+  }, [prescribedMeals, isStructuredDiet, structuredGroups, activeGroupIndex, publishedTargets]);
 
   // Refeições já concluídas (registro real de consumo do dia).
   const completedIndexes = useMemo(
@@ -777,7 +749,7 @@ const MinhasDietas = () => {
 
   return (
     <AppLayout title="Plano Alimentar">
-      <FoodScanner open={showScanner} onOpenChange={setShowScanner} dailyKcal={daySchedule?.target ?? (dailyTarget?.kcal || null)} />
+      <FoodScanner open={showScanner} onOpenChange={setShowScanner} dailyKcal={dailyTarget?.kcal || null} />
       <div className="space-y-4 animate-fade-in">
         {/* Protocolos */}
         <div className="flex items-center justify-end gap-2">
