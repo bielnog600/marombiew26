@@ -992,6 +992,7 @@ export type Database = {
           student_id: string
           updated_at: string
           water_glasses: number
+          water_ml: number | null
           workout_completed: boolean
         }
         Insert: {
@@ -1002,6 +1003,7 @@ export type Database = {
           student_id: string
           updated_at?: string
           water_glasses?: number
+          water_ml?: number | null
           workout_completed?: boolean
         }
         Update: {
@@ -1012,6 +1014,7 @@ export type Database = {
           student_id?: string
           updated_at?: string
           water_glasses?: number
+          water_ml?: number | null
           workout_completed?: boolean
         }
         Relationships: []
