@@ -21,3 +21,12 @@ describe('studentDietOverrideDiff', () => {
     expect(hasOverrideGroups({ '0': {} })).toBe(true);
   });
 });
+
+import { diffMealFoods as dmf, foodName as fn } from '@/lib/studentDietOverrideDiff';
+describe('formato com chave food', () => {
+  it('lê o nome em food e detecta porção editada', () => {
+    const c = dmf([{ food: 'Salmão grelhado', qty: '150 g' }], [{ food: 'Salmão grelhado', qty: '120 g' }]);
+    expect(c[0].kind).toBe('qty');
+    expect(fn(c[0].before)).toBe('Salmão grelhado');
+  });
+});
