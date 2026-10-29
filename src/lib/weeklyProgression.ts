@@ -178,6 +178,8 @@ export interface ExercisePerformance {
   previousBestSet?: PerformedSet;
   repRange?: RepRange | null;
   nextAction: NextAction;
+  /** Consultoria: última referência > 28 dias — retomada, não regressão. */
+  resumeReference?: boolean;
   reason: string;
 }
 
