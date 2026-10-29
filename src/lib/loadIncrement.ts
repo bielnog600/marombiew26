@@ -41,9 +41,9 @@ export const MULTIPLE_TOLERANCE_G = 50;
 /** Múltiplo máximo do passo-base aceito em uma única transição. */
 export const MAX_STEP_MULTIPLE = 4;
 /** Transições (mudanças reais de carga) mínimas para inferir. */
-export const MIN_TRANSITIONS_FOR_INFERENCE = 3;
+export const MIN_TRANSITIONS_FOR_INFERENCE = 1;
 /** Ocorrências diretas mínimas do passo-base entre as transições. */
-export const MIN_BASE_OCCURRENCES = 2;
+export const MIN_BASE_OCCURRENCES = 1;
 /** Fração mínima das transições que devem ser exatamente o passo-base. */
 export const MIN_BASE_SHARE = 0.5;
 /** Carga absurda: acima disto o log é considerado anômalo e ignorado. */
@@ -85,6 +85,7 @@ export interface ResolveIncrementInput {
   configuredIncrementKg?: number | null;
   /** Séries de trabalho históricas do MESMO aluno e MESMO exercício. */
   historicalWorkingSets?: ComparableLog[];
+  now?: Date;
 }
 
 const gramsOf = (kg: number) => Math.round(kg * 1000);
@@ -214,8 +215,12 @@ const unknown = (evidence: IncrementEvidence): ResolvedIncrement => ({
  *     transições (predominância);
  *  7. qualquer inconsistência ⇒ source = unknown (nunca chutar kg).
  */
-export const inferIncrementFromTransitions = (logs: ComparableLog[] = []): ResolvedIncrement => {
-  const { kept, excluded } = comparableWorkingSets(logs);
+export const inferIncrementFromTransitions = (logs: ComparableLog[] = [], now: Date = new Date()): ResolvedIncrement => {
+  // Prefer recent equipment evidence. If only a single load exists recently,
+  // do not revive an old gym's step; the observed load can still be maintained.
+  const cutoff = now.getTime() - 60 * 86400000;
+  const recent = logs.filter(l => timeOf(l) >= cutoff && timeOf(l) <= now.getTime());
+  const { kept, excluded } = comparableWorkingSets(recent.length ? recent : logs);
   const series = kept.map((l) => round2(Number(l.weight_kg)));
   if (series.length < 2) {
     return unknown(emptyEvidence('Histórico insuficiente: menos de duas séries de trabalho comparáveis.', excluded));
@@ -316,5 +321,5 @@ export const resolveLoadIncrement = (input: ResolveIncrementInput): ResolvedIncr
   if (!configured.valid) {
     return unknown(emptyEvidence(`Configuração inválida ignorada: ${configured.error}`));
   }
-  return inferIncrementFromTransitions(input.historicalWorkingSets ?? []);
+  return inferIncrementFromTransitions(input.historicalWorkingSets ?? [], input.now);
 };
