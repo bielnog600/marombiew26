@@ -1,5 +1,10 @@
 # Roadmap
 
+## Progressão — auditoria das sugestões de carga
+- [ ] Corrigir base na maior carga de trabalho da última sessão, decisões pela faixa, metas individuais em pirâmide, consistência ação/kg e retomada após 28 dias; preservar layout e contratos.
+- [ ] Resolver teto de aumento — aguardando definição do usuário: limite de 10% conflita com exemplos 40→45, 18→20 e 20→25 classificados como corretos.
+- [ ] Cobrir todos os casos informados, confirmar consumidores aluno/admin/Consultoria/revisão e executar a suíte completa.
+
 ## Dashboard — água em uma linha por aluno/dia
 - [x] Chave diária estável, total preciso em ml, aumentos no topo com delta/horário e reduções sem reordenar; treino, refeições, layout e modal preservados.
 - [x] 21 testes passaram, compilação OK; Dashboard autenticado e modal de água conferidos com dados reais somente em leitura. Eventos de aumento/redução exercitados no teste de integração, sem alterar água real.
