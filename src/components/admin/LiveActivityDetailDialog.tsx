@@ -14,6 +14,7 @@ import { buildActivityDiet, resolveActivityMeals } from '@/lib/adminActivityMeal
 import { activitySetDisplay, activityRepLabel } from '@/lib/adminActivitySets';
 import { exerciseProgress, type ActivityHistoryLog } from '@/lib/adminExerciseProgress';
 import { buildActivityExercises, type ActivitySet, type ActivityExercise } from '@/lib/adminActivityExercises';
+import { createWorkoutLogTransition } from '@/lib/adminWorkoutLogTransition';
 import { ExerciseProgressSummary, type ExerciseProgressData } from './ExerciseProgressSummary';
 import { diffMealFoods, foodName, sumMeals, type OverrideMeal } from '@/lib/studentDietOverrideDiff';
 import { WATER_STEP_ML, ML_PER_KG_REST, TRAINING_DAY_MULTIPLIER, DEFAULT_WATER_GOAL_GLASSES } from '@/hooks/useDailyTracking';
@@ -42,7 +43,7 @@ const INACTIVE_MS = 5 * 60 * 1000;
 /* ======================== DIETA ======================== */
 
 interface DayData {
-  tracking: { water_glasses: number; meals_completed: number[]; date: string } | null;
+  tracking: { water_glasses: number; water_ml: number | null; meals_completed: number[]; date: string } | null;
   prescribed: Record<number, OverrideMeal[]>;
   student: Record<number, OverrideMeal[]>;
   targets: ReturnType<typeof buildActivityDiet>['targets'];
@@ -57,7 +58,7 @@ const useStudentDay = (studentId: string, date: string) => {
     let alive = true;
     const loadTracking = async () => {
       const { data: t } = await supabase.from('daily_tracking')
-        .select('water_glasses, meals_completed, date').eq('student_id', studentId).eq('date', date).maybeSingle();
+        .select('water_glasses, water_ml, meals_completed, date').eq('student_id', studentId).eq('date', date).maybeSingle();
       return t ? { ...t, meals_completed: Array.isArray(t.meals_completed) ? (t.meals_completed as number[]) : [] } : null;
     };
     const load = async () => {
@@ -171,7 +172,7 @@ const WaterView: React.FC<{ a: ActivityRef; addedGlasses?: number }> = ({ a, add
   const goalGlasses = d.weightKg
     ? Math.max(6, Math.round((d.weightKg * ML_PER_KG_REST * (d.trainedToday ? TRAINING_DAY_MULTIPLIER : 1)) / WATER_STEP_ML))
     : DEFAULT_WATER_GOAL_GLASSES;
-  const ml = glasses * WATER_STEP_ML;
+  const ml = d.tracking?.water_ml ?? glasses * WATER_STEP_ML;
   const goal = goalGlasses * WATER_STEP_ML;
   const pct = Math.min(100, Math.round((ml / goal) * 100));
   return (
@@ -205,16 +206,19 @@ const useWorkoutSession = (sessionId: string, studentId: string) => {
 
   useEffect(() => {
     let alive = true;
+    let logRequest = 0;
+    const transition = createWorkoutLogTransition(setSession, () => { void loadLogs(); });
     const loadLogs = async () => {
-      const { data } = await supabase.from('exercise_set_logs')
+      const request = ++logRequest;
+      const { data, error } = await supabase.from('exercise_set_logs')
         .select('exercise_name, exercise_slot_id, set_number, reps, weight_kg, rpe, rir, set_type, sub_records, performed_at')
         .eq('session_id', sessionId).order('performed_at', { ascending: true });
-      if (alive) setLogs(data ?? []);
+      if (alive && request === logRequest && !error && transition.receiveLogs((data ?? []).length)) setLogs(data ?? []);
     };
     (async () => {
       const { data: s } = await supabase.from('workout_sessions').select('*').eq('id', sessionId).maybeSingle();
       if (!alive || !s) return;
-      setSession(s);
+      transition.receiveSession(s);
       void loadLogs();
       const planQ = supabase.from('ai_plans').select('id, conteudo, conteudo_json, migration_status, tipo');
       const { data: plan } = s.plan_id
@@ -240,12 +244,12 @@ const useWorkoutSession = (sessionId: string, studentId: string) => {
     const ch = supabase.channel(`activity-ws-${sessionId}-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'workout_sessions', filter: `id=eq.${sessionId}` }, (p) => {
         if (!alive) return;
-        setSession(p.new);
+        transition.receiveSession(p.new);
         if ((p.new as any).status !== 'in_progress') void loadLogs();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'exercise_set_logs', filter: `session_id=eq.${sessionId}` }, () => { void loadLogs(); })
       .subscribe();
-    return () => { alive = false; supabase.removeChannel(ch); };
+    return () => { alive = false; transition.dispose(); supabase.removeChannel(ch); };
   }, [sessionId, studentId]);
 
   return { session, logs, planDay, media, previous };

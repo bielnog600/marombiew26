@@ -1,5 +1,9 @@
 # Roadmap
 
+## Dashboard ao vivo — finalização e água em ml
+- [ ] Registrar publicação realtime idempotente e coluna nullable water_ml; manter séries anteriores enquanto logs chegam, com novas leituras em 2 s e 5 s.
+- [ ] Persistir água exata no upsert existente, manter copos/metas e ler ml no modal; executar testes e conferir resultados.
+
 ## Dashboard admin — variações no resumo
 - [x] Associar logs aos nomes originais/variações, manter posição planejada, contagens únicas e histórico do nome executado; outros resumos não compartilham esta montagem.
 - [x] 19 testes passaram; resumo real da Thalita aberto pelo feed com sessão admin autenticada, 9/9 exercícios e 25/25 séries, quatro indicações de variação verificadas em desktop 1117×679 e celular 390×844; compilação OK. Vídeo exibiu erro do provedor, fora deste escopo.

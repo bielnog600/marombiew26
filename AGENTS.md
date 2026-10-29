@@ -1,5 +1,8 @@
 # Architecture rules
 
+- Bridge completed admin workout reads with the last live snapshot and bounded log retries; the bridge is read-only so student completion and progression remain unchanged.
+- Persist precise water totals alongside legacy glass counts through the existing offline-capable daily tracking upsert; nullable totals preserve legacy reads and water goals.
+
 - Assemble admin activity exercises in the read-only adminActivityExercises helper, matching slots before normalized original/variation names and retaining executed names for history; planned slots stay ordered and unmatched logs stay extra.
 
 - Share Consultoria training raw inputs through one paginated query cache, keeping summary and progression-review calculations separate because their plan selection, phases and session windows differ.
