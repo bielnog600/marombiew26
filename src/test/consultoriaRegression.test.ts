@@ -46,3 +46,22 @@ describe('consultoriaRegression', () => {
     expect(shouldTagRegression([r, { ...r, currentAt: NOW - 20 * 86400000 }], NOW)).toBe(false);
   });
 });
+
+import { isNoLoadExercise as noLoadRule } from '@/lib/consultoriaRegression';
+import { buildWeeklyFocus } from '@/lib/weeklyCoachingFocus';
+
+describe('exercícios sem carga ampliados', () => {
+  it('reconhece prefixos, OMBRO exato, catálogo e grupos', () => {
+    for (const n of ['ALONGAMENTO BACK', 'ESCAPULAR NA POLIA', 'Escorpião', 'PRANCHA LATERAL', 'Mountain climbers', 'MOUTAIN CLIMBERS', 'BEAR TO PLANK', 'OMBRO']) {
+      expect(noLoadRule(n)).toBe(true);
+    }
+    expect(noLoadRule('OMBRO DESENVOLVIMENTO')).toBe(false);
+    expect(noLoadRule('SUPINO RETO')).toBe(false);
+    expect(noLoadRule('BURPEE', null, false)).toBe(true);
+    expect(noLoadRule('ESTEIRA', 'Cardio')).toBe(true);
+  });
+  it('foco não gera "Revisar execução / registrar dados" para sem carga', () => {
+    const items = buildWeeklyFocus({ performances: [{ exerciseName: 'ALONGAMENTO BACK', status: 'missing', nextAction: 'review' } as any] });
+    expect(items).toHaveLength(0);
+  });
+});
