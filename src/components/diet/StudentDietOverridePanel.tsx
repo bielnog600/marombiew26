@@ -10,7 +10,7 @@ import {
 import { Pencil, Save, Undo2, UserRound, History, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import StudentMealCard from './StudentMealCard';
-import { diffDay, sumMeals, hasOverrideGroups, type FoodChange, type OverrideMeal } from '@/lib/studentDietOverrideDiff';
+import { diffDay, sumMeals, foodName, summarizeGroupChanges, hasOverrideGroups, type FoodChange, type OverrideMeal } from '@/lib/studentDietOverrideDiff';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -33,14 +33,25 @@ const ACTION_LABEL: Record<string, string> = {
   treinador_descartou: 'Treinador descartou alterações',
 };
 
+const fmtNum = (v?: string) => {
+  const t = String(v ?? '').trim();
+  return !t || t === '-' ? '0' : t.replace('.', ',');
+};
+const nameQty = (x?: any) => [foodName(x) || 'Alimento', x?.qty].filter(Boolean).join(' · ');
+const full = (x?: any) => {
+  const parts = [nameQty(x)];
+  if (x?.kcal && x.kcal !== '-') parts.push(`${fmtNum(x.kcal)} kcal`);
+  if (x?.p != null || x?.c != null || x?.g != null) parts.push(`P ${fmtNum(x?.p)} C ${fmtNum(x?.c)} G ${fmtNum(x?.g)}`);
+  return parts.join(' · ');
+};
+
 const ChangeLine: React.FC<{ c: FoodChange }> = ({ c }) => {
-  const label = (x?: any) => `${x?.name ?? ''}${x?.qty ? ` · ${x.qty}` : ''}`;
-  if (c.kind === 'same') return <li className="text-xs text-muted-foreground">{label(c.after)}</li>;
+  if (c.kind === 'same') return <li className="text-xs text-muted-foreground">{full(c.after)}</li>;
   const map = {
-    qty: { tag: 'Porção', cls: 'text-primary', text: `${c.before?.name}: ${c.before?.qty || '—'} → ${c.after?.qty || '—'}` },
-    replaced: { tag: 'Trocado', cls: 'text-primary', text: `${label(c.before)} → ${label(c.after)}` },
-    added: { tag: 'Adicionado', cls: 'text-chart-2', text: label(c.after) },
-    removed: { tag: 'Removido', cls: 'text-destructive', text: label(c.before) },
+    qty: { tag: 'Porção:', cls: 'text-primary', text: `${foodName(c.before) || foodName(c.after)} ${c.before?.qty || '—'} → ${c.after?.qty || '—'}` },
+    replaced: { tag: 'Trocado:', cls: 'text-primary', text: `${foodName(c.before)} ${c.before?.qty ?? ''} → ${foodName(c.after)} ${c.after?.qty ?? ''}`.trim() },
+    added: { tag: 'Adicionado:', cls: 'text-chart-2', text: full(c.after) },
+    removed: { tag: 'Removido:', cls: 'text-destructive', text: nameQty(c.before) },
   } as const;
   const m = map[c.kind];
   return (
@@ -64,7 +75,7 @@ const StudentDietOverridePanel: React.FC<Props> = ({ planId, studentId, children
   const load = useCallback(async () => {
     const [{ data }, { data: ev }] = await Promise.all([
       supabase.from('student_diet_overrides').select('*').eq('plan_id', planId).maybeSingle(),
-      supabase.from('student_diet_override_events').select('id, actor_role, action, created_at')
+      supabase.from('student_diet_override_events').select('id, actor_role, action, created_at, groups')
         .eq('plan_id', planId).order('created_at', { ascending: false }).limit(10),
     ]);
     setRow(data ?? null);
@@ -239,11 +250,21 @@ const StudentDietOverridePanel: React.FC<Props> = ({ planId, studentId, children
             <div className="rounded-xl border border-border p-3">
               <p className="text-xs font-semibold flex items-center gap-1.5 mb-1"><History className="h-3.5 w-3.5" /> Histórico</p>
               <ul className="space-y-0.5">
-                {events.map((e) => (
-                  <li key={e.id} className="text-[11px] text-muted-foreground">
-                    {fmtDate(e.created_at)} — {ACTION_LABEL[e.action] ?? e.action}
-                  </li>
-                ))}
+                {events.map((e, ei) => {
+                  const lines = e.action === 'aluno_editou' || e.action === 'treinador_editou'
+                    ? summarizeGroupChanges(events[ei + 1]?.groups ?? null, e.groups ?? {}) : [];
+                  return (
+                    <li key={e.id} className="text-[11px] text-muted-foreground">
+                      {fmtDate(e.created_at)} — {ACTION_LABEL[e.action] ?? e.action}
+                      {lines.length > 0 && (
+                        <ul className="ml-3 list-disc pl-3">
+                          {lines.slice(0, 8).map((l, li) => <li key={li}>{l}</li>)}
+                          {lines.length > 8 && <li>+{lines.length - 8} alterações</li>}
+                        </ul>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
