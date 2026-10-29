@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { buildWhatsAppUrl } from '@/hooks/useNotifications';
 import { useWeeklyProgressionReview } from '@/hooks/useWeeklyProgressionReview';
 import { buildProgressionContactMessage } from '@/lib/progressionContactMessage';
-import { attentionPriorityLabel } from '@/lib/trainingIntensityAttention';
+import { attentionPriorityLabel, intensityLabel } from '@/lib/trainingIntensityAttention';
 
 const MAX_ITEMS = 5;
 
@@ -87,7 +87,7 @@ const StudentsNeedingAttentionCard: React.FC = () => {
                   <p className="text-xs text-muted-foreground truncate">
                     {r.latestSessionRpe != null ? `RPE ${r.latestSessionRpe}/10` : 'Sem RPE'}
                     {' · '}
-                    {increases.length > 0 ? `${increases.length} progressões` : 'Intensidade baixa'}
+                    {increases.length > 0 ? `${increases.length} progressões` : intensityLabel(r.intensityStatus)}
                   </p>
                 </div>
                 {r.studentPhone && (
