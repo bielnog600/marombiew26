@@ -13,7 +13,7 @@ vi.mock('@/hooks/useEventTracking', () => ({ useEventTracking: () => ({ trackEve
 vi.mock('@/lib/offlineQueue', () => ({ writeWithFallback: mock.write }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: {} }));
 vi.mock('@/lib/offlineCache', () => ({ fetchWithCache: async (key: string) =>
-  key.startsWith('tracking:') ? mock.row : key.startsWith('weekly:') ? [] : null,
+  ({ data: key.startsWith('tracking:') ? mock.row : key.startsWith('weekly:') ? [] : null, fromCache: false }),
 }));
 beforeEach(() => { mock.write.mockClear(); localStorage.clear(); mock.row = null; });
 afterEach(cleanup);
