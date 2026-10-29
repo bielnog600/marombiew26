@@ -99,6 +99,13 @@
       "when": 1793139524331,
       "tag": "0013_food_scan_reviews",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793269154199,
+      "tag": "0014_realtime_student_events",
+      "breakpoints": true
     }
   ]
 }
