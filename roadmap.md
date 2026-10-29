@@ -2,7 +2,7 @@
 
 ## Dashboard admin — variações no resumo
 - [x] Associar logs aos nomes originais/variações, manter posição planejada, contagens únicas e histórico do nome executado; outros resumos não compartilham esta montagem.
-- [ ] Rodar testes e conferir o resumo da Thalita (9 exercícios e 25/25 séries) no navegador.
+- [x] 19 testes passaram; resumo real da Thalita aberto pelo feed com sessão admin autenticada, 9/9 exercícios e 25/25 séries, quatro indicações de variação verificadas em desktop 1117×679 e celular 390×844; compilação OK. Vídeo exibiu erro do provedor, fora deste escopo.
 
 ## Consultoria — páginas em paralelo
 - [x] Contar registros e ler páginas com até seis requisições simultâneas, preservando filtros/ordem e fallback sequencial em logs, planos e sessões.
