@@ -16,6 +16,7 @@ interface FeedItem {
   at: string; // ISO
   sessionId?: string;
   date?: string;
+  mealIndex?: number;
   addedGlasses?: number;
 }
 
@@ -144,6 +145,7 @@ const LiveActivityFeed: React.FC = () => {
             kind: 'meal',
             label: 'registrou refeição',
             detail: `${meals.length} de hoje`,
+            mealIndex: Number(meals[meals.length - 1]),
             at: t.updated_at,
             date: t.date,
           });
@@ -249,6 +251,7 @@ const LiveActivityFeed: React.FC = () => {
               kind: 'meal',
               label: 'registrou refeição',
               detail: `${newMeals} de hoje`,
+              mealIndex: (row.meals_completed as number[]).find(k => !(oldRow.meals_completed ?? []).includes(k)) ?? row.meals_completed[newMeals - 1],
               at,
               date: row.date,
             });
