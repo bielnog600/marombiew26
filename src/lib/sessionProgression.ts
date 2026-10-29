@@ -100,6 +100,7 @@ export interface SessionMetaRow {
 }
 
 export interface BuildSessionRecommendationsInput {
+  now?: Date;
   exercises: ParsedExercise[];
   /** Histórico bruto (já sem a sessão atual, mas revalidado aqui). */
   logs: SessionLog[];
@@ -392,6 +393,7 @@ export const buildSessionProgressionRecommendations = (
       setSchemeMode: ex.setScheme?.mode ?? null,
       setSchemeTargets: workRepTargetsOf(ex),
       plannedRepsText: plannedRepsTextOf(ex),
+      now: input.now,
     });
 
     const singlePerformance = previous.length === 0;
@@ -583,6 +585,8 @@ const formatSessionHintBase = (r: SessionRecommendation | null): SessionHint | n
   const estimated = r.incrementSource === 'inferred_history';
   const label = SESSION_ACTION_LABEL[r.action] ?? 'Sugestão';
   const range = r.repRange ? `${r.repRange.min}–${r.repRange.max}` : null;
+
+  if (r.basis === 'retomar_referencia') return { label: 'Sugestão', estimated: false, text: 'Retomar com carga de referência' };
 
   if (r.action === 'review') return { label: 'Sugestão', estimated: false, text: `Escolha uma carga para fazer ${range ?? 'as'} reps com 2 de reserva.` };
   if (r.basis === 'deload_sem_sobrecarga') return { label, estimated, text: `Mantém ${r.currentLoadKg ?? ''} kg — recuperação, sem subir carga.` };
