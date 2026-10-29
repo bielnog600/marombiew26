@@ -1,3 +1,5 @@
+import { useQueryClient } from '@tanstack/react-query';
+import { readConsultoriaTrainingData, CONSULTORIA_TRAINING_QUERY_KEY } from '@/lib/consultoriaTrainingData';
 import { readProgressionLogs } from '@/lib/progressionHistory';
 import { buildPrescribedWorkSets } from '@/lib/sessionProgression';
 import { lastExerciseSessions, withPlannedSetTypes, buildExercisePerformance, repRangeFromPlanned } from '@/lib/weeklyProgression';
@@ -113,6 +115,7 @@ const classify = (
 };
 
 export const useStudentsWeeklySummary = () => {
+  const queryClient = useQueryClient();
   const [summaries, setSummaries] = useState<StudentWeeklySummary[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -120,11 +123,11 @@ export const useStudentsWeeklySummary = () => {
     setLoading(true);
     try {
       // 1. alunos ativos (inativos não aparecem na lista — não buscar dados deles).
-      const [{ data: roles }, { data: actives }] = await Promise.all([
+      const [{ data: roles }, shared] = await Promise.all([
         supabase.from('user_roles').select('user_id').eq('role', 'aluno'),
-        supabase.from('students_profile').select('user_id').eq('ativo', true),
+        readConsultoriaTrainingData(queryClient),
       ]);
-      const activeSet = new Set((actives ?? []).map((a) => a.user_id));
+      const activeSet = new Set(shared.ids);
       const ids = (roles ?? []).map((r) => r.user_id).filter((id) => activeSet.has(id));
       const studentProfileStatus = new Map<string, boolean>(ids.map((id) => [id, true]));
       if (ids.length === 0) { setSummaries([]); return; }
@@ -135,23 +138,11 @@ export const useStudentsWeeklySummary = () => {
 
       // 2. consultas independentes em paralelo.
       const [
-        { data: profiles },
-        { data: plans },
-        { data: dietPlans },
         { data: tracking },
         { data: checkins },
         { data: redoVideos },
         { data: catalog },
       ] = await Promise.all([
-        supabase.from('profiles').select('user_id, nome, telefone').in('user_id', ids),
-        supabase
-          .from('ai_plans')
-          .select('id, student_id, conteudo, created_at, fase, fase_inicio_data, cycle_days')
-          .eq('tipo', 'treino')
-          .eq('is_draft', false)
-          .in('student_id', ids)
-          .order('created_at', { ascending: false }),
-        supabase.from('ai_plans').select('student_id').eq('tipo', 'dieta').eq('is_draft', false).in('student_id', ids),
         supabase
           .from('daily_tracking')
           .select('student_id, date, water_glasses, meals_completed')
@@ -171,6 +162,10 @@ export const useStudentsWeeklySummary = () => {
           .order('created_at', { ascending: false }),
         supabase.from('exercises').select('nome, grupo_muscular, requires_load_logging'),
       ]);
+
+      const profiles = shared.profiles.filter(p => ids.includes(p.user_id));
+      const plans = shared.plans.filter(p => p.tipo === 'treino' && ids.includes(p.student_id));
+      const dietPlans = shared.plans.filter(p => p.tipo === 'dieta' && ids.includes(p.student_id));
 
       // 3. último plano de treino ativo de cada aluno
       const latestPlan = new Map<string, {
@@ -220,20 +215,20 @@ export const useStudentsWeeklySummary = () => {
       if (contextsByStudent.size === 0) batchFrom.setDate(batchFrom.getDate() - 14);
       batchFrom = new Date(Math.min(batchFrom.getTime(), nowMs - 90 * 86400000));
 
-      const [logs, { data: sessionRows }] = await Promise.all([
-        readProgressionLogs(
-          ids,
-          batchFrom.toISOString(),
-          'id, student_id, exercise_name, reps, weight_kg, rpe, rir, set_type, set_number, performed_at, phase, session_id, sub_records, source',
-        ),
-        supabase
-          .from('workout_sessions')
+      // Reuse shared history; rare older cycle contexts keep the original full range.
+      const logs = (batchFrom.toISOString() < shared.historyStart
+        ? await readProgressionLogs(ids, batchFrom.toISOString(),
+          'id, student_id, exercise_name, reps, weight_kg, rpe, rir, set_type, set_number, performed_at, phase, session_id, sub_records, source')
+        : shared.logs).filter(l => activeSet.has(l.student_id) && ids.includes(l.student_id) && l.performed_at >= batchFrom.toISOString());
+      const sessionRows = batchFrom.toISOString() < shared.historyStart
+        ? (await supabase.from('workout_sessions')
           .select('id, student_id, status, completed_at, started_at, created_at, plan_id, phase, avg_rpe')
-          .in('student_id', ids)
-          .in('status', ['completed', 'partial', 'abandoned'])
-          .gte('completed_at', batchFrom.toISOString())
-          .lt('completed_at', batchTo.toISOString()),
-      ]);
+          .in('student_id', ids).in('status', ['completed', 'partial', 'abandoned'])
+          .gte('completed_at', batchFrom.toISOString()).lt('completed_at', batchTo.toISOString())).data
+        : shared.sessions.filter(s => ids.includes(s.student_id)
+          && ['completed', 'partial', 'abandoned'].includes(s.status)
+          && s.completed_at != null && s.completed_at >= batchFrom.toISOString()
+          && s.completed_at < batchTo.toISOString());
 
       // Presenciais: últimos 30 dias com registros do admin e nenhum do aluno pelo app.
       const thirtyDaysAgoMs = nowMs - 30 * 86400000;
@@ -252,7 +247,7 @@ export const useStudentsWeeklySummary = () => {
       const logsByStudent = new Map<string, RawSetLog[]>();
       for (const l of logs) {
         if (!logsByStudent.has(l.student_id)) logsByStudent.set(l.student_id, []);
-        logsByStudent.get(l.student_id)!.push({
+        logsByStudent.get(l.student_id)?.push({
           sub_records: l.sub_records,
           exercise_name: l.exercise_name,
           reps: l.reps,
@@ -270,7 +265,7 @@ export const useStudentsWeeklySummary = () => {
       const sessionsByStudent = new Map<string, RawSession[]>();
       for (const s of sessionRows ?? []) {
         if (!sessionsByStudent.has(s.student_id)) sessionsByStudent.set(s.student_id, []);
-        sessionsByStudent.get(s.student_id)!.push({
+        sessionsByStudent.get(s.student_id)?.push({
           avg_rpe: s.avg_rpe,
           id: s.id,
           status: s.status,
@@ -333,7 +328,8 @@ export const useStudentsWeeklySummary = () => {
         let adherence: AdherenceReport | null = null;
         let progression: ProgressionReport | null = null;
         let resolution: WeekResolution | null = null;
-        if (plan) {
+        const contexts = contextsByStudent.get(p.user_id);
+        if (plan && contexts) {
           // MESMAS funções puras do aluno/admin — só a busca de dados é em lote.
           const report = buildWeeklyTrainingReport({
             plannedPhase: resolveCurrentTrainingPhase({
@@ -343,7 +339,7 @@ export const useStudentsWeeklySummary = () => {
               cycle_days: plan.cycle_days,
             }).phase,
             plannedDays,
-            contexts: contextsByStudent.get(p.user_id)!,
+            contexts,
             logs: allLogs,
             sessions: sessionsByStudent.get(p.user_id) ?? [],
             planId: plan.id,
@@ -460,9 +456,14 @@ export const useStudentsWeeklySummary = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [queryClient]);
+
+  const reload = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: CONSULTORIA_TRAINING_QUERY_KEY, refetchType: 'none' });
+    return load();
+  }, [queryClient, load]);
 
   useEffect(() => { load(); }, [load]);
 
-  return { summaries, loading, reload: load };
+  return { summaries, loading, reload };
 };

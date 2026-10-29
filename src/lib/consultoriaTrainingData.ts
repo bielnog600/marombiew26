@@ -28,7 +28,7 @@ export function readConsultoriaTrainingData(queryClient: QueryClient) {
           'id, student_id, exercise_name, reps, weight_kg, rpe, rir, set_type, set_number, performed_at, phase, session_id, sub_records, source'),
         readAllPages((from, to) => supabase.from('workout_sessions')
           .select('id, student_id, status, avg_rpe, phase, completed_at, started_at, created_at, plan_id')
-          .in('student_id', ids).gte('created_at', historyStart)
+          .in('student_id', ids).or(`created_at.gte.${historyStart},completed_at.gte.${historyStart}`)
           .order('created_at', { ascending: false }).order('id', { ascending: true }).range(from, to)),
       ]);
       if (profilesRes.error) throw profilesRes.error;
