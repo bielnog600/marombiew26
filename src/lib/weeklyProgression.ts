@@ -24,6 +24,7 @@ import { isNoLoadExercise } from './exerciseLoadType';
 import { buildSetPlan } from './setPlanBuilder';
 
 export interface ExerciseLog {
+  sub_records?: unknown;
   session_id?: string | null;
   exercise_name: string;
   weight_kg: number | null;
@@ -360,7 +361,9 @@ export const buildExercisePerformance = (
   const totalWorkingSets = countedSets.length;
   const totalReps = countedSets.reduce((a, l) => a + (Number(l.reps) || 0), 0);
   const totalVolume = +countedSets
-    .reduce((a, l) => a + (Number(l.reps) || 0) * (Number(l.weight_kg) || 0), 0)
+    .reduce((a, l) => a + (Array.isArray(l.sub_records) && l.sub_records.length
+      ? l.sub_records.filter(s => s.completed !== false).reduce((v, s) => v + (Number(String(s.weight).replace(',', '.')) || 0) * (Number(s.reps) || 0), 0)
+      : (Number(l.reps) || 0) * (Number(l.weight_kg) || 0)), 0)
     .toFixed(1);
   const loaded = !!bestSet && bestSet.weightKg > 0;
   const comparisonBasis: ComparisonBasis =
