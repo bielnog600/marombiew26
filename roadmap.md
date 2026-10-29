@@ -1,6 +1,8 @@
 # Roadmap
 
 ## Dashboard admin — correções do modal de atividade
+- [x] Corrigir pintura/altura com altura definida e min-h-0; corpo visível de 495px em 1117×679 e 744px no celular, navegação conferida no navegador com dados reais interceptados.
+- [x] Histórico por exercício em qualquer dia/plano, progressão, PR e alertas por série; 36 testes passaram e compilação OK. Suzane: Flexora +10 kg/+20%, Búlgaro +2 reps; Agachamento possui histórico real de 15/06 (não primeira vez).
 - [x] Conter largura do carrossel, mídia e estatísticas no desktop/celular.
 - [x] Separar séries realizadas de metas e ajustar séries/tempo.
 - [x] Resolver refeições por dia, overrides e metas publicadas; preservar água e gravação.
