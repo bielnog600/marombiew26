@@ -22,11 +22,12 @@ export function computeSeriesProgression(input: QuantitativeInput): Quantitative
   const recent = loadedWork(pair.current).sort((a, b) => (a.set_number ?? 0) - (b.set_number ?? 0));
   const previous = loadedWork(input.previousLogs ?? pair.previous);
   const increment = resolveLoadIncrement({
-    historicalWorkingSets: input.historyLogs?.length ? input.historyLogs : [...(input.previousLogs ?? []), ...recent],
+    historicalWorkingSets: [...(input.historyLogs ?? []), ...(input.previousLogs ?? []), ...recent],
     configuredIncrementKg: input.configuredIncrementKg, now,
   });
   // Legacy callers may supply only a real best set, but cannot prove all prescribed sets reached the top.
-  const sets = recent.length ? recent : !input.recentLogs && p.bestSet ? [{
+  const unweighted = pair.current.filter(l => setRoleOf(l) === 'primary' && Number(l.reps) > 0);
+  const sets = recent.length ? recent : unweighted.length ? unweighted : !input.recentLogs && p.bestSet ? [{
     weight_kg: p.bestSet.weightKg, reps: p.bestSet.reps, set_number: p.bestSet.setNumber ?? 1,
     performed_at: p.bestSet.performedAt, rir: p.bestSet.rir,
   }] : [];
