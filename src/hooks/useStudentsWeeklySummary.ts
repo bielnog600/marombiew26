@@ -21,7 +21,7 @@ import {
   type QuantitativeRecommendation,
 } from '@/lib/quantitativeProgression';
 import type { VideoNeedsRedo } from '@/lib/weeklyCoachingFocus';
-import { assessExerciseRegression, shouldTagRegression, type ExerciseRegressionAssessment } from '@/lib/consultoriaRegression';
+import { assessExerciseRegression, isNoLoadExercise, shouldTagRegression, type ExerciseRegressionAssessment } from '@/lib/consultoriaRegression';
 
 export type AttentionKind =
   | 'regressao'
@@ -119,62 +119,60 @@ export const useStudentsWeeklySummary = () => {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. alunos ativos
-      const { data: roles } = await supabase.from('user_roles').select('user_id').eq('role', 'aluno');
-      const allIds = (roles ?? []).map((r) => r.user_id);
-      if (allIds.length === 0) { setSummaries([]); return; }
-      const { data: actives } = await supabase
-        .from('students_profile')
-        .select('user_id, ativo')
-        .in('user_id', allIds);
-      const studentProfileStatus = new Map<string, boolean>((actives ?? []).map(a => [a.user_id, !!a.ativo]));
-      const ids = allIds; // Use all user IDs, filtering for active status will happen in result mapping or classification if needed, but the request says to hide them in UI tabs.
-
-
+      // 1. alunos ativos (inativos não aparecem na lista — não buscar dados deles).
+      const [{ data: roles }, { data: actives }] = await Promise.all([
+        supabase.from('user_roles').select('user_id').eq('role', 'aluno'),
+        supabase.from('students_profile').select('user_id').eq('ativo', true),
+      ]);
+      const activeSet = new Set((actives ?? []).map((a) => a.user_id));
+      const ids = (roles ?? []).map((r) => r.user_id).filter((id) => activeSet.has(id));
+      const studentProfileStatus = new Map<string, boolean>(ids.map((id) => [id, true]));
       if (ids.length === 0) { setSummaries([]); return; }
 
-      // 2. perfis (nome, telefone)
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('user_id, nome, telefone')
-        .in('user_id', ids);
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const sevenDaysAgoDate = sevenDaysAgo.toISOString().slice(0, 10);
 
-      // 2b. Detecta automaticamente alunos "presenciais": aqueles cujos
-      // registros recentes vieram do admin (Modo Treino) e não do próprio
-      // aluno pelo app. Última janela: 30 dias.
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const { data: sourceLogs } = await supabase
-        .from('exercise_set_logs')
-        .select('student_id, source')
-        .in('student_id', ids)
-        .gte('performed_at', thirtyDaysAgo.toISOString());
-      const adminCount = new Map<string, number>();
-      const studentCount = new Map<string, number>();
-      for (const l of sourceLogs ?? []) {
-        if ((l as any).source === 'admin') {
-          adminCount.set(l.student_id, (adminCount.get(l.student_id) ?? 0) + 1);
-        } else {
-          studentCount.set(l.student_id, (studentCount.get(l.student_id) ?? 0) + 1);
-        }
-      }
-      const presencialMap = new Map<string, boolean>();
-      for (const id of ids) {
-        const a = adminCount.get(id) ?? 0;
-        const s = studentCount.get(id) ?? 0;
-        // Considera presencial se, nos últimos 30 dias, houve registros do
-        // admin e o aluno não registrou nada pelo app.
-        presencialMap.set(id, a > 0 && s === 0);
-      }
+      // 2. consultas independentes em paralelo.
+      const [
+        { data: profiles },
+        { data: plans },
+        { data: dietPlans },
+        { data: tracking },
+        { data: checkins },
+        { data: redoVideos },
+        { data: catalog },
+      ] = await Promise.all([
+        supabase.from('profiles').select('user_id, nome, telefone').in('user_id', ids),
+        supabase
+          .from('ai_plans')
+          .select('id, student_id, conteudo, created_at, fase, fase_inicio_data, cycle_days')
+          .eq('tipo', 'treino')
+          .eq('is_draft', false)
+          .in('student_id', ids)
+          .order('created_at', { ascending: false }),
+        supabase.from('ai_plans').select('student_id').eq('tipo', 'dieta').eq('is_draft', false).in('student_id', ids),
+        supabase
+          .from('daily_tracking')
+          .select('student_id, date, water_glasses, meals_completed')
+          .in('student_id', ids)
+          .gte('date', sevenDaysAgoDate),
+        supabase
+          .from('diet_checkins')
+          .select('student_id, completed_at, fome, energia, saciedade, digestao, facilidade, adesao, observacoes')
+          .in('student_id', ids)
+          .not('completed_at', 'is', null)
+          .order('completed_at', { ascending: false }),
+        supabase
+          .from('exercise_execution_videos')
+          .select('student_id, exercise_name, admin_note, created_at, status')
+          .in('student_id', ids)
+          .eq('status', 'needs_redo')
+          .order('created_at', { ascending: false }),
+        supabase.from('exercises').select('nome, grupo_muscular, requires_load_logging'),
+      ]);
 
       // 3. último plano de treino ativo de cada aluno
-      const { data: plans } = await supabase
-        .from('ai_plans')
-        .select('id, student_id, conteudo, created_at, fase, fase_inicio_data, cycle_days')
-        .eq('tipo', 'treino')
-        .eq('is_draft', false)
-        .in('student_id', ids)
-        .order('created_at', { ascending: false });
       const latestPlan = new Map<string, {
         id: string;
         conteudo: string | null;
@@ -210,8 +208,7 @@ export const useStudentsWeeklySummary = () => {
         }));
       }
 
-      // 4. logs e sessões em LOTE (2 queries para todos os alunos — zero N+1).
-      // Busca o superset temporal que cobre todos os contextos semanais.
+      // 4. logs (paginados, só colunas usadas) e sessões em lote, em paralelo.
       const nowMs = Date.now();
       let batchFrom = new Date(nowMs);
       let batchTo = new Date(nowMs);
@@ -221,35 +218,55 @@ export const useStudentsWeeklySummary = () => {
         if (r.to > batchTo) batchTo = r.to;
       }
       if (contextsByStudent.size === 0) batchFrom.setDate(batchFrom.getDate() - 14);
+      batchFrom = new Date(Math.min(batchFrom.getTime(), nowMs - 90 * 86400000));
 
-      batchFrom = new Date(Math.min(batchFrom.getTime(), nowMs - 180 * 86400000));
-      const logs = await readProgressionLogs(ids, batchFrom.toISOString());
+      const [logs, { data: sessionRows }] = await Promise.all([
+        readProgressionLogs(
+          ids,
+          batchFrom.toISOString(),
+          'id, student_id, exercise_name, reps, weight_kg, rpe, rir, set_type, set_number, performed_at, phase, session_id, sub_records, source',
+        ),
+        supabase
+          .from('workout_sessions')
+          .select('id, student_id, status, completed_at, started_at, created_at, plan_id, phase, avg_rpe')
+          .in('student_id', ids)
+          .in('status', ['completed', 'partial', 'abandoned'])
+          .gte('completed_at', batchFrom.toISOString())
+          .lt('completed_at', batchTo.toISOString()),
+      ]);
+
+      // Presenciais: últimos 30 dias com registros do admin e nenhum do aluno pelo app.
+      const thirtyDaysAgoMs = nowMs - 30 * 86400000;
+      const adminCount = new Map<string, number>();
+      const studentCount = new Map<string, number>();
+      for (const l of logs) {
+        if (new Date(l.performed_at).getTime() < thirtyDaysAgoMs) continue;
+        const target = l.source === 'admin' ? adminCount : studentCount;
+        target.set(l.student_id, (target.get(l.student_id) ?? 0) + 1);
+      }
+      const presencialMap = new Map<string, boolean>();
+      for (const id of ids) {
+        presencialMap.set(id, (adminCount.get(id) ?? 0) > 0 && (studentCount.get(id) ?? 0) === 0);
+      }
 
       const logsByStudent = new Map<string, RawSetLog[]>();
-      for (const l of logs ?? []) {
+      for (const l of logs) {
         if (!logsByStudent.has(l.student_id)) logsByStudent.set(l.student_id, []);
         logsByStudent.get(l.student_id)!.push({
           sub_records: l.sub_records,
           exercise_name: l.exercise_name,
           reps: l.reps,
           weight_kg: l.weight_kg,
-          rpe: (l as any).rpe ?? null,
-          rir: (l as any).rir ?? null,
-          set_type: (l as any).set_type ?? null,
-          set_number: (l as any).set_number ?? null,
+          rpe: l.rpe ?? null,
+          rir: l.rir ?? null,
+          set_type: l.set_type ?? null,
+          set_number: l.set_number ?? null,
           performed_at: l.performed_at,
-          phase: (l as any).phase ?? null,
-          session_id: (l as any).session_id ?? null,
+          phase: l.phase ?? null,
+          session_id: l.session_id ?? null,
         });
       }
 
-      const { data: sessionRows } = await supabase
-        .from('workout_sessions')
-        .select('id, student_id, status, completed_at, started_at, created_at, plan_id, phase, avg_rpe')
-        .in('student_id', ids)
-        .in('status', ['completed', 'partial', 'abandoned'])
-        .gte('completed_at', batchFrom.toISOString())
-        .lt('completed_at', batchTo.toISOString());
       const sessionsByStudent = new Map<string, RawSession[]>();
       for (const s of sessionRows ?? []) {
         if (!sessionsByStudent.has(s.student_id)) sessionsByStudent.set(s.student_id, []);
@@ -265,49 +282,19 @@ export const useStudentsWeeklySummary = () => {
         });
       }
 
-      // 5. dieta ativa (existência)
-      const { data: dietPlans } = await supabase
-        .from('ai_plans')
-        .select('student_id')
-        .eq('tipo', 'dieta')
-        .eq('is_draft', false)
-        .in('student_id', ids);
       const hasDietSet = new Set<string>((dietPlans ?? []).map((d) => d.student_id));
 
-      // 6. daily_tracking dos últimos 7 dias (água + refeições)
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const sevenDaysAgoDate = sevenDaysAgo.toISOString().slice(0, 10);
-      const { data: tracking } = await supabase
-        .from('daily_tracking')
-        .select('student_id, date, water_glasses, meals_completed')
-        .in('student_id', ids)
-        .gte('date', sevenDaysAgoDate);
       const trackingByStudent = new Map<string, typeof tracking>();
       for (const t of tracking ?? []) {
         if (!trackingByStudent.has(t.student_id)) trackingByStudent.set(t.student_id, [] as any);
         (trackingByStudent.get(t.student_id) as any[]).push(t);
       }
 
-      // 7. último diet_checkin respondido de cada aluno
-      const { data: checkins } = await supabase
-        .from('diet_checkins')
-        .select('student_id, completed_at, fome, energia, saciedade, digestao, facilidade, adesao, observacoes')
-        .in('student_id', ids)
-        .not('completed_at', 'is', null)
-        .order('completed_at', { ascending: false });
       const lastCheckinByStudent = new Map<string, any>();
       for (const ch of checkins ?? []) {
         if (!lastCheckinByStudent.has(ch.student_id)) lastCheckinByStudent.set(ch.student_id, ch);
       }
 
-      // 8. vídeos de execução marcados como "refazer" (evidência real de técnica)
-      const { data: redoVideos } = await supabase
-        .from('exercise_execution_videos')
-        .select('student_id, exercise_name, admin_note, created_at, status')
-        .in('student_id', ids)
-        .eq('status', 'needs_redo')
-        .order('created_at', { ascending: false });
       const videosByStudent = new Map<string, VideoNeedsRedo[]>();
       for (const v of redoVideos ?? []) {
         const list = videosByStudent.get(v.student_id) ?? [];
@@ -317,10 +304,18 @@ export const useStudentsWeeklySummary = () => {
         videosByStudent.set(v.student_id, list);
       }
 
-      // 9. grupo muscular do catálogo (regra de exercícios sem carga).
-      const { data: catalog } = await supabase.from('exercises').select('nome, grupo_muscular');
+      // Catálogo: grupo muscular + requires_load_logging (regra de exercícios sem carga).
       const muscleByName = new Map<string, string | null>();
-      for (const c of catalog ?? []) muscleByName.set(normalizeExerciseKey(c.nome), c.grupo_muscular ?? null);
+      const requiresLoadByName = new Map<string, boolean | null>();
+      for (const c of catalog ?? []) {
+        const k = normalizeExerciseKey(c.nome);
+        muscleByName.set(k, c.grupo_muscular ?? null);
+        requiresLoadByName.set(k, (c as any).requires_load_logging ?? null);
+      }
+      const noLoad = (name: string) => {
+        const k = normalizeExerciseKey(name);
+        return isNoLoadExercise(name, muscleByName.get(k) ?? null, requiresLoadByName.get(k) ?? null);
+      };
 
       const result: StudentWeeklySummary[] = [];
       for (const p of profiles ?? []) {
@@ -329,7 +324,10 @@ export const useStudentsWeeklySummary = () => {
 
         let plannedDays: ParsedTrainingDay[] = [];
         if (plan?.conteudo) {
-          plannedDays = parseTrainingSections(plan.conteudo).flatMap((s) => s.days || []);
+          // Exercícios sem carga não geram orientação nem contam como "sem registro".
+          plannedDays = parseTrainingSections(plan.conteudo)
+            .flatMap((s) => s.days || [])
+            .map((d) => ({ ...d, exercises: (d.exercises ?? []).filter((e) => !noLoad(e.exercise)) }));
         }
 
         let adherence: AdherenceReport | null = null;
@@ -379,6 +377,7 @@ export const useStudentsWeeklySummary = () => {
             logs: withPlannedSetTypes(allLogs.filter(l => normalizeExerciseKey(l.exercise_name) === key), ex),
             planned: ex,
             muscleGroup: muscleByName.get(key) ?? null,
+            requiresLoadLogging: requiresLoadByName.get(key) ?? null,
             repRange: repRangeFromPlanned(ex),
           }));
         }
@@ -388,7 +387,7 @@ export const useStudentsWeeklySummary = () => {
             ...progression,
             regressed: progression.regressed.filter(d => kindOf(d.exercise) === 'regression'),
             performances: progression.performances
-              .filter(perf => kindOf(perf.exerciseName) !== 'no_load')
+              .filter(perf => kindOf(perf.exerciseName) !== 'no_load' && !noLoad(perf.exerciseName))
               .map(perf => {
                 const kind = kindOf(perf.exerciseName);
                 if (kind === 'resume') return { ...perf, nextAction: 'maintain' as const, resumeReference: true };
