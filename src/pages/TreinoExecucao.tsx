@@ -578,12 +578,21 @@ const TreinoExecucaoInner = () => {
     const pending = (sets[currentIndex] ?? []).findIndex(s => !s.completed);
     if (pending >= 0) window.setTimeout(() => setWeightRefs.current[pending]?.focus(), 200);
   }, [currentIndex]);
+  // A mesma identidade ativa alimenta apresentação, histórico e estado persistido.
+  const effectiveNameFor = useCallback((ex?: ParsedExercise | null, prefs = variationPrefs) => {
+    if (!ex) return '';
+    const useVar = !!ex.variation && (prefs[variationPrefKey(ex)] ?? loadVariationPref(user?.id, variationPrefKey(ex)));
+    return useVar && ex.variation ? ex.variation : (ex.exercise || '');
+  }, [variationPrefs, user?.id]);
+  const isVariationActive = useCallback((ex?: ParsedExercise | null) =>
+    !!ex?.variation && effectiveNameFor(ex) === ex.variation, [effectiveNameFor]);
+
   const sessionMeta = useMemo(() => ({
     groupPause,
     inlineRest: inlineRest.snapshot,
     exerciseSlotIds: exercises.map(ex => ex.id),
     executionMethods: exercises.map(ex => seriesMethod(ex)),
-    exerciseNames: exercises.map((ex: any) => ex?.exercise || ''),
+    exerciseNames: exercises.map(ex => effectiveNameFor(ex)),
     plannedSets: exercises.map((ex: any) =>
       buildSetPlan(ex?.series, ex?.series2, ex?.reps, ex?.setScheme).length || 3,
     ),
@@ -592,7 +601,7 @@ const TreinoExecucaoInner = () => {
       buildSetPlan(ex?.series, ex?.series2, ex?.reps, ex?.setScheme).map((p) => p.type),
     ),
     ...(progressionSnapshot ? { progressionRecommendations: progressionSnapshot } : {}),
-  }), [exercises, progressionSnapshot, groupPause, inlineRest.snapshot]);
+  }), [exercises, effectiveNameFor, progressionSnapshot, groupPause, inlineRest.snapshot]);
 
 
   const formatElapsed = (totalSec: number) => {
@@ -858,17 +867,6 @@ const TreinoExecucaoInner = () => {
   const selectedExerciseName = matchedVariation && exercise?.variation ? exercise.variation : exercise?.exercise || '';
   const currentVariationPref = exercise ? variationPrefs[variationPrefKey(exercise)] : undefined;
 
-  // Nome efetivo de qualquer exercício do plano: a variação ativa vale por
-  // exercício (trocar a do B não afeta o A) e deve aparecer em abas, rodapé,
-  // transição e histórico — não só no topo.
-  const effectiveNameFor = useCallback((ex?: ParsedExercise | null) => {
-    if (!ex) return '';
-    const useVar = !!ex.variation && (variationPrefs[variationPrefKey(ex)] ?? loadVariationPref(user?.id, variationPrefKey(ex)));
-    return useVar && ex.variation ? ex.variation : (ex.exercise || '');
-  }, [variationPrefs, user?.id]);
-  const isVariationActive = useCallback((ex?: ParsedExercise | null) =>
-    !!ex?.variation && effectiveNameFor(ex) === ex.variation, [effectiveNameFor]);
-
   // Carrega a preferência de variação salva por exercício ao trocar de exercício
   useEffect(() => {
     if (!exercise) return;
@@ -913,10 +911,22 @@ const TreinoExecucaoInner = () => {
     if (!exercise) return;
     const next = !effectiveShowingVariation;
     const cacheKey = variationPrefKey(exercise);
+    const persistVariationState = (value: boolean) => {
+      if (!sessionId) return;
+      const nextPrefs = { ...variationPrefs, [cacheKey]: value };
+      void supabase.from('workout_sessions').update({
+        session_state: {
+          sets, currentIndex, ...sessionMeta,
+          exerciseNames: exercises.map(ex => effectiveNameFor(ex, nextPrefs)),
+        } as any,
+        last_active_at: new Date().toISOString(),
+      }).eq('id', sessionId).then(() => {});
+    };
     setShowingVariation(next);
     setShowingVariationFor(cacheKey);
     setVariationPrefs((prev) => ({ ...prev, [cacheKey]: next }));
     saveVariationPref(user?.id, cacheKey, next);
+    persistVariationState(next);
 
     if (!user || !matchedExercise?.id) return;
 
@@ -945,6 +955,7 @@ const TreinoExecucaoInner = () => {
       setShowingVariationFor(cacheKey);
       setVariationPrefs((prev) => ({ ...prev, [cacheKey]: !next }));
       saveVariationPref(user?.id, cacheKey, !next);
+      persistVariationState(!next);
       toast.error('Não foi possível salvar a troca de exercício.');
       return;
     }

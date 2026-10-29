@@ -1,5 +1,9 @@
 # Roadmap
 
+## Execução — nome da variação no estado ao vivo
+- [ ] Usar identidade efetiva no sessionMeta e salvar troca/retorno imediatamente, preservando slots/séries e rollback da preferência.
+- [ ] Testar HACK MACHINE → AGACHAMENTO LIVRE → original, logs de resolução e associação/histórico admin; conferir compilação e arquivos alterados.
+
 ## Dashboard ao vivo — finalização e água em ml
 - [x] Publicação realtime idempotente e coluna nullable water_ml aplicadas; séries anteriores preservadas enquanto logs chegam, com novas leituras em 2 s e 5 s e limpeza de timers.
 - [x] Água exata no upsert existente, copos/metas preservados e ml lido no modal; 1.413 testes passaram (3 ignorados), compilação OK; Dashboard autenticado conferido com Thalita (9/9, 25/25 e água legada 1 L). Corrida de finalização e frações em ml verificadas em testes; nenhuma sessão real foi finalizada ou água real alterada.
