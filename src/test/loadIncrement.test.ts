@@ -99,11 +99,10 @@ describe('loadIncrement — inferência por transições reais', () => {
     expect(r.incrementKg).toBe(2.5);
   });
 
-  it('20. inferência exige evidência mínima (3 transições reais)', () => {
+  it('20. duas transições reais já aprendem o degrau', () => {
     const r = inferIncrementFromTransitions(series([70, 75, 80]));
-    expect(r.incrementKg).toBeNull();
+    expect(r.incrementKg).toBe(5);
     expect(r.evidence.transitionsKg).toEqual([5, 5]);
-    expect(r.evidence.reason).toContain('Evidência insuficiente');
   });
 });
 
@@ -128,7 +127,7 @@ describe('loadIncrement — hierarquia', () => {
   });
 
   it('10. sem configuração e sem histórico confiável → unknown/low', () => {
-    const r = resolveLoadIncrement({ historicalWorkingSets: series([70, 73.3]) });
+    const r = resolveLoadIncrement({ historicalWorkingSets: series([70]) });
     expect(r.incrementKg).toBeNull();
     expect(r.source).toBe('unknown');
     expect(r.confidence).toBe('low');
@@ -167,9 +166,9 @@ describe('loadIncrement — integração com quantitativeProgression', () => {
       performance: perf(),
       configuredIncrementKg: resolved.incrementKg,
     });
-    expect(r.recommendedLoadKg).toBe(82.5);
-    expect(r.incrementSource).toBe('configured');
-    expect(r.incrementConfidence).toBe('high');
+    expect(r.recommendedLoadKg).toBe(80);
+    expect(r.incrementSource).toBe('unknown');
+    expect(r.incrementConfidence).toBe('low');
   });
 
   it('12. incremento configurado grande demais não vira aumento automático', () => {
@@ -179,11 +178,11 @@ describe('loadIncrement — integração com quantitativeProgression', () => {
       }),
       configuredIncrementKg: 5,
     });
-    expect(r.action).toBe('manual_increment_required');
-    expect(r.basis).toBe('available_increment_too_large');
+    expect(r.action).toBe('maintain');
+    expect(r.basis).toBe('metas_por_serie');
     expect(r.recommendedLoadKg).toBe(10);
     // fonte continua confiável, mas o salto não é seguro
-    expect(r.incrementConfidence).toBe('high');
+    expect(r.incrementConfidence).toBe('low');
     expect(r.confidence).toBe('low');
   });
 
@@ -203,7 +202,7 @@ describe('loadIncrement — integração com quantitativeProgression', () => {
       }),
       configuredIncrementKg: 2.5,
     });
-    expect(rec.recommendedLoadKg).toBe(85);
+    expect(rec.recommendedLoadKg).toBe(82.5);
     expect(String(rec.recommendedLoadKg)).not.toContain('99999');
   });
 

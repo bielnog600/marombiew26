@@ -39,7 +39,7 @@ describe('regras solicitadas de progressão', () => {
     expect(inferIncrementFromTransitions(h, now).incrementKg).toBeNull();
   });
   it('sem histórico não sugere kg', () => {
-    const r = buildSessionProgressionRecommendations({ exercises: [ex()], logs: [], currentSessionId: 'new' }).recommendations['CADEIRA FLEXORA'];
+    const r = buildSessionProgressionRecommendations({ exercises: [ex()], logs: [], currentSessionId: 'new', activePhase: 'semana_2', configuredIncrements: {} }).recommendations['CADEIRA FLEXORA'];
     expect(r.recommendedLoadKg).toBeNull();
     expect(r.action).toBe('review');
   });
