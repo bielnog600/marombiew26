@@ -1,3 +1,4 @@
+import { resolveStudentDayTarget } from '@/lib/studentDietDayTarget';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -748,7 +749,7 @@ const MinhasDietas = () => {
 
   return (
     <AppLayout title="Plano Alimentar">
-      <FoodScanner open={showScanner} onOpenChange={setShowScanner} dailyKcal={daySchedule?.target ?? (dailyTarget?.kcal || null)} />
+      <FoodScanner open={showScanner} onOpenChange={setShowScanner} dailyKcal={dailyTarget?.kcal || null} />
       <div className="space-y-4 animate-fade-in">
         {/* Protocolos */}
         <div className="flex items-center justify-end gap-2">
