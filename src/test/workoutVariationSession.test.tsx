@@ -68,6 +68,17 @@ beforeEach(() => { HTMLElement.prototype.scrollIntoView = vi.fn(); });
 afterEach(() => { cleanup(); localStorage.clear(); mock.updates.length = 0; mock.stored = {}; mock.fail = false; });
 
 describe('active variation session identity', () => {
+  it('restores the original session identity immediately when saving the preference fails', async () => {
+    mock.fail = true;
+    render(<TreinoExecucao />);
+    await screen.findByRole('heading', { name: 'HACK MACHINE' });
+    await waitFor(() => expect(mock.local).toHaveBeenCalled());
+    mock.updates.length = 0;
+    fireEvent.click(screen.getByRole('button', { name: 'Variação' }));
+    expect(mock.updates[0].session_state.exerciseNames[2]).toBe('AGACHAMENTO LIVRE');
+    await waitFor(() => expect(mock.updates.at(-1).session_state.exerciseNames[2]).toBe('HACK MACHINE'));
+    expect(mock.updates.at(-1).session_state.sets).toEqual(mock.sets);
+  });
   it('flushes slot 2 immediately in both directions, retains sets, and supplies the executed name to recovery/admin history', async () => {
     render(<TreinoExecucao />);
     await screen.findByRole('heading', { name: 'HACK MACHINE' });
