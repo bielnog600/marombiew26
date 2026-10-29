@@ -13,6 +13,7 @@ import { safeVideoSrc } from '@/lib/exerciseVideoSrc';
 import { buildActivityDiet, resolveActivityMeals } from '@/lib/adminActivityMeals';
 import { activitySetDisplay, activityRepLabel } from '@/lib/adminActivitySets';
 import { exerciseProgress, type ActivityHistoryLog } from '@/lib/adminExerciseProgress';
+import { buildActivityExercises, type ActivitySet, type ActivityExercise } from '@/lib/adminActivityExercises';
 import { ExerciseProgressSummary, type ExerciseProgressData } from './ExerciseProgressSummary';
 import { diffMealFoods, foodName, sumMeals, type OverrideMeal } from '@/lib/studentDietOverrideDiff';
 import { WATER_STEP_ML, ML_PER_KG_REST, TRAINING_DAY_MULTIPLIER, DEFAULT_WATER_GOAL_GLASSES } from '@/hooks/useDailyTracking';
@@ -190,14 +191,9 @@ const WaterView: React.FC<{ a: ActivityRef; addedGlasses?: number }> = ({ a, add
 
 /* ======================== TREINO ======================== */
 
-interface LiveSet { set_type?: string | null; reps?: any; weight?: any; completed?: boolean; rpe?: any; rir?: any; subRecords?: { label?: string; reps?: any; weight?: any; completed?: boolean }[] }
-interface ExView {
-  name: string;
-  plan?: any;
+type LiveSet = ActivitySet;
+interface ExView extends ActivityExercise {
   media?: { embed?: string | null; image?: string | null };
-  planned: number;
-  method?: string;
-  sets: LiveSet[];
 }
 
 const useWorkoutSession = (sessionId: string, studentId: string) => {
@@ -256,57 +252,12 @@ const useWorkoutSession = (sessionId: string, studentId: string) => {
 };
 
 const buildExercises = (session: any, logs: any[], planDay: any[] | null, media: any[]): ExView[] => {
-  const st = session?.session_state ?? {};
-  const findPlan = (slot?: string, name?: string, idx?: number) =>
-    (planDay ?? []).find((p) => slot && p.id === slot)
-    ?? (planDay ?? []).find((p) => name && String(p.exercise).toUpperCase().trim() === String(name).toUpperCase().trim())
-    ?? (idx != null ? planDay?.[idx] : undefined);
   const mediaOf = (name: string) => {
     const m = media.length ? findBestExerciseMatch(name.toUpperCase().trim(), media as any) : null;
     return m ? { embed: (m as any).video_embed, image: (m as any).imagem_url } : undefined;
   };
 
-  if (Array.isArray(st.exerciseNames) && st.exerciseNames.length) {
-    return st.exerciseNames.map((name: string, i: number) => {
-      const plan = findPlan(st.exerciseSlotIds?.[i], name, i);
-      const live = (st.sets?.[i] ?? st.sets?.[String(i)] ?? []) as LiveSet[];
-      return {
-        name, plan, media: mediaOf(name),
-        planned: Number(st.plannedSets?.[i]) || live.length || num(plan?.series),
-        method: st.executionMethods?.[i] && st.executionMethods[i] !== 'nenhum' ? st.executionMethods[i] : plan?.metodo && plan.metodo !== 'nenhum' ? plan.metodo : undefined,
-        sets: live.map((s, si) => ({ ...s, set_type: s.set_type ?? st.plannedSetTypes?.[i]?.[si] })),
-      };
-    });
-  }
-  // Sessão encerrada (session_state limpo): monta a partir dos registros.
-  const order: string[] = [];
-  const groups = new Map<string, any[]>();
-  logs.forEach((l) => {
-    const k = l.exercise_slot_id || l.exercise_name;
-    if (!groups.has(k)) { groups.set(k, []); order.push(k); }
-    groups.get(k)?.push(l);
-  });
-  const fromLogs: ExView[] = order.map((k) => {
-    const ls = (groups.get(k) ?? []).sort((a, b) => a.set_number - b.set_number);
-    const name = ls[0].exercise_name;
-    const plan = findPlan(ls[0].exercise_slot_id, name);
-    const planned = Math.max(num(plan?.series), ...ls.map(l => Number(l.set_number) || 1));
-    const sets: LiveSet[] = Array.from({ length: planned }, () => ({ completed: false }));
-    ls.forEach(l => {
-      const index = Math.max(0, (Number(l.set_number) || 1) - 1);
-      sets[index] = { reps: l.reps, weight: l.weight_kg, completed: true, set_type: l.set_type, rpe: l.rpe, rir: l.rir, subRecords: l.sub_records ?? undefined };
-    });
-    return {
-      name, plan, media: mediaOf(name), planned,
-      method: ls[0].training_method || (plan?.metodo !== 'nenhum' ? plan?.metodo : undefined),
-      sets,
-    };
-  });
-  // Exercícios do plano sem nenhum registro também aparecem (não feitos).
-  (planDay ?? []).forEach((p) => {
-    if (!fromLogs.some((e) => e.plan === p)) fromLogs.push({ name: p.exercise, plan: p, media: mediaOf(p.exercise), planned: num(p.series), sets: [] });
-  });
-  return fromLogs;
+  return buildActivityExercises(session, logs, planDay).map(ex => ({ ...ex, media: mediaOf(ex.name) }));
 };
 
 const setVolume = (s: LiveSet) => {
@@ -331,6 +282,7 @@ const ExerciseSlide: React.FC<{ ex: ExView; index: number; total: number; isCurr
         {isCurrent && <Badge className="text-[9px] gap-1"><Radio className="h-3 w-3" /> Atual</Badge>}
       </div>
       <p className="font-semibold leading-tight">{ex.name}</p>
+      {ex.variationOf && <p className="text-[11px] text-muted-foreground">variação de {ex.variationOf}</p>}
       {(ex.media?.embed || ex.media?.image) && (
         <div className="relative w-full max-w-full aspect-video max-h-[40dvh] overflow-hidden rounded-md bg-muted">
           {videoSrc ? <iframe src={videoSrc} title={`Vídeo ${ex.name}`} className="absolute inset-0 h-full w-full max-w-full border-0" allow="autoplay; fullscreen" />
@@ -462,7 +414,7 @@ const WorkoutView: React.FC<{ a: ActivityRef }> = ({ a }) => {
         </div>
         <div className="rounded-lg bg-secondary/40 p-2">
           <p className="text-[10px] text-muted-foreground">Exercícios</p>
-          <p className="font-bold">{live ? `${liveIdx + 1}/${exercises.length}` : `${doneEx}/${session.total_exercises || exercises.length}`}</p>
+          <p className="font-bold">{live ? `${liveIdx + 1}/${exercises.length}` : `${doneEx}/${exercises.length}`}</p>
         </div>
         <div className="rounded-lg bg-secondary/40 p-2">
           <p className="text-[10px] text-muted-foreground">Séries</p>

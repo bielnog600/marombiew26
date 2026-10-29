@@ -1,5 +1,9 @@
 # Roadmap
 
+## Dashboard admin — variações no resumo
+- [x] Associar logs aos nomes originais/variações, manter posição planejada, contagens únicas e histórico do nome executado; outros resumos não compartilham esta montagem.
+- [ ] Rodar testes e conferir o resumo da Thalita (9 exercícios e 25/25 séries) no navegador.
+
 ## Consultoria — páginas em paralelo
 - [x] Contar registros e ler páginas com até seis requisições simultâneas, preservando filtros/ordem e fallback sequencial em logs, planos e sessões.
 - [x] 92 testes passaram: 22 páginas, limite de seis, respostas invertidas, fallback, planos/sessões e regras existentes; compilação OK, cálculos/janelas/layout intactos.
