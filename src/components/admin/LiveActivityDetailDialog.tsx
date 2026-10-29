@@ -9,10 +9,9 @@ import { cn } from '@/lib/utils';
 import { getSafeWorkoutDays } from '@/lib/planMigrationUtils';
 import { isSameWorkoutDay } from '@/lib/activeWorkoutSession';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
-import { ExerciseMediaFrame } from '@/components/training/ExerciseMediaFrame';
-import { parseSections } from '@/lib/dietResultParser';
-import { parseDietPlanLoose } from '@/lib/dietSchema';
-import { buildStructuredDisplayGroups, isStructuredPublishedDiet } from '@/lib/studentStructuredDiet';
+import { safeVideoSrc } from '@/lib/exerciseVideoSrc';
+import { buildActivityDiet, resolveActivityMeals } from '@/lib/adminActivityMeals';
+import { activitySetDisplay, activityRepLabel } from '@/lib/adminActivitySets';
 import { diffMealFoods, foodName, sumMeals, type OverrideMeal } from '@/lib/studentDietOverrideDiff';
 import { WATER_STEP_ML, ML_PER_KG_REST, TRAINING_DAY_MULTIPLIER, DEFAULT_WATER_GOAL_GLASSES } from '@/hooks/useDailyTracking';
 
@@ -26,6 +25,7 @@ export interface ActivityRef {
   sessionId?: string;
   /** Data (yyyy-mm-dd) do registro diário. */
   date?: string;
+  mealIndex?: number;
 }
 
 const r0 = (n: number) => Math.round(n || 0);
@@ -42,6 +42,7 @@ interface DayData {
   tracking: { water_glasses: number; meals_completed: number[]; date: string } | null;
   prescribed: Record<number, OverrideMeal[]>;
   student: Record<number, OverrideMeal[]>;
+  targets: ReturnType<typeof buildActivityDiet>['targets'];
   weightKg: number | null;
   trainedToday: boolean;
 }
@@ -56,7 +57,7 @@ const useStudentDay = (studentId: string, date: string) => {
         .select('water_glasses, meals_completed, date').eq('student_id', studentId).eq('date', date).maybeSingle();
       return t ? { ...t, meals_completed: Array.isArray(t.meals_completed) ? (t.meals_completed as number[]) : [] } : null;
     };
-    (async () => {
+    const load = async () => {
       const [tracking, { data: dieta }, { data: assess }, { data: sess }] = await Promise.all([
         loadTracking(),
         supabase.from('ai_plans').select('id, conteudo, conteudo_json, protocols, is_draft')
@@ -71,38 +72,19 @@ const useStudentDay = (studentId: string, date: string) => {
         const { data: a } = await supabase.from('anthropometrics').select('peso').eq('assessment_id', assess.id).maybeSingle();
         weightKg = a?.peso ? Number(a.peso) : null;
       }
-      const prescribed: Record<number, OverrideMeal[]> = {};
-      const student: Record<number, OverrideMeal[]> = {};
-      if (dieta) {
-        const canonical = parseDietPlanLoose((dieta as any).conteudo_json);
-        let groups: OverrideMeal[][] = [];
-        if (isStructuredPublishedDiet(canonical, (dieta as any).is_draft)) {
-          groups = buildStructuredDisplayGroups(canonical, (dieta as any).protocols).map((g) => g.meals as any);
-        } else {
-          const meals = parseSections(dieta.conteudo || '').filter((s) => s.type === 'meal' && s.meals?.length).map((s) => s.meals as any);
-          groups = Array.from({ length: 7 }, (_, i) => meals.length ? meals[i % meals.length] : []);
-        }
-        groups.forEach((g, i) => { prescribed[i] = g; });
-        const { data: ov } = await supabase.from('student_diet_overrides').select('groups, substitutions').eq('plan_id', dieta.id).maybeSingle();
-        const ovGroups = ((ov?.groups as any) ?? {}) as Record<string, any>;
-        const subs = ((ov?.substitutions as any) ?? {}) as Record<string, any>;
-        Object.keys(prescribed).forEach((k) => {
-          const gi = Number(k);
-          const og = ovGroups[k];
-          if (og?.prescribed?.length) prescribed[gi] = og.prescribed;
-          student[gi] = og?.student?.length
-            ? og.student
-            : prescribed[gi].map((m, mi) => (subs[`${gi}-${mi}`] ? { ...m, foods: subs[`${gi}-${mi}`] } : m));
-        });
-      }
-      if (alive) setData({ tracking, prescribed, student, weightKg, trainedToday: (sess ?? []).length > 0 });
-    })();
+      const { data: ov } = dieta ? await supabase.from('student_diet_overrides').select('groups, substitutions').eq('plan_id', dieta.id).maybeSingle() : { data: null };
+      const diet = buildActivityDiet(dieta, ov);
+      if (alive) setData({ tracking, ...diet, weightKg, trainedToday: (sess ?? []).length > 0 });
+    };
+    void load();
 
     const ch = supabase.channel(`activity-day-${studentId}-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_tracking', filter: `student_id=eq.${studentId}` }, async () => {
         const tracking = await loadTracking();
         if (alive) setData((prev) => (prev ? { ...prev, tracking } : prev));
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'student_diet_overrides', filter: `student_id=eq.${studentId}` }, () => { void load(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ai_plans', filter: `student_id=eq.${studentId}` }, () => { void load(); })
       .subscribe();
     return () => { alive = false; supabase.removeChannel(ch); };
   }, [studentId, date]);
@@ -120,20 +102,15 @@ const MealView: React.FC<{ a: ActivityRef }> = ({ a }) => {
   if (!d) return <Skeleton className="h-40 w-full" />;
   const keys = d.tracking?.meals_completed ?? [];
   if (keys.length === 0) return <p className="text-sm text-muted-foreground">Nenhuma refeição registrada neste dia.</p>;
-  const latest = keys[keys.length - 1];
-  const gi = Math.floor(latest / 1000);
+  const { day: gi, ordered, consumed, target, doneCount } = resolveActivityMeals(d, keys, date, a.mealIndex);
   const dayStudent = d.student[gi] ?? [];
   const dayPrescribed = d.prescribed[gi] ?? [];
-  const doneIdx = keys.filter((k) => Math.floor(k / 1000) === gi).map((k) => k % 1000);
-  const consumed = sumMeals(doneIdx.map((i) => dayStudent[i]).filter(Boolean));
-  const target = sumMeals(dayPrescribed);
-  const ordered = [latest % 1000, ...doneIdx.filter((i) => i !== latest % 1000).reverse()];
 
   return (
-    <div className="space-y-3">
+    <div className="w-full min-w-0 space-y-3">
       <div className="rounded-xl border border-border bg-secondary/30 p-3 text-xs space-y-1">
         <p className="font-semibold text-foreground">Total do dia até agora × meta</p>
-        <p><strong>{r0(consumed.kcal)} kcal</strong> / {r0(target.kcal)} kcal <span className="text-muted-foreground">({doneIdx.length}/{dayPrescribed.length} refeições)</span></p>
+        <p><strong>{r0(consumed.kcal)} kcal</strong> / {r0(target.kcal)} kcal <span className="text-muted-foreground">({doneCount}/{dayPrescribed.length} refeições)</span></p>
         <p className="text-muted-foreground">P {r0(consumed.p)}/{r0(target.p)} g · C {r0(consumed.c)}/{r0(target.c)} g · G {r0(consumed.g)}/{r0(target.g)} g</p>
       </div>
       {ordered.map((mi, pos) => {
@@ -152,8 +129,8 @@ const MealView: React.FC<{ a: ActivityRef }> = ({ a }) => {
             </div>
             <ul className="space-y-1">
               {(meal.foods ?? []).map((f, fi) => (
-                <li key={fi} className="text-xs flex justify-between gap-2">
-                  <span className="truncate">{foodName(f) || 'Alimento'} <span className="text-muted-foreground">· {f.qty || '—'}</span></span>
+                <li key={fi} className="text-xs flex flex-wrap justify-between gap-x-2 gap-y-0.5">
+                  <span className="min-w-0 break-words">{foodName(f) || 'Alimento'} <span className="text-muted-foreground">· {f.qty || '—'}</span></span>
                   <MacroLine className="text-muted-foreground shrink-0" t={{ kcal: num(f.kcal), p: num(f.p), c: num(f.c), g: num(f.g) }} />
                 </li>
               ))}
@@ -195,7 +172,7 @@ const WaterView: React.FC<{ a: ActivityRef; addedGlasses?: number }> = ({ a, add
   const goal = goalGlasses * WATER_STEP_ML;
   const pct = Math.min(100, Math.round((ml / goal) * 100));
   return (
-    <div className="space-y-3">
+    <div className="w-full min-w-0 space-y-3">
       <div className="rounded-xl border border-border bg-secondary/30 p-3">
         <p className="text-xs text-muted-foreground">Registro das {hhmm(a.at)}</p>
         <p className="text-lg font-bold">+{(addedGlasses ?? 1) * WATER_STEP_ML} ml</p>
@@ -304,10 +281,10 @@ const buildExercises = (session: any, logs: any[], planDay: any[] | null, media:
   logs.forEach((l) => {
     const k = l.exercise_slot_id || l.exercise_name;
     if (!groups.has(k)) { groups.set(k, []); order.push(k); }
-    groups.get(k)!.push(l);
+    groups.get(k)?.push(l);
   });
   const fromLogs: ExView[] = order.map((k) => {
-    const ls = groups.get(k)!.sort((a, b) => a.set_number - b.set_number);
+    const ls = (groups.get(k) ?? []).sort((a, b) => a.set_number - b.set_number);
     const name = ls[0].exercise_name;
     const plan = findPlan(ls[0].exercise_slot_id, name);
     return {
@@ -336,20 +313,24 @@ const elapsed = (from: string, to: number) => {
 
 const ExerciseSlide: React.FC<{ ex: ExView; index: number; total: number; isCurrent: boolean }> = ({ ex, index, total, isCurrent }) => {
   const p = ex.plan ?? {};
+  const videoSrc = safeVideoSrc(ex.media?.embed);
   const pause = p.restSeconds ? `${p.restSeconds}s` : p.pause;
   return (
-    <div className="w-full shrink-0 px-0.5 space-y-2.5">
+    <div className="w-full min-w-0 basis-full shrink-0 space-y-2.5">
       <div className="flex items-center justify-between gap-2">
         <p className="text-[11px] text-muted-foreground">Exercício {index + 1}/{total}</p>
         {isCurrent && <Badge className="text-[9px] gap-1"><Radio className="h-3 w-3" /> Atual</Badge>}
       </div>
       <p className="font-semibold leading-tight">{ex.name}</p>
       {(ex.media?.embed || ex.media?.image) && (
-        <ExerciseMediaFrame embed={ex.media.embed} imageUrl={ex.media.image} alt={ex.name} />
+        <div className="relative w-full max-w-full aspect-video max-h-[40dvh] overflow-hidden rounded-md bg-muted">
+          {videoSrc ? <iframe src={videoSrc} title={`Vídeo ${ex.name}`} className="absolute inset-0 h-full w-full max-w-full border-0" allow="autoplay; fullscreen" />
+            : ex.media.image ? <img src={ex.media.image} alt={ex.name} className="absolute inset-0 h-full w-full max-w-full object-contain" loading="lazy" decoding="async" /> : null}
+        </div>
       )}
       <div className="flex flex-wrap gap-1.5 text-[11px]">
-        <Badge variant="outline">{ex.planned} séries</Badge>
-        {p.reps && <Badge variant="outline">{p.reps} reps</Badge>}
+        <Badge variant="outline">{ex.planned} {ex.planned === 1 ? 'série' : 'séries'}</Badge>
+        {p.reps && <Badge variant="outline">{activityRepLabel(p.reps)}</Badge>}
         {p.rir && <Badge variant="outline">RIR {p.rir}</Badge>}
         {pause && <Badge variant="outline">Pausa {pause}</Badge>}
         {ex.method && <Badge variant="outline" className="border-primary/50 text-primary">{ex.method}</Badge>}
@@ -360,18 +341,20 @@ const ExerciseSlide: React.FC<{ ex: ExView; index: number; total: number; isCurr
         </div>
         {Array.from({ length: Math.max(ex.planned, ex.sets.length) }).map((_, si) => {
           const s = ex.sets[si];
-          const done = !!s?.completed;
+          const row = activitySetDisplay(s, p.reps);
+          const done = row.done;
           return (
             <div key={si} className={cn('px-2 py-1.5 text-sm border-t border-border/50', !done && 'text-muted-foreground/60')}>
               <div className="grid grid-cols-[2rem_1fr_1fr_3rem]">
                 <span>{si + 1}</span>
-                <span>{done && s?.weight !== '' && s?.weight != null ? `${String(s.weight).replace('.', ',')} kg` : '—'}</span>
-                <span>{done ? s?.reps ?? '—' : p.reps || '—'}</span>
-                <span className="text-right text-xs">{s?.rpe ? `RPE ${s.rpe}` : s?.rir != null && s?.rir !== '' ? `RIR ${s.rir}` : ''}</span>
+                <span>{row.weight}</span>
+                <span>{row.reps}</span>
+                <span className="text-right text-xs">{row.effort}</span>
               </div>
+              {row.target && <p className="pl-8 text-[10px] text-muted-foreground">meta {row.target}</p>}
               {done && (s?.subRecords?.length ?? 0) > 1 && (
                 <p className="text-[10px] text-muted-foreground pl-8">
-                  {s!.subRecords!.map((x) => `${x.label ?? ''} ${x.weight || '—'}kg×${x.reps ?? '—'}`).join(' · ')}
+                  {s?.subRecords?.map((x) => `${x.label ?? ''} ${x.weight || '—'}kg×${x.reps ?? '—'}`).join(' · ')}
                 </p>
               )}
             </div>
@@ -383,7 +366,7 @@ const ExerciseSlide: React.FC<{ ex: ExView; index: number; total: number; isCurr
 };
 
 const WorkoutView: React.FC<{ a: ActivityRef }> = ({ a }) => {
-  const { session, logs, planDay, media, previous } = useWorkoutSession(a.sessionId!, a.studentId);
+  const { session, logs, planDay, media, previous } = useWorkoutSession(a.sessionId ?? '', a.studentId);
   const [now, setNow] = useState(Date.now());
   const [viewIdx, setViewIdx] = useState<number | null>(null); // null = seguindo o ao vivo
   const touchX = useRef<number | null>(null);
@@ -412,7 +395,7 @@ const WorkoutView: React.FC<{ a: ActivityRef }> = ({ a }) => {
   };
 
   return (
-    <div className="space-y-3">
+    <div className="w-full min-w-0 space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="text-sm font-semibold truncate">{session.day_name || 'Treino'}</p>
@@ -427,7 +410,7 @@ const WorkoutView: React.FC<{ a: ActivityRef }> = ({ a }) => {
         </Badge>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 text-center">
+      <div className="grid w-full min-w-0 grid-cols-3 gap-2 text-center">
         <div className="rounded-lg bg-secondary/40 p-2">
           <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-1"><Timer className="h-3 w-3" />Tempo</p>
           <p className="font-bold tabular-nums">
@@ -467,14 +450,14 @@ const WorkoutView: React.FC<{ a: ActivityRef }> = ({ a }) => {
         <p className="text-sm text-muted-foreground">Sem exercícios registrados.</p>
       ) : (
         <>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full min-w-0 items-center gap-2">
             <Button size="icon" variant="outline" className="h-8 w-8" disabled={idx === 0} onClick={() => go(idx - 1)} aria-label="Exercício anterior">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <div className="flex-1 flex justify-center gap-1 overflow-hidden">
+            <div className="min-w-0 flex-1 flex justify-center gap-1 overflow-hidden">
               {exercises.map((e, i) => (
-                <button key={i} onClick={() => go(i)} aria-label={`Ver ${e.name}`}
-                  className={cn('h-1.5 rounded-full transition-all', i === idx ? 'w-5 bg-primary' : e.sets.some((s) => s.completed) ? 'w-1.5 bg-primary/40' : 'w-1.5 bg-muted-foreground/30')} />
+                <Button key={i} variant="ghost" onClick={() => go(i)} aria-label={`Ver ${e.name}`}
+                  className={cn('h-1.5 min-w-0 rounded-full p-0 transition-all', i === idx ? 'w-5 bg-primary' : e.sets.some((s) => s.completed) ? 'w-1.5 bg-primary/40' : 'w-1.5 bg-muted-foreground/30')} />
               ))}
             </div>
             <Button size="icon" variant="outline" className="h-8 w-8" disabled={idx >= exercises.length - 1} onClick={() => go(idx + 1)} aria-label="Próximo exercício">
@@ -487,7 +470,7 @@ const WorkoutView: React.FC<{ a: ActivityRef }> = ({ a }) => {
             </Button>
           )}
           <div
-            className="overflow-hidden"
+            className="w-full min-w-0 max-w-full overflow-hidden"
             onTouchStart={(e) => { touchX.current = e.touches[0].clientX; }}
             onTouchEnd={(e) => {
               if (touchX.current == null) return;
@@ -496,7 +479,7 @@ const WorkoutView: React.FC<{ a: ActivityRef }> = ({ a }) => {
               if (Math.abs(dx) > 50) go(idx + (dx < 0 ? 1 : -1));
             }}
           >
-            <div className="flex transition-transform duration-300 ease-out" style={{ transform: `translateX(-${idx * 100}%)` }}>
+            <div className="flex w-full min-w-0 transition-transform duration-300 ease-out motion-reduce:transition-none" style={{ transform: `translateX(-${idx * 100}%)` }}>
               {exercises.map((e, i) => (
                 <ExerciseSlide key={i} ex={e} index={i} total={exercises.length} isCurrent={live && i === liveIdx} />
               ))}
@@ -538,14 +521,15 @@ const LiveActivityDetailDialog: React.FC<{ activity: (ActivityRef & { addedGlass
   const Icon = meta?.icon ?? Dumbbell;
   return (
     <Dialog open={!!activity} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md w-[calc(100vw-1.5rem)] max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
-        <DialogHeader className="text-left">
+      <DialogContent className="flex h-[100dvh] w-full min-w-0 max-w-full flex-col overflow-hidden p-4 pt-[max(1rem,env(safe-area-inset-top))] sm:h-auto sm:max-h-[90dvh] sm:max-w-2xl sm:p-6">
+        <DialogHeader className="min-w-0 shrink-0 pr-6 text-left">
           <DialogTitle className="flex items-center gap-2 text-base">
             <Icon className="h-4 w-4 text-primary" />
             {meta?.label}
           </DialogTitle>
           <DialogDescription>{activity?.studentName}</DialogDescription>
         </DialogHeader>
+        <div className="w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto pb-[env(safe-area-inset-bottom)]">
         {activity && (
           activity.kind === 'meal' ? <MealView a={activity} />
           : activity.kind === 'water' ? <WaterView a={activity} addedGlasses={activity.addedGlasses} />
@@ -553,6 +537,7 @@ const LiveActivityDetailDialog: React.FC<{ activity: (ActivityRef & { addedGlass
           : activity.sessionId ? <WorkoutView a={activity} />
           : <p className="text-sm text-muted-foreground">Sessão não encontrada.</p>
         )}
+        </div>
       </DialogContent>
     </Dialog>
   );
