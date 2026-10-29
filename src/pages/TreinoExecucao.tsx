@@ -1,3 +1,5 @@
+import { FinalSetRir } from '@/components/training/FinalSetRir';
+import { finalWorkingSetIndex } from '@/lib/finalWorkingSetRir';
 import { MethodSetRows } from '@/components/training/MethodSetRows';
 import { WorkoutSetCard, RestOffscreenIndicator } from '@/components/training/WorkoutSetCard';
 import { useInlineWorkoutRest } from '@/hooks/useInlineWorkoutRest';
@@ -1623,7 +1625,7 @@ const TreinoExecucaoInner = () => {
             const isRecognition = planned?.type === 'recognition';
             const isNextPending = i === nextPendingIndex && (!inlineRest.rest || inlineRest.rest.exIdx !== currentIndex);
             const restProps = groupFlow.indices.length === 2 ? undefined : { exIdx: currentIndex, rest: inlineRest.rest, completion: inlineRest.completion, next: isNextPending, onAdd: inlineRest.adjust, onSkip: () => inlineRest.skip() };
-            if (methodOnSet(exercise, i, currentSets.length, isRecognition)) return <MethodSetRows key={i} exercise={exercise} set={set} index={i} count={currentSets.length} recognition={isRecognition} restPresentation={restProps} disabled={!!groupFlow.pause || (groupFlow.indices.length === 2 && !set.completed && groupFlow.indices.some(idx => sets[idx]?.slice(0, i).some(prior => !prior.completed)))} targetReps={planned?.reps} weightPlaceholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation)} onChange={entry => changeMethodSet(i, entry)} onComplete={entry => completeMethodSet(i, entry)} />;
+            if (methodOnSet(exercise, i, currentSets.length, isRecognition)) return <MethodSetRows key={i} exercise={exercise} set={set} index={i} count={currentSets.length} finalWork={i === finalWorkingSetIndex(currentSets.map((_, idx) => setPlan[idx]?.type ?? 'work'))} recognition={isRecognition} restPresentation={restProps} disabled={!!groupFlow.pause || (groupFlow.indices.length === 2 && !set.completed && groupFlow.indices.some(idx => sets[idx]?.slice(0, i).some(prior => !prior.completed)))} targetReps={planned?.reps} weightPlaceholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation)} onChange={entry => changeMethodSet(i, entry)} onComplete={entry => completeMethodSet(i, entry)} />;
             const repsPlaceholder = planned?.reps || String(previousSets.find((row) => row.set_number === i + 1)?.reps ?? '') || '10';
             return (
               <WorkoutSetCard key={i} index={i} exIdx={currentIndex} {...restProps} done={!!set.completed} className={set.completed ? 'bg-secondary/40' : isRecognition ? 'bg-accent/10' : 'bg-secondary/50'}>
@@ -1647,32 +1649,7 @@ const TreinoExecucaoInner = () => {
                     <Check className="h-4 w-4" />
                   </Button>
                 </div>
-                {/* RIR opcional — só em séries de trabalho e só depois de concluir.
-                    Um toque registra, outro toque limpa. Nunca obrigatório. */}
-                {!isRecognition && set.completed && (
-                  <div className="flex items-center gap-1.5 px-2 pb-2 -mt-0.5 flex-wrap">
-                    <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">
-                      RIR (opcional)
-                    </span>
-                    {['0', '1', '2', '3', '4'].map((v) => {
-                      const active = (set.rir ?? '') === v;
-                      return (
-                        <button
-                          key={v}
-                          type="button"
-                          onClick={() => updateSet(i, 'rir', active ? '' : v)}
-                          className={`h-6 min-w-[26px] px-1.5 rounded-md text-[11px] font-bold border transition-colors ${
-                            active
-                              ? 'bg-primary text-primary-foreground border-primary'
-                              : 'bg-background/40 text-muted-foreground border-border/50'
-                          }`}
-                        >
-                          {v === '4' ? '4+' : v}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                {set.completed && i === finalWorkingSetIndex(currentSets.map((_, idx) => setPlan[idx]?.type ?? 'work')) && <FinalSetRir value={set.rir} onChange={v => updateSet(i, 'rir', v)} />}
               </WorkoutSetCard>
             );
 

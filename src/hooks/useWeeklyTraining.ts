@@ -1,3 +1,4 @@
+import { readProgressionLogs } from '@/lib/progressionHistory';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
@@ -74,12 +75,7 @@ export const useWeeklyTraining = (
           .flatMap((s) => s.days || []);
 
         const [{ data: logRows }, { data: sessionRows }] = await Promise.all([
-          supabase
-            .from('exercise_set_logs')
-            .select('exercise_name, reps, weight_kg, performed_at, set_number, rir, rpe, set_type, phase, session_id')
-            .eq('student_id', plan.student_id)
-            .gte('performed_at', from)
-            .lt('performed_at', to),
+          readProgressionLogs([plan.student_id], new Date(Date.now() - 180 * 86400000).toISOString()).then(data => ({ data })),
           supabase
             .from('workout_sessions')
             .select('id, status, completed_at, started_at, created_at, plan_id, phase')

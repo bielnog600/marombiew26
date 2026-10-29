@@ -101,10 +101,10 @@ export function useSessionProgression({
         const { data, error } = await supabase
           .from('exercise_set_logs')
           .select(
-            'exercise_name, weight_kg, reps, rir, rpe, set_type, set_number, performed_at, session_id, phase',
+            'exercise_name, weight_kg, reps, rir, rpe, set_type, set_number, performed_at, session_id, phase, sub_records',
           )
           .eq('student_id', student)
-          .neq('session_id', session) // exclusão explícita da sessão atual
+          .or(`session_id.neq.${session},session_id.is.null`) // exclusão explícita da sessão atual
           .gte('performed_at', since)
           // Ordenação cronológica explícita (nunca depender da ordem do banco).
           .order('performed_at', { ascending: false })
@@ -150,7 +150,7 @@ export function useSessionProgression({
         fetchStudentLoadIncrementsResult(studentId),
         supabase
           .from('workout_sessions')
-          .select('id, plan_id, phase, started_at, completed_at')
+          .select('id, plan_id, phase, started_at, completed_at, avg_rpe')
           .eq('student_id', studentId)
           .gte('started_at', since)
           .order('started_at', { ascending: false })
@@ -174,7 +174,7 @@ export function useSessionProgression({
       const sessionMeta: Record<string, SessionMetaRow> = {};
       let resolvedPlanId = planId ?? null;
       (sessionsRes.data ?? []).forEach((s: any) => {
-        sessionMeta[s.id] = { sessionId: s.id, planId: s.plan_id ?? null, phase: s.phase ?? null };
+        sessionMeta[s.id] = { sessionId: s.id, planId: s.plan_id ?? null, phase: s.phase ?? null, avgRpe: s.avg_rpe ?? null };
         if (s.id === sessionId && s.plan_id) resolvedPlanId = resolvedPlanId ?? s.plan_id;
       });
       // Fallback explícito: plano da sessão anterior mais recente que o tenha.

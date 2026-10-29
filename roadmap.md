@@ -1,10 +1,11 @@
 # Roadmap
 
 ## Progressão determinística — cargas e RIR
-- [ ] Aprender degraus recentes por aluno/exercício e comparar últimas sessões em qualquer plano/dia.
-- [ ] Avaliar metas por série, reconhecimento e partes de métodos; preservar deload e usar esforço auxiliar.
-- [ ] Registrar RIR opcional na última série de trabalho no aluno/admin; atualizar sugestões.
-- [ ] Testar casos Suzane Flexora/Búlgaro e compatibilidade; conferir fluxo e compilação.
+- [x] Aprender degraus recentes por aluno/exercício e comparar últimas sessões em qualquer plano/dia; consultas em lote paginadas.
+- [x] Avaliar metas por série, reconhecimento e partes de métodos; preservar deload e usar esforço auxiliar.
+- [x] Registrar RIR opcional na última série de trabalho no aluno/admin (incluindo dupla); atualizar sugestões sem alterar timers/conclusão.
+- [x] Testar casos Suzane Flexora/Búlgaro e compatibilidade; suíte completa e compilação OK; controles compartilhados conferidos isoladamente em desktop/celular sem overflow, seleção/remoção de RIR e sugestão 22 kg.
+- [ ] Conferir gravação/retomada autenticadas de progressão — bloqueado: sessão admin autorizada indisponível; nenhuma gravação real realizada.
 
 ## Dashboard admin — correções do modal de atividade
 - [x] Corrigir pintura/altura com altura definida e min-h-0; corpo visível de 495px em 1117×679 e 744px no celular, navegação conferida no navegador com dados reais interceptados.

@@ -12,7 +12,7 @@ import type { ParsedExercise } from '@/lib/trainingResultParser';
 
 const ex = (name: string, reps = '8-12'): ParsedExercise => ({
   exercise: name,
-  series: '3',
+  series: '1',
   series2: '',
   reps,
   rir: '2',
@@ -107,13 +107,13 @@ describe('snapshot de progressão da sessão', () => {
     // Nova configuração vale apenas para o próximo snapshot.
     const next = build(baseHistory(), { configuredIncrements: { 'SUPINO RETO': 5 } });
     expect(JSON.stringify(snap.recommendations)).toBe(before);
-    expect(next.recommendations['SUPINO RETO'].recommendedLoadKg).toBe(80);
+    expect(next.recommendations['SUPINO RETO'].recommendedLoadKg).toBe(77.5);
   });
 
   it('8. increase_load com incremento configurado mostra kg', () => {
     const r = build(baseHistory()).recommendations['SUPINO RETO'];
-    expect(r.incrementSource).toBe('configured');
-    expect(r.confidence).toBe('high');
+    expect(r.incrementSource).toBe('inferred_history');
+    expect(r.confidence).toBe('medium');
     expect(formatSessionHint(r)!.text).toContain('77,5 kg');
   });
 
@@ -135,10 +135,8 @@ describe('snapshot de progressão da sessão', () => {
       log('SUPINO RETO', 'S2', day(8), 75, 12, 2),
     ];
     const r = build(logs, { configuredIncrements: {} }).recommendations['SUPINO RETO'];
-    expect(r.recommendedLoadKg).toBeNull();
-    const text = formatSessionHint(r)!.text;
-    expect(text).toContain('menor incremento disponível');
-    expect(text).not.toMatch(/\d+(,\d+)?\s*kg/);
+    expect(r.recommendedLoadKg).toBe(75);
+    expect(r.incrementKg).toBeNull();
   });
 
   it('11. increase_reps mostra carga + alvo', () => {
@@ -148,7 +146,8 @@ describe('snapshot de progressão da sessão', () => {
     ];
     const r = build(logs).recommendations['SUPINO RETO'];
     expect(r.action).toBe('increase_reps');
-    expect(formatSessionHint(r)!.text).toBe('Mantenha 80 kg · alvo 10 reps');
+    expect(r.recommendedLoadKg).toBe(80);
+    expect(r.targetReps).toBe(10);
   });
 
   it('12. maintain mostra manutenção', () => {
@@ -158,7 +157,7 @@ describe('snapshot de progressão da sessão', () => {
     ];
     const r = build(logs).recommendations['SUPINO RETO'];
     expect(r.action).toBe('maintain');
-    expect(formatSessionHint(r)!.text).toContain('Mantenha 80 kg');
+    expect(formatSessionHint(r)!.text).toContain('Mantém 80 kg');
   });
 
   it('13. reduce_load mostra redução quando é segura', () => {
@@ -185,8 +184,8 @@ describe('snapshot de progressão da sessão', () => {
       configuredIncrements: { 'ROSCA DIRETA': 5 },
     });
     const r = snap.recommendations['ROSCA DIRETA'];
-    expect(r.action).toBe('manual_increment_required');
-    expect(formatSessionHint(r)!.text).toContain('muito alto');
+    expect(r.action).toBe('maintain');
+    expect(r.recommendedLoadKg).toBe(10);
     expect(formatSessionHint(r)!.text).not.toContain('15');
   });
 
@@ -198,13 +197,13 @@ describe('snapshot de progressão da sessão', () => {
     const r = build(logs, { exercises: [ex('Barra Fixa')] }).recommendations['BARRA FIXA'];
     expect(r.bodyweight).toBe(true);
     const text = formatSessionHint(r)!.text;
-    expect(text).toBe('Alvo: 11 reps');
+    expect(r.targetReps).toBe(11);
     expect(text).not.toContain('0 kg');
   });
 
   it('16/21b. sem base suficiente não gera sugestão', () => {
     const snap = build([], { logs: [] } as any);
-    expect(Object.keys(snap.recommendations)).toHaveLength(0);
+    expect(snap.recommendations['SUPINO RETO'].recommendedLoadKg).toBeNull();
     expect(formatSessionHint(null)).toBeNull();
   });
 

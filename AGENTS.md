@@ -1,5 +1,7 @@
 # Architecture rules
 
+- Keep load learning and per-set recommendations in pure deterministic helpers, using recent student/exercise history and the last execution across plans/days; share final-working-set RIR controls and persist optional RIR through existing log/offline paths so timers and completion remain unchanged.
+
 - Isolate official Anthropic prescription calls in `_shared/anthropic.ts`, adapting tools, structured JSON, usage and SSE to existing contracts; keep the OpenAI router and unrelated features unchanged so migrating prescriptions does not migrate assessment or catalog features.
 - Disable thinking explicitly at the scanner and prescription Anthropic boundaries so existing output budgets remain available for text/tools; log empty-response metadata without reasoning content and preserve valid tool-only responses.
 

@@ -1,3 +1,5 @@
+import { finalWorkingSetIndex } from '@/lib/finalWorkingSetRir';
+import { buildSetPlan } from '@/lib/setPlanBuilder';
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import type { ParsedExercise } from '@/lib/trainingResultParser';
@@ -110,7 +112,7 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
       const split = splitRecognitionReps(ex.reps);
       const schemeReps = ex.setScheme?.sets[index]?.target_reps;
       const targetReps = schemeReps && !schemeReps.includes('+') ? schemeReps : (isRecognition ? split.recognition : split.work);
-      return <MethodSetRows key={index} exercise={ex} set={row} index={index} count={rows.length} restPresentation={indices.length === 2 ? undefined : { exIdx: current, rest: inlineRest.rest, completion: inlineRest.completion, next: !inlineRest.rest && index === rows.findIndex(r => !r.completed), onAdd: inlineRest.adjust, onSkip: () => inlineRest.skip() }} disabled={!!displayedPause || (indices.length === 2 && !row.completed && indices.some(idx => sets[idx]?.slice(0, index).some(prior => !prior.completed)))} targetReps={targetReps} recognition={isRecognition} weightPlaceholder={String(targetLoadForSet(ex.targetLoadPerSet, index + 1) ?? ex.targetLoadKg ?? recommendation?.recommendedLoadKg ?? 'kg')} onChange={entry => onChange(current, index, entry)} onComplete={entry => complete(index, entry)} />;
+      return <MethodSetRows key={index} exercise={ex} set={row} index={index} count={rows.length} finalWork={index === finalWorkingSetIndex(rows.map((_, i) => buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme)[i]?.type ?? 'work'))} restPresentation={indices.length === 2 ? undefined : { exIdx: current, rest: inlineRest.rest, completion: inlineRest.completion, next: !inlineRest.rest && index === rows.findIndex(r => !r.completed), onAdd: inlineRest.adjust, onSkip: () => inlineRest.skip() }} disabled={!!displayedPause || (indices.length === 2 && !row.completed && indices.some(idx => sets[idx]?.slice(0, index).some(prior => !prior.completed)))} targetReps={targetReps} recognition={isRecognition} weightPlaceholder={String(targetLoadForSet(ex.targetLoadPerSet, index + 1) ?? ex.targetLoadKg ?? recommendation?.seriesTargets?.find(s => s.setNumber === index + 1)?.recommendedLoadKg ?? recommendation?.recommendedLoadKg ?? 'kg')} onChange={entry => onChange(current, index, entry)} onComplete={entry => complete(index, entry)} />;
     })}
     {!sharedRest && <RestOffscreenIndicator rest={inlineRest.rest} />}
     <ExerciseLoadHistorySheet open={historyOpen} onOpenChange={setHistoryOpen} studentId={studentId} exerciseName={ex.exercise} />

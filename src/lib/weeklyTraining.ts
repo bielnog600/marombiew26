@@ -47,6 +47,7 @@ export interface RawSetLog extends ExerciseLog {
 }
 
 export interface RawSession extends AdherenceSession {
+  avg_rpe?: number | null;
   id?: string | null;
   plan_id?: string | null;
   phase?: string | null;
@@ -244,7 +245,7 @@ export const buildWeeklyTrainingReport = (
 
   const progression = buildProgressionReport(
     cur.logs,
-    previousWeekComparable ? prev.logs : [],
+    logs.filter(l => !cur.logs.includes(l) && l.phase !== 'deload' && !cur.logs.some(c => c.session_id && c.session_id === l.session_id)),
     plannedDays,
   );
   let performance = buildPerformanceSummary(progression.performances);

@@ -21,8 +21,11 @@ import type { ParsedTrainingDay, ParsedExercise } from './trainingResultParser';
 import type { AdherenceStatus } from './weeklyAdherence';
 import { TRAINING_PHASES, type TrainingPhase } from './trainingPhase';
 import { isNoLoadExercise } from './exerciseLoadType';
+import { buildSetPlan } from './setPlanBuilder';
 
 export interface ExerciseLog {
+  sub_records?: unknown;
+  session_id?: string | null;
   exercise_name: string;
   weight_kg: number | null;
   reps: number | null;
@@ -150,6 +153,7 @@ export interface RepRange {
 }
 
 export interface ExercisePerformance {
+  finalWorkingRir?: number | null;
   exerciseName: string;
   /** Set real com a melhor performance da janela (nunca um set sintético). */
   bestSet?: PerformedSet;
@@ -311,8 +315,26 @@ export const parseRepRange = (raw?: string | null): RepRange | null => {
 /** Faixa prescrita do exercício no plano (setScheme tem prioridade). */
 export const repRangeFromPlanned = (e?: ParsedExercise | null): RepRange | null => {
   if (!e) return null;
-  const schemeReps = e.setScheme?.sets?.map((s) => s.target_reps).filter(Boolean).join('-');
-  return parseRepRange(schemeReps || e.reps);
+  const work = buildSetPlan(e.series, e.series2, e.reps, e.setScheme).filter(s => s.type === 'work');
+  return parseRepRange(work.map(s => s.reps).join('-'));
+};
+
+/** Latest execution and the immediately preceding execution, regardless of plan/day. */
+export const lastExerciseSessions = (logs: ExerciseLog[]): { current: ExerciseLog[]; previous: ExerciseLog[] } => {
+  const groups = new Map<string, ExerciseLog[]>();
+  [...logs].sort((a, b) => Date.parse(a.performed_at) - Date.parse(b.performed_at)).forEach(l => {
+    const key = l.session_id || l.performed_at.slice(0, 10);
+    const rows = groups.get(key) ?? [];
+    rows.push(l); groups.set(key, rows);
+  });
+  const rows = [...groups.values()];
+  return { current: rows[rows.length - 1] ?? [], previous: rows[rows.length - 2] ?? [] };
+};
+
+/** Untyped legacy preparation is identified by prescription without rewriting logs. */
+export const withPlannedSetTypes = (logs: ExerciseLog[], ex: ParsedExercise): ExerciseLog[] => {
+  const plan = buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme);
+  return logs.map(l => ({ ...l, set_type: l.set_type || plan[(l.set_number ?? 1) - 1]?.type || 'work' }));
 };
 
 // ============================================================
@@ -330,6 +352,8 @@ export const buildExercisePerformance = (
 
   const usable = currentLogs.filter((l) => (l.reps ?? 0) > 0 || (l.weight_kg ?? 0) > 0);
   const primarySets = usable.filter((l) => setRoleOf(l) === 'primary');
+  const finalWorking = [...primarySets].sort((a, b) => (a.set_number ?? 0) - (b.set_number ?? 0)).pop();
+  const finalWorkingRir = finalWorking ? rirOf(finalWorking) : null;
   const auxiliarySets = usable.filter((l) => setRoleOf(l) === 'auxiliary');
   const preparationSets = usable.filter((l) => setRoleOf(l) === 'preparation');
   // Técnicas não são perdidas: entram em volume/reps/contagem de trabalho.
@@ -337,7 +361,9 @@ export const buildExercisePerformance = (
   const totalWorkingSets = countedSets.length;
   const totalReps = countedSets.reduce((a, l) => a + (Number(l.reps) || 0), 0);
   const totalVolume = +countedSets
-    .reduce((a, l) => a + (Number(l.reps) || 0) * (Number(l.weight_kg) || 0), 0)
+    .reduce((a, l) => a + (Array.isArray(l.sub_records) && l.sub_records.length
+      ? l.sub_records.filter(s => s.completed !== false).reduce((v, s) => v + (Number(String(s.weight).replace(',', '.')) || 0) * (Number(s.reps) || 0), 0)
+      : (Number(l.reps) || 0) * (Number(l.weight_kg) || 0)), 0)
     .toFixed(1);
   const loaded = !!bestSet && bestSet.weightKg > 0;
   const comparisonBasis: ComparisonBasis =
@@ -346,6 +372,7 @@ export const buildExercisePerformance = (
       : 'fallback_untyped';
 
   const base: ExercisePerformance = {
+    finalWorkingRir,
     exerciseName,
     bestSet,
     previousBestSet,
@@ -393,7 +420,7 @@ export const buildExercisePerformance = (
       ...base,
       rirDelta,
       status: 'insufficient_data',
-      nextAction: nextActionFor('insufficient_data', bestSet, repRange ?? null, null),
+      nextAction: nextActionFor('stable', { ...bestSet, rir: finalWorkingRir }, repRange ?? null, null),
       reason: 'Primeira semana com registro — sem base de comparação.',
     };
   }
@@ -474,7 +501,7 @@ export const buildExercisePerformance = (
     repsDelta,
     weightDelta,
     rirDelta,
-    nextAction: nextActionFor(status, bestSet, repRange ?? null, e1rmDeltaPct, previousBestSet),
+    nextAction: nextActionFor(status, { ...bestSet, rir: finalWorkingRir }, repRange ?? null, e1rmDeltaPct, previousBestSet),
   };
 };
 
@@ -574,10 +601,14 @@ export const buildProgressionReport = (
   const regressed: ExerciseDelta[] = [];
 
   for (const [key, { display, logs }] of lastByEx.entries()) {
+    const planned = plannedByEx.get(key);
+    const prior = prevByEx.get(key)?.logs ?? [];
+    const typed = (rows: ExerciseLog[]) => planned ? withPlannedSetTypes(rows, planned) : rows;
+    const pair = { current: lastExerciseSessions(typed(logs)).current, previous: lastExerciseSessions(typed(prior)).current };
     const perf = buildExercisePerformance(
       display,
-      logs,
-      prevByEx.get(key)?.logs ?? [],
+      pair.current,
+      pair.previous,
       rangeByEx.get(key) ?? null,
     );
     performances.push(perf);

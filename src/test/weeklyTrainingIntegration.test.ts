@@ -230,12 +230,12 @@ describe('comparação entre fases', () => {
     expect(r.progression.performances.every((p) => p.nextAction !== 'increase_load')).toBe(true);
   });
 
-  it('troca de plan_id impede a comparação', () => {
+  it('troca de plan_id não apaga comparação por exercício', () => {
     const r = build({ prevPlanId: 'outro-plano', currentWeights: [120, 120, 120, 120] });
     expect(r.context.previousWeekComparable).toBe(false);
     expect(r.context.comparisonBasis).toBe('none');
-    expect(r.progression.improved.length).toBe(0);
-    expect(r.performance.comparableExercises).toBe(0);
+    expect(r.progression.improved.length).toBeGreaterThan(0);
+    expect(r.performance.comparableExercises).toBeGreaterThan(0);
   });
 });
 

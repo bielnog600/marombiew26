@@ -4,14 +4,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { WorkoutSetCard, type SetRestPresentation } from './WorkoutSetCard';
 import { QuickMethodSetRows } from './QuickMethodSetRows';
+import { FinalSetRir } from './FinalSetRir';
 import type { ParsedExercise } from '@/lib/trainingResultParser';
 import { makeSubRecords, methodOnSet, methodParameters, seriesMethod, type MethodSetEntry } from '@/lib/workoutExecutionMethods';
 
-export function MethodSetRows({ exercise, set, index, count, recognition = false, targetReps, weightPlaceholder = 'kg', disabled = false, onChange, onComplete, restPresentation }: {
+export function MethodSetRows({ exercise, set, index, count, recognition = false, finalWork = false, targetReps, weightPlaceholder = 'kg', disabled = false, onChange, onComplete, restPresentation }: {
   exercise: ParsedExercise; set: MethodSetEntry; index: number; count: number; recognition?: boolean;
   targetReps?: string; weightPlaceholder?: string; disabled?: boolean; onChange: (set: MethodSetEntry) => void;
   onComplete: (set: MethodSetEntry) => void;
   restPresentation?: SetRestPresentation;
+  finalWork?: boolean;
 }) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
@@ -21,7 +23,7 @@ export function MethodSetRows({ exercise, set, index, count, recognition = false
   }, [set.pauseUntil]);
   const advanced = methodOnSet(exercise, index, count, recognition);
   if (advanced && (seriesMethod(exercise) === 'cluster' || seriesMethod(exercise) === 'restpause')) {
-    return <QuickMethodSetRows exercise={exercise} set={set} index={index} targetReps={targetReps} weightPlaceholder={weightPlaceholder} disabled={disabled} onChange={onChange} onComplete={onComplete} restPresentation={restPresentation} />;
+    return <><QuickMethodSetRows exercise={exercise} set={set} index={index} targetReps={targetReps} weightPlaceholder={weightPlaceholder} disabled={disabled} onChange={onChange} onComplete={onComplete} restPresentation={restPresentation} />{finalWork && set.completed && <FinalSetRir value={set.rir} onChange={rir => onChange({ ...set, rir })} />}</>;
   }
   const baseRecords = advanced ? set.subRecords ?? makeSubRecords(exercise, set) : [{ label: recognition ? 'Reconhecimento' : 'Principal', weight: set.weight, reps: set.reps, completed: !!set.completed }];
   // Drop set: drops vazios e não concluídos herdam a sugestão (−reducao_pct por drop, 0,5 kg).
@@ -65,5 +67,5 @@ export function MethodSetRows({ exercise, set, index, count, recognition = false
       <Input aria-label={`Série ${index + 1} ${record.label} reps`} inputMode="numeric" value={record.reps} placeholder={seriesMethod(exercise) === 'cluster' && advanced ? String(methodParameters(exercise).reps_bloco) : i === 0 ? targetReps || 'reps' : 'reps'} onChange={e => updateRecord(i, 'reps', e.target.value)} onFocus={e => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })} disabled={disabled || record.completed || remaining > 0} className="h-11 text-center text-base min-w-0" />
       <Button size="icon" variant="outline" aria-label={`Confirmar série ${index + 1} ${record.label}`} className={`h-11 w-11 ${record.completed ? 'bg-chart-3/15 border-chart-3/50 text-chart-3 hover:bg-chart-3/20 hover:text-chart-3' : ''}`} disabled={disabled || (!record.completed && (remaining > 0 || (advanced && i !== next) || !(Number(record.reps) > 0)))} onClick={() => confirm(i)}><Check className="h-4 w-4" /></Button>
     </div>)}
-  </div></WorkoutSetCard>;
+  </div>{finalWork && set.completed && <FinalSetRir value={set.rir} onChange={rir => onChange({ ...set, rir })} />}</WorkoutSetCard>;
 }
