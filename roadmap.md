@@ -1,5 +1,9 @@
 # Roadmap
 
+## Consultoria — páginas em paralelo
+- [x] Contar registros e ler páginas com até seis requisições simultâneas, preservando filtros/ordem e fallback sequencial em logs, planos e sessões.
+- [x] 92 testes passaram: 22 páginas, limite de seis, respostas invertidas, fallback, planos/sessões e regras existentes; compilação OK, cálculos/janelas/layout intactos.
+
 ## Consultoria — carregamento dos contadores
 - [x] Mostrar skeleton nos contadores/listas de progressão e inatividade durante suas buscas, incluindo atualização.
 - [x] Compartilhar dados brutos entre resumo e progressão, selecionar só campos usados e preservar cálculos separados; logs, planos e sessões paginados, histórico de 180 dias mantido para referências antigas.
