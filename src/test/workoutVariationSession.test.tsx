@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildActivityExercises } from '@/lib/adminActivityExercises';
 import { exerciseProgress } from '@/lib/adminExerciseProgress';
 import { buildSessionStateLogRows } from '@/lib/workoutSessionResolution';
@@ -64,6 +64,7 @@ vi.mock('@/integrations/supabase/client', () => ({ supabase: {
 } }));
 
 import TreinoExecucao from '@/pages/TreinoExecucao';
+beforeEach(() => { HTMLElement.prototype.scrollIntoView = vi.fn(); });
 afterEach(() => { cleanup(); localStorage.clear(); mock.updates.length = 0; mock.stored = {}; mock.fail = false; });
 
 describe('active variation session identity', () => {
@@ -72,7 +73,7 @@ describe('active variation session identity', () => {
     await screen.findByRole('heading', { name: 'HACK MACHINE' });
     await waitFor(() => expect(mock.local).toHaveBeenCalled());
     mock.updates.length = 0;
-    fireEvent.click(screen.getByRole('button', { name: 'Variação', exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Variação' }));
     expect(mock.updates[0].session_state.exerciseNames).toEqual(['MOBILIDADE', 'LEG PRESS', 'AGACHAMENTO LIVRE']);
     const state = mock.updates[0].session_state;
     expect(state.exerciseSlotIds).toEqual(['slot-0', 'slot-1', 'slot-2']);
