@@ -8,7 +8,8 @@ const workout = { key: 'ws-start-session', detail: 'workout', at: 'workout', add
 describe('daily admin water feed', () => {
   it('keys water by student and day, independent of amount', () => {
     expect(waterFeedKey(row)).toBe('dt-water-student-a-2026-10-29');
-    expect(waterFeedKey({ ...row, water_ml: 1600 })).toBe(water.key);
+    const updated = { ...row, water_ml: 1600 };
+    expect(waterFeedKey(updated)).toBe(water.key);
     expect(waterFeedKey({ ...row, date: '2026-10-30' })).not.toBe(water.key);
     expect(waterFeedKey({ ...row, student_id: 'student-b' })).not.toBe(water.key);
   });
