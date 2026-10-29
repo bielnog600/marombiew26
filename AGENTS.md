@@ -2,6 +2,7 @@
 
 - Bridge completed admin workout reads with the last live snapshot and bounded log retries; the bridge is read-only so student completion and progression remain unchanged.
 - Persist precise water totals alongside legacy glass counts through the existing offline-capable daily tracking upsert; nullable totals preserve legacy reads and water goals.
+- Keep admin water-feed totals and keyed upserts in the read-only liveActivityWater helper; retain tracking snapshots for realtime events with partial old rows so corrections do not reorder activity.
 
 - Assemble admin activity exercises in the read-only adminActivityExercises helper, matching slots before normalized original/variation names and retaining executed names for history; planned slots stay ordered and unmatched logs stay extra.
 

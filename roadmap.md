@@ -1,5 +1,9 @@
 # Roadmap
 
+## Dashboard — água em uma linha por aluno/dia
+- [x] Chave diária estável, total preciso em ml, aumentos no topo com delta/horário e reduções sem reordenar; treino, refeições, layout e modal preservados.
+- [x] 21 testes passaram, compilação OK; Dashboard autenticado e modal de água conferidos com dados reais somente em leitura. Eventos de aumento/redução exercitados no teste de integração, sem alterar água real.
+
 ## Execução — nome da variação no estado ao vivo
 - [x] Identidade efetiva no sessionMeta e troca/retorno salvos imediatamente, preservando slots/séries e rollback da preferência; layout e progressão intactos.
 - [x] Tela renderizada em teste: HACK MACHINE → AGACHAMENTO LIVRE → original, falha da preferência, logs de resolução e associação/histórico admin; 1.414 testes passaram na suíte completa (3 ignorados), depois 49 testes relevantes passaram incluindo o rollback adicional; compilação OK. Sem alterar a sessão real do aluno; atualização realtime em treino real não foi exercitada.
