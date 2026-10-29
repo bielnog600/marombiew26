@@ -287,10 +287,16 @@ const buildExercises = (session: any, logs: any[], planDay: any[] | null, media:
     const ls = (groups.get(k) ?? []).sort((a, b) => a.set_number - b.set_number);
     const name = ls[0].exercise_name;
     const plan = findPlan(ls[0].exercise_slot_id, name);
+    const planned = Math.max(num(plan?.series), ...ls.map(l => Number(l.set_number) || 1));
+    const sets: LiveSet[] = Array.from({ length: planned }, () => ({ completed: false }));
+    ls.forEach(l => {
+      const index = Math.max(0, (Number(l.set_number) || 1) - 1);
+      sets[index] = { reps: l.reps, weight: l.weight_kg, completed: true, rpe: l.rpe, rir: l.rir, subRecords: l.sub_records ?? undefined };
+    });
     return {
-      name, plan, media: mediaOf(name), planned: num(plan?.series) || ls.length,
+      name, plan, media: mediaOf(name), planned,
       method: ls[0].training_method || (plan?.metodo !== 'nenhum' ? plan?.metodo : undefined),
-      sets: ls.map((l) => ({ reps: l.reps, weight: l.weight_kg, completed: true, rpe: l.rpe, rir: l.rir, subRecords: l.sub_records ?? undefined })),
+      sets,
     };
   });
   // Exercícios do plano sem nenhum registro também aparecem (não feitos).

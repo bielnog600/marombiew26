@@ -1,10 +1,11 @@
 # Roadmap
 
 ## Dashboard admin — correções do modal de atividade
-- [ ] Conter largura do carrossel, mídia e estatísticas no desktop/celular.
-- [ ] Separar séries realizadas de metas e ajustar séries/tempo.
-- [ ] Resolver refeições por dia, overrides e metas publicadas; preservar água e gravação.
-- [ ] Executar testes e conferir os exemplos reais no modal autenticado.
+- [x] Conter largura do carrossel, mídia e estatísticas no desktop/celular.
+- [x] Separar séries realizadas de metas e ajustar séries/tempo.
+- [x] Resolver refeições por dia, overrides e metas publicadas; preservar água e gravação.
+- [x] 18 testes passaram; modal isolado conferido com registros reais em 390×844 e 1280×1800, sem overflow (388/388 e 670/670); Suzane 8/8, 19/20 e 8.295 kg, Carone 260/1608 kcal com diferenças.
+- [ ] Conferir feed autenticado/realtime ao vivo — bloqueado: conta solicitante sem correspondência e aprovação de conta admin indisponível; Fabiew já encerrou a sessão.
 
 ## Anthropic oficial — treino, dieta, cardio e scanner
 - [x] Inventário apresentado e plano aprovado; modelos oficiais conferidos, demais features listadas e Jarvis sem edição (herda agentes).
