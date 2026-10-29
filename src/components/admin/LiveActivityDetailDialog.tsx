@@ -274,7 +274,7 @@ const buildExercises = (session: any, logs: any[], planDay: any[] | null, media:
         name, plan, media: mediaOf(name),
         planned: Number(st.plannedSets?.[i]) || live.length || num(plan?.series),
         method: st.executionMethods?.[i] && st.executionMethods[i] !== 'nenhum' ? st.executionMethods[i] : plan?.metodo && plan.metodo !== 'nenhum' ? plan.metodo : undefined,
-        sets: live,
+        sets: live.map((s, si) => ({ ...s, set_type: s.set_type ?? st.plannedSetTypes?.[i]?.[si] })),
       };
     });
   }

@@ -1,5 +1,5 @@
 import { parseRepRange, setRoleOf } from '@/lib/weeklyProgression';
-import { isTimeBasedReps } from '@/lib/sessionProgression';
+import { isTimeBasedReps, workRepTargetsOf } from '@/lib/sessionProgression';
 
 export interface ActivityPerformanceSet {
   weight?: unknown; reps?: unknown; completed?: boolean; set_type?: string | null;
@@ -39,7 +39,9 @@ export function exerciseProgress(name: string, today: ActivityPerformanceSet[], 
   const todaySetVolume = Math.max(0,...done.map(performanceSetVolume));
   const alerts = today.flatMap<{set: number; kind: 'above' | 'below'}>((s,i) => {
     if (excluded || !s.completed || !working(s)) return [];
-    const raw = String(plan?.setScheme?.sets?.[i]?.target_reps ?? String(plan?.reps ?? '').split('/')[i] ?? String(plan?.reps ?? '').split('+').pop() ?? '');
+    const workTargets = plan ? workRepTargetsOf(plan) : [];
+    const fallback = workTargets.join('/').split('/');
+    const raw = String(plan?.setScheme?.sets?.[i]?.target_reps ?? fallback[i] ?? fallback[0] ?? '');
     const range = parseRepRange(raw);
     if (!range) return [];
     const reps = number(main(s).reps);
