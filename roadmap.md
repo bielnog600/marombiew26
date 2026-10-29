@@ -1,5 +1,11 @@
 # Roadmap
 
+## Dashboard admin — correções do modal de atividade
+- [ ] Conter largura do carrossel, mídia e estatísticas no desktop/celular.
+- [ ] Separar séries realizadas de metas e ajustar séries/tempo.
+- [ ] Resolver refeições por dia, overrides e metas publicadas; preservar água e gravação.
+- [ ] Executar testes e conferir os exemplos reais no modal autenticado.
+
 ## Anthropic oficial — treino, dieta, cardio e scanner
 - [x] Inventário apresentado e plano aprovado; modelos oficiais conferidos, demais features listadas e Jarvis sem edição (herda agentes).
 - [x] Scanner: Anthropic oficial, claude-haiku-5-5 e log Anthropic error; lookup intacto.
