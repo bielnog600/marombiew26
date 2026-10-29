@@ -157,7 +157,6 @@ const LiveActivityFeed: React.FC = () => {
             label: 'marcou treino concluído',
             at: t.updated_at,
             date: t.date,
-            date: t.date,
           });
         }
       });
