@@ -585,7 +585,8 @@ const formatSessionHintBase = (r: SessionRecommendation | null): SessionHint | n
   const range = r.repRange ? `${r.repRange.min}–${r.repRange.max}` : null;
 
   if (r.action === 'review') return { label: 'Sugestão', estimated: false, text: `Escolha uma carga para fazer ${range ?? 'as'} reps com 2 de reserva.` };
-  if (r.seriesTargets?.length) return { label, estimated, text: formatQuantitativeRecommendation(r as QuantitativeRecommendation) };
+  if (r.basis === 'deload_sem_sobrecarga') return { label, estimated, text: `Mantém ${r.currentLoadKg ?? ''} kg — recuperação, sem subir carga.` };
+  if (r.seriesTargets?.length) return { label, estimated, text: formatQuantitativeRecommendation({ ...r, totalRepsTarget: null, relativeChangePct: null }) };
 
   if (r.action === 'manual_increment_required') {
     return {

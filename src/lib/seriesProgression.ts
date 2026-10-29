@@ -45,7 +45,7 @@ export function computeSeriesProgression(input: QuantitativeInput): Quantitative
   });
   const room = !exhausted && (rir != null ? rir >= 2 : repeatedTop || (allTop && rpe != null && rpe <= 6));
   const observed = [...new Set(increment.evidence.loadSeriesKg)].sort((a, b) => a - b);
-  const series: SeriesLoadTarget[] = sets.map((s, i) => {
+  const series: SeriesLoadTarget[] = sets.map((s, i): SeriesLoadTarget => {
     const current = Number(s.weight_kg) > 0 ? Number(s.weight_kg) : null;
     const reps = Number(s.reps);
     const n = s.set_number ?? i + 1;

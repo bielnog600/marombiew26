@@ -599,8 +599,9 @@ export const buildProgressionReport = (
 
   for (const [key, { display, logs }] of lastByEx.entries()) {
     const planned = plannedByEx.get(key);
-    const combined = [...logs, ...(prevByEx.get(key)?.logs ?? [])];
-    const pair = lastExerciseSessions(planned ? withPlannedSetTypes(combined, planned) : combined);
+    const prior = prevByEx.get(key)?.logs ?? [];
+    const typed = (rows: ExerciseLog[]) => planned ? withPlannedSetTypes(rows, planned) : rows;
+    const pair = { current: lastExerciseSessions(typed(logs)).current, previous: lastExerciseSessions(typed(prior)).current };
     const perf = buildExercisePerformance(
       display,
       pair.current,

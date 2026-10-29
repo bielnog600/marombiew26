@@ -1,4 +1,5 @@
 import { MethodExerciseCard } from './MethodExerciseCard';
+import { optionalRirValue } from '@/lib/finalWorkingSetRir';
 import { useInlineWorkoutRest } from '@/hooks/useInlineWorkoutRest';
 import { RestOffscreenIndicator } from './WorkoutSetCard';
 import { exerciseBlocks, seriesMethod, methodLogFields, type MethodSetEntry } from '@/lib/workoutExecutionMethods';
@@ -346,7 +347,12 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     if (studentB?.loading) hydrate(studentB, setStudentB);
   }, [studentA?.loading, studentB?.loading, studentA?.activeDayIdx, studentB?.activeDayIdx]);
 
-  const updateSet = (slot: 'A' | 'B', exIdx: number, setIdx: number, field: 'weight' | 'reps', value: string) => {
+  const updateSet = (slot: 'A' | 'B', exIdx: number, setIdx: number, field: 'weight' | 'reps' | 'rir', value: string) => {
+    if (field === 'rir') {
+      const entry = (slot === 'A' ? studentA : studentB)?.state[exIdx]?.sets[setIdx];
+      if (entry) changeMethodSet(slot, exIdx, setIdx, { ...entry, rir: value });
+      return;
+    }
     const setFn = slot === 'A' ? setStudentA : setStudentB;
     setFn(prev => {
       if (!prev) return null;
@@ -368,8 +374,8 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     });
     const st = slot === 'A' ? studentA : studentB;
     const day = st?.days[st.activeDayIdx], ex = day?.exercises[exIdx];
-    if (st && day && ex && sessionId && entry.subRecords?.some(part => part.completed)) {
-      void import('@/lib/offlineQueue').then(({ writeWithFallback }) => writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: { ...methodLogFields(ex, entry), student_id: st.studentId, session_id: sessionId, exercise_name: normalizeExName(ex.exercise), set_number: setIdx + 1, weight_kg: Number(entry.weight.replace(',', '.')) || null, reps: Number(entry.reps) || null, set_type: st.state[exIdx]?.plan[setIdx]?.kind === 'recon' ? 'recognition' : 'work', day_name: day.day, phase: st.phase ?? null, source: 'admin' } }));
+    if (st && day && ex && sessionId && (entry.completed || entry.subRecords?.some(part => part.completed))) {
+      void import('@/lib/offlineQueue').then(({ writeWithFallback }) => writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: { ...methodLogFields(ex, entry), rir: optionalRirValue(entry.rir), student_id: st.studentId, session_id: sessionId, exercise_name: normalizeExName(ex.exercise), set_number: setIdx + 1, weight_kg: Number(entry.weight.replace(',', '.')) || null, reps: Number(entry.reps) || null, set_type: st.state[exIdx]?.plan[setIdx]?.kind === 'recon' ? 'recognition' : 'work', day_name: day.day, phase: st.phase ?? null, source: 'admin' } }));
     }
   };
   const saveMethodSet = async (slot: 'A' | 'B', exIdx: number, setIdx: number, entry: MethodSetEntry) => {
@@ -379,7 +385,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     const day = st.days[st.activeDayIdx], ex = day.exercises[exIdx];
     const { writeWithFallback } = await import('@/lib/offlineQueue');
     const result = await writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: {
-      ...methodLogFields(ex, entry), student_id: st.studentId, session_id: sessionId,
+      ...methodLogFields(ex, entry), rir: optionalRirValue(entry.rir), student_id: st.studentId, session_id: sessionId,
       exercise_name: normalizeExName(ex.exercise), set_number: setIdx + 1,
       weight_kg: Number(entry.weight.replace(',', '.')) || null, reps: Number(entry.reps) || null,
       set_type: st.state[exIdx]?.plan[setIdx]?.kind === 'recon' ? 'recognition' : 'work', day_name: day.day,
@@ -630,6 +636,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
       const p = exState.plan?.[s.idx];
       return {
         ...methodLogFields(ex, exState.sets[s.idx]),
+        rir: optionalRirValue(exState.sets[s.idx].rir),
         student_id: st.studentId,
         session_id: sessionId,
         exercise_name: normalizeExName(exerciseName),
