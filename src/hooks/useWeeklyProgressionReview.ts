@@ -48,13 +48,12 @@ export const useWeeklyProgressionReview = () => {
       const weekStart = startOfWeek(now, { weekStartsOn: 1 });
       const weekStartStr = format(weekStart, 'yyyy-MM-dd');
 
-      const [shared, contactsRes] = await Promise.all([
-        readConsultoriaTrainingData(queryClient),
-        supabase.from('weekly_progression_contacts').select('student_id, week_start, created_at'),
-      ]);
-      if (contactsRes.error) throw contactsRes.error;
+      const shared = await readConsultoriaTrainingData(queryClient);
       const { ids: studentIds, profiles, plans, logs, sessions } = shared;
       if (studentIds.length === 0) return [];
+      const contactsRes = await supabase.from('weekly_progression_contacts')
+        .select('student_id, week_start, created_at').in('student_id', studentIds);
+      if (contactsRes.error) throw contactsRes.error;
       const students = studentIds.map(user_id => ({ user_id }));
       const plansByStudent = groupByStudent(plans);
       const logsByStudent = groupByStudent(logs);

@@ -87,7 +87,7 @@ const Consultoria: React.FC = () => {
   const { alerts: behavioralAlerts, loading: behavioralLoading, generate: generateBehavioral, generating: behavioralGenerating, updateStatus: updateBehavioralStatus, reload: refreshBehavioral } = useBehavioralAlerts();
   const { notifications, loading: notifLoading, refresh: refreshNotifs, dismissNotification } = useNotifications();
   const { followups, loading: followupsLoading, reload: reloadFollowups, markAsDone, reopen, archive } = useStudentFollowups();
-  const { data: progressionReviews, isLoading: progressionLoading, refetch: reloadProgression } = useWeeklyProgressionReview();
+  const { data: progressionReviews, isFetching: progressionLoading, refetch: reloadProgression } = useWeeklyProgressionReview();
   const { students: inactiveStudents, loading: inactiveLoading, reload: reloadInactive } = useInactiveStudents(3);
   const {
     actions: coachingActions,
