@@ -22,7 +22,7 @@ export function computeSeriesProgression(input: QuantitativeInput): Quantitative
   const recent = loadedWork(pair.current).sort((a, b) => (a.set_number ?? 0) - (b.set_number ?? 0));
   const previous = loadedWork(input.previousLogs ?? pair.previous);
   const increment = resolveLoadIncrement({
-    historicalWorkingSets: [...(input.historyLogs ?? []), ...(input.previousLogs ?? []), ...recent],
+    historicalWorkingSets: input.historyLogs?.length ? input.historyLogs : [...(input.previousLogs ?? []), ...recent],
     configuredIncrementKg: input.configuredIncrementKg, now,
   });
   // Legacy callers may supply only a real best set, but cannot prove all prescribed sets reached the top.
@@ -66,12 +66,13 @@ export function computeSeriesProgression(input: QuantitativeInput): Quantitative
     const ownLoad = Number(s.weight_kg) > 0 ? Number(s.weight_kg) : null;
     const reps = Number(s.reps), n = s.set_number ?? i + 1, range = rangeFor(n, i);
     const base: SeriesLoadTarget = { setNumber: n, currentLoadKg: ownLoad, recommendedLoadKg: ownLoad, targetReps: reps, action: 'maintain' };
-    if (deload || noLoad || !range || ownLoad == null) return base;
+    if (deload || isNoLoadExercise(p.exerciseName) || !range) return base;
+    if (noLoad || ownLoad == null) return reps < range.max ? { ...base, currentLoadKg: null, recommendedLoadKg: null, targetReps: Math.min(reps + 1, range.max), action: 'increase_reps' } : base;
     // Uniform prescriptions progress only the base load; lighter ramp sets stay intact.
     if (!individual && ownLoad !== maxLoad) return base;
     if (reps < range.min) {
       const lower = [...observed].reverse().find(w => w < ownLoad && w >= ownLoad * 0.9);
-      if (lower != null) return { ...base, recommendedLoadKg: lower, targetReps: range.min, action: 'reduce_load' };
+      if (lower != null && (p.nextAction === 'reduce_load' || rir === 0)) return { ...base, recommendedLoadKg: lower, targetReps: range.min, action: 'reduce_load' };
       return { ...base, targetReps: range.min, action: 'increase_reps' };
     }
     if (exhausted) return base;

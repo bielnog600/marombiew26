@@ -119,7 +119,8 @@ describe('auditoria dos casos informados — carga base e decisões', () => {
     const q = build({performance:buildExercisePerformance('REMADA',c,[],{min:8,max:12}),recentLogs:c,
       prescribedSets:[{setNumber:1,reps:'12'},{setNumber:2,reps:'10'},{setNumber:3,reps:'8'}],setSchemeMode:'pyramid_up',now});
     expect(q.currentLoadKg).toBe(50); expect(q.currentReps).toBe(8);
-    expect(q.seriesTargets?.map(s=>[s.currentLoadKg,s.targetReps])).toEqual([[30,12],[40,10],[50,8]]);
+    expect(q.seriesTargets?.map(s=>s.currentLoadKg)).toEqual([30,40,50]);
+    expect(q.seriesTargets?.map(s=>s.targetReps)).toEqual([13,10,8]);
   });
   it('sem carga e reconhecimento não contaminam base nem RIR', () => {
     const c = [...rows('SUPINO',[0,40,40],[30,12,12]),{...rows('SUPINO',[100],[30])[0],set_type:'recognition',set_number:4,rir:0}];

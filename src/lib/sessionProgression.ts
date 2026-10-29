@@ -390,7 +390,7 @@ export const buildSessionProgressionRecommendations = (
       sessionAvgRpe: input.sessionMeta?.[current[0]?.session_id ?? ""]?.avgRpe ?? null,
       configuredIncrementKg: input.configuredIncrements?.[key] ?? null,
       activePhase: input.activePhase,
-      setSchemeMode: ex.setScheme?.mode ?? null,
+      setSchemeMode: ex.method?.slug ?? ex.setScheme?.mode ?? null,
       setSchemeTargets: workRepTargetsOf(ex),
       plannedRepsText: plannedRepsTextOf(ex),
       now: input.now,
