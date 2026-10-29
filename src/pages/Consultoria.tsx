@@ -256,6 +256,7 @@ const Consultoria: React.FC = () => {
                     counts={counts}
                     active={alertFilter}
                     onChange={setAlertFilter}
+                    loading={{ hoje: weeklyLoading, falados: weeklyLoading, espera: weeklyLoading }}
                   />
 
                   <div className="flex items-center justify-between">
@@ -271,7 +272,7 @@ const Consultoria: React.FC = () => {
                       <Badge variant="outline" className="text-[10px]">
                         {alertFilter === 'inativos' ? inactiveVisible.length : 
                          alertFilter === 'progressao' ? (progressionReviews?.length || 0) : 
-                         filtered.length}
+                         weeklyLoading ? '…' : filtered.length}
                       </Badge>
                     </div>
                     <Button
@@ -332,6 +333,12 @@ const Consultoria: React.FC = () => {
                         ))}
                       </div>
                     )
+                  ) : weeklyLoading ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-24 w-full rounded-lg" />
+                      <Skeleton className="h-24 w-full rounded-lg" />
+                      <Skeleton className="h-24 w-full rounded-lg" />
+                    </div>
                   ) : filtered.length === 0 ? (
                     <Card>
                       <CardContent className="py-6 text-center text-xs text-muted-foreground">

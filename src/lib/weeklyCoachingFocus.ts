@@ -15,6 +15,7 @@
 
 import type { ExercisePerformance } from '@/lib/weeklyProgression';
 import type { QuantitativeRecommendation } from '@/lib/quantitativeProgression';
+import { isNoLoadExercise } from '@/lib/consultoriaRegression';
 
 export type CoachingActionType =
   | 'increase_load'
@@ -209,6 +210,8 @@ export const buildWeeklyFocus = (input: BuildFocusInput): FocusItem[] => {
 
   // 1. Recomendações automáticas (determinísticas).
   for (const p of input.performances ?? []) {
+    // Sem carga: nenhuma orientação automática (nem "Revisar execução / registrar dados").
+    if (isNoLoadExercise(p.exerciseName)) continue;
     let action: Exclude<CoachingActionType, 'dismissed'>;
     if (p.status === 'missing' || p.status === 'insufficient_data') action = 'review';
     else if (p.nextAction === 'increase_load' || p.nextAction === 'increase_reps') {
