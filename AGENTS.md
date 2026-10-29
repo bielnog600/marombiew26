@@ -1,5 +1,7 @@
 # Architecture rules
 
+- Assemble admin activity exercises in the read-only adminActivityExercises helper, matching slots before normalized original/variation names and retaining executed names for history; planned slots stay ordered and unmatched logs stay extra.
+
 - Share Consultoria training raw inputs through one paginated query cache, keeping summary and progression-review calculations separate because their plan selection, phases and session windows differ.
 - Use counted pagination for progression history and Consultoria plans/sessions, fetching ordered batches of at most six pages and falling back to sequential reads when counting fails to preserve results without serial latency.
 
