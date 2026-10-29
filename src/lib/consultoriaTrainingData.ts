@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { readProgressionLogs } from '@/lib/progressionHistory';
+import { readCountedPages } from '@/lib/countedPagination';
 
 export const CONSULTORIA_TRAINING_QUERY_KEY = ['consultoria-training-data'];
 
@@ -20,13 +21,17 @@ export function readConsultoriaTrainingData(queryClient: QueryClient) {
 
       const [profilesRes, plans, logs, sessions] = await Promise.all([
         supabase.from('profiles').select('user_id, nome, telefone').in('user_id', ids),
-        readAllPages((from, to) => supabase.from('ai_plans')
+        readAllPages(() => supabase.from('ai_plans')
+          .select('id, student_id, tipo, conteudo, created_at, fase, fase_inicio_data, cycle_days', { count: 'exact', head: true })
+          .eq('is_draft', false).in('student_id', ids), (from, to) => supabase.from('ai_plans')
           .select('id, student_id, tipo, conteudo, created_at, fase, fase_inicio_data, cycle_days')
           .eq('is_draft', false).in('student_id', ids)
           .order('created_at', { ascending: false }).order('id', { ascending: true }).range(from, to)),
         readProgressionLogs(ids, historyStart,
           'id, student_id, exercise_name, reps, weight_kg, rpe, rir, set_type, set_number, performed_at, phase, session_id, sub_records, source'),
-        readAllPages((from, to) => supabase.from('workout_sessions')
+        readAllPages(() => supabase.from('workout_sessions')
+          .select('id, student_id, status, avg_rpe, phase, completed_at, started_at, created_at, plan_id', { count: 'exact', head: true })
+          .in('student_id', ids).or(`created_at.gte.${historyStart},completed_at.gte.${historyStart}`), (from, to) => supabase.from('workout_sessions')
           .select('id, student_id, status, avg_rpe, phase, completed_at, started_at, created_at, plan_id')
           .in('student_id', ids).or(`created_at.gte.${historyStart},completed_at.gte.${historyStart}`)
           .order('created_at', { ascending: false }).order('id', { ascending: true }).range(from, to)),
@@ -37,14 +42,11 @@ export function readConsultoriaTrainingData(queryClient: QueryClient) {
   });
 }
 
-async function readAllPages<T>(read: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> {
-  const rows: T[] = [];
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await read(from, from + 999);
-    if (error) throw error;
-    rows.push(...(data ?? []));
-    if ((data?.length ?? 0) < 1000) return rows;
-  }
+function readAllPages<T>(
+  count: () => PromiseLike<{ count: number | null; error: unknown }>,
+  read: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  return readCountedPages(count, read);
 }
 
 export function groupByStudent<T extends { student_id: string }>(rows: T[]) {

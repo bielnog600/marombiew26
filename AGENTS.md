@@ -1,6 +1,7 @@
 # Architecture rules
 
 - Share Consultoria training raw inputs through one paginated query cache, keeping summary and progression-review calculations separate because their plan selection, phases and session windows differ.
+- Use counted pagination for progression history and Consultoria plans/sessions, fetching ordered batches of at most six pages and falling back to sequential reads when counting fails to preserve results without serial latency.
 
 - Keep load learning and per-set recommendations in pure deterministic helpers, using recent student/exercise history and the last execution across plans/days; share final-working-set RIR controls and persist optional RIR through existing log/offline paths so timers and completion remain unchanged.
 
