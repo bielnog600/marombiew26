@@ -24,12 +24,19 @@ export interface ExerciseRegressionAssessment {
 const norm = (s: string | null | undefined) =>
   (s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 
-/** Mobilidade, alongamento, abdominais: nunca recebem orientação de carga. */
-export const isNoLoadExercise = (name: string, muscleGroup?: string | null): boolean => {
+/** Exercícios sem carga (mobilidade, alongamento, core, cardio…): nunca recebem orientação no foco. */
+const NO_LOAD_PREFIX = /^(MOBILIDADE|ALONGAMENTO|ABDOMINAL|ABS|PRANCHA|CANIVETE|ESCAPULAR|ESCORPIAO|ESTABILIDADE|PALLOF|BEAR TO PLANK|TESOURINHA|MOUTAIN CLIMBERS|MOUNTAIN CLIMBERS)\b/;
+const NO_LOAD_GROUPS = new Set(['MOBILIDADE', 'ALONGAMENTO', 'ABDOMEN', 'CARDIO']);
+
+export const isNoLoadExercise = (
+  name: string,
+  muscleGroup?: string | null,
+  requiresLoadLogging?: boolean | null,
+): boolean => {
+  if (requiresLoadLogging === false) return true;
   const n = norm(name);
-  if (/^(MOBILIDADE|ALONGAMENTO|ABDOMINAL|ABS)\b/.test(n)) return true;
-  const g = norm(muscleGroup);
-  return g === 'MOBILIDADE' || g === 'ALONGAMENTO' || g === 'ABDOMEN';
+  if (NO_LOAD_PREFIX.test(n) || n === 'OMBRO') return true;
+  return NO_LOAD_GROUPS.has(norm(muscleGroup));
 };
 
 export const epley = (w: number, r: number) => w * (1 + r / 30);
@@ -48,8 +55,9 @@ export const assessExerciseRegression = (input: {
   planned?: ParsedExercise | null;
   muscleGroup?: string | null;
   repRange?: RepRange | null;
+  requiresLoadLogging?: boolean | null;
 }): ExerciseRegressionAssessment => {
-  if (isNoLoadExercise(input.exerciseName, input.muscleGroup)) return { kind: 'no_load' };
+  if (isNoLoadExercise(input.exerciseName, input.muscleGroup, input.requiresLoadLogging)) return { kind: 'no_load' };
   const firstSetOnly = input.planned
     ? ['dropset', 'restpause'].includes(seriesMethod(input.planned))
     : false;
