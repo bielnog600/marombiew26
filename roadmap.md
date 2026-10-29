@@ -1,9 +1,10 @@
 # Roadmap
 
 ## Consultoria — carregamento dos contadores
-- [ ] Mostrar skeleton nos contadores/listas de progressão e inatividade durante suas buscas.
-- [ ] Compartilhar dados brutos entre resumo e progressão, selecionar só campos usados e preservar cálculo/paginação.
-- [ ] Executar testes e verificar carregamento; medir tempo real somente se houver sessão autorizada.
+- [x] Mostrar skeleton nos contadores/listas de progressão e inatividade durante suas buscas, incluindo atualização.
+- [x] Compartilhar dados brutos entre resumo e progressão, selecionar só campos usados e preservar cálculos separados; logs, planos e sessões paginados, histórico de 180 dias mantido para referências antigas.
+- [x] 84 testes passaram e compilação OK; busca atrasada conferida isoladamente em desktop/celular, ambos os contadores com skeleton e lista sem vazio prematuro.
+- [ ] Medir tempo da lista com dados reais — bloqueado: sessão admin autorizada indisponível; acesso automático não encontrou conta solicitante.
 
 ## Progressão determinística — cargas e RIR
 - [x] Aprender degraus recentes por aluno/exercício e comparar últimas sessões em qualquer plano/dia; consultas em lote paginadas.
