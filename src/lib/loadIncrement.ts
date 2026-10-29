@@ -35,7 +35,7 @@ export const MIN_INCREMENT_KG = 0.25;
 /** Maior incremento aceito (configurado ou inferido). */
 export const MAX_INCREMENT_KG = 50;
 /** Teto para inferência automática (mais conservador que o configurado). */
-export const MAX_INFERRED_INCREMENT_KG = 10;
+export const MAX_INFERRED_INCREMENT_KG = 50;
 /** Tolerância de arredondamento em gramas ao testar múltiplos. */
 export const MULTIPLE_TOLERANCE_G = 50;
 /** Múltiplo máximo do passo-base aceito em uma única transição. */
@@ -223,7 +223,7 @@ export const inferIncrementFromTransitions = (logs: ComparableLog[] = [], now: D
   const { kept, excluded } = comparableWorkingSets(recent.length ? recent : logs);
   const series = kept.map((l) => round2(Number(l.weight_kg)));
   if (series.length < 2) {
-    return unknown(emptyEvidence('Histórico insuficiente: menos de duas séries de trabalho comparáveis.', excluded));
+    return unknown({ ...emptyEvidence('Histórico insuficiente: menos de duas séries de trabalho comparáveis.', excluded), loadSeriesKg: series });
   }
 
   const deltasG: number[] = [];

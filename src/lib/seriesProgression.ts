@@ -51,7 +51,7 @@ export function computeSeriesProgression(input: QuantitativeInput): Quantitative
     const n = s.set_number ?? i + 1;
     const range = rangeFor(n, i);
     const base: SeriesLoadTarget = { setNumber: n, currentLoadKg: current, recommendedLoadKg: current, targetReps: reps, action: 'maintain' };
-    if (deload || exhausted || isNoLoadExercise(p.exerciseName)) return base;
+    if (deload || exhausted || isNoLoadExercise(p.exerciseName) || !range) return base;
     if (range && reps < range.min) return { ...base, targetReps: range.min };
     const candidate = current != null ? observed.find(w => w > current) ?? (increment.incrementKg ? Math.round((current + increment.incrementKg) * 1000) / 1000 : null) : null;
     const largeStep = candidate != null && current != null && (candidate - current) / current > 0.1 + 1e-9;
