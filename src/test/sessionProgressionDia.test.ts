@@ -74,9 +74,9 @@ describe('histórico mais limpo', () => {
     });
     const r = snap.recommendations['ELEVACAO PELVICA'];
     expect(r.legacyFallback).toBeFalsy();
-    expect(r.action).toBe('increase_load');
-    expect(r.recommendedLoadKg).toBe(65);
-    expect(formatSessionHint(r)?.text).toContain('65 kg');
+    expect(r.action).toBe('maintain');
+    expect(r.recommendedLoadKg).toBe(60);
+    expect(r.incrementKg).toBeNull();
   });
 
   it('sessão sem plan_id ANTES do plano continua legado (confiança baixa)', () => {

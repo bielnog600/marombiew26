@@ -50,7 +50,7 @@ export const lastWorkSetLine = (previous: PreviousExerciseSet[], plannedTypes: s
 export const studentSuggestionLine = (target: StudentLoadTarget, recommendation: SessionRecommendation | null, reps: string): string | null => {
   const manual = formatTargetLoadHint(target.kg, target.note, target.perSet);
   if (manual && normalizeTargetLoadPerSet(target.perSet)) return `Carga alvo: ${manual.text}`;
-  if (!manual && recommendation) return `Sugestão: ${formatSessionHint(recommendation)?.text ?? ""}`;
+  if (!manual && recommendation?.seriesTargets) return `Sugestão: ${formatSessionHint(recommendation)?.text ?? ""}`;
   const load = positive(target.kg) ?? recommendationLoad(recommendation);
   const hint = manual ?? formatSessionHint(recommendation);
   if (!hint) return null;

@@ -237,13 +237,13 @@ export const formatQuantitativeRecommendation = (r: QuantitativeRecommendation):
   }
   switch (r.action) {
     case 'increase_load':
-      return `Passe de ${kg(r.currentLoadKg!)} para ${kg(r.recommendedLoadKg!)} kg e trabalhe novamente dentro de ${r.repRange ? `${r.repRange.min}–${r.repRange.max}` : 'a faixa'} reps.`;
+      return `Passe de ${kg(r.currentLoadKg ?? 0)} para ${kg(r.recommendedLoadKg ?? 0)} kg e trabalhe novamente dentro de ${r.repRange ? `${r.repRange.min}–${r.repRange.max}` : 'a faixa'} reps.`;
     case 'increase_reps':
       return r.currentLoadKg
         ? `Mantenha ${kg(r.currentLoadKg)} kg e tente ${r.targetReps} reps.`
         : `Tente ${r.targetReps} reps (peso corporal).`;
     case 'reduce_load':
-      return `Reduza de ${kg(r.currentLoadKg!)} para ${kg(r.recommendedLoadKg!)} kg e recupere a faixa prescrita.`;
+      return `Reduza de ${kg(r.currentLoadKg ?? 0)} para ${kg(r.recommendedLoadKg ?? 0)} kg e recupere a faixa prescrita.`;
     case 'maintain':
       return r.currentLoadKg
         ? `Mantenha ${kg(r.currentLoadKg)} kg e busque ${r.targetReps} reps com melhor reserva.`
