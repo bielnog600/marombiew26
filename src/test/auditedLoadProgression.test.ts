@@ -3,6 +3,7 @@ import { buildQuantitativeProgressionRecommendation as build } from '@/lib/quant
 import { buildExercisePerformance, type ExerciseLog } from '@/lib/weeklyProgression';
 import { buildSessionProgressionRecommendations } from '@/lib/sessionProgression';
 import { buildWeeklyFocus } from '@/lib/weeklyCoachingFocus';
+import { buildExerciseGuidance } from '@/lib/nextSessionGuidance';
 import type { ParsedExercise } from '@/lib/trainingResultParser';
 
 const now = new Date('2026-10-29T23:36:00Z');
@@ -113,6 +114,7 @@ describe('auditoria dos casos informados — carga base e decisões', () => {
     expect(snapshot.recommendations[name].action).toBe(q.action);
     expect(snapshot.recommendations[name].recommendedLoadKg).toBe(q.recommendedLoadKg);
     expect(buildWeeklyFocus({performances:[p],quantitative:[q]})[0].actionType).toBe('increase_reps');
+    expect(buildExerciseGuidance([p],{quantitative:[q]})[0].nextAction).toBe('increase_reps');
   });
   it('pirâmide crescente usa metas e cargas individuais, resumo usa maior carga', () => {
     const c = rows('REMADA',[30,40,50],[12,10,8]);

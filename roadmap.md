@@ -1,9 +1,9 @@
 # Roadmap
 
 ## Progressão — auditoria das sugestões de carga
-- [ ] Corrigir base na maior carga de trabalho da última sessão, decisões pela faixa, metas individuais em pirâmide, consistência ação/kg e retomada após 28 dias; preservar layout e contratos.
+- [x] Base na maior carga de trabalho da última sessão, decisões pela faixa, metas individuais em pirâmide, consistência ação/kg e retomada após 28 dias; layout e gravação preservados.
 - [x] Teto definido pelo usuário: um degrau aprendido de até 25%; saltos maiores viram increase_reps sem alterar kg.
-- [ ] Cobrir todos os casos informados, confirmar consumidores aluno/admin/Consultoria/revisão e executar a suíte completa.
+- [x] 37 testes da auditoria cobrem todos os casos informados; aluno/Modo Treino compartilham useSessionProgression, resumo/revisão chamam o mesmo motor, foco e orientação consomem a ação quantitativa corrigida. Suíte completa: 1.461 passaram, 3 ignorados; Consultoria autenticada renderizou 35 focos sem erros em leitura; nenhuma sessão real alterada.
 
 ## Dashboard — água em uma linha por aluno/dia
 - [x] Chave diária estável, total preciso em ml, aumentos no topo com delta/horário e reduções sem reordenar; treino, refeições, layout e modal preservados.

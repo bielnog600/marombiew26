@@ -166,6 +166,16 @@ export const buildExerciseGuidance = (
   const out: ExerciseGuidance[] = [];
 
   for (const p of performances) {
+    const q = quantByName.get(p.exerciseName);
+    if (q && !deload) {
+      out.push({
+        exerciseName: p.exerciseName,
+        nextAction: q.action === 'manual_increment_required' ? 'increase_reps' : q.action,
+        text: formatQuantitativeRecommendation(q),
+        quantitative: q,
+      });
+      continue;
+    }
     // missing / insufficient_data nunca geram recomendação agressiva.
     if (p.status === 'missing' || p.status === 'insufficient_data') {
       out.push({
@@ -178,17 +188,6 @@ export const buildExerciseGuidance = (
 
     let action = p.nextAction;
     if (deload && (action === 'increase_load' || action === 'increase_reps')) action = 'maintain';
-
-    const q = quantByName.get(p.exerciseName);
-    if (q && !deload) {
-      out.push({
-        exerciseName: p.exerciseName,
-        nextAction: action,
-        text: formatQuantitativeRecommendation(q),
-        quantitative: q,
-      });
-      continue;
-    }
 
     let text: string;
     switch (action) {
