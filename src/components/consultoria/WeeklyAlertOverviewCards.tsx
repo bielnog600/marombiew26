@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, CheckCircle2, Clock, Users, Zap, TrendingUp } from 'lucide-react';
 
 export type FollowupFilter = 'hoje' | 'falados' | 'espera' | 'inativos' | 'progressao';
@@ -15,12 +16,15 @@ interface WeeklyAlertOverviewCardsProps {
   };
   active: FollowupFilter;
   onChange: (filter: FollowupFilter) => void;
+  /** Contadores ainda carregando (mostra skeleton em vez de 0). */
+  loading?: Partial<Record<FollowupFilter, boolean>>;
 }
 
 const WeeklyAlertOverviewCards: React.FC<WeeklyAlertOverviewCardsProps> = ({ 
   counts, 
   active, 
-  onChange 
+  onChange,
+  loading = {},
 }) => {
   const cards = [
     { id: 'hoje', label: 'Para falar hoje', icon: AlertCircle, color: 'text-orange-500', bg: 'bg-orange-500/10', count: counts.hoje },
@@ -51,9 +55,13 @@ const WeeklyAlertOverviewCards: React.FC<WeeklyAlertOverviewCardsProps> = ({
                 <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight leading-tight">
                   {card.label}
                 </p>
-                <p className="text-lg font-bold">
-                  {card.count}
-                </p>
+                {loading[card.id] ? (
+                  <Skeleton className="h-6 w-8 mx-auto my-0.5" />
+                ) : (
+                  <p className="text-lg font-bold">
+                    {card.count}
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
