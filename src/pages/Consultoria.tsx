@@ -87,7 +87,7 @@ const Consultoria: React.FC = () => {
   const { alerts: behavioralAlerts, loading: behavioralLoading, generate: generateBehavioral, generating: behavioralGenerating, updateStatus: updateBehavioralStatus, reload: refreshBehavioral } = useBehavioralAlerts();
   const { notifications, loading: notifLoading, refresh: refreshNotifs, dismissNotification } = useNotifications();
   const { followups, loading: followupsLoading, reload: reloadFollowups, markAsDone, reopen, archive } = useStudentFollowups();
-  const { data: progressionReviews, isLoading: progressionLoading, refetch: reloadProgression } = useWeeklyProgressionReview();
+  const { data: progressionReviews, isFetching: progressionLoading, refetch: reloadProgression } = useWeeklyProgressionReview();
   const { students: inactiveStudents, loading: inactiveLoading, reload: reloadInactive } = useInactiveStudents(3);
   const {
     actions: coachingActions,
@@ -256,7 +256,13 @@ const Consultoria: React.FC = () => {
                     counts={counts}
                     active={alertFilter}
                     onChange={setAlertFilter}
-                    loading={{ hoje: weeklyLoading, falados: weeklyLoading, espera: weeklyLoading }}
+                    loading={{
+                      hoje: weeklyLoading || followupsLoading,
+                      falados: weeklyLoading || followupsLoading,
+                      espera: weeklyLoading || followupsLoading,
+                      progressao: progressionLoading,
+                      inativos: inactiveLoading || followupsLoading,
+                    }}
                   />
 
                   <div className="flex items-center justify-between">
@@ -270,8 +276,8 @@ const Consultoria: React.FC = () => {
                         {alertFilter === 'progressao' && 'Análise de Progressão Semanal'}
                       </h3>
                       <Badge variant="outline" className="text-[10px]">
-                        {alertFilter === 'inativos' ? inactiveVisible.length : 
-                         alertFilter === 'progressao' ? (progressionReviews?.length || 0) : 
+                        {alertFilter === 'inativos' ? (inactiveLoading || followupsLoading ? '…' : inactiveVisible.length) : 
+                         alertFilter === 'progressao' ? (progressionLoading ? '…' : progressionReviews?.length || 0) : 
                          weeklyLoading ? '…' : filtered.length}
                       </Badge>
                     </div>
@@ -311,7 +317,7 @@ const Consultoria: React.FC = () => {
                       </div>
                     )
                   ) : alertFilter === 'inativos' ? (
-                    inactiveLoading ? (
+                    inactiveLoading || followupsLoading ? (
                       <div className="space-y-2">
                         <Skeleton className="h-24 w-full rounded-lg" />
                       </div>

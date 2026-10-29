@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { startOfWeek, format } from 'date-fns';
 import { buildQuantitativeProgressionRecommendation } from '@/lib/quantitativeProgression';
@@ -6,7 +6,7 @@ import { resolveCurrentTrainingPhase } from '@/lib/currentPhase';
 import { buildExercisePerformance, lastExerciseSessions, withPlannedSetTypes, repRangeFromPlanned } from '@/lib/weeklyProgression';
 import { normalizeExerciseKey } from '@/lib/loadIncrement';
 import { buildPrescribedWorkSets } from '@/lib/sessionProgression';
-import { readProgressionLogs } from '@/lib/progressionHistory';
+import { readConsultoriaTrainingData, groupByStudent } from '@/lib/consultoriaTrainingData';
 import { parseTrainingSections } from '@/lib/trainingResultParser';
 import {
   buildAttentionPriority,
@@ -40,6 +40,7 @@ export interface StudentProgressionReview {
 }
 
 export const useWeeklyProgressionReview = () => {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: ['weekly-progression-review'],
     queryFn: async () => {
@@ -47,31 +48,20 @@ export const useWeeklyProgressionReview = () => {
       const weekStart = startOfWeek(now, { weekStartsOn: 1 });
       const weekStartStr = format(weekStart, 'yyyy-MM-dd');
 
-      const { data: students } = await supabase
-        .from('students_profile')
-        .select('user_id, ativo')
-        .eq('ativo', true);
+      const shared = await readConsultoriaTrainingData(queryClient);
+      const { ids: studentIds, profiles, plans, logs, sessions } = shared;
+      if (studentIds.length === 0) return [];
+      const contactsRes = await supabase.from('weekly_progression_contacts')
+        .select('student_id, week_start, created_at').in('student_id', studentIds);
+      if (contactsRes.error) throw contactsRes.error;
+      const students = studentIds.map(user_id => ({ user_id }));
+      const plansByStudent = groupByStudent(plans);
+      const logsByStudent = groupByStudent(logs);
+      const sessionsByStudent = groupByStudent(sessions.filter(s => s.created_at >= shared.historyStart));
+      const sessionsById = new Map(sessions.map(s => [s.id, s]));
+      const contactsByStudent = groupByStudent(contactsRes.data ?? []);
 
-      if (!students || students.length === 0) return [];
-      const studentIds = students.map(s => s.user_id);
-
-      const windowStart = new Date(Date.now() - 180 * 86400000).toISOString();
-
-      // Todas as consultas em lote — nunca uma query por aluno.
-      const [profilesRes, plansRes, contactsRes, logsRes, sessionsRes] = await Promise.all([
-        supabase.from('profiles').select('user_id, nome, telefone').in('user_id', studentIds),
-        supabase.from('ai_plans').select('*').in('student_id', studentIds).eq('is_draft', false).order('created_at', { ascending: false }),
-        supabase.from('weekly_progression_contacts').select('*').in('student_id', studentIds),
-        readProgressionLogs(studentIds, windowStart).then(data => ({ data })),
-        supabase
-          .from('workout_sessions')
-          .select('id, student_id, status, avg_rpe, phase, completed_at, created_at')
-          .in('student_id', studentIds)
-          .gte('created_at', windowStart)
-          .order('created_at', { ascending: false }),
-      ]);
-
-      const profileMap = new Map(profilesRes.data?.map(p => [p.user_id, p]) || []);
+      const profileMap = new Map(profiles.map(p => [p.user_id, p]));
       // Coluna real confirmada no schema: weekly_progression_contacts.week_start
       const contactedIds = new Set(
         (contactsRes.data || [])
@@ -83,12 +73,19 @@ export const useWeeklyProgressionReview = () => {
 
       for (const student of students) {
         const studentProfile = profileMap.get(student.user_id);
-        const studentPlans = (plansRes.data || []).filter((p: any) => p.student_id === student.user_id);
+        const studentPlans = plansByStudent.get(student.user_id) ?? [];
         const activePlan = studentPlans[0];
 
         if (!activePlan || !activePlan.conteudo) continue;
 
-        const studentLogs = (logsRes.data || []).filter((l: any) => l.student_id === student.user_id);
+        const studentLogs = logsByStudent.get(student.user_id) ?? [];
+        const logsByExercise = new Map<string, typeof studentLogs>();
+        for (const log of studentLogs) {
+          const key = normalizeExerciseKey(log.exercise_name);
+          const list = logsByExercise.get(key) ?? [];
+          list.push(log);
+          logsByExercise.set(key, list);
+        }
         const phaseResolution = resolveCurrentTrainingPhase(activePlan as any, now);
 
         const parsed = parseTrainingSections(activePlan.conteudo);
@@ -97,13 +94,13 @@ export const useWeeklyProgressionReview = () => {
         const recs: any[] = [];
 
         for (const exercise of exercises) {
-          const exerciseLogs = withPlannedSetTypes(studentLogs.filter(l => normalizeExerciseKey(l.exercise_name) === normalizeExerciseKey(exercise.exercise)), exercise);
+          const exerciseLogs = withPlannedSetTypes(logsByExercise.get(normalizeExerciseKey(exercise.exercise)) ?? [], exercise);
           const pair = lastExerciseSessions(exerciseLogs);
           const performance = buildExercisePerformance(exercise.exercise, pair.current, pair.previous, repRangeFromPlanned(exercise));
           const recommendation = buildQuantitativeProgressionRecommendation({
             performance, recentLogs: pair.current, previousLogs: pair.previous, historyLogs: exerciseLogs,
             prescribedSets: buildPrescribedWorkSets(exercise), activePhase: phaseResolution.phase,
-            sessionAvgRpe: sessionsRes.data?.find(s => s.id === pair.current[0]?.session_id)?.avg_rpe ?? null,
+            sessionAvgRpe: sessionsById.get(pair.current[0]?.session_id ?? '')?.avg_rpe ?? null,
           });
 
           const nextAction = recommendation.action === 'increase_load' ? 'increase_load' 
@@ -121,7 +118,7 @@ export const useWeeklyProgressionReview = () => {
         }
 
         // Sessão comparável mais recente (completa) para leitura do RPE real.
-        const studentSessions = (sessionsRes.data || []).filter((s: any) => s.student_id === student.user_id);
+        const studentSessions = sessionsByStudent.get(student.user_id) ?? [];
         const latestSession = studentSessions.find((s: any) => s.status === 'completed') || studentSessions[0] || null;
 
         const attention = buildAttentionPriority({
@@ -131,8 +128,7 @@ export const useWeeklyProgressionReview = () => {
           actions: recs.map((r) => r.nextAction),
         });
 
-        const lastContact = (contactsRes.data || [])
-          .filter((c: any) => c.student_id === student.user_id)
+        const lastContact = [...(contactsByStudent.get(student.user_id) ?? [])]
           .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
 
         if (recs.length > 0 || attention.attentionPriority === 'attention_only') {
