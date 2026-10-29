@@ -143,6 +143,9 @@ export const buildDetail = (
       };
     }
     case 'maintain':
+      if (p?.resumeReference) {
+        return { detail: 'Retomar com carga de referência', loadText: current ? formatKg(current) : null, repsText: reps };
+      }
       return { detail: current ? `Manter ${formatKg(current)}` : 'Manter carga', loadText: current ? formatKg(current) : null, repsText: reps };
     case 'reduce_load':
       return { detail: 'Reduzir carga • recuperar execução', loadText: current ? formatKg(current) : null, repsText: reps };

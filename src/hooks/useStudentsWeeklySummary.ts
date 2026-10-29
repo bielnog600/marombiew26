@@ -21,6 +21,7 @@ import {
   type QuantitativeRecommendation,
 } from '@/lib/quantitativeProgression';
 import type { VideoNeedsRedo } from '@/lib/weeklyCoachingFocus';
+import { assessExerciseRegression, shouldTagRegression, type ExerciseRegressionAssessment } from '@/lib/consultoriaRegression';
 
 export type AttentionKind =
   | 'regressao'
@@ -81,11 +82,12 @@ const classify = (
   adherence: AdherenceReport | null,
   progression: ProgressionReport | null,
   presencial = false,
+  regressionTag = false,
 ): { kind: AttentionKind; priority: number; action: string } => {
   if (!adherence || !progression) {
     return { kind: 'dados_insuficientes', priority: 3, action: 'Sem plano de treino ativo ou sem registros.' };
   }
-  if (progression.regressed.length > 0) {
+  if (regressionTag) {
     return { kind: 'regressao', priority: 0, action: 'Investigar queda de carga/reps e ajustar plano.' };
   }
   if (adherence.status === 'sugerir_reanalise') {
@@ -315,6 +317,11 @@ export const useStudentsWeeklySummary = () => {
         videosByStudent.set(v.student_id, list);
       }
 
+      // 9. grupo muscular do catálogo (regra de exercícios sem carga).
+      const { data: catalog } = await supabase.from('exercises').select('nome, grupo_muscular');
+      const muscleByName = new Map<string, string | null>();
+      for (const c of catalog ?? []) muscleByName.set(normalizeExerciseKey(c.nome), c.grupo_muscular ?? null);
+
       const result: StudentWeeklySummary[] = [];
       for (const p of profiles ?? []) {
         const plan = latestPlan.get(p.user_id) ?? null;
@@ -362,8 +369,37 @@ export const useStudentsWeeklySummary = () => {
           }));
         }
 
+        // Regressão da Consultoria: critérios próprios (28 d, e1RM −10%, outliers, métodos, sem carga).
+        const assessments = new Map<string, ExerciseRegressionAssessment>();
+        for (const ex of plannedDays.flatMap(d => d.exercises ?? [])) {
+          const key = normalizeExerciseKey(ex.exercise);
+          if (assessments.has(key)) continue;
+          assessments.set(key, assessExerciseRegression({
+            exerciseName: ex.exercise,
+            logs: withPlannedSetTypes(allLogs.filter(l => normalizeExerciseKey(l.exercise_name) === key), ex),
+            planned: ex,
+            muscleGroup: muscleByName.get(key) ?? null,
+            repRange: repRangeFromPlanned(ex),
+          }));
+        }
+        if (progression) {
+          const kindOf = (name: string) => assessments.get(normalizeExerciseKey(name))?.kind;
+          progression = {
+            ...progression,
+            regressed: progression.regressed.filter(d => kindOf(d.exercise) === 'regression'),
+            performances: progression.performances
+              .filter(perf => kindOf(perf.exerciseName) !== 'no_load')
+              .map(perf => {
+                const kind = kindOf(perf.exerciseName);
+                if (kind === 'resume') return { ...perf, nextAction: 'maintain' as const, resumeReference: true };
+                if (perf.nextAction === 'reduce_load' && kind !== 'regression') return { ...perf, nextAction: 'maintain' as const };
+                return perf;
+              }),
+          };
+        }
+
         const isPresencial = presencialMap.get(p.user_id) ?? false;
-        const cFinal = classify(adherence, progression, isPresencial);
+        const cFinal = classify(adherence, progression, isPresencial, shouldTagRegression([...assessments.values()]));
 
         // Construir resumo de dieta/hidratação
         const trk = (trackingByStudent.get(p.user_id) as any[] | undefined) ?? [];
