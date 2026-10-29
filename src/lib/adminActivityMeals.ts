@@ -1,6 +1,6 @@
 import { parseDietPlanLoose } from '@/lib/dietSchema';
 import { parseSections } from '@/lib/dietResultParser';
-import { canonicalDayToStudentMeals, getStructuredDietDay, isStructuredPublishedDiet, STUDENT_WEEKDAY_KEYS } from '@/lib/studentStructuredDiet';
+import { canonicalDayToStudentMeals, getStructuredDietDay, isStructuredPublishedDiet, normalizeWeekdayKey, STUDENT_WEEKDAY_KEYS } from '@/lib/studentStructuredDiet';
 import { resolveDayTarget } from '@/lib/dietDayTargets';
 import { sumMeals, type OverrideMeal, type Totals } from '@/lib/studentDietOverrideDiff';
 
@@ -15,7 +15,8 @@ export function buildActivityDiet(plan: any, override?: any) {
   const days: any[] = canonical?.days ?? [];
   STUDENT_WEEKDAY_KEYS.forEach((key, i) => {
     // Older structured diets contain one generic day ("Padrão"), not weekdays.
-    const day = getStructuredDietDay(canonical, key) ?? (days.length === 1 ? days[0] : null);
+    const generic = days.length === 1 && !normalizeWeekdayKey(days[0]?.weekday ?? days[0]?.label) ? days[0] : null;
+    const day = getStructuredDietDay(canonical, key) ?? generic;
     const base = structured && day ? canonicalDayToStudentMeals(day) : legacy[i % legacy.length] ?? [];
     const snapshot = override?.groups?.[String(i)];
     prescribed[i] = Array.isArray(snapshot?.prescribed) ? snapshot.prescribed : base;
