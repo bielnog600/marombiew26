@@ -1,6 +1,8 @@
 # Roadmap
 
 ## Dashboard admin — correções do modal de atividade
+- [ ] Corrigir pintura/altura do corpo em desktop 1117×679 e celular.
+- [ ] Mostrar histórico por exercício em qualquer dia/plano, progressão, PR e alertas de reps; testar com registros existentes.
 - [x] Conter largura do carrossel, mídia e estatísticas no desktop/celular.
 - [x] Separar séries realizadas de metas e ajustar séries/tempo.
 - [x] Resolver refeições por dia, overrides e metas publicadas; preservar água e gravação.
