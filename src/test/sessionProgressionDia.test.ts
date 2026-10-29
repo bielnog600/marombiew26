@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-09-28T12:00:00Z')); });
+afterEach(() => vi.useRealTimers());
 import {
   buildSessionProgressionRecommendations,
   dropLoadOutliers,
@@ -76,7 +78,7 @@ describe('histórico mais limpo', () => {
     expect(r.legacyFallback).toBeFalsy();
     expect(r.action).toBe('maintain');
     expect(r.recommendedLoadKg).toBe(60);
-    expect(r.incrementKg).toBeNull();
+    expect(r.incrementKg).toBe(5);
   });
 
   it('sessão sem plan_id ANTES do plano continua legado (confiança baixa)', () => {

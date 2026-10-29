@@ -21,7 +21,11 @@ export function computeSeriesProgression(input: QuantitativeInput): Quantitative
   const pair = lastExerciseSessions(input.recentLogs ?? []);
   const recent = loadedWork(pair.current).sort((a, b) => (a.set_number ?? 0) - (b.set_number ?? 0));
   const previous = loadedWork(input.previousLogs ?? pair.previous);
-  const increment = resolveLoadIncrement({
+  const historyIncrement = resolveLoadIncrement({
+    historicalWorkingSets: input.historyLogs ?? [],
+    configuredIncrementKg: input.configuredIncrementKg, now,
+  });
+  const increment = historyIncrement.incrementKg != null ? historyIncrement : resolveLoadIncrement({
     historicalWorkingSets: [...(input.historyLogs ?? []), ...(input.previousLogs ?? []), ...recent],
     configuredIncrementKg: input.configuredIncrementKg, now,
   });

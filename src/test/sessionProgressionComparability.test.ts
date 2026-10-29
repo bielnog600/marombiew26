@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-07-23T12:00:00Z')); });
+afterEach(() => vi.useRealTimers());
 import {
   buildSessionProgressionRecommendations,
   filterComparableSessionHistory,
