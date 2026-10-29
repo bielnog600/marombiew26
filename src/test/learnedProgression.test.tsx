@@ -6,6 +6,7 @@ import { buildExercisePerformance, withPlannedSetTypes, lastExerciseSessions, ty
 import { buildPrescribedWorkSets, buildSessionProgressionRecommendations } from '@/lib/sessionProgression';
 import { finalWorkingSetIndex, optionalRirValue } from '@/lib/finalWorkingSetRir';
 import { FinalSetRir } from '@/components/training/FinalSetRir';
+import { buildSessionStateLogRows } from '@/lib/workoutSessionResolution';
 import type { ParsedExercise } from '@/lib/trainingResultParser';
 
 const now = new Date('2026-10-29T12:00:00Z');
@@ -101,5 +102,12 @@ describe('regras solicitadas de progressão', () => {
     render(<FinalSetRir value={value} onChange={v => { value = v; }} />);
     fireEvent.click(screen.getByRole('button',{name:'RIR 2'}));
     expect(value).toBe('2'); cleanup();
+  });
+  it('RIR opcional permanece no registro existente sem mudar carga/reps', () => {
+    const result = buildSessionStateLogRows({ id: 's', student_id: 'u', phase: 'semana_2', day_name: 'Quinta' },
+      { exerciseNames: ['FLEXORA'], sets: { 0: [{ weight: '60', reps: '12', completed: true, rir: '3' }] } }, '2026-10-29T12:00:00Z');
+    expect(result.rows[0].rir).toBe(3);
+    expect(result.rows[0].weight_kg).toBe(60);
+    expect(result.rows[0].reps).toBe(12);
   });
 });
