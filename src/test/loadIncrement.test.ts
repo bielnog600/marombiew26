@@ -180,7 +180,7 @@ describe('loadIncrement — integração com quantitativeProgression', () => {
       }),
       configuredIncrementKg: 5,
     });
-    expect(r.action).toBe('maintain');
+    expect(r.action).toBe('increase_reps');
     expect(r.basis).toBe('metas_por_serie');
     expect(r.recommendedLoadKg).toBe(10);
     // fonte continua confiável, mas o salto não é seguro

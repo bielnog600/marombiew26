@@ -1,6 +1,6 @@
 import type { QuantitativeInput, QuantitativeRecommendation } from './quantitativeProgression';
 import { ABSOLUTE_LOAD_INCREASE_MAX_PCT } from './quantitativeProgression';
-import { lastExerciseSessions, parseRepRange, setRoleOf } from './weeklyProgression';
+import { lastExerciseSessions, parseRepRange, setRoleOf, type ExerciseLog } from './weeklyProgression';
 import { resolveLoadIncrement } from './loadIncrement';
 import { isNoLoadExercise, isExerciseReferenceExpired } from './consultoriaRegression';
 
@@ -31,7 +31,8 @@ export function computeSeriesProgression(input: QuantitativeInput): Quantitative
   });
   // Legacy callers may supply only a real best set, but cannot prove all prescribed sets reached the top.
   const unweighted = pair.current.filter(l => setRoleOf(l) === 'primary' && Number(l.reps) > 0);
-  const sets = recent.length ? recent : unweighted.length ? unweighted : !input.recentLogs && p.bestSet ? [{
+  const sets: ExerciseLog[] = recent.length ? recent : unweighted.length ? unweighted : !input.recentLogs && p.bestSet ? [{
+    exercise_name: p.exerciseName,
     weight_kg: p.bestSet.weightKg, reps: p.bestSet.reps, set_number: p.bestSet.setNumber ?? 1,
     performed_at: p.bestSet.performedAt, rir: p.bestSet.rir,
   }] : [];
