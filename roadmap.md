@@ -1,5 +1,11 @@
 # Roadmap
 
+## Progressão determinística — cargas e RIR
+- [ ] Aprender degraus recentes por aluno/exercício e comparar últimas sessões em qualquer plano/dia.
+- [ ] Avaliar metas por série, reconhecimento e partes de métodos; preservar deload e usar esforço auxiliar.
+- [ ] Registrar RIR opcional na última série de trabalho no aluno/admin; atualizar sugestões.
+- [ ] Testar casos Suzane Flexora/Búlgaro e compatibilidade; conferir fluxo e compilação.
+
 ## Dashboard admin — correções do modal de atividade
 - [x] Corrigir pintura/altura com altura definida e min-h-0; corpo visível de 495px em 1117×679 e 744px no celular, navegação conferida no navegador com dados reais interceptados.
 - [x] Histórico por exercício em qualquer dia/plano, progressão, PR e alertas por série; 36 testes passaram e compilação OK. Suzane: Flexora +10 kg/+20%, Búlgaro +2 reps; Agachamento possui histórico real de 15/06 (não primeira vez).
