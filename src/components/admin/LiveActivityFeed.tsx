@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import LiveActivityDetailDialog, { type ActivityKind } from './LiveActivityDetailDialog';
+import { waterFeedKey, waterTotalMl, waterFeedDetail, upsertWaterFeedItem, type WaterTrackingSnapshot } from '@/lib/liveActivityWater';
 
 interface FeedItem {
   key: string;
@@ -38,6 +39,7 @@ const LiveActivityFeed: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const pausedRef = useRef(false);
   const [selected, setSelected] = useState<FeedItem | null>(null);
+  const waterSnapshots = useRef(new Map<string, WaterTrackingSnapshot>());
 
   const resolveName = async (studentId: string): Promise<string> => {
     if (nameRef.current.has(studentId)) return nameRef.current.get(studentId)!;
@@ -76,7 +78,7 @@ const LiveActivityFeed: React.FC = () => {
           .limit(30),
         supabase
           .from('daily_tracking')
-          .select('id, student_id, date, water_glasses, meals_completed, workout_completed, updated_at')
+          .select('id, student_id, date, water_glasses, water_ml, meals_completed, workout_completed, updated_at')
           .gte('updated_at', since)
           .order('updated_at', { ascending: false })
           .limit(30),
@@ -124,14 +126,16 @@ const LiveActivityFeed: React.FC = () => {
         }
       });
       (tracking ?? []).forEach((t) => {
-        if ((t.water_glasses ?? 0) > 0) {
+        const waterKey = waterFeedKey(t);
+        if (!waterSnapshots.current.has(waterKey)) waterSnapshots.current.set(waterKey, t);
+        if (waterTotalMl(t) > 0 && !initial.some(item => item.key === waterKey)) {
           initial.push({
-            key: `dt-water-${t.id}-${t.water_glasses}`,
+            key: waterKey,
             studentId: t.student_id,
             studentName: 'Aluno',
             kind: 'water',
             label: 'registrou água',
-            detail: `${t.water_glasses} copo${t.water_glasses > 1 ? 's' : ''}`,
+            detail: waterFeedDetail(t),
             at: t.updated_at,
             date: t.date,
           });
@@ -223,23 +227,29 @@ const LiveActivityFeed: React.FC = () => {
           const row = (payload.new || {}) as any;
           const oldRow = (payload.old || {}) as any;
           if (!row?.student_id) return;
+          const waterKey = waterFeedKey(row);
+          // UPDATE events can contain only the primary key in payload.old.
+          const previousWater = waterSnapshots.current.get(waterKey) ?? oldRow;
+          const newWaterMl = waterTotalMl(row);
+          const oldWaterMl = waterTotalMl(previousWater);
+          waterSnapshots.current.set(waterKey, row);
           const nm = await resolveName(row.student_id);
           const at = row.updated_at || new Date().toISOString();
 
-          const newWater = row.water_glasses ?? 0;
-          const oldWater = oldRow.water_glasses ?? 0;
-          if (newWater > oldWater) {
-            push({
-              key: `dt-water-${row.id}-${newWater}-${at}`,
+          if (newWaterMl !== oldWaterMl) {
+            const increased = newWaterMl > oldWaterMl;
+            const waterItem: FeedItem = {
+              key: waterKey,
               studentId: row.student_id,
               studentName: nm,
               kind: 'water',
               label: 'registrou água',
-              detail: `${newWater} copo${newWater > 1 ? 's' : ''}`,
+              detail: waterFeedDetail(row),
               at,
               date: row.date,
-              addedGlasses: newWater - oldWater,
-            });
+              addedGlasses: (newWaterMl - oldWaterMl) / 250,
+            };
+            setItems(prev => upsertWaterFeedItem(prev, waterItem, increased, MAX_ITEMS));
           }
           const newMeals = Array.isArray(row.meals_completed) ? row.meals_completed.length : 0;
           const oldMeals = Array.isArray(oldRow.meals_completed) ? oldRow.meals_completed.length : 0;
