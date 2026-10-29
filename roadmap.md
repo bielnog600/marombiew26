@@ -2,7 +2,7 @@
 
 ## Progressão — auditoria das sugestões de carga
 - [ ] Corrigir base na maior carga de trabalho da última sessão, decisões pela faixa, metas individuais em pirâmide, consistência ação/kg e retomada após 28 dias; preservar layout e contratos.
-- [ ] Resolver teto de aumento — aguardando definição do usuário: limite de 10% conflita com exemplos 40→45, 18→20 e 20→25 classificados como corretos.
+- [x] Teto definido pelo usuário: um degrau aprendido de até 25%; saltos maiores viram increase_reps sem alterar kg.
 - [ ] Cobrir todos os casos informados, confirmar consumidores aluno/admin/Consultoria/revisão e executar a suíte completa.
 
 ## Dashboard — água em uma linha por aluno/dia

@@ -13,6 +13,12 @@ export const REGRESSION_E1RM_DROP = 0.10;
 export const MIN_REGRESSED_FOR_TAG = 2;
 const DAY = 86400000;
 
+/** Same reference horizon for regression and all quantitative recommendation consumers. */
+export const isExerciseReferenceExpired = (performedAt: string | number, nowMs = Date.now()): boolean => {
+  const at = typeof performedAt === 'number' ? performedAt : Date.parse(performedAt);
+  return Number.isFinite(at) && nowMs - at > REFERENCE_MAX_DAYS * DAY;
+};
+
 export type RegressionKind = 'no_load' | 'insufficient' | 'resume' | 'regression' | 'ok';
 
 export interface ExerciseRegressionAssessment {
@@ -99,7 +105,7 @@ export const assessExerciseRegression = (input: {
   const valid = sessions.filter(s => s.weight >= med * 0.3 && s.weight <= med * 2.5);
   const [current, previous] = valid;
   if (!current || !previous) return { kind: 'insufficient', currentAt: current?.at };
-  if (current.at - previous.at > REFERENCE_MAX_DAYS * DAY) return { kind: 'resume', currentAt: current.at };
+  if (isExerciseReferenceExpired(previous.at, current.at)) return { kind: 'resume', currentAt: current.at };
 
   const drop = (previous.e1rm - current.e1rm) / previous.e1rm;
   if (drop < REGRESSION_E1RM_DROP) return { kind: 'ok', currentAt: current.at, e1rmDropPct: drop };
