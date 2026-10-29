@@ -12,7 +12,7 @@ export function buildActivityDiet(plan: any, override?: any) {
   const targets: Record<number, Totals> = {};
   const legacy = parseSections(plan?.conteudo || '').filter(s => s.type === 'meal' && s.meals?.length).map(s => s.meals ?? []);
   const structured = isStructuredPublishedDiet(canonical, plan?.is_draft);
-  const days = canonical?.days ?? [];
+  const days: any[] = canonical?.days ?? [];
   STUDENT_WEEKDAY_KEYS.forEach((key, i) => {
     // Older structured diets contain one generic day ("Padrão"), not weekdays.
     const day = getStructuredDietDay(canonical, key) ?? (days.length === 1 ? days[0] : null);
