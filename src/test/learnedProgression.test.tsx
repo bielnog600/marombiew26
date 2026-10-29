@@ -99,7 +99,7 @@ describe('regras solicitadas de progressão', () => {
     expect(optionalRirValue('')).toBeNull(); expect(optionalRirValue('3')).toBe(3);
     let value = '';
     render(<FinalSetRir value={value} onChange={v => { value = v; }} />);
-    fireEvent.click(screen.get_by_role?.('button') ?? screen.getByRole('button',{name:'RIR 2'}));
+    fireEvent.click(screen.getByRole('button',{name:'RIR 2'}));
     expect(value).toBe('2'); cleanup();
   });
 });
