@@ -144,8 +144,8 @@ export const buildDetail = (
       };
     }
     case 'maintain':
-      if (p?.resumeReference) {
-        return { detail: 'Retomar com carga de referência', loadText: current ? formatKg(current) : null, repsText: reps };
+      if (q?.basis === 'retomar_referencia' || p?.resumeReference) {
+        return { detail: 'Retomar com carga de referência', loadText: null, repsText: reps };
       }
       return { detail: current ? `Manter ${formatKg(current)}` : 'Manter carga', loadText: current ? formatKg(current) : null, repsText: reps };
     case 'reduce_load':
@@ -213,7 +213,11 @@ export const buildWeeklyFocus = (input: BuildFocusInput): FocusItem[] => {
     // Sem carga: nenhuma orientação automática (nem "Revisar execução / registrar dados").
     if (isNoLoadExercise(p.exerciseName)) continue;
     let action: Exclude<CoachingActionType, 'dismissed'>;
-    if (p.status === 'missing' || p.status === 'insufficient_data') action = 'review';
+    const q = quantByName.get(normalize(p.exerciseName));
+    if (q) {
+      action = q.action === 'manual_increment_required' ? 'increase_reps' : q.action;
+      if (input.deload && (action === 'increase_load' || action === 'increase_reps')) action = 'maintain';
+    } else if (p.status === 'missing' || p.status === 'insufficient_data') action = 'review';
     else if (p.nextAction === 'increase_load' || p.nextAction === 'increase_reps') {
       action = input.deload ? 'maintain' : p.nextAction;
     } else if (p.nextAction === 'reduce_load') action = 'reduce_load';

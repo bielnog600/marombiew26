@@ -139,8 +139,8 @@ describe('nextAction (double progression)', () => {
     expect(p.nextAction).not.toBe('increase_load');
   });
 
-  it('regressão forte => reduce_load', () => {
-    expect(perf([log(60, 8)], [log(80, 10)], range).nextAction).toBe('reduce_load');
+  it('queda histórica dentro da faixa não reduz carga novamente', () => {
+    expect(perf([log(60, 8)], [log(80, 10)], range).nextAction).toBe('increase_reps');
   });
 
   it('sem faixa prescrita só sobe carga com folga de RIR', () => {

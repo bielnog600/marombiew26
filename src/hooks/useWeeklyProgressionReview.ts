@@ -100,6 +100,7 @@ export const useWeeklyProgressionReview = () => {
           const recommendation = buildQuantitativeProgressionRecommendation({
             performance, recentLogs: pair.current, previousLogs: pair.previous, historyLogs: exerciseLogs,
             prescribedSets: buildPrescribedWorkSets(exercise), activePhase: phaseResolution.phase,
+            setSchemeMode: exercise.method?.slug ?? exercise.setScheme?.mode, now,
             sessionAvgRpe: sessionsById.get(pair.current[0]?.session_id ?? '')?.avg_rpe ?? null,
           });
 

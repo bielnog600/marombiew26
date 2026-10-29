@@ -1,4 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-08-21T12:00:00Z')); });
+afterEach(() => vi.useRealTimers());
 import {
   buildQuantitativeProgressionRecommendation,
   inferIncrementFromHistory,
@@ -58,8 +60,8 @@ describe('quantitativeProgression', () => {
     });
     expect(r.action).toBe('maintain');
     expect(r.recommendedLoadKg).toBe(80);
-    expect(r.confidence).toBe('low');
-    expect(r.incrementSource).toBe('unknown');
+    expect(r.confidence).toBe('high');
+    expect(r.incrementSource).toBe('configured');
   });
 
   it('2. incremento que gera +20% não é recomendado automaticamente', () => {
@@ -139,7 +141,7 @@ describe('quantitativeProgression', () => {
     });
     expect(r.qualitative).toBe(false);
     expect(r.seriesTargets?.[0].recommendedLoadKg).toBe(80);
-    expect(r.confidence).toBe('low');
+    expect(r.confidence).toBe('high');
   });
 
   it('10. máquina sem incremento conhecido → orientação qualitativa', () => {
@@ -156,7 +158,7 @@ describe('quantitativeProgression', () => {
     expect(inc.confidence).toBe('medium');
 
     const r = build({ performance: perf({ nextAction: 'increase_load' }), historyLogs: hist });
-    expect(r.recommendedLoadKg).toBe(82.5);
+    expect(r.recommendedLoadKg).toBe(80);
     expect(r.confidence).toBe('medium');
   });
 

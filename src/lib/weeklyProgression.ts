@@ -530,17 +530,13 @@ export const nextActionFor = (
 ): NextAction => {
   if (!bestSet || status === 'missing' || status === 'insufficient_data') return 'review';
 
-  if (status === 'regressed') {
-    return e1rmDeltaPct != null && e1rmDeltaPct <= -E1RM_STRONG_DROP_PCT ? 'reduce_load' : 'maintain';
-  }
-
   const rir = bestSet.rir;
   const maxedOut = rir != null && rir <= 1; // esforço máximo declarado
 
   if (repRange) {
     if (bestSet.reps < repRange.min) {
       // Abaixo da faixa: nunca subir carga.
-      return status === 'improved' ? 'maintain' : maxedOut ? 'reduce_load' : 'maintain';
+      return maxedOut || (status === 'regressed' && e1rmDeltaPct != null && e1rmDeltaPct <= -E1RM_STRONG_DROP_PCT) ? 'reduce_load' : 'maintain';
     }
     if (bestSet.reps >= repRange.max) {
       if (rir != null) return rir >= RIR_ROOM_TO_ADD_LOAD ? 'increase_load' : 'maintain';

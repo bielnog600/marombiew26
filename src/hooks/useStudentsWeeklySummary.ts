@@ -359,6 +359,7 @@ export const useStudentsWeeklySummary = () => {
           quantitative.push(buildQuantitativeProgressionRecommendation({
             performance: perf, recentLogs: pair.current, previousLogs: pair.previous, historyLogs: history,
             prescribedSets: buildPrescribedWorkSets(ex), activePhase: activePhase ?? undefined,
+            setSchemeMode: ex.method?.slug ?? ex.setScheme?.mode,
             sessionAvgRpe: sessionsByStudent.get(p.user_id)?.find(s => s.id === pair.current[0]?.session_id)?.avg_rpe ?? null,
           }));
         }

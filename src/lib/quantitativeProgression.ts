@@ -51,7 +51,7 @@ import {
 /** Aumento relativo considerado ideal para progressão de carga. */
 export const IDEAL_LOAD_INCREASE_MAX_PCT = 0.05;
 /** Acima disso NUNCA recomendamos aumento automático. */
-export const ABSOLUTE_LOAD_INCREASE_MAX_PCT = 0.10;
+export const ABSOLUTE_LOAD_INCREASE_MAX_PCT = 0.25;
 /** Redução máxima recomendada automaticamente em reduce_load. */
 export const ABSOLUTE_LOAD_DECREASE_MAX_PCT = 0.10;
 /** Regressão de e1RM a partir da qual aceitamos reduzir mais de um incremento. */
@@ -218,6 +218,7 @@ export const buildQuantitativeProgressionRecommendation = (
 
 export const formatQuantitativeRecommendation = (r: QuantitativeRecommendation): string => {
   const kg = (n: number) => String(n).replace('.', ',');
+  if (r.basis === 'retomar_referencia') return 'Retomar com carga de referência';
   if (r.seriesTargets?.length) {
     const targets = r.seriesTargets;
     const same = targets.every(s => s.recommendedLoadKg === targets[0].recommendedLoadKg && s.targetReps === targets[0].targetReps && s.action === targets[0].action);

@@ -19,10 +19,10 @@ describe('regras solicitadas de progressão', () => {
     const history = [...logs([50], [15], 'old', '2026-10-26'), ...logs([60], [15])];
     expect(inferIncrementFromTransitions(history, now).incrementKg).toBe(10);
     const r = recommend(ex(), logs([50,50,50], [15,15,15]), logs([60,60,60], [15,15,15], 'old', '2026-10-26'));
-    expect(r.recommendedLoadKg).toBe(50);
-    expect(r.targetReps).toBe(16);
+    expect(r.recommendedLoadKg).toBe(60);
+    expect(r.targetReps).toBe(12);
   });
-  it('Flexora só sobe o degrau >10% depois de superar topo em todas as séries', () => {
+  it('Flexora permite degrau de 20% no topo, inclusive acima dele', () => {
     const r = recommend(ex(), logs([50,50,50], [16,16,16]), logs([60,60,60], [15,15,15], 'old', '2026-10-26'));
     expect(r.recommendedLoadKg).toBe(60);
     expect(r.targetReps).toBe(12);

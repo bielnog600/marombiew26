@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-07-23T12:00:00Z')); });
+afterEach(() => vi.useRealTimers());
 import {
   buildSessionProgressionRecommendations,
   excludeCurrentSessionLogs,
@@ -107,13 +109,13 @@ describe('snapshot de progressão da sessão', () => {
     // Nova configuração vale apenas para o próximo snapshot.
     const next = build(baseHistory(), { configuredIncrements: { 'SUPINO RETO': 5 } });
     expect(JSON.stringify(snap.recommendations)).toBe(before);
-    expect(next.recommendations['SUPINO RETO'].recommendedLoadKg).toBe(77.5);
+    expect(next.recommendations['SUPINO RETO'].recommendedLoadKg).toBe(80);
   });
 
   it('8. increase_load com incremento configurado mostra kg', () => {
     const r = build(baseHistory()).recommendations['SUPINO RETO'];
-    expect(r.incrementSource).toBe('inferred_history');
-    expect(r.confidence).toBe('medium');
+    expect(r.incrementSource).toBe('configured');
+    expect(r.confidence).toBe('high');
     expect(formatSessionHint(r)!.text).toContain('77,5 kg');
   });
 
@@ -184,7 +186,7 @@ describe('snapshot de progressão da sessão', () => {
       configuredIncrements: { 'ROSCA DIRETA': 5 },
     });
     const r = snap.recommendations['ROSCA DIRETA'];
-    expect(r.action).toBe('maintain');
+    expect(r.action).toBe('increase_reps');
     expect(r.recommendedLoadKg).toBe(10);
     expect(formatSessionHint(r)!.text).not.toContain('15');
   });

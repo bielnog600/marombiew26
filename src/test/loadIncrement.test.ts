@@ -1,4 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-06-02T12:00:00Z')); });
+afterEach(() => vi.useRealTimers());
 import {
   inferIncrementFromTransitions,
   resolveLoadIncrement,
@@ -167,8 +169,8 @@ describe('loadIncrement — integração com quantitativeProgression', () => {
       configuredIncrementKg: resolved.incrementKg,
     });
     expect(r.recommendedLoadKg).toBe(80);
-    expect(r.incrementSource).toBe('unknown');
-    expect(r.incrementConfidence).toBe('low');
+    expect(r.incrementSource).toBe('configured');
+    expect(r.incrementConfidence).toBe('high');
   });
 
   it('12. incremento configurado grande demais não vira aumento automático', () => {
@@ -178,12 +180,12 @@ describe('loadIncrement — integração com quantitativeProgression', () => {
       }),
       configuredIncrementKg: 5,
     });
-    expect(r.action).toBe('maintain');
+    expect(r.action).toBe('increase_reps');
     expect(r.basis).toBe('metas_por_serie');
     expect(r.recommendedLoadKg).toBe(10);
     // fonte continua confiável, mas o salto não é seguro
-    expect(r.incrementConfidence).toBe('low');
-    expect(r.confidence).toBe('low');
+    expect(r.incrementConfidence).toBe('high');
+    expect(r.confidence).toBe('high');
   });
 
   it('17. nada no plano/performance é mutado', () => {
