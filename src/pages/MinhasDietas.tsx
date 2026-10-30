@@ -279,14 +279,15 @@ const MinhasDietas = () => {
   }, [user]);
 
   const loadDiet = async () => {
+    if (!user) return;
     // Chave de cache versionada: o cache antigo não continha conteudo_json.
     const { data: dieta } = await fetchWithCache(
-      `plan:dieta:full:${DIET_DISPLAY_SCHEMA_VERSION}:${user!.id}`,
+      `plan:dieta:full:${DIET_DISPLAY_SCHEMA_VERSION}:${user.id}`,
       async () => {
         const { data } = await supabase
           .from('ai_plans')
           .select('id, titulo, conteudo, conteudo_json, protocols, version, content_revision, created_at, published_at, is_draft')
-          .eq('student_id', user!.id)
+          .eq('student_id', user.id)
           .eq('tipo', 'dieta')
           .eq('is_draft', false)
           .order('published_at', { ascending: false, nullsFirst: false })
@@ -459,10 +460,7 @@ const MinhasDietas = () => {
   const trackingDayIndex = usesMealOptions ? selectedWeekday : activeGroupIndex;
   useEffect(() => {
     setSelectedWeekday((new Date().getDay() + 6) % 7);
-    setMealRebalance(null);
-    setCompletionWarning(null);
   }, [trackingToday]);
-  useEffect(() => { setMealRebalance(null); setCompletionWarning(null); setPortionPreview(null); }, [selectedDate]);
 
   // Per-day target / adjustment from protocols.weekly_energy_schedule.
   // When present, the student sees the actual daily meta (not the flat sum
@@ -675,6 +673,11 @@ const MinhasDietas = () => {
     registerAfter: boolean;
   } | null>(null);
   const [completionWarning, setCompletionWarning] = useState<(CompletionExcess & { mealIndex: number }) | null>(null);
+  useEffect(() => {
+    setMealRebalance(null);
+    setCompletionWarning(null);
+    setPortionPreview(null);
+  }, [selectedDate]);
 
   const buildMealRebalance = useCallback(
     (mealIndex: number, foods: any[], meals: any[], countedIndexes: number[]) => {
@@ -900,6 +903,9 @@ const MinhasDietas = () => {
                 onClick={() => setSelectedWeekday(i)}
                 className="h-12 min-w-0 flex-col gap-1 px-1 text-xs rounded-full">
                 <span>{label}</span>
+                {!usesMealOptions && displayGroups[i]?.label.match(/\(([^)]+)\)$/)?.[1] && (
+                  <span className="text-[9px] leading-none">{displayGroups[i].label.match(/\(([^)]+)\)$/)?.[1]}</span>
+                )}
                 <span className="flex h-3 items-center" aria-label={status === 'within' ? 'Dentro da meta' : status === 'above' ? 'Acima da meta' : status === 'below' ? 'Abaixo da meta' : 'Sem registro'}>
                   {status === 'within' ? <span className={active ? 'text-primary-foreground' : 'text-score-good'}>✓</span>
                     : status ? <span className={`h-1.5 w-1.5 rounded-full ${status === 'above' ? 'bg-destructive' : 'bg-score-poor'}`} /> : null}
@@ -947,6 +953,7 @@ const MinhasDietas = () => {
         {/* Calorias do dia */}
         {/* Meta PRESCRITA (nunca a soma da versão editada pelo aluno). */}
         <DailyCaloriesCard
+          label={selectedDate === trackingToday ? 'Calorias de hoje' : `Calorias de ${WEEKDAY_LABELS[selectedWeekday]}`}
           consumed={consumed.kcal}
           target={dailyTarget.kcal}
           protein={{ current: consumed.p, target: dailyTarget.p }}

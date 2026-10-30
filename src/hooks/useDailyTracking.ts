@@ -56,6 +56,7 @@ export function useDailyTracking(opts?: { isTrainingDay?: boolean; date?: string
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
+    weekRef.current = {};
     (async () => {
       try {
         const [weekResult, weightResult] = await Promise.all([
