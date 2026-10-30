@@ -4,7 +4,7 @@ import DailyCaloriesCard from '@/components/diet/DailyCaloriesCard';
 
 const bars = (container: HTMLElement) =>
   Array.from(container.querySelectorAll<HTMLElement>('div[style*="width"]')).filter((el) =>
-    /bg-chart-/.test(el.className),
+    /bg-chart-|bg-destructive/.test(el.className) && !!el.closest("[data-over]"),
   );
 
 const renderCard = (props: Partial<React.ComponentProps<typeof DailyCaloriesCard>> = {}) =>
