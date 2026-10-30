@@ -1,6 +1,7 @@
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
+import { localDateKey } from '@/lib/localTrackingWeek';
 
 const mock = vi.hoisted(() => ({
   row: null as any,
@@ -12,8 +13,8 @@ vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: mock.user }) 
 vi.mock('@/hooks/useEventTracking', () => ({ useEventTracking: () => ({ trackEvent: mock.event }) }));
 vi.mock('@/lib/offlineQueue', () => ({ writeWithFallback: mock.write }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: {} }));
-vi.mock('@/lib/offlineCache', () => ({ fetchWithCache: async (key: string) =>
-  ({ data: key.startsWith('tracking:') ? mock.row : key.startsWith('weekly:') ? [] : null, fromCache: false }),
+vi.mock('@/lib/offlineCache', () => ({ setCache: vi.fn(), fetchWithCache: async (key: string) =>
+  ({ data: key.startsWith('tracking-week:') ? (mock.row ? [{ ...mock.row, date: localDateKey() }] : []) : null, fromCache: false }),
 }));
 beforeEach(() => { mock.write.mockClear(); localStorage.clear(); mock.row = null; });
 afterEach(cleanup);
@@ -45,7 +46,7 @@ describe('precise daily water persistence', () => {
   });
   it('keeps legacy local fractions and records the exact total on the next water edit', async () => {
     mock.row = { water_glasses: 2, water_ml: null, meals_completed: [], workout_completed: false };
-    localStorage.setItem(`water-extra-${mock.user.id}-${new Date().toISOString().slice(0, 10)}`, '100');
+    localStorage.setItem(`water-extra-${mock.user.id}-${localDateKey()}`, '100');
     const { result } = await open();
     expect(result.current.waterCurrentMl).toBe(600);
     act(() => result.current.addWaterMl(200));
