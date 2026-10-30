@@ -523,7 +523,11 @@ const LiveActivityDetailDialog: React.FC<{ activity: (ActivityRef & { addedGlass
     <Dialog open={!!activity} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="flex h-[100dvh] w-full min-w-0 max-w-full flex-col overflow-hidden p-4 pt-[max(1rem,env(safe-area-inset-top))] [&>button:last-child]:hidden sm:h-[90dvh] sm:max-h-[90dvh] sm:max-w-2xl sm:p-6">
         <DialogHeader className="min-w-0 shrink-0 pr-12 text-left">
-...
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Icon className="h-4 w-4 text-primary" />
+            {meta?.label}
+          </DialogTitle>
+          <DialogDescription>{activity?.studentName}</DialogDescription>
         </DialogHeader>
         {/* Fechamento próprio: fica abaixo da safe area do iPhone (barra de status) e com área de toque de 44px. */}
         <DialogClose
