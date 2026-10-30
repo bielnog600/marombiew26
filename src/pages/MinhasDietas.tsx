@@ -34,6 +34,14 @@ import {
   type StudentStructuredDay,
 } from '@/lib/studentStructuredDiet';
 import { adjustStudentPortions, type PortionAdjustResult } from '@/lib/studentPortionAdjust';
+import {
+  formatSignedKcalDiff,
+  mealCompletionExcess,
+  rebalanceSingleMeal,
+  recomputeMealTotals,
+  type CompletionExcess,
+  type SingleMealRebalance,
+} from '@/lib/studentMealGuard';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -563,7 +571,8 @@ const MinhasDietas = () => {
         groups[key] = {
           label: displayGroups[activeGroupIndex]?.label ?? '',
           prescribed: prescribedMeals,
-          student: currentMeals,
+          // Totais por refeição sempre recalculados a partir dos alimentos.
+          student: currentMeals.map((m: any) => recomputeMealTotals(m)),
         };
       } else {
         delete groups[key];
@@ -649,7 +658,84 @@ const MinhasDietas = () => {
   // "calorias alvo" written by the AI in the preamble, because the two often
   // diverge (ex: meta 1455 kcal mas alimentos somam 1830 kcal). The student
   // must see what they will actually eat, matching what the admin sees.
-  const displaySummary = { calories: totalKcal, protein: totalP, carbs: totalC, fats: totalG };
+  void totalP; void totalC; void totalG;
+
+  // ── Guarda da meta: refeição editada sem futuras + aviso ao registrar ──
+  const [mealRebalance, setMealRebalance] = useState<{
+    mealIndex: number;
+    result: SingleMealRebalance;
+    dayBeforeKcal: number;
+    registerAfter: boolean;
+  } | null>(null);
+  const [completionWarning, setCompletionWarning] = useState<(CompletionExcess & { mealIndex: number }) | null>(null);
+
+  const buildMealRebalance = useCallback(
+    (mealIndex: number, foods: any[], meals: any[], countedIndexes: number[]) => {
+      const others = meals.filter((_, i) => i !== mealIndex && countedIndexes.includes(i));
+      const otherTotal = sumMealMacros(others as any);
+      const result = rebalanceSingleMeal({
+        foods,
+        prescribedFoods: (prescribedMeals[mealIndex]?.foods ?? []) as any,
+        otherTotal,
+        dailyTarget,
+      });
+      const dayBeforeKcal = otherTotal.kcal + foods.reduce((s: number, f: any) => s + parseNum(f.kcal), 0);
+      return { result, dayBeforeKcal };
+    },
+    [prescribedMeals, dailyTarget],
+  );
+
+  const handleFoodsChange = useCallback(
+    (mealIndex: number, foods: any[]) => {
+      persistFoodsChange(activeGroupIndex, mealIndex, foods);
+      if (completedIndexes.includes(mealIndex) || dailyTarget.kcal <= 0) return;
+      const hasFutureOpen = currentMeals.some((_, i) => i > mealIndex && !completedIndexes.includes(i));
+      if (hasFutureOpen) return;
+      // Sem refeição futura para absorver: a própria refeição fecha a meta do dia.
+      const counted = currentMeals.map((_, i) => i);
+      const { result, dayBeforeKcal } = buildMealRebalance(mealIndex, foods, currentMeals, counted);
+      if (Math.abs(dayBeforeKcal - dailyTarget.kcal) <= 50) return;
+      setMealRebalance({ mealIndex, result, dayBeforeKcal, registerAfter: false });
+    },
+    [persistFoodsChange, activeGroupIndex, completedIndexes, currentMeals, dailyTarget, buildMealRebalance],
+  );
+
+  const applyMealRebalance = useCallback(() => {
+    if (!mealRebalance?.result.ok) return;
+    const { mealIndex, result, registerAfter } = mealRebalance;
+    pendingActionRef.current = 'aluno_ajustou_refeicao_meta';
+    persistFoodsChange(activeGroupIndex, mealIndex, result.foods);
+    if (registerAfter) toggleMeal(activeGroupIndex * 1000 + mealIndex);
+    setMealRebalance(null);
+  }, [mealRebalance, persistFoodsChange, activeGroupIndex, toggleMeal]);
+
+  const handleToggleMeal = useCallback(
+    (mealIndex: number) => {
+      const key = activeGroupIndex * 1000 + mealIndex;
+      if (tracking.meals_completed.includes(key)) { toggleMeal(key); return; }
+      const excess = mealCompletionExcess({ meals: currentMeals as any, completedIndexes, mealIndex, dailyTarget });
+      if (!excess.exceeds) { toggleMeal(key); return; }
+      setCompletionWarning({ ...excess, mealIndex });
+    },
+    [activeGroupIndex, tracking.meals_completed, toggleMeal, currentMeals, completedIndexes, dailyTarget],
+  );
+
+  const registerAboveTarget = useCallback(() => {
+    if (!completionWarning) return;
+    toggleMeal(activeGroupIndex * 1000 + completionWarning.mealIndex);
+    pendingActionRef.current = 'aluno_registrou_acima_meta';
+    // Nova referência dispara a sincronização com o treinador.
+    writeSubs({ ...substitutions }, { ...editedMealByGroup });
+    setCompletionWarning(null);
+  }, [completionWarning, toggleMeal, activeGroupIndex, writeSubs, substitutions, editedMealByGroup]);
+
+  const adjustAndRegister = useCallback(() => {
+    if (!completionWarning) return;
+    const mi = completionWarning.mealIndex;
+    const { result, dayBeforeKcal } = buildMealRebalance(mi, (currentMeals[mi]?.foods ?? []) as any, currentMeals, completedIndexes);
+    setCompletionWarning(null);
+    setMealRebalance({ mealIndex: mi, result, dayBeforeKcal, registerAfter: true });
+  }, [completionWarning, buildMealRebalance, currentMeals, completedIndexes]);
 
   // Consumo real do dia: soma apenas das refeições registradas pelo aluno.
   const consumed = useMemo(() => {
@@ -807,12 +893,13 @@ const MinhasDietas = () => {
         )}
 
         {/* Calorias do dia */}
+        {/* Meta PRESCRITA (nunca a soma da versão editada pelo aluno). */}
         <DailyCaloriesCard
           consumed={consumed.kcal}
-          target={displaySummary.calories}
-          protein={{ current: consumed.p, target: displaySummary.protein }}
-          carbs={{ current: consumed.c, target: displaySummary.carbs }}
-          fats={{ current: consumed.g, target: displaySummary.fats }}
+          target={dailyTarget.kcal}
+          protein={{ current: consumed.p, target: dailyTarget.p }}
+          carbs={{ current: consumed.c, target: dailyTarget.c }}
+          fats={{ current: consumed.g, target: dailyTarget.g }}
         />
 
         {(hasStudentEdits || undoSnapshot) && (
@@ -823,9 +910,9 @@ const MinhasDietas = () => {
               {formatValue(dailyTarget.c, 'g')} · G {formatValue(dailyTarget.g, 'g')}
             </p>
             <p className="text-[10px] text-muted-foreground">
-              {Math.abs(rebalance.residual.kcal) <= 50
+              {Math.abs(totalKcal - dailyTarget.kcal) <= 50
                 ? 'Ajuste estimado dentro da tolerância — refeições futuras rebalanceadas automaticamente.'
-                : `Diferença atual: ${rebalance.residual.kcal > 0 ? '+' : ''}${Math.round(-rebalance.residual.kcal)} kcal em relação à meta.`}
+                : `Diferença atual: ${formatSignedKcalDiff(totalKcal - dailyTarget.kcal)}.`}
             </p>
             {hasStudentEdits && (
               <Button variant="default" size="sm" onClick={openPortionPreview} className="w-full text-xs font-semibold">
@@ -925,6 +1012,63 @@ const MinhasDietas = () => {
           </AlertDialogContent>
         </AlertDialog>
 
+        <Dialog open={!!mealRebalance} onOpenChange={(o) => !o && setMealRebalance(null)}>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Ajustar {mealRebalance ? currentMeals[mealRebalance.mealIndex]?.name?.toLowerCase() : ''}</DialogTitle>
+              <DialogDescription>
+                {mealRebalance?.result.ok
+                  ? `Para bater a meta, seu ${currentMeals[mealRebalance.mealIndex]?.name?.toLowerCase() ?? 'refeição'} fica:`
+                  : 'Não dá para fechar a meta só ajustando as porções desta refeição.'}
+              </DialogDescription>
+            </DialogHeader>
+            {mealRebalance && (
+              <div className="space-y-3 text-xs">
+                {mealRebalance.result.ok && (
+                  <ul className="space-y-1">
+                    {mealRebalance.result.changes.map((c, i) => (
+                      <li key={i} className="flex justify-between gap-2 border-b border-border/40 pb-1">
+                        <span className="min-w-0">{c.foodName}</span>
+                        <span className="whitespace-nowrap">
+                          {c.before} → <strong className="text-primary">{c.after}</strong>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="text-muted-foreground">
+                  Dia: {Math.round(mealRebalance.dayBeforeKcal)} → <strong className="text-foreground">{Math.round(mealRebalance.result.dayAfter.kcal)}</strong> / meta {Math.round(dailyTarget.kcal)} kcal
+                </p>
+                {!mealRebalance.result.ok && mealRebalance.result.suggestion && (
+                  <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-2 text-foreground">💡 {mealRebalance.result.suggestion}</p>
+                )}
+              </div>
+            )}
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setMealRebalance(null)}>Manter como está</Button>
+              {mealRebalance?.result.ok && <Button onClick={applyMealRebalance}>Aplicar</Button>}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog open={!!completionWarning} onOpenChange={(o) => !o && setCompletionWarning(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Acima da meta do dia</AlertDialogTitle>
+              <AlertDialogDescription>
+                {completionWarning &&
+                  `Com essa refeição seu dia fica +${Math.round(completionWarning.kcal)} kcal acima da meta${
+                    completionWarning.g > 8 ? ` (G +${Math.round(completionWarning.g)} g)` : ''
+                  }.`}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="gap-2">
+              <Button variant="outline" onClick={registerAboveTarget}>Registrar mesmo assim</Button>
+              <Button onClick={adjustAndRegister}>Ajustar porções desta refeição</Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         {/* Hidratação */}
         <HydrationCard
           currentMl={waterMl}
@@ -950,8 +1094,8 @@ const MinhasDietas = () => {
                     setExpandedMeal((prev) => (prev === i ? null : i));
                   }}
                   isCompleted={done}
-                  onToggleComplete={() => toggleMeal(mealKey)}
-                  onFoodsChange={(foods) => persistFoodsChange(activeGroupIndex, i, foods)}
+                  onToggleComplete={() => handleToggleMeal(i)}
+                  onFoodsChange={(foods) => handleFoodsChange(i, foods)}
                   moveTargets={currentMeals
                     .map((m, mi) => ({ index: mi, name: m.time ? `${m.time} · ${m.name}` : m.name }))
                     .filter((t) => t.index !== i)}
