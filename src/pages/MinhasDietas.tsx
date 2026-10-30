@@ -890,9 +890,6 @@ const MinhasDietas = () => {
           )}
         </div>
 
-        <p className="text-sm text-muted-foreground" aria-live="polite">
-          <strong className="text-foreground">{weekSummary.within} de {weekSummary.registered}</strong> dias dentro da meta
-        </p>
         <div className="grid grid-cols-7 gap-1" aria-label="Dias da semana">
           {WEEKDAY_LABELS.map((label, i) => {
             const status = weekSummary.statuses[i];

@@ -58,7 +58,7 @@ describe('student weekly diet flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Qui 2026-10-29' }));
     expect(screen.getAllByRole('button', { name: /^Desmarcar Refeição/ })).toHaveLength(4);
     expect(screen.getByText(/3,0 L/)).toBeInTheDocument();
-    expect(screen.getByText('1 de 1')).toBeInTheDocument();
+    expect(screen.getByLabelText('Dentro da meta')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Desmarcar Refeição 3' }));
     await waitFor(() => expect(mock.write).toHaveBeenCalled());
     expect(mock.write.mock.lastCall?.[0].payload).toMatchObject({ date: '2026-10-29', meals_completed: [3000, 3001, 3003] });
