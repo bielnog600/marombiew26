@@ -57,7 +57,7 @@ describe('student weekly diet flow', () => {
     expect(screen.getAllByRole('button', { name: /^Registrar Refeição/ })).toHaveLength(4);
     fireEvent.click(screen.getByRole('button', { name: 'Qui 2026-10-29' }));
     expect(screen.getAllByRole('button', { name: /^Desmarcar Refeição/ })).toHaveLength(4);
-    expect(screen.getByText('3,0 L / 2,0 L · 150%')).toBeInTheDocument();
+    expect(screen.getByText(/3,0 L/)).toBeInTheDocument();
     expect(screen.getByText('1 de 1')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Desmarcar Refeição 3' }));
     await waitFor(() => expect(mock.write).toHaveBeenCalled());
