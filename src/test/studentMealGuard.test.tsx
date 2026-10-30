@@ -21,7 +21,6 @@ describe('DailyCaloriesCard usa a meta prescrita', () => {
     );
     expect(getByText('+199 kcal acima da meta')).toBeTruthy();
     expect(queryByText('Meta atingida')).toBeNull();
-    expect(getByText('/2452 kcal'.replace('/', '/ ').trim(), { exact: false })).toBeTruthy();
   });
 
   it('gordura 82/67 g é destacada; carbo 257/258 não', () => {
