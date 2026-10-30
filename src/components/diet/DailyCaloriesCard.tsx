@@ -14,6 +14,7 @@ interface DailyCaloriesCardProps {
   fats: MacroValue;
 }
 
+const KCAL_TOLERANCE = 50;
 const round = (n: number) => Math.round(Number.isFinite(n) ? n : 0);
 
 const MacroPill: React.FC<{
@@ -24,21 +25,27 @@ const MacroPill: React.FC<{
   textClass: string;
   fillClass: string;
   trackClass: string;
-}> = ({ label, icon, value, textClass, fillClass, trackClass }) => {
+  /** Tolerância (g) acima do alvo antes de destacar. */
+  tolerance?: number;
+}> = ({ label, icon, value, textClass, fillClass, trackClass, tolerance = 0 }) => {
   const pct = value.target > 0 ? Math.min((value.current / value.target) * 100, 100) : 0;
+  const over = value.target > 0 && value.current > value.target + tolerance;
   return (
-    <div className="flex-1 rounded-xl bg-background/50 px-2.5 py-2">
+    <div
+      data-over={over ? 'true' : 'false'}
+      className={`flex-1 rounded-xl px-2.5 py-2 ${over ? 'bg-destructive/10 ring-1 ring-destructive/50' : 'bg-background/50'}`}
+    >
       <div className="flex items-center gap-1.5">
         <span className={textClass}>{icon}</span>
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</span>
       </div>
-      <p className="mt-1 text-sm font-bold text-foreground">
+      <p className={`mt-1 text-sm font-bold ${over ? 'text-destructive' : 'text-foreground'}`}>
         {round(value.current)}
         <span className="text-[11px] font-medium text-muted-foreground">/{round(value.target)}g</span>
       </p>
       <div className={`mt-1.5 h-1 w-full overflow-hidden rounded-full ${trackClass}`}>
         <div
-          className={`h-full rounded-full transition-all duration-700 ease-out ${fillClass}`}
+          className={`h-full rounded-full transition-all duration-700 ease-out ${over ? 'bg-destructive' : fillClass}`}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -50,6 +57,8 @@ const DailyCaloriesCard: React.FC<DailyCaloriesCardProps> = ({ consumed, target,
   const safeTarget = target > 0 ? target : 0;
   const pct = safeTarget > 0 ? Math.min((consumed / safeTarget) * 100, 100) : 0;
   const remaining = Math.max(safeTarget - consumed, 0);
+  const excess = consumed - safeTarget;
+  const over = safeTarget > 0 && excess > KCAL_TOLERANCE;
 
   const radius = 34;
   const circumference = 2 * Math.PI * radius;
@@ -76,7 +85,7 @@ const DailyCaloriesCard: React.FC<DailyCaloriesCardProps> = ({ consumed, target,
               strokeWidth="7"
               strokeLinecap="round"
               strokeDasharray={`${dash} ${circumference}`}
-              className="stroke-primary transition-all duration-700 ease-out"
+              className={`${over ? 'stroke-destructive' : 'stroke-primary'} transition-all duration-700 ease-out`}
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -91,12 +100,12 @@ const DailyCaloriesCard: React.FC<DailyCaloriesCardProps> = ({ consumed, target,
             {round(consumed)}
             <span className="text-sm font-medium text-muted-foreground"> / {round(safeTarget)} kcal</span>
           </p>
-          <p className="mt-0.5 text-xs font-semibold text-primary">
-            {remaining > 0 ? `Restam ${round(remaining)} kcal` : 'Meta atingida'}
+          <p className={`mt-0.5 text-xs font-semibold ${over ? 'text-destructive' : 'text-primary'}`}>
+            {over ? `+${round(excess)} kcal acima da meta` : remaining > 0 ? `Restam ${round(remaining)} kcal` : 'Meta atingida'}
           </p>
           <div className="relative mt-2 h-2 w-full overflow-hidden rounded-full bg-background/70">
             <div
-              className="relative h-full rounded-full bg-gradient-to-r from-primary/80 to-primary shadow-[0_0_10px_hsl(var(--primary)/0.5)] transition-all duration-700 ease-out"
+              className={`relative h-full rounded-full transition-all ${over ? 'bg-destructive' : 'bg-gradient-to-r from-primary/80 to-primary shadow-[0_0_10px_hsl(var(--primary)/0.5)]'} duration-700 ease-out`}
               style={{ width: `${pct}%` }}
             />
           </div>
@@ -108,6 +117,7 @@ const DailyCaloriesCard: React.FC<DailyCaloriesCardProps> = ({ consumed, target,
           label="Proteína"
           icon={<Beef className="h-3.5 w-3.5" />}
           value={protein}
+          tolerance={10}
           textClass="text-chart-2"
           fillClass="bg-chart-2"
           trackClass="bg-chart-2/15"
@@ -116,6 +126,7 @@ const DailyCaloriesCard: React.FC<DailyCaloriesCardProps> = ({ consumed, target,
           label="Carbo"
           icon={<Wheat className="h-3.5 w-3.5" />}
           value={carbs}
+          tolerance={15}
           textClass="text-chart-3"
           fillClass="bg-chart-3"
           trackClass="bg-chart-3/15"
@@ -124,6 +135,7 @@ const DailyCaloriesCard: React.FC<DailyCaloriesCardProps> = ({ consumed, target,
           label="Gordura"
           icon={<Droplet className="h-3.5 w-3.5" />}
           value={fats}
+          tolerance={8}
           textClass="text-chart-5"
           fillClass="bg-chart-5"
           trackClass="bg-chart-5/15"

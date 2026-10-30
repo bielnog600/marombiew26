@@ -4135,6 +4135,7 @@ export type Database = {
           suspension_reason: string
         }[]
       }
+      student_last_activity: { Args: { _uid: string }; Returns: string }
       suspend_student_access: {
         Args: { _user_id: string }
         Returns: {
