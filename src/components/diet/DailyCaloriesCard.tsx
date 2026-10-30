@@ -7,6 +7,7 @@ interface MacroValue {
 }
 
 interface DailyCaloriesCardProps {
+  label?: string;
   consumed: number;
   target: number;
   protein: MacroValue;
@@ -53,7 +54,7 @@ const MacroPill: React.FC<{
   );
 };
 
-const DailyCaloriesCard: React.FC<DailyCaloriesCardProps> = ({ consumed, target, protein, carbs, fats }) => {
+const DailyCaloriesCard: React.FC<DailyCaloriesCardProps> = ({ consumed, target, protein, carbs, fats, label = 'Calorias de hoje' }) => {
   const safeTarget = target > 0 ? target : 0;
   const pct = safeTarget > 0 ? Math.min((consumed / safeTarget) * 100, 100) : 0;
   const remaining = Math.max(safeTarget - consumed, 0);
@@ -95,7 +96,7 @@ const DailyCaloriesCard: React.FC<DailyCaloriesCardProps> = ({ consumed, target,
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Calorias de hoje</p>
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
           <p className="mt-0.5 text-xl font-bold text-foreground">
             {round(consumed)}
             <span className="text-sm font-medium text-muted-foreground"> / {round(safeTarget)} kcal</span>

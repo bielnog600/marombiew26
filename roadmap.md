@@ -1,5 +1,10 @@
 # Roadmap
 
+## Dieta do aluno — semana local
+- [x] Carregar registros seg–dom, selecionar data real e gravar refeições/água no dia selecionado; preservar histórico e bloquear futuro.
+- [x] Resumo/indicadores por meta prescrita ±50 kcal, calendário local e compatibilidade da Home/treinos semanais; resumo compartilhável usa a mesma semana.
+- [x] 1.486 testes passaram, 3 ignorados; testes com TZ America/Sao_Paulo cobrem 22h local, passado, futuro, segunda-feira e guarda prescrita; compilação OK. Tela real conferida com dados sintéticos interceptados em desktop/celular, 2452/2452 e 3 L na quinta, gravação na quinta e sem overflow. Conta real indisponível (mint automático e --self falharam); nenhuma gravação real realizada.
+
 ## Modal de atividade — fechar no iPhone
 - [x] Botão fechar próprio abaixo da safe area (top/right com max + env), toque de 44×44, fundo discreto, cabeçalho com reserva de 48px; X padrão do Dialog oculto só neste modal, Esc e clique fora mantidos, desktop inalterado.
 - [x] Medido no navegador em 390×844 e 1280×1800: 44×44 dentro da tela, título sem sobreposição, um único botão visível e toque fechando o modal; com barra de status de 59px na mesma fórmula, o topo passa a 67px. Suíte completa: 1.461 passaram, 3 ignorados; compilação OK. Insets reais do iPhone não são reproduzíveis no Chromium local (medem 0) e o login de administrador não foi liberado, então a medição usou o componente real montado fora do Dashboard.
