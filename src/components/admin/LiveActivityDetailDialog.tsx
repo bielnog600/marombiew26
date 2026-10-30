@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ChevronLeft, ChevronRight, Radio, Timer, Droplet, UtensilsCrossed, Dumbbell } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Radio, Timer, Droplet, UtensilsCrossed, Dumbbell, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { getSafeWorkoutDays } from '@/lib/planMigrationUtils';
@@ -521,14 +521,25 @@ const LiveActivityDetailDialog: React.FC<{ activity: (ActivityRef & { addedGlass
   const Icon = meta?.icon ?? Dumbbell;
   return (
     <Dialog open={!!activity} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="flex h-[100dvh] w-full min-w-0 max-w-full flex-col overflow-hidden p-4 pt-[max(1rem,env(safe-area-inset-top))] sm:h-[90dvh] sm:max-h-[90dvh] sm:max-w-2xl sm:p-6">
-        <DialogHeader className="min-w-0 shrink-0 pr-6 text-left">
+      <DialogContent className="flex h-[100dvh] w-full min-w-0 max-w-full flex-col overflow-hidden p-4 pt-[max(1rem,env(safe-area-inset-top))] [&>button:last-child]:hidden sm:h-[90dvh] sm:max-h-[90dvh] sm:max-w-2xl sm:p-6">
+        <DialogHeader className="min-w-0 shrink-0 pr-12 text-left">
           <DialogTitle className="flex items-center gap-2 text-base">
             <Icon className="h-4 w-4 text-primary" />
             {meta?.label}
           </DialogTitle>
           <DialogDescription>{activity?.studentName}</DialogDescription>
         </DialogHeader>
+        {/* Fechamento próprio: fica abaixo da safe area do iPhone (barra de status) e com área de toque de 44px. */}
+        <DialogClose
+          aria-label="Fechar"
+          className="absolute z-30 flex h-11 w-11 items-center justify-center rounded-full border border-border/50 bg-background/80 text-muted-foreground shadow-sm backdrop-blur transition-opacity hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          style={{
+            top: 'max(0.75rem, calc(env(safe-area-inset-top) + 0.5rem))',
+            right: 'max(0.75rem, calc(env(safe-area-inset-right) + 0.5rem))',
+          }}
+        >
+          <X className="h-5 w-5" />
+        </DialogClose>
         <div className="relative min-h-0 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto pb-[env(safe-area-inset-bottom)]">
         {activity && (
           activity.kind === 'meal' ? <MealView a={activity} />
