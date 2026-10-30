@@ -1,3 +1,4 @@
+import { getWeekRange, summarizeDietWeek } from '@/lib/localTrackingWeek';
 import { resolveStudentDayTarget } from '@/lib/studentDietDayTarget';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import AppLayout from '@/components/AppLayout';
@@ -130,6 +131,7 @@ const MinhasDietas = () => {
   const [sections, setSections] = useState<ParsedSection[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGroupIndex, setSelectedGroupIndex] = useState(0);
+  const [selectedWeekday, setSelectedWeekday] = useState(() => (new Date().getDay() + 6) % 7);
   // Índices dos dias (0=seg..6=dom) em que o aluno tem treino agendado.
   const [trainingDayIndices, setTrainingDayIndices] = useState<number[]>([]);
   const [substitutions, setSubstitutions] = useState<Record<string, any[]>>({});
@@ -439,23 +441,28 @@ const MinhasDietas = () => {
 
 
   const hasMultipleGroups = displayGroups.length > 1;
-  const activeGroupIndex = displayGroups[selectedGroupIndex] ? selectedGroupIndex : defaultGroupIndex;
+  const activeGroupIndex = usesMealOptions
+    ? (displayGroups[selectedGroupIndex] ? selectedGroupIndex : defaultGroupIndex)
+    : selectedWeekday;
   const baseMealsForDay = displayGroups.length > 0 ? (displayGroups[activeGroupIndex]?.meals ?? []) : allMeals;
 
   // A meta de água segue o dia selecionado: se o aluno tem treino nesse
   // dia, o alvo sobe (fórmula em useDailyTracking). Sem treino, usa a
   // meta base. Se ainda não temos treino carregado, cai no dia real.
-  const isSelectedDayTraining = useMemo(() => {
-    if (usesMealOptions) {
-      const jsDay = new Date().getDay();
-      const todayIdx = (jsDay + 6) % 7;
-      return trainingDayIndices.includes(todayIdx);
-    }
-    return trainingDayIndices.includes(activeGroupIndex);
-  }, [trainingDayIndices, activeGroupIndex, usesMealOptions]);
-
+  const isSelectedDayTraining = trainingDayIndices.includes(selectedWeekday);
   const [showScanner, setShowScanner] = useState(false);
-  const { tracking, addWaterMl, removeWater, toggleMeal, waterCurrentMl, waterTargetMl } = useDailyTracking({ isTrainingDay: isSelectedDayTraining });
+  const selectedDate = getWeekRange().dates[selectedWeekday];
+  const { tracking, weeklyTracking, weekDates, today: trackingToday, loading: trackingLoading,
+    ensureCanRegister, addWaterMl, removeWater, toggleMeal, waterCurrentMl, waterTargetMl } = useDailyTracking({
+      isTrainingDay: isSelectedDayTraining, date: selectedDate,
+    });
+  const trackingDayIndex = usesMealOptions ? selectedWeekday : activeGroupIndex;
+  useEffect(() => {
+    setSelectedWeekday((new Date().getDay() + 6) % 7);
+    setMealRebalance(null);
+    setCompletionWarning(null);
+  }, [trackingToday]);
+  useEffect(() => { setMealRebalance(null); setCompletionWarning(null); setPortionPreview(null); }, [selectedDate]);
 
   // Per-day target / adjustment from protocols.weekly_energy_schedule.
   // When present, the student sees the actual daily meta (not the flat sum
@@ -510,8 +517,8 @@ const MinhasDietas = () => {
     () =>
       prescribedMeals
         .map((_, i) => i)
-        .filter((i) => tracking.meals_completed.includes(activeGroupIndex * 1000 + i)),
-    [prescribedMeals, tracking.meals_completed, activeGroupIndex],
+        .filter((i) => tracking.meals_completed.includes(trackingDayIndex * 1000 + i)),
+    [prescribedMeals, tracking.meals_completed, trackingDayIndex],
   );
 
   // Overlay das edições do aluno sobre o plano prescrito.
@@ -705,29 +712,30 @@ const MinhasDietas = () => {
     const { mealIndex, result, registerAfter } = mealRebalance;
     pendingActionRef.current = 'aluno_ajustou_refeicao_meta';
     persistFoodsChange(activeGroupIndex, mealIndex, result.foods);
-    if (registerAfter) toggleMeal(activeGroupIndex * 1000 + mealIndex);
+    if (registerAfter) toggleMeal(trackingDayIndex * 1000 + mealIndex);
     setMealRebalance(null);
-  }, [mealRebalance, persistFoodsChange, activeGroupIndex, toggleMeal]);
+  }, [mealRebalance, persistFoodsChange, activeGroupIndex, trackingDayIndex, toggleMeal]);
 
   const handleToggleMeal = useCallback(
     (mealIndex: number) => {
-      const key = activeGroupIndex * 1000 + mealIndex;
+      if (!ensureCanRegister() || trackingLoading) return;
+      const key = trackingDayIndex * 1000 + mealIndex;
       if (tracking.meals_completed.includes(key)) { toggleMeal(key); return; }
       const excess = mealCompletionExcess({ meals: currentMeals as any, completedIndexes, mealIndex, dailyTarget });
       if (!excess.exceeds) { toggleMeal(key); return; }
       setCompletionWarning({ ...excess, mealIndex });
     },
-    [activeGroupIndex, tracking.meals_completed, toggleMeal, currentMeals, completedIndexes, dailyTarget],
+    [activeGroupIndex, trackingDayIndex, ensureCanRegister, trackingLoading, tracking.meals_completed, toggleMeal, currentMeals, completedIndexes, dailyTarget],
   );
 
   const registerAboveTarget = useCallback(() => {
     if (!completionWarning) return;
-    toggleMeal(activeGroupIndex * 1000 + completionWarning.mealIndex);
+    toggleMeal(trackingDayIndex * 1000 + completionWarning.mealIndex);
     pendingActionRef.current = 'aluno_registrou_acima_meta';
     // Nova referência dispara a sincronização com o treinador.
     writeSubs({ ...substitutions }, { ...editedMealByGroup });
     setCompletionWarning(null);
-  }, [completionWarning, toggleMeal, activeGroupIndex, writeSubs, substitutions, editedMealByGroup]);
+  }, [completionWarning, toggleMeal, activeGroupIndex, trackingDayIndex, writeSubs, substitutions, editedMealByGroup]);
 
   const adjustAndRegister = useCallback(() => {
     if (!completionWarning) return;
@@ -741,7 +749,7 @@ const MinhasDietas = () => {
   const consumed = useMemo(() => {
     const acc = { kcal: 0, p: 0, c: 0, g: 0 };
     currentMeals.forEach((m, i) => {
-      if (!tracking.meals_completed.includes(activeGroupIndex * 1000 + i)) return;
+      if (!tracking.meals_completed.includes(trackingDayIndex * 1000 + i)) return;
       (m.foods ?? []).forEach((f: any) => {
         acc.kcal += parseNum(f.kcal);
         acc.p += parseNum(f.p);
@@ -750,7 +758,28 @@ const MinhasDietas = () => {
       });
     });
     return acc;
-  }, [currentMeals, tracking.meals_completed, activeGroupIndex]);
+  }, [currentMeals, tracking.meals_completed, trackingDayIndex]);
+
+  const weekSummary = useMemo(() => summarizeDietWeek(weekDates.map((date, dayIndex) => {
+    const groupIndex = usesMealOptions ? activeGroupIndex : dayIndex;
+    const prescribed = displayGroups[groupIndex]?.meals ?? allMeals;
+    const row = weeklyTracking[date];
+    const done = prescribed.map((_, i) => i).filter(i => row?.meals_completed.includes(dayIndex * 1000 + i));
+    const target = resolveStudentDayTarget({
+      dayTarget: isStructuredDiet ? structuredGroups[groupIndex]?.target : null,
+      publishedTargets, mealsTotal: sumMealMacros(prescribed as any),
+    });
+    const edited = prescribed.map((meal, i) => {
+      const foods = substitutions[`${groupIndex}-${i}`];
+      return foods ? { ...meal, foods } : meal;
+    });
+    const hasEdits = prescribed.some((_, i) => Boolean(substitutions[`${groupIndex}-${i}`]));
+    const meals = hasEdits ? rebalanceFutureMeals({ meals: edited as any, completedIndexes: done,
+      currentIndex: editedMealByGroup[groupIndex] ?? -1, dailyTarget: target }).meals : prescribed;
+    return { date, tracking: row, targetKcal: target.kcal,
+      consumedKcal: sumMealMacros(meals.filter((_, i) => done.includes(i)) as any).kcal };
+  }), trackingToday), [weekDates.join(','), weeklyTracking, displayGroups, allMeals, usesMealOptions,
+    activeGroupIndex, isStructuredDiet, structuredGroups, publishedTargets, substitutions, editedMealByGroup, trackingToday]);
 
   // Refeição sugerida pelo horário atual (última cujo horário já passou).
   const currentMealIndex = useMemo(() => {
@@ -801,7 +830,7 @@ const MinhasDietas = () => {
   const waterMl = waterCurrentMl;
   const waterGoalMl = waterTargetMl;
 
-  if (loading) {
+  if (loading || trackingLoading) {
     return (
       <AppLayout title="Plano Alimentar">
         <div className="space-y-4">
@@ -858,8 +887,31 @@ const MinhasDietas = () => {
           )}
         </div>
 
-        {/* Option/day selector */}
-        {hasMultipleGroups && (
+        <p className="text-sm text-muted-foreground" aria-live="polite">
+          <strong className="text-foreground">{weekSummary.within} de {weekSummary.registered}</strong> dias dentro da meta
+        </p>
+        <div className="grid grid-cols-7 gap-1" aria-label="Dias da semana">
+          {WEEKDAY_LABELS.map((label, i) => {
+            const status = weekSummary.statuses[i];
+            const active = selectedWeekday === i;
+            return (
+              <Button key={label} variant={active ? 'default' : 'ghost'}
+                aria-pressed={active} aria-label={`${label} ${weekDates[i]}`}
+                onClick={() => setSelectedWeekday(i)}
+                className="h-12 min-w-0 flex-col gap-1 px-1 text-xs rounded-full">
+                <span>{label}</span>
+                <span className="flex h-3 items-center" aria-label={status === 'within' ? 'Dentro da meta' : status === 'above' ? 'Acima da meta' : status === 'below' ? 'Abaixo da meta' : 'Sem registro'}>
+                  {status === 'within' ? <span className={active ? 'text-primary-foreground' : 'text-score-good'}>✓</span>
+                    : status ? <span className={`h-1.5 w-1.5 rounded-full ${status === 'above' ? 'bg-destructive' : 'bg-score-poor'}`} /> : null}
+                </span>
+              </Button>
+            );
+          })}
+        </div>
+        {selectedDate > trackingToday && <p role="status" className="text-xs text-muted-foreground">Esse dia ainda não chegou</p>}
+
+        {/* Option selector (weekday selection stays independent). */}
+        {hasMultipleGroups && usesMealOptions && (
           <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide justify-center" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             {displayGroups.map((group, i) => {
               const rawLabel = usesMealOptions
@@ -1081,14 +1133,14 @@ const MinhasDietas = () => {
         {currentMeals.length > 0 && (
           <div className="space-y-2.5">
             {currentMeals.map((meal, i) => {
-              const mealKey = activeGroupIndex * 1000 + i;
+              const mealKey = trackingDayIndex * 1000 + i;
               const done = tracking.meals_completed.includes(mealKey);
               return (
                 <StudentMealCard
                   key={`day-${activeGroupIndex}-${meal.name}-${meal.time || 'sem-hora'}-${i}`}
                   meal={meal}
                   expanded={expandedMeal === i}
-                  isCurrent={currentMealIndex === i}
+                  isCurrent={selectedDate === trackingToday && currentMealIndex === i}
                   onToggleExpand={() => {
                     setExpandedTouched(true);
                     setExpandedMeal((prev) => (prev === i ? null : i));
