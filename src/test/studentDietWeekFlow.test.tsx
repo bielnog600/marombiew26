@@ -35,7 +35,7 @@ beforeEach(() => {
   localStorage.clear(); mock.write.mockClear();
   const target = { kcal: 2452, p: 207, c: 258, g: 67 };
   mock.plan = { id: 'plan-flow', conteudo: '', is_draft: false, protocols: {},
-    conteudo_json: { meta: { foodContractVersion: 1 }, targets: target,
+    conteudo_json: { meta: { foodContractVersion: '1' }, targets: target,
       days: ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'].map(weekday => ({ weekday,
         meals: Array.from({ length: 4 }, (_, i) => ({ name: `Refeição ${i + 1}`, items: [{
           name: 'Alimento', qtyGrams: 100, portionLabel: '100 g',
