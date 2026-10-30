@@ -1,9 +1,9 @@
 # Roadmap
 
 ## Dieta do aluno — semana local
-- [ ] Carregar registros seg–dom, selecionar data real e gravar refeições/água no dia selecionado; preservar histórico e bloquear futuro.
-- [ ] Resumo/indicadores por meta prescrita ±50 kcal, calendário local e compatibilidade da Home/treinos semanais.
-- [ ] Testes de data local, leitura/gravação passada, futuro, virada de semana e resumo; conferir tela e suíte.
+- [x] Carregar registros seg–dom, selecionar data real e gravar refeições/água no dia selecionado; preservar histórico e bloquear futuro.
+- [x] Resumo/indicadores por meta prescrita ±50 kcal, calendário local e compatibilidade da Home/treinos semanais; resumo compartilhável usa a mesma semana.
+- [x] 1.486 testes passaram, 3 ignorados; testes com TZ America/Sao_Paulo cobrem 22h local, passado, futuro, segunda-feira e guarda prescrita; compilação OK. Tela real conferida com dados sintéticos interceptados em desktop/celular, 2452/2452 e 3 L na quinta, gravação na quinta e sem overflow. Conta real indisponível (mint automático e --self falharam); nenhuma gravação real realizada.
 
 ## Modal de atividade — fechar no iPhone
 - [x] Botão fechar próprio abaixo da safe area (top/right com max + env), toque de 44×44, fundo discreto, cabeçalho com reserva de 48px; X padrão do Dialog oculto só neste modal, Esc e clique fora mantidos, desktop inalterado.
