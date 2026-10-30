@@ -87,6 +87,6 @@ describe('student weekly diet flow', () => {
     expect(mock.write).not.toHaveBeenCalled();
     const warning = await screen.findByRole('alertdialog');
     expect(warning).toHaveTextContent('199');
-    expect(warning).toHaveTextContent('2452');
+    expect(screen.getByText(/2452 kcal/)).toBeInTheDocument();
   });
 });
