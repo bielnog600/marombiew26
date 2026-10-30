@@ -2,6 +2,12 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import LiveActivityDetailDialog from './components/admin/LiveActivityDetailDialog';
 
+declare global {
+  interface Window {
+    __probeClosed?: boolean;
+  }
+}
+
 createRoot(document.getElementById('root')!).render(
   <LiveActivityDetailDialog
     activity={{
@@ -12,6 +18,8 @@ createRoot(document.getElementById('root')!).render(
       date: '2026-10-30',
       addedGlasses: 2,
     }}
-    onClose={() => undefined}
+    onClose={() => {
+      window.__probeClosed = true;
+    }}
   />,
 );
