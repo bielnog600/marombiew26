@@ -1,17 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEventTracking } from '@/hooks/useEventTracking';
 import { writeWithFallback } from '@/lib/offlineQueue';
-import { fetchWithCache } from '@/lib/offlineCache';
-
-interface DailyTracking {
-  id?: string;
-  water_glasses: number;
-  water_ml?: number | null;
-  meals_completed: number[];
-  workout_completed: boolean;
-}
+import { fetchWithCache, setCache } from '@/lib/offlineCache';
+import { toast } from '@/hooks/use-toast';
+import { localDateKey, getWeekRange, emptyDailyTracking, normalizeDailyTracking, canRegisterTrackingDate, type DailyTracking } from '@/lib/localTrackingWeek';
 
 // Single source of truth for water units
 export const WATER_STEP_ML = 250;
@@ -21,105 +15,85 @@ export const DEFAULT_WATER_GOAL_GLASSES = 8;
 export const ML_PER_KG_REST = 50;
 export const TRAINING_DAY_MULTIPLIER = 1.4;
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
-
-function getWeekRange() {
-  const now = new Date();
-  const day = now.getDay(); // 0=Sun
-  const start = new Date(now);
-  start.setDate(now.getDate() - day);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
-}
-
-export function useDailyTracking(opts?: { isTrainingDay?: boolean }) {
+export function useDailyTracking(opts?: { isTrainingDay?: boolean; date?: string }) {
   const isTrainingDay = opts?.isTrainingDay ?? false;
   const { user } = useAuth();
   const { trackEvent } = useEventTracking();
-  const [tracking, setTracking] = useState<DailyTracking>({
-    water_glasses: 0,
-    meals_completed: [],
-    workout_completed: false,
-  });
-  const [weeklyWorkouts, setWeeklyWorkouts] = useState(0);
-  const [weightKg, setWeightKg] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
-  // Fallback local para registros antigos sem total em ml persistido.
-  const extraKey = user ? `water-extra-${user.id}-${todayStr()}` : '';
-  const [extraMl, setExtraMl] = useState(0);
-
+  const [today, setToday] = useState(localDateKey);
   useEffect(() => {
-    if (!extraKey) return;
-    try {
-      const raw = localStorage.getItem(extraKey);
-      setExtraMl(raw ? Math.max(0, Math.min(WATER_STEP_ML - 1, Number(raw) || 0)) : 0);
-    } catch { /* ignore */ }
-  }, [extraKey]);
-
+    const refresh = () => setToday(localDateKey());
+    const timer = window.setInterval(refresh, 30_000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, []);
+  const week = getWeekRange(new Date(`${today}T12:00:00`));
+  const selectedDate = opts?.date ?? today;
+  const [weeklyTracking, setWeeklyTracking] = useState<Record<string, DailyTracking>>({});
+  const weekRef = useRef(weeklyTracking);
+  const [loadedKey, setLoadedKey] = useState('');
+  const [weightKg, setWeightKg] = useState<number | null>(null);
+  const cacheKey = user ? `tracking-week:${user.id}:${week.start}` : '';
+  const loading = Boolean(user && loadedKey !== cacheKey);
+  const visibleWeek = loadedKey === cacheKey ? weeklyTracking : {};
+  const tracking = visibleWeek[selectedDate] ?? emptyDailyTracking();
+  const weeklyWorkouts = Object.values(visibleWeek).filter(row => row.workout_completed).length;
+  const extraKey = user ? `water-extra-${user.id}-${selectedDate}` : '';
+  let extraMl = 0;
+  try {
+    extraMl = tracking.water_ml != null
+      ? Math.max(0, tracking.water_ml - tracking.water_glasses * WATER_STEP_ML)
+      : Math.max(0, Math.min(WATER_STEP_ML - 1, Number(localStorage.getItem(extraKey)) || 0));
+  } catch { /* ignore */ }
   const persistExtra = useCallback((ml: number) => {
-    setExtraMl(ml);
     try { if (extraKey) localStorage.setItem(extraKey, String(ml)); } catch { /* ignore */ }
   }, [extraKey]);
 
-  const load = useCallback(async () => {
+  useEffect(() => {
     if (!user) return;
-    
-    try {
-      const today = todayStr();
-      const { data } = await fetchWithCache(`tracking:${user.id}:${today}`, async () => {
-        const { data } = await supabase.from('daily_tracking').select('*').eq('student_id', user.id).eq('date', today).maybeSingle();
-        return data;
-      });
-
-      if (data) {
-        const mealsCompletedRaw = data.meals_completed;
-        let mealsCompleted: number[] = [];
-        
-        try {
-          mealsCompleted = Array.isArray(mealsCompletedRaw)
-            ? mealsCompletedRaw.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item >= 0)
-            : typeof mealsCompletedRaw === 'string'
-            ? JSON.parse(mealsCompletedRaw).map((item: unknown) => Number(item)).filter((item: number) => Number.isInteger(item) && item >= 0)
-            : [];
-        } catch (parseError) {
-          console.error("Error parsing meals_completed:", parseError);
-        }
-
-        setTracking({
-          id: data.id,
-          water_glasses: data.water_glasses,
-          water_ml: data.water_ml,
-          meals_completed: mealsCompleted,
-          workout_completed: data.workout_completed,
-        });
-        if (data.water_ml != null) persistExtra(data.water_ml - data.water_glasses * WATER_STEP_ML);
+    let cancelled = false;
+    (async () => {
+      try {
+        const [weekResult, weightResult] = await Promise.all([
+          fetchWithCache(cacheKey, async () => {
+            const { data, error } = await supabase.from('daily_tracking')
+              .select('id,date,water_glasses,water_ml,meals_completed,workout_completed')
+              .eq('student_id', user.id).gte('date', week.start).lte('date', week.end);
+            if (error) throw error;
+            return data ?? [];
+          }),
+          fetchWithCache(`weight:${user.id}`, async () => {
+            const { data: assessment } = await supabase.from('assessments').select('id').eq('student_id', user.id)
+              .order('created_at', { ascending: false }).limit(1).maybeSingle();
+            if (!assessment) return null;
+            const { data: anthro } = await supabase.from('anthropometrics').select('peso').eq('assessment_id', assessment.id).maybeSingle();
+            return anthro?.peso ? Number(anthro.peso) : null;
+          }),
+        ]);
+        if (cancelled) return;
+        const next: Record<string, DailyTracking> = {};
+        for (const row of weekResult.data ?? []) next[row.date] = normalizeDailyTracking(row);
+        weekRef.current = next;
+        setWeeklyTracking(next);
+        setWeightKg(weightResult.data ?? null);
+      } catch (error) {
+        console.error('Error loading daily tracking:', error);
+      } finally {
+        if (!cancelled) setLoadedKey(cacheKey);
       }
+    })();
+    return () => { cancelled = true; };
+  }, [user, cacheKey, week.start, week.end]);
 
-      // Count workouts completed this week
-      const { start, end } = getWeekRange();
-      const { data: weekData } = await fetchWithCache(`weekly:${user.id}:${start}`, async () => {
-        const { data } = await supabase.from('daily_tracking').select('id').eq('student_id', user.id).eq('workout_completed', true).gte('date', start).lte('date', end);
-        return data;
-      });
-      setWeeklyWorkouts(weekData?.length ?? 0);
-
-      // Carrega peso da última avaliação para calcular meta de água
-      const { data: weightData } = await fetchWithCache(`weight:${user.id}`, async () => {
-        const { data: assessment } = await supabase.from('assessments').select('id').eq('student_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
-        if (!assessment) return null;
-        const { data: anthro } = await supabase.from('anthropometrics').select('peso').eq('assessment_id', assessment.id).maybeSingle();
-        return anthro?.peso ? Number(anthro.peso) : null;
-      });
-      if (weightData != null) setWeightKg(weightData);
-    } catch (error) {
-      console.error("Error loading daily tracking:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [user, persistExtra]);
-
-  useEffect(() => { load(); }, [load]);
+  const ensureCanRegister = useCallback(() => {
+    if (canRegisterTrackingDate(selectedDate)) return true;
+    toast({ title: selectedDate > localDateKey() ? 'Esse dia ainda não chegou' : 'Selecione um dia da semana atual' });
+    return false;
+  }, [selectedDate]);
 
   // Meta de água derivada: 35ml/kg sem treino, 50ml/kg em dia de treino
   const waterGoalGlasses = (() => {
@@ -131,44 +105,44 @@ export function useDailyTracking(opts?: { isTrainingDay?: boolean }) {
   })();
 
   const upsert = useCallback(async (updates: Partial<DailyTracking>) => {
-    if (!user) return;
-    const next = { ...tracking, ...updates };
-    setTracking(next);
-
+    if (!user || loading || !ensureCanRegister()) return;
+    const next = { ...(weekRef.current[selectedDate] ?? emptyDailyTracking()), ...updates };
+    const nextWeek = { ...weekRef.current, [selectedDate]: next };
+    weekRef.current = nextWeek;
+    setWeeklyTracking(nextWeek);
     const row = {
       student_id: user.id,
-      date: todayStr(),
+      date: selectedDate,
       water_glasses: next.water_glasses,
       ...(next.water_ml != null ? { water_ml: next.water_ml } : {}),
       meals_completed: next.meals_completed,
       workout_completed: next.workout_completed,
     };
-
-    // Tenta online; se falhar/offline, enfileira para sincronizar depois.
-    await writeWithFallback({
-      table: 'daily_tracking',
-      op: 'upsert',
-      payload: row,
-      onConflict: 'student_id,date',
-    });
-  }, [user, tracking]);
+    // Optimistic writes also refresh the weekly offline snapshot, without deleting history.
+    void setCache(cacheKey, Object.entries(nextWeek).map(([date, entry]) => ({ ...entry, date })));
+    void setCache(`tracking:${user.id}:${selectedDate}`, { ...next, date: selectedDate });
+    await writeWithFallback({ table: 'daily_tracking', op: 'upsert', payload: row, onConflict: 'student_id,date' });
+  }, [user, selectedDate, cacheKey, loading, ensureCanRegister]);
 
   const addWater = useCallback(() => {
+    if (loading || !ensureCanRegister()) return;
     const next = Math.min(tracking.water_glasses + 1, 20);
     upsert({ water_glasses: next, water_ml: next * WATER_STEP_ML + extraMl });
     trackEvent('water_logged', { glasses: next });
     if (next >= waterGoalGlasses && tracking.water_glasses < waterGoalGlasses) {
       trackEvent('water_goal_hit', { glasses: next, goal: waterGoalGlasses });
     }
-  }, [upsert, tracking.water_glasses, extraMl, trackEvent, waterGoalGlasses]);
+  }, [loading, ensureCanRegister, upsert, tracking.water_glasses, extraMl, trackEvent, waterGoalGlasses]);
 
   const removeWater = useCallback(() => {
+    if (loading || !ensureCanRegister()) return;
     const next = Math.max(tracking.water_glasses - 1, 0);
     upsert({ water_glasses: next, water_ml: next * WATER_STEP_ML + extraMl });
-  }, [upsert, tracking.water_glasses, extraMl]);
+  }, [loading, ensureCanRegister, upsert, tracking.water_glasses, extraMl]);
 
   /** Adiciona (ou remove, com valor negativo) uma quantidade livre de água em ml. */
   const addWaterMl = useCallback((ml: number) => {
+    if (loading || !ensureCanRegister()) return;
     const totalMl = Math.max(0, Math.round((tracking.water_ml ?? tracking.water_glasses * WATER_STEP_ML + extraMl) + ml));
     const glasses = Math.min(Math.floor(totalMl / WATER_STEP_ML), 40);
     const rest = totalMl - glasses * WATER_STEP_ML;
@@ -182,9 +156,10 @@ export function useDailyTracking(opts?: { isTrainingDay?: boolean }) {
         }
       }
     }
-  }, [tracking.water_glasses, tracking.water_ml, extraMl, persistExtra, upsert, trackEvent, waterGoalGlasses]);
+  }, [loading, ensureCanRegister, tracking.water_glasses, tracking.water_ml, extraMl, persistExtra, upsert, trackEvent, waterGoalGlasses]);
 
   const toggleMeal = useCallback((mealIndex: number) => {
+    if (loading || !ensureCanRegister()) return;
     const current = tracking.meals_completed;
     const isAdding = !current.includes(mealIndex);
     const next = isAdding
@@ -192,14 +167,20 @@ export function useDailyTracking(opts?: { isTrainingDay?: boolean }) {
       : current.filter(i => i !== mealIndex);
     upsert({ meals_completed: next });
     if (isAdding) trackEvent('meal_logged', { meal_index: mealIndex });
-  }, [upsert, tracking.meals_completed, trackEvent]);
+  }, [loading, ensureCanRegister, upsert, tracking.meals_completed, trackEvent]);
 
   const completeWorkout = useCallback(() => {
+    if (loading || !ensureCanRegister()) return;
     upsert({ workout_completed: true });
-  }, [upsert]);
+  }, [loading, ensureCanRegister, upsert]);
 
   return {
     tracking,
+    weeklyTracking: visibleWeek,
+    weekDates: week.dates,
+    today,
+    selectedDate,
+    ensureCanRegister,
     loading,
     weeklyWorkouts,
     waterGoalGlasses,
