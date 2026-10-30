@@ -521,7 +521,7 @@ const LiveActivityDetailDialog: React.FC<{ activity: (ActivityRef & { addedGlass
   const Icon = meta?.icon ?? Dumbbell;
   return (
     <Dialog open={!!activity} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="flex h-[100dvh] w-full min-w-0 max-w-full flex-col overflow-hidden p-4 pt-[max(1rem,env(safe-area-inset-top))] [&>button:first-of-type]:hidden sm:h-[90dvh] sm:max-h-[90dvh] sm:max-w-2xl sm:p-6">
+      <DialogContent className="flex h-[100dvh] w-full min-w-0 max-w-full flex-col overflow-hidden p-4 pt-[max(1rem,env(safe-area-inset-top))] [&>button:last-child]:hidden sm:h-[90dvh] sm:max-h-[90dvh] sm:max-w-2xl sm:p-6">
         <DialogHeader className="min-w-0 shrink-0 pr-12 text-left">
 ...
         </DialogHeader>
