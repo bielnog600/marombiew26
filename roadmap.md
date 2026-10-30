@@ -1,5 +1,9 @@
 # Roadmap
 
+## Modal de atividade — fechar no iPhone
+- [x] Botão fechar próprio abaixo da safe area (top/right com max + env), toque de 44×44, fundo discreto, cabeçalho com reserva de 48px; X padrão do Dialog oculto só neste modal, Esc e clique fora mantidos, desktop inalterado.
+- [x] Medido no navegador em 390×844 e 1280×1800: 44×44 dentro da tela, título sem sobreposição, um único botão visível e toque fechando o modal; com barra de status de 59px na mesma fórmula, o topo passa a 67px. Suíte completa: 1.461 passaram, 3 ignorados; compilação OK. Insets reais do iPhone não são reproduzíveis no Chromium local (medem 0) e o login de administrador não foi liberado, então a medição usou o componente real montado fora do Dashboard.
+
 ## Progressão — auditoria das sugestões de carga
 - [x] Base na maior carga de trabalho da última sessão, decisões pela faixa, metas individuais em pirâmide, consistência ação/kg e retomada após 28 dias; layout e gravação preservados.
 - [x] Teto definido pelo usuário: um degrau aprendido de até 25%; saltos maiores viram increase_reps sem alterar kg.
