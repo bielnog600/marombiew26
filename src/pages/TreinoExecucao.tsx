@@ -1321,6 +1321,7 @@ const TreinoExecucaoInner = () => {
               playsInline
               controls
               poster={posterUrl}
+              onPlaying={() => setShowPlayFallback(false)}
             />
           ) : imageUrl ? (
             <img src={imageUrl} alt={selectedExerciseName} className="max-h-full max-w-full object-contain" />
@@ -1431,18 +1432,21 @@ const TreinoExecucaoInner = () => {
               playsInline
               preload="auto"
               poster={posterUrl}
+              onPlaying={() => setShowPlayFallback(false)}
+              onTimeUpdate={(e) => { if (!e.currentTarget.paused) setShowPlayFallback(false); }}
             />
             {showPlayFallback && (
-              <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/35">
-                <button
-                  type="button"
-                  onClick={handleManualPlay}
-                  aria-label="Reproduzir vídeo"
-                  className="h-14 w-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg touch-manipulation"
-                >
-                  <Play className="h-6 w-6 ml-0.5" />
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={handleManualPlay}
+                aria-label="Reproduzir vídeo"
+                data-testid="video-play-fallback"
+                className="absolute inset-0 z-20 touch-manipulation"
+              >
+                <span className="absolute bottom-3 right-3 h-8 w-8 rounded-full bg-background/60 backdrop-blur flex items-center justify-center">
+                  <Play className="h-4 w-4 ml-0.5 text-foreground" />
+                </span>
+              </button>
             )}
           </>
         ) : imageUrl ? (
