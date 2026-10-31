@@ -113,6 +113,13 @@
       "when": 1793313529805,
       "tag": "0015_live_workout_logs_realtime_and_water_ml",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793454162759,
+      "tag": "0016_migration",
+      "breakpoints": true
     }
   ]
 }
