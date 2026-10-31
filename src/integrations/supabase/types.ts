@@ -948,6 +948,39 @@ export type Database = {
           },
         ]
       }
+      client_sync_failures: {
+        Row: {
+          created_at: string
+          error_code: string | null
+          error_message: string | null
+          id: string
+          op: string
+          payload: Json | null
+          student_id: string
+          table_name: string
+        }
+        Insert: {
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          op: string
+          payload?: Json | null
+          student_id: string
+          table_name: string
+        }
+        Update: {
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          op?: string
+          payload?: Json | null
+          student_id?: string
+          table_name?: string
+        }
+        Relationships: []
+      }
       composition: {
         Row: {
           assessment_id: string

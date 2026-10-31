@@ -10,15 +10,13 @@ const OfflineIndicator = () => {
   const { online, pending, syncing } = useOnlineStatus();
 
   // Não renderiza se está tudo OK
-  if (online && pending === 0 && !syncing) return null;
+  if (online && !syncing) return null;
 
   const label = !online
     ? pending > 0
       ? `Offline · ${pending} pendente${pending > 1 ? 's' : ''}`
       : 'Offline'
-    : syncing
-    ? `Sincronizando${pending > 0 ? ` (${pending})` : ''}…`
-    : `${pending} pendente${pending > 1 ? 's' : ''}`;
+    : 'Sincronizando…';
 
   return (
     <div

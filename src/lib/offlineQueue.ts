@@ -48,10 +48,86 @@ function getDB() {
   return dbPromise;
 }
 
+/** Chave de deduplicação para upserts de um único registro (ex.: daily_tracking student_id+date). */
+export function upsertDedupKey(op: Pick<QueuedOp, 'table' | 'op' | 'payload' | 'onConflict'>): string | null {
+  if (op.op !== 'upsert' || !op.onConflict || Array.isArray(op.payload)) return null;
+  const cols = op.onConflict.split(',').map((c) => c.trim()).filter(Boolean);
+  const values = cols.map((c) => (op.payload as Record<string, unknown>)[c]);
+  if (values.some((v) => v == null)) return null;
+  return `${op.table}|${cols.join(',')}|${values.map(String).join('|')}`;
+}
+
 export async function enqueue(op: Omit<QueuedOp, 'id' | 'createdAt' | 'attempts'>) {
   const db = await getDB();
+  const key = upsertDedupKey(op);
+  if (key) {
+    const existing = (await db.getAll(STORE)) as QueuedOp[];
+    for (const item of existing) {
+      if (item.id != null && upsertDedupKey(item) === key) await db.delete(STORE, item.id);
+    }
+  }
   await db.add(STORE, { ...op, createdAt: Date.now(), attempts: 0 } as QueuedOp);
   notifyChange();
+}
+
+/** Remove upserts repetidos na mesma chave, mantendo só o mais recente. */
+export async function dedupeQueue() {
+  const db = await getDB();
+  const items = ((await db.getAll(STORE)) as QueuedOp[]).sort((a, b) => b.createdAt - a.createdAt);
+  const seen = new Set<string>();
+  for (const item of items) {
+    const key = upsertDedupKey(item);
+    if (!key || item.id == null) continue;
+    if (seen.has(key)) await db.delete(STORE, item.id);
+    else seen.add(key);
+  }
+}
+
+export const MAX_ATTEMPTS = 5;
+
+/**
+ * Falha de rede/transitória (vale re-tentar): aparelho offline, fetch falhou,
+ * timeout, 5xx/408/429. Qualquer outro erro é permanente.
+ */
+export function isTransientError(e: any): boolean {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
+  const code = String(e?.code ?? '');
+  if (/^(42|23|22|PGRST)/i.test(code)) return false;
+  const status = Number(e?.status ?? e?.statusCode ?? NaN);
+  if (Number.isFinite(status)) {
+    if (status >= 500 || status === 408 || status === 429) return true;
+    if (status >= 400) return false;
+  }
+  if (e instanceof TypeError) return true;
+  const msg = `${e?.name ?? ''} ${e?.message ?? ''} ${e?.details ?? ''}`;
+  return /failed to fetch|network|load failed|timeout|timed out|aborterror|fetch failed/i.test(msg);
+}
+
+/** Registra falha permanente para o admin ver (client_sync_failures). */
+export async function recordSyncFailure(op: Pick<QueuedOp, 'table' | 'op' | 'payload'>, e: any) {
+  const message = e?.message ?? String(e);
+  console.error('[offlineQueue] falha de sincronização', op.table, op.op, e?.code, message);
+  try {
+    let studentId: string | undefined;
+    const p = Array.isArray(op.payload) ? op.payload[0] : op.payload;
+    if (p && typeof p.student_id === 'string') studentId = p.student_id;
+    if (!studentId) {
+      const { data } = await supabase.auth.getSession();
+      studentId = data.session?.user?.id;
+    }
+    if (!studentId) return;
+    const { error } = await supabase.from('client_sync_failures' as any).insert({
+      student_id: studentId,
+      table_name: op.table,
+      op: op.op,
+      payload: op.payload as any,
+      error_code: e?.code ? String(e.code) : (e?.status ? String(e.status) : null),
+      error_message: String(message).slice(0, 1000),
+    } as any);
+    if (error) console.error('[offlineQueue] não foi possível registrar a falha', error);
+  } catch (err) {
+    console.error('[offlineQueue] não foi possível registrar a falha', err);
+  }
 }
 
 export async function getPending(): Promise<QueuedOp[]> {
@@ -76,6 +152,8 @@ async function bumpAttempts(op: QueuedOp, error: string) {
 }
 
 let flushing = false;
+const sessionStartedAt = Date.now();
+let legacyRetryDone = false;
 /**
  * Tenta enviar todos os itens da fila.
  * Retorna { synced, failed, remaining }.
@@ -86,8 +164,12 @@ export async function flushQueue(): Promise<{ synced: number; failed: number; re
   let synced = 0;
   let failed = 0;
   try {
+    await dedupeQueue();
     const items = await getPending();
     items.sort((a, b) => a.createdAt - b.createdAt);
+    // Primeira sincronização desta abertura: itens antigos têm uma última chance.
+    const finalForLegacy = !legacyRetryDone;
+    legacyRetryDone = true;
     for (const item of items) {
       try {
         await runOp(item);
@@ -95,9 +177,15 @@ export async function flushQueue(): Promise<{ synced: number; failed: number; re
         synced++;
       } catch (e: any) {
         failed++;
-        await bumpAttempts(item, e?.message ?? String(e));
-        // Para após muitas falhas para não loopar
-        if ((item.attempts ?? 0) >= 5) continue;
+        const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+        const attempts = (item.attempts ?? 0) + 1;
+        const legacy = finalForLegacy && item.createdAt < sessionStartedAt && !offline;
+        if (!isTransientError(e) || attempts >= MAX_ATTEMPTS || legacy) {
+          await recordSyncFailure(item, e);
+          if (item.id != null) await removeOp(item.id);
+        } else {
+          await bumpAttempts(item, e?.message ?? String(e));
+        }
       }
     }
   } finally {
@@ -157,7 +245,11 @@ export async function writeWithFallback(op: Omit<QueuedOp, 'id' | 'createdAt' | 
     await runOp({ ...op, createdAt: Date.now() } as QueuedOp);
     return { queued: false as const };
   } catch (e) {
-    await enqueue(op);
-    return { queued: true as const };
+    if (isTransientError(e)) {
+      await enqueue(op);
+      return { queued: true as const };
+    }
+    await recordSyncFailure(op, e);
+    return { queued: false as const, failed: true as const };
   }
 }
