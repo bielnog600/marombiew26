@@ -28,6 +28,7 @@ import { Wallet } from 'lucide-react';
 import AdminWeightTrackingDialog from '@/components/admin/AdminWeightTrackingDialog';
 import AiBodyCompositionDialog from '@/components/admin/AiBodyCompositionDialog';
 import { Scale } from 'lucide-react';
+import SyncFailuresCard from '@/components/admin/SyncFailuresCard';
 import { toast } from 'sonner';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -227,6 +228,7 @@ const AlunoDetail = () => {
           </TabsContent>
 
           <TabsContent value="comportamento">
+            <SyncFailuresCard studentId={id!} />
             <StudentBehavior360 studentId={id!} studentName={profile?.nome} />
           </TabsContent>
 
