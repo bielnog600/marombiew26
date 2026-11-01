@@ -36,6 +36,27 @@ function parseIfJsonText(value: unknown): unknown {
   }
 }
 
+/**
+ * `days` que chegou como objeto: { days: [...] } embrulhado, um único dia
+ * ({ meals }), ou mapa por dia ({ monday: {...} } / { "0": {...} }).
+ * Qualquer outro formato vira lista vazia (reprova com "Plano sem dias").
+ */
+function coerceDays(days: unknown): unknown[] {
+  if (Array.isArray(days)) return days;
+  if (!isPlainObject(days)) return [];
+  const inner = parseIfJsonText((days as any).days);
+  if (Array.isArray(inner)) return inner;
+  if (Array.isArray((days as any).meals)) return [days];
+  const out: unknown[] = [];
+  for (const [k, v] of Object.entries(days)) {
+    if (!isPlainObject(v) || !Array.isArray((v as any).meals)) continue;
+    const day: Record<string, unknown> = { ...v };
+    if (!day.weekday && !day.label && !/^\d+$/.test(k)) day.weekday = k;
+    out.push(day);
+  }
+  return out;
+}
+
 function deepNormalize(value: unknown, depth: number): unknown {
   if (depth > 8) return value;
   if (Array.isArray(value)) return value.map((v) => deepNormalize(parseIfJsonText(v), depth + 1));
@@ -45,7 +66,7 @@ function deepNormalize(value: unknown, depth: number): unknown {
     out[k] = NESTED_KEYS.has(k) ? deepNormalize(parseIfJsonText(v), depth + 1) : deepNormalize(v, depth + 1);
   }
   // Um único dia enviado como objeto em vez de lista.
-  if (isPlainObject(out.days) && Array.isArray((out.days as any).meals)) out.days = [out.days];
+  if ("days" in out) out.days = coerceDays(out.days);
   return out;
 }
 
