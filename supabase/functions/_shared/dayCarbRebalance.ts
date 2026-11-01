@@ -62,7 +62,7 @@ export function rebalanceDayCarbs(
     }
     // Mira a caloria do dia sem tirar o carbo da tolerância (±12 g de folga).
     const carbDelta = Number(targetC) - currentC;
-    const targetK = num(schedule?.days?.[wd]?.target_kcal ?? schedule?.days?.[wd]?.base_kcal);
+    const targetK = num(dayTarget?.target_kcal ?? dayTarget?.base_kcal);
     const kcalDeltaAsCarb = targetK > 0 ? (targetK - currentK) / 4 : carbDelta;
     const delta = Math.min(carbDelta + 12, Math.max(carbDelta - 12, kcalDeltaAsCarb));
     if (Math.abs(delta) <= TRIGGER_G || carbItems.length === 0) continue;
@@ -90,7 +90,7 @@ export function rebalanceDayCarbs(
         if (foodMacroRole(food) === "fat" && num(food.fats) > 0) fatItems.push({ item, gPerGram: num(food.fats) / base });
       }
     }
-    const targetG = Number(schedule?.days?.[wd]?.fat_g);
+    const targetG = Number(dayTarget?.fat_g);
     const residualK = targetK > 0 ? targetK - k2 : 0;
     if (Math.abs(residualK) > 35 && fatItems.length) {
       const fatDelta = Number.isFinite(targetG)
