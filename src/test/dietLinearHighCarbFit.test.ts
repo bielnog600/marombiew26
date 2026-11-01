@@ -125,7 +125,9 @@ describe('days como texto de objeto (regressão 500 "object is not iterable")', 
   it('mapa por dia vira lista', () => {
     const n = normalizeStructuredDietOutput({ days: JSON.stringify({ padrao: plan.days[0] }) });
     expect(Array.isArray(n.days)).toBe(true);
-    expect(n.days[0].weekday).toBe('padrao');
+    expect(n.days[0].label).toBe('Padrão');
+    const m = normalizeStructuredDietOutput({ days: JSON.stringify({ monday: { meals: plan.days[0].meals } }) });
+    expect(m.days[0].weekday).toBe('monday');
   });
   it('days embrulhado em { days: [...] } e dia único viram lista', () => {
     expect(normalizeStructuredDietOutput({ days: JSON.stringify({ days: plan.days }) }).days).toHaveLength(1);
