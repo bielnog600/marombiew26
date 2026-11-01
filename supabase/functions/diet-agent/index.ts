@@ -1200,7 +1200,7 @@ serve(async (req) => {
         let rawPlan = idFix.plan;
         // Dieta linear (sem metas por dia): a meta única do app vale para todo dia.
         const linearTarget = !hasDailyTargets && isCanonicalTargetValid(canonicalTargets)
-          ? { carbs_g: Number(canonicalTargets.c), target_kcal: Number(canonicalTargets.kcal), fat_g: Number(canonicalTargets.g) }
+          ? { carbs_g: Number((canonicalTargets as any).c), target_kcal: Number((canonicalTargets as any).kcal), fat_g: Number((canonicalTargets as any).g) }
           : null;
         const fitDays = () => {
           if (!((hasDailyTargets && schedule) || linearTarget)) return;
@@ -1342,6 +1342,9 @@ serve(async (req) => {
               error: "Plano gerado não passou na validação crítica. Revisão necessária.",
               error_code: "review_required",
               validationReasons: fallbackReasons,
+              details: (!foodTargetsOkForGate()
+                ? formatGlobalTargetDetails(globalTargetReport, canonicalTargets).map((l) => `tentativa de segurança: ${l}`).join(" · ")
+                : "") || undefined,
               aiRouting: routingMeta.routing,
               aiUsage: routingMeta.usage,
             }),
