@@ -35,7 +35,7 @@ type ChatBody = {
   max_completion_tokens?: number;
   temperature?: number;
   stream?: boolean;
-  response_format?: { type: string; json_schema?: { schema: any; strict?: boolean } };
+  response_format?: { type: string; json_schema?: { schema: any; strict?: boolean }; tool_schema?: Record<string, unknown> };
   tools?: Array<{ type: string; function: { name: string; description?: string; parameters: any; strict?: boolean } }>;
   tool_choice?: string | { type: string; function?: { name: string } };
 };
@@ -112,7 +112,8 @@ function buildRequest(chat: ChatBody) {
   } else if (jsonMode) {
     // Messages has no OpenAI json_object mode. Forced object tool retains the
     // existing prompt-defined shape without introducing a new restrictive schema.
-    body.tools = [{ name: JSON_TOOL, input_schema: { type: "object" } }];
+    // `tool_schema` (opcional, não estrito) orienta o formato sem mudar outros consumidores.
+    body.tools = [{ name: JSON_TOOL, input_schema: chat.response_format?.tool_schema ?? { type: "object" } }];
     body.tool_choice = { type: "tool", name: JSON_TOOL };
   }
   return { body, jsonMode, schema };

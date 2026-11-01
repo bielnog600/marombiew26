@@ -78,3 +78,58 @@ export function normalizeStructuredDietOutput(raw: unknown): any {
   }
   return deepNormalize(value, 0);
 }
+
+/**
+ * Schema (não estrito) da ferramenta JSON só do diet-agent: declara `days` como
+ * lista de dias com `meals`/`items` para a IA não devolver texto nem um campo
+ * único sem plano. Propriedades extras continuam livres.
+ */
+export const DIET_PLAN_TOOL_SCHEMA = {
+  type: "object",
+  required: ["days"],
+  properties: {
+    meta: { type: "object" },
+    targets: { type: "object" },
+    trainingContext: { type: "object" },
+    tips: { type: "array", items: { type: "string" } },
+    days: {
+      type: "array",
+      minItems: 1,
+      items: {
+        type: "object",
+        required: ["meals"],
+        properties: {
+          weekday: { type: "string" },
+          label: { type: "string" },
+          meals: {
+            type: "array",
+            minItems: 1,
+            items: {
+              type: "object",
+              required: ["name", "items"],
+              properties: {
+                id: { type: "string" },
+                name: { type: "string" },
+                time: { type: "string" },
+                items: {
+                  type: "array",
+                  minItems: 1,
+                  items: {
+                    type: "object",
+                    required: ["foodId", "qtyGrams"],
+                    properties: {
+                      foodId: { type: "string" },
+                      foodName: { type: "string" },
+                      qtyGrams: { type: "number" },
+                      portionLabel: { type: "string" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+} as const;

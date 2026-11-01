@@ -223,3 +223,99 @@ export function trimDayProtein(
   }
   return { plan: out, trimmedDays };
 }
+
+// ── Ajuste de proteína do dia (linear e por dia) com porções reais ─────────
+const isEgg = (f: FoodRecord) => /\bovos?\b/.test(normalizeFoodName(f.name));
+const isWhey = (f: FoodRecord) => /\bwhey\b/.test(normalizeFoodName(f.name));
+const MEAT_RE = /\b(frango|peito|carne|patinho|alcatra|file|fil|coxao|maminha|musculo|acem|peixe|tilapia|salmao|atum|merluza|sardinha|lombo|porco|suino|peru|camarao|bife|moida)\b/;
+const isMeat = (f: FoodRecord) => MEAT_RE.test(normalizeFoodName(f.name));
+
+/** Porção mínima e degrau realistas para uma fonte proteica numa refeição. */
+export function proteinPortionRule(f: FoodRecord, kind: "main" | "breakfast" | "other"): { min: number; step: number; max?: number } {
+  if (isWhey(f)) return { min: 15, step: 15, max: 30 };
+  if (isEgg(f)) return { min: 50, step: 50 };
+  if (isMeat(f)) return { min: kind === "main" ? 100 : 60, step: 10 };
+  return { min: 30, step: 5 };
+}
+
+export interface DayProteinTarget {
+  protein_g?: number | null;
+}
+
+/**
+ * Leva a proteína de cada dia para meta ±5 g ajustando só fontes proteicas
+ * (carnes, frango, peixe, ovos, whey…), respeitando os pisos por refeição e as
+ * porções reais. Reduz primeiro lanches, depois principais; aumenta primeiro as
+ * principais. `fallbackTarget` vale para dias sem entrada no schedule (linear).
+ */
+export function fitDayProtein(
+  plan: any,
+  catalog: FoodCatalog,
+  schedule: any,
+  floors: { main: number; breakfast: number },
+  fallbackTarget?: DayProteinTarget | null,
+): { plan: any; adjustedDays: string[] } {
+  const out = clone(plan);
+  const adjustedDays: string[] = [];
+  const foodOf = (item: any) => (item?.foodId ? catalog.index.byId.get(String(item.foodId)) ?? null : null);
+  const protOf = (items: any[]) =>
+    items.reduce((s, it) => {
+      const f = foodOf(it);
+      return s + (f ? perGram(f, "protein") * num(it.qtyGrams) : 0);
+    }, 0);
+  const TOL = 5;
+  for (const day of out?.days ?? []) {
+    const wd = String(day?.weekday || "").toLowerCase();
+    const targetP = optNum(schedule?.days?.[wd]?.protein_g) ?? optNum(fallbackTarget?.protein_g);
+    if (targetP === null) continue;
+    const meals: any[] = day?.meals ?? [];
+    const total = () => protOf(meals.flatMap((m) => m.items ?? []));
+    const start = total();
+    let diff = start - targetP;
+    if (Math.abs(diff) <= TOL) continue;
+    const floorOf = (kind: string) => (kind === "main" ? floors.main + 1 : kind === "breakfast" ? floors.breakfast + 1 : 0);
+    const reducing = diff > 0;
+    const others = meals.filter((m) => mealKind(m) === "other");
+    const mains = meals.filter((m) => mealKind(m) !== "other");
+    const ordered = reducing ? [...others, ...mains] : [...mains.filter((m) => mealKind(m) === "main"), ...mains, ...others];
+    for (let pass = 0; pass < 2 && Math.abs(diff) > TOL; pass++) {
+      for (const meal of ordered) {
+        if (Math.abs(diff) <= TOL || (reducing ? diff <= TOL : diff >= -TOL)) break;
+        const kind = mealKind(meal);
+        const sources = (meal.items ?? [])
+          .map((it: any) => ({ it, f: foodOf(it) }))
+          .filter((x: any) => x.f && isProteinFood(x.f) && perGram(x.f, "protein") > 0)
+          .sort((a: any, b: any) => perGram(b.f, "protein") * num(b.it.qtyGrams) - perGram(a.f, "protein") * num(a.it.qtyGrams));
+        for (const { it, f } of sources) {
+          if (reducing ? diff <= TOL : diff >= -TOL) break;
+          const pg = perGram(f, "protein");
+          const rule = proteinPortionRule(f, kind);
+          const qty = num(it.qtyGrams);
+          let next: number;
+          if (reducing) {
+            const slackP = protOf(meal.items) - floorOf(kind);
+            if (slackP <= 0) break;
+            const wantG = Math.min(diff, slackP) / pg;
+            // Degrau: arredonda a redução para baixo, sem ficar abaixo do mínimo da porção.
+            next = Math.max(rule.min, qty - Math.floor(wantG / rule.step) * rule.step);
+            if (rule.max) next = Math.min(next, rule.max);
+            // Respeita o piso da refeição.
+            while (next < qty && protOf(meal.items) - (qty - next) * pg < floorOf(kind)) next += rule.step;
+          } else {
+            const wantG = -diff / pg;
+            next = qty + Math.round(wantG / rule.step) * rule.step;
+            if (rule.max) next = Math.min(next, rule.max);
+            next = Math.min(next, qty * 1.6);
+            next = Math.floor(next / rule.step) * rule.step;
+          }
+          if (next === qty || next <= 0) continue;
+          diff += (next - qty) * pg;
+          it.qtyGrams = next;
+          it.portionLabel = `${next} g`;
+        }
+      }
+    }
+    if (Math.round(total()) !== Math.round(start)) adjustedDays.push(wd || String(day?.label ?? "padrao").toLowerCase());
+  }
+  return { plan: out, adjustedDays };
+}

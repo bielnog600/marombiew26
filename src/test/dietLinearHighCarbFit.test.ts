@@ -85,3 +85,37 @@ describe('dieta linear com carbo alto (bulking)', () => {
     ]);
   });
 });
+
+import { fitDayProtein, proteinPortionRule } from '../../supabase/functions/_shared/dietAutoRepair';
+import { DIET_PLAN_TOOL_SCHEMA } from '../../supabase/functions/_shared/structuredDietOutput';
+
+describe('proteína acima da meta (caso Heracto)', () => {
+  const floors = { main: 30, breakfast: 15 };
+  const proteinOf = (plan: any) =>
+    plan.days[0].meals.flatMap((m: any) => m.items).reduce((s: number, it: any) => s + (it.foodId === ID_FRANGO ? 0.31 * it.qtyGrams : 0), 0);
+
+  it('reduz a fonte proteica até a tolerância e o carbo/gordura fecham a meta', () => {
+    let plan: any = linearPlan(600);
+    plan.days[0].meals[0].items[0].qtyGrams = 330;
+    plan.days[0].meals[1].items[0].qtyGrams = 320;
+    expect(proteinOf(plan)).toBeGreaterThan(TARGET.p + 30);
+    for (let i = 0; i < 3; i++) {
+      plan = fitDayProtein(plan, catalog, null, floors, { protein_g: TARGET.p }).plan;
+      plan = rebalanceDayCarbs(plan, null, catalog, { carbs_g: TARGET.c, target_kcal: TARGET.kcal, fat_g: TARGET.g }).plan;
+    }
+    expect(Math.abs(proteinOf(plan) - TARGET.p)).toBeLessThanOrEqual(10);
+    expect(validate(plan).ok).toBe(true);
+    for (const m of plan.days[0].meals) expect(m.items[0].qtyGrams).toBeGreaterThanOrEqual(100);
+  });
+
+  it('respeita porções reais: ovos em 50 g, whey 15/30 g, carne ≥100 g no almoço', () => {
+    expect(proteinPortionRule({ name: 'Ovo inteiro cozido' } as any, 'breakfast')).toEqual({ min: 50, step: 50 });
+    expect(proteinPortionRule({ name: 'Whey protein concentrado' } as any, 'other')).toEqual({ min: 15, step: 15, max: 30 });
+    expect(proteinPortionRule({ name: 'Peito de frango grelhado' } as any, 'main').min).toBe(100);
+  });
+
+  it('ferramenta JSON do diet-agent exige days como lista', () => {
+    expect(DIET_PLAN_TOOL_SCHEMA.required).toContain('days');
+    expect(DIET_PLAN_TOOL_SCHEMA.properties.days.type).toBe('array');
+  });
+});
