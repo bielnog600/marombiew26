@@ -46,8 +46,8 @@ import {
 } from "../_shared/dietRoutingPolicy.ts";
 import { sanitizeStructuredPrompt } from "../_shared/structuredPromptSanitizer.ts";
 import { rebalanceDayCarbs } from "../_shared/dayCarbRebalance.ts";
-import { normalizeStructuredDietOutput, describeStructuredDietShape } from "../_shared/structuredDietOutput.ts";
-import { enforceProteinFloors, normalizeScheduleMacros, repairInvalidFoodIds, trimDayProtein } from "../_shared/dietAutoRepair.ts";
+import { normalizeStructuredDietOutput, describeStructuredDietShape, DIET_PLAN_TOOL_SCHEMA } from "../_shared/structuredDietOutput.ts";
+import { enforceProteinFloors, normalizeScheduleMacros, repairInvalidFoodIds, fitDayProtein } from "../_shared/dietAutoRepair.ts";
 import { scheduleHasDailyMacroTargets, validateDayTargets, hasMeaningfulDailyTargetVariation, hasManualWeeklyAdjustment } from "../_shared/dayTargets.ts";
 import {
   formatFoodCatalogPrompt,
