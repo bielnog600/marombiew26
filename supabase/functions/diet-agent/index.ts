@@ -979,7 +979,7 @@ serve(async (req) => {
               max_completion_tokens: 24000,
               stream: true,
               stream_options: { include_usage: true },
-              response_format: { type: "json_object" },
+              response_format: { type: "json_object", tool_schema: DIET_PLAN_TOOL_SCHEMA },
             }),
           });
         } catch (error) {
@@ -1210,16 +1210,21 @@ serve(async (req) => {
           rawPlan = rb.plan;
           if (rb.adjustedDays.length) console.log("[diet-agent] day_carb_rebalance", { days: rb.adjustedDays });
         };
-        fitDays();
-        const protFix = enforceProteinFloors(rawPlan, foodCatalog, floors);
-        rawPlan = protFix.plan;
-        if (protFix.adjusted.length) console.log("[diet-agent] protein_floor_repair", protFix.adjusted.slice(0, 20));
-        if (hasDailyTargets && schedule) {
-          const trim = trimDayProtein(rawPlan, foodCatalog, schedule, floors);
-          rawPlan = trim.plan;
-          if (trim.trimmedDays.length) console.log("[diet-agent] day_protein_trim", { days: trim.trimmedDays });
+        // Ordem: piso de proteína → proteína do dia → carbo → gordura/kcal, até 3 voltas.
+        const proteinTarget = hasDailyTargets && schedule
+          ? null
+          : linearTarget ? { protein_g: Number((canonicalTargets as any).p) } : null;
+        for (let round = 0; round < 3; round++) {
+          const protFix = enforceProteinFloors(rawPlan, foodCatalog, floors);
+          rawPlan = protFix.plan;
+          if (protFix.adjusted.length) console.log("[diet-agent] protein_floor_repair", { round, meals: protFix.adjusted.slice(0, 20) });
+          if ((hasDailyTargets && schedule) || proteinTarget) {
+            const pf = fitDayProtein(rawPlan, foodCatalog, hasDailyTargets ? schedule : null, floors, proteinTarget);
+            rawPlan = pf.plan;
+            if (pf.adjustedDays.length) console.log("[diet-agent] day_protein_fit", { round, days: pf.adjustedDays });
+          }
+          fitDays();
         }
-        fitDays();
         rawPlan = enforceProteinFloors(rawPlan, foodCatalog, floors).plan;
         const contract = validateFoodContract(rawPlan, foodCatalog, {
           mode: "fresh",
