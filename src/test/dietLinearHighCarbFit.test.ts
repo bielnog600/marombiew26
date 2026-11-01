@@ -119,3 +119,23 @@ describe('proteína acima da meta (caso Heracto)', () => {
     expect(DIET_PLAN_TOOL_SCHEMA.properties.days.type).toBe('array');
   });
 });
+
+describe('days como texto de objeto (regressão 500 "object is not iterable")', () => {
+  const plan = linearPlan(610);
+  it('mapa por dia vira lista', () => {
+    const n = normalizeStructuredDietOutput({ days: JSON.stringify({ padrao: plan.days[0] }) });
+    expect(Array.isArray(n.days)).toBe(true);
+    expect(n.days[0].weekday).toBe('padrao');
+  });
+  it('days embrulhado em { days: [...] } e dia único viram lista', () => {
+    expect(normalizeStructuredDietOutput({ days: JSON.stringify({ days: plan.days }) }).days).toHaveLength(1);
+    expect(normalizeStructuredDietOutput({ days: JSON.stringify(plan.days[0]) }).days).toHaveLength(1);
+  });
+  it('objeto sem dias não quebra os ajustes e reprova com "Plano sem dias."', () => {
+    const n = normalizeStructuredDietOutput({ days: '{"foo":1}' });
+    expect(n.days).toEqual([]);
+    expect(() => fitDayProtein({ days: { foo: 1 } }, catalog, null, { main: 30, breakfast: 15 }, { protein_g: 199 })).not.toThrow();
+    expect(() => rebalanceDayCarbs({ days: { foo: 1 } }, null, catalog, { carbs_g: 482 })).not.toThrow();
+    expect(validate(n).ok).toBe(false);
+  });
+});

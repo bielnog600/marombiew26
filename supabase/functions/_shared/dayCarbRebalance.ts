@@ -49,8 +49,8 @@ export function rebalanceDayCarbs(
     const carbItems: Array<{ item: any; cPerGram: number }> = [];
     let currentC = 0;
     let currentK = 0;
-    for (const meal of day?.meals ?? []) {
-      for (const item of meal?.items ?? []) {
+    for (const meal of (Array.isArray(day?.meals) ? day.meals : [])) {
+      for (const item of (Array.isArray(meal?.items) ? meal.items : [])) {
         const food = item?.foodId ? catalog.index.byId.get(String(item.foodId)) : null;
         if (!food) continue;
         const base = num(food.portion_size) > 0 ? num(food.portion_size) : 100;
@@ -80,8 +80,8 @@ export function rebalanceDayCarbs(
     let k2 = 0;
     let gNow = 0;
     const fatItems: Array<{ item: any; gPerGram: number }> = [];
-    for (const meal of day?.meals ?? []) {
-      for (const item of meal?.items ?? []) {
+    for (const meal of (Array.isArray(day?.meals) ? day.meals : [])) {
+      for (const item of (Array.isArray(meal?.items) ? meal.items : [])) {
         const food = item?.foodId ? catalog.index.byId.get(String(item.foodId)) : null;
         if (!food) continue;
         const base = num(food.portion_size) > 0 ? num(food.portion_size) : 100;

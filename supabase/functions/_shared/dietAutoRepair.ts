@@ -76,8 +76,8 @@ export interface FoodIdRepair {
 export function repairInvalidFoodIds(plan: any, catalog: FoodCatalog): { plan: any; repairs: FoodIdRepair[] } {
   const out = clone(plan);
   const repairs: FoodIdRepair[] = [];
-  for (const day of out?.days ?? []) {
-    for (const meal of day?.meals ?? []) {
+  for (const day of (Array.isArray(out?.days) ? out.days : [])) {
+    for (const meal of (Array.isArray(day?.meals) ? day.meals : [])) {
       const items: any[] = Array.isArray(meal?.items) ? meal.items : [];
       const kept: any[] = [];
       for (const item of items) {
@@ -129,8 +129,8 @@ export function enforceProteinFloors(
       return s + (f ? perGram(f, "protein") * num(it.qtyGrams) : 0);
     }, 0);
 
-  for (const day of out?.days ?? []) {
-    const meals: any[] = day?.meals ?? [];
+  for (const day of (Array.isArray(out?.days) ? out.days : [])) {
+    const meals: any[] = (Array.isArray(day?.meals) ? day.meals : []);
     for (const meal of meals) {
       const kind = mealKind(meal);
       if (kind === "other") continue;
@@ -191,11 +191,11 @@ export function trimDayProtein(
       const f = foodOf(it);
       return s + (f ? perGram(f, "protein") * num(it.qtyGrams) : 0);
     }, 0);
-  for (const day of out?.days ?? []) {
+  for (const day of (Array.isArray(out?.days) ? out.days : [])) {
     const wd = String(day?.weekday || "").toLowerCase();
     const targetP = optNum(schedule?.days?.[wd]?.protein_g);
     if (targetP === null) continue;
-    const meals: any[] = day?.meals ?? [];
+    const meals: any[] = (Array.isArray(day?.meals) ? day.meals : []);
     let excess = protOf(meals.flatMap((m) => m.items ?? [])) - (targetP + 5);
     if (excess <= 0) continue;
     const ordered = [...meals.filter((m) => mealKind(m) === "other"), ...meals.filter((m) => mealKind(m) !== "other")];
@@ -264,11 +264,11 @@ export function fitDayProtein(
       return s + (f ? perGram(f, "protein") * num(it.qtyGrams) : 0);
     }, 0);
   const TOL = 5;
-  for (const day of out?.days ?? []) {
+  for (const day of (Array.isArray(out?.days) ? out.days : [])) {
     const wd = String(day?.weekday || "").toLowerCase();
     const targetP = optNum(schedule?.days?.[wd]?.protein_g) ?? optNum(fallbackTarget?.protein_g);
     if (targetP === null) continue;
-    const meals: any[] = day?.meals ?? [];
+    const meals: any[] = (Array.isArray(day?.meals) ? day.meals : []);
     const total = () => protOf(meals.flatMap((m) => m.items ?? []));
     const start = total();
     let diff = start - targetP;
