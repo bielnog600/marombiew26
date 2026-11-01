@@ -18,18 +18,33 @@ const MIN_FACTOR = 0.4;
 const MAX_FACTOR = 2.0;
 const TRIGGER_G = 10;
 
-/** Devolve um novo plano (não muta). Itens fora do catálogo não são tocados. */
+export interface DayCarbTarget {
+  carbs_g?: number | null;
+  target_kcal?: number | null;
+  base_kcal?: number | null;
+  fat_g?: number | null;
+}
+
+/**
+ * Devolve um novo plano (não muta). Itens fora do catálogo não são tocados.
+ * `fallbackTarget`: meta única (dieta linear, sem metas por dia) aplicada a
+ * todo dia sem entrada própria no schedule.
+ */
 export function rebalanceDayCarbs(
   plan: any,
   schedule: any,
   catalog: FoodCatalog,
+  fallbackTarget?: DayCarbTarget | null,
 ): { plan: any; adjustedDays: string[] } {
   const out = JSON.parse(JSON.stringify(plan ?? {}));
   const adjustedDays: string[] = [];
   const days: any[] = Array.isArray(out?.days) ? out.days : [];
   for (const day of days) {
-    const wd = String(day?.weekday || "").toLowerCase();
-    const targetC = schedule?.days?.[wd]?.carbs_g;
+    const ownWd = String(day?.weekday || "").toLowerCase();
+    const own = schedule?.days?.[ownWd];
+    const wd = own ? ownWd : String(day?.weekday || day?.label || "padrao").toLowerCase();
+    const dayTarget: DayCarbTarget | null | undefined = own ?? fallbackTarget;
+    const targetC = dayTarget?.carbs_g;
     if (targetC == null || !Number.isFinite(Number(targetC))) continue;
     const carbItems: Array<{ item: any; cPerGram: number }> = [];
     let currentC = 0;
@@ -47,7 +62,7 @@ export function rebalanceDayCarbs(
     }
     // Mira a caloria do dia sem tirar o carbo da tolerância (±12 g de folga).
     const carbDelta = Number(targetC) - currentC;
-    const targetK = num(schedule?.days?.[wd]?.target_kcal ?? schedule?.days?.[wd]?.base_kcal);
+    const targetK = num(dayTarget?.target_kcal ?? dayTarget?.base_kcal);
     const kcalDeltaAsCarb = targetK > 0 ? (targetK - currentK) / 4 : carbDelta;
     const delta = Math.min(carbDelta + 12, Math.max(carbDelta - 12, kcalDeltaAsCarb));
     if (Math.abs(delta) <= TRIGGER_G || carbItems.length === 0) continue;
@@ -75,7 +90,7 @@ export function rebalanceDayCarbs(
         if (foodMacroRole(food) === "fat" && num(food.fats) > 0) fatItems.push({ item, gPerGram: num(food.fats) / base });
       }
     }
-    const targetG = Number(schedule?.days?.[wd]?.fat_g);
+    const targetG = Number(dayTarget?.fat_g);
     const residualK = targetK > 0 ? targetK - k2 : 0;
     if (Math.abs(residualK) > 35 && fatItems.length) {
       const fatDelta = Number.isFinite(targetG)

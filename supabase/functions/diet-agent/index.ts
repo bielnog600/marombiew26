@@ -46,6 +46,7 @@ import {
 } from "../_shared/dietRoutingPolicy.ts";
 import { sanitizeStructuredPrompt } from "../_shared/structuredPromptSanitizer.ts";
 import { rebalanceDayCarbs } from "../_shared/dayCarbRebalance.ts";
+import { normalizeStructuredDietOutput, describeStructuredDietShape } from "../_shared/structuredDietOutput.ts";
 import { enforceProteinFloors, normalizeScheduleMacros, repairInvalidFoodIds, trimDayProtein } from "../_shared/dietAutoRepair.ts";
 import { scheduleHasDailyMacroTargets, validateDayTargets, hasMeaningfulDailyTargetVariation, hasManualWeeklyAdjustment } from "../_shared/dayTargets.ts";
 import {
@@ -59,6 +60,7 @@ import { hydrateDietPlanFromFoods } from "../_shared/dietHydration.ts";
 import {
   isCanonicalTargetValid,
   validateGlobalDietTarget,
+  formatGlobalTargetDetails,
   type GlobalDietTarget,
 } from "../_shared/globalDietTarget.ts";
 import { FOOD_CONTRACT_VERSION } from "../_shared/nutritionCore.ts";
@@ -1073,7 +1075,14 @@ serve(async (req) => {
           };
         }
         try {
-          return { ok: true, plan: JSON.parse(raw) };
+          const parsed = JSON.parse(raw);
+          const plan = normalizeStructuredDietOutput(parsed);
+          const rawShape = describeStructuredDietShape(parsed);
+          const shape = describeStructuredDietShape(plan);
+          if (rawShape.daysType !== "array" || shape.daysType !== "array") {
+            console.log("[diet-agent] structured_shape", { model: modelToUse, raw: rawShape, normalized: shape });
+          }
+          return { ok: true, plan };
         } catch (e) {
           console.error("structured diet-agent: invalid JSON", e, raw.slice(0, 500));
           return {
@@ -1189,9 +1198,15 @@ serve(async (req) => {
         // Ordem: metas do dia → piso de proteína → metas do dia (o piso mexe pouco na caloria).
         const floors = { main: MAIN_MEAL_PROTEIN_FLOOR, breakfast: BREAKFAST_PROTEIN_FLOOR };
         let rawPlan = idFix.plan;
+        // Dieta linear (sem metas por dia): a meta única do app vale para todo dia.
+        const linearTarget = !hasDailyTargets && isCanonicalTargetValid(canonicalTargets)
+          ? { carbs_g: Number((canonicalTargets as any).c), target_kcal: Number((canonicalTargets as any).kcal), fat_g: Number((canonicalTargets as any).g) }
+          : null;
         const fitDays = () => {
-          if (!(hasDailyTargets && schedule)) return;
-          const rb = rebalanceDayCarbs(rawPlan, schedule, foodCatalog);
+          if (!((hasDailyTargets && schedule) || linearTarget)) return;
+          const rb = hasDailyTargets && schedule
+            ? rebalanceDayCarbs(rawPlan, schedule, foodCatalog)
+            : rebalanceDayCarbs(rawPlan, null, foodCatalog, linearTarget);
           rawPlan = rb.plan;
           if (rb.adjustedDays.length) console.log("[diet-agent] day_carb_rebalance", { days: rb.adjustedDays });
         };
@@ -1327,6 +1342,9 @@ serve(async (req) => {
               error: "Plano gerado não passou na validação crítica. Revisão necessária.",
               error_code: "review_required",
               validationReasons: fallbackReasons,
+              details: (!foodTargetsOkForGate()
+                ? formatGlobalTargetDetails(globalTargetReport, canonicalTargets).map((l) => `tentativa de segurança: ${l}`).join(" · ")
+                : "") || undefined,
               aiRouting: routingMeta.routing,
               aiUsage: routingMeta.usage,
             }),
@@ -1505,7 +1523,7 @@ serve(async (req) => {
           !foodContract.valid || !nutritionOkForGate() || !initialAdjValidation.ok ||
           !dayTargetsOkForGate() || !foodTargetsOkForGate();
         const WD_PT: Record<string, string> = { seg: "SEG", ter: "TER", qua: "QUA", qui: "QUI", sex: "SEX", sab: "SÁB", dom: "DOM" };
-        const buildReviewDetails = (src: { contract: any; nutrition: any; dayTargets: any; label: string }) => {
+        const buildReviewDetails = (src: { contract: any; nutrition: any; dayTargets: any; globalTarget?: any; label: string }) => {
           const lines: string[] = [];
           const nameOf = (id: string) => foodCatalog.index.byId.get(String(id))?.name ?? id;
           if (src.contract && !src.contract.valid) {
@@ -1526,9 +1544,13 @@ serve(async (req) => {
             if (parts.length) lines.push(`${src.label}: dias fora da meta — ${parts.join("; ")}`);
             if (src.dayTargets.missingDays?.length) lines.push(`${src.label}: dias ausentes — ${src.dayTargets.missingDays.join(", ")}`);
           }
+          if (src.globalTarget && !src.globalTarget.ok) {
+            const parts = formatGlobalTargetDetails(src.globalTarget, canonicalTargets);
+            if (parts.length) lines.push(`${src.label}: fora da meta — ${parts.join("; ")}`);
+          }
           return lines;
         };
-        const firstDetails = buildReviewDetails({ contract: foodContract, nutrition: requiresResolution ? null : nutrition, dayTargets: requiresResolution ? null : initialDayTargets, label: "1ª tentativa" });
+        const firstDetails = buildReviewDetails({ contract: foodContract, nutrition: requiresResolution ? null : nutrition, dayTargets: requiresResolution ? null : initialDayTargets, globalTarget: requiresResolution ? null : globalTargetReport, label: "1ª tentativa" });
         const reviewRequired = (reason: string, secondDetails: string[] = []) => {
           fallbackReasons.push(reason);
           const allDetails = [...firstDetails, ...secondDetails];
@@ -1584,6 +1606,7 @@ serve(async (req) => {
                 contract: prepared2.contract,
                 nutrition: rr2 ? null : nut2,
                 dayTargets: rr2 ? null : checkDayTargets(secondPlan),
+                globalTarget: rr2 ? null : prepared2.globalTarget,
                 label: "2ª tentativa",
               }));
             }
