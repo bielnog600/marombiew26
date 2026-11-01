@@ -18,18 +18,33 @@ const MIN_FACTOR = 0.4;
 const MAX_FACTOR = 2.0;
 const TRIGGER_G = 10;
 
-/** Devolve um novo plano (não muta). Itens fora do catálogo não são tocados. */
+export interface DayCarbTarget {
+  carbs_g?: number | null;
+  target_kcal?: number | null;
+  base_kcal?: number | null;
+  fat_g?: number | null;
+}
+
+/**
+ * Devolve um novo plano (não muta). Itens fora do catálogo não são tocados.
+ * `fallbackTarget`: meta única (dieta linear, sem metas por dia) aplicada a
+ * todo dia sem entrada própria no schedule.
+ */
 export function rebalanceDayCarbs(
   plan: any,
   schedule: any,
   catalog: FoodCatalog,
+  fallbackTarget?: DayCarbTarget | null,
 ): { plan: any; adjustedDays: string[] } {
   const out = JSON.parse(JSON.stringify(plan ?? {}));
   const adjustedDays: string[] = [];
   const days: any[] = Array.isArray(out?.days) ? out.days : [];
   for (const day of days) {
-    const wd = String(day?.weekday || "").toLowerCase();
-    const targetC = schedule?.days?.[wd]?.carbs_g;
+    const ownWd = String(day?.weekday || "").toLowerCase();
+    const own = schedule?.days?.[ownWd];
+    const wd = own ? ownWd : String(day?.weekday || day?.label || "padrao").toLowerCase();
+    const dayTarget: DayCarbTarget | null | undefined = own ?? fallbackTarget;
+    const targetC = dayTarget?.carbs_g;
     if (targetC == null || !Number.isFinite(Number(targetC))) continue;
     const carbItems: Array<{ item: any; cPerGram: number }> = [];
     let currentC = 0;
